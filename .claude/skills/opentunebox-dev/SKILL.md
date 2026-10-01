@@ -37,7 +37,8 @@ Objectif : ne pas faire baisser la proportion de sessions `ok` (95 %).
 
 1. Le calcul dans `analysis/`, avec un test synthétique dans `tests/`.
 2. Une classe `ToolWindow` dans `gui/tools/<nom>.py` : `build_controls`, `snapshot_options`, `compute`, `render`.
-3. L'enregistrer dans `gui/tools/__init__.py:REGISTRY` et ajouter son bouton dans `main_window.py`.
+3. L'enregistrer dans `gui/tools/__init__.py:REGISTRY` et ajouter une ligne à `main_window.py:TOOLS`
+   (libellé court, icône Lucide copiée telle quelle dans `gui/assets/icons/`, info-bulle).
 4. Test hors écran (modèle : `tests/test_gui_step.py`), capture et vérification visuelle.
 5. Section dans `docs/guide-utilisateur.md`, ligne dans `CHANGELOG.md`.
 

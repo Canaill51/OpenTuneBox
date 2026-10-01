@@ -27,6 +27,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   les outils), comme PIDtoolbox ; ensuite chaque fenêtre rouvre à la taille et à la position laissées.
 
 ### Corrigé
+- Visualiseur sans log ouvert : les graphiques ne sont plus entièrement grisés.
 - Le raccourci Linux ne se déclare plus capable d'ouvrir tous les fichiers binaires.
 
 ### Problèmes connus

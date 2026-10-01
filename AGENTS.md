@@ -82,6 +82,14 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log.
 - Seuils de l'assistant = 90e percentile du corpus par taille de drone (`docs/assistant.md`) : les recalculer
   avec `scripts/calibrate_advisor.py`, ne pas les inventer.
+- Interface : style Qt **Fusion** imposé partout (`gui/theme.py`). Le style natif Windows 11 ignore la palette
+  et grise les textes. Sous Fusion (Qt 6.11), les cases et boutons radio sont presque invisibles : ils sont
+  redessinés par la feuille de style globale. Le délégué natif des `QComboBox` ignore cette feuille
+  (texte blanc sur blanc) : `theme._ComboDelegateFix` le remplace par `QStyledItemDelegate`.
+- Couleurs : jamais de couleur de texte en dur (`#777`, `gray`…) ni de taille en pixels ; utiliser
+  `theme.accent_style`, `theme.muted_style` et les couleurs de `theme.current().ui`. Vérifier les deux thèmes.
+- Une feuille de style Qt ne charge une image que depuis un fichier : icône recolorée écrite dans le dossier
+  temporaire (`theme._colored_svg`).
 - Pas de compilateur C sur le poste de développement : pas de dépendance à compiler.
 - Linux : PyInstaller a besoin de `binutils` (`objdump`). Windows/macOS : construire sur le système cible.
 

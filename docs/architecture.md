@@ -55,6 +55,16 @@ fichier .bbl/.bfl
 - `gui/worker.py:run_async` : calcul dans un `QThreadPool`, résultat renvoyé au thread de l'interface.
 - `gui/tools/base.py:ToolWindow` : sélection des fichiers, axes R/P/Y, boutons communs, file de recalcul.
 - `gui/app.py:hard_exit` : sortie sans le nettoyage automatique de PySide6 (contournement d'un plantage).
+- `gui/main_window.py` : visualiseur. Barre d'outils (`TOOLS` : clé, libellé, icône, info-bulle), traces
+  groupées (`TRACE_GROUPS`, traces absentes du log masquées), sections repliables Affichage et Lecteur.
+- `gui/theme.py` : thèmes clair et sombre. Style Qt **Fusion** sur tous les systèmes, palette complète,
+  feuille de style globale (boutons, champs, listes, cases), couleurs d'accent par thème (`accent_style`),
+  textes d'aide (`muted_style`), police de l'application × 1,15.
+- `gui/icons.py` : icônes Lucide (`gui/assets/icons/`, licence ISC) colorées selon le thème.
+- `gui/geometry.py` : taille des fenêtres (95 % de l'écran pour la principale, 90 % pour les outils au
+  premier lancement), puis taille et position mémorisées (`geometry/<fenêtre>` dans les réglages).
+- `gui/widgets/` : `section.py` (section repliable mémorisée), `axis.py` (axes à grille principale seule),
+  `sticks.py` (manches du lecteur).
 
 ## Distribution
 
