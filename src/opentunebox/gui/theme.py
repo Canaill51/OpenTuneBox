@@ -6,9 +6,9 @@ import tempfile
 from pathlib import Path
 
 import pyqtgraph as pg
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QComboBox, QStyledItemDelegate
 
 # Couleurs des fichiers comparés (jusqu'à 10), dans l'ordre de PIDtoolbox
 FILE_COLORS = [
@@ -125,6 +125,23 @@ def _palette(t: Theme) -> QPalette:
 FONT_SCALE = 1.15  # texte un peu plus grand que la taille du système
 
 
+class _ComboDelegateFix(QObject):
+    """Donne à chaque liste déroulante le délégué standard.
+
+    Le délégué propre aux QComboBox ignore la feuille de style des éléments : en thème clair,
+    l'élément survolé s'écrivait en blanc sur fond blanc.
+    """
+
+    def eventFilter(self, obj, event):  # noqa: N802
+        if event.type() == QEvent.Polish and isinstance(obj, QComboBox) and not obj.property("otb_delegate"):
+            obj.setItemDelegate(QStyledItemDelegate(obj))
+            obj.setProperty("otb_delegate", True)
+        return False
+
+
+_COMBO_FIX = _ComboDelegateFix()
+
+
 def apply(name: str) -> Theme:
     """Applique un thème à pyqtgraph et à l'interface Qt."""
     global _current
@@ -144,6 +161,9 @@ def apply(name: str) -> Theme:
             app.setProperty("otb_font_scaled", True)
         app.setPalette(_palette(_current))
         app.setStyleSheet(_stylesheet(_current))
+        if not app.property("otb_combo_fix"):
+            app.installEventFilter(_COMBO_FIX)
+            app.setProperty("otb_combo_fix", True)
     return _current
 
 
@@ -187,6 +207,10 @@ QComboBox::down-arrow {{ image: url("{down}"); width: 14px; height: 14px; }}
 QComboBox QAbstractItemView {{
     background: {u['base']}; border: 1px solid {u['mid']}; selection-background-color: {u['highlight']};
     selection-color: #ffffff; outline: none;
+}}
+QComboBox QAbstractItemView::item {{ min-height: 1.7em; padding: 0 6px; color: {u['text']}; border: none; }}
+QComboBox QAbstractItemView::item:hover, QComboBox QAbstractItemView::item:selected {{
+    background: {u['highlight']}; color: #ffffff;
 }}
 QSpinBox::up-button, QDoubleSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::down-button {{
     border: none; width: 18px;
