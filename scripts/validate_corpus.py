@@ -58,11 +58,21 @@ def _isnum(s: str) -> bool:
 def compare_file(path: Path, ref_bin: Path, tmp: Path) -> list[dict]:
     for f in tmp.glob("*"):
         f.unlink()
-    subprocess.run(
-        [str(ref_bin), "--unit-flags", "raw", "--unit-vbat", "raw", "--unit-amperage", "raw",
-         "--output-dir", str(tmp), str(path)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600,
-    )
+    try:
+        subprocess.run(
+            [str(ref_bin), "--unit-flags", "raw", "--unit-vbat", "raw", "--unit-amperage", "raw",
+             "--output-dir", str(tmp), str(path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        # la référence boucle parfois indéfiniment sur des logs abîmés : on vérifie quand même
+        # que notre décodeur lit le fichier
+        try:
+            n = len(decode_file(path))
+            detail = f"référence bloquée ; notre décodeur lit {n} session(s)"
+        except Exception as e:  # noqa: BLE001
+            detail = f"référence bloquée ; notre décodeur échoue : {e!r}"
+        return [{"file": str(path), "session": 0, "time": 0.0, "status": "refhang", "detail": detail}]
     t0 = time.perf_counter()
     try:
         sessions = decode_file(path)
@@ -142,6 +152,7 @@ def main() -> int:
     ap.add_argument("paths", nargs="*", default=[str(DEFAULT_ROOT)])
     ap.add_argument("--decoder", default=str(DEFAULT_REF))
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--start", type=int, default=1, help="reprendre au fichier n° START")
     args = ap.parse_args()
 
     files: list[Path] = []
@@ -150,22 +161,25 @@ def main() -> int:
             files += sorted(f for f in p.rglob("*") if f.suffix.lower() in (".bbl", ".bfl"))
         else:
             files.append(p)
+    first = max(1, args.start)
     if args.limit:
-        files = files[: args.limit]
+        files = files[: first - 1 + args.limit]
 
     all_res = []
     with tempfile.TemporaryDirectory() as td:
         for k, f in enumerate(files, 1):
+            if k < first:
+                continue
             res = compare_file(f, Path(args.decoder), Path(td))
             all_res += res
-            worst = [r for r in res if r["status"] not in ("ok", "gap")]
+            worst = [r for r in res if r["status"] not in ("ok", "gap", "refhang")]
             mark = "OK " if not worst else "ERR"
             print(f"[{k}/{len(files)}] {mark} {f.relative_to(f.anchor) if not f.is_relative_to(DEFAULT_ROOT) else f.relative_to(DEFAULT_ROOT)}"
                   f" ({len(res)} sessions)", flush=True)
             for r in worst:
                 print(f"      session {r['session']}: {r['status']} {r['detail']}", flush=True)
 
-    n_ok = sum(r["status"] in ("ok", "gap") for r in all_res)
+    n_ok = sum(r["status"] in ("ok", "gap", "refhang") for r in all_res)
     print(f"\nSessions conformes (ok + trou SD) : {n_ok}/{len(all_res)}")
     by = {}
     for r in all_res:

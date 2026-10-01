@@ -99,7 +99,7 @@ def flight_stats(log: FlightLog, sel: slice | None = None) -> FlightStats:
 class PidErrorStats:
     edges: np.ndarray  # bornes des histogrammes (°/s)
     hist: list[np.ndarray]  # par axe, % des échantillons
-    sd: list[float]  # écart-type de l'erreur par axe (°/s)
+    sd: list[float]  # écart-type robuste de l'erreur par axe (°/s)
     mean_abs: list[float]
     stick_bins: np.ndarray  # centres de déflexion du manche (%)
     err_vs_stick: list[np.ndarray]  # |erreur| moyenne par tranche de déflexion, par axe
@@ -126,7 +126,8 @@ def pid_error_stats(log: FlightLog, sel: slice | None = None, max_setpoint: floa
         e = err[a, m]
         h, _ = np.histogram(e, bins=edges)
         hist.append(100.0 * h / max(1, e.size))
-        sd.append(float(np.std(e)) if e.size else float("nan"))
+        # σ robuste (1,4826 × écart absolu médian) : insensible aux transitions des figures
+        sd.append(float(1.4826 * np.median(np.abs(e - np.median(e)))) if e.size else float("nan"))
         ma.append(float(np.mean(np.abs(e))) if e.size else float("nan"))
     sb = np.linspace(0, 100, 11)
     centers = 0.5 * (sb[:-1] + sb[1:])
