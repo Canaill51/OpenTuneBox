@@ -39,4 +39,17 @@ Pas de compilateur C sur la machine ; pip du venv installé via get-pip. Python 
 - Numéros `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12).
 - 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max`.
 - Corpus : `~/Documents/Drones/Logs/` (780 sessions, BF 4.4 → 2026.6). Fichiers `.part` = transferts incomplets.
+- Validation corpus (2026-10-01) : 95 % des sessions identiques à la référence ; les écarts restants
+  sont des trames corrompues que la référence accepte (trames tronquées avant un trou SD, trames S
+  parasites, valeurs ±2³¹). `FlightLog` écarte les trames impossibles (`_drop_implausible`) et ignore
+  les sessions corrompues à plus de 50 %.
+- Fin de programme Qt : utiliser `opentunebox.gui.app.hard_exit(code)` dans les scripts (PySide6 6.11 +
+  pyqtgraph segfaultent pendant le nettoyage automatique de sortie). Scripts de capture hors écran :
+  `QT_QPA_PLATFORM=offscreen`, `widget.grab().save(...)`, puis regarder l'image.
+- Simulateur de filtres : méthode relative `bf_filters.whatif_spectrum` (spectre loggé × |H_mod|²/|H_cur|²
+  à la cadence PID, fenêtre par fenêtre) — exacte quand rien ne change. `simulate_gyro` (temporel, à la
+  cadence du log) reste approximatif au-dessus de ~0,4 × fs du log.
+- Retards de filtres : méthode de phase (10–100 Hz), pas l'intercorrélation (dominée par le bruit HF).
+- Seuils de l'assistant = p90 du corpus par taille (docs/assistant.md, scripts/calibrate_advisor.py).
+- Construire l'exécutable : `pyinstaller packaging/opentunebox.spec` (Linux : nécessite `binutils`).
 - Commits : auteur Cedric <desmetgerry@gmail.com>, terminer par `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.

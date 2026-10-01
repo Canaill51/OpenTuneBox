@@ -148,12 +148,47 @@ def _slow_gain(raw: np.ndarray, d: np.ndarray, fs: float) -> float:
 def load(path: str | Path) -> list[FlightLog]:
     """Charge toutes les sessions d'un fichier .bbl/.bfl."""
     path = Path(path)
-    return [from_session(path, s) for s in decode_file(path) if s.main.shape[0] > 1]
+    logs = [from_session(path, s) for s in decode_file(path) if s.main.shape[0] > 1]
+    return [lg for lg in logs if lg is not None]
 
 
-def from_session(path: Path, sess: DecodedSession) -> FlightLog:
+def _drop_implausible(sess: DecodedSession, hr: float) -> int:
+    """Écarte les trames aux valeurs impossibles (données abîmées acceptées par le format).
+
+    Les champs signés sont d'abord ramenés aux entiers 32 bits comme dans le firmware. Une trame est
+    rejetée si le gyro ou la consigne dépasse 4000 °/s, ou un terme PID ±65535 : ce ne peut être
+    qu'une trame corrompue, qui fausserait spectres et réponses indicielles.
+    """
+    main = sess.main
+    if main.shape[0] == 0:
+        return 0
+    names = sess.main_names
+    signed_cols = [i for i, n in enumerate(names) if n not in ("loopIteration", "time")]
+    if signed_cols:
+        sub = main[:, signed_cols]
+        main[:, signed_cols] = ((sub + 2**31) % 2**32) - 2**31
+    bad = np.zeros(main.shape[0], dtype=bool)
+    for i, n in enumerate(names):
+        if n.startswith(("gyroADC[", "gyroUnfilt[")) or (n.startswith("setpoint[") and n != "setpoint[3]"):
+            bad |= np.abs(main[:, i]) > 4000 * hr
+        elif n.startswith(("axisP[", "axisI[", "axisD[", "axisF[")):
+            bad |= np.abs(main[:, i]) > 65535
+    if bad.any():
+        keep = ~bad
+        sess.main = main[keep]
+        sess.main_kind = sess.main_kind[keep]
+        sess.slow = sess.slow[keep]
+    return int(bad.sum())
+
+
+def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
+    """FlightLog d'une session, ou None si elle ne contient aucune trame exploitable."""
     st = parse_settings(sess.header.raw)
     hr = 10.0 if st.high_resolution else 1.0
+    n0 = sess.main.shape[0]
+    sess.stats["implausible_frames"] = _drop_implausible(sess, hr)
+    if sess.main.shape[0] < 2 or sess.stats["implausible_frames"] > n0 / 2:
+        return None  # session essentiellement corrompue
 
     def col(name: str) -> np.ndarray | None:
         c = sess.column(name)
