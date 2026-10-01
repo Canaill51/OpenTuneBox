@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pyqtgraph as pg
 from PySide6.QtCore import QSettings
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 
@@ -15,6 +17,10 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication(argv)
     app.setApplicationName("OpenTuneBox")
     app.setOrganizationName("OpenTuneBox")
+    # Icône des fenêtres + lien avec le raccourci opentunebox.desktop (indispensable sous Wayland
+    # pour que la barre des tâches affiche la bonne icône).
+    app.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "opentunebox.svg")))
+    app.setDesktopFileName("opentunebox")
     pg.setConfigOptions(useOpenGL=False, antialias=False)
 
     from .main_window import MainWindow
