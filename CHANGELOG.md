@@ -12,6 +12,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `construire.yml` (Windows, macOS, Linux).
 - Icône d'application sous Linux (fenêtres, barre des tâches Wayland, menu) et sous Windows (`.ico`).
 - Dossier de logs des tests réglable par la variable `OTB_LOGS`.
+- Convention de nommage des branches (`type/description-courte`) et des demandes de fusion (titre = nom
+  de la branche) dans `CONTRIBUTING.md`, `AGENTS.md` et le modèle de PR.
 
 ### Modifié
 - Scripts d'installation rangés par système : `packaging/linux/`, `packaging/windows/`.
