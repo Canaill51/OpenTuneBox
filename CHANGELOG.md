@@ -23,6 +23,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   du panneau droit, texte 15 % plus grand, traces groupées (Gyro, PID, Moteurs) et traces absentes du log
   masquées, sections « Affichage » et « Lecteur » repliables, traces lissées d'épaisseur 2 par défaut,
   grille limitée aux graduations principales.
+- Fenêtres plus grandes : au premier lancement, la fenêtre principale occupe 95 % de l'écran (90 % pour
+  les outils), comme PIDtoolbox ; ensuite chaque fenêtre rouvre à la taille et à la position laissées.
 
 ### Corrigé
 - Le raccourci Linux ne se déclare plus capable d'ouvrir tous les fichiers binaires.

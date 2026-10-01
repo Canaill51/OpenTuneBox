@@ -33,6 +33,7 @@ from .. import __version__
 from ..log.flightlog import load
 from ..log.modes import mode_changes
 from . import icons, theme
+from .geometry import restore_geometry, save_geometry
 from .state import MAX_LOGS, AppState
 from .widgets.axis import major_axes
 from .widgets.section import Section
@@ -110,7 +111,7 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("OpenTuneBox", "OpenTuneBox")
         theme.apply(self.settings.value("theme", "clair"))
         self.setWindowTitle(f"OpenTuneBox {__version__} — visualiseur de log")
-        self.resize(1500, 900)
+        restore_geometry(self, "main", 0.95)
         self.setAcceptDrops(True)
         self.tool_windows: dict[str, QWidget] = {}
         self._loading = 0
@@ -671,6 +672,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, e) -> None:  # noqa: N802
         self.settings.setValue("viewer/linewidth", self.width_spin.value())
+        save_geometry(self, "main")
         for w in self.tool_windows.values():
             w.close()
         super().closeEvent(e)

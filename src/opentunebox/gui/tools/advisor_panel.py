@@ -48,7 +48,6 @@ class AdvisorWindow(ToolWindow):
         splitter = self.canvas.parentWidget()
         splitter.insertWidget(0, self.report)
         splitter.setSizes([780, 420, 280])
-        self.resize(1500, 900)
 
     def compute(self, entries):
         e = entries[0]
