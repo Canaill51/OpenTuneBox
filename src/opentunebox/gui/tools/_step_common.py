@@ -149,7 +149,7 @@ def mode_text(mode: int) -> str:
 
 
 def sliders_legend_html(files: list[FileStep]) -> str:
-    rows = [f"<b>MODE</b>"]
+    rows = ["<b>MODE</b>"]
     for i, f in enumerate(files):
         src = "en-tête" if f.sliders.from_header else "estimé"
         warn = "" if f.sliders.consistent else " ⚠"

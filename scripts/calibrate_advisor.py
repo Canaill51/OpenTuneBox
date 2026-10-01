@@ -3,7 +3,7 @@
 
 Usage : calibrate_advisor.py NB_FICHIERS SORTIE.json  (puis lire les percentiles, voir docs/assistant.md)
 """
-import sys, json, glob, os, random, traceback
+import sys, json, glob, os, random
 import numpy as np
 from opentunebox.log.flightlog import load
 from opentunebox.analysis.period import auto_period

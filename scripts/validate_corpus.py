@@ -10,7 +10,6 @@ pour toutes les colonnes communes. Affiche un résumé et la liste des écarts.
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 import tempfile

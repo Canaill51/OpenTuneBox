@@ -5,19 +5,19 @@ de droite :
 - à gauche, diagrammes de Bode des chaînes gyro et D (réglages du log en trait plein, réglages
   modifiés en tirets), calculés avec les formules exactes du firmware à la cadence PID, pour un gaz
   donné (LPF dynamiques) et une fréquence moteur donnée (notchs RPM) ; retards à 20/50/100 Hz ;
-- à droite, spectres sur la période d'analyse : gyro avant filtres (journalisé), gyro filtré
-  (journalisé) et gyro re-filtré par simulation avec les réglages modifiés ; idem pour le D.
+- à droite, spectres sur la période d'analyse : gyro avant filtres, gyro filtré (journalisés) et
+  spectre « et si » avec les réglages modifiés ; idem pour le D.
 
-Le D simulé : on dérive le gyro (−dg/dt), on le passe dans la chaîne D, puis on le met à l'échelle
-du D journalisé par moindres carrés, l'échelle étant calée avec les réglages actuels (elle absorbe
-Kd, D max, TPA). Le même facteur est appliqué au D simulé avec les réglages modifiés.
-La simulation est un peu longue (≈ 1 s) : elle est faite dans compute(), en arrière-plan.
+Le spectre « et si » (bf_filters.whatif_spectrum) part du spectre réellement enregistré et le
+multiplie, fenêtre de 300 ms par fenêtre, par |H_modifié|² / |H_actuel|², les chaînes étant évaluées
+à la vraie cadence PID avec le gaz, la vitesse des moteurs et les notchs dynamiques du moment. Avec
+les réglages inchangés, il retombe exactement sur le log. Calcul d'environ 1 s, en arrière-plan.
 """
 
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 
 import numpy as np
 import pyqtgraph as pg
@@ -65,22 +65,6 @@ DELAY_FREQS = (20.0, 50.0, 100.0)
 # ---------------------------------------------------------------- calcul (sans Qt)
 
 
-def slice_log(log, sel: slice, margin_s: float = 0.5):
-    """Copie du log réduite à `sel` (plus une marge avant, pour l'établissement des filtres).
-    Renvoie (log_réduit, nombre d'échantillons de marge à ignorer)."""
-    start = sel.start or 0
-    stop = log.n if sel.stop is None else min(sel.stop, log.n)
-    m = min(start, int(margin_s * log.fs))
-    s = slice(start - m, stop)
-
-    def cut(a):
-        return None if a is None else a[..., s]
-
-    names = ("t", "gyro", "gyro_unfilt", "setpoint", "rc_command", "p_term", "i_term", "d_term", "f_term",
-             "throttle", "motors", "motor_hz", "debug", "vbat", "current", "acc", "mode_flags")
-    return replace(log, **{k: cut(getattr(log, k)) for k in names}), m
-
-
 @dataclass
 class FilterSimResult:
     label: str
@@ -93,11 +77,6 @@ class FilterSimResult:
     spectra: dict = field(default_factory=dict)
     d_scale: list = field(default_factory=list)
     has_unfilt: bool = True
-
-
-def _lsq_gain(x: np.ndarray, y: np.ndarray) -> float:
-    den = float(np.dot(x, x))
-    return float(np.dot(x, y) / den) if den > 0 else 0.0
 
 
 def simulate_filters(entry, mod: Settings, with_current: bool = True) -> FilterSimResult:
@@ -291,7 +270,7 @@ class FilterSimWindow(ToolWindow):
         btns.addWidget(apply_)
         layout.addLayout(btns)
         help_ = QLabel("Bode : trait plein = log, tirets = modifié. Spectres : « Appliquer » relance la "
-                       "simulation du gyro (≈ 1 s).")
+                       "simulation (≈ 1 s).")
         help_.setWordWrap(True)
         help_.setStyleSheet("color:#777; font-size:8pt")
         layout.addWidget(help_)
@@ -618,8 +597,8 @@ class FilterSimWindow(ToolWindow):
             if lp.dynamic:
                 rows.append(f"LPF1 {name} dynamique (modifié) à ce gaz : "
                             f"{dyn_lpf_cutoff(lp.dyn_min_hz, lp.dyn_max_hz, lp.expo, thr / 100):.0f} Hz")
-        rows.append("<span style='color:#777'>D simulé = −dgyro/dt passé dans la chaîne D, mis à l'échelle "
-                    "du D du log (moindres carrés, réglages actuels).</span>")
+        rows.append("<span style='color:#777'>Spectres simulés = spectre enregistré × (filtres modifiés / "
+                    "filtres actuels), calculé à la cadence PID fenêtre par fenêtre.</span>")
         return _join_rows(rows)
 
     def _copy_cli(self) -> None:
