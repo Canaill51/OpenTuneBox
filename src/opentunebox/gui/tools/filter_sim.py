@@ -45,8 +45,7 @@ from ...analysis.bf_filters import (
     dterm_chain,
     dyn_lpf_cutoff,
     gyro_chain,
-    simulate_dterm,
-    simulate_gyro,
+    whatif_spectrum,
 )
 from ...analysis.motors import hover_motor_hz
 from ...analysis.spectral import spectrum
@@ -102,46 +101,43 @@ def _lsq_gain(x: np.ndarray, y: np.ndarray) -> float:
 
 
 def simulate_filters(entry, mod: Settings, with_current: bool = True) -> FilterSimResult:
+    """Spectres enregistrés et spectres « et si » avec les filtres `mod`.
+
+    Méthode relative (bf_filters.whatif_spectrum) : spectre réellement enregistré × rapport des
+    réponses des chaînes de filtres (modifiée / actuelle), évaluées à la vraie cadence PID fenêtre
+    par fenêtre. Avec des réglages inchangés, la simulation retombe exactement sur le log.
+    """
     log = entry.log
     base = log.settings
-    slog, m = slice_log(log, entry.sel)
+    sel = entry.sel
     fs = float(log.fs)
     res = FilterSimResult(entry.label, entry.color, fs, base, mod, has_unfilt=log.gyro_unfilt is not None)
-
-    def psd(x):
-        sp = spectrum(np.asarray(x[m:], dtype=float), fs, "psd", resolution_hz=2.0, smoothing=1)
-        res.freqs = sp.freqs
-        return sp.values
-
-    sim_mod = sim_cur = None
-    if res.has_unfilt:
-        sim_mod = simulate_gyro(slog, mod)
-        if with_current:
-            sim_cur = simulate_gyro(slog, base)
-    gyro = slog.gyro
-    d_log = slog.d_term
-    s0 = (entry.sel.start or 0) - m
-    d_pf = log.d_term_prefilter[:, s0:s0 + slog.n]
-    d_cur_raw = simulate_dterm(slog, base, gyro=gyro)
-    d_mod_raw = simulate_dterm(slog, mod, gyro=sim_mod if sim_mod is not None else gyro)
     keys = ("gyro_pf", "gyro", "gyro_sim", "gyro_sim_cur", "d_pf", "d", "d_sim", "d_sim_cur")
     res.spectra = {k: [None, None, None] for k in keys}
+
+    def psd(x):
+        sp = spectrum(np.asarray(x[sel], dtype=float), fs, "psd", resolution_hz=1000.0 / 300.0)
+        return sp.values
+
     for ax in range(3):
+        w = whatif_spectrum(log.gyro[ax], log.gyro_unfilt[ax] if res.has_unfilt else None, log, sel, base, mod, "gyro")
+        res.freqs = w.freqs
+        res.spectra["gyro"][ax] = w.current_db
+        res.spectra["gyro_sim"][ax] = w.modified_db
+        if with_current:
+            res.spectra["gyro_sim_cur"][ax] = w.current_db
         if res.has_unfilt:
-            res.spectra["gyro_pf"][ax] = psd(slog.gyro_unfilt[ax])
-            res.spectra["gyro_sim"][ax] = psd(sim_mod[ax])
-            if sim_cur is not None:
-                res.spectra["gyro_sim_cur"][ax] = psd(sim_cur[ax])
-        res.spectra["gyro"][ax] = psd(gyro[ax])
-        if not np.any(d_log[ax]):
+            res.spectra["gyro_pf"][ax] = psd(log.gyro_unfilt[ax])
+        if not np.any(log.d_term[ax]):
             res.d_scale.append(float("nan"))
             continue
-        k = _lsq_gain(d_cur_raw[ax, m:], d_log[ax, m:])
-        res.d_scale.append(k)
-        res.spectra["d"][ax] = psd(d_log[ax])
-        res.spectra["d_pf"][ax] = psd(d_pf[ax])
-        res.spectra["d_sim"][ax] = psd(d_mod_raw[ax] * k)
-        res.spectra["d_sim_cur"][ax] = psd(d_cur_raw[ax] * k)
+        res.d_scale.append(1.0)
+        wd = whatif_spectrum(log.d_term[ax], log.d_term_prefilter[ax], log, sel, base, mod, "dterm")
+        res.spectra["d"][ax] = wd.current_db
+        res.spectra["d_sim"][ax] = wd.modified_db
+        if with_current:
+            res.spectra["d_sim_cur"][ax] = wd.current_db
+        res.spectra["d_pf"][ax] = psd(log.d_term_prefilter[ax])
     return res
 
 

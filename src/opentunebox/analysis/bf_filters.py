@@ -479,3 +479,86 @@ def simulate_dterm(log, settings=None, gyro: np.ndarray | None = None) -> np.nda
     x = _lowpass_sim(x, s.dterm_lpf1, thr, fs)
     x = _lowpass_sim(x, s.dterm_lpf2, thr, fs)
     return x
+
+
+# ---------------------------------------------------------------- spectre « et si » (méthode relative)
+
+
+@dataclass
+class WhatIfSpectrum:
+    freqs: np.ndarray
+    current_db: np.ndarray  # spectre réellement enregistré (moyenne des fenêtres)
+    modified_db: np.ndarray  # même vol, filtres modifiés
+
+
+def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel: slice, base, mod,
+                    target: str = "gyro", seg_ms: float = 300.0) -> WhatIfSpectrum:
+    """Spectre qu'aurait eu `x_logged` avec les filtres `mod` au lieu de `base`.
+
+    Plutôt que de rejouer les filtres à la cadence du log (trop basse, repliement), on part du
+    spectre réellement enregistré et, fenêtre par fenêtre (300 ms), on le multiplie par
+    |H_mod(f)|² / |H_base(f)|², les deux chaînes étant évaluées à la vraie cadence PID avec le gaz,
+    la vitesse des moteurs et les centres des notchs dynamiques de cette fenêtre. Avec des
+    réglages inchangés, on retrouve exactement le log. Là où les filtres actuels écrasent tout
+    (|H_base|² < 1 %), on repart du signal avant filtres × |H_mod|².
+
+    target = "gyro" (chaîne gyro) ou "dterm" (chaîne gyro puis chaîne D).
+    """
+    from .spectral import _seg_spectra, _segments, to_db
+
+    fs = log.fs
+    L = max(32, int(round(seg_ms * fs / 1000.0)))
+    hop = L // 2
+    x = np.asarray(x_logged[sel], dtype=np.float64)
+    segs, starts = _segments(x, L, hop)
+    if segs.shape[0] == 0:
+        return WhatIfSpectrum(np.zeros(0), np.zeros(0), np.zeros(0))
+    f, P = _seg_spectra(segs, fs, "psd")
+    Ppf = None
+    if x_prefilt is not None:
+        Ppf = _seg_spectra(_segments(np.asarray(x_prefilt[sel], dtype=np.float64), L, hop)[0], fs, "psd")[1]
+    thr = np.asarray(log.throttle[sel], dtype=np.float64) / 100.0
+    mhz = None if log.motor_hz is None else np.asarray(log.motor_hz[:, sel], dtype=np.float64)
+    centres = fft_freq_centres(log)
+    centres = None if centres is None else centres[:, sel]
+
+    cache: dict = {}
+    out_mod = np.zeros_like(P)
+    for k, s0 in enumerate(starts):
+        w = slice(s0, s0 + L)
+        t = round(float(np.mean(thr[w])), 2)
+        m = None if mhz is None else tuple(np.round(np.mean(mhz[:, w], axis=1) / 5.0) * 5.0)
+        c = None if centres is None else tuple(np.round(np.mean(centres[:, w], axis=1) / 5.0) * 5.0)
+        key = (t, m, c)
+        if key not in cache:
+            cache[key] = _ratio(f, base, mod, t, m, c, target)
+        r_cur, r_mod = cache[key]
+        ratio = np.minimum(r_mod / np.maximum(r_cur, 1e-12), 1e3)
+        est = P[k] * ratio
+        if Ppf is not None:
+            # là où les filtres actuels écrasaient le signal (le log n'y montre que le plancher de
+            # bruit) et que les nouveaux filtres sont plus faibles, on repart du signal avant filtres
+            weaker = (r_cur < 1e-2) & (r_mod > r_cur)
+            est = np.where(weaker, np.maximum(est, Ppf[k] * r_mod), est)
+        out_mod[k] = est
+    return WhatIfSpectrum(f, to_db(P.mean(axis=0)), to_db(out_mod.mean(axis=0)))
+
+
+def _ratio(f, base, mod, thr, motors, centres, target):
+    """|H|² des chaînes actuelle et modifiée pour une fenêtre."""
+    def h2(s):
+        dyn = None
+        if centres is not None:
+            c = [v for v in centres if v > 0]
+            if s.dyn_notch_count != base.dyn_notch_count or s.dyn_notch_min_hz != base.dyn_notch_min_hz \
+                    or s.dyn_notch_max_hz != base.dyn_notch_max_hz:
+                # réglage du notch dynamique modifié : centres enregistrés ramenés dans la nouvelle plage
+                c = [min(max(v, s.dyn_notch_min_hz), s.dyn_notch_max_hz) for v in c][: s.dyn_notch_count]
+                c += dyn_notch_initial_centres(s)[len(c):]
+            dyn = c
+        g = np.abs(chain_response(gyro_chain(s, thr, motor_hz=motors, dyn_notch_hz=dyn), f)) ** 2
+        if target == "dterm":
+            g = g * np.abs(chain_response(dterm_chain(s, thr), f)) ** 2
+        return g
+
+    return h2(base), h2(mod)
