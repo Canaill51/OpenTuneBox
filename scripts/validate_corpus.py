@@ -10,6 +10,7 @@ pour toutes les colonnes communes. Affiche un résumé et la liste des écarts.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import tempfile
@@ -21,8 +22,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from opentunebox.decoder.reader import decode_file  # noqa: E402
 
-DEFAULT_REF = Path.home() / ".local/share/PIDtoolboxProV094/blackbox_decode"
-DEFAULT_ROOT = Path.home() / "Documents/Drones/Logs"
+# Variables d'environnement : OTB_LOGS (dossier de logs), OTB_REF_DECODER (blackbox_decode de référence)
+DEFAULT_REF = Path(os.environ.get("OTB_REF_DECODER", Path.home() / ".local/share/PIDtoolboxProV094/blackbox_decode"))
+DEFAULT_ROOT = Path(os.environ.get("OTB_LOGS", Path.home() / "Documents" / "Drones" / "Logs"))
 
 
 def read_ref_csv(path: Path) -> tuple[list[str], np.ndarray]:

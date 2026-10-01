@@ -1,13 +1,12 @@
 """Tests de l'assistant de réglage et des fenêtres associées (sur logs réels)."""
 
 import os
-from pathlib import Path
 
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-LOGS = Path.home() / "Documents/Drones/Logs"
+from corpus_paths import LOGS  # noqa: E402
 pytestmark = [pytest.mark.corpus, pytest.mark.skipif(not LOGS.exists(), reason="corpus absent")]
 
 

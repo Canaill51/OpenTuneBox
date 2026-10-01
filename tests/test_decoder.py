@@ -1,6 +1,5 @@
 """Tests du décodeur : encodages élémentaires (aller-retour) et logs réels."""
 
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -9,7 +8,7 @@ from opentunebox.decoder import core
 from opentunebox.log.debug_tables import TABLES, debug_mode_name
 from opentunebox.log.settings import parse_settings
 
-LOGS = Path.home() / "Documents/Drones/Logs"
+from corpus_paths import LOGS  # noqa: E402
 
 
 # ---------------------------------------------------------------- encodeurs de test

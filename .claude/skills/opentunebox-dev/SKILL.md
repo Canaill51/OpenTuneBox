@@ -1,58 +1,61 @@
 ---
 name: opentunebox-dev
-description: Conventions, commandes et pièges du projet OpenTuneBox (analyse Blackbox Betaflight, clone de PIDtoolbox Pro). À charger avant de modifier le décodeur, les analyses (FFT, Wiener, filtres BF) ou l'interface Qt du projet, ou pour valider sur le corpus de logs.
+description: Procédures du projet OpenTuneBox (analyse Blackbox Betaflight, clone de PIDtoolbox Pro) — valider le décodeur et les analyses sur le corpus de vrais logs, recouper avec PIDtoolbox, ajouter un outil à l'interface, faire des captures hors écran, calibrer l'assistant, fabriquer les exécutables. À charger avant de modifier le décodeur, les analyses (FFT, Wiener, filtres BF) ou l'interface Qt.
 ---
 
-# OpenTuneBox — développement
+# OpenTuneBox — procédures
 
-Projet : `~/Documents/Github/OpenTuneBox` (privé, sans licence). Utilisateur : Cédric, francophone,
-débutant en programmation → expliquer en français, étape par étape.
+Les règles générales (organisation, décisions, commandes, pièges) sont dans `AGENTS.md` à la racine :
+le lire d'abord. Cette compétence détaille les procédures récurrentes.
 
-## Références à lire selon la tâche
-- `docs/spec-betaflight.md` : formules exactes du firmware (filtres, chaînes gyro/D, RPM, notch dynamique,
-  tables debug par version, clés d'en-tête, curseurs simplifiés, unités). Source : clone `~/Documents/Github/betaflight`.
-- `docs/spec-methodes.md` : méthodes d'analyse (Wiener, spectres, heatmaps, retards) + repères de réglage.
-- `docs/spec-ecrans.md` : écrans PIDtoolbox à reproduire (captures dans `~/Documents/Drones/Logs/**/PTB_FIGS_*`).
-- Plan approuvé : `~/.claude/plans/ticklish-crunching-rainbow.md`.
+## Où trouver quoi
 
-## Règles d'architecture
-- `src/opentunebox/decoder/` : décodage binaire (numba, `cache=True`). `reader.decode_file()` → `DecodedSession` (valeurs brutes).
-- `src/opentunebox/log/` : `FlightLog` (unités physiques), `settings.py` (en-tête normalisé par version), `debug_tables.py`.
-- `src/opentunebox/analysis/` : calculs purs numpy/scipy, **jamais d'import de `gui/`**.
-- `src/opentunebox/gui/` : PySide6 + pyqtgraph, n'affiche que ce que `analysis/` calcule.
-- Interface et messages en français ; code et noms de variables en anglais ; commentaires en français.
-- Ne jamais copier de code PIDtoolbox (binaire chiffré) ni d'autres projets : réimplémenter à partir des specs.
+- Formule ou réglage du firmware → `docs/spec-betaflight.md` (sources : dépôts `betaflight` et
+  `betaflight-configurator` clonés à côté de ce projet, dans `../`).
+- Méthode d'analyse → `docs/spec-methodes.md` ; écran PIDtoolbox à reproduire → `docs/spec-ecrans.md`.
+- Valeurs de référence déjà établies → `docs/validation.md` ; seuils de l'assistant → `docs/assistant.md`.
 
-## Commandes
+## Valider une modification du décodeur
+
 ```sh
-cd ~/Documents/Github/OpenTuneBox
-.venv/bin/pytest -q                                  # tests unitaires
-.venv/bin/pytest -q -m corpus                        # tests sur vrais logs (lents)
-.venv/bin/python scripts/validate_corpus.py [DOSSIER] # décodeur vs blackbox_decode
+.venv/bin/python scripts/validate_corpus.py "$OTB_LOGS" --limit 50     # échantillon rapide
+.venv/bin/python scripts/validate_corpus.py "$OTB_LOGS" --start 300    # reprise après un blocage
 ```
-Pas de compilateur C sur la machine ; pip du venv installé via get-pip. Python 3.14.
+Statuts : `ok`, `gap` (trames tronquées avant un trou SD, tolérées), `slow` (trames S corrompues acceptées
+par la référence), `rows` / `values` (à examiner), `refhang` (référence bloquée, délai 180 s).
+Référence : `blackbox_decode` de PIDtoolbox (`OTB_REF_DECODER`, défaut `~/.local/share/PIDtoolboxProV094/`).
+Objectif : ne pas faire baisser la proportion de sessions `ok` (95 %).
 
-## Pièges connus
-- Le `blackbox_decode` de PTB (`~/.local/share/PIDtoolboxProV094/`) compte mal `loopIteration` quand
-  l'en-tête écrit `P interval:N` (BF récents) et jette les trames P qui suivent la 1re trame I d'un bloc.
-  → comparer en alignant sur `time`, ignorer `loopIteration`. Notre décodeur suit le firmware (itération = boucle PID).
-- Numéros `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12).
-- 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max`.
-- Corpus : `~/Documents/Drones/Logs/` (780 sessions, BF 4.4 → 2026.6). Fichiers `.part` = transferts incomplets.
-- Validation corpus (2026-10-01) : 95 % des sessions identiques à la référence ; les écarts restants
-  sont des trames corrompues que la référence accepte (trames tronquées avant un trou SD, trames S
-  parasites, valeurs ±2³¹). `FlightLog` écarte les trames impossibles (`_drop_implausible`) et ignore
-  les sessions corrompues à plus de 50 %.
-- Fin de programme Qt : utiliser `opentunebox.gui.app.hard_exit(code)` dans les scripts (PySide6 6.11 +
-  pyqtgraph segfaultent pendant le nettoyage automatique de sortie). Scripts de capture hors écran :
-  `QT_QPA_PLATFORM=offscreen`, `widget.grab().save(...)`, puis regarder l'image.
-- Simulateur de filtres : méthode relative `bf_filters.whatif_spectrum` (spectre loggé × |H_mod|²/|H_cur|²
-  à la cadence PID, fenêtre par fenêtre) — exacte quand rien ne change. `simulate_gyro` (temporel, à la
-  cadence du log) reste approximatif au-dessus de ~0,4 × fs du log.
-- Retards de filtres : méthode de phase (10–100 Hz), pas l'intercorrélation (dominée par le bruit HF).
-- Seuils de l'assistant = p90 du corpus par taille (docs/assistant.md, scripts/calibrate_advisor.py).
-- Construire l'exécutable : `pyinstaller packaging/opentunebox.spec` (Linux : nécessite `binutils`). Windows :
-  `packaging/construire_windows.bat` sur un PC Windows (Python 3.13 via winget) ; sources à copier :
-  `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`. Alternative :
-  `.github/workflows/construire.yml` (Windows/macOS/Linux) si le dépôt est poussé sur GitHub.
-- Commits : auteur Cedric <desmetgerry@gmail.com>, terminer par `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+## Recouper une analyse avec PIDtoolbox
+
+1. Prendre un log du corpus dont le dossier contient des captures `PTB_FIGS_*` (ex. `1. PTB/Allykill`,
+   `1. PTB/BlackSummer`, `Cedric/JeNo 5`).
+2. Lire la valeur sur la capture (ouvrir l'image), calculer la même avec `analysis/` sur la même période.
+3. Ajouter la mesure à `docs/validation.md` si elle est nouvelle.
+
+## Ajouter un outil à l'interface
+
+1. Le calcul dans `analysis/`, avec un test synthétique dans `tests/`.
+2. Une classe `ToolWindow` dans `gui/tools/<nom>.py` : `build_controls`, `snapshot_options`, `compute`, `render`.
+3. L'enregistrer dans `gui/tools/__init__.py:REGISTRY` et ajouter son bouton dans `main_window.py`.
+4. Test hors écran (modèle : `tests/test_gui_step.py`), capture et vérification visuelle.
+5. Section dans `docs/guide-utilisateur.md`, ligne dans `CHANGELOG.md`.
+
+## Captures hors écran
+
+Script dans le répertoire temporaire de la session, lancé avec `QT_QPA_PLATFORM=offscreen` :
+créer `MainWindow`, `load_paths([...])`, pomper les événements (`app.processEvents()` en boucle) jusqu'à
+`win._loading == 0`, `open_tool(clé)`, attendre `not w._busy and w._last_result is not None`,
+`w.grab().save(...)`, puis **`hard_exit(0, wait_all)`**. Toujours regarder l'image produite.
+
+## Calibrer l'assistant
+
+`scripts/calibrate_advisor.py 600 stats.json`, puis recalculer p10/p50/p90 par profil et mettre à jour
+`advisor/profiles.py` et le tableau de `docs/assistant.md`.
+
+## Fabriquer les exécutables
+
+- Linux : `.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm` (≈ 30 s, `dist/OpenTuneBox/` ≈ 490 Mo).
+- Windows : sources par `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`,
+  puis `packaging\windows\construire_windows.bat` sur le PC Windows (Python 3.13 installé par winget).
+- Tous systèmes : workflow `construire.yml` (manuel ou étiquette `v*`), une fois le dépôt sur GitHub.

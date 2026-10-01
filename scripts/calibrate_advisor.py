@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Recalcule les statistiques du corpus utilisées pour calibrer les seuils de l'assistant.
 
-Usage : calibrate_advisor.py NB_FICHIERS SORTIE.json  (puis lire les percentiles, voir docs/assistant.md)
+Usage : calibrate_advisor.py NB_FICHIERS SORTIE.json  (dossier de logs : variable OTB_LOGS)
+         (puis lire les percentiles, voir docs/assistant.md)
 """
 import sys, json, glob, os, random
 import numpy as np
@@ -12,7 +13,7 @@ from opentunebox.analysis.step import step_response
 from opentunebox.analysis.delay import compute_delays
 from opentunebox.analysis.motors import motor_noise
 from opentunebox.advisor.profiles import detect_profile
-root="/home/cedric/Documents/Drones/Logs"
+root=os.environ.get("OTB_LOGS", os.path.join(os.path.expanduser("~"), "Documents", "Drones", "Logs"))
 files=[f for f in glob.glob(root+"/**/*", recursive=True) if f.lower().endswith((".bbl",".bfl"))]
 random.seed(0); random.shuffle(files)
 out=[]

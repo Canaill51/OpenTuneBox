@@ -1,0 +1,26 @@
+# Tests rapides (sans vrais logs) à chaque envoi et demande de fusion.
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Bibliothèques système Qt
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libgl1 libfontconfig1
+      - name: Dépendances
+        run: python -m pip install -e '.[dev]'
+      - name: Lint
+        run: python -m pyflakes src tests scripts
+      - name: Tests
+        run: python -m pytest -q

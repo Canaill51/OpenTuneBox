@@ -1,8 +1,8 @@
-﻿# Construit OpenTuneBox pour Windows (à lancer SUR un PC Windows, via construire_windows.bat).
+﻿# Construit OpenTuneBox pour Windows (à lancer SUR un PC Windows, via packaging\windows\construire_windows.bat).
 # Étapes : 1) Python 3.13 (installé par winget si absent)  2) environnement .venv-win
 #          3) dépendances + PyInstaller  4) dist\OpenTuneBox\OpenTuneBox.exe  5) archive .zip
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $PSScriptRoot
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location $root
 
 function Etape($texte) { Write-Host "`n=== $texte ===" -ForegroundColor Cyan }

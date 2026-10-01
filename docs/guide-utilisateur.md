@@ -2,7 +2,7 @@
 
 ## 1. Lancer le programme
 
-- Menu des applications : **OpenTuneBox** (après `scripts/install_linux.sh`).
+- Menu des applications : **OpenTuneBox** (après `sh packaging/linux/install_linux.sh`).
 - Ou dans un terminal : `~/Documents/Github/OpenTuneBox/.venv/bin/opentunebox-gui [logs…]`
 - Diagnostic rapide sans interface : `opentunebox report LOG.bbl` ; résumé : `opentunebox info LOG.bbl`.
 - Version autonome (sans Python) : dossier `dist/OpenTuneBox/` ; à partager **en entier**.
@@ -11,7 +11,7 @@
 
 L'exécutable Windows se fabrique sur un PC Windows (PyInstaller ne sait pas le faire depuis Linux) :
 copier le dossier du projet sur le PC (sans `.venv`, `build`, `dist`), puis double-cliquer
-`packaging\construire_windows.bat`. Le script installe Python 3.13 si besoin (winget), les dépendances,
+`packaging\windows\construire_windows.bat`. Le script installe Python 3.13 si besoin (winget), les dépendances,
 puis fabrique `dist\OpenTuneBox\OpenTuneBox.exe` et l'archive `dist\OpenTuneBox-windows.zip`.
 Au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » (programme
 non signé) : **Informations complémentaires → Exécuter quand même**.

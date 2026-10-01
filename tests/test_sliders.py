@@ -1,13 +1,12 @@
 """Tests des curseurs du réglage simplifié (analysis/sliders.py)."""
 
-from pathlib import Path
 
 import pytest
 
 from opentunebox.analysis import sliders as sl
 from opentunebox.log.settings import parse_settings
 
-LOGS = Path.home() / "Documents/Drones/Logs"
+from corpus_paths import LOGS  # noqa: E402
 
 
 def _t(pids):

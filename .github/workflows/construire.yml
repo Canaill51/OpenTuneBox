@@ -1,8 +1,12 @@
 # Construction automatique d'OpenTuneBox pour Windows, macOS et Linux sur les serveurs de GitHub.
-# Se lance à la main : onglet « Actions » du dépôt → « Construire OpenTuneBox » → « Run workflow ».
+# Se lance à la main (onglet « Actions » → « Construire OpenTuneBox » → « Run workflow ») ou en poussant
+# une étiquette de version (git tag v0.2.0 && git push --tags).
 # Les archives sont ensuite téléchargeables en bas de la page de l'exécution (« Artifacts »).
 name: Construire OpenTuneBox
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
 
 jobs:
   construire:
@@ -19,7 +23,9 @@ jobs:
       - name: Dépendances
         run: python -m pip install . pyinstaller pytest
       - name: Tests rapides
-        run: python -m pytest -q -m "not corpus" tests/test_decoder.py tests/test_analysis.py tests/test_bf_filters.py tests/test_sliders.py tests/test_advisor.py
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q -m "not corpus" tests/test_decoder.py tests/test_analysis.py tests/test_bf_filters.py tests/test_sliders.py
       - name: Exécutable
         run: python -m PyInstaller packaging/opentunebox.spec --noconfirm
       - uses: actions/upload-artifact@v4

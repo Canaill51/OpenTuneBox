@@ -8,7 +8,6 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from pathlib import Path  # noqa: E402
 
 import numpy as np  # noqa: E402
 import pyqtgraph as pg  # noqa: E402
@@ -17,7 +16,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from opentunebox.gui.tools import _spectral_common as sc  # noqa: E402
 
-LOGS = Path.home() / "Documents/Drones/Logs"
+from corpus_paths import LOGS  # noqa: E402
 BTFL = LOGS / "1. PTB/Allykill/btfl_002.bbl"
 FINAL = LOGS / "Cedric/JeNo 5/FINAL.bbl"
 

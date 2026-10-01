@@ -8,6 +8,16 @@ version = "0.1.0"
 description = "Analyse de logs Blackbox Betaflight pour le réglage des drones (PID, filtres, vibrations)"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [{ name = "Cedric", email = "desmetgerry@gmail.com" }]
+license = { file = "LICENSE" }
+keywords = ["betaflight", "blackbox", "pid", "fft", "drone", "fpv"]
+classifiers = [
+    "Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Environment :: X11 Applications :: Qt",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "numpy>=2.0",
     "scipy>=1.13",
@@ -18,7 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-qt>=4.4"]
+dev = ["pytest>=8", "pytest-qt>=4.4", "pyflakes>=3", "pyinstaller>=6"]
 
 [project.scripts]
 opentunebox = "opentunebox.cli:main"

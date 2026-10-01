@@ -7,3 +7,7 @@ build/
 dist/
 .pytest_cache/
 /out/
+.ruff_cache/
+.mypy_cache/
+*.spec.bak
+OTB_FIGS_*.png

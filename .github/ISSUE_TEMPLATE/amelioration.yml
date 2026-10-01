@@ -1,0 +1,16 @@
+name: Amélioration
+description: Un outil ou un réglage qui manque, une idée pour l'assistant
+labels: [enhancement]
+body:
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Besoin
+      description: Ce que vous voulez voir ou pouvoir faire, et dans quelle situation de réglage.
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: Référence
+      description: Équivalent dans PIDtoolbox, Blackbox Explorer, vidéo ou documentation Betaflight.

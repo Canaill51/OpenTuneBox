@@ -1,6 +1,5 @@
 """Tests des analyses sur signaux synthétiques (réponses connues) et recoupements PIDtoolbox."""
 
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -11,7 +10,7 @@ from opentunebox.analysis.spectral import freq_throttle, freq_time, spectrum
 from opentunebox.analysis.step import loop_metrics, step_metrics, step_response
 
 FS = 2000.0
-LOGS = Path.home() / "Documents/Drones/Logs"
+from corpus_paths import LOGS  # noqa: E402
 
 
 def stick_input(seconds=60, seed=1):

@@ -1,6 +1,5 @@
 """Tests des modèles de filtres Betaflight (analysis/bf_filters.py)."""
 
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -8,7 +7,7 @@ import pytest
 from opentunebox.analysis import bf_filters as bf
 from opentunebox.log.settings import parse_settings
 
-LOGS = Path.home() / "Documents/Drones/Logs"
+from corpus_paths import LOGS  # noqa: E402
 HOVER = LOGS / "1. PTB/Allykill/hover.bbl"
 
 

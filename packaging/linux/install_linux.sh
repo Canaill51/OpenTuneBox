@@ -2,7 +2,7 @@
 # Ajoute OpenTuneBox au menu des applications (KDE, GNOME…) pour l'utilisateur courant.
 # Rien n'est installé hors de ~/.local ; pour retirer : supprimer le fichier .desktop créé.
 set -e
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 APPS="$HOME/.local/share/applications"
 HICOLOR="$HOME/.local/share/icons/hicolor"
 SVG="$ROOT/src/opentunebox/gui/assets/opentunebox.svg"

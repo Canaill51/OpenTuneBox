@@ -1,0 +1,33 @@
+name: Problème
+description: Un outil plante, affiche une valeur fausse ou se comporte mal
+labels: [bug]
+body:
+  - type: input
+    id: outil
+    attributes:
+      label: Outil concerné
+      placeholder: "ex. Réponse indicielle, Analyse spectrale, décodage…"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Ce qui se passe
+      description: Ce que vous avez fait, ce que vous attendiez, ce que vous avez obtenu.
+    validations:
+      required: true
+  - type: input
+    id: log
+    attributes:
+      label: Log Blackbox
+      description: Nom du fichier (ou joignez-le, zippé) ; version de Betaflight si connue.
+  - type: input
+    id: systeme
+    attributes:
+      label: Système et version
+      placeholder: "ex. Kubuntu 26.04, version compilée du 2026-10-01"
+  - type: textarea
+    id: captures
+    attributes:
+      label: Captures / message d'erreur
+      description: Capture d'OpenTuneBox (bouton « Exporter image ») et, pour comparer, celle de PIDtoolbox.
