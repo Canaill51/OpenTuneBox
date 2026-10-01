@@ -95,39 +95,45 @@ def step_response(
     w = signal.windows.hann(L)
     nfft = L + 2 * PAD
 
+    # toutes les fenêtres d'un coup (par paquets) : FFT vectorisées
+    starts = starts[[_seg_max(sp, s0, L) >= min_input for s0 in starts]] if starts.size else starts
+    if max_input is not None and starts.size:
+        starts = starts[[_seg_max(sp, s0, L) < max_input for s0 in starts]]
     resp, maxin = [], []
     sum_gh = np.zeros(nfft // 2 + 1, dtype=complex)
     sum_hh = np.zeros(nfft // 2 + 1)
     sum_gg = np.zeros(nfft // 2 + 1)
     steady = (t_ms >= 200) & (t_ms <= 500)
-    for s0 in starts:
-        x = sp[s0 : s0 + L]
-        m = float(np.max(np.abs(x)))
-        if m < min_input or (max_input is not None and m >= max_input):
+    idx = np.arange(L)
+    for k in range(0, starts.size, 256):
+        st0 = starts[k : k + 256]
+        X = sp[st0[:, None] + idx] * w
+        Y = gy[st0[:, None] + idx] * w
+        X = np.pad(X, ((0, 0), (PAD, PAD)))
+        Y = np.pad(Y, ((0, 0), (PAD, PAD)))
+        H = np.fft.fft(X, axis=1) / nfft
+        G = np.fft.fft(Y, axis=1) / nfft
+        imp = np.real(np.fft.ifft(G * np.conj(H) / (H * np.conj(H) + reg), axis=1))
+        st = np.cumsum(imp, axis=1)[:, :Lr]
+        ss = st[:, steady]
+        good = (ss.min(axis=1) > 0.5) & (ss.max(axis=1) < 3.0) if ss.size else np.ones(len(st0), bool)
+        if not good.any():
             continue
-        y = gy[s0 : s0 + L]
-        xw = np.pad(x * w, PAD)
-        yw = np.pad(y * w, PAD)
-        H = np.fft.fft(xw) / nfft
-        G = np.fft.fft(yw) / nfft
-        imp = np.real(np.fft.ifft(G * np.conj(H) / (H * np.conj(H) + reg)))
-        st = np.cumsum(imp)[:Lr]
-        ss = st[steady]
-        if ss.size and (ss.min() <= 0.5 or ss.max() >= 3.0):
-            continue
+        st = st[good]
         if y_correction and ss.size:
-            st = st * (2.0 - ss.mean())  # correction de PIDtoolbox (« Y corr. »)
+            st = st * (2.0 - ss[good].mean(axis=1, keepdims=True))  # « Y corr. » de PIDtoolbox
         resp.append(st)
-        maxin.append(m)
-        Hr = np.fft.rfft(xw)
-        Gr = np.fft.rfft(yw)
-        sum_gh += Gr * np.conj(Hr)
-        sum_hh += np.abs(Hr) ** 2
-        sum_gg += np.abs(Gr) ** 2
+        maxin.append(np.max(np.abs(sp[st0[good][:, None] + idx]), axis=1))
+        Hr = np.fft.rfft(X[good], axis=1)
+        Gr = np.fft.rfft(Y[good], axis=1)
+        sum_gh += np.sum(Gr * np.conj(Hr), axis=0)
+        sum_hh += np.sum(np.abs(Hr) ** 2, axis=0)
+        sum_gg += np.sum(np.abs(Gr) ** 2, axis=0)
 
     if not resp:
         return empty
     R = np.vstack(resp)
+    maxin = np.concatenate(maxin)
     mean = R.mean(axis=0)
     std = R.std(axis=0)
     freqs = np.fft.rfftfreq(nfft, 1.0 / fs)
@@ -135,7 +141,11 @@ def step_response(
         T = sum_gh / sum_hh
         coh = np.abs(sum_gh) ** 2 / (sum_gg * sum_hh)
     return StepResult(t_ms, R, mean, std, R.shape[0], step_metrics(t_ms, mean),
-                      loop_metrics(freqs, T, coh), np.array(maxin))
+                      loop_metrics(freqs, T, coh), maxin)
+
+
+def _seg_max(x: np.ndarray, s0: int, L: int) -> float:
+    return float(np.max(np.abs(x[s0 : s0 + L])))
 
 
 def step_metrics(t_ms: np.ndarray, r: np.ndarray) -> StepMetrics:
