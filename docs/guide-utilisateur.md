@@ -16,7 +16,7 @@ puis fabrique `dist\OpenTuneBox\OpenTuneBox.exe` et l'archive `dist\OpenTuneBox-
 Au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » (programme
 non signé) : **Informations complémentaires → Exécuter quand même**.
 
-Ouvrez un ou plusieurs fichiers `.bbl` / `.bfl` (bouton **Ouvrir…** ou glisser-déposer). Chaque session
+Ouvrez un ou plusieurs fichiers `.bbl` / `.bfl` (bouton bleu **Ouvrir** de la barre d'outils, Ctrl+O, ou glisser-déposer). Chaque session
 d'un fichier (un armement = une session) apparaît comme un log séparé ; 10 logs au maximum, chacun
 avec sa couleur, que l'on retrouve dans tous les outils.
 
@@ -46,12 +46,16 @@ save
 
 ## 3. Le visualiseur (fenêtre principale)
 
-- **Traces** à gauche : gyro, gyro préfiltre, termes P/I/D/F, consigne, somme et erreur PID, debug ;
-  en bas : moteurs (%), gaz (%), rotation des moteurs (Hz).
+- **Barre d'outils** en haut : ouvrir et fermer les logs, puis un bouton par outil (Spectre, Fréq. × gaz,
+  Indicielle…) ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton pour sa description.
+- **Traces** à gauche, rangées par groupe (Gyro, Consigne et PID, Autres, Moteurs). Les traces que le log
+  ne contient pas sont masquées.
 - **Période d'analyse** : la zone claire sur le graphique des gaz. Tous les outils n'analysent que cette
   zone. Elle est choisie automatiquement (du décollage à l'atterrissage, en s'arrêtant avant un crash) ;
   déplacez ses bords à la souris pour l'ajuster, **Période auto** pour revenir au calcul automatique.
 - **Lecteur** : curseur temporel, manches et valeurs à l'instant choisi ; ▶ pour rejouer le vol.
+- **Affichage** (section repliable à droite) : lissage et épaisseur des traces, thème clair ou sombre.
+  Les sections Affichage et Lecteur se replient d'un clic sur leur titre.
 - Zoom : molette ; déplacement : clic-glisser ; **Vue entière** pour tout revoir.
 - **Tous / Roll / Pitch / Yaw** : un seul axe sur toute la hauteur.
 

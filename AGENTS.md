@@ -17,6 +17,8 @@ les commandes qui demandent `sudo` : préparer la commande ou un script, ne pas 
 - Projet **privé, tous droits réservés** (pas de licence libre).
 - **Aucune copie de code PIDtoolbox** (binaire chiffré) ni d'autres projets : tout est réimplémenté à partir
   des formules du firmware Betaflight et de méthodes publiées (voir `docs/spec-*.md`).
+  Seule exception, validée par Cédric : les icônes [Lucide](https://lucide.dev) (licence ISC) dans
+  `gui/assets/icons/`, à garder avec leur fichier de licence.
 - Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français.
 
 ## Organisation

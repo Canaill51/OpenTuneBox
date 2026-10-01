@@ -19,6 +19,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   claire et sombre complètes (fini le gris beige et les boutons qui semblaient désactivés sous Windows),
   couleurs des boutons d'outils contrastées dans chaque thème, cases à cocher et boutons radio bien
   visibles, traces repérées par un trait de couleur, textes d'aide moins petits.
+- Fenêtre principale modernisée : barre d'outils avec icônes (Lucide, licence ISC) à la place des boutons
+  du panneau droit, texte 15 % plus grand, traces groupées (Gyro, PID, Moteurs) et traces absentes du log
+  masquées, sections « Affichage » et « Lecteur » repliables, traces lissées d'épaisseur 2 par défaut,
+  grille limitée aux graduations principales.
 
 ### Corrigé
 - Le raccourci Linux ne se déclare plus capable d'ouvrir tous les fichiers binaires.

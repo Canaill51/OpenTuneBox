@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import pyqtgraph as pg
@@ -58,15 +59,15 @@ class Theme:
 
 
 THEMES = {
-    "clair": Theme("clair", "#ffffff", "#1b1b1b", 0.25, (128, 128, 128, 90), {
+    "clair": Theme("clair", "#ffffff", "#1b1b1b", 0.22, (128, 128, 128, 90), {
         "window": "#f3f3f3", "base": "#ffffff", "alt": "#f5f7fa", "button": "#fbfbfb",
         "text": "#1b1b1b", "muted": "#5c5c5c", "disabled": "#9a9a9a", "highlight": "#1f57c3",
-        "tooltip": "#ffffe8", "link": "#1f57c3", "light": "#ffffff", "mid": "#c4c4c4", "dark": "#a0a0a0",
+        "tooltip": "#ffffe8", "link": "#2b6be0", "hover": "#e4e7ec", "light": "#ffffff", "mid": "#c4c4c4", "dark": "#a0a0a0",
     }),
-    "sombre": Theme("sombre", "#1e1f22", "#e2e2e2", 0.2, (0, 0, 0, 110), {
+    "sombre": Theme("sombre", "#1e1f22", "#e2e2e2", 0.18, (0, 0, 0, 110), {
         "window": "#2b2d31", "base": "#1e1f22", "alt": "#26282c", "button": "#3a3d43",
         "text": "#e8e8e8", "muted": "#a8a8a8", "disabled": "#6e7177", "highlight": "#3d7be0",
-        "tooltip": "#3a3d43", "link": "#7aa7ff", "light": "#4a4d54", "mid": "#55585f", "dark": "#18191c",
+        "tooltip": "#3a3d43", "link": "#5a92f0", "hover": "#3a3d43", "light": "#4a4d54", "mid": "#55585f", "dark": "#18191c",
     }),
 }
 
@@ -121,30 +122,103 @@ def _palette(t: Theme) -> QPalette:
     return pal
 
 
+FONT_SCALE = 1.15  # texte un peu plus grand que la taille du système
+
+
 def apply(name: str) -> Theme:
     """Applique un thème à pyqtgraph et à l'interface Qt."""
     global _current
     _current = THEMES.get(name, THEMES["clair"])
-    pg.setConfigOptions(background=_current.bg, foreground=_current.fg, antialias=False)
+    # antialias : courbes lissées (le sous-échantillonnage « peak » garde l'affichage rapide)
+    pg.setConfigOptions(background=_current.bg, foreground=_current.fg, antialias=True)
     app = QApplication.instance()
     if app is not None:
         # Style « Fusion » sur tous les systèmes : il suit fidèlement la palette ci-dessous. Les styles
         # natifs (Windows 11 surtout) ignorent une partie des couleurs et grisent les textes des boutons.
         if app.style().name().lower() != "fusion":
             app.setStyle("Fusion")
+        if not app.property("otb_font_scaled"):
+            font = app.font()
+            font.setPointSizeF(font.pointSizeF() * FONT_SCALE)
+            app.setFont(font)
+            app.setProperty("otb_font_scaled", True)
         app.setPalette(_palette(_current))
-        app.setStyleSheet(_indicator_style(_current))
+        app.setStyleSheet(_stylesheet(_current))
     return _current
 
 
-def _indicator_style(t: Theme) -> str:
-    """Cases à cocher et boutons radio bien contrastés.
+def _colored_svg(name: str, color: str) -> str:
+    """Copie colorée d'une icône, enregistrée dans le dossier temporaire (les feuilles de style
+    Qt ne savent charger une image que depuis un fichier)."""
+    out = Path(tempfile.gettempdir()) / "opentunebox-icons" / f"{name}-{color.lstrip('#')}.svg"
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        src = Path(__file__).parent / "assets" / "icons" / f"{name}.svg"
+        out.write_text(src.read_text(encoding="utf-8").replace("currentColor", color), encoding="utf-8")
+    return out.as_posix()
 
-    Fusion (Qt 6.11) les dessine avec un contour presque invisible, surtout sous Windows.
+
+def _stylesheet(t: Theme) -> str:
+    """Apparence « moderne et sobre » : coins arrondis, bordures fines, un seul bouton mis en avant.
+
+    Les cases à cocher et boutons radio sont redessinés : Fusion (Qt 6.11) les dessine avec un
+    contour presque invisible, surtout sous Windows.
     """
     u = t.ui
     check = (Path(__file__).parent / "assets" / "coche.svg").as_posix()
+    down = _colored_svg("chevron-down", u["muted"])
+    up = _colored_svg("chevron-up", u["muted"])
     return f"""
+QPushButton {{
+    background: {u['button']}; border: 1px solid {u['mid']}; border-radius: 6px; padding: 4px 8px;
+}}
+QPushButton:hover {{ border-color: {u['highlight']}; }}
+QPushButton:pressed {{ background: {u['hover']}; }}
+QPushButton:disabled {{ color: {u['disabled']}; border-color: {u['hover']}; }}
+
+QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit {{
+    background: {u['base']}; border: 1px solid {u['mid']}; border-radius: 5px; padding: 3px 6px;
+}}
+QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QLineEdit:hover,
+QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus {{ border-color: {u['highlight']}; }}
+QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{ color: {u['disabled']}; }}
+QComboBox::drop-down {{ border: none; width: 22px; }}
+QComboBox::down-arrow {{ image: url("{down}"); width: 14px; height: 14px; }}
+QComboBox QAbstractItemView {{
+    background: {u['base']}; border: 1px solid {u['mid']}; selection-background-color: {u['highlight']};
+    selection-color: #ffffff; outline: none;
+}}
+QSpinBox::up-button, QDoubleSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::down-button {{
+    border: none; width: 18px;
+}}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{ image: url("{up}"); width: 12px; height: 12px; }}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{ image: url("{down}"); width: 12px; height: 12px; }}
+
+QListWidget, QTreeWidget, QTableWidget, QTextBrowser, QTextEdit, QPlainTextEdit {{
+    background: {u['base']}; border: 1px solid {u['mid']}; border-radius: 6px;
+}}
+QGroupBox {{
+    border: 1px solid {u['mid']}; border-radius: 8px; margin-top: 1.3em; padding: 6px 4px 4px 4px;
+}}
+QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; color: {u['muted']}; }}
+
+QToolBar {{ background: {u['window']}; border: none; border-bottom: 1px solid {u['mid']}; padding: 4px 6px; spacing: 2px; }}
+QToolBar::separator {{ background: {u['mid']}; width: 1px; margin: 4px 6px; }}
+QToolBar QToolButton {{ border: none; border-radius: 6px; padding: 4px 8px; }}
+QToolBar QToolButton:hover {{ background: {u['hover']}; }}
+QToolBar QToolButton:pressed {{ background: {u['mid']}; }}
+QToolBar QToolButton#primary {{ background: {u['highlight']}; color: #ffffff; font-weight: 600; }}
+QToolBar QToolButton#primary:hover {{ background: {u['link']}; }}
+
+QToolButton#sectionHeader {{
+    border: none; border-bottom: 1px solid {u['mid']}; border-radius: 0; padding: 4px 0;
+    font-weight: 600; color: {u['text']}; text-align: left;
+}}
+QLabel#heading {{ color: {u['muted']}; font-weight: 600; padding-top: 6px; }}
+QStatusBar {{ color: {u['muted']}; }}
+QSplitter::handle {{ background: {u['window']}; }}
+QToolTip {{ background: {u['tooltip']}; color: {u['text']}; border: 1px solid {u['mid']}; padding: 4px; }}
+
 QCheckBox::indicator, QRadioButton::indicator {{
     width: 13px; height: 13px; border: 1px solid {u['muted']}; background: {u['base']};
 }}

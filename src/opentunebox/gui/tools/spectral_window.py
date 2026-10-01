@@ -93,8 +93,8 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
         layout.addWidget(box)
 
         row = QHBoxLayout()
-        for key, label, color in (("freq_throttle", "Fréquence × gaz", "red"),
-                                  ("freq_time", "Fréquence × temps", "blue")):
+        for key, label, color in (("freq_throttle", "Fréq. × gaz", "red"),
+                                  ("freq_time", "Fréq. × temps", "blue")):
             b = QPushButton(label)
             b.setStyleSheet(theme.accent_style(color))
             b.clicked.connect(lambda _c=False, k=key: self._open(k))

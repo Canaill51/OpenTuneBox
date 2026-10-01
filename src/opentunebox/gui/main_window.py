@@ -10,18 +10,19 @@ import pyqtgraph as pg
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QFontDatabase, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QCheckBox,
     QComboBox,
     QFileDialog,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QRadioButton,
+    QSizePolicy,
     QSpinBox,
     QSplitter,
     QVBoxLayout,
@@ -31,8 +32,10 @@ from PySide6.QtWidgets import (
 from .. import __version__
 from ..log.flightlog import load
 from ..log.modes import mode_changes
-from . import theme
+from . import icons, theme
 from .state import MAX_LOGS, AppState
+from .widgets.axis import major_axes
+from .widgets.section import Section
 from .widgets.sticks import StickWidget
 from .worker import run_async
 
@@ -50,8 +53,26 @@ TRACES = [
     ("pid_error", "Erreur PID"),
     ("debug", "Debug"),
 ]
+TRACE_GROUPS = [
+    ("Gyro", ["gyro", "gyro_prefilt"]),
+    ("Consigne et PID", ["setpoint", "pterm", "iterm", "dterm", "dterm_prefilt", "fterm", "pid_sum", "pid_error"]),
+    ("Autres", ["debug"]),
+]
 DEFAULT_TRACES = {"gyro", "setpoint"}
 SMOOTHING = {"aucun": 1, "léger": 5, "moyen": 11, "fort": 25}
+
+# Barre d'outils : (clé, libellé court, icône Lucide, info-bulle)
+TOOLS = [
+    ("spectral", "Spectre", "audio-waveform", "Analyse spectrale"),
+    ("freq_throttle", "Fréq. × gaz", "gauge", "Spectre en fonction des gaz"),
+    ("freq_time", "Fréq. × temps", "timer", "Spectrogramme : spectre au cours du vol"),
+    ("step", "Indicielle", "chart-line", "Réponse indicielle (réactivité, dépassement)"),
+    ("sliders", "Curseurs PID", "sliders-horizontal", "Curseurs PID du configurateur Betaflight"),
+    ("filter_sim", "Filtres", "funnel", "Simulateur de filtres"),
+    ("setup", "Configuration", "cpu", "Infos de configuration (en-tête du log)"),
+    ("stats", "Statistiques", "chart-column", "Statistiques de vol"),
+    ("advisor", "Assistant", "lightbulb", "Assistant de réglage"),
+]
 
 
 def _trace_data(log, key: str) -> np.ndarray | None:
@@ -68,6 +89,12 @@ def _trace_data(log, key: str) -> np.ndarray | None:
         "pid_error": lambda: log.pid_error,
         "debug": lambda: log.debug[:3] if log.debug.shape[0] >= 1 else None,
     }[key]()
+
+
+
+def _has_trace(log, key: str) -> bool:
+    data = _trace_data(log, key)
+    return data is not None and data.size > 0 and bool(np.any(data))
 
 
 def _smooth(y: np.ndarray, w: int) -> np.ndarray:
@@ -100,25 +127,63 @@ class MainWindow(QMainWindow):
 
     # ================================================================ construction
     def _build_ui(self) -> None:
+        self._build_toolbar()
         split = QSplitter(Qt.Horizontal)
         split.addWidget(self._build_selection_panel())
         self.plots_widget = pg.GraphicsLayoutWidget()
         split.addWidget(self.plots_widget)
         split.addWidget(self._build_control_panel())
         split.setStretchFactor(1, 1)
-        split.setSizes([190, 1080, 320])
+        split.setSizes([200, 1110, 290])
         self.setCentralWidget(split)
+        self._apply_icons()
         self._build_plots()
         self.statusBar().showMessage("Ouvrez un log Blackbox (.bbl, .bfl) — ou glissez-le dans la fenêtre.")
 
-        act_open = QAction("Ouvrir…", self)
+    def _build_toolbar(self) -> None:
+        tb = self.addToolBar("Outils")
+        tb.setObjectName("mainToolbar")
+        tb.setMovable(False)
+        tb.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._icon_actions: list[tuple[QAction, str, bool]] = []  # (action, icône, bouton principal)
+
+        def add(text: str, icon: str, slot, tip: str = "", primary: bool = False, icon_only: bool = False) -> QAction:
+            act = QAction(text, self)
+            act.setToolTip(tip or text)
+            act.triggered.connect(slot)
+            tb.addAction(act)
+            if primary:
+                tb.widgetForAction(act).setObjectName("primary")
+            if icon_only:
+                tb.widgetForAction(act).setToolButtonStyle(Qt.ToolButtonIconOnly)
+            self._icon_actions.append((act, icon, primary))
+            return act
+
+        act_open = add("Ouvrir…", "folder-open", self.open_files, "Ouvrir des logs Blackbox (Ctrl+O)", primary=True)
         act_open.setShortcut(QKeySequence.Open)
-        act_open.triggered.connect(self.open_files)
-        self.addAction(act_open)
+        add("Fermer", "x", lambda: self.state.remove(self.state.current), "Fermer le log affiché", icon_only=True)
+        add("Tout fermer", "trash-2", self.state.clear, "Fermer tous les logs", icon_only=True)
+        tb.addSeparator()
+        for key, text, icon, tip in TOOLS:
+            add(text, icon, lambda _c=False, k=key: self.open_tool(k), tip)
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        tb.addWidget(spacer)
+        add("Exporter image", "image-down", lambda: self.save_figure(self), "Exporter la fenêtre en image PNG", icon_only=True)
+
+    def _apply_icons(self) -> None:
+        for act, name, primary in self._icon_actions:
+            act.setIcon(icons.icon(name, "#ffffff" if primary else theme.current().ui["text"]))
+        for b, name in self._player_buttons:
+            if b is self.play_btn and self._play_timer.isActive():
+                name = "pause"
+            b.setIcon(icons.icon(name, theme.current().ui["text"], 16))
 
     def _build_selection_panel(self) -> QWidget:
-        box = QGroupBox("Sélection")
-        lay = QVBoxLayout(box)
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(10, 8, 6, 8)
+        lay.setSpacing(3)
         row = QHBoxLayout()
         row.addWidget(QLabel("Échelle Y (°/s)"))
         self.yscale = QSpinBox()
@@ -128,17 +193,32 @@ class MainWindow(QMainWindow):
         self.yscale.valueChanged.connect(self._apply_yrange)
         row.addWidget(self.yscale)
         lay.addLayout(row)
+
         self.trace_boxes: dict[str, QCheckBox] = {}
         saved = self.settings.value("viewer/traces", None)
         enabled = set(saved.split(",")) if isinstance(saved, str) and saved else DEFAULT_TRACES
-        for key, label in TRACES:
-            cb = QCheckBox(label)
-            cb.setIcon(theme.swatch_icon(theme.trace_color(key)))
-            cb.setChecked(key in enabled)
-            cb.toggled.connect(self._on_traces_changed)
-            lay.addWidget(cb)
-            self.trace_boxes[key] = cb
-        lay.addSpacing(8)
+        labels = dict(TRACES)
+        self._group_headings: list[tuple[QLabel, list[str]]] = []
+        for heading, keys in TRACE_GROUPS:
+            h = QLabel(heading)
+            h.setObjectName("heading")
+            lay.addWidget(h)
+            self._group_headings.append((h, keys))
+            for key in keys:
+                cb = QCheckBox(labels[key])
+                cb.setIcon(theme.swatch_icon(theme.trace_color(key)))
+                cb.setChecked(key in enabled)
+                cb.toggled.connect(self._on_traces_changed)
+                lay.addWidget(cb)
+                self.trace_boxes[key] = cb
+        self.debug_label = QLabel("")
+        self.debug_label.setWordWrap(True)
+        self.debug_label.setStyleSheet(theme.muted_style())
+        lay.addWidget(self.debug_label)
+
+        h = QLabel("Moteurs")
+        h.setObjectName("heading")
+        lay.addWidget(h)
         self.motor_box = QCheckBox("Moteurs (%)")
         self.motor_box.setChecked(True)
         self.rps_box = QCheckBox("Rotation moteurs (Hz)")
@@ -147,37 +227,22 @@ class MainWindow(QMainWindow):
         for cb in (self.motor_box, self.rps_box, self.thr_box):
             cb.toggled.connect(self._on_traces_changed)
             lay.addWidget(cb)
-        lay.addSpacing(8)
-        self.debug_label = QLabel("")
-        self.debug_label.setWordWrap(True)
-        lay.addWidget(self.debug_label)
         lay.addStretch(1)
-        box.setMinimumWidth(170)
-        return box
+        panel.setMinimumWidth(180)
+        return panel
 
     def _build_control_panel(self) -> QWidget:
         w = QWidget()
-        self._accent_buttons: list[tuple[QPushButton, str | None]] = []
         lay = QVBoxLayout(w)
-        g = QGroupBox("Panneau de contrôle")
-        gl = QGridLayout(g)
-        b_open = QPushButton("Ouvrir…")
-        self._accent_buttons.append((b_open, "green"))
-        b_open.clicked.connect(self.open_files)
-        b_close = QPushButton("Fermer")
-        b_close.clicked.connect(lambda: self.state.remove(self.state.current))
-        b_clear = QPushButton("Tout fermer")
-        self._accent_buttons.append((b_clear, "red"))
-        b_clear.clicked.connect(self.state.clear)
-        gl.addWidget(b_open, 0, 0)
-        gl.addWidget(b_close, 0, 1)
-        gl.addWidget(b_clear, 0, 2)
+        lay.setContentsMargins(6, 8, 10, 8)
         self.file_combo = QComboBox()
+        self.file_combo.setPlaceholderText("Aucun log ouvert")
         self.file_combo.currentIndexChanged.connect(self._on_combo)
-        gl.addWidget(self.file_combo, 1, 0, 1, 3)
+        lay.addWidget(self.file_combo)
         self.info_label = QLabel("")
         self.info_label.setWordWrap(True)
-        gl.addWidget(self.info_label, 2, 0, 1, 3)
+        self.info_label.setStyleSheet(theme.muted_style())
+        lay.addWidget(self.info_label)
 
         axes = QHBoxLayout()
         self.focus_group = QButtonGroup(self)
@@ -187,69 +252,58 @@ class MainWindow(QMainWindow):
             self.focus_group.addButton(rb, i)
             axes.addWidget(rb)
         self.focus_group.idToggled.connect(lambda _i, on: on and self._apply_focus())
-        gl.addLayout(axes, 3, 0, 1, 3)
+        lay.addLayout(axes)
 
+        row = QHBoxLayout()
         b_period = QPushButton("Période auto")
         b_period.setToolTip("Recalcule la période d'analyse : du décollage à l'atterrissage, avant un éventuel crash.\n"
                             "Vous pouvez aussi déplacer les bords de la zone claire sur le graphique des gaz.")
         b_period.clicked.connect(lambda: self.state.reset_period(self.state.current))
         b_full = QPushButton("Vue entière")
         b_full.clicked.connect(self._view_all)
-        b_png = QPushButton("Exporter image")
-        b_png.clicked.connect(lambda: self.save_figure(self))
-        gl.addWidget(b_period, 4, 0)
-        gl.addWidget(b_full, 4, 1)
-        gl.addWidget(b_png, 4, 2)
+        row.addWidget(b_period)
+        row.addWidget(b_full)
+        lay.addLayout(row)
 
-        gl.addWidget(QLabel("Lissage"), 5, 0)
+        display = Section("Affichage", "viewer_display", expanded=False)
+        gl = QGridLayout()
+        display.content_layout.addLayout(gl)
+        gl.addWidget(QLabel("Lissage"), 0, 0)
         self.smooth_combo = QComboBox()
         self.smooth_combo.addItems(list(SMOOTHING))
         self.smooth_combo.currentIndexChanged.connect(self._redraw)
-        gl.addWidget(self.smooth_combo, 5, 1, 1, 2)
-        gl.addWidget(QLabel("Épaisseur"), 6, 0)
+        gl.addWidget(self.smooth_combo, 0, 1)
+        gl.addWidget(QLabel("Épaisseur"), 1, 0)
         self.width_spin = QSpinBox()
         self.width_spin.setRange(1, 5)
-        self.width_spin.setValue(int(self.settings.value("viewer/linewidth", 1)))
+        self.width_spin.setValue(int(self.settings.value("viewer/linewidth", 2)))
         self.width_spin.valueChanged.connect(self._redraw)
-        gl.addWidget(self.width_spin, 6, 1, 1, 2)
-        gl.addWidget(QLabel("Thème"), 7, 0)
+        gl.addWidget(self.width_spin, 1, 1)
+        gl.addWidget(QLabel("Thème"), 2, 0)
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(list(theme.THEMES))
         self.theme_combo.setCurrentText(theme.current().name)
         self.theme_combo.currentTextChanged.connect(self._change_theme)
-        gl.addWidget(self.theme_combo, 7, 1, 1, 2)
-        lay.addWidget(g)
+        gl.addWidget(self.theme_combo, 2, 1)
+        gl.setColumnStretch(1, 1)
+        lay.addWidget(display)
 
-        tools = QGroupBox("Outils")
-        tl = QVBoxLayout(tools)
-        for key, label, color in [
-            ("spectral", "Analyse spectrale", "red"),
-            ("freq_throttle", "Fréquence × gaz", "red"),
-            ("freq_time", "Fréquence × temps", "blue"),
-            ("step", "Réponse indicielle", "blue"),
-            ("sliders", "Curseurs PID", "orange"),
-            ("filter_sim", "Simulateur de filtres", "green"),
-            ("setup", "Infos de configuration", None),
-            ("stats", "Statistiques de vol", None),
-            ("advisor", "Assistant de réglage", "purple"),
-        ]:
-            b = QPushButton(label)
-            self._accent_buttons.append((b, color))
-            b.clicked.connect(lambda _c=False, k=key: self.open_tool(k))
-            tl.addWidget(b)
-        lay.addWidget(tools)
-
-        player = QGroupBox("Lecteur")
-        pl = QVBoxLayout(player)
+        player = Section("Lecteur", "viewer_player", expanded=True)
+        pl = player.content_layout
         row = QHBoxLayout()
-        for txt, fn in (("<<", lambda: self._seek_rel(None, -1)), ("<", lambda: self._seek_rel(-0.1)),
-                        ("▶", self._toggle_play), (">", lambda: self._seek_rel(0.1)),
-                        (">>", lambda: self._seek_rel(None, 1))):
-            b = QPushButton(txt)
-            b.setFixedWidth(36)
+        self._player_buttons: list[tuple[QPushButton, str]] = []
+        for name, tip, fn in (("skip-back", "Début de la période", lambda: self._seek_rel(None, -1)),
+                              ("chevron-left", "Reculer de 0,1 s", lambda: self._seek_rel(-0.1)),
+                              ("play", "Lecture / pause", self._toggle_play),
+                              ("chevron-right", "Avancer de 0,1 s", lambda: self._seek_rel(0.1)),
+                              ("skip-forward", "Fin de la période", lambda: self._seek_rel(None, 1))):
+            b = QPushButton()
+            b.setToolTip(tip)
+            b.setFixedWidth(40)
             b.clicked.connect(fn)
             row.addWidget(b)
-            if txt == "▶":
+            self._player_buttons.append((b, name))
+            if name == "play":
                 self.play_btn = b
         pl.addLayout(row)
         self.time_label = QLabel("temps : —")
@@ -262,12 +316,14 @@ class MainWindow(QMainWindow):
         sticks.addWidget(self.stick_right)
         pl.addLayout(sticks)
         self.readout = QLabel("")
-        self.readout.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        mono = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        mono.setFamilies(["Cascadia Mono", "Consolas", "Menlo", "DejaVu Sans Mono", mono.family()])
+        mono.setPointSizeF(QApplication.font().pointSizeF() * 0.95)
+        self.readout.setFont(mono)
         pl.addWidget(self.readout)
         lay.addWidget(player)
-        self._apply_accents()
         lay.addStretch(1)
-        w.setMinimumWidth(310)
+        w.setMinimumWidth(270)
         return w
 
     def _build_plots(self) -> None:
@@ -275,7 +331,7 @@ class MainWindow(QMainWindow):
         pw.clear()
         self.axis_plots: list[pg.PlotItem] = []
         for i, name in enumerate(theme.AXIS_NAMES):
-            p = pw.addPlot(row=i, col=0)
+            p = pw.addPlot(row=i, col=0, axisItems=major_axes())
             p.setLabel("left", f"{name} (°/s)")
             p.showGrid(x=True, y=True, alpha=theme.current().grid)
             p.setDownsampling(auto=True, mode="peak")
@@ -284,7 +340,7 @@ class MainWindow(QMainWindow):
             if i > 0:
                 p.setXLink(self.axis_plots[0])
             self.axis_plots.append(p)
-        self.motor_plot = pw.addPlot(row=3, col=0)
+        self.motor_plot = pw.addPlot(row=3, col=0, axisItems=major_axes())
         self.motor_plot.setLabel("left", "Gaz | moteurs (%)")
         self.motor_plot.setLabel("bottom", "Temps (s)")
         self.motor_plot.showGrid(x=True, y=True, alpha=theme.current().grid)
@@ -409,9 +465,19 @@ class MainWindow(QMainWindow):
         if ll is None:
             self.info_label.setText("")
             self.debug_label.setText("")
+            for cb in self.trace_boxes.values():
+                cb.setVisible(True)
+            for h, _keys in self._group_headings:
+                h.setVisible(True)
             return
         log = ll.log
         s = log.settings
+        # traces absentes de ce log (non enregistrées, ou nulles) : masquées
+        for key, cb in self.trace_boxes.items():
+            cb.setVisible(_has_trace(log, key))
+        for h, keys in self._group_headings:
+            h.setVisible(any(_has_trace(log, k) for k in keys))
+        self.rps_box.setVisible(log.motor_hz is not None)
         self.info_label.setText(f"{s.firmware}\n{s.craft_name or ''}  {log.fs:.0f} Hz · {log.duration:.1f} s")
         self.debug_label.setText(f"Debug : {s.debug_mode}")
         w = self.width_spin.value()
@@ -487,12 +553,10 @@ class MainWindow(QMainWindow):
         self._build_plots()
         for key, cb in self.trace_boxes.items():
             cb.setIcon(theme.swatch_icon(theme.trace_color(key)))
-        self._apply_accents()
+        for lbl in (self.info_label, self.debug_label):
+            lbl.setStyleSheet(theme.muted_style())
+        self._apply_icons()
         self._redraw()
-
-    def _apply_accents(self) -> None:
-        for b, name in self._accent_buttons:
-            b.setStyleSheet(theme.accent_style(name))
 
     # ================================================================ période
     def _update_period_items(self) -> None:
@@ -559,10 +623,9 @@ class MainWindow(QMainWindow):
     def _toggle_play(self) -> None:
         if self._play_timer.isActive():
             self._play_timer.stop()
-            self.play_btn.setText("▶")
         else:
             self._play_timer.start()
-            self.play_btn.setText("⏸")
+        self._apply_icons()
 
     def _play_step(self) -> None:
         ll = self.state.current_log()
