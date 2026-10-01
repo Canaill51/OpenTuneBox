@@ -466,11 +466,13 @@ class MainWindow(QMainWindow):
         if ll is None:
             self.info_label.setText("")
             self.debug_label.setText("")
+            self._set_period_items_visible(False)
             for cb in self.trace_boxes.values():
                 cb.setVisible(True)
             for h, _keys in self._group_headings:
                 h.setVisible(True)
             return
+        self._set_period_items_visible(True)
         log = ll.log
         s = log.settings
         # traces absentes de ce log (non enregistrées, ou nulles) : masquées
@@ -560,6 +562,15 @@ class MainWindow(QMainWindow):
         self._redraw()
 
     # ================================================================ période
+    def _set_period_items_visible(self, on: bool) -> None:
+        """Zone de période, zones grisées et curseur : seulement quand un log est affiché."""
+        self.region.setVisible(on)
+        for a, b in self.shades:
+            a.setVisible(on)
+            b.setVisible(on)
+        for c in self.cursors:
+            c.setVisible(on)
+
     def _update_period_items(self) -> None:
         ll = self.state.current_log()
         if ll is None:
