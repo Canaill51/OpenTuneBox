@@ -4,8 +4,8 @@ Principes :
 - chaque constat cite la mesure qui le justifie (valeur, seuil, axe) ;
 - les suggestions passent de préférence par les curseurs du réglage simplifié de Betaflight
   (une seule chose à la fois, par petits pas de 0,1), puis par des réglages précis si besoin ;
-- les seuils dépendent de la taille du drone (profiles.py) ; ceux de bruit sont calibrés sur un
-  corpus de ~800 logs réels (voir docs/assistant.md).
+- les seuils dépendent de la taille du drone (profiles.py) et sont calibrés sur 708 sessions réelles
+  (90e percentile de chaque taille, voir docs/assistant.md).
 """
 
 from __future__ import annotations
@@ -27,13 +27,6 @@ from .profiles import CraftProfile, detect_profile
 # Niveaux de gravité
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
 SEVERITY_ORDER = {ALERTE: 0, ATTENTION: 1, CONSEIL: 2, INFO: 3, OK: 4}
-
-# Seuils (dB de densité spectrale, (°/s)²/Hz ou (unités PID)²/Hz) — calibrés sur le corpus
-GYRO_NOISE_HIGH_DB = -10.0  # gyro filtré, moyenne 80–500 Hz
-DTERM_NOISE_HIGH_DB = -2.0  # terme D, moyenne 80–500 Hz
-MOTOR_HARMONIC_LEFT_DB = -28.0  # bruit restant sur la 1re harmonique moteur après filtrage
-LOW_BAND_HIGH_DB = 5.0  # gyro filtré 20–80 Hz (oscillations, propwash)
-
 
 @dataclass
 class Finding:
@@ -119,7 +112,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         steps.append(AxisStep(AXES[ax], r))
     meas["steps"] = {st.axis: st.result.metrics for st in steps}
     for ax, st in enumerate(steps[:2]):
-        _step_rules(F, st, profile)
+        _step_rules(F, st, profile, s.pids[ax].F)
     if steps[0].result.n < 20 and steps[1].result.n < 20:
         F.append(Finding("Réponse", ATTENTION, "Pas assez de mouvements de manche",
                          f"Seulement {steps[0].result.n} fenêtres exploitables en roll et {steps[1].result.n} en pitch "
@@ -143,18 +136,18 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     d_db = [_band_db(log.d_term[a, sel], fs, 80, hi) for a in range(2) if np.any(log.d_term[a])]
     low_db = [_band_db(log.gyro[a, sel], fs, 20, 80) for a in range(2)]
     meas.update(gyro_noise_db=g_db, dterm_noise_db=d_db, low_band_db=low_db)
-    gyro_noisy = max(g_db) > GYRO_NOISE_HIGH_DB
-    dterm_noisy = bool(d_db) and max(d_db) > DTERM_NOISE_HIGH_DB
+    gyro_noisy = max(g_db) > profile.gyro_noise_high_db
+    dterm_noisy = bool(d_db) and max(d_db) > profile.dterm_noise_high_db
     if dterm_noisy:
         F.append(Finding("Bruit", ATTENTION, "Terme D bruité",
-                         f"Bruit du terme D {max(d_db):.1f} dB (80–{hi:.0f} Hz), au-dessus du seuil {DTERM_NOISE_HIGH_DB:.0f} dB. "
+                         f"Bruit du terme D {max(d_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille (seuil {profile.dterm_noise_high_db:.1f} dB). "
                          "Un D bruité fait chauffer les moteurs et use les ESC.",
                          ["Vérifiez d'abord la mécanique (hélices, roulements, vis du châssis).",
                           "Curseur « filtre D » : −0,1 à −0,2 (filtrage plus fort), ou baisser le D (curseur Damping) si la réponse le permet.",
                           "Après le vol : moteurs tièdes = OK ; chauds = réduire D ou filtrer plus."]))
     if gyro_noisy:
         F.append(Finding("Bruit", ATTENTION, "Gyro filtré bruité",
-                         f"Bruit du gyro filtré {max(g_db):.1f} dB (80–{hi:.0f} Hz), seuil {GYRO_NOISE_HIGH_DB:.0f} dB.",
+                         f"Bruit du gyro filtré {max(g_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille (seuil {profile.gyro_noise_high_db:.1f} dB).",
                          ["Contrôlez hélices et moteurs (vibrations), la fixation du contrôleur de vol (silentblocs).",
                           "Curseur « filtre gyro » : −0,1 à −0,2."]))
     if np.isfinite(delays.gyro_ms):
@@ -178,15 +171,16 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         left = [float(np.nanmax([m.mean_db[0] for m in mn]))]
         meas["motor_harmonic_left_db"] = left[0]
         meas["motor_harmonic_raw_db"] = float(np.nanmax([m.mean_db[0] for m in mp]))
-        if left[0] > MOTOR_HARMONIC_LEFT_DB:
+        if left[0] > profile.motor_left_high_db:
             F.append(Finding("Filtres", CONSEIL, "Bruit moteur mal éliminé",
                              f"Il reste {left[0]:.1f} dB sur la fréquence de rotation des moteurs après filtrage "
                              f"(avant filtrage : {meas['motor_harmonic_raw_db']:.1f} dB).",
                              ["Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs).",
                               "Filtre RPM : baisser rpm_filter_q (ex. 500 → 350) élargit les notchs."]))
-    if max(low_db) > LOW_BAND_HIGH_DB:
+    if max(low_db) > profile.low_band_high_db:
         F.append(Finding("Réponse", CONSEIL, "Oscillations basses fréquences (20–80 Hz)",
-                         f"Énergie du gyro filtré entre 20 et 80 Hz : {max(low_db):.1f} dB. C'est la zone du propwash "
+                         f"Énergie du gyro filtré entre 20 et 80 Hz : {max(low_db):.1f} dB (seuil {profile.low_band_high_db:.1f} dB, "
+                         "90 % des drones de cette taille font mieux). C'est la zone du propwash "
                          "et des oscillations de réglage.",
                          ["Si cela arrive en descente/gaz coupés : propwash → plus de D (Damping +0,1) ou D max.",
                           "Si cela arrive en vol stable : oscillation → baisser le Master ou P (Tracking −0,1).",
@@ -228,7 +222,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     return Report(profile, reason, (t0, t1), F, steps, meas)
 
 
-def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile) -> None:
+def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int = 0) -> None:
     r = st.result
     ax = st.axis
     if r.n < 20:
@@ -236,6 +230,19 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile) -> None:
     m = r.metrics
     lp = r.loop
     pk, lat = m.peak, m.latency_ms
+    if pk > 1.10 and ff_gain > 0 and np.isfinite(lat) and lat < profile.latency_ms[0]:
+        # Réponse plus rapide que ce que P et D permettent seuls, puis dépassement : c'est le
+        # feedforward qui pousse (il agit à plein sur les mouvements de manche vifs).
+        F.append(Finding("Réponse", CONSEIL if pk <= 1.20 else ATTENTION,
+                         f"Dépassement dû au feedforward en {ax.lower()}",
+                         f"Pic {pk:.2f} atteint après une montée très rapide (latence {lat:.1f} ms, plus courte que "
+                         f"les {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms habituels pour {profile.label}). "
+                         f"Le feedforward (F = {ff_gain}) anticipe le mouvement et le drone dépasse la consigne.",
+                         ["Curseur Stick response (FF) : −0,1 ; ou feedforward_boost plus bas.",
+                          "Si vous aimez cette vivacité (freestyle, course), ce n'est pas un défaut : "
+                          "vérifiez seulement qu'il n'y a pas de rebond à la fin des flips.",
+                          "Le D n'est pas en cause tant que les vols calmes ne dépassent pas."], ax))
+        return
     if pk > 1.20:
         F.append(Finding("Réponse", ATTENTION, f"Fort dépassement en {ax.lower()}", f"Pic {pk:.2f} (> 1,20) : le drone "
                          "dépasse la consigne puis revient, signe d'un manque d'amortissement.",
