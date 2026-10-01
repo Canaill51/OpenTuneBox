@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QSettings, Qt, QTimer
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QFontDatabase, QKeySequence
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
         enabled = set(saved.split(",")) if isinstance(saved, str) and saved else DEFAULT_TRACES
         for key, label in TRACES:
             cb = QCheckBox(label)
-            cb.setStyleSheet(f"QCheckBox {{ color: {theme.trace_color(key)}; font-weight: 600; }}")
+            cb.setIcon(theme.swatch_icon(theme.trace_color(key)))
             cb.setChecked(key in enabled)
             cb.toggled.connect(self._on_traces_changed)
             lay.addWidget(cb)
@@ -157,16 +157,17 @@ class MainWindow(QMainWindow):
 
     def _build_control_panel(self) -> QWidget:
         w = QWidget()
+        self._accent_buttons: list[tuple[QPushButton, str | None]] = []
         lay = QVBoxLayout(w)
         g = QGroupBox("Panneau de contrôle")
         gl = QGridLayout(g)
         b_open = QPushButton("Ouvrir…")
-        b_open.setStyleSheet("color:#1a9a3a; font-weight:600")
+        self._accent_buttons.append((b_open, "green"))
         b_open.clicked.connect(self.open_files)
         b_close = QPushButton("Fermer")
         b_close.clicked.connect(lambda: self.state.remove(self.state.current))
         b_clear = QPushButton("Tout fermer")
-        b_clear.setStyleSheet("color:#c0392b")
+        self._accent_buttons.append((b_clear, "red"))
         b_clear.clicked.connect(self.state.clear)
         gl.addWidget(b_open, 0, 0)
         gl.addWidget(b_close, 0, 1)
@@ -176,7 +177,6 @@ class MainWindow(QMainWindow):
         gl.addWidget(self.file_combo, 1, 0, 1, 3)
         self.info_label = QLabel("")
         self.info_label.setWordWrap(True)
-        self.info_label.setStyleSheet("font-size: 10px")
         gl.addWidget(self.info_label, 2, 0, 1, 3)
 
         axes = QHBoxLayout()
@@ -223,19 +223,18 @@ class MainWindow(QMainWindow):
         tools = QGroupBox("Outils")
         tl = QVBoxLayout(tools)
         for key, label, color in [
-            ("spectral", "Analyse spectrale", "#c0392b"),
-            ("freq_throttle", "Fréquence × gaz", "#c0392b"),
-            ("freq_time", "Fréquence × temps", "#2f6fd6"),
-            ("step", "Réponse indicielle", "#2f6fd6"),
-            ("sliders", "Curseurs PID", "#d68910"),
-            ("filter_sim", "Simulateur de filtres", "#1a9a3a"),
+            ("spectral", "Analyse spectrale", "red"),
+            ("freq_throttle", "Fréquence × gaz", "red"),
+            ("freq_time", "Fréquence × temps", "blue"),
+            ("step", "Réponse indicielle", "blue"),
+            ("sliders", "Curseurs PID", "orange"),
+            ("filter_sim", "Simulateur de filtres", "green"),
             ("setup", "Infos de configuration", None),
             ("stats", "Statistiques de vol", None),
-            ("advisor", "Assistant de réglage", "#8e44ad"),
+            ("advisor", "Assistant de réglage", "purple"),
         ]:
             b = QPushButton(label)
-            if color:
-                b.setStyleSheet(f"color:{color}; font-weight:600")
+            self._accent_buttons.append((b, color))
             b.clicked.connect(lambda _c=False, k=key: self.open_tool(k))
             tl.addWidget(b)
         lay.addWidget(tools)
@@ -263,9 +262,10 @@ class MainWindow(QMainWindow):
         sticks.addWidget(self.stick_right)
         pl.addLayout(sticks)
         self.readout = QLabel("")
-        self.readout.setStyleSheet("font-family: monospace; font-size: 11px")
+        self.readout.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
         pl.addWidget(self.readout)
         lay.addWidget(player)
+        self._apply_accents()
         lay.addStretch(1)
         w.setMinimumWidth(310)
         return w
@@ -485,9 +485,14 @@ class MainWindow(QMainWindow):
         theme.apply(name)
         self.plots_widget.setBackground(theme.current().bg)
         self._build_plots()
-        for cb_key, cb in self.trace_boxes.items():
-            cb.setStyleSheet(f"QCheckBox {{ color: {theme.trace_color(cb_key)}; font-weight: 600; }}")
+        for key, cb in self.trace_boxes.items():
+            cb.setIcon(theme.swatch_icon(theme.trace_color(key)))
+        self._apply_accents()
         self._redraw()
+
+    def _apply_accents(self) -> None:
+        for b, name in self._accent_buttons:
+            b.setStyleSheet(theme.accent_style(name))
 
     # ================================================================ période
     def _update_period_items(self) -> None:

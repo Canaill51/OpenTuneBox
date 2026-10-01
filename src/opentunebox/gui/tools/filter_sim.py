@@ -272,7 +272,7 @@ class FilterSimWindow(ToolWindow):
         help_ = QLabel("Bode : trait plein = log, tirets = modifié. Spectres : « Appliquer » relance la "
                        "simulation (≈ 1 s).")
         help_.setWordWrap(True)
-        help_.setStyleSheet("color:#777; font-size:8pt")
+        help_.setStyleSheet(theme.muted_style())
         layout.addWidget(help_)
 
     def _spin(self, key: str, lo: int, hi: int, suffix: str = "") -> QSpinBox:
@@ -597,7 +597,7 @@ class FilterSimWindow(ToolWindow):
             if lp.dynamic:
                 rows.append(f"LPF1 {name} dynamique (modifié) à ce gaz : "
                             f"{dyn_lpf_cutoff(lp.dyn_min_hz, lp.dyn_max_hz, lp.expo, thr / 100):.0f} Hz")
-        rows.append("<span style='color:#777'>Spectres simulés = spectre enregistré × (filtres modifiés / "
+        rows.append(f"<span style='color:{theme.current().muted}'>Spectres simulés = spectre enregistré × (filtres modifiés / "
                     "filtres actuels), calculé à la cadence PID fenêtre par fenêtre.</span>")
         return _join_rows(rows)
 

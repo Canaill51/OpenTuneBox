@@ -15,6 +15,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Modifié
 - Scripts d'installation rangés par système : `packaging/linux/`, `packaging/windows/`.
+- Interface plus lisible, identique sous Windows, macOS et Linux : style Qt « Fusion » avec palettes
+  claire et sombre complètes (fini le gris beige et les boutons qui semblaient désactivés sous Windows),
+  couleurs des boutons d'outils contrastées dans chaque thème, cases à cocher et boutons radio bien
+  visibles, traces repérées par un trait de couleur, textes d'aide moins petits.
 
 ### Corrigé
 - Le raccourci Linux ne se déclare plus capable d'ouvrir tous les fichiers binaires.

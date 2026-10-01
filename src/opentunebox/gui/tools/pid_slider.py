@@ -108,7 +108,7 @@ class PidSliderWindow(ToolWindow):
             "Point plein : curseurs lus dans l'en-tête du log. Point creux : réglage simplifié désactivé, "
             "position estimée à partir des PID. Losange : votre simulation.")
         help_.setWordWrap(True)
-        help_.setStyleSheet("font-size:9pt")
+        help_.setStyleSheet(theme.muted_style())
         layout.addWidget(help_)
 
     def _build_editor(self) -> QWidget:
@@ -165,7 +165,7 @@ class PidSliderWindow(ToolWindow):
                 self.filter_on[key] = cb
             else:
                 h = QLabel(hint)
-                h.setStyleSheet("color:#777; font-size:8pt")
+                h.setStyleSheet(theme.muted_style())
                 grid.addWidget(h, r, 3)
             self.sl_widgets[key] = (s, sp)
         grid.setColumnStretch(3, 1)

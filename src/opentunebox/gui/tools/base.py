@@ -92,7 +92,7 @@ class ToolWindow(QWidget):
 
         row = QHBoxLayout()
         self.run_btn = QPushButton("Calculer")
-        self.run_btn.setStyleSheet("color:#1a9a3a; font-weight:600")
+        self.run_btn.setStyleSheet(theme.accent_style("green"))
         self.run_btn.clicked.connect(self.run)
         save = QPushButton("Exporter image")
         save.clicked.connect(self._save)

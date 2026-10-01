@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pyqtgraph as pg
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication
 
 # Couleurs des fichiers comparés (jusqu'à 10), dans l'ordre de PIDtoolbox
@@ -43,18 +46,38 @@ def motor_color(i: int) -> str:
 
 
 class Theme:
-    def __init__(self, name: str, bg: str, fg: str, grid: float, panel: str, shade: str):
+    def __init__(self, name: str, bg: str, fg: str, grid: float, shade: tuple, ui: dict[str, str]):
         self.name = name
-        self.bg = bg
-        self.fg = fg
+        self.bg = bg  # fond des graphiques
+        self.fg = fg  # texte et axes
         self.grid = grid
-        self.panel = panel
         self.shade = shade  # zones hors période
+        self.ui = ui  # couleurs des panneaux Qt
+        self.panel = ui["window"]
+        self.muted = ui["muted"]  # textes d'aide, secondaires
 
 
 THEMES = {
-    "clair": Theme("clair", "#ffffff", "#202020", 0.25, "#e8e8e8", (128, 128, 128, 90)),
-    "sombre": Theme("sombre", "#1e1f22", "#dcdcdc", 0.2, "#2b2d31", (0, 0, 0, 110)),
+    "clair": Theme("clair", "#ffffff", "#1b1b1b", 0.25, (128, 128, 128, 90), {
+        "window": "#f3f3f3", "base": "#ffffff", "alt": "#f5f7fa", "button": "#fbfbfb",
+        "text": "#1b1b1b", "muted": "#5c5c5c", "disabled": "#9a9a9a", "highlight": "#1f57c3",
+        "tooltip": "#ffffe8", "link": "#1f57c3", "light": "#ffffff", "mid": "#c4c4c4", "dark": "#a0a0a0",
+    }),
+    "sombre": Theme("sombre", "#1e1f22", "#e2e2e2", 0.2, (0, 0, 0, 110), {
+        "window": "#2b2d31", "base": "#1e1f22", "alt": "#26282c", "button": "#3a3d43",
+        "text": "#e8e8e8", "muted": "#a8a8a8", "disabled": "#6e7177", "highlight": "#3d7be0",
+        "tooltip": "#3a3d43", "link": "#7aa7ff", "light": "#4a4d54", "mid": "#55585f", "dark": "#18191c",
+    }),
+}
+
+# Couleurs des textes mis en valeur (boutons d'outils…), choisies pour rester lisibles sur
+# chaque fond (contraste ≥ 4,5:1) : (thème clair, thème sombre).
+ACCENTS = {
+    "green": ("#137a2c", "#5fd47c"),
+    "red": ("#b3261e", "#ff7b70"),
+    "blue": ("#1f57c3", "#82acff"),
+    "orange": ("#9a5300", "#ffb54d"),
+    "purple": ("#7432a0", "#cf9df5"),
 }
 
 _current = THEMES["clair"]
@@ -64,28 +87,89 @@ def current() -> Theme:
     return _current
 
 
+def accent(name: str) -> str:
+    light, dark = ACCENTS[name]
+    return dark if _current.name == "sombre" else light
+
+
+def accent_style(name: str | None) -> str:
+    """Feuille de style d'un bouton mis en valeur (vide si aucun accent)."""
+    return f"color:{accent(name)}; font-weight:600" if name else ""
+
+
+def muted_style(size_pt: float | None = None) -> str:
+    """Feuille de style d'un texte d'aide (couleur discrète mais lisible)."""
+    size = f"; font-size:{size_pt}pt" if size_pt else ""
+    return f"color:{_current.muted}{size}"
+
+
+def _palette(t: Theme) -> QPalette:
+    c = {k: QColor(v) for k, v in t.ui.items()}
+    pal = QPalette()
+    for role, key in ((QPalette.Window, "window"), (QPalette.WindowText, "text"), (QPalette.Base, "base"),
+                      (QPalette.AlternateBase, "alt"), (QPalette.Text, "text"), (QPalette.Button, "button"),
+                      (QPalette.ButtonText, "text"), (QPalette.ToolTipBase, "tooltip"),
+                      (QPalette.ToolTipText, "text"), (QPalette.PlaceholderText, "muted"),
+                      (QPalette.Highlight, "highlight"), (QPalette.Link, "link"), (QPalette.Light, "light"),
+                      (QPalette.Midlight, "mid"), (QPalette.Mid, "mid"), (QPalette.Dark, "dark"),
+                      (QPalette.Shadow, "dark")):
+        pal.setColor(role, c[key])
+    pal.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+    pal.setColor(QPalette.BrightText, QColor("#ff5050"))
+    for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
+        pal.setColor(QPalette.Disabled, role, c["disabled"])
+    return pal
+
+
 def apply(name: str) -> Theme:
-    """Applique un thème à pyqtgraph et à la palette Qt."""
+    """Applique un thème à pyqtgraph et à l'interface Qt."""
     global _current
     _current = THEMES.get(name, THEMES["clair"])
     pg.setConfigOptions(background=_current.bg, foreground=_current.fg, antialias=False)
     app = QApplication.instance()
     if app is not None:
-        pal = QPalette()
-        if _current.name == "sombre":
-            pal.setColor(QPalette.Window, QColor(_current.panel))
-            pal.setColor(QPalette.WindowText, QColor(_current.fg))
-            pal.setColor(QPalette.Base, QColor("#25272b"))
-            pal.setColor(QPalette.AlternateBase, QColor("#2f3136"))
-            pal.setColor(QPalette.Text, QColor(_current.fg))
-            pal.setColor(QPalette.Button, QColor("#34363b"))
-            pal.setColor(QPalette.ButtonText, QColor(_current.fg))
-            pal.setColor(QPalette.Highlight, QColor("#2f6fd6"))
-            pal.setColor(QPalette.HighlightedText, QColor("#ffffff"))
-            app.setPalette(pal)
-        else:
-            app.setPalette(app.style().standardPalette())
+        # Style « Fusion » sur tous les systèmes : il suit fidèlement la palette ci-dessous. Les styles
+        # natifs (Windows 11 surtout) ignorent une partie des couleurs et grisent les textes des boutons.
+        if app.style().name().lower() != "fusion":
+            app.setStyle("Fusion")
+        app.setPalette(_palette(_current))
+        app.setStyleSheet(_indicator_style(_current))
     return _current
+
+
+def _indicator_style(t: Theme) -> str:
+    """Cases à cocher et boutons radio bien contrastés.
+
+    Fusion (Qt 6.11) les dessine avec un contour presque invisible, surtout sous Windows.
+    """
+    u = t.ui
+    check = (Path(__file__).parent / "assets" / "coche.svg").as_posix()
+    return f"""
+QCheckBox::indicator, QRadioButton::indicator {{
+    width: 13px; height: 13px; border: 1px solid {u['muted']}; background: {u['base']};
+}}
+QCheckBox::indicator {{ border-radius: 3px; }}
+QRadioButton::indicator {{ border-radius: 7px; }}
+QCheckBox::indicator:hover, QRadioButton::indicator:hover {{ border-color: {u['highlight']}; }}
+QCheckBox::indicator:checked {{
+    background: {u['highlight']}; border-color: {u['highlight']}; image: url("{check}");
+}}
+QRadioButton::indicator:checked {{ background: #ffffff; border: 4px solid {u['highlight']}; width: 7px; height: 7px; }}
+QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
+    border-color: {u['disabled']}; background: {u['window']};
+}}
+QCheckBox::indicator:checked:disabled {{ background: {u['disabled']}; }}
+"""
+
+
+def swatch_icon(color: str) -> QIcon:
+    """Petit trait de couleur placé devant un libellé (légende des traces)."""
+    pm = QPixmap(18, 12)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.fillRect(1, 4, 16, 4, QColor(color))
+    p.end()
+    return QIcon(pm)
 
 
 def trace_color(key: str) -> str:
