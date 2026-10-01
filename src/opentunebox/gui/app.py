@@ -46,8 +46,10 @@ def hard_exit(code: int = 0, before=None) -> None:
     if before is not None:
         before()
     QSettings("OpenTuneBox", "OpenTuneBox").sync()
-    sys.stdout.flush()
-    sys.stderr.flush()
+    # Exécutable Windows sans console : sys.stdout et sys.stderr valent None.
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None:
+            stream.flush()
     os._exit(code)
 
 

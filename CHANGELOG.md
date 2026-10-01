@@ -18,6 +18,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Corrigé
 - Le raccourci Linux ne se déclare plus capable d'ouvrir tous les fichiers binaires.
+- Windows : erreur « 'NoneType' object has no attribute 'flush' » à la fermeture de l'exécutable
+  (pas de console, donc pas de `sys.stdout`).
 
 ### Problèmes connus
 - Analyse spectrale : les courbes des notchs dynamiques chargent fortement le spectre complet.
