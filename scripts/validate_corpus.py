@@ -108,10 +108,10 @@ def compare_file(path: Path, ref_bin: Path, tmp: Path) -> list[dict]:
         # Lignes de la référence absentes chez nous : tolérées si elles précèdent immédiatement
         # un trou d'enregistrement (trame tronquée par une pause d'écriture SD, que la
         # référence accepte avec des valeurs parasites).
-        missing = np.setdiff1d(t_ref, t_our)
+        missing = np.setdiff1d(t_ref, t_our) if len(t_ref) else np.zeros(0, dtype=np.int64)
         period = float(np.median(np.diff(t_ref))) if len(t_ref) > 1 else 1.0
         pos = np.searchsorted(t_ref, missing)
-        nxt = np.where(pos + 1 < len(t_ref), t_ref[np.minimum(pos + 1, len(t_ref) - 1)], t_ref[-1] + 10 * period)
+        nxt = np.zeros(0) if not len(t_ref) else np.where(pos + 1 < len(t_ref), t_ref[np.minimum(pos + 1, len(t_ref) - 1)], t_ref[-1] + 10 * period)
         before_gap = (nxt - missing) > 3 * period
         n_gap, n_other = int(before_gap.sum()), int((~before_gap).sum())
         extra = len(t_our) - len(common)
