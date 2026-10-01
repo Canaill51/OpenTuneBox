@@ -51,5 +51,8 @@ Pas de compilateur C sur la machine ; pip du venv installé via get-pip. Python 
   cadence du log) reste approximatif au-dessus de ~0,4 × fs du log.
 - Retards de filtres : méthode de phase (10–100 Hz), pas l'intercorrélation (dominée par le bruit HF).
 - Seuils de l'assistant = p90 du corpus par taille (docs/assistant.md, scripts/calibrate_advisor.py).
-- Construire l'exécutable : `pyinstaller packaging/opentunebox.spec` (Linux : nécessite `binutils`).
+- Construire l'exécutable : `pyinstaller packaging/opentunebox.spec` (Linux : nécessite `binutils`). Windows :
+  `packaging/construire_windows.bat` sur un PC Windows (Python 3.13 via winget) ; sources à copier :
+  `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`. Alternative :
+  `.github/workflows/construire.yml` (Windows/macOS/Linux) si le dépôt est poussé sur GitHub.
 - Commits : auteur Cedric <desmetgerry@gmail.com>, terminer par `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
