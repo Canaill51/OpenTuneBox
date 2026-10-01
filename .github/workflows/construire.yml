@@ -16,8 +16,8 @@ jobs:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Dépendances
@@ -28,7 +28,7 @@ jobs:
         run: python -m pytest -q -m "not corpus" tests/test_decoder.py tests/test_analysis.py tests/test_bf_filters.py tests/test_sliders.py
       - name: Exécutable
         run: python -m PyInstaller packaging/opentunebox.spec --noconfirm
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: OpenTuneBox-${{ runner.os }}
           path: dist/
