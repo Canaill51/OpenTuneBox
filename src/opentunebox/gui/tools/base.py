@@ -66,6 +66,8 @@ class ToolWindow(QWidget):
     title = "Outil"
     multi_file = True
     auto_run = True
+    _last_result: Any = None
+    run_options: dict = {}
 
     def __init__(self, state: AppState, main_window=None) -> None:
         super().__init__(None, Qt.Window)
@@ -74,6 +76,7 @@ class ToolWindow(QWidget):
         self.setWindowTitle(f"OpenTuneBox — {self.title}")
         self.resize(1400, 860)
         self._busy = False
+        self._pending = False
 
         split = QSplitter(Qt.Horizontal, self)
         self.canvas = pg.GraphicsLayoutWidget()
@@ -120,11 +123,15 @@ class ToolWindow(QWidget):
         lay.addWidget(split)
 
         state.period_changed.connect(lambda _i: self.auto_run and self.isVisible() and self.run())
-        self._last_result: Any = None
 
     # ------------------------------------------------------------ à surcharger
     def build_controls(self, layout: QVBoxLayout) -> None:
         pass
+
+    def snapshot_options(self) -> dict:
+        """Lu dans le thread de l'interface juste avant le calcul : copier ici les valeurs des
+        widgets dont `compute` a besoin (accessibles ensuite via `self.run_options`)."""
+        return {}
 
     def compute(self, entries: list[LoadedLog]) -> Any:
         raise NotImplementedError
@@ -152,7 +159,9 @@ class ToolWindow(QWidget):
             self.status.setText("Sélectionnez au moins un log.")
             return
         if self._busy:
+            self._pending = True  # recalcul dès la fin du calcul en cours
             return
+        self.run_options = self.snapshot_options()
         self._busy = True
         self.run_btn.setEnabled(False)
         self.status.setText("Calcul en cours…")
@@ -164,10 +173,14 @@ class ToolWindow(QWidget):
         self.status.setText("")
         self._last_result = result
         self.render(result)
+        if self._pending:
+            self._pending = False
+            self.run()
 
     def _failed(self, err: str) -> None:
         self._busy = False
         self.run_btn.setEnabled(True)
+        self._pending = False
         self.status.setText("Erreur de calcul :\n" + err[-600:])
 
     def _save(self) -> None:
