@@ -104,3 +104,6 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
 3. `pytest` et `pyflakes` propres avant chaque commit ; mettre à jour `CHANGELOG.md` (section *Non publié*).
 4. Commits en français, à l'impératif ou descriptifs, un sujet par commit. Auteur `Cedric <desmetgerry@gmail.com>`.
    Ne jamais pousser sur GitHub ni publier quoi que ce soit sans l'accord de Cédric.
+5. Une branche par sujet, nommée `type/description-courte` (convention GitHub : `feat`, `fix`, `docs`,
+   `refactor`, `test`, `chore` ; minuscules, tirets, anglais). La PR vers `main` a pour titre **exactement
+   le nom de la branche** (détails dans `CONTRIBUTING.md`).

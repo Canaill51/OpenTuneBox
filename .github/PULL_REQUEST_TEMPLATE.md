@@ -1,3 +1,5 @@
+<!-- Titre de la PR : exactement le nom de la branche (ex. fix/windows-close-crash). -->
+
 ## Objet
 
 <!-- Ce que change cette demande, et pourquoi. -->

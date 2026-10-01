@@ -11,7 +11,12 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
 
 ## Proposer une modification
 
-1. Créer une branche depuis `main` : `git switch -c correction/nom-court`.
+1. Créer une branche depuis `main`, nommée selon la convention GitHub `type/description-courte` :
+   minuscules, mots séparés par des tirets, en anglais, sans accents. Types : `feat` (nouvelle fonction),
+   `fix` (correction), `docs`, `refactor`, `test`, `chore` (maintenance). Une branche par sujet.
+   ```sh
+   git switch -c fix/windows-close-crash
+   ```
 2. Modifier, puis vérifier :
    ```sh
    .venv/bin/pytest -q
@@ -19,6 +24,11 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    ```
 3. Ajouter une ligne dans `CHANGELOG.md` (section *Non publié*).
 4. Commit en français, un sujet par commit, puis demande de fusion (*Pull request*) vers `main`.
+   **Le titre de la PR est exactement le nom de la branche** (ex. `fix/windows-close-crash`) ; la
+   description, en français, suit le modèle de PR.
+   ```sh
+   gh pr create --base main --title "fix/windows-close-crash"
+   ```
 
 ## Publier une version
 
