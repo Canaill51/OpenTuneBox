@@ -151,7 +151,7 @@ class StepWindow(ToolWindow):
             "Pic > 1,1 : manque de D (ou trop de P) ; montée molle sans pic : trop de D ou P faible. "
             "Barres d'erreur : dispersion entre fenêtres de 2 s.")
         help_.setWordWrap(True)
-        help_.setStyleSheet("color:#777; font-size:9pt")
+        help_.setStyleSheet(theme.muted_style())
         layout.addWidget(help_)
 
     def _calc_options_changed(self, *_a) -> None:

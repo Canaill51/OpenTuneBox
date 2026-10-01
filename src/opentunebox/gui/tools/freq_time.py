@@ -91,7 +91,7 @@ class FreqTimeWindow(sc.OptionsSnapshot, ToolWindow):
         layout.addLayout(row)
         hint = QLabel("Clic sur un spectrogramme : place le curseur du lecteur.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: gray; font-size: 11px")
+        hint.setStyleSheet(theme.muted_style())
         layout.addWidget(hint)
 
         self.state.cursor_changed.connect(self._on_cursor_changed)

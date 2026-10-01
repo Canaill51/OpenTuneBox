@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import theme
+from ..geometry import restore_geometry, save_geometry
 from ..state import AppState, LoadedLog
 from ..worker import run_async
 
@@ -74,7 +75,7 @@ class ToolWindow(QWidget):
         self.state = state
         self.main_window = main_window
         self.setWindowTitle(f"OpenTuneBox — {self.title}")
-        self.resize(1400, 860)
+        restore_geometry(self, f"tool/{type(self).__name__}", 0.9)
         self._busy = False
         self._pending = False
 
@@ -92,7 +93,7 @@ class ToolWindow(QWidget):
 
         row = QHBoxLayout()
         self.run_btn = QPushButton("Calculer")
-        self.run_btn.setStyleSheet("color:#1a9a3a; font-weight:600")
+        self.run_btn.setStyleSheet(theme.accent_style("green"))
         self.run_btn.clicked.connect(self.run)
         save = QPushButton("Exporter image")
         save.clicked.connect(self._save)
@@ -147,6 +148,10 @@ class ToolWindow(QWidget):
         """Options d'affichage modifiées : on réaffiche sans recalculer si possible."""
         if self._last_result is not None:
             self.render(self._last_result)
+
+    def closeEvent(self, e) -> None:  # noqa: N802
+        save_geometry(self, f"tool/{type(self).__name__}")
+        super().closeEvent(e)
 
     def showEvent(self, e) -> None:  # noqa: N802
         super().showEvent(e)

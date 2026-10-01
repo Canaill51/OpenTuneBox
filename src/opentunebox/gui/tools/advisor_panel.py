@@ -37,7 +37,7 @@ class AdvisorWindow(ToolWindow):
         help_ = QLabel("Les conseils portent sur la période d'analyse choisie dans le visualiseur. "
                        "Changez une seule chose à la fois, revolez, et comparez les logs.")
         help_.setWordWrap(True)
-        help_.setStyleSheet("font-size: 11px")
+        help_.setStyleSheet(theme.muted_style())
         layout.addWidget(help_)
 
     def __init__(self, state, main_window=None) -> None:
@@ -48,7 +48,6 @@ class AdvisorWindow(ToolWindow):
         splitter = self.canvas.parentWidget()
         splitter.insertWidget(0, self.report)
         splitter.setSizes([780, 420, 280])
-        self.resize(1500, 900)
 
     def compute(self, entries):
         e = entries[0]
@@ -78,7 +77,7 @@ class AdvisorWindow(ToolWindow):
                     f"<b>{html.escape(f.title)}</b><br>{html.escape(f.detail)}</p>")
                 if f.actions:
                     parts.append("<ul>" + "".join(f"<li>{html.escape(a)}</li>" for a in f.actions) + "</ul>")
-        parts.append("<hr><p style='font-size:10px'>Diagnostic automatique à partir des mesures du log : "
+        parts.append(f"<hr><p style='color:{theme.current().muted}'>Diagnostic automatique à partir des mesures du log : "
                      "à confirmer par le ressenti en vol et la température des moteurs.</p>")
         self.report.setHtml("".join(parts))
 

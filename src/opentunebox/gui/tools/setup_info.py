@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...log.settings import RATES_TYPES, Settings
+from ..geometry import restore_geometry, save_geometry
 from ..state import AppState
 from .base import FileSelector
 
@@ -109,7 +110,7 @@ class SetupInfoWindow(QWidget):
         super().__init__(None, Qt.Window)
         self.state = state
         self.setWindowTitle(f"OpenTuneBox — {self.title}")
-        self.resize(1200, 820)
+        restore_geometry(self, "tool/SetupInfoWindow", 0.8)
         split = QSplitter(Qt.Horizontal, self)
         self.tree = QTreeWidget()
         self.tree.setAlternatingRowColors(True)
@@ -145,6 +146,10 @@ class SetupInfoWindow(QWidget):
         lay.addWidget(split)
         state.logs_changed.connect(self.refresh)
         self.refresh()
+
+    def closeEvent(self, e) -> None:  # noqa: N802
+        save_geometry(self, "tool/SetupInfoWindow")
+        super().closeEvent(e)
 
     def refresh(self) -> None:
         entries = self.files.selected_entries()

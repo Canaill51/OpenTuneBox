@@ -15,8 +15,19 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Modifié
 - Scripts d'installation rangés par système : `packaging/linux/`, `packaging/windows/`.
+- Interface plus lisible, identique sous Windows, macOS et Linux : style Qt « Fusion » avec palettes
+  claire et sombre complètes (fini le gris beige et les boutons qui semblaient désactivés sous Windows),
+  couleurs des boutons d'outils contrastées dans chaque thème, cases à cocher et boutons radio bien
+  visibles, traces repérées par un trait de couleur, textes d'aide moins petits.
+- Fenêtre principale modernisée : barre d'outils avec icônes (Lucide, licence ISC) à la place des boutons
+  du panneau droit, texte 15 % plus grand, traces groupées (Gyro, PID, Moteurs) et traces absentes du log
+  masquées, sections « Affichage » et « Lecteur » repliables, traces lissées d'épaisseur 2 par défaut,
+  grille limitée aux graduations principales.
+- Fenêtres plus grandes : au premier lancement, la fenêtre principale occupe 95 % de l'écran (90 % pour
+  les outils), comme PIDtoolbox ; ensuite chaque fenêtre rouvre à la taille et à la position laissées.
 
 ### Corrigé
+- Visualiseur sans log ouvert : les graphiques ne sont plus entièrement grisés.
 - Le raccourci Linux ne se déclare plus capable d'ouvrir tous les fichiers binaires.
 - Windows : erreur « 'NoneType' object has no attribute 'flush' » à la fermeture de l'exécutable
   (pas de console, donc pas de `sys.stdout`).
