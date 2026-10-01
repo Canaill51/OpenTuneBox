@@ -82,6 +82,8 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   avec `scripts/calibrate_advisor.py`, ne pas les inventer.
 - Pas de compilateur C sur le poste de développement : pas de dépendance à compiler.
 - Linux : PyInstaller a besoin de `binutils` (`objdump`). Windows/macOS : construire sur le système cible.
+- Exécutable Windows sans console (`console=False`) : `sys.stdout` et `sys.stderr` valent `None` ;
+  ne jamais les utiliser sans vérifier (voir `gui/app.py:hard_exit`).
 
 ## Méthode de travail
 
