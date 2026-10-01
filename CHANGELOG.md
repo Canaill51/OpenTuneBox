@@ -27,6 +27,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   grille limitée aux graduations principales.
 - Fenêtres plus grandes : au premier lancement, la fenêtre principale occupe 95 % de l'écran (90 % pour
   les outils), comme PIDtoolbox ; ensuite chaque fenêtre rouvre à la taille et à la position laissées.
+- Captures du README (visualiseur, réponse indicielle, assistant) refaites avec la nouvelle interface.
 
 ### Corrigé
 - Visualiseur sans log ouvert : les graphiques ne sont plus entièrement grisés.
