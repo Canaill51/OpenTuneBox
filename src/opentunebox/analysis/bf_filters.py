@@ -1,0 +1,481 @@
+"""Modèles exacts des filtres Betaflight (réponse en fréquence, retard, simulation sur log).
+
+Réimplémentation à partir de docs/spec-betaflight.md §2–3 (sources : `common/filter.c`,
+`sensors/gyro_init.c`, `flight/rpm_filter.c`, `flight/pid.c`, `flight/mixer.c`).
+
+Conventions :
+- un filtre = `FilterSpec` (type, fréquence, Q, poids) ; une « chaîne » = liste de
+  `(FilterSpec, cadence_Hz)` car le LPF2 gyro tourne à la cadence gyro, le reste à la cadence PID ;
+- coefficients en z sous la forme (b, a) avec a[0] = 1, comme scipy.signal ;
+- la simulation temporelle traite tous les étages comme des biquads (forme directe I), ce qui
+  permet de changer les coefficients à chaque échantillon (filtres RPM, LPF dynamique, notch dynamique).
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import NamedTuple, Sequence
+
+import numpy as np
+from numba import njit
+
+# Corrections de coupure : n PT1 identiques en cascade → −3 dB à fc (filter.c)
+CUTOFF_CORRECTION_PT2 = 1.553773974
+CUTOFF_CORRECTION_PT3 = 1.961459177
+BUTTERWORTH_Q = 1.0 / math.sqrt(2.0)
+FILTER_KINDS = ("pt1", "pt2", "pt3", "biquad_lpf", "notch")
+# Type d'en-tête (LowpassSetting.type) → type de FilterSpec
+_LPF_KIND = {"PT1": "pt1", "BIQUAD": "biquad_lpf", "PT2": "pt2", "PT3": "pt3"}
+# Codes internes de la simulation
+_K_PT1, _K_LPF, _K_NOTCH = 0, 1, 2
+
+
+@dataclass(frozen=True)
+class FilterSpec:
+    """Un filtre élémentaire Betaflight.
+
+    kind   : "pt1", "pt2", "pt3", "biquad_lpf" ou "notch" ;
+    f_hz   : coupure (passe-bas, −3 dB) ou centre (notch) ;
+    q      : facteur de qualité (notch, biquad) ;
+    weight : poids du notch RPM, sortie y = w·notch(x) + (1−w)·x.
+    """
+
+    kind: str
+    f_hz: float
+    q: float = BUTTERWORTH_Q
+    weight: float = 1.0
+
+    def __post_init__(self):
+        if self.kind not in FILTER_KINDS:
+            raise ValueError(f"type de filtre inconnu : {self.kind}")
+
+
+Chain = list[tuple[FilterSpec, float]]
+
+
+class ChainDelay(NamedTuple):
+    group_ms: float  # retard de groupe −dφ/dω à la fréquence demandée
+    phase_ms: float  # retard de phase −φ/ω à la même fréquence (basse fréquence → retard « vu » par le PID)
+
+
+# ---------------------------------------------------------------- formules élémentaires
+
+
+def pt1_gain(f_cut: float, fs: float) -> float:
+    """Gain k du PT1 Betaflight : ω/(ω+1) avec ω = 2π·fc/fs."""
+    omega = 2.0 * math.pi * f_cut / fs
+    return omega / (omega + 1.0)
+
+
+def notch_q(center_hz: float, cutoff_hz: float) -> float:
+    """Q d'un notch statique à partir du centre et de la coupure basse (filterGetNotchQ)."""
+    return center_hz * cutoff_hz / (center_hz * center_hz - cutoff_hz * cutoff_hz)
+
+
+def dyn_lpf_cutoff(min_hz, max_hz, expo, throttle_frac):
+    """Coupure du passe-bas dynamique en fonction des gaz (0–1), comme le firmware.
+
+    Les gaz sont quantifiés au centième (lrintf(t·100)/100, arrondi au pair comme lrintf).
+    expo > 0 : courbe = t(1−t)·expo/10 + t, fc = (max−min)·courbe + min ;
+    expo = 0 : ancienne loi fc = max(min, max·t(1 − t²/3)·1,5).
+    Accepte un scalaire ou un tableau de gaz.
+    """
+    t = np.rint(np.clip(np.asarray(throttle_frac, dtype=np.float64), 0.0, 1.0) * 100.0) / 100.0
+    if expo > 0:
+        curve = t * (1.0 - t) * (expo / 10.0) + t
+        fc = (max_hz - min_hz) * curve + min_hz
+    else:
+        fc = np.maximum(max_hz * (t * (1.0 - t * t / 3.0) * 1.5), min_hz)
+    return float(fc) if fc.ndim == 0 else fc
+
+
+@njit(cache=True)
+def _biquad(kind: int, f: float, q: float, w: float, fs: float):
+    """Coefficients (b0, b1, b2, a1, a2) d'un étage ; f ≤ 0 → étage transparent."""
+    if f <= 0.0:
+        return 1.0, 0.0, 0.0, 0.0, 0.0
+    if kind == _K_PT1:
+        omega = 2.0 * math.pi * f / fs
+        k = omega / (omega + 1.0)
+        return k, 0.0, 0.0, -(1.0 - k), 0.0
+    omega = 2.0 * math.pi * f / fs
+    sn = math.sin(omega)
+    cs = math.cos(omega)
+    alpha = sn / (2.0 * q)
+    a0 = 1.0 + alpha
+    a1 = -2.0 * cs / a0
+    a2 = (1.0 - alpha) / a0
+    if kind == _K_LPF:
+        b1 = (1.0 - cs) / a0
+        return b1 * 0.5, b1, b1 * 0.5, a1, a2
+    # notch pondéré : b = w·b_notch + (1−w)·a
+    b0 = 1.0 / a0
+    b1 = -2.0 * cs / a0
+    b2 = 1.0 / a0
+    return (w * b0 + (1.0 - w), w * b1 + (1.0 - w) * a1, w * b2 + (1.0 - w) * a2, a1, a2)
+
+
+def _sections(spec: FilterSpec) -> list[tuple[int, float, float, float]]:
+    """Décompose un filtre en étages biquad : (code, fréquence corrigée, q, poids)."""
+    if spec.kind == "pt1":
+        return [(_K_PT1, spec.f_hz, 0.0, 1.0)]
+    if spec.kind == "pt2":
+        return [(_K_PT1, spec.f_hz * CUTOFF_CORRECTION_PT2, 0.0, 1.0)] * 2
+    if spec.kind == "pt3":
+        return [(_K_PT1, spec.f_hz * CUTOFF_CORRECTION_PT3, 0.0, 1.0)] * 3
+    if spec.kind == "biquad_lpf":
+        return [(_K_LPF, spec.f_hz, spec.q, 1.0)]
+    return [(_K_NOTCH, spec.f_hz, spec.q, spec.weight)]
+
+
+def coefficients(spec: FilterSpec, fs: float) -> tuple[np.ndarray, np.ndarray]:
+    """Fonction de transfert H(z) = b(z⁻¹)/a(z⁻¹) du filtre à la cadence fs (Hz)."""
+    b = np.array([1.0])
+    a = np.array([1.0])
+    for kind, f, q, w in _sections(spec):
+        b0, b1, b2, a1, a2 = _biquad(kind, float(f), float(q), float(w), float(fs))
+        if kind == _K_PT1:
+            bs, as_ = np.array([b0]), np.array([1.0, a1])
+        else:
+            bs, as_ = np.array([b0, b1, b2]), np.array([1.0, a1, a2])
+        b = np.convolve(b, bs)
+        a = np.convolve(a, as_)
+    return b, a
+
+
+# ---------------------------------------------------------------- réponses en fréquence
+
+
+def _h(b: np.ndarray, a: np.ndarray, freqs: np.ndarray, fs: float) -> np.ndarray:
+    z1 = np.exp(-2j * np.pi * freqs / fs)  # z⁻¹
+    return np.polyval(b[::-1], z1) / np.polyval(a[::-1], z1)
+
+
+def freq_response(specs: Sequence[FilterSpec], freqs, fs: float) -> np.ndarray:
+    """Réponse complexe d'une suite de filtres tous à la cadence fs, aux fréquences `freqs` (Hz)."""
+    freqs = np.asarray(freqs, dtype=np.float64)
+    h = np.ones(freqs.shape, dtype=np.complex128)
+    for spec in specs:
+        h *= _h(*coefficients(spec, fs), freqs, fs)
+    return h
+
+
+def chain_response(chain: Chain, freqs) -> np.ndarray:
+    """Réponse complexe d'une chaîne à cadences mixtes : chaque étage évalué à sa propre cadence."""
+    freqs = np.asarray(freqs, dtype=np.float64)
+    h = np.ones(freqs.shape, dtype=np.complex128)
+    for spec, fs in chain:
+        h *= _h(*coefficients(spec, fs), freqs, fs)
+    return h
+
+
+def chain_delay_ms(specs, fs: float | None = None, f_hz: float = 10.0) -> ChainDelay:
+    """Retard de la chaîne en ms à la fréquence f_hz : (retard de groupe, retard de phase).
+
+    `specs` est soit une liste de FilterSpec (tous à la cadence `fs`), soit une chaîne
+    [(FilterSpec, cadence)] comme renvoyée par gyro_chain / dterm_chain.
+    Aux basses fréquences (≈ 10 Hz) les deux valeurs se rejoignent : c'est le retard
+    utile pour le réglage.
+    """
+    chain = _as_chain(specs, fs)
+    df = max(1e-3, f_hz * 1e-3)
+    f = np.array([f_hz - df, f_hz, f_hz + df])
+    phase = np.unwrap(np.angle(chain_response(chain, f)))
+    group = -(phase[2] - phase[0]) / (2.0 * np.pi * 2.0 * df)
+    ph = -phase[1] / (2.0 * np.pi * f_hz)
+    return ChainDelay(float(group * 1e3), float(ph * 1e3))
+
+
+def _as_chain(specs, fs: float | None) -> Chain:
+    out = []
+    for item in specs:
+        if isinstance(item, FilterSpec):
+            if fs is None:
+                raise ValueError("fs requis pour une liste de FilterSpec")
+            out.append((item, float(fs)))
+        else:
+            out.append((item[0], float(item[1])))
+    return out
+
+
+# ---------------------------------------------------------------- chaînes depuis l'en-tête
+
+
+def _lowpass_spec(lp, throttle_frac: float) -> FilterSpec | None:
+    """Passe-bas statique ou dynamique (dyn_min > 0 remplace la valeur statique)."""
+    if lp.dynamic:
+        f = dyn_lpf_cutoff(lp.dyn_min_hz, lp.dyn_max_hz, lp.expo, throttle_frac)
+    elif lp.static_hz > 0:
+        f = float(lp.static_hz)
+    else:
+        return None
+    return FilterSpec(_LPF_KIND.get(lp.type, "pt1"), f)
+
+
+def _static_notch(center: int, cutoff: int, nyquist: float) -> FilterSpec | None:
+    """Notch statique, centre ramené sous la limite de Nyquist comme le firmware."""
+    if center > nyquist:
+        center = int(nyquist) if cutoff < nyquist else 0
+    if center <= 0 or cutoff <= 0 or cutoff >= center:
+        return None
+    return FilterSpec("notch", float(center), notch_q(center, cutoff))
+
+
+def rpm_notch_freq_weight(motor_hz, harmonic: int, settings, rate_hz: float):
+    """Fréquence et poids d'un notch RPM (harmonique h, 0 = fondamentale), scalaires ou tableaux."""
+    max_hz = 0.48 * rate_hz
+    f = np.clip((harmonic + 1) * np.asarray(motor_hz, dtype=np.float64), settings.rpm_min_hz, max_hz)
+    margin = f - settings.rpm_min_hz
+    fade = np.where(margin < settings.rpm_fade_hz, margin / max(1e-9, settings.rpm_fade_hz), 1.0)
+    weights = settings.rpm_weights or [100]
+    hw = weights[harmonic] if harmonic < len(weights) else 100
+    w = np.clip(hw / 100.0, 0.0, 1.0) * fade
+    return f, w
+
+
+def dyn_notch_enabled(settings) -> bool:
+    """Notch dynamique actif : count > 0 et cadence PID ≥ 2 kHz."""
+    return settings.dyn_notch_count > 0 and settings.pid_rate_hz >= 2000 - 1e-6
+
+
+def dyn_notch_initial_centres(settings) -> list[float]:
+    """Centres initiaux du notch dynamique : (p + 0,5)(max − min)/count + min."""
+    n = settings.dyn_notch_count
+    lo, hi = settings.dyn_notch_min_hz, settings.dyn_notch_max_hz
+    return [(p + 0.5) * (hi - lo) / n + lo for p in range(n)]
+
+
+def gyro_chain(settings, throttle_frac: float = 0.5, motor_hz=None, dyn_notch_hz=None) -> Chain:
+    """Chaîne de filtres gyro complète, dans l'ordre du firmware.
+
+    - LPF2 à la cadence gyro ;
+    - à la cadence PID : notches RPM (moteur × harmonique, seulement si `motor_hz` est fourni,
+      une fréquence par moteur), notches statiques 1 et 2, LPF1 (statique ou dynamique selon
+      `throttle_frac`), notches dynamiques.
+    `dyn_notch_hz` : centres des notches dynamiques ; None → centres initiaux du firmware,
+    liste vide → notches dynamiques omis.
+    """
+    s = settings
+    gyro_rate, pid_rate = s.gyro_rate_hz, s.pid_rate_hz
+    chain: Chain = []
+    lpf2 = _lowpass_spec(s.gyro_lpf2, throttle_frac)
+    if lpf2 is not None:
+        chain.append((lpf2, gyro_rate))
+    if motor_hz is not None and s.rpm_harmonics > 0:
+        q = s.rpm_q / 100.0
+        for mhz in np.atleast_1d(np.asarray(motor_hz, dtype=np.float64)):
+            for h in range(s.rpm_harmonics):
+                f, w = rpm_notch_freq_weight(mhz, h, s, pid_rate)
+                if w > 0:
+                    chain.append((FilterSpec("notch", float(f), q, float(w)), pid_rate))
+    nyq = 1e6 / 2 / s.looptime_us / s.pid_denom * 0.95
+    for center, cutoff in s.gyro_notches[:2]:
+        sp = _static_notch(center, cutoff, nyq)
+        if sp is not None:
+            chain.append((sp, pid_rate))
+    lpf1 = _lowpass_spec(s.gyro_lpf1, throttle_frac)
+    if lpf1 is not None:
+        chain.append((lpf1, pid_rate))
+    if dyn_notch_enabled(s):
+        centres = dyn_notch_initial_centres(s) if dyn_notch_hz is None else list(dyn_notch_hz)
+        q = s.dyn_notch_q / 100.0
+        for c in centres[: s.dyn_notch_count]:
+            if c > 0 and q > 0:
+                chain.append((FilterSpec("notch", float(c), q), pid_rate))
+    return chain
+
+
+def dterm_chain(settings, throttle_frac: float = 0.5) -> Chain:
+    """Chaîne de filtres du terme D (cadence PID) : notch D → LPF1 D (statique/dynamique) → LPF2 D."""
+    s = settings
+    pid_rate = s.pid_rate_hz
+    chain: Chain = []
+    center, cutoff = s.dterm_notch
+    sp = _static_notch(center, cutoff, pid_rate / 2.0)
+    if sp is not None:
+        chain.append((sp, pid_rate))
+    for lp in (s.dterm_lpf1, s.dterm_lpf2):
+        spec = _lowpass_spec(lp, throttle_frac)
+        if spec is not None:
+            chain.append((spec, pid_rate))
+    return chain
+
+
+# ---------------------------------------------------------------- simulation temporelle
+
+
+@njit(cache=True)
+def _run_section(x, kind, freq, q, weight, fs, f_limit):
+    """Applique un étage biquad (forme directe I) à x (axes, n), coefficients variables.
+
+    freq / weight : tableaux (n,) ; une fréquence ≤ 0 ou ≥ f_limit rend l'étage transparent.
+    L'état initial est l'état stationnaire pour la première valeur (gain statique 1).
+    """
+    n_ax, n = x.shape
+    y = np.empty_like(x)
+    for ax in range(n_ax):
+        x1 = x[ax, 0]
+        x2 = x1
+        y1 = x1
+        y2 = x1
+        pf = -1.0
+        pw = -1.0
+        b0, b1, b2, a1, a2 = 1.0, 0.0, 0.0, 0.0, 0.0
+        for i in range(n):
+            f = freq[i]
+            w = weight[i]
+            if f != pf or w != pw:
+                fe = f if f < f_limit else 0.0
+                b0, b1, b2, a1, a2 = _biquad(kind, fe, q, w, fs)
+                pf = f
+                pw = w
+            xi = x[ax, i]
+            yi = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+            x2 = x1
+            x1 = xi
+            y2 = y1
+            y1 = yi
+            y[ax, i] = yi
+    return y
+
+
+@njit(cache=True)
+def _pt1_track(x, k):
+    """PT1 simple sur un signal 1D (lissage de la fréquence moteur)."""
+    y = np.empty_like(x)
+    s = x[0]
+    for i in range(x.shape[0]):
+        s += k * (x[i] - s)
+        y[i] = s
+    return y
+
+
+def _apply(x, spec_kind: str, freq, fs: float, q: float = BUTTERWORTH_Q, weight=1.0):
+    """Applique un filtre (fréquence/poids scalaires ou tableaux) via ses étages biquad."""
+    n = x.shape[1]
+    freq = np.broadcast_to(np.asarray(freq, dtype=np.float64), (n,))
+    weight = np.broadcast_to(np.asarray(weight, dtype=np.float64), (n,))
+    corr = {"pt2": CUTOFF_CORRECTION_PT2, "pt3": CUTOFF_CORRECTION_PT3}.get(spec_kind, 1.0)
+    reps = {"pt2": 2, "pt3": 3}.get(spec_kind, 1)
+    code = {"pt1": _K_PT1, "pt2": _K_PT1, "pt3": _K_PT1, "biquad_lpf": _K_LPF, "notch": _K_NOTCH}[spec_kind]
+    f_eff = np.ascontiguousarray(freq * corr)
+    w = np.ascontiguousarray(weight)
+    limit = 0.48 * fs
+    # filtre « au-delà » de la cadence du log : ignoré (la composante est de toute façon repliée)
+    f_eff = np.where(freq < limit, f_eff, 0.0)
+    for _ in range(reps):
+        x = _run_section(np.ascontiguousarray(x), code, f_eff, float(q), w, float(fs), np.inf)
+    return x
+
+
+def _lowpass_sim(x, lp, throttle_frac, fs):
+    if not lp.enabled:
+        return x
+    kind = _LPF_KIND.get(lp.type, "pt1")
+    if lp.dynamic:
+        f = dyn_lpf_cutoff(lp.dyn_min_hz, lp.dyn_max_hz, lp.expo, throttle_frac)
+    else:
+        f = float(lp.static_hz)
+    return _apply(x, kind, f, fs)
+
+
+def fft_freq_centres(log, settings=None) -> np.ndarray | None:
+    """Centres des notches dynamiques lus dans le debug FFT_FREQ, forme (count, n), ou None.
+
+    2025.12+ : debug[1..count] ; 4.x : debug[p] pour p < count, mais debug[3] contient le gyro
+    (le centre du 4e notch est perdu → mis à 0, notch ignoré). Valeurs de l'axe de débogage seul.
+    """
+    s = settings or log.settings
+    if s.debug_mode != "FFT_FREQ" or s.dyn_notch_count <= 0:
+        return None
+    count = min(s.dyn_notch_count, 7)
+    new = s.family in ("2025.12", "2026.6")
+    rows = []
+    for p in range(count):
+        idx = p + 1 if new else p
+        if (not new and idx == 3) or idx >= log.debug.shape[0]:
+            rows.append(np.zeros(log.n))
+        else:
+            rows.append(np.asarray(log.debug[idx], dtype=np.float64))
+    return np.vstack(rows)
+
+
+def simulate_gyro(log, settings=None) -> np.ndarray:
+    """Rejoue la chaîne de filtres gyro sur `log.gyro_unfilt` (3, n) → gyro filtré simulé (3, n).
+
+    Approximations (le log est en général décimé par rapport à la boucle PID) :
+    - tous les filtres sont calculés à la cadence du log (coefficients à fs du log), ceux dont la
+      fréquence dépasse 0,48·fs du log sont ignorés à chaque échantillon ;
+    - notches RPM variables depuis `log.motor_hz` (lissé par le PT1 rpm_filter_lpf_hz du firmware),
+      coefficients recalculés à chaque échantillon ;
+    - LPF1 dynamique depuis `log.throttle/100` (quantification au centième, sans la limite de 5 ms) ;
+    - notches dynamiques depuis le debug FFT_FREQ si présent (centres de l'axe de débogage appliqués
+      aux trois axes), sinon omis.
+    `settings` permet de simuler d'autres réglages que ceux du log (comparaison avant/après).
+    """
+    if log.gyro_unfilt is None:
+        raise ValueError("pas de gyro non filtré dans ce log")
+    s = settings or log.settings
+    fs = float(log.fs)
+    thr = np.clip(np.asarray(log.throttle, dtype=np.float64) / 100.0, 0.0, 1.0)
+    x = np.ascontiguousarray(np.asarray(log.gyro_unfilt, dtype=np.float64))
+
+    # LPF2 (cadence gyro dans le firmware)
+    x = _lowpass_sim(x, s.gyro_lpf2, thr, fs)
+
+    # Filtre RPM
+    if log.motor_hz is not None and s.rpm_harmonics > 0:
+        q = s.rpm_q / 100.0
+        k = pt1_gain(s.rpm_lpf_hz, fs) if s.rpm_lpf_hz > 0 else 1.0
+        for m in range(log.motor_hz.shape[0]):
+            mhz = _pt1_track(np.ascontiguousarray(log.motor_hz[m], dtype=np.float64), k)
+            for h in range(s.rpm_harmonics):
+                f, w = rpm_notch_freq_weight(mhz, h, s, s.pid_rate_hz)
+                if not np.any(w > 0):
+                    continue
+                x = _apply(x, "notch", f, fs, q, w)
+
+    # Notches statiques
+    nyq = 1e6 / 2 / s.looptime_us / s.pid_denom * 0.95
+    for center, cutoff in s.gyro_notches[:2]:
+        sp = _static_notch(center, cutoff, nyq)
+        if sp is not None:
+            x = _apply(x, "notch", sp.f_hz, fs, sp.q)
+
+    # LPF1 statique / dynamique
+    x = _lowpass_sim(x, s.gyro_lpf1, thr, fs)
+
+    # Notches dynamiques (centres du debug FFT_FREQ)
+    if dyn_notch_enabled(s):
+        centres = fft_freq_centres(log, s)
+        if centres is not None:
+            q = s.dyn_notch_q / 100.0
+            for c in centres:
+                if q > 0 and np.any(c > 0):
+                    x = _apply(x, "notch", c, fs, q)
+    return x
+
+
+def simulate_dterm(log, settings=None, gyro: np.ndarray | None = None) -> np.ndarray:
+    """Dérivée filtrée du gyro telle que vue par le terme D : −dg/dt passée dans la chaîne D (°/s²).
+
+    `gyro` : gyro filtré à utiliser (par défaut `log.gyro`, ou par ex. simulate_gyro(log, réglages)).
+    Le résultat est à multiplier par Kd·0,000529·Dmax·TPA pour obtenir le terme D (unités somme PID).
+    Mêmes approximations que simulate_gyro (cadence du log, LPF1 dynamique selon les gaz).
+    """
+    s = settings or log.settings
+    fs = float(log.fs)
+    g = np.asarray(log.gyro if gyro is None else gyro, dtype=np.float64)
+    delta = np.zeros_like(g)
+    delta[:, 1:] = -np.diff(g, axis=1) * fs
+    delta[:, 0] = delta[:, 1] if g.shape[1] > 1 else 0.0
+    x = np.ascontiguousarray(delta)
+    thr = np.clip(np.asarray(log.throttle, dtype=np.float64) / 100.0, 0.0, 1.0)
+    center, cutoff = s.dterm_notch
+    sp = _static_notch(center, cutoff, s.pid_rate_hz / 2.0)
+    if sp is not None:
+        x = _apply(x, "notch", sp.f_hz, fs, sp.q)
+    x = _lowpass_sim(x, s.dterm_lpf1, thr, fs)
+    x = _lowpass_sim(x, s.dterm_lpf2, thr, fs)
+    return x
