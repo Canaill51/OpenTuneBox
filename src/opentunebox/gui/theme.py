@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 
 import pyqtgraph as pg
-from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtCore import QEvent, QLibraryInfo, QLocale, QObject, Qt, QTranslator
 from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication, QComboBox, QStyledItemDelegate
 
@@ -142,6 +143,38 @@ class _ComboDelegateFix(QObject):
 _COMBO_FIX = _ComboDelegateFix()
 
 
+def install_qt_translations(app: QApplication) -> None:
+    """Textes fournis par Qt en français : boutons standard (OK, Annuler…), menus contextuels et fenêtre
+    d'ouverture de fichiers de secours (Linux sans portail de bureau)."""
+    translator = QTranslator(app)
+    path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if translator.load(QLocale(QLocale.Language.French), "qtbase", "_", path):
+        app.installTranslator(translator)
+
+
+_system_icon_theme: str | None = None
+
+
+def _match_icon_theme(dark: bool) -> None:
+    """Variante claire ou sombre du thème d'icônes du bureau (Linux), accordée au thème choisi.
+
+    La fenêtre d'ouverture de fichiers de secours de Qt prend ses icônes dans le thème du bureau :
+    avec un bureau sombre (breeze-dark), elles sont claires et disparaissent sur le thème clair.
+    """
+    global _system_icon_theme
+    if _system_icon_theme is None:
+        _system_icon_theme = QIcon.themeName()
+    if not _system_icon_theme:
+        return  # Windows, macOS : pas de thème d'icônes système
+    base = re.sub(r"[-_]dark$", "", _system_icon_theme, flags=re.IGNORECASE)
+    wanted = [f"{base}-dark", f"{base}-Dark", f"{base}_dark"] if dark else [base]
+    for name in wanted:
+        if any((Path(d) / name / "index.theme").is_file() for d in QIcon.themeSearchPaths()):
+            QIcon.setThemeName(name)
+            return
+    QIcon.setThemeName(_system_icon_theme)
+
+
 def apply(name: str) -> Theme:
     """Applique un thème à pyqtgraph et à l'interface Qt."""
     global _current
@@ -159,6 +192,7 @@ def apply(name: str) -> Theme:
             font.setPointSizeF(font.pointSizeF() * FONT_SCALE)
             app.setFont(font)
             app.setProperty("otb_font_scaled", True)
+        _match_icon_theme(_current.name == "sombre")
         app.setPalette(_palette(_current))
         app.setStyleSheet(_stylesheet(_current))
         if not app.property("otb_combo_fix"):

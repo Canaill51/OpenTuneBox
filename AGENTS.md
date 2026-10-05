@@ -91,6 +91,12 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   (texte blanc sur blanc) : `theme._ComboDelegateFix` le remplace par `QStyledItemDelegate`.
 - Couleurs : jamais de couleur de texte en dur (`#777`, `gray`…) ni de taille en pixels ; utiliser
   `theme.accent_style`, `theme.muted_style` et les couleurs de `theme.current().ui`. Vérifier les deux thèmes.
+- Linux : fenêtres d'ouverture / d'enregistrement par le portail XDG (`QT_QPA_PLATFORMTHEME=xdgdesktopportal`
+  dans `gui/app.py`), indépendant du bureau (choix validé par Cédric). Sous KDE, la fenêtre du portail porte
+  le logo de KDE et non celui d'OpenTuneBox : normal, le portail ne permet pas de le changer. Sans portail,
+  Qt reprend sa fenêtre à lui, dont les icônes viennent du thème du bureau → `theme._match_icon_theme`
+  choisit la variante claire / sombre. Textes de Qt en français : `qtbase_fr.qm`, seule traduction gardée
+  par la recette PyInstaller.
 - Une feuille de style Qt ne charge une image que depuis un fichier : icône recolorée écrite dans le dossier
   temporaire (`theme._colored_svg`).
 - Pas de compilateur C sur le poste de développement : pas de dépendance à compiler.
