@@ -42,7 +42,8 @@ et les comparer au code :
 | Tout changement visible | `CHANGELOG.md`, section *Non publié* (Ajouté / Modifié / Corrigé) |
 
 Pour une relecture large (avant une version, ou si beaucoup de choses ont changé) : relire **tous** les `.md`
-(`git ls-files '*.md'`) et faire vérifier chaque valeur chiffrée contre le code par un agent en parallèle.
+(`git ls-files '*.md'`) et vérifier soi-même chaque valeur chiffrée contre le code (`grep`), sans lancer
+d'agents ; au plus un seul agent pour tout le lot si la relecture est vraiment volumineuse.
 
 ## 3. Règles d'écriture
 
