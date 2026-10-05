@@ -5,6 +5,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+## [0.3.0] — 2026-10-05
+
 ### Ajouté
 - Installateurs construits par GitHub (`construire.yml`) et joints à la page Releases :
   - Windows : `OpenTuneBox-Windows-Setup.exe` (Inno Setup), sans droits administrateur, menu Démarrer,
@@ -113,6 +115,7 @@ Première version complète.
 - Lanceur Linux (menu des applications) et recette PyInstaller.
 - Guide d'utilisation en français.
 
-[Non publié]: ../../compare/v0.2.0...HEAD
+[Non publié]: ../../compare/v0.3.0...HEAD
+[0.3.0]: ../../releases/tag/v0.3.0
 [0.2.0]: ../../releases/tag/v0.2.0
 [0.1.0]: ../../releases/tag/v0.1.0
