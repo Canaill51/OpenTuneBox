@@ -26,6 +26,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Assistant : constats de stabilité sur la boucle mesurée, en conseil (et non plus en alerte) jusqu'à la
   recalibration du seuil ; quand le D domine déjà au croisement, il conseille Master −0,1 plutôt que plus
   de D.
+- Documentation : chaque repère de réglage « communauté » a sa source (auteur, date, adresse, citation
+  exacte) dans `docs/spec-methodes.md`, ou est reclassé en estimation. Les paliers chiffrés du pic de
+  réponse (1,02–1,08, 1,10, 1,20) et le tableau des fréquences moteur par taille n'ont aucune source
+  publique : ce sont des estimations. Repères recoupés avec les vidéos de Brian White (chaîne PIDtoolbox),
+  citées avec le moment de la vidéo : terme D sous −20 dB (−10 au plus), retard gyro ≤ 1,5 ms pour un 5".
 - Assistant : seuils mécaniques calibrés sur 90 drones (déséquilibre 11–14 % au lieu de 12 %, terme I
   29–33 au lieu de 40, saturation 1,5 % du temps au lieu de 5 %, écart roll / pitch 0,07–0,12 au lieu
   de 0,08, résonance 7,3–7,9 dB au lieu de 6 dB).
