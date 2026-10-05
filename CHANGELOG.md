@@ -12,7 +12,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   du drone mesurés ; `--resume` affiche les percentiles par taille, par session et avec une voix par drone.
 - `scripts/corpus_labels.py` : tableau d'étiquettes du corpus (`corpus.csv` dans le dossier des logs, une
   ligne par drone : état, taille réelle, fréquence moteur, KV, cellules), pré-rempli puis complété à la
-  main ; un nom porté par plusieurs drones (« Jax ») est complété par le dossier ; `calibrate_advisor.py --resume` affiche à côté de chaque groupe son corpus de référence (drones
+  main ; un nom porté par plusieurs drones (« Jax ») est complété par le dossier ; les logs en double
+  (même contenu) et les dossiers `__MACOSX` sont ignorés, aussi par `calibrate_advisor.py` ; `calibrate_advisor.py --resume` affiche à côté de chaque groupe son corpus de référence (drones
   réglés ou d'origine, hors demandes d'aide).
 
 ### Modifié

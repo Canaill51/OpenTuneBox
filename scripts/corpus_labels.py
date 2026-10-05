@@ -10,7 +10,7 @@ remarque. Les drones absents d'un passage gardent leur ligne (0 session après u
 Le script signale les noms de drone trouvés dans plusieurs dossiers : si ce sont des machines différentes,
 ajouter le nom à SHARED_NAMES.
 """
-import csv, os, re, sys
+import csv, hashlib, os, re, sys
 from collections import Counter
 
 import numpy as np
@@ -24,7 +24,12 @@ HELP_FOLDERS = ("1. PTB", "3. BBLR FB")  # demandes d'aide (forums, groupes)
 DEFAULT_KV = 1960  # motor_kv par défaut du firmware (pg/motor.c) : laissé vide, réglage probablement absent
 CSV_NAME = "corpus.csv"
 # noms donnés à plusieurs drones (confirmé par Cédric) : le drone est alors identifié par nom + dossier
-SHARED_NAMES = {"Jax"}  # Guigui : deux machines (HORUS, Whisper25), 2026-10-05
+SHARED_NAMES = {
+    "Jax",  # Guigui : HORUS et Whisper25, 2026-10-05
+    "Blueberry",  # 1. PTB/JL et JL/3.5, 2026-10-05
+}
+# noms trouvés dans plusieurs dossiers, mais d'un seul drone (confirmé par Cédric, 2026-10-05) : pas d'alerte
+SAME_DRONE_NAMES = {"JeNo Ced", "M75 O4 CED", "AIR65 CED", "BABYDRONE"}
 
 
 def logs_root():
@@ -38,6 +43,26 @@ def drone_id(craft, relfile):
     if not name:
         return "?" + folder
     return f"{name} · {folder}" if name in SHARED_NAMES else name
+
+
+def log_files(root):
+    """Logs du corpus (chemins absolus triés), sans les dossiers `__MACOSX` et sans doublons : un fichier
+    au contenu identique à un autre (même log publié deux fois, copie renommée) n'est compté qu'une fois."""
+    seen, out = set(), []
+    for d, dirs, fs in os.walk(root):  # ordre fixe : dossiers triés, parcourus en profondeur
+        dirs[:] = sorted(x for x in dirs if x != "__MACOSX")
+        for f in sorted(fs):
+            if not f.lower().endswith((".bbl", ".bfl")):
+                continue
+            path = os.path.join(d, f)
+            h = hashlib.blake2b(digest_size=16)
+            with open(path, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(chunk)
+            if h.digest() not in seen:
+                seen.add(h.digest())
+                out.append(path)
+    return out
 
 
 def guess_state(origins, texts):
@@ -107,8 +132,7 @@ def scan(root, limit=None):
     from opentunebox.analysis.motors import hover_motor_hz
     from opentunebox.log.flightlog import load
 
-    files = sorted(os.path.join(d, f) for d, _, fs in os.walk(root) for f in fs
-                   if f.lower().endswith((".bbl", ".bfl")))[:limit]
+    files = log_files(root)[:limit]
     acc = {}
     for i, f in enumerate(files):
         rel = os.path.relpath(f, root)
@@ -160,7 +184,7 @@ def shared_name_candidates(rows):
     for d, row in rows.items():
         dirs = row["dossiers"].split(" | ")
         inside = lambda a, b: a == b or a.startswith(b + os.sep)  # noqa: E731
-        if not d.startswith("?") and any(not inside(a, b) and not inside(b, a) for a in dirs for b in dirs):
+        if not d.startswith("?") and d not in SAME_DRONE_NAMES and any(not inside(a, b) and not inside(b, a) for a in dirs for b in dirs):
             out.append(f"{d} : {row['dossiers']}")
     return out
 

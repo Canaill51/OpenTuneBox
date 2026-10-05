@@ -24,7 +24,8 @@ def test_drone_id_matches_calibration():
 def test_shared_name_candidates():
     rows = {"A": {"dossiers": "Cedric/Air65 | Cedric/Air65/16012025"},  # sous-dossiers : même drone
             "B": {"dossiers": "Guigui | Guigui/HORUS | Guigui/Whisper25"},
-            "?Leo": {"dossiers": "Leo"}}
+            "?Leo": {"dossiers": "Leo"},
+            "AIR65 CED": {"dossiers": "Cedric/Air65/16012025 | Cedric/Air65/ChirP"}}  # confirmé : un drone
     assert [x.split(" : ")[0] for x in cl.shared_name_candidates(rows)] == ["B"]
 
 
@@ -78,3 +79,15 @@ def test_merge_keeps_user_columns(tmp_path):
     full = {r["drone"]: r for r in cl.merge(cl.read_labels(path), new, full=True)}
     assert full["B"]["sessions"] == 0 and full["B"]["etat"] == "inconnu"
     assert rows["C"]["etat"] == "regle"  # nouveau drone : pré-rempli
+
+
+def test_log_files_skips_duplicates_and_macosx(tmp_path):
+    (tmp_path / "A").mkdir()
+    (tmp_path / "B" / "__MACOSX").mkdir(parents=True)
+    (tmp_path / "A" / "x.bbl").write_bytes(b"log 1")
+    (tmp_path / "B" / "copie.BBL").write_bytes(b"log 1")  # même contenu, autre nom
+    (tmp_path / "B" / "y.bfl").write_bytes(b"log 2")
+    (tmp_path / "B" / "__MACOSX" / "._y.bfl").write_bytes(b"resource fork")
+    (tmp_path / "B" / "notes.txt").write_bytes(b"texte")
+    files = [str(p.relative_to(tmp_path)) for p in map(Path, cl.log_files(str(tmp_path)))]
+    assert files == ["A/x.bbl", "B/y.bfl"]

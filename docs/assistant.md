@@ -23,7 +23,10 @@ les tailles : un « FoxWhoop 25 » tourne à 280 Hz et des 3,5" (Bee35, JeNo 3.5
 (366 × 5" / 54 drones, 179 × 7" / 31, 120 whoops / 10, 22 × 2–3,5" / 8, 20 × 8"+ / 6), période automatique,
 roll + pitch. Un drone est identifié par son nom (`craft_name`), à défaut par le dossier du log ; un nom
 porté par plusieurs machines (`SHARED_NAMES` de `scripts/corpus_labels.py`, ex. « Jax » chez Guigui) est
-complété par le dossier. Les chiffres de cette section comptent encore les deux « Jax » comme un seul drone.
+complété par le dossier. Les logs sont lus par `corpus_labels.py:log_files` : dossiers `__MACOSX` ignorés,
+et un fichier au contenu identique à un autre n'est compté qu'une fois (26 doublons sur 565 fichiers le
+2026-10-05, dont 23 logs d'un même drone publiés deux fois dans « 1. PTB »). Les chiffres de cette section
+datent d'avant : doublons comptés deux fois, deux « Jax » et deux « Blueberry » comptés comme un drone.
 
 Les seuils « élevé » sont des **90e percentiles** : un drone est signalé quand il fait partie des 10 % les
 plus bruités / lents / déséquilibrés de sa catégorie. Deux façons de compter :
@@ -100,7 +103,7 @@ Les colonnes automatiques sont mises à jour à chaque passage du script. `etat`
 si la taille est écrite dans un nom (« 3.5 inch », « 5" », « Air65 »). Le pré-remplissage est à vérifier à la
 main. Un drone absent d'un passage complet garde sa ligne avec 0 session (à effacer à la main). Le script
 signale les noms trouvés dans des dossiers sans lien (ni l'un dans l'autre) : si ce sont des machines
-différentes, ajouter le nom à `SHARED_NAMES`.
+différentes, ajouter le nom à `SHARED_NAMES`, sinon à `SAME_DRONE_NAMES` (plus d'alerte).
 
 **Corpus de référence** = drones dont l'état est `regle` ou `origine`. `calibrate_advisor.py --resume`
 affiche chaque groupe (taille, puis TOUS) suivi de sa partie « référence » quand `corpus.csv` existe. Les

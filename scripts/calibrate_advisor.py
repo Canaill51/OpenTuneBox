@@ -7,7 +7,7 @@ Usage : calibrate_advisor.py NB_FICHIERS SORTIE.json  (dossier de logs : variabl
 Avec --resume, si OTB_LOGS/corpus.csv existe (scripts/corpus_labels.py), chaque groupe est suivi de son
 corpus de référence : drones dont l'état est « regle » ou « origine » (hors demandes d'aide).
 """
-import sys, json, glob, os, random
+import sys, json, os, random
 import numpy as np
 from opentunebox.log.flightlog import load
 from opentunebox.analysis.period import auto_period
@@ -19,7 +19,7 @@ from opentunebox.advisor.profiles import PROFILES, detect_profile, profile_key_f
 from opentunebox.advisor.rules import frame_resonance
 from opentunebox.analysis.motors import hover_motor_hz
 from opentunebox.analysis.stats import flight_stats
-from corpus_labels import CSV_NAME, REFERENCE_STATES, drone_id, logs_root, read_labels
+from corpus_labels import CSV_NAME, REFERENCE_STATES, drone_id, log_files, logs_root, read_labels
 
 def summary(path):
     """Affiche, par taille puis pour tout le corpus (TOUS) : p10 / p50 / p90 par session (roll et pitch
@@ -65,7 +65,7 @@ def summary(path):
 if sys.argv[1]=="--resume":
     summary(sys.argv[2]); sys.exit()
 root=logs_root()
-files=[f for f in glob.glob(root+"/**/*", recursive=True) if f.lower().endswith((".bbl",".bfl"))]
+files=log_files(root)  # sans doublons ni __MACOSX
 random.seed(0); random.shuffle(files)
 out=[]
 for f in files[:int(sys.argv[1])]:

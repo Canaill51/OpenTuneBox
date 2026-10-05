@@ -25,7 +25,8 @@ par Cédric, `docs/assistant.md`, « Corpus de référence »), chaque groupe es
 **référence** (drones `regle` ou `origine`) : la préférer pour fixer un seuil quand elle compte assez de
 drones. `corpus_labels.py` ne réécrit jamais les colonnes `etat`, `taille_reelle` et `remarque`. Il
 signale les noms de drone trouvés dans plusieurs dossiers : demander à Cédric si ce sont des machines
-différentes, et si oui ajouter le nom à `SHARED_NAMES`.
+différentes : oui → `SHARED_NAMES`, non → `SAME_DRONE_NAMES`. Les deux scripts lisent les logs par
+`corpus_labels.log_files` (sans doublons de contenu ni `__MACOSX`).
 
 Pour une **nouvelle mesure** : l'ajouter dans la boucle du script (même calcul que la règle ; si la règle
 mélange mesure et décision, séparer la mesure dans une fonction réutilisable, comme
