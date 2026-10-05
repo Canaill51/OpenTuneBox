@@ -56,7 +56,8 @@ créer `MainWindow`, `load_paths([...])`, pomper les événements (`app.processE
 
 ## Fabriquer les exécutables
 
-- Linux : `.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm` (≈ 30 s, `dist/OpenTuneBox/` ≈ 430 Mo).
+- Linux : `.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm` (≈ 30 s, `dist/OpenTuneBox/` ≈ 460 Mo).
+  Pas d'option `strip` : celui d'Ubuntu 22.04 abîme `libscipy_openblas` de numpy (« not page-aligned »).
   Vérifier après tout changement de la recette : exécutable d'essai (même recette, script qui lance
   `opentunebox report` avec un `NUMBA_CACHE_DIR` vide puis ouvre chaque outil hors écran).
 - Windows : sources par `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`,

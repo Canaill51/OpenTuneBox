@@ -36,16 +36,14 @@ a = Analysis(
 # Parties de Qt jamais utilisées, ajoutées d'office par PyInstaller : le clavier virtuel pour écran tactile
 # (il entraîne tout le moteur QML/Quick), le lecteur PDF et les traductions de Qt (aucune n'est chargée).
 # Les noms couvrent les trois systèmes : libQt6Qml.so, Qt6Qml.dll, QtQml.framework…
+# Pas d'option strip (informations de débogage) : le strip d'Ubuntu 22.04 abîme les bibliothèques de numpy
+# (« ELF load command address/offset not page-aligned »).
 UNUSED = re.compile(r"Qt6?(Qml|Quick|VirtualKeyboard|Pdf)|virtualkeyboard|qpdf|[/\\]translations[/\\]", re.I)
 a.binaries = [entry for entry in a.binaries if not UNUSED.search(entry[0])]
 a.datas = [entry for entry in a.datas if not UNUSED.search(entry[0])]
 
-# Linux : retire les informations de débogage des bibliothèques (−30 Mo environ). Pas sous macOS, où cela
-# invaliderait leurs signatures, ni sous Windows, où l'outil n'existe pas.
-strip = sys.platform.startswith("linux")
-
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="OpenTuneBox", console=False, icon=icon, strip=strip)
-coll = COLLECT(exe, a.binaries, a.datas, name="OpenTuneBox", strip=strip)
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="OpenTuneBox", console=False, icon=icon)
+coll = COLLECT(exe, a.binaries, a.datas, name="OpenTuneBox")
 if sys.platform == "darwin":
     app = BUNDLE(coll, name="OpenTuneBox.app", icon=icon, bundle_identifier="org.opentunebox.app")
