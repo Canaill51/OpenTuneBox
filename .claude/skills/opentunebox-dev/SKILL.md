@@ -53,8 +53,8 @@ créer `MainWindow`, `load_paths([...])`, pomper les événements (`app.processE
 
 ## Calibrer l'assistant
 
-`scripts/calibrate_advisor.py 600 stats.json`, puis recalculer p10/p50/p90 par profil et mettre à jour
-`advisor/profiles.py` et le tableau de `docs/assistant.md`.
+Suivre la compétence `assistant-seuils` (calibration sur le corpus, choix du percentile, origine de
+chaque seuil).
 
 ## Fabriquer les exécutables
 

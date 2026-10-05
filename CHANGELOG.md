@@ -5,6 +5,24 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- Assistant : constat « Seuils provisoires pour cette taille » pour les whoops, les 2–3,5" et les 8"+
+  (trop peu de drones dans le corpus de calibration).
+- `scripts/calibrate_advisor.py` : déséquilibre, terme I, saturation, résonance, fréquence moteur et nom
+  du drone mesurés ; `--resume` affiche les percentiles par taille, par session et avec une voix par drone.
+
+### Modifié
+- Assistant : seuils mécaniques calibrés sur 90 drones (déséquilibre 11–14 % au lieu de 12 %, terme I
+  29–33 au lieu de 40, saturation 1,5 % du temps au lieu de 5 %, écart roll / pitch 0,07–0,12 au lieu
+  de 0,08, résonance 7,3–7,9 dB au lieu de 6 dB).
+- Assistant : limite whoop abaissée de 420 à 345 Hz (Meteor 75 et P85 reconnus comme whoops) ; seuils
+  whoop recalculés avec une voix par drone, seuils 2–3,5" recalculés sans eux.
+- Documentation de l'assistant : origine de chaque seuil (corpus, communauté, théorie, firmware ou
+  estimation), comparaison avec le corpus et champs de profil inutilisés (`docs/assistant.md`) ;
+  sources vérifiées (Skogestad et Postlethwaite, Åström et Murray, firmware et configurateur Betaflight) ;
+  limite connue du pic de sensibilité et de la marge de phase (L = T/(1 − T), D sur le gyro) ; l'onglet
+  Autotune du configurateur examiné et écarté comme source.
+
 ## [0.3.0] — 2026-10-05
 
 ### Ajouté

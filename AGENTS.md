@@ -88,7 +88,11 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
   `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log.
 - Seuils de l'assistant = 90e percentile du corpus par taille de drone (`docs/assistant.md`) : les recalculer
-  avec `scripts/calibrate_advisor.py`, ne pas les inventer.
+  avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles), ne pas les inventer. Compter **une voix
+  par drone** quand quelques drones dominent une taille (whoop, seuils mécaniques) ; moins de ~20 drones →
+  seuil commun ou profil provisoire. Chaque seuil a une origine notée (corpus, théorie, firmware…).
+- Pic de sensibilité et marge de phase : calculés sur L = T/(1 − T), approché car le D de Betaflight agit sur
+  le gyro (`docs/assistant.md`, « Limite connue »). L'onglet Autotune du configurateur n'est pas une source.
 - Interface : style Qt **Fusion** imposé partout (`gui/theme.py`). Le style natif Windows 11 ignore la palette
   et grise les textes. Sous Fusion (Qt 6.11), les cases et boutons radio sont presque invisibles : ils sont
   redessinés par la feuille de style globale. Le délégué natif des `QComboBox` ignore cette feuille

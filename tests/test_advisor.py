@@ -21,6 +21,25 @@ def test_profiles_detected_by_motor_speed():
 
     assert detect_profile(_load("Cedric/Air65/stock.bbl"))[0].key == "whoop"
     assert detect_profile(_load("Cedric/JeNo 5/FINAL.bbl"))[0].key == "five"
+    # Meteor 75 (≈ 355 Hz en vol) : whoop depuis la limite à 345 Hz
+    assert detect_profile(_load("Cedric/Meteor 75 Pro O4 HD/03112025/D.bbl"))[0].key == "whoop"
+
+
+def test_profile_thresholds():
+    from dataclasses import replace
+
+    from opentunebox.advisor.profiles import PROFILES, profile_key_from_hz
+    from opentunebox.advisor.rules import analyze
+
+    assert [profile_key_from_hz(h) for h in (480, 350, 300, 220, 140, 100)] == \
+        ["whoop", "whoop", "micro", "five", "seven", "large"]
+    lg = _load("Cedric/JeNo 5/FINAL.bbl")
+    titles = lambda rep: {f.title for f in rep.findings}  # noqa: E731
+    # un seuil mécanique nul déclenche le constat : la règle lit bien le profil
+    strict = replace(PROFILES["five"], imbalance_high_pct=0.0)
+    assert "Moteurs déséquilibrés" in titles(analyze(lg, profile=strict))
+    assert "Seuils provisoires pour cette taille" in titles(analyze(lg, profile=PROFILES["micro"]))
+    assert "Seuils provisoires pour cette taille" not in titles(analyze(lg, profile=PROFILES["five"]))
 
 
 def test_overshoot_detected_on_low_damping():

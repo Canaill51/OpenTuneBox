@@ -70,6 +70,10 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     if profile is None:
         profile, reason = detect_profile(log)
     F: list[Finding] = []
+    if profile.provisional:
+        F.append(Finding("Réglage", INFO, "Seuils provisoires pour cette taille",
+                         f"Le corpus de calibration compte trop peu de drones « {profile.label} » : les seuils de "
+                         "bruit et de mécanique sont indicatifs."))
     meas: dict = {}
     fs = log.fs
     s = log.settings
@@ -121,10 +125,11 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     r0, r1 = steps[0].result, steps[1].result
     if r0.n >= 20 and r1.n >= 20 and np.isfinite(r0.metrics.peak) and np.isfinite(r1.metrics.peak):
         d = r1.metrics.peak - r0.metrics.peak
-        if abs(d) > 0.08:
+        if abs(d) > profile.roll_pitch_gap_high:
             more = "pitch" if d > 0 else "roll"
             F.append(Finding("Réponse", CONSEIL, "Roll et pitch se comportent différemment",
-                             f"Pic {r0.metrics.peak:.2f} en roll contre {r1.metrics.peak:.2f} en pitch : le {more} dépasse davantage.",
+                             f"Pic {r0.metrics.peak:.2f} en roll contre {r1.metrics.peak:.2f} en pitch : le {more} dépasse davantage "
+                             f"(écart {abs(d):.2f}, seuil {profile.roll_pitch_gap_high:.2f}).",
                              [f"Curseur « D pitch » (pitch_d) : {'+' if d > 0 else '−'}0,1 pour équilibrer."]))
 
     # ------------------------------------------------------------ 3. bruit et filtres
@@ -192,22 +197,22 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     # ------------------------------------------------------------ 4. moteurs et mécanique
     fst = flight_stats(log, sel)
     meas["stats"] = fst
-    if fst.motor_saturation_pct > 5:
+    if fst.motor_saturation_pct > profile.saturation_high_pct:
         F.append(Finding("Moteurs", ATTENTION, "Moteurs souvent saturés",
-                         f"Au moins un moteur est à fond {fst.motor_saturation_pct:.1f} % du temps : le contrôleur "
-                         "n'a plus de marge pour corriger.",
+                         f"Au moins un moteur est à fond {fst.motor_saturation_pct:.1f} % du temps (seuil "
+                         f"{profile.saturation_high_pct:.1f} %) : le contrôleur n'a plus de marge pour corriger.",
                          ["Si c'est pendant les manœuvres : baisser les rates ou le Master.",
                           "Sinon : drone trop lourd pour ses moteurs/hélices, ou batterie faible."]))
-    if np.isfinite(fst.motor_imbalance_pct) and fst.motor_imbalance_pct > 12:
+    if np.isfinite(fst.motor_imbalance_pct) and fst.motor_imbalance_pct > profile.imbalance_high_pct:
         F.append(_imbalance_finding([mm.mean for mm in fst.motors], fst.motor_imbalance_pct))
     pe = pid_error_stats(log, sel)
     meas["pid_error_sd"] = pe.sd
     i_mean = [float(np.mean(log.i_term[a, sel])) for a in range(3)]
     meas["iterm_mean"] = i_mean
     for a in range(2):
-        if abs(i_mean[a]) > 40:
+        if abs(i_mean[a]) > profile.iterm_offset_high:
             F.append(Finding("Mécanique", CONSEIL, f"Terme I décentré en {AXES[a].lower()}",
-                             f"Le terme I {AXES[a].lower()} reste en moyenne à {i_mean[a]:.0f} : le drone "
+                             f"Le terme I {AXES[a].lower()} reste en moyenne à {i_mean[a]:.0f} (seuil ±{profile.iterm_offset_high:.0f}) : le drone "
                              "compense en permanence un déséquilibre.",
                              ["Centrez la batterie / la caméra (centre de gravité).", "Vérifiez qu'aucun moteur ne tourne moins vite."]))
 
@@ -295,8 +300,9 @@ def _imbalance_finding(m: list[float], imbalance: float) -> Finding:
     return Finding("Mécanique", CONSEIL, "Moteurs déséquilibrés", f"{cause} ({values}).", actions)
 
 
-def _frame_resonance(log: FlightLog, sel: slice, profile: CraftProfile) -> Finding | None:
-    """Raie de fréquence fixe quel que soit le gaz (résonance du châssis ou pièce desserrée)."""
+def frame_resonance(log: FlightLog, sel: slice) -> tuple[float, float, bool] | None:
+    """Raie la plus marquée au-dessus du bruit voisin, quel que soit le gaz : (fréquence en Hz, excès en dB,
+    proche d'une harmonique moteur). None si le log ne couvre pas assez de tranches de gaz."""
     x = log.gyro_unfilt if log.gyro_unfilt is not None else log.gyro
     lo, hi = 60.0, min(0.9 * log.fs / 2, 900.0)
     prof = []
@@ -315,16 +321,24 @@ def _frame_resonance(log: FlightLog, sel: slice, profile: CraftProfile) -> Findi
     base = np.convolve(pm, np.ones(15) / 15, mode="same")
     excess = pm - base
     k = int(np.argmax(excess))
-    if excess[k] < 6.0:
-        return None
     f0 = float(fm[k])
     # une raie moteur se déplace avec le gaz : si f0 correspond à la vitesse moteur en stationnaire,
     # ce n'est probablement pas une résonance
     hz = hover_motor_hz(log)
-    if hz is not None and any(abs(f0 - h * hz) < 0.08 * h * hz for h in (1, 2, 3)):
+    near_motor = hz is not None and any(abs(f0 - h * hz) < 0.08 * h * hz for h in (1, 2, 3))
+    return f0, float(excess[k]), near_motor
+
+
+def _frame_resonance(log: FlightLog, sel: slice, profile: CraftProfile) -> Finding | None:
+    """Raie de fréquence fixe quel que soit le gaz (résonance du châssis ou pièce desserrée)."""
+    res = frame_resonance(log, sel)
+    if res is None:
+        return None
+    f0, excess, near_motor = res
+    if excess < profile.resonance_high_db or near_motor:
         return None
     return Finding("Mécanique", CONSEIL, f"Raie fixe vers {f0:.0f} Hz",
-                   f"Une vibration à ~{f0:.0f} Hz reste présente quel que soit le gaz (+{excess[k]:.0f} dB au-dessus du "
+                   f"Une vibration à ~{f0:.0f} Hz reste présente quel que soit le gaz (+{excess:.0f} dB au-dessus du "
                    "bruit voisin) : résonance du châssis, d'une antenne, d'une caméra ou pièce desserrée.",
                    ["Resserrez les vis, fixez antennes et câbles, vérifiez la caméra et la pile de cartes.",
                     f"Si elle persiste : notch statique gyro à {f0:.0f} Hz (gyro_notch1_hz = {f0:.0f}, "
