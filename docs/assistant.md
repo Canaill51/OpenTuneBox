@@ -21,7 +21,12 @@ les tailles : un « FoxWhoop 25 » tourne à 280 Hz et des 3,5" (Bee35, JeNo 3.5
 `scripts/calibrate_advisor.py 600 stats.json` sur le corpus `~/Documents/Drones/Logs`, puis
 `scripts/calibrate_advisor.py --resume stats.json` : 707 sessions exploitables de 90 drones
 (366 × 5" / 54 drones, 179 × 7" / 31, 120 whoops / 10, 22 × 2–3,5" / 8, 20 × 8"+ / 6), période automatique,
-roll + pitch. Un drone est identifié par son nom (`craft_name`), à défaut par le dossier du log.
+roll + pitch. Un drone est identifié par son nom (`craft_name`), à défaut par le dossier du log ; un nom
+porté par plusieurs machines (`SHARED_NAMES` de `scripts/corpus_labels.py`, ex. « Jax » chez Guigui) est
+complété par le dossier. Les logs sont lus par `corpus_labels.py:log_files` : dossiers `__MACOSX` ignorés,
+et un fichier au contenu identique à un autre n'est compté qu'une fois (26 doublons sur 565 fichiers le
+2026-10-05, dont 23 logs d'un même drone publiés deux fois dans « 1. PTB »). Les chiffres de cette section
+datent d'avant : doublons comptés deux fois, deux « Jax » et deux « Blueberry » comptés comme un drone.
 
 Les seuils « élevé » sont des **90e percentiles** : un drone est signalé quand il fait partie des 10 % les
 plus bruités / lents / déséquilibrés de sa catégorie. Deux façons de compter :
@@ -72,6 +77,37 @@ sinon communs à tout le corpus (90 drones). La saturation est toujours commune 
 | Saturation (% du temps ≥ 98 %) | 1,5 | 1,5 | 1,5 |
 | Écart de pic roll / pitch | 0,12 | 0,12 | 0,07 |
 | Résonance (dB au-dessus du bruit voisin) | 7,9 | 7,4 | 7,3 |
+
+### Corpus de référence (`corpus.csv`)
+
+Plus de la moitié des logs du corpus (« 1. PTB », « 3. BBLR FB ») sont des **demandes d'aide** : les
+percentiles ci-dessus décrivent donc surtout des drones à problème, et sont probablement trop indulgents.
+Pour les recalculer sur des drones connus, `scripts/corpus_labels.py` tient un tableau d'étiquettes,
+`corpus.csv`, rangé dans le dossier des logs (`OTB_LOGS`, hors du dépôt), une ligne par drone (même
+identité que la calibration), séparateur « ; » :
+
+| Colonne | Contenu |
+|---|---|
+| `drone`, `dossiers`, `sessions`, `origine` | identité, dossiers des logs, sessions de 8 s ou plus, dossier de 1er niveau |
+| `taille_detectee`, `freq_moteur_hz` | profil détecté par l'assistant, fréquence moteur médiane en vol |
+| `motor_kv` | réglage `motor_kv` ; vide s'il vaut 1960, la valeur par défaut du firmware (`pg/motor.c`) |
+| `cellules` | formule du firmware (`sensors/battery.c`) : tension au branchement (`vbatref`) / `vbatcellvoltage` max + 1 |
+| `etat` | `aide`, `origine` (réglages d'usine), `regle` (réglage terminé) ou `inconnu` |
+| `taille_reelle` | taille en pouces (« 3,5 ») ou « whoop » |
+| `remarque` | texte libre |
+
+Les colonnes automatiques sont mises à jour à chaque passage du script. `etat`, `taille_reelle` et
+`remarque` sont pré-remplies à la création de la ligne, puis **jamais écrasées** : `etat` = `aide` pour
+« 1. PTB » et « 3. BBLR FB », sinon `regle` si un nom de fichier ou de dossier contient « final »,
+« tuned » ou « last », sinon `origine` s'il contient « stock », sinon `inconnu` ; `taille_reelle` seulement
+si la taille est écrite dans un nom (« 3.5 inch », « 5" », « Air65 »). Le pré-remplissage est à vérifier à la
+main. Un drone absent d'un passage complet garde sa ligne avec 0 session (à effacer à la main). Le script
+signale les noms trouvés dans des dossiers sans lien (ni l'un dans l'autre) : si ce sont des machines
+différentes, ajouter le nom à `SHARED_NAMES`, sinon à `SAME_DRONE_NAMES` (plus d'alerte).
+
+**Corpus de référence** = drones dont l'état est `regle` ou `origine`. `calibrate_advisor.py --resume`
+affiche chaque groupe (taille, puis TOUS) suivi de sa partie « référence » quand `corpus.csv` existe. Les
+seuils actuels restent ceux du corpus entier tant que le tableau n'est pas rempli.
 
 ## Règles
 

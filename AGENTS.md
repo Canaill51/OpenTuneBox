@@ -36,7 +36,7 @@ src/opentunebox/
 tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
               test_docs.py vérifie la documentation
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
-              release.py (préparer une version, notes de la page Releases)
+              corpus_labels.py (tableau d'étiquettes du corpus), release.py (préparer une version, notes de la page Releases)
 packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes (make_icons.py), installateurs :
               windows/ (Inno Setup), macos/ (.dmg), linux/ (AppImage)
 docs/         guide utilisateur, architecture, validation, assistant, spécifications (index : docs/README.md)
@@ -59,11 +59,13 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/opentunebox-gui [LOG…]                     # interface
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande
 .venv/bin/python scripts/validate_corpus.py [DOSSIER] [--limit N]   # décodeur vs blackbox_decode
+.venv/bin/python scripts/corpus_labels.py                        # tableau d'étiquettes $OTB_LOGS/corpus.csv
 .venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
 .venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```
 
-Variables d'environnement : `OTB_LOGS` (dossier de vrais logs, défaut `~/Documents/Drones/Logs`),
+Variables d'environnement : `OTB_LOGS` (dossier de vrais logs, défaut `~/Documents/Drones/Logs` ; contient
+aussi `corpus.csv`, les étiquettes des drones remplies par Cédric, à ne jamais écraser),
 `OTB_REF_DECODER` (`blackbox_decode` de référence pour `validate_corpus.py`).
 
 Tests d'interface et captures sans écran : `QT_QPA_PLATFORM=offscreen`, puis `widget.grab().save(...)` et

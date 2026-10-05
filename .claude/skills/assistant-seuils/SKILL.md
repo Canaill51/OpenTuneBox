@@ -13,13 +13,20 @@ permise, mais elle doit être déclarée comme telle et listée pour être véri
 ## 1. Calibrer sur le corpus
 
 ```sh
+.venv/bin/python scripts/corpus_labels.py                                  # ≈ 3 min, met à jour $OTB_LOGS/corpus.csv
 .venv/bin/python scripts/calibrate_advisor.py 600 SCRATCH/stats.json        # ≈ 10 min, tout le corpus
 .venv/bin/python scripts/calibrate_advisor.py --resume SCRATCH/stats.json   # p10/p50/p90 par taille
 ```
 
 `SCRATCH` = répertoire de travail temporaire de la session (jamais dans le dépôt). Lancer le calcul en
 arrière-plan. `--resume` reclasse les sessions avec les limites de taille actuelles
-(`profiles.profile_key_from_hz`), sans tout recalculer.
+(`profiles.profile_key_from_hz`), sans tout recalculer. Avec `corpus.csv` (tableau d'étiquettes rempli
+par Cédric, `docs/assistant.md`, « Corpus de référence »), chaque groupe est suivi de sa partie
+**référence** (drones `regle` ou `origine`) : la préférer pour fixer un seuil quand elle compte assez de
+drones. `corpus_labels.py` ne réécrit jamais les colonnes `etat`, `taille_reelle` et `remarque`. Il
+signale les noms de drone trouvés dans plusieurs dossiers : demander à Cédric si ce sont des machines
+différentes : oui → `SHARED_NAMES`, non → `SAME_DRONE_NAMES`. Les deux scripts lisent les logs par
+`corpus_labels.log_files` (sans doublons de contenu ni `__MACOSX`).
 
 Pour une **nouvelle mesure** : l'ajouter dans la boucle du script (même calcul que la règle ; si la règle
 mélange mesure et décision, séparer la mesure dans une fonction réutilisable, comme
@@ -62,8 +69,9 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
   manuels s'y appliquent seulement par analogie.
 - Limites de taille par fréquence moteur : peu fiables entre 250 et 400 Hz (whoops 2,5", 3,5" lents).
   Vérifier par drone (nom + fréquence médiane), pas par session.
-- Le corpus mélange des logs de demandes d'aide (« 1. PTB ») et des drones connus (dossiers des amis de
-  Cédric) : un percentile peut être trop indulgent si beaucoup de drones du corpus sont mal réglés.
+- Le corpus mélange des logs de demandes d'aide (« 1. PTB », « 3. BBLR FB ») et des drones connus
+  (dossiers des amis de Cédric) : un percentile du corpus entier est probablement trop indulgent.
+  Comparer avec le groupe « référence » de `--resume`.
 
 ## 5. Terminer
 
