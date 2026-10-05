@@ -29,6 +29,10 @@ class FileOpenFilter(QObject):
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv if argv is None else argv
+    if sys.platform.startswith("linux"):
+        # Fenêtres d'ouverture et d'enregistrement du bureau (KDE, GNOME…) par le portail XDG, en français
+        # et aux couleurs du système. Sans portail, Qt revient de lui-même à sa propre fenêtre.
+        os.environ.setdefault("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
     app = QApplication(argv)
     app.setApplicationName("OpenTuneBox")
     app.setOrganizationName("OpenTuneBox")
@@ -37,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     app.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "opentunebox.svg")))
     app.setDesktopFileName("opentunebox")
     pg.setConfigOptions(useOpenGL=False, antialias=False)
+    from . import theme
+
+    theme.install_qt_translations(app)
 
     from .main_window import MainWindow
     from .worker import wait_all

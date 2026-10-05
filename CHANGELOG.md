@@ -19,6 +19,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Icônes macOS (`.icns`) et Linux (`.png`) fabriquées depuis le SVG par `packaging/make_icons.py`.
 
 ### Corrigé
+- Linux : la fenêtre d'ouverture de fichiers était peu lisible (icônes claires presque invisibles avec le
+  thème clair sur un bureau sombre, textes en anglais, colonnes tronquées). OpenTuneBox utilise désormais
+  la fenêtre du bureau (KDE, GNOME, Cinnamon, XFCE…) par le portail XDG, quel que soit le bureau ; sans
+  portail, la fenêtre de Qt reste lisible : icônes du bureau en variante claire ou sombre selon le thème
+  choisi, et textes de Qt en français (aussi les boutons OK / Annuler sur tous les systèmes).
 - Page Releases : la publication échouait parce que les archives `.zip` Windows et macOS étaient
   décompressées avant d'être jointes (`skip-decompress` de `download-artifact`).
 

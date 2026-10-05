@@ -34,13 +34,14 @@ a = Analysis(
 )
 
 # Parties de Qt jamais utilisées, ajoutées d'office par PyInstaller : le clavier virtuel pour écran tactile
-# (il entraîne tout le moteur QML/Quick), le lecteur PDF et les traductions de Qt (aucune n'est chargée).
+# (il entraîne tout le moteur QML/Quick), le lecteur PDF et les traductions de Qt, sauf le français de base
+# (qtbase_fr.qm, chargé par theme.install_qt_translations).
 # Les noms couvrent les trois systèmes : libQt6Qml.so, Qt6Qml.dll, QtQml.framework…
 # Pas d'option strip (informations de débogage) : le strip d'Ubuntu 22.04 abîme les bibliothèques de numpy
 # (« ELF load command address/offset not page-aligned »).
 UNUSED = re.compile(r"Qt6?(Qml|Quick|VirtualKeyboard|Pdf)|virtualkeyboard|qpdf|[/\\]translations[/\\]", re.I)
 a.binaries = [entry for entry in a.binaries if not UNUSED.search(entry[0])]
-a.datas = [entry for entry in a.datas if not UNUSED.search(entry[0])]
+a.datas = [entry for entry in a.datas if entry[0].endswith("qtbase_fr.qm") or not UNUSED.search(entry[0])]
 
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="OpenTuneBox", console=False, icon=icon)
