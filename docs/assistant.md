@@ -173,8 +173,8 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Marge de phase | < 40° | Théorie + estimation | Åström et Murray : valeurs raisonnables 30–60° ; 40° est choisi dans cette plage. Même réserve pour la valeur approchée |
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Estimation | Choisit le conseil (Master −0,1 plutôt que plus de D). Appuyé sur la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) : au-delà, plus de D monte le croisement sans gagner de marge, et le pic de sensibilité augmente |
 | Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes exactes choisies |
-| Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
-| Retards des filtres gyro et D | p90 de la taille, arrondi vers le haut | Corpus | |
+| Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu. Repères de Brian White (gyro filtré < −30 dB, D < −20 dB idéal, −10 dB au plus [S20, S21]) sur l'échelle de PIDtoolbox, non comparable à notre densité spectrale moyenne 80–500 Hz |
+| Retards des filtres gyro et D | p90 de la taille, arrondi vers le haut | Corpus | Brian White vise ≤ 1,5 ms pour le gyro filtré d'un 5", ≈ 5 ms pour un 10" [S20] ; p90 du corpus 5" : 2,0 ms (méthode de mesure différente de PIDtoolbox) |
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
 | Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 10 et 8 drones seulement |
 | Seuils du profil 8"+ | voir « Calibration » | Estimation | 6 drones, 20 sessions |
@@ -183,7 +183,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Terme I décentré | moyenne > 29 à 33 (unités PID) selon la taille | Corpus | |
 | Saturation des moteurs | ≥ 98 % pendant > 1,5 % du temps | Corpus | La notion de « moteur à 98 % » est estimée : le firmware ne journalise pas de saturation (il renormalise le mixage quand l'écart entre moteurs dépasse 100 %) |
 | Pas des curseurs conseillés | 0,1 (0,1 à 0,2 pour les filtres) | Estimation | Le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
-| `rpm_filter_q` conseillé | 500 → 350 | Firmware (500) + estimation (350) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14]) et de redescendre seulement si le bruit moteur réapparaît ; aucune ne donne de valeur sous 500 |
+| `rpm_filter_q` conseillé | 500 → 350 | Firmware (500) + estimation (350) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre selon Brian White [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où 350 estimé. Une règle « monter Q sur un drone propre » reste à écrire |
 | `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
 | Notch statique conseillé | coupure = 0,7 × fréquence de la raie | Estimation | |
 

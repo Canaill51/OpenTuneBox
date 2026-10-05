@@ -133,26 +133,32 @@ montées de gaz pour le bruit.
 
 Chaque repère porte sa source entre crochets (liste ci-dessous) ou la mention **Estimation** : aucune
 source publique trouvée (recherche du 2026-10-05). Les citations sont reprises mot pour mot, en version
-originale.
+originale ; pour les vidéos de la chaîne PIDtoolbox [S20]–[S25], d'après la transcription (sous-titres
+automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au moment cité.
 
 - **Pic de réponse** : seules des règles de sens sont publiées. Plus de P → montée plus rapide, plus de
   dépassement ; plus de D → moins de dépassement, montée plus lente [S1, S4] ; rebond après les flips → plus
   de D [S3, S4]. Objectif : « fast rise time and peak time with not too much overshoot » [S1] ; UAV Tech vise
-  une réponse sans dépassement (« critically damped ») [S4]. Les paliers chiffrés (< 1,00 suramorti ;
-  1,02–1,08 optimal ; 1,08–1,12 acceptable ; 1,12–1,20 ajouter ~10–30 % de D ; > 1,20 plus de D ; > 1,5
-  mécanique) : **Estimation**, aucune source.
+  une réponse sans dépassement (« critically damped ») [S4]. Méthode de Brian White : série de vols en
+  faisant varier le curseur Damping, puis garder la première valeur sans pic de dépassement, jugée à l'œil
+  [S24, S25]. Les paliers chiffrés (< 1,00 suramorti ; 1,02–1,08 optimal ; 1,08–1,12 acceptable ;
+  1,12–1,20 ajouter ~10–30 % de D ; > 1,20 plus de D ; > 1,5 mécanique) : **Estimation**, aucune source,
+  vidéos comprises.
 - **Fenêtres de la réponse indicielle** : consigne ≥ 20 °/s [S5, S2] ; séparation à 500 °/s [S5, S1].
+  Réponse indicielle en mode angle pratiquement identique à l'acro [S24].
 - **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz
   résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (Brian White situait les
-  moteurs vers 200–500 Hz [S7]).
-- **Niveaux de bruit** : gyro filtré sous −30 dB au-dessus de 50 Hz, terme D sous −10 dB [S6, attribué à
-  « the author of PIDToolBox » sans référence ; unité non précisée].
+  moteurs vers 200–500 Hz [S7]). Propwash le plus souvent vers 30–50 Hz [S23].
+- **Niveaux de bruit** (échelle en dB des spectres de PIDtoolbox, pas notre densité spectrale : non
+  comparables tels quels aux seuils de l'assistant) : gyro filtré sous −30 dB, « a good rule of thumb »
+  [S21, S22, repris par S6] ; terme D idéalement sous −20 dB, au plus −10 dB [S20] (S6 citait −10 dB).
 - **Spectrogramme fréquence × gaz** : bruit moteur = ligne qui suit le gaz (diagonale) [S8, S6] ; résonance
   = fréquence fixe quel que soit le gaz [S6, S9] (ligne horizontale ou verticale selon l'axe des
   fréquences de l'outil).
 - **Retard des filtres** : « aim for < 5ms total latency if possible » [S1, retard gyro estimé par
-  PIDtoolbox par intercorrélation, roll seul : pas tout à fait notre méthode de phase] ; 4–5 ms
-  « raisonnable » pour un 5" [S10] ; 7–8 ms = filtrage très lourd [S11].
+  PIDtoolbox par intercorrélation, roll seul : pas tout à fait notre méthode de phase] ; Brian White vise
+  désormais 1,5 ms au plus pour le gyro filtré d'un 5", jusqu'à ≈ 5 ms pour un 10" (« rough
+  guestimate ») [S20] ; 4–5 ms « raisonnable » pour un 5" [S10] ; 7–8 ms = filtrage très lourd [S11].
 - **Fréquence fondamentale des moteurs** : régime en charge ≈ 70 % du régime à vide KV × cellules × 4 V
   [S12], soit ≈ KV × tension nominale × 0,75. Tableau par taille (whoop 65–75 mm 550–800 Hz en
   stationnaire / 1,1–1,4 kHz plein gaz ; 2,5–3,5" 350–450 / 800–950 ; 5" 200–270 / 500–650 ; 7" 130–170 /
@@ -164,9 +170,11 @@ originale.
 - **Notch dynamique** : avec filtre RPM, Q 300–450 [S19] et 1–2 notchs [S14] (conseil de 2022 : 1 notch,
   Q 500 [S9]) ; sans filtre RPM, 3–4 notchs, Q 120–150 [S19] (4–5 notchs selon les pages de 2025–2026
   [S14]). Sur les grands drones (7" et plus), `dyn_notch_min_hz` plus bas que le défaut [S15] ; les presets
-  officiels 7–10" restent entre 80 et 125 Hz [S16] (20 Hz n'est que la limite du firmware).
+  officiels 7–10" restent entre 80 et 125 Hz [S16] (20 Hz n'est que la limite du firmware). Sur un 5", pas
+  de filtrage plus bas que ≈ 100 Hz [S22].
   `rpm_filter_q` : 500 par défaut [S17] ; le monter tant que le bruit moteur ne réapparaît pas, sans
-  dépasser 750 [S9] ou 1000 [S6, S14] selon les sources.
+  dépasser 750 [S9] ou 1000 [S6, S14] selon les sources ; Brian White conseille 750 à 1000 sur un 5"
+  propre pour réduire le retard [S20].
 - **Feedforward** (Betaflight 4.3 et plus) : liaison 250 Hz → `feedforward_smooth_factor` 40–50 et
   `feedforward_averaging` 2_POINT (35–40 ailleurs sur la même page ; preset officiel 45) ; 500 Hz → 65–70
   [S19, S18] ; `feedforward_jitter_factor` 12–15 « for freestyle/cinematic » [S19].
@@ -219,3 +227,24 @@ originale.
   2021-07-16 à 2022-02-12 : « Q values around 300-450 » ; sans filtre RPM, « three or four notches and Q
   values around 120-150 » ; « For 250hz RC links […] 40-50 », « For 500hx RC links […] 65-70 »
   (`feedforward_smooth_factor`) ; jitter « 12-15 […] for freestyle/cinematic ».
+- [S20] Brian White, chaîne YouTube PIDtoolbox, [*PTB Q&A #16 : Filter tuning for performance*](https://www.youtube.com/watch?v=TiwaQEkOdyo),
+  2026-04-29 : D-term « ideally below about minus 20 dB. Maybe minus 10 would be the highest »
+  ([5:28](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=328s)) ; « you could dial this back to say Q of
+  750 » ([34:12](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2052s)) ; « For a 5-in drone, gyro filter
+  delay of 1.5 milliseconds or less » ([35:52](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2152s)) ;
+  « 5-in 1 and 1/2 milliseconds up to 10-in 5 » ([40:57](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2457s)).
+- [S21] Brian White, direct d'analyse de logs (suite), [vidéo du 2022-01-24](https://www.youtube.com/watch?v=14wlm7yhrOY) :
+  « as long as the filter gyro is below minus 30 it's going to be pretty clean » ; « a good rule of thumb »
+  ([51:47](https://www.youtube.com/watch?v=14wlm7yhrOY&t=3107s)).
+- [S22] Brian White, direct d'analyse de logs, [vidéo du 2022-01-17](https://www.youtube.com/watch?v=5bBFlnCTsNM) :
+  bruit « below minus 30 » sur un simple balayage de gaz ([7:34](https://www.youtube.com/watch?v=5bBFlnCTsNM&t=454s)) ;
+  « in a five inch […] don't want to go lower than say 100 » ([1:12:27](https://www.youtube.com/watch?v=5bBFlnCTsNM&t=4347s)).
+- [S23] Brian White, [*PTB Q&A #1*](https://www.youtube.com/watch?v=LO7ZuliPsos), 2021-04-02 : « prop wash
+  oscillation is happening around 30 to 50 hertz » ([15:26](https://www.youtube.com/watch?v=LO7ZuliPsos&t=926s)).
+- [S24] Brian White, [réglage en mode angle](https://www.youtube.com/watch?v=sqT4MACi3d8), 2022-02-14 :
+  acro et angle « for all intents and purposes, these curves are identical »
+  ([2:56](https://www.youtube.com/watch?v=sqT4MACi3d8&t=176s)) ; Damping 0,6 à 1,4, « somewhere between 1.2
+  to 1.4 is optimal » ([3:40](https://www.youtube.com/watch?v=sqT4MACi3d8&t=220s)).
+- [S25] Brian White, [réglage Betaflight avec PIDtoolbox](https://www.youtube.com/watch?v=ehvQm8Rqrzk),
+  2025-09-04 : Damping 0,6 à 1,2, « the 1.2 is even really overdampened […] 0.8 or 1.0 is fine »
+  ([13:30](https://www.youtube.com/watch?v=ehvQm8Rqrzk&t=810s)).
