@@ -34,8 +34,13 @@ Mesures de boucle (conception propre, même déconvolution) : T(f) = réponse en
 consigne → gyro (moyenne des interspectres / autospectres des fenêtres), de 2 à 150 Hz, points de
 cohérence ≥ 0,5, lissage complexe sur 5 points (`uniform_filter1d(mode="nearest")`) ; sensibilité
 S = 1 − T, pic de |S| en dB et sa fréquence (repères 4 dB jaune / 6 dB rouge, comme PTB) ; boucle
-ouverte L = T/(1 − T) : croisement où |L| = 1, marge de phase = 180° + ∠L ; bande passante = −3 dB de |T|,
-cherchée à partir de 2 Hz.
+ouverte L = T/(1 − T), marges calculées par `analysis/loop.py:margins` : phase déroulée (`np.unwrap`,
+premier point ramené dans (−360°, 0]) ; croisement = premier passage de |L| au-dessous de 1, interpolé
+en (log f, log |L|) ; marge de phase = 180° + ∠L, négative si la phase y est sous −180° ; marge de gain
+= −20·log10 |L| au premier passage de la phase par −180° (− k·360°) après le croisement ; pic de
+sensibilité signalé « au bord de la bande » s'il tombe sur le premier ou le dernier point (ce n'est
+alors qu'un minorant). Les croisements suivants sont ignorés : sur les vrais logs ils viennent du bruit
+(`validation.md`). Bande passante = −3 dB de |T|, cherchée à partir de 2 Hz.
 **Limite** : L = T/(1 − T) n'est la vraie boucle ouverte que si tout le régulateur agit sur l'erreur ; dans
 Betaflight le D agit sur le gyro et le feedforward sur la consigne, donc S et la marge de phase sont
 approchées (détail et piste de correction : `assistant.md`, « Limite connue »).

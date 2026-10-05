@@ -31,6 +31,14 @@ lecture échantillon par échantillon).
 - Curseurs simplifiés : les formules redonnent les PID de l'en-tête pour 740 sessions sur 741.
 - Simulateur de filtres : sans modification des réglages, le spectre « et si » égale le spectre loggé à 0,009 dB près.
 - Filtres Betaflight : réponses comparées aux formules analytiques (`tests/test_bf_filters.py`).
+- Marges de stabilité (`analysis/loop.py`) : marge de phase, croisement et marge de gain égaux aux
+  formules exactes d'une boucle intégrateur + retard (`tests/test_loop.py`, ±0,3° et ±0,05 dB), y compris
+  une marge négative. Sur 60 logs du corpus tirés au hasard (133 axes, 2026-10-05) : marge inchangée à
+  1° près pour 83 des 122 axes mesurables ; une marge passe de +299° (phase repliée, ancien calcul) à
+  −109° ; les 8 écarts de plus de 5° sont des axes très bruités (yaw, vol stationnaire, phase qui saute de
+  50 à 100° d'un point au suivant). Prendre la plus petite marge sur **tous** les croisements |L| = 1 a été
+  essayé puis écarté : |L| repasse au-dessus de 1 vers 100 Hz sur les logs bruités et donnait des marges
+  de −1100°. Le pic de sensibilité tombe au bord de la bande analysée pour 57 axes sur 133.
 - Interface : les 9 outils s'ouvrent et calculent sans erreur sur de vrais logs (`tests/test_gui_spectral.py`,
   `tests/test_gui_step.py`, `tests/test_advisor.py`).
 - Documentation : liens, chemins, outils, modules, fichiers publiés et langue vérifiés à chaque `pytest`

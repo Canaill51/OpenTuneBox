@@ -162,7 +162,7 @@ Les champs `hover_hz` et `resonance_hz` des profils (`advisor/profiles.py`) sont
 
 ### Limite connue : la boucle ouverte L = T/(1 − T)
 
-Le pic de sensibilité et la marge de phase (`analysis/step.py`) sont calculés sur L = T/(1 − T), T étant
+Le pic de sensibilité et la marge de phase (`analysis/step.py`, marges par `analysis/loop.py`) sont calculés sur L = T/(1 − T), T étant
 la fonction de transfert consigne → gyro. Ce n'est la vraie boucle ouverte que si tout le régulateur agit
 sur l'erreur. Dans Betaflight, le terme D agit sur le gyro et le feedforward sur la consigne : avec P + I
 sur l'erreur (Ce), D sur le gyro (Cd) et le drone G, T/(1 − T) = G·Ce / (1 + G·Cd), et le feedforward

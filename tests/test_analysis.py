@@ -87,6 +87,7 @@ def test_step_response_second_order():
     lt = loop_metrics(f, h * np.exp(-2j * np.pi * f * 0.005), np.ones_like(f))
     assert r.loop.phase_margin_deg == pytest.approx(lt.phase_margin_deg, abs=4)
     assert r.loop.crossover_hz == pytest.approx(lt.crossover_hz, abs=0.6)
+    assert r.loop.gain_margin_db == pytest.approx(lt.gain_margin_db, abs=1.0)
     assert r.loop.sensitivity_peak_db == pytest.approx(lt.sensitivity_peak_db, abs=0.5)
     assert r.loop.bandwidth_hz == pytest.approx(lt.bandwidth_hz, rel=0.08)
 
