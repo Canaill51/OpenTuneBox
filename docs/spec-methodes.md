@@ -222,6 +222,7 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S11] Wiki Betaflight, [Gyro and Dterm Filtering Recommendations 3.1](https://betaflight.com/docs/wiki/guides/archive/Gyro-And-Dterm-Filtering-Recommendations-3-1)
   (archive, vers 2017) : « 7-8ms delay from strong filtering ».
 - [S12] ctzsnooze, [4.2 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-2-Tuning-Notes) (vers 2020) :
+  LPF2 du gyro anti-repliement, « With a 2k PID loop, don't disable gyro lowpass 2 » ;
   « 70% of the peak theoretical no-load rpm ».
 - [S13] Oscar Liang, [*How to Setup RPM Filters in Betaflight*](https://oscarliang.com/rpm-filter/),
   2023-03-31 : « 14 poles in 22XX, 23XX, 24XX motors 12 poles in 08XX, 11XX, 12XX, 13XX, 14XX, 16XX motors ».
@@ -236,7 +237,8 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S18] ctzsnooze, presets officiels ELRS 250 Hz et 500 Hz (`presets/4.3/rc_link/`, firmware-presets,
   2021-2022) : `feedforward_smooth_factor` 45 (250 Hz) et 65 (500 Hz), `feedforward_averaging = 2_POINT`.
 - [S19] ctzsnooze, [4.3 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-3-Tuning-Notes),
-  2021-07-16 à 2022-02-12 : notch dynamique, « often only one » (souvent un seul notch), minimum « as high
+  2021-07-16 à 2022-02-12 : LPF2 du gyro « absolutely essential » à 2 kHz, « strongly recommend » à
+  4 kHz ; biquad remplacé par le PT2 (+60 % de retard pour un PT2, ×2 pour un PT3 face au PT1) ; notch dynamique, « often only one » (souvent un seul notch), minimum « as high
   as practical (eg 200hz) », plage qui englobe la résonance avec « 20hz additional range each side » ;
   « Q values around 300-450 » ; sans filtre RPM, « three or four notches and Q
   values around 120-150 » ; « For 250hz RC links […] 40-50 », « For 500hx RC links […] 65-70 »
@@ -280,3 +282,11 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   (`presets/4.5/tune/aos_rc/aos_ul5_tune.txt`) ; Karatebrot, auteur de la fonction, « 3 blade prop »
   100, 20, 100 et « 2 blade prop » 100, 100, 50 (`presets/4.5/tune/karate/karate_brushless_whoop.txt`) ;
   SupaflyFPV 90, 30, 90 et 90, 50, 90 avec Q 700–800.
+- [S29] Configurateur Betaflight, aides de l'onglet PID / filtres (`locales/en/messages.json`, commit
+  a38c4a79 du 2026-10-05) : LPF1 du gyro « can usually be disabled completely in firmware 4.3 when RPM
+  filtering is used » ; LPF2 du gyro « should be retained to prevent aliasing » quand la boucle PID est
+  plus lente que le gyro ; D : « At least two PT1 lowpass filters, or a single second order filter, are
+  required » ; LPF1 du D statique « not recommended for D filtering ».
+- [S30] Documentation Betaflight, [*DSHOT RPM Filtering*](https://betaflight.com/docs/wiki/guides/current/DSHOT-RPM-Filtering) :
+  si les moteurs restent froids, « move gyro lowpass filtering to higher values », « disable gyro lowpass
+  1 entirely », un filtre à la fois, en vérifiant la température des moteurs.

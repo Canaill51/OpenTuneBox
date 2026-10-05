@@ -10,11 +10,12 @@ Principes :
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..analysis import spectral
+from ..analysis import bf_filters, spectral
 from ..analysis.delay import compute_delays
 from ..analysis.motors import dyn_notch_targets, harmonic_prominence, hover_motor_hz, motor_noise, rpm_weight_needed
 from ..analysis.period import crash_time
@@ -247,13 +248,16 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         d_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[1]:.2f} ms "
                   "lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms plus court qu'ici." if target else "")
         if delays.dterm_ms > profile.dterm_delay_max_ms and not dterm_noisy:
-            F.append(Finding("Filtres", CONSEIL, "Filtrage du D peut-être trop fort",
-                             f"Retard des filtres D {delays.dterm_ms:.2f} ms (repère {profile.dterm_delay_max_ms:.1f} ms) "
-                             "avec un D peu bruité." + d_goal,
-                             ["Curseur « filtre D » : +0,1."]))
+            F.append(_dterm_lift(log, sel, hi, profile, delays.dterm_ms, d_db, d_ptb, d_goal))
         elif delays.dterm_ms <= profile.dterm_delay_max_ms:
             F.append(Finding("Filtres", OK, "Retard des filtres D",
                              f"{delays.dterm_ms:.2f} ms (repère ≤ {profile.dterm_delay_max_ms:.1f} ms pour {profile.label})." + d_goal))
+    F.extend(_lowpass_setup_rules(s))
+    if (s.gyro_lpf1.enabled and log.gyro_unfilt is not None and log.motor_hz is not None and s.rpm_harmonics > 0
+            and not gyro_noisy and not dterm_noisy):
+        f = _gyro_lpf1_off(log, sel, hi, profile, g_db, d_db, d_ptb)
+        if f is not None:
+            F.append(f)
     if log.motor_hz is not None and log.gyro_unfilt is not None and s.rpm_harmonics > 0:
         mn = [motor_noise(log.gyro[a, sel], log.motor_hz[:, sel], fs) for a in range(2)]
         mp = [motor_noise(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], fs) for a in range(2)]
@@ -369,6 +373,128 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
         F.append(Finding("Réponse", CONSEIL, f"Marge de phase réduite en {ax.lower()}",
                          f"Marge de phase {lp.phase_margin_deg:.0f}° (< {PHASE_MARGIN_LOW_DEG:.0f}°) au croisement de {lp.crossover_hz:.0f} Hz."
                          + _loop_caveat(lp), _margin_actions(lp), ax))
+
+
+def predict_filter_change(log: FlightLog, sel: slice, mod, hi: float) -> dict:
+    """Effet de réglages de filtres `mod` (simulateur `bf_filters.whatif_spectrum`, exact quand rien ne
+    change) : variation du bruit moyen et du sommet du spectre (dB, par axe roll / pitch) du gyro filtré et
+    du terme D, et des retards des chaînes gyro et D (ms, au gaz médian)."""
+    s = log.settings
+    out = {"gyro_mean": [], "gyro_peak": [], "d_mean": [], "d_peak": []}
+
+    def deltas(w):
+        m = (w.freqs >= 80) & (w.freqs <= hi)
+        cur, new = w.current_db[m], w.modified_db[m]
+        sm = lambda v: np.convolve(v, np.ones(5) / 5, mode="same")  # noqa: E731
+        return float(np.mean(new) - np.mean(cur)), float(np.max(sm(new)) - np.max(sm(cur)))
+
+    for a in range(2):
+        if log.gyro_unfilt is not None:
+            g = deltas(bf_filters.whatif_spectrum(log.gyro[a], log.gyro_unfilt[a], log, sel, s, mod, "gyro"))
+            out["gyro_mean"].append(g[0])
+            out["gyro_peak"].append(g[1])
+        if np.any(log.d_term[a]):
+            d = deltas(bf_filters.whatif_spectrum(log.d_term[a], log.d_term_prefilter[a], log, sel, s, mod, "dterm"))
+            out["d_mean"].append(d[0])
+            out["d_peak"].append(d[1])
+    thr = float(np.median(log.throttle[sel])) / 100.0
+    delay = lambda chain: bf_filters.chain_delay_ms(chain).phase_ms  # noqa: E731
+    out["gyro_delay_gain_ms"] = delay(bf_filters.gyro_chain(s, thr, dyn_notch_hz=[])) - delay(
+        bf_filters.gyro_chain(mod, thr, dyn_notch_hz=[]))
+    out["d_delay_gain_ms"] = delay(bf_filters.dterm_chain(s, thr)) - delay(bf_filters.dterm_chain(mod, thr))
+    return out
+
+
+def _noise_after(pred: dict, d_db: list[float], d_ptb: float, g_db: list[float] | None = None):
+    """Bruits prévus (maximum roll / pitch) : gyro moyen, D moyen, sommet du D (échelle PIDtoolbox)."""
+    g = max(x + dx for x, dx in zip(g_db, pred["gyro_mean"])) if g_db and pred["gyro_mean"] else None
+    d = max(x + dx for x, dx in zip(d_db, pred["d_mean"])) if d_db and pred["d_mean"] else None
+    dp = d_ptb + max(pred["d_peak"]) if pred["d_peak"] and np.isfinite(d_ptb) else None
+    return g, d, dp
+
+
+def _gyro_lpf1_off(log, sel, hi, profile, g_db, d_db, d_ptb) -> Finding | None:
+    """LPF1 du gyro superflu avec le filtre RPM, si le simulateur prévoit un bruit encore sous les repères."""
+    s = log.settings
+    mod = copy.deepcopy(s)
+    mod.gyro_lpf1 = bf_filters.lowpass_off(s.gyro_lpf1)
+    pred = predict_filter_change(log, sel, mod, hi)
+    g, d, dp = _noise_after(pred, d_db, d_ptb, g_db)
+    if None in (g, d, dp) or g > profile.gyro_noise_high_db or d > profile.dterm_noise_high_db or dp > DTERM_PTB_MAX_DB:
+        return None
+    lp = s.gyro_lpf1
+    now = f"{lp.dyn_min_hz}–{lp.dyn_max_hz} Hz dynamique" if lp.dynamic else f"{lp.static_hz} Hz"
+    return Finding("Filtres", CONSEIL, "Le LPF1 du gyro peut être coupé",
+                   f"Avec le filtre RPM, le LPF1 du gyro ({lp.type} {now}) est souvent superflu. Sans lui, le simulateur "
+                   f"prévoit {pred['gyro_delay_gain_ms']:.2f} ms de retard en moins, un gyro filtré à {g:.1f} dB "
+                   f"(seuil {profile.gyro_noise_high_db:.1f}), un terme D à {d:.1f} dB (seuil {profile.dterm_noise_high_db:.1f}) "
+                   f"et un sommet du D à {dp:.0f} dB PIDtoolbox (repère {DTERM_PTB_MAX_DB:.0f}).",
+                   ["gyro_lpf1_static_hz = 0 et gyro_lpf1_dyn_min_hz = 0 (le curseur « filtre gyro » ne rallume pas un "
+                    "filtre coupé).",
+                    "Vol d'essai court, puis vérifiez la température des moteurs et le spectre du log suivant."])
+
+
+def _dterm_lift(log, sel, hi, profile, delay_ms, d_db, d_ptb, d_goal) -> Finding:
+    """Retard du D au-dessus du repère avec un D peu bruité : relever ses filtres seulement si le simulateur
+    prévoit un D encore sous les repères avec le curseur « filtre D » +0,1."""
+    s = log.settings
+    sl = s.sliders()
+    mult = sl.get("dterm_mult", -1) if sl.get("dterm_filter", 0) > 0 else -1
+    factor = (mult + 10) / mult if mult > 0 else 1.1  # curseur +0,1 = multiplicateur +10 (simplified_tuning.c)
+    mod = copy.deepcopy(s)
+    mod.dterm_lpf1 = bf_filters.scale_lowpass(s.dterm_lpf1, factor)
+    mod.dterm_lpf2 = bf_filters.scale_lowpass(s.dterm_lpf2, factor)
+    pred = predict_filter_change(log, sel, mod, hi) if np.any(log.d_term[0]) else None
+    head = f"Retard des filtres D {delay_ms:.2f} ms (repère {profile.dterm_delay_max_ms:.1f} ms) avec un D peu bruité."
+    if pred is None:
+        return Finding("Filtres", CONSEIL, "Filtrage du D peut-être trop fort", head + d_goal, ["Curseur « filtre D » : +0,1."])
+    _, d, dp = _noise_after(pred, d_db, d_ptb)
+    forecast = (f" Avec le curseur « filtre D » +0,1 (coupures ×{factor:.2f}), le simulateur prévoit "
+                f"{pred['d_delay_gain_ms']:.2f} ms de retard en moins, un terme D à {d:.1f} dB (seuil "
+                f"{profile.dterm_noise_high_db:.1f}) et un sommet à {dp:.0f} dB PIDtoolbox (repère {DTERM_PTB_MAX_DB:.0f}).")
+    if d is not None and dp is not None and d <= profile.dterm_noise_high_db and dp <= DTERM_PTB_MAX_DB:
+        return Finding("Filtres", CONSEIL, "Filtrage du D peut-être trop fort", head + forecast + d_goal,
+                       ["Curseur « filtre D » : +0,1.",
+                        "Vol d'essai court, puis vérifiez la température des moteurs : moins de filtrage du D les fait "
+                        "chauffer plus vite que tout autre réglage."])
+    return Finding("Filtres", INFO, "Retard des filtres D", head + forecast +
+                   " Le D dépasserait les repères : mieux vaut ne pas relever ses filtres." + d_goal)
+
+
+def _lowpass_setup_rules(s) -> list[Finding]:
+    """Réglages de passe-bas déconseillés par Betaflight (notes de réglage 4.2 / 4.3, aide du configurateur)."""
+    out = []
+    order = {"PT1": 1, "PT2": 2, "PT3": 3, "BIQUAD": 2}
+    if s.pid_rate_hz < 0.99 * s.gyro_rate_hz and not s.gyro_lpf2.enabled:
+        slow = s.pid_rate_hz < 3000
+        out.append(Finding("Filtres", ATTENTION if slow else CONSEIL, "LPF2 du gyro coupé : risque de repliement",
+                           f"La boucle PID ({s.pid_rate_hz / 1000:.1f} kHz) est plus lente que le gyro "
+                           f"({s.gyro_rate_hz / 1000:.1f} kHz) : le LPF2 du gyro sert de filtre anti-repliement avant "
+                           "ce sous-échantillonnage. Sans lui, du bruit haute fréquence se replie dans la bande utile.",
+                           [f"gyro_lpf2_type = PT1, gyro_lpf2_static_hz = {500 if slow else 1000} "
+                            f"({'indispensable à 2 kHz' if slow else 'à 4 kHz : de 500 à 1000 Hz'})."]))
+    d_order = sum(order.get(lp.type, 1) for lp in (s.dterm_lpf1, s.dterm_lpf2) if lp.enabled)
+    if d_order < 2:
+        out.append(Finding("Filtres", ATTENTION, "Filtrage du D insuffisant",
+                           "Le terme D n'a qu'un filtre du premier ordre (ou aucun) : Betaflight demande au moins deux PT1 "
+                           "ou un filtre du second ordre. Risque de moteurs brûlants ou de départ incontrôlé à l'armement.",
+                           ["Réactivez le LPF2 du D (dterm_lpf2_type = PT1, dterm_lpf2_static_hz = valeur haute de la plage "
+                            "dynamique du LPF1), ou passez le LPF1 du D en PT2."]))
+    if s.dterm_lpf1.static_hz and not s.dterm_lpf1.dynamic:
+        f = s.dterm_lpf1.static_hz
+        out.append(Finding("Filtres", INFO, "LPF1 du D en mode statique",
+                           f"Le LPF1 du D est fixe à {f} Hz. Betaflight déconseille le mode statique pour le D : en mode "
+                           "dynamique, il filtre plus à bas régime (grondement moteur, armement) et moins en vol (moins de "
+                           "retard, moins de propwash).",
+                           [f"dterm_lpf1_dyn_min_hz = {f}, dterm_lpf1_dyn_max_hz = {2 * f} (rapport des valeurs par défaut "
+                            "75–150 Hz)."]))
+    for name, lp in (("LPF1", s.gyro_lpf1), ("LPF2", s.gyro_lpf2)):
+        if lp.enabled and lp.type == "BIQUAD":
+            out.append(Finding("Filtres", INFO, f"Biquad sur le {name} du gyro",
+                               "Le biquad peut osciller sur les variations brusques et dépasser près de sa coupure ; "
+                               "Betaflight recommande le PT2, qui filtre presque autant avec moins de retard.",
+                               [f"gyro_{name.lower()}_type = PT2."]))
+    return out
 
 
 def rpm_harmonic_levels(log: FlightLog, sel: slice) -> tuple[np.ndarray, np.ndarray]:

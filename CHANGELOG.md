@@ -36,6 +36,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   (20 Hz de marge, jusqu'à la limite de 20 Hz du firmware) ; `dyn_notch_min_hz` relevé dans le conseil
   « filtrage gyro trop prudent ».
 - Assistant : raies fixes (résonances) cherchées dès 20 Hz au lieu de 60 Hz.
+- Assistant : passe-bas du gyro et du D (configurateur et notes de réglage de Betaflight) — LPF2 du gyro
+  coupé avec une boucle PID plus lente (repliement) ; D filtré à l'ordre 1 seulement ; LPF1 du D statique ;
+  biquad sur le gyro ; « Le LPF1 du gyro peut être coupé » quand le simulateur de filtres prévoit un bruit
+  encore sous les repères ; prévision du simulateur dans le conseil sur le filtrage du D, qui n'est plus
+  proposé si le D dépasserait les repères.
 - `scripts/calibrate_advisor.py` : sommets des spectres gyro et D sur l'échelle de PIDtoolbox, retard gyro
   par intercorrélation, réglages du filtre RPM, hauteur des harmoniques avant et après filtres.
 

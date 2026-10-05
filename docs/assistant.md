@@ -190,6 +190,30 @@ filtre toujours ; désactivé sous 2 kHz de boucle PID.
   raie fixe hors de la plage 1 % ; relèvement de `dyn_notch_min_hz` dans le conseil sur le retard 2 %.
   La règle « sans filtre RPM » n'a pas été retenue (une session).
 
+### Passe-bas du gyro et du D (2026-10-05)
+
+Sources : aides du configurateur Betaflight [S29] (LPF1 du gyro « can usually be disabled completely […]
+when RPM filtering is used » ; LPF2 du gyro à garder quand la boucle PID est plus lente que le gyro ; pour
+le D « at least two PT1 lowpass filters, or a single second order filter, are required » ; LPF1 du D
+statique « not recommended ») ; notes de réglage 4.2 [S12] et 4.3 [S19] (LPF2 du gyro « absolutely
+essential » à 2 kHz, recommandé à 4 kHz, réglable ou coupé à 8 kHz ; biquad remplacé par le PT2) ; guide
+du filtrage RPM [S30] (drone propre : relever ou couper les passe-bas du gyro, un réglage à la fois, en
+surveillant la température des moteurs). Code : les curseurs multiplient les coupures par défaut (gyro
+LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallument jamais un filtre coupé
+(`config/simplified_tuning.c`) ; coupure plafonnée à 1000 Hz.
+
+- **Corpus** (681 sessions) : LPF1 du gyro déjà coupé dans 86 % des sessions, LPF2 du gyro presque
+  toujours en PT1 ; boucle PID / gyro 3,2 / 3,2 kHz (64), 4 / 8 kHz (508), 8 / 8 kHz (109) ; LPF2 du gyro
+  coupé à 4 kHz : 6 sessions ; D d'ordre 1 : 14 sessions (2 %) ; LPF1 du D statique : 83 (12 %) ; aucun
+  biquad sur le gyro.
+- **Simulateur** (`rules.predict_filter_change`, spectre « et si » de `bf_filters`, variation ajoutée aux
+  mesures des règles) : couper le LPF1 du gyro (92 sessions) fait gagner 0,47 ms (médiane) pour +3,4 dB de
+  gyro et +3,1 dB de D ; le bruit reste sous les repères (gyro et D sous le p90, sommet du D sous −10 dB
+  PIDtoolbox) dans 55 cas (8 % du corpus). Relever les filtres du gyro de 25 % ne fait gagner que 0,06 ms
+  (règle écartée). Relever ceux du D de 25 % : 0,48 ms pour +2,6 dB, sous les repères dans 60 % des
+  sessions, d'où la prévision ajoutée au seul conseil « filtrage du D peut-être trop fort » (34 sessions
+  candidates).
+
 ## Règles
 
 Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit
@@ -223,6 +247,12 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   du bruit voisin après filtrage) alors que son poids est < 100 → remonter le poids ; en 4.5 et plus, si le
   bruit moteur est bien éliminé, poids de la 2e ou de la 3e harmonique plus fort que nécessaire d'au moins
   0,5 → `rpm_filter_weights` proposés (voir « Filtre RPM : poids et Q »).
+- **Passe-bas** (voir « Passe-bas du gyro et du D ») : LPF2 du gyro coupé avec une boucle PID plus lente
+  que le gyro (attention sous 3 kHz, conseil à 4 kHz) ; D filtré à l'ordre 1 seulement (attention) ; LPF1
+  du D statique et biquad sur le gyro (info) ; avec le filtre RPM et un bruit sous les repères, « Le LPF1
+  du gyro peut être coupé » si le simulateur prévoit un bruit encore sous les repères ; « Filtrage du D
+  peut-être trop fort » donne la prévision du simulateur pour le curseur « filtre D » +0,1 et devient une
+  info (sans conseil) si le D dépasserait les repères.
 - **Notch dynamique** (actif : au moins un notch, boucle PID ≥ 2 kHz ; filtre RPM actif et gyro non
   filtré) : plus de notchs que de pics à suivre → « moins de notchs suffiraient » (info) ; raie fixe hors de
   la plage à 20 Hz près → plage proposée dans le constat « Raie fixe » ; `dyn_notch_min_hz` relevé dans le
@@ -286,6 +316,11 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
 | Relèvement de `dyn_notch_min_hz` | jusqu'à 200 Hz (7" et plus : 125 Hz), sous le pic le plus bas − 20 Hz, si le gain atteint 30 Hz | Firmware (doc) + communauté + estimation (30 Hz) | « as high as practical (eg 200hz) » [S19] ; presets officiels 7–10" entre 80 et 125 Hz [S16] ; seulement dans le conseil « filtrage gyro trop prudent » (2 % des sessions) |
 | Nombre de notchs | autant que de pics à suivre, 1 au moins | Firmware (doc) | « Usually no more than two or three are needed […] and often only one » ; « only using the minimum number of notches » [S19] ; constat **info** : 27 % des sessions (16 % des drones)
+| LPF2 du gyro anti-repliement | PID < gyro : PT1 500 Hz (attention sous 3 kHz), 500–1000 Hz (conseil à 4 kHz) | Firmware (doc) | [S12, S19, S29] |
+| Ordre minimal du filtrage du D | 2 (deux PT1 ou un filtre d'ordre 2) | Firmware (doc) | [S29] ; PT2 et biquad comptent pour 2, PT3 pour 3 |
+| LPF1 du D dynamique proposé | min = coupure statique, max = 2 × min | Firmware (défauts 75–150 Hz) + estimation | Mode statique « not recommended » [S29] |
+| Coupure du LPF1 du gyro | si filtre RPM actif, bruit actuel et prévu sous les repères | Firmware (doc) + corpus (repères) | [S29, S30] ; 8 % des sessions |
+| Prévision du curseur « filtre D » | +0,1 = multiplicateur +10 (×1,1 sans curseur) | Firmware | `simplified_tuning.c` ; relèvement proposé seulement si le D prévu reste sous les repères |
 | Déséquilibre des moteurs | > 11 à 14,1 % selon la taille | Corpus | L'interprétation (côté ou diagonale au-delà de 12 %) reste estimée |
 | Terme I décentré | moyenne > 29 à 33 (unités PID) selon la taille | Corpus | |
 | Saturation des moteurs | ≥ 98 % pendant > 1,5 % du temps | Corpus | La notion de « moteur à 98 % » est estimée : le firmware ne journalise pas de saturation (il renormalise le mixage quand l'écart entre moteurs dépasse 100 %) |

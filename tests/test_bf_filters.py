@@ -157,3 +157,15 @@ def test_simulate_gyro_matches_log():
     assert all(c > r for c, r in zip(corr, raw))
     dsim = bf.simulate_dterm(lg)
     assert np.corrcoef(dsim[0], lg.d_term[0])[0, 1] > 0.9
+
+
+def test_scale_and_disable_lowpass():
+    from opentunebox.analysis.bf_filters import lowpass_off, scale_lowpass
+    from opentunebox.log.settings import LowpassSetting
+
+    lp = LowpassSetting("PT1", 0, 250, 500)
+    assert scale_lowpass(lp, 1.25) == LowpassSetting("PT1", 0, 312, 625)
+    # coupure plafonnée à 1000 Hz ; un filtre coupé reste coupé (comme le curseur du firmware)
+    assert scale_lowpass(LowpassSetting("PT1", 900), 1.5).static_hz == 1000
+    assert not scale_lowpass(LowpassSetting("PT1"), 2).enabled
+    assert not lowpass_off(lp).enabled

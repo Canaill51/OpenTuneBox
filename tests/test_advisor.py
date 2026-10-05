@@ -129,6 +129,27 @@ def test_dyn_notch_rules():
     assert f.actions[0].startswith("dyn_notch_count = 1")
 
 
+def test_lowpass_rules():
+    from opentunebox.advisor.rules import ATTENTION, CONSEIL, INFO, analyze
+    from opentunebox.analysis.period import auto_period
+
+    def findings(rel):
+        lg = _load(rel)
+        return {f.title: f for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings}
+
+    # réglages : LPF2 du gyro coupé à 4 kHz de PID pour 8 kHz de gyro ; D d'ordre 1 ; LPF1 du D statique
+    f = findings("1. PTB/StraylightFPV/KM/Filtering/011326 KM HOVER.bbl")["LPF2 du gyro coupé : risque de repliement"]
+    assert f.severity == CONSEIL
+    assert findings("1. PTB/StraylightFPV/KM/PID/011326 KM PDBAL 1.4.bbl")["Filtrage du D insuffisant"].severity == ATTENTION
+    assert findings("Pelafoin/btfl_PUNCH_1-modif2.bbl")["LPF1 du D en mode statique"].severity == INFO
+    # simulateur : AIR65 d'origine, LPF1 du gyro superflu avec le filtre RPM
+    f = findings("Cedric/Air65/26112025/stock.bbl")["Le LPF1 du gyro peut être coupé"]
+    assert "ms de retard en moins" in f.detail and f.actions[0].startswith("gyro_lpf1_static_hz = 0")
+    # retard du D au-dessus du repère, D propre : relèvement proposé avec la prévision
+    f = findings("1. PTB/BlackSummer/Hover_24kHz.bfl")["Filtrage du D peut-être trop fort"]
+    assert "le simulateur prévoit" in f.detail and f.actions[0] == "Curseur « filtre D » : +0,1."
+
+
 def test_imbalance_interpretation():
     from opentunebox.advisor.rules import _imbalance_finding
 
