@@ -17,6 +17,15 @@ _spec.loader.exec_module(cl)
 def test_drone_id_matches_calibration():
     assert cl.drone_id(" JeNo Ced ", "Cedric/JeNo 5/FINAL.bbl") == "JeNo Ced"
     assert cl.drone_id("", "Cedric/JeNo 5/FINAL.bbl") == "?Cedric/JeNo 5"
+    # nom porté par plusieurs machines : nom + dossier
+    assert cl.drone_id("Jax", "Guigui/HORUS/a.bbl") != cl.drone_id("Jax", "Guigui/Whisper25/b.bbl")
+
+
+def test_shared_name_candidates():
+    rows = {"A": {"dossiers": "Cedric/Air65 | Cedric/Air65/16012025"},  # sous-dossiers : même drone
+            "B": {"dossiers": "Guigui | Guigui/HORUS | Guigui/Whisper25"},
+            "?Leo": {"dossiers": "Leo"}}
+    assert [x.split(" : ")[0] for x in cl.shared_name_candidates(rows)] == ["B"]
 
 
 def test_guess_state():
@@ -66,4 +75,6 @@ def test_merge_keeps_user_columns(tmp_path):
     assert rows["A"]["sessions"] == 5  # colonne automatique mise à jour
     assert (rows["A"]["etat"], rows["A"]["taille_reelle"], rows["A"]["remarque"]) == ("origine", "3,5", "note")
     assert rows["B"]["etat"] == "inconnu"  # drone absent du passage : ligne gardée
+    full = {r["drone"]: r for r in cl.merge(cl.read_labels(path), new, full=True)}
+    assert full["B"]["sessions"] == 0 and full["B"]["etat"] == "inconnu"
     assert rows["C"]["etat"] == "regle"  # nouveau drone : pré-rempli

@@ -6,7 +6,9 @@ Usage : corpus_labels.py [--limit N]   (dossier de logs : variable OTB_LOGS ; é
 Colonnes remplies par le script à chaque passage : drone, dossiers, sessions, origine, taille_detectee,
 freq_moteur_hz, motor_kv (vide si absent ou égal au défaut 1960), cellules. Colonnes de Cédric, pré-remplies seulement à la création de la ligne
 et jamais écrasées ensuite : etat (aide, origine, regle, inconnu), taille_reelle (pouces, ou « whoop »),
-remarque. Les drones absents d'un passage gardent leur ligne telle quelle.
+remarque. Les drones absents d'un passage gardent leur ligne (0 session après un passage complet).
+Le script signale les noms de drone trouvés dans plusieurs dossiers : si ce sont des machines différentes,
+ajouter le nom à SHARED_NAMES.
 """
 import csv, os, re, sys
 from collections import Counter
@@ -21,6 +23,8 @@ REFERENCE_STATES = ("regle", "origine")  # corpus de référence : drones régl�
 HELP_FOLDERS = ("1. PTB", "3. BBLR FB")  # demandes d'aide (forums, groupes)
 DEFAULT_KV = 1960  # motor_kv par défaut du firmware (pg/motor.c) : laissé vide, réglage probablement absent
 CSV_NAME = "corpus.csv"
+# noms donnés à plusieurs drones (confirmé par Cédric) : le drone est alors identifié par nom + dossier
+SHARED_NAMES = {"Jax"}  # Guigui : deux machines (HORUS, Whisper25), 2026-10-05
 
 
 def logs_root():
@@ -28,8 +32,12 @@ def logs_root():
 
 
 def drone_id(craft, relfile):
-    """Identité d'un drone, la même pour la calibration : nom du drone, sinon « ? » + dossier du log."""
-    return (craft or "").strip() or "?" + os.path.dirname(relfile)
+    """Identité d'un drone, la même pour la calibration : nom du drone, sinon « ? » + dossier du log ;
+    nom + dossier pour un nom porté par plusieurs drones (SHARED_NAMES)."""
+    name, folder = (craft or "").strip(), os.path.dirname(relfile)
+    if not name:
+        return "?" + folder
+    return f"{name} · {folder}" if name in SHARED_NAMES else name
 
 
 def guess_state(origins, texts):
@@ -77,9 +85,10 @@ def read_labels(path):
     return {r["drone"]: {k: (v or "").strip() for k, v in r.items() if k} for r in rows if r.get("drone")}
 
 
-def merge(old, new):
-    """Lignes à écrire : colonnes automatiques à jour, colonnes de Cédric conservées."""
-    out = dict(old)
+def merge(old, new, full=False):
+    """Lignes à écrire : colonnes automatiques à jour, colonnes de Cédric conservées. Après un passage
+    complet (`full`), un drone absent garde sa ligne avec 0 session (à effacer à la main)."""
+    out = {d: {**row, "sessions": 0} if full and d not in new else row for d, row in old.items()}
     for d, row in new.items():
         out[d] = {**row, **{k: old[d].get(k, "") for k in USER_COLUMNS}} if d in old else row
     return sorted(out.values(), key=lambda r: (r.get("origine", ""), r["drone"].lower()))
@@ -131,7 +140,7 @@ def scan(root, limit=None):
     rows = {}
     for d, a in acc.items():
         hz = float(np.median(a["hz"])) if a["hz"] else None
-        named = [d.lstrip("?"), *a["dirs"]]
+        named = [d.lstrip("?").split(" · ")[0], *a["dirs"]]
         rows[d] = {
             "drone": d, "dossiers": " | ".join(sorted(a["dirs"])), "sessions": a["sessions"],
             "origine": " | ".join(sorted(a["origins"])),
@@ -145,13 +154,29 @@ def scan(root, limit=None):
     return rows
 
 
+def shared_name_candidates(rows):
+    """Noms trouvés dans plusieurs dossiers sans lien de parenté : peut-être plusieurs machines."""
+    out = []
+    for d, row in rows.items():
+        dirs = row["dossiers"].split(" | ")
+        inside = lambda a, b: a == b or a.startswith(b + os.sep)  # noqa: E731
+        if not d.startswith("?") and any(not inside(a, b) and not inside(b, a) for a in dirs for b in dirs):
+            out.append(f"{d} : {row['dossiers']}")
+    return out
+
+
 if __name__ == "__main__":
     limit = int(sys.argv[sys.argv.index("--limit") + 1]) if "--limit" in sys.argv else None
     root = logs_root()
     path = os.path.join(root, CSV_NAME)
     old = read_labels(path)
-    rows = merge(old, scan(root, limit))
+    new = scan(root, limit)
+    rows = merge(old, new, full=limit is None)
     write_labels(path, rows)
+    shared = shared_name_candidates(new)
+    if shared:
+        print("Noms trouvés dans plusieurs dossiers (machines différentes ? → SHARED_NAMES) :\n  "
+              + "\n  ".join(shared))
     count = Counter(r["etat"] or "(vide)" for r in rows)
     print(f"{path} : {len(rows)} drones ({len(rows) - len(old)} nouveaux) ; états : "
           + ", ".join(f"{k} {v}" for k, v in count.most_common()))

@@ -23,7 +23,9 @@ arrière-plan. `--resume` reclasse les sessions avec les limites de taille actue
 (`profiles.profile_key_from_hz`), sans tout recalculer. Avec `corpus.csv` (tableau d'étiquettes rempli
 par Cédric, `docs/assistant.md`, « Corpus de référence »), chaque groupe est suivi de sa partie
 **référence** (drones `regle` ou `origine`) : la préférer pour fixer un seuil quand elle compte assez de
-drones. `corpus_labels.py` ne réécrit jamais les colonnes `etat`, `taille_reelle` et `remarque`.
+drones. `corpus_labels.py` ne réécrit jamais les colonnes `etat`, `taille_reelle` et `remarque`. Il
+signale les noms de drone trouvés dans plusieurs dossiers : demander à Cédric si ce sont des machines
+différentes, et si oui ajouter le nom à `SHARED_NAMES`.
 
 Pour une **nouvelle mesure** : l'ajouter dans la boucle du script (même calcul que la règle ; si la règle
 mélange mesure et décision, séparer la mesure dans une fonction réutilisable, comme
