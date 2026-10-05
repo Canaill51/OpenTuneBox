@@ -5,6 +5,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Corrigé
+- Page Releases : la publication échouait parce que les archives `.zip` Windows et macOS étaient
+  décompressées avant d'être jointes (`skip-decompress` de `download-artifact`).
+
 ## [0.2.0] — 2026-10-05
 
 ### Ajouté
