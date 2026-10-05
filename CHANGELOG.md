@@ -61,6 +61,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   des sessions du corpus signalées par chaque constat de l'assistant (vols avec mouvements, stationnaires).
 
 ### Modifié
+- Assistant : sur un whoop, les constats de marge de stabilité expliquent la cause habituelle (boucle
+  rapide, D dominant, filtres du D qui retardent au croisement). Diagnostic des whoops souvent signalés :
+  la mesure est vérifiée (simulation, vols chirp de l'AIR65), la marge est réelle, seuils inchangés.
 - Assistant : paliers du pic de réponse indicielle calibrés sur le corpus et séparés selon le feedforward
   (qui gonfle le pic) : sans feedforward, conseil au-delà de 1,15 et attention au-delà de 1,25 ; avec, 1,40
   et 1,55 (avant : 1,10 et 1,20 pour tous, 46 % des sessions signalées, maintenant 13 %). L'objectif
@@ -102,6 +105,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   Autotune du configurateur examiné et écarté comme source.
 
 ### Corrigé
+- Réponse indicielle : les vols faits avec le chirp de Betaflight (debug CHIRP) en mode angle sont
+  maintenant mesurés (boucle ouverte, marges) ; l'excitation du chirp, absente de la commande radio, servait
+  de signal de référence manquant (« cohérence insuffisante »).
 - Marge de phase de la réponse indicielle : la phase est maintenant déroulée. Une phase sous −180° au
   croisement donnait une marge repliée vers +180° (ex. +299° au lieu de −109°), donc aucune alerte de
   l'assistant ; elle est désormais négative. Croisement interpolé entre deux points de mesure.

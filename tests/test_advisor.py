@@ -247,3 +247,20 @@ def test_tool_windows_render():
         w.close()
         w.deleteLater()
     app.processEvents()
+
+
+def test_betaflight_chirp_measured_in_angle_mode():
+    # Chirp de Betaflight en mode angle : l'excitation (debug CHIRP) s'ajoute à la commande radio comme
+    # instrument ; sans elle, la cohérence est insuffisante et la mesure retombe sur la méthode approchée
+    from opentunebox.analysis.loop import MEASURED
+    from opentunebox.analysis.period import auto_period
+    from opentunebox.analysis.step import step_response
+
+    lg = _load("Cedric/BF Chirp/Air65.bbl")
+    sel = lg.slice_time(*auto_period(lg))
+    terms = lg.pid_terms(0, sel)
+    assert lg.chirp_excitation(0, sel) is not None and terms.instrument is not None
+    lp = step_response(lg.setpoint[0, sel], lg.gyro[0, sel], lg.fs, terms=terms).loop
+    assert lp.method == MEASURED and not lp.sensitivity_peak_at_edge
+    assert 20 < lp.crossover_hz < 27 and 34 < lp.phase_margin_deg < 46  # 23,6 Hz, 39,5° (2026-10-06)
+    assert _load("Cedric/JeNo 5/FINAL.bbl").chirp_excitation(0) is None
