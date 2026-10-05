@@ -48,15 +48,19 @@ def test_profile_thresholds():
 
 
 def test_overshoot_detected_on_low_damping():
-    from opentunebox.advisor.rules import ATTENTION, analyze
+    from opentunebox.advisor.rules import ATTENTION, CONSEIL, analyze
     from opentunebox.analysis.period import auto_period
 
-    lg = _load("1. PTB/BlackSummer/Damping 0.8.BFL")
+    lg = _load("1. PTB/BlackSummer/Damping 0.8.BFL")  # pic roll 1,25 sans feedforward
     rep = analyze(lg, lg.slice_time(*auto_period(lg)))
-    titles = [f.title for f in rep.findings if f.severity == ATTENTION]
+    titles = [f.title for f in rep.findings if f.severity in (CONSEIL, ATTENTION)]
     assert any("dépassement" in t and "roll" in t for t in titles)
     # chaque constat explique sa mesure
     assert all(f.detail for f in rep.findings)
+    # première valeur de Damping sans dépassement visible (pic 1,03) : rien à signaler
+    lg = _load("1. PTB/BlackSummer/Damping 1.2.BFL")
+    rep = analyze(lg, lg.slice_time(*auto_period(lg)))
+    assert not any("dépassement" in f.title for f in rep.findings)
 
 
 def test_dterm_noise_on_ptb_scale():

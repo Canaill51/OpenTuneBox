@@ -53,6 +53,13 @@ if __name__ == "__main__":
     json.dump([r for _, rows in res for r in rows], open(sys.argv[1], "w"))
 ```
 
+**Enregistrer les valeurs brutes, dépouiller à part.** Ajouter au passage complet les champs bruts utiles
+(gains PID, curseurs, réglages qui peuvent fausser la mesure), puis écrire le dépouillement (percentiles,
+groupes, taux de paliers candidats) comme un petit script qui lit le JSON, dans le répertoire temporaire :
+il tourne en moins d'une seconde et s'essaie autant de fois que nécessaire, sans relancer le corpus
+(exemple du 2026-10-05 : pic de réponse séparé selon le feedforward, cinq jeux de paliers comparés).
+Confirmer ensuite le choix avec `advisor_rates.py` (vraies règles).
+
 Si la mesure doit servir plusieurs fois (taux, seuil), l'ajouter à `calibrate_advisor.py` ou
 `advisor_rates.py` plutôt qu'à un script jetable.
 
@@ -65,6 +72,8 @@ Si la mesure doit servir plusieurs fois (taux, seuil), l'ajouter à `calibrate_a
   pas d'ECC). Effets : quelques sessions aux valeurs légèrement différentes entre deux passages, et de rares
   `IndexError` aux indices énormes. Les percentiles n'en sont pas changés ; pour une session précise qui
   surprend, la recalculer seule (`-j 1`). Ne pas chercher de défaut logiciel au décodeur pour ce symptôme.
+- Sortie d'un passage en arrière-plan : ne pas la filtrer par `| tail` ou `| grep` si l'on veut suivre
+  l'avancement (rien n'apparaît avant la fin) ; attendre la notification de fin.
 - Arrêter un passage : `pgrep -f "scripts/calibrate_advisor.py"` puis `kill PID`. Jamais
   `pkill -f MOTIF` dans une commande dont le texte contient ce motif : elle se tue elle-même.
 - Limiter les fils de numpy / numba par processus (`OMP_NUM_THREADS=1`…) ne fait rien gagner ici (essai du

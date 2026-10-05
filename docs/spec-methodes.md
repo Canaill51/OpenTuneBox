@@ -156,9 +156,9 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   de D [S3, S4]. Objectif : « fast rise time and peak time with not too much overshoot » [S1] ; UAV Tech vise
   une réponse sans dépassement (« critically damped ») [S4]. Méthode de Brian White : série de vols en
   faisant varier le curseur Damping, puis garder la première valeur sans pic de dépassement, jugée à l'œil
-  [S24, S25]. Les paliers chiffrés (< 1,00 suramorti ; 1,02–1,08 optimal ; 1,08–1,12 acceptable ;
-  1,12–1,20 ajouter ~10–30 % de D ; > 1,20 plus de D ; > 1,5 mécanique) : **Estimation**, aucune source,
-  vidéos comprises.
+  [S24, S25]. Les paliers chiffrés qui circulent (1,02–1,08 optimal, > 1,20 plus de D…) n'ont aucune
+  source, vidéos comprises : l'assistant utilise les percentiles du corpus, séparés selon le feedforward,
+  et le pic de la première valeur sans dépassement de la série BlackSummer (1,03), voir `assistant.md`.
 - **Fenêtres de la réponse indicielle** : consigne ≥ 20 °/s [S5, S2] ; séparation à 500 °/s [S5, S1].
   Réponse indicielle en mode angle pratiquement identique à l'acro [S24].
 - **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz

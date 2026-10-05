@@ -163,8 +163,9 @@ class StepWindow(ToolWindow):
         self.ycorr.toggled.connect(self._calc_options_changed)
         layout.addWidget(box2)
         help_ = QLabel(
-            "Courbe idéale : montée rapide, pic 1,02–1,08 puis plat à 1. "
-            "Pic > 1,1 : manque de D (ou trop de P) ; montée molle sans pic : trop de D ou P faible. "
+            "Courbe idéale : montée rapide, pic proche de 1 puis plat (sans feedforward, environ 1,03 ; "
+            "le feedforward fait monter le pic). Pic marqué : manque de D (ou trop de P) ; "
+            "montée molle sans pic : trop de D ou P faible. "
             "Barres d'erreur : dispersion entre fenêtres de 2 s. "
             "Marges de stabilité : ● mesurées sur les termes P, I, D, F du log ; "
             "○ approchées (termes absents) ; ▲ au moins cette valeur (pic hors de la bande mesurable).")

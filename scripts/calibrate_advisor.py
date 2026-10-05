@@ -42,7 +42,7 @@ def summary(path):
         if r.get("sp95",1e9)<MOVING_SETPOINT_DPS:  # vol sans mouvements : retards des filtres non représentatifs
             for k in [k for k in r if k.startswith(("gdelay","ddelay"))]: del r[k]
     keys=sorted({k.rsplit("_",1)[0] if k[-2:] in ("_0","_1") else k for r in rows for k in r}
-                - {"file","sess","profile","craft","drone","res_near","mnoise","hprom","hleft","rpmw","imean","cells"})
+                - {"file","sess","profile","craft","drone","res_near","mnoise","hprom","hleft","rpmw","imean","cells","sliders","ff","dgain","pgain"})
     def vals(sub,k):
         return [x for r in sub for n in (k,k+"_0",k+"_1") for x in [r.get(n)]
                 if isinstance(x,(int,float)) and not isinstance(x,bool) and np.isfinite(x)]
@@ -77,7 +77,7 @@ def measure_file(f, root):
         prof,_=detect_profile(lg)
         r={"file":os.path.relpath(f,root),"sess":lg.session,"profile":prof.key,"fs":lg.fs,
            "craft":lg.settings.craft_name,"hover_hz":hover_motor_hz(lg),"cells":lg.cells,
-           "corrupt":lg.stats.get("corrupt_frames",0)}
+           "corrupt":lg.stats.get("corrupt_frames",0),"sliders":lg.settings.sliders()}
         nyq=lg.fs/2
         def band(x,lo,hi):
             s=spectrum(x,lg.fs,resolution_hz=2); m=(s.freqs>=lo)&(s.freqs<=min(hi,nyq*0.95)); return float(np.mean(s.values[m]))
@@ -98,6 +98,7 @@ def measure_file(f, root):
             if st.n>=20:
                 lp=st.loop
                 r[f"peak_{a}"]=st.metrics.peak; r[f"lat_{a}"]=st.metrics.latency_ms
+                pid=lg.settings.pids[a]; r[f"ff_{a}"]=pid.F; r[f"dgain_{a}"]=pid.D; r[f"pgain_{a}"]=pid.P  # pic selon le feedforward
                 r[f"smax_{a}"]=lp.sensitivity_peak_db; r[f"pm_{a}"]=lp.phase_margin_deg  # comme les règles
                 r[f"measured_{a}"]=lp.measured; r[f"smaxedge_{a}"]=lp.sensitivity_peak_at_edge
                 r[f"fc_{a}"]=lp.crossover_hz; r[f"gm_{a}"]=lp.gain_margin_db; r[f"dratio_{a}"]=lp.d_ratio

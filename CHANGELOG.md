@@ -61,6 +61,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   des sessions du corpus signalées par chaque constat de l'assistant (vols avec mouvements, stationnaires).
 
 ### Modifié
+- Assistant : paliers du pic de réponse indicielle calibrés sur le corpus et séparés selon le feedforward
+  (qui gonfle le pic) : sans feedforward, conseil au-delà de 1,15 et attention au-delà de 1,25 ; avec, 1,40
+  et 1,55 (avant : 1,10 et 1,20 pour tous, 46 % des sessions signalées, maintenant 13 %). L'objectif
+  « 1,02–1,08 », sans source, est remplacé par le repère de la série BlackSummer (environ 1,03 sans
+  dépassement visible), dans les constats, l'outil « Indicielle » et le guide.
+- `scripts/calibrate_advisor.py` : gains P, D et F de chaque axe et positions des curseurs enregistrés.
 - Assistant : repères de retard des filtres recalculés sur les seuls vols avec mouvements, pour toutes les
   tailles (gyro / D : whoop 1,5 / 2,5 ms, 2–3,5" 1,8 / 2,6, 5" 1,9 / 2,7, 7" 2,6 / 2,8, 8"+ 3,5 / 3,1) :
   les vols stationnaires les avaient fait monter, et les conseils sur le retard ne touchaient plus que 2 à

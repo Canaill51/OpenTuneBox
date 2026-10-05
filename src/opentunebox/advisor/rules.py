@@ -28,6 +28,12 @@ from .profiles import CraftProfile, detect_profile, filter_delay_target_ms
 # Stabilité (boucle ouverte mesurée), en conseil : Ms ≤ ~2 (6 dB) et marge 30–60° dans les manuels ;
 # 7 dB et 35° retenus sur le corpus du 2026-10-05 (20 % des sessions au lieu de 33 %, docs/assistant.md)
 SENSITIVITY_HIGH_DB = 7.0
+# Pic de réponse indicielle (conseil, attention), communs à toutes les tailles (moins de 20 drones par taille
+# et par groupe) : p90 (une voix par drone) et p95 (par axe) du corpus du 2026-10-05, séparés selon le
+# feedforward, qui gonfle le pic (docs/assistant.md). Repère sans dépassement visible : série BlackSummer.
+STEP_PEAK_HIGH = (1.15, 1.25)
+STEP_PEAK_HIGH_FF = (1.40, 1.55)
+STEP_PEAK_FLAT = 1.03
 PHASE_MARGIN_LOW_DEG = 35.0
 # Repères de Brian White sur l'échelle des spectres de PIDtoolbox (docs/spec-methodes.md, [S20]–[S22]) :
 # terme D au plus −10 dB (déclenche le constat, avec le p90 du corpus), gyro filtré sous −30 dB (affiché)
@@ -363,6 +369,11 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     return Report(profile, reason, (t0, t1), F, steps, meas)
 
 
+def _fr(x: float) -> str:
+    """Nombre à deux décimales, virgule à la française (paliers cités dans les textes)."""
+    return f"{x:.2f}".replace(".", ",")
+
+
 def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int = 0) -> None:
     r = st.result
     ax = st.axis
@@ -371,10 +382,12 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
     m = r.metrics
     lp = r.loop
     pk, lat = m.peak, m.latency_ms
-    if pk > 1.10 and ff_gain > 0 and np.isfinite(lat) and lat < profile.latency_ms[0]:
+    advice, strong = STEP_PEAK_HIGH_FF if ff_gain > 0 else STEP_PEAK_HIGH
+    with_ff = f" avec feedforward (F = {ff_gain})" if ff_gain > 0 else " sans feedforward"
+    if pk > advice and ff_gain > 0 and np.isfinite(lat) and lat < profile.latency_ms[0]:
         # Réponse plus rapide que ce que P et D permettent seuls, puis dépassement : c'est le
         # feedforward qui pousse (il agit à plein sur les mouvements de manche vifs).
-        F.append(Finding("Réponse", CONSEIL if pk <= 1.20 else ATTENTION,
+        F.append(Finding("Réponse", CONSEIL if pk <= strong else ATTENTION,
                          f"Dépassement dû au feedforward en {ax.lower()}",
                          f"Pic {pk:.2f} atteint après une montée très rapide (latence {lat:.1f} ms, plus courte que "
                          f"les {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms habituels pour {profile.label}). "
@@ -384,13 +397,16 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
                           "vérifiez seulement qu'il n'y a pas de rebond à la fin des flips.",
                           "Le D n'est pas en cause tant que les vols calmes ne dépassent pas."], ax))
         return
-    if pk > 1.20:
-        F.append(Finding("Réponse", ATTENTION, f"Fort dépassement en {ax.lower()}", f"Pic {pk:.2f} (> 1,20) : le drone "
+    if pk > strong:
+        F.append(Finding("Réponse", ATTENTION, f"Fort dépassement en {ax.lower()}",
+                         f"Pic {pk:.2f} (> {_fr(strong)}{with_ff}, plus que 95 % des axes du corpus) : le drone "
                          "dépasse la consigne puis revient, signe d'un manque d'amortissement.",
                          ["Curseur Damping (D) : +0,1 à +0,2.", "Ou Tracking (P et I) : −0,1."], ax))
-    elif pk > 1.10:
+    elif pk > advice:
         F.append(Finding("Réponse", CONSEIL, f"Léger dépassement en {ax.lower()}",
-                         f"Pic {pk:.2f} (objectif 1,02–1,08).", ["Curseur Damping (D) : +0,1."], ax))
+                         f"Pic {pk:.2f} (> {_fr(advice)}{with_ff}, plus que 90 % des drones du corpus). Sans "
+                         f"feedforward, une réponse sans dépassement visible donne environ {_fr(STEP_PEAK_FLAT)} ; "
+                         "le feedforward fait monter le pic.", ["Curseur Damping (D) : +0,1."], ax))
     elif pk < 0.98 and np.isfinite(lat) and lat > profile.latency_ms[1]:
         F.append(Finding("Réponse", CONSEIL, f"Réponse molle en {ax.lower()}",
                          f"Pic {pk:.2f} et latence {lat:.1f} ms (repère {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms "

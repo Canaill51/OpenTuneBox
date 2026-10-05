@@ -50,6 +50,9 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 - Vérifier le **taux de déclenchement** d'un seuil sur le corpus (part des sessions signalées,
   `scripts/advisor_rates.py`, avant / après le changement) : très
   au-dessus de 10 % → seuil trop sévère ; proche de 0 % → règle inutile.
+- **Séparer selon le réglage qui fausse la mesure** : le feedforward gonfle le pic de réponse (p90 1,15
+  sans, 1,42 avec, une voix par drone) → deux jeux de paliers (`rules.STEP_PEAK_HIGH`, `STEP_PEAK_HIGH_FF`).
+  Vérifier ce cas pour toute mesure liée à un réglage (F, filtres, RPM…).
 - Arrondis : bruit au 0,1 dB ; latence p10 vers le bas, p90 vers le haut (ms entière) ; retards de filtres
   au dixième supérieur (+0,1 ms).
 - **Ne changer aucun seuil sans montrer les chiffres à Cédric et avoir son accord.**
@@ -63,8 +66,8 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
   (marge de phase 30–60°).
 - **Communauté** : seulement avec une source précise (URL, auteur, date, citation exacte lue sur la page),
   ajoutée à `docs/spec-methodes.md`, « Sources des repères » ([S1]…). Sans source, c'est une
-  **Estimation**, même si beaucoup de pilotes la répètent (cas des paliers 1,02–1,08 / 1,20 du pic de
-  réponse, recherche du 2026-10-05). Préférer la source primaire (auteur de l'outil, développeurs
+  **Estimation**, même si beaucoup de pilotes la répètent (cas des anciens paliers 1,02–1,08 / 1,20 du pic
+  de réponse, remplacés le 2026-10-05 par les percentiles du corpus). Préférer la source primaire (auteur de l'outil, développeurs
   Betaflight, code) au blog qui la reprend ; une page disparue se lit sur la Wayback Machine.
 - **Repère lu dans PIDtoolbox** : ses spectres sont 6,5 dB sous les nôtres (`spectral.PTB_PSD_OFFSET_DB`,
   mesure `rules.band_peak_ptb_db`) et son retard D 0,3 à 0,9 ms sous le nôtre ; recouper avec les captures
