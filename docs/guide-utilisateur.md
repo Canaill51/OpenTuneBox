@@ -105,6 +105,9 @@ Objectifs : montée rapide, **pic proche de 1** (sans feedforward, une réponse 
 environ 1,03 ; le feedforward fait monter le pic), pas de rebond. Colonnes de mesures au choix :
 latence, temps de montée, bande passante, pic de sensibilité (< 7 dB), marge de phase (> 35°), marge de
 gain, fréquence de croisement…
+Pour des marges plus sûres, un vol avec le chirp de Betaflight (2025.12 et plus, `debug_mode = CHIRP`)
+excite le drone sur toute une plage de fréquences, en acro comme en mode angle : réglez sa fréquence de
+fin (`chirp_frequency_end_deci_hz`) à au moins 600, soit 60 Hz, pour couvrir la zone où se joue la marge.
 Les marges de stabilité sont **mesurées** à partir des termes P, I, D et F enregistrés dans le log (point
 plein, barre d'erreur = incertitude de la mesure). Si un de ces termes manque, elles sont seulement
 **approchées** (point creux) : à prendre avec prudence. Un triangle signifie « au moins cette valeur » :

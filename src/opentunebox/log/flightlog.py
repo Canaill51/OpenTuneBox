@@ -131,8 +131,24 @@ class FlightLog:
             level = (self.mode_flags[sel] & ANGLE_HORIZON_MASK) != 0
             if level.size and level.mean() > MAX_LEVEL_SHARE:
                 instrument = self.rc_command[ax, sel]
+                chirp = self.chirp_excitation(ax, sel)
+                if chirp is not None:
+                    instrument = instrument + chirp
         return PidTerms(self.p_term[ax, sel], self.i_term[ax, sel], self.d_term[ax, sel], self.f_term[ax, sel],
                         note, instrument)
+
+    def chirp_excitation(self, ax: int, sel: slice = slice(None)) -> np.ndarray | None:
+        """Excitation du chirp de Betaflight sur l'axe `ax` (°/s, avant son filtre d'avance de phase), ou None
+        sans le debug CHIRP. Le firmware l'ajoute à la consigne avant le mode angle (`flight/pid.c`) : en mode
+        angle, la commande radio ne la contient pas, il faut l'ajouter à l'instrument. Debug 1 = axe excité
+        (−1 : aucun), debug 3 = excitation × 1000 ; amplitude `chirp_amplitude_<axe>` de l'en-tête."""
+        if self.debug_name() != "CHIRP" or self.debug.shape[0] < 4 or ax > 2:
+            return None
+        amp = float(self.settings.raw.get(f"chirp_amplitude_{AXES[ax].lower()}", 0) or 0)
+        active = self.debug[1, sel] == ax
+        if amp <= 0 or not active.any():
+            return None
+        return np.where(active, self.debug[3, sel] / 1000.0 * amp, 0.0)
 
     def debug_name(self) -> str:
         return self.settings.debug_mode

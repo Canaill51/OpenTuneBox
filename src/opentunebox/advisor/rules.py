@@ -420,12 +420,12 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
         F.append(Finding("Réponse", CONSEIL, f"Marge de stabilité faible en {ax.lower()}",
                          f"Pic de sensibilité {at_least}{lp.sensitivity_peak_db:.1f} dB à {lp.sensitivity_peak_hz:.0f} Hz "
                          f"(> {SENSITIVITY_HIGH_DB:.0f} dB) : le drone amplifie les perturbations à cette fréquence et risque d'osciller."
-                         + _loop_caveat(lp),
+                         + _loop_caveat(lp) + _whoop_margin_note(profile),
                          [*_margin_actions(lp), "Réduire le retard des filtres si le bruit le permet."], ax))
     elif np.isfinite(lp.phase_margin_deg) and lp.phase_margin_deg < PHASE_MARGIN_LOW_DEG:
         F.append(Finding("Réponse", CONSEIL, f"Marge de phase réduite en {ax.lower()}",
                          f"Marge de phase {lp.phase_margin_deg:.0f}° (< {PHASE_MARGIN_LOW_DEG:.0f}°) au croisement de {lp.crossover_hz:.0f} Hz."
-                         + _loop_caveat(lp), _margin_actions(lp), ax))
+                         + _loop_caveat(lp) + _whoop_margin_note(profile), _margin_actions(lp), ax))
 
 
 # Fréquence d'enregistrement minimale (Cédric, 2026-10-05) : 2 kHz pour un gyro à 8 kHz, 1,6 kHz pour un gyro
@@ -762,6 +762,16 @@ def _loop_caveat(lp) -> str:
     why = f" ({'; '.join(lp.notes)})" if lp.notes else ""
     return (f" Valeur approchée{why} : calculée sans séparer le D (sur le gyro) et le feedforward (sur la consigne), "
             "elle peut s'écarter de plusieurs dB ou dizaines de degrés.")
+
+
+def _whoop_margin_note(profile: CraftProfile) -> str:
+    """Précision pour un whoop : marge faible fréquente et réelle (vérifiée sur la simulation et les vols
+    chirp de l'AIR65, docs/validation.md), seuil théorique et non percentile du corpus."""
+    if profile.key != "whoop":
+        return ""
+    return (" Fréquent sur un whoop : la boucle est plus rapide (croisement vers 20 Hz) et le D y domine, "
+            "si bien que les filtres du D retardent beaucoup la boucle au croisement. Le seuil vient de la "
+            "théorie (pas d'une comparaison avec les autres whoops) : la marge est vraiment faible.")
 
 
 def _margin_actions(lp) -> list[str]:

@@ -51,7 +51,9 @@ S = 1/(1 + L).
    fonctions déterministes de l'erreur et du gyro ;
 3. Ĝ = S(z, gyro)/S(z, u) : estimateur **instrumental**, l'instrument z étant un signal extérieur à la
    boucle — la consigne, ou la commande radio (`rcCommand`) quand le mode angle ou horizon est actif plus
-   de 20 % de la période (la consigne dépend alors de l'attitude). L'estimateur direct S(u, gyro)/S(u, u)
+   de 20 % de la période (la consigne dépend alors de l'attitude), plus l'excitation du chirp de Betaflight
+   quand le debug CHIRP est enregistré (`FlightLog.chirp_excitation` : le firmware l'ajoute à la consigne
+   avant le mode angle, `flight/pid.c`, la commande radio ne la contient donc pas). L'estimateur direct S(u, gyro)/S(u, u)
    est biaisé en boucle fermée : les perturbations (vent, prop wash) font bouger u et le gyro ensemble ;
 4. spectres lissés sur 20 % de la fréquence (au moins 5 points, moyenne glissante centrée) ;
 5. bande valide : points **contigus** depuis 2 Hz, jusqu'à min(200 Hz ; 0,4 × fréquence du log), tant que

@@ -82,7 +82,9 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
   P, I, D, F sont loggés, sinon approchée par L = T/(1 − T) (faux pour Betaflight, `docs/assistant.md`,
   « Boucle ouverte mesurée »). Les percentiles calculés avec l'ancienne méthode ne sont pas comparables
   (marge de phase environ 10° plus haute, croisement environ 2 fois trop bas). Le pic de sensibilité est
-  souvent un minorant (`smaxedge` dans `stats.json`).
+  souvent un minorant (`smaxedge` dans `stats.json`). Les whoops vont plus loin en bande (46 Hz contre
+  22–24 Hz) : leur pic est plus souvent le vrai, et leur marge faible est réelle (diagnostic du 2026-10-06,
+  `docs/validation.md`) ; ne pas « corriger » leur taux par un percentile propre.
 - Taille : la fréquence moteur seule confond les 2–3,5" et les 5" entre 200 et 290 Hz ; le nombre de
   cellules les départage (2–4S), sauf en 6S (recouvrement avec les 5" en vol freestyle). Évaluer une
   limite par drone **et** par session (la fréquence d'une session freestyle monte de 10 à 30 %), sur la

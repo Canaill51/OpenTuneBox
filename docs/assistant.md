@@ -300,7 +300,8 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   - stabilité (boucle ouverte, voir « Boucle ouverte mesurée ») : pic de sensibilité > 7 dB (conseil ;
     « au moins » quand le pic est au bord de la bande mesurable ; précision ajoutée si la boucle n'est
     qu'approchée) ; sinon marge de phase < 35° (conseil). Conseil : Damping +0,1 ou Master −0,1 ; seulement
-    Master −0,1 quand le D domine déjà au croisement (|Ĉd/Ĉe| > 1) ;
+    Master −0,1 quand le D domine déjà au croisement (|Ĉd/Ĉe| > 1) ; pour un whoop, explication de la
+    cause habituelle (boucle rapide, D dominant, filtres du D) ;
   - oscillations basses fréquences : gyro filtré 20–80 Hz > p90 de la taille.
 - **Bruit** (80 Hz à min(500 Hz ; 0,95 × Nyquist), valeur maximale du roll et du pitch) : gyro filtré
   > p90 de la taille ; terme D > p90 de la taille **ou** sommet de son spectre au-dessus de −10 dB sur
@@ -378,7 +379,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
 | Réponse molle | pic < 0,98 et latence > p90 de la taille | Estimation (0,98) + corpus (latence) | |
 | Roll et pitch différents | écart de pic > 0,07 à 0,12 selon la taille | Corpus | Seuils mécaniques |
-| Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
+| Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
 | Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Estimation | Choisit le conseil (Master −0,1 plutôt que plus de D). Appuyé sur la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) : au-delà, plus de D monte le croisement sans gagner de marge, et le pic de sensibilité augmente |
 | Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes exactes choisies |
@@ -453,8 +454,12 @@ et les vrais logs (`validation.md`) :
 - repli sur l'ancienne formule (« approchée ») quand un terme de gain non nul n'est pas enregistré ou que
   la mesure manque de points : le constat le précise ;
 - seuils de stabilité recalibrés le 2026-10-05 avec la mesure : pic > 7 dB ou marge < 35°, en conseil
-  (20 % des sessions du corpus ; avec 6 dB / 40°, 33 %). Les whoops restent souvent signalés (46 %) : à
-  revoir quand leur mesure sera mieux comprise.
+  (20 % des sessions du corpus ; avec 6 dB / 40°, 33 %) ;
+- whoops (diagnostic du 2026-10-06, `validation.md`) : 32 % des sessions whoop signalées, 16 % hors des
+  drones de Cédric (45 sessions). La mesure est vérifiée (simulation, vols chirp de l'AIR65) : la marge
+  est réellement faible (croisement vers 20 Hz, D dominant 1,4 fois, filtres du D qui retardent au
+  croisement). Seuils inchangés (décision de Cédric) ; le constat d'un whoop l'explique et rappelle que
+  le seuil vient de la théorie et non d'une comparaison avec les autres whoops.
 
 ### Onglet Autotune du configurateur Betaflight
 

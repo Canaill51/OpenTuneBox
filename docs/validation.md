@@ -104,6 +104,19 @@ lecture échantillon par échantillon).
   - **mode angle** : dans les vols « angle » du corpus, la consigne et la commande radio comme instrument
     donnent la même boucle (0,0 à 0,3 dB, 0 à 2° jusqu'à 30 Hz) : la boucle d'attitude, lente, ne fausse
     pas la mesure au croisement ;
+  - **whoops** (2026-10-06, AIR65 de Cédric, 63 sessions whoop sur 121) : simulation d'une boucle de
+    whoop (croisement 22 Hz, marge réelle 39°, pic 6,8 dB, log à 1 kHz) mesurée à 37° et 7,4 dB, un peu
+    pessimiste quand les moteurs sont rapides (−2 à −4° ; ±1° pour des moteurs plus lents). Vols chirp
+    (excitation large bande, mesure la plus fiable) : EdgeTX en mode angle, D LPF 75 / 150 Hz, bande
+    jusqu'à 60–90 Hz : roll 28–31° et 7,9–8,6 dB (±0,5°), pitch 39–42° ; chirp de Betaflight 2026.6
+    (0,2–15 Hz, mode angle, D LPF 105 / 210 Hz) : roll 23,6 Hz, 39,5 ± 1,9°, pitch 44–45°, yaw 58–60°.
+    L'écart entre les deux séries correspond aux filtres du D (environ 6° de phase en moins au croisement
+    avec 75 / 150 Hz, le D dominant 1,4 fois). La marge faible des whoops est donc réelle ; ils sont
+    plus souvent signalés aussi parce que leur bande mesurable va plus loin (46 Hz contre 22–24 Hz en
+    médiane, pic au bord pour 16 % des axes contre 31–41 %) : chez les autres tailles, le pic n'est
+    souvent qu'un minorant. Avant le 2026-10-06, le chirp de Betaflight n'était pas mesurable en mode angle
+    (« cohérence insuffisante ») : l'excitation, absente de la commande radio, est maintenant ajoutée à
+    l'instrument ;
   - **corpus** (`scripts/calibrate_advisor.py`, 539 logs, 681 sessions, 1253 axes roll / pitch) : boucle
     mesurée pour 88 % des axes (objectif ≥ 80 %), croisement trouvé dans la bande pour 70 % d'entre eux,
     pic de sensibilité au bord (minorant) pour 34 %. Médianes, mesurée contre ancienne formule :
