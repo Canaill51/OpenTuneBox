@@ -39,13 +39,18 @@ séparé ; 10 logs au maximum, chacun avec sa couleur, que l'on retrouve dans to
 Dans le CLI Betaflight :
 
 ```
-set blackbox_sample_rate = 1/2      # ≈ 2 kHz avec une boucle PID à 4 kHz (1/4 si la boucle est à 8 kHz)
+set blackbox_sample_rate = 1/2      # 2 kHz avec une boucle PID à 4 kHz (1/4 à 8 kHz, 1/2 à 3,2 kHz → 1,6 kHz)
 set debug_mode = FFT_FREQ           # centres des notchs dynamiques + gyro avant notch
 save
 ```
 
-- **2 kHz** suffisent pour les PID et le bruit des drones de 3" et plus. Pour un whoop (moteurs à
-  500–1400 Hz) ou pour étudier les filtres, enregistrez un vol court à 4 kHz.
+- **Au moins 2 kHz** avec un gyro à 8 kHz, **au moins 1,6 kHz** avec un gyro à 3,2 kHz (BMI270) : le
+  blackbox garde un échantillon sur N sans filtre anti-repliement, tout bruit au-delà de la moitié de la
+  fréquence du log se replie dans le spectre (fausses raies). Les petits drones demandent plus : il faut
+  au moins 6 fois la fréquence des moteurs pour voir leur 3e harmonique (whoop à 480 Hz : 4 kHz).
+- **Deux vols pour régler les filtres** : un vol stationnaire (régime stable, le meilleur pour repérer les
+  harmoniques moteur, les résonances et le bruit restant) et un vol avec des mouvements francs (le seul où le
+  retard des filtres se mesure bien).
 - En **4.4**, préférez `debug_mode = GYRO_SCALED` (seul moyen d'avoir le gyro non filtré).
 - **DShot bidirectionnel** activé : sans lui, ni filtre RPM ni fréquences moteur mesurées.
 
@@ -127,7 +132,9 @@ Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, fil
 mécanique. Chaque constat donne la mesure et le seuil (calibré sur ~700 vols réels, en comparant votre
 drone à ceux de la même taille) et propose une action. Le bruit et le retard des filtres sont aussi comparés
 aux repères de Brian White, l'auteur de PIDtoolbox (gyro filtré sous −30 dB, terme D au plus −10 dB sur
-l'échelle de ses spectres, objectif de retard selon la taille). Les conseils fondés sur le retard des filtres demandent un vol avec des
+l'échelle de ses spectres, objectif de retard selon la taille). En tête, la **stratégie de filtrage** ordonne les réglages à faire :
+enregistrement, bruit à corriger, mécanique, filtre RPM, notch dynamique, passe-bas du gyro puis du D, un
+changement à la fois. Les conseils fondés sur le retard des filtres demandent un vol avec des
 mouvements francs (flips, rolls, wobbles) : sur un vol stationnaire, l'assistant affiche le retard sans
 conseiller. Pour les tailles encore peu représentées (whoop,
 2–3,5", 8" et plus), l'assistant prévient que ses seuils sont provisoires. Les conseils sont des points de départ : confirmez au ressenti et à la

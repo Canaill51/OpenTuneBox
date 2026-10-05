@@ -190,6 +190,29 @@ filtre toujours ; désactivé sous 2 kHz de boucle PID.
   raie fixe hors de la plage 1 % ; relèvement de `dyn_notch_min_hz` dans le conseil sur le retard 2 %.
   La règle « sans filtre RPM » n'a pas été retenue (une session).
 
+### Stratégie de filtrage et vol stationnaire (2026-10-05)
+
+Demande de Cédric : les constats de filtrage doivent déboucher sur une stratégie (filtre RPM, notch
+dynamique, passe-bas du gyro et du D), et le vol stationnaire, qui ne permet pas de juger le retard, est le
+meilleur log pour identifier le bruit.
+
+- **Stratégie** (`rules.filter_strategy`, constat en tête) : étapes dans l'ordre enregistrement → à corriger
+  d'abord (repliement, D sous-filtré, bruit trop fort) → mécanique → filtre RPM → notch dynamique → passe-bas
+  du gyro → passe-bas du D, avec pour chaque étape l'action qui change un réglage ; un changement à la fois,
+  vol d'essai, température des moteurs [S30]. Présente dans 79 % des sessions (92 % des vols stationnaires),
+  souvent pour la seule fréquence d'enregistrement.
+- **Vol stationnaire** (`motors.spectrum_lines`) : raies moteur repérées par l'eRPM et retirées jusqu'à la
+  8e harmonique (± 5 % de l'harmonique pour les trois premières, ± 5 % de la fréquence moteur ensuite,
+  images repliées comprises : sur un whoop logué à 4 kHz, la 8e harmonique retombe vers 200 Hz) ; toute
+  autre raie dépassant le bruit voisin de 6 dB est listée, avec sa hauteur avant et après filtres.
+  « Raie à X Hz encore visible après filtrage » (plus de 3 dB après filtres) : 53 vols stationnaires sur
+  107, raies surtout entre 85 et 510 Hz (médiane 233 Hz), 11 sur 75 sous 100 Hz (mise en garde : un notch y
+  retarde le PID, la raie peut venir du réglage).
+- **Filtre RPM** : harmonique visible hors du filtre RPM → `rpm_filter_harmonics` (4 sessions, souvent un
+  whoop réglé sur 1 harmonique) ; harmonique visible malgré un poids de 100 → `motor_poles`, Q −30 % (60).
+- **Log trop lent** : sous le minimum, aucun allègement (poids RPM, LPF1 du gyro, nombre de notchs, raies
+  résiduelles, relèvement du D) : le spectre est replié.
+
 ### Passe-bas du gyro et du D (2026-10-05)
 
 Sources : aides du configurateur Betaflight [S29] (LPF1 du gyro « can usually be disabled completely […]
@@ -219,8 +242,10 @@ LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallumen
 Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit
 portent sur le roll et le pitch (le yaw n'est pas jugé).
 
-- **Enregistrement** : fréquence du log < 900 Hz (attention) ; 3e harmonique moteur au-delà de la moitié de
-  la fréquence du log ; gyro non filtré absent ; pas de télémétrie RPM ; plus de 20 trames corrompues (info).
+- **Enregistrement** : fréquence du log sous le minimum (attention) : 2 kHz pour un gyro à 8 kHz, 1,6 kHz
+  pour un gyro à 3,2 kHz (plus petite fraction 1/2^n de la boucle PID qui atteint 1,6 kHz) ; sous ce
+  minimum, aucun allègement de filtre n'est proposé (spectre replié). 3e harmonique moteur au-delà de la
+  moitié de la fréquence du log (conseil, `blackbox_sample_rate` pour 6 × la fréquence moteur) ; gyro non filtré absent ; pas de télémétrie RPM ; plus de 20 trames corrompues (info).
 - **Vol** : crash détecté, la période d'analyse s'arrête avant (info).
 - **Réponse** (au moins 20 fenêtres par axe, sinon « Pas assez de mouvements de manche ») :
   - dépassement : pic > 1,20 (attention), > 1,10 (conseil) ; attribué au feedforward si F > 0 et si la
@@ -246,11 +271,19 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
 - **Filtre RPM** (eRPM, gyro non filtré et filtre RPM actif) : raie moteur encore visible (> 3 dB au-dessus
   du bruit voisin après filtrage) alors que son poids est < 100 → remonter le poids ; en 4.5 et plus, si le
   bruit moteur est bien éliminé, poids de la 2e ou de la 3e harmonique plus fort que nécessaire d'au moins
-  0,5 → `rpm_filter_weights` proposés (voir « Filtre RPM : poids et Q »).
+  0,5 → `rpm_filter_weights` proposés (voir « Filtre RPM : poids et Q ») ; harmonique 2 ou 3 visible après
+  filtrage mais hors du filtre RPM → `rpm_filter_harmonics` augmenté ; harmonique visible malgré un poids de
+  100 → `motor_poles` à vérifier, `rpm_filter_q` −30 % (la 1re harmonique reste à « Bruit moteur mal
+  éliminé »).
 - **Retards des filtres** : seulement si le vol contient des mouvements (consigne au-delà de 50 °/s au
-  moins 5 % du temps) ; sinon « Retard des filtres peu représentatif » (info), sans conseil de filtrage
-  fondé sur le retard (« filtrage gyro trop prudent », « filtrage du D trop fort », « LPF1 du gyro peut
-  être coupé »).
+  moins 5 % du temps) ; sinon « Retard des filtres peu représentatif » (info), sans conseil fondé sur le
+  retard mesuré (« filtrage gyro trop prudent », « filtrage du D trop fort »). « Le LPF1 du gyro peut être
+  coupé » reste proposé : il repose sur le bruit, et son retard vient du modèle des filtres.
+- **Vol stationnaire** (voir « Stratégie de filtrage et vol stationnaire ») : « Vol stationnaire : bruit
+  identifié » (info : harmoniques avant / après filtres, autres raies, bruit restant) ; « Raie à X Hz encore
+  visible après filtrage » (conseil) pour chaque raie hors moteurs qui dépasse encore le bruit voisin de
+  3 dB après filtres, sauf si « Raie fixe » la traite déjà.
+- **Stratégie de filtrage** (conseil, en tête) : synthèse ordonnée des constats de filtrage.
 - **Passe-bas** (voir « Passe-bas du gyro et du D ») : LPF2 du gyro coupé avec une boucle PID plus lente
   que le gyro (attention sous 3 kHz, conseil à 4 kHz) ; D filtré à l'ordre 1 seulement (attention) ; LPF1
   du D statique et biquad sur le gyro (info) ; avec le filtre RPM et un bruit sous les repères, « Le LPF1
@@ -288,7 +321,8 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Taille par l'eRPM et les cellules | 345 / 290 / 160 / 115 Hz ; 1S → whoop ; 2–4S entre 200 et 290 Hz → 2–3,5" | Corpus + estimation | Vérifié sur 41 drones de taille connue, 38 justes (voir « Taille du drone ») ; la limite 8"+ (115 Hz) n'est vérifiée que sur 6 drones. Le tableau de fréquences par taille de `spec-methodes.md` est une estimation qui ne correspond pas aux logs |
 | Taille par le nom | « whoop », « 65 », « 75 », « Meteor » ; 3,8 / 5,8 / 7,8 pouces | Estimation | |
 | Profil par défaut | 5" | Corpus | Taille la plus fréquente (366 sessions sur 707) |
-| Fréquence du log trop basse | < 900 Hz | Firmware + estimation | Défaut de Betaflight : 1 trame sur 4 (`blackbox_sample_rate` = 1/4), soit 2 kHz avec une boucle à 8 kHz et 1 kHz à 4 kHz ; 900 Hz laisse une marge sous 1 kHz |
+| Fréquence du log trop basse | gyro 8 kHz : 2 kHz ; gyro 3,2 kHz : 1,6 kHz (plus petite fraction de la boucle PID ≥ 1,6 kHz) | Pilote expérimenté (Cédric, 2026-10-05) + firmware | Le blackbox sous-échantillonne sans filtre (`blackbox_sample_rate` 1/1 à 1/16 de la boucle PID, `cli/settings.c`) : tout bruit au-delà de la moitié de la fréquence du log se replie. 178 sessions sur 681 (26 %) en dessous, surtout des gyros à 8 kHz logués à 1 kHz |
+| Harmoniques des petits drones | log ≥ 6 × fréquence moteur (3e harmonique sous la moitié de la fréquence du log) | Théorie (Nyquist) | 75 sessions de plus atteignent le minimum mais pas ce seuil |
 | Harmoniques hors de la plage visible | 3 × f moteur > Fs / 2 | Théorie | Fréquence de Nyquist |
 | Gyro non filtré absent, pas d'eRPM | présence des champs | Firmware | |
 | Trames corrompues | > 20 | Estimation | Constat informatif ; p90 du corpus ≈ 1 trame, un seuil calibré signalerait la moindre trame |
@@ -320,6 +354,11 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
 | Relèvement de `dyn_notch_min_hz` | jusqu'à 200 Hz (7" et plus : 125 Hz), sous le pic le plus bas − 20 Hz, si le gain atteint 30 Hz | Firmware (doc) + communauté + estimation (30 Hz) | « as high as practical (eg 200hz) » [S19] ; presets officiels 7–10" entre 80 et 125 Hz [S16] ; seulement dans le conseil « filtrage gyro trop prudent » (2 % des sessions) |
 | Nombre de notchs | autant que de pics à suivre, 1 au moins | Firmware (doc) | « Usually no more than two or three are needed […] and often only one » ; « only using the minimum number of notches » [S19] ; constat **info** : 27 % des sessions (16 % des drones)
+| Raie hors moteurs listée (vol stationnaire) | ≥ 6 dB au-dessus du bruit voisin (10 à 20 % de part et d'autre) | Estimation | Visible après filtrage au-delà de 3 dB (`HARMONIC_VISIBLE_DB`) |
+| Raie basse fréquence | < 100 Hz : mise en garde avant de la filtrer | Communauté | Propwash et oscillations « ~20Hz to ~100Hz » [S1] |
+| Baisse de `rpm_filter_q` (raie moteur visible) | −30 % (500 → 350), borne 250 | Firmware (borne) + estimation | Comme « Bruit moteur mal éliminé » |
+| `rpm_filter_harmonics` | jusqu'à 3 | Firmware | `cli/settings.c` (0 à 3) |
+| Ordre de la stratégie de filtrage | enregistrement, corrections, mécanique, RPM, notch dynamique, LPF gyro, LPF D | Firmware (doc) + estimation | Un filtre à la fois [S30] ; ordre RPM → notch → passe-bas comme le guide RPM |
 | Vol avec mouvements (retards représentatifs) | 95e centile de \|consigne\| ≥ 50 °/s (roll ou pitch) | Corpus + estimation | Remarque de Cédric (2026-10-05) ; vols stationnaires du corpus ≤ 24 °/s, avec wobble ≥ 92 °/s ; l'intercorrélation s'y trompe une fois sur deux (`validation.md`). 108 sessions (16 %) en dessous ; `calibrate_advisor.py` en écarte les retards. Seuils de retard calibrés avant ce tri |
 | LPF2 du gyro anti-repliement | PID < gyro : PT1 500 Hz (attention sous 3 kHz), 500–1000 Hz (conseil à 4 kHz) | Firmware (doc) | [S12, S19, S29] |
 | Ordre minimal du filtrage du D | 2 (deux PT1 ou un filtre d'ordre 2) | Firmware (doc) | [S29] ; PT2 et biquad comptent pour 2, PT3 pour 3 |

@@ -206,6 +206,78 @@ def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tu
     return NotchTargets(c[kept], 10 * np.log10(p[kept] / floor), (lo, hi))
 
 
+@dataclass
+class SpectrumLine:
+    freq_hz: float
+    raw_db: float  # hauteur au-dessus du bruit voisin avant filtres (dB)
+    left_db: float  # même chose après filtres (NaN si non mesurable)
+
+
+def _masked_spectrum(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int, seg_ms: float):
+    """DSP moyenne (linéaire) des fenêtres de 300 ms, bandes des harmoniques moteur 1…n retirées
+    (h × [moteur le plus lent ; le plus rapide] pendant la fenêtre, ± 5 % de l'harmonique pour les trois
+    premières et de la fréquence moteur ensuite, et leur
+    image repliée : sur un whoop loggé à 4 kHz, la 8e harmonique retombe vers 200 Hz)."""
+    L = max(16, int(round(fs * seg_ms / 1000.0)))
+    hop = L // 2
+    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop)
+    if segs.shape[0] == 0:
+        return np.zeros(0), np.zeros(0)
+    f, P = _seg_spectra(segs, fs, "psd")
+    lo_m = _segments(mhz.min(axis=0), L, hop)[0].min(axis=1)
+    hi_m = _segments(mhz.max(axis=0), L, hop)[0].max(axis=1)
+    P = P.copy()
+    for k in range(P.shape[0]):
+        for h in range(1, n_harm + 1):
+            # marge : 5 % de l'harmonique pour les trois premières (raies fortes, flancs larges), 5 % de la
+            # fréquence moteur ensuite (raies faibles ; 5 % de la 8e, ±80 Hz, masquerait tout le spectre)
+            m = 0.05 * (h if h <= 3 else 1)
+            a, b = h * lo_m[k] - m * lo_m[k], h * hi_m[k] + m * hi_m[k]
+            P[k, (f >= a) & (f <= b)] = np.nan
+            for j in range(1, int(b // fs) + 2):  # images repliées |h·f − j·fs| (log plus lent que la boucle)
+                P[k, (f >= j * fs - b) & (f <= j * fs - a)] = np.nan
+                P[k, (f >= a - j * fs) & (f <= b - j * fs)] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return f, np.nanmean(P, axis=0)
+
+
+def _line_height(f: np.ndarray, S: np.ndarray, f0: float) -> float:
+    """Hauteur (dB) de la DSP à f0 (± une case) au-dessus du bruit voisin (10 à 20 % de part et d'autre)."""
+    df = f[1] - f[0]
+    line = S[(f >= f0 - df) & (f <= f0 + df)]
+    floor = S[((f >= 0.8 * f0) & (f <= 0.9 * f0)) | ((f >= 1.1 * f0) & (f <= 1.2 * f0))]
+    line, floor = line[np.isfinite(line)], floor[np.isfinite(floor)]
+    if line.size == 0 or floor.size < 2 or floor.mean() <= 0 or line.mean() <= 0:
+        return float("nan")
+    return float(10 * np.log10(line.mean() / floor.mean()))
+
+
+def spectrum_lines(x_raw: np.ndarray, x_filt: np.ndarray, mhz: np.ndarray, fs: float, band: tuple[float, float],
+                   min_db: float = 6.0, n_harm: int = 8, seg_ms: float = 300.0) -> list[SpectrumLine]:
+    """Raies qui ne viennent pas des moteurs (résonances, bruit résiduel), avant et après filtres.
+
+    Pensé pour le vol stationnaire : régime stable, raies moteur connues par l'eRPM et retirées jusqu'à
+    la 8e harmonique ; toute raie restante dépassant de `min_db` le bruit voisin est listée, la plus haute
+    d'abord (une seule par groupe de ±10 %)."""
+    f, S = _masked_spectrum(x_raw, mhz, fs, n_harm, seg_ms)
+    if f.size < 8:
+        return []
+    _, Sf = _masked_spectrum(x_filt, mhz, fs, n_harm, seg_ms)
+    lo, hi = band[0], min(band[1], 0.9 * fs / 2 / 1.2)
+    cands = []
+    for i in range(1, f.size - 1):
+        if lo <= f[i] <= hi and np.isfinite(S[i]) and S[i] >= np.nanmax(S[i - 1:i + 2]):
+            h = _line_height(f, S, f[i])
+            if np.isfinite(h) and h >= min_db:
+                cands.append((h, float(f[i])))
+    out: list[SpectrumLine] = []
+    for h, f0 in sorted(cands, reverse=True):
+        if all(abs(f0 - o.freq_hz) > 0.1 * o.freq_hz for o in out):
+            out.append(SpectrumLine(f0, h, _line_height(f, Sf, f0)))
+    return out
+
+
 def hover_motor_hz(log: FlightLog) -> float | None:
     """Fréquence moteur typique en vol stationnaire (médiane quand le gaz est stable), pour
     reconnaître la taille du drone."""

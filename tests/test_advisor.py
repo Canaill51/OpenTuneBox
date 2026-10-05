@@ -123,10 +123,12 @@ def test_dyn_notch_rules():
     found = [f for lg in load(LOGS / "1. PTB/Thalhammer/Hover Test 48kHz.bbl")
              for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings if f.title == "Raie fixe vers 37 Hz"]
     assert found and any("dyn_notch_min_hz = 20," in a for a in found[0].actions)
-    # JeNo 5 « PD » : rien à suivre après le filtre RPM, 2 notchs réglés → 1 suffit (info)
-    rep = report("Cedric/JeNo 5/PD.bbl")
+    # KL (log à 2 kHz) : moins de pics à suivre que de notchs réglés → nombre réduit (info)
+    rep = report("Cedric/KL/f3.bbl")
     f = next(f for f in rep.findings if f.title == "Notch dynamique : moins de notchs suffiraient")
-    assert f.actions[0].startswith("dyn_notch_count = 1")
+    assert f.actions[0].startswith("dyn_notch_count = 2 (actuellement 3)")
+    # JeNo 5 « PD » enregistré à 1 kHz : spectre replié, pas d'allègement proposé
+    assert not any(f.title.startswith("Notch dynamique") for f in report("Cedric/JeNo 5/PD.bbl").findings)
 
 
 def test_lowpass_rules():
@@ -153,6 +155,46 @@ def test_lowpass_rules():
     assert hover["Retard des filtres peu représentatif"].severity == INFO
     assert not {"Filtrage du D peut-être trop fort", "Filtrage gyro peut-être trop prudent",
                 "Le LPF1 du gyro peut être coupé"} & set(hover)
+
+
+def test_hover_noise_and_filter_strategy():
+    from opentunebox.advisor.rules import analyze
+    from opentunebox.analysis.period import auto_period
+
+    def report(rel):
+        lg = _load(rel)
+        return analyze(lg, lg.slice_time(*auto_period(lg))).findings
+
+    # AIR65 en stationnaire : 2e harmonique hors du filtre RPM (1 seule harmonique) ; stratégie en tête
+    rep = report("Cedric/Air65/Cedric - Hover.bbl")
+    f = {x.title: x for x in rep}
+    assert "Vol stationnaire : bruit identifié" in f
+    assert f["Harmonique moteur hors du filtre RPM"].actions[0].startswith("rpm_filter_harmonics = 2")
+    assert rep[0].title == "Stratégie de filtrage" and rep[0].actions[0].startswith("1. Filtre RPM")
+    # J3.5 en stationnaire : raie à 67 Hz que rien ne filtre, avec la mise en garde sous 100 Hz
+    f = {x.title: x for x in report("Cedric/J3.5/JHEMCU F722HD AIO/Hovering/24k.bbl")}
+    assert "où le PID travaille" in f["Raie à 67 Hz encore visible après filtrage"].detail
+    # Kris : mécanique (raie fixe) avant les passe-bas ; LPF1 du gyro coupable même en stationnaire
+    first = report("1. PTB/Kris/13. Hover.bbl")[0]
+    stages = [a.split(" — ")[0].split(". ", 1)[1] for a in first.actions[:-1]]
+    assert stages[0] == "Mécanique" and "Passe-bas du gyro" in stages
+    assert stages.index("Filtre RPM") < stages.index("Passe-bas du gyro") if "Filtre RPM" in stages else True
+
+
+def test_log_rate_rule():
+    from opentunebox.advisor.rules import ATTENTION, analyze, log_rate_needed
+
+    # 8 kHz de gyro (PID 4 ou 8 kHz) → 2 kHz ; 3,2 kHz → 1,6 kHz ; whoop à 480 Hz → 3e harmonique visible
+    assert log_rate_needed(4000) == 2000 and log_rate_needed(8000) == 2000 and log_rate_needed(3200) == 1600
+    assert log_rate_needed(4000, 480) == 4000 and log_rate_needed(3200, 210) == 1600
+    # Kris : 993 Hz pour une boucle PID à 4 kHz → attention, 1/2 ; aucun allègement tiré d'un spectre replié
+    lg = _load("1. PTB/Kris/BTFL_BLACKBOX_LOG_TP_20260914_181415_F722_AIO.bbl")
+    f = {x.title: x for x in analyze(lg).findings}
+    assert f["Fréquence d'enregistrement trop basse"].severity == ATTENTION
+    assert f["Fréquence d'enregistrement trop basse"].actions[0].startswith("blackbox_sample_rate = 1/2")
+    assert not {"Filtre RPM plus fort que nécessaire", "Le LPF1 du gyro peut être coupé",
+                "Notch dynamique : moins de notchs suffiraient"} & set(f)
+    assert f["Stratégie de filtrage"].actions[0].startswith("1. Enregistrement")
 
 
 def test_imbalance_interpretation():

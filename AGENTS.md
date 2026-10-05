@@ -87,6 +87,9 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   concorde) : ses objectifs de retard D ne s'appliquent pas tels quels.
 - Retard des filtres : représentatif seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne
   > 50 °/s au moins 5 % du temps) ; en vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime.
+- Fréquence du log : au moins 2 kHz pour un gyro à 8 kHz, 1,6 kHz à 3,2 kHz, plus pour les petits drones
+  (`rules.log_rate_needed`) ; le blackbox sous-échantillonne sans filtre, tout ce qui dépasse fs/2 se replie.
+  Vol stationnaire = identifier le bruit ; vol avec mouvements = juger le retard.
 - Repères en dB de PIDtoolbox (gyro −30, D −10) : nos DSP sont 6,5 dB plus hautes → `spectral.PTB_PSD_OFFSET_DB`,
   `rules.band_peak_ptb_db` (sommet du spectre lissé, sur l'échelle de PTB).
 - Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic

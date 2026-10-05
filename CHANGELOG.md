@@ -36,6 +36,15 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   (20 Hz de marge, jusqu'à la limite de 20 Hz du firmware) ; `dyn_notch_min_hz` relevé dans le conseil
   « filtrage gyro trop prudent ».
 - Assistant : raies fixes (résonances) cherchées dès 20 Hz au lieu de 60 Hz.
+- Assistant : **stratégie de filtrage** en tête du diagnostic, qui ordonne les réglages (enregistrement,
+  bruit à corriger, mécanique, filtre RPM, notch dynamique, passe-bas du gyro et du D).
+- Assistant : vol stationnaire exploité pour identifier le bruit (« Vol stationnaire : bruit identifié » :
+  harmoniques avant / après filtres, autres raies, bruit restant) et conseiller un notch pour chaque raie
+  encore visible ; harmonique moteur hors du filtre RPM (`rpm_filter_harmonics`) ou visible malgré un poids
+  de 100 (`motor_poles`, `rpm_filter_q`).
+- Assistant : fréquence d'enregistrement minimale selon le gyro (2 kHz à 8 kHz, 1,6 kHz à 3,2 kHz, plus
+  pour voir la 3e harmonique des petits drones) au lieu de 900 Hz ; sous ce minimum, aucun allègement de
+  filtre n'est proposé.
 - Retards des filtres jugés seulement sur un vol avec des mouvements (consigne au-delà de 50 °/s au moins
   5 % du temps) : sur un vol stationnaire, l'assistant affiche « Retard des filtres peu représentatif »
   sans conseil, et l'outil Spectre marque le retard « peu fiable ».

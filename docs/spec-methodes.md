@@ -107,6 +107,10 @@ ils viennent du bruit (`validation.md`).
 - **Hauteur des harmoniques** (`motors.harmonic_prominence`) : par fenêtre de 300 ms, DSP moyenne entre
   h × (moteur le plus lent) et h × (moteur le plus rapide) ± une case, moins la DSP moyenne de 15 à 30 % de
   part et d'autre de h × (fréquence moyenne) ; médiane des fenêtres. ≈ 0 dB sans raie.
+- **Raies hors moteurs** (`motors.spectrum_lines`, vol stationnaire) : DSP moyenne des fenêtres de 300 ms,
+  bandes des harmoniques 1 à 8 retirées (± 5 % de l'harmonique pour les trois premières, de la fréquence
+  moteur ensuite, images repliées comprises), hauteur d'un maximum local au-dessus du bruit voisin (10 à
+  20 % de part et d'autre), avant et après filtres ; une raie par groupe de ± 10 %.
 - **Pics du notch dynamique** (`motors.dyn_notch_targets`) : gyro non filtré, bandes des harmoniques
   traitées par le filtre RPM retirées (± 5 %, image repliée comprise), DSP moyenne regroupée en cases de
   18,5 Hz ; pic suivi s'il dépasse 2 fois la puissance moyenne hors pics (au-dessus de 60 Hz), comme le

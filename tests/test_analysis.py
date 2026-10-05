@@ -101,6 +101,23 @@ def test_stick_movement_criterion():
     assert p(hover) < MOVING_SETPOINT_DPS <= p(flight)
 
 
+def test_spectrum_lines_hover():
+    from opentunebox.analysis.motors import spectrum_lines
+
+    # stationnaire : moteurs vers 190 Hz (raies 1 à 3), résonance à 330 Hz que le « filtre » laisse à moitié
+    n = int(20 * FS)
+    t = np.arange(n) / FS
+    rng = np.random.default_rng(2)
+    mhz = np.vstack([np.full(n, 190.0 * (1 + d)) for d in (-0.01, 0.0, 0.01)])
+    raw = rng.normal(0, 1, n) + 1.0 * np.sin(2 * np.pi * 330 * t)
+    for h in (1, 2, 3):
+        raw += 1.0 * np.sin(2 * np.pi * h * 190 * t)
+    filt = rng.normal(0, 1, n) + 0.3 * np.sin(2 * np.pi * 330 * t)
+    lines = spectrum_lines(raw, filt, mhz, FS, (20, 900))
+    assert len(lines) == 1 and abs(lines[0].freq_hz - 330) < 5
+    assert lines[0].raw_db > lines[0].left_db > 3
+
+
 def test_freq_throttle_tracks_motor_line():
     # raie dont la fréquence suit le gaz : f = 100 + 4 × gaz
     n = int(60 * FS)
