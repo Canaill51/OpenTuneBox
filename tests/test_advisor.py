@@ -59,6 +59,38 @@ def test_overshoot_detected_on_low_damping():
     assert all(f.detail for f in rep.findings)
 
 
+def test_dterm_noise_on_ptb_scale():
+    from opentunebox.advisor.rules import DTERM_PTB_MAX_DB, analyze
+
+    # Kris : terme D au-dessus du repère −10 dB de PIDtoolbox, gyro filtré au-dessus de −30 dB
+    rep = analyze(_load("1. PTB/Kris/BTFL_BLACKBOX_LOG_TP_20260914_181415_F722_AIO.bbl"))
+    assert rep.measures["dterm_peak_ptb_db"] > DTERM_PTB_MAX_DB
+    d = next(f for f in rep.findings if f.title == "Terme D bruité")
+    assert "PIDtoolbox" in d.detail
+    g = next(f for f in rep.findings if "gyro filtré" in f.title.lower())
+    assert "PIDtoolbox" in g.detail
+
+
+def test_filter_delay_targets_and_rpm_q():
+    from dataclasses import replace
+
+    from opentunebox.advisor.profiles import PROFILES, filter_delay_target_ms
+    from opentunebox.advisor.rules import RPM_Q_LOW_DELAY, analyze
+    from opentunebox.analysis.period import auto_period
+
+    # graphique de Brian White : 1 ms à 2", 4 ms (gyro) et 3 ms (D) à 14"
+    assert filter_delay_target_ms(5) == (1.75, 1.5)
+    assert filter_delay_target_ms(14) == (4.0, 3.0)
+    assert filter_delay_target_ms(None) is None and filter_delay_target_ms(1.6) is None
+    # repère de retard nul : le conseil apparaît, avec l'objectif et le Q RPM plus haut si Q < 750
+    lg = _load("1. PTB/Fred28/Stock.BFL")
+    assert lg.settings.rpm_q < RPM_Q_LOW_DELAY
+    rep = analyze(lg, lg.slice_time(*auto_period(lg)), replace(PROFILES["five"], gyro_delay_max_ms=0.0))
+    f = next(f for f in rep.findings if f.title == "Filtrage gyro peut-être trop prudent")
+    assert "Brian White" in f.detail
+    assert any("rpm_filter_q" in a for a in f.actions)
+
+
 def test_imbalance_interpretation():
     from opentunebox.advisor.rules import _imbalance_finding
 

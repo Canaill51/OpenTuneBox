@@ -83,7 +83,10 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
 - Numéros de `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12) → `log/debug_tables.py`.
 - 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max` → normalisé dans `log/settings.py`.
 - Retards de filtres : méthode de **phase** (10–100 Hz, pondérée par la cohérence), pas l'intercorrélation
-  (dominée par le bruit haute fréquence).
+  (dominée par le bruit haute fréquence). PIDtoolbox affiche un retard D 0,3 à 0,9 ms trop court (le gyro
+  concorde) : ses objectifs de retard D ne s'appliquent pas tels quels.
+- Repères en dB de PIDtoolbox (gyro −30, D −10) : nos DSP sont 6,5 dB plus hautes → `spectral.PTB_PSD_OFFSET_DB`,
+  `rules.band_peak_ptb_db` (sommet du spectre lissé, sur l'échelle de PTB).
 - Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic
   cherché dans max(150 ms, 3 × latence). Bande passante calculée à partir de 2 Hz, lissage `uniform_filter1d(mode="nearest")`.
 - Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²

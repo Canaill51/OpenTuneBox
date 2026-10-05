@@ -22,7 +22,17 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   d'erreur (jackknife) sur les marges ; point creux quand la valeur n'est qu'approchée (termes absents),
   triangle quand le pic de sensibilité n'est qu'un minimum (au-delà des fréquences mesurables).
 
+- Assistant : repères de Brian White (PIDtoolbox) sur l'échelle de ses spectres (nos DSP sont 6,5 dB
+  plus hautes) : terme D signalé aussi quand le sommet de son spectre dépasse −10 dB ; niveau du gyro
+  filtré affiché face au repère −30 dB ; objectifs de retard des filtres selon la taille (graphique de
+  Brian White) rappelés dans les textes ; conseil « filtrage gyro trop prudent » complété par
+  `rpm_filter_q` → 750 quand Q est plus bas.
+- `scripts/calibrate_advisor.py` : sommets des spectres gyro et D sur l'échelle de PIDtoolbox, retard gyro
+  par intercorrélation, réglages et harmoniques brutes du filtre RPM.
+
 ### Modifié
+- Assistant : un retard des filtres gyro au-dessus du repère n'est plus affiché « ok » quand le bruit
+  empêche de filtrer moins (info) ; nouvelle ligne « ok » pour le retard des filtres du D.
 - Assistant : taille du drone détectée par la fréquence des moteurs **et** le nombre de cellules
   (1S → whoop ; 2 à 4S entre 200 et 290 Hz → 2–3,5") ; limite 5"/7" abaissée de 175 à 160 Hz. Juste pour
   38 drones de taille connue sur 41, au lieu de 27 : les 3,5" et 2,5" ne sont plus pris pour des 5".

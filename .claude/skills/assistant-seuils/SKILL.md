@@ -61,6 +61,9 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
   **Estimation**, même si beaucoup de pilotes la répètent (cas des paliers 1,02–1,08 / 1,20 du pic de
   réponse, recherche du 2026-10-05). Préférer la source primaire (auteur de l'outil, développeurs
   Betaflight, code) au blog qui la reprend ; une page disparue se lit sur la Wayback Machine.
+- **Repère lu dans PIDtoolbox** : ses spectres sont 6,5 dB sous les nôtres (`spectral.PTB_PSD_OFFSET_DB`,
+  mesure `rules.band_peak_ptb_db`) et son retard D 0,3 à 0,9 ms sous le nôtre ; recouper avec les captures
+  `PTB_FIGS_*` avant d'adopter un autre repère chiffré (`docs/validation.md`).
 - **Fonctionnalité récente d'un autre outil** : vérifier son historique (PR, version publiée ou non,
   essais en vol, tickets ouverts) avant de la citer. L'onglet Autotune du configurateur (2026) a été
   examiné et **n'est pas une source** (voir `docs/assistant.md`).

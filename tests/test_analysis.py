@@ -40,6 +40,17 @@ def test_spectrum_finds_sine():
     assert s.values[k] == pytest.approx(3.0, rel=0.1)
 
 
+def test_band_peak_on_ptb_scale():
+    from opentunebox.advisor.rules import band_peak_ptb_db
+    from opentunebox.analysis.spectral import PTB_PSD_OFFSET_DB
+
+    # bruit blanc d'écart-type σ : DSP unilatérale 2σ²/fs, plate ; le sommet lissé dépasse à peine ce niveau
+    sigma = 3.0
+    x = np.random.default_rng(1).normal(0, sigma, int(20 * FS))
+    level = 10 * np.log10(2 * sigma**2 / FS) - PTB_PSD_OFFSET_DB
+    assert level < band_peak_ptb_db(x, FS, 80, 500) < level + 2.5
+
+
 def test_freq_throttle_tracks_motor_line():
     # raie dont la fréquence suit le gaz : f = 100 + 4 × gaz
     n = int(60 * FS)

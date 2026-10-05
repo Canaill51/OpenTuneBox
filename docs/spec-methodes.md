@@ -149,8 +149,8 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz
   résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (Brian White situait les
   moteurs vers 200–500 Hz [S7]). Propwash le plus souvent vers 30–50 Hz [S23].
-- **Niveaux de bruit** (échelle en dB des spectres de PIDtoolbox, pas notre densité spectrale : non
-  comparables tels quels aux seuils de l'assistant) : gyro filtré sous −30 dB, « a good rule of thumb »
+- **Niveaux de bruit** (échelle en dB des spectres de PIDtoolbox, 6,5 dB sous notre densité spectrale,
+  `validation.md`) : gyro filtré sous −30 dB, « a good rule of thumb »
   [S21, S22, repris par S6] ; terme D idéalement sous −20 dB, au plus −10 dB [S20] (S6 citait −10 dB).
 - **Spectrogramme fréquence × gaz** : bruit moteur = ligne qui suit le gaz (diagonale) [S8, S6] ; résonance
   = fréquence fixe quel que soit le gaz [S6, S9] (ligne horizontale ou verticale selon l'axe des
@@ -158,7 +158,10 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - **Retard des filtres** : « aim for < 5ms total latency if possible » [S1, retard gyro estimé par
   PIDtoolbox par intercorrélation, roll seul : pas tout à fait notre méthode de phase] ; Brian White vise
   désormais 1,5 ms au plus pour le gyro filtré d'un 5", jusqu'à ≈ 5 ms pour un 10" (« rough
-  guestimate ») [S20] ; 4–5 ms « raisonnable » pour un 5" [S10] ; 7–8 ms = filtrage très lourd [S11].
+  guestimate ») [S20] ; son graphique « Rough guide to ideal filter delay » donne des droites de 1 ms à 2"
+  jusqu'à 4 ms (gyro) et 3 ms (D) à 14", soit 1,75 / 1,5 ms pour un 5" [S26] (valeurs lues par PIDtoolbox,
+  dont le retard D est environ 0,5 ms sous le nôtre, `validation.md`) ; 4–5 ms « raisonnable » pour un 5"
+  [S10] ; 7–8 ms = filtrage très lourd [S11].
 - **Fréquence fondamentale des moteurs** : régime en charge ≈ 70 % du régime à vide KV × cellules × 4 V
   [S12], soit ≈ KV × tension nominale × 0,75. Tableau par taille (whoop 65–75 mm 550–800 Hz en
   stationnaire / 1,1–1,4 kHz plein gaz ; 2,5–3,5" 350–450 / 800–950 ; 5" 200–270 / 500–650 ; 7" 130–170 /
@@ -248,3 +251,8 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S25] Brian White, [réglage Betaflight avec PIDtoolbox](https://www.youtube.com/watch?v=ehvQm8Rqrzk),
   2025-09-04 : Damping 0,6 à 1,2, « the 1.2 is even really overdampened […] 0.8 or 1.0 is fine »
   ([13:30](https://www.youtube.com/watch?v=ehvQm8Rqrzk&t=810s)).
+- [S26] Brian White, graphique « Rough guide to ideal filter delay » (axe X « Drone size (inch) » de 2 à
+  14, axe Y « Target Filter Delay (msec) » ; droites « gyro » de 1 à 4 ms et « dterm » de 1 à 3 ms),
+  publié sur le serveur Discord de PIDtoolbox, date non relevée ; capture transmise par Cédric le
+  2026-10-05. Brian White l'évoque dans [S20] ([40:24](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2424s) :
+  « I made this little chart […] purely out of experience »).

@@ -123,7 +123,9 @@ l'erreur PID, batterie.
 ### Assistant de réglage (Assistant)
 Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, filtres, moteurs,
 mécanique. Chaque constat donne la mesure et le seuil (calibré sur ~700 vols réels, en comparant votre
-drone à ceux de la même taille) et propose une action. Pour les tailles encore peu représentées (whoop,
+drone à ceux de la même taille) et propose une action. Le bruit et le retard des filtres sont aussi comparés
+aux repères de Brian White, l'auteur de PIDtoolbox (gyro filtré sous −30 dB, terme D au plus −10 dB sur
+l'échelle de ses spectres, objectif de retard selon la taille). Pour les tailles encore peu représentées (whoop,
 2–3,5", 8" et plus), l'assistant prévient que ses seuils sont provisoires. Les conseils sont des points de départ : confirmez au ressenti et à la
 température des moteurs.
 

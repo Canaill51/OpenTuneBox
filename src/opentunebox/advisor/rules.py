@@ -22,12 +22,18 @@ from ..analysis.sliders import slider_view
 from ..analysis.stats import flight_stats, pid_error_stats
 from ..analysis.step import StepResult, step_response
 from ..log.flightlog import AXES, FlightLog
-from .profiles import CraftProfile, detect_profile
+from .profiles import CraftProfile, detect_profile, filter_delay_target_ms
 
 # Stabilité (boucle ouverte mesurée), en conseil : Ms ≤ ~2 (6 dB) et marge 30–60° dans les manuels ;
 # 7 dB et 35° retenus sur le corpus du 2026-10-05 (20 % des sessions au lieu de 33 %, docs/assistant.md)
 SENSITIVITY_HIGH_DB = 7.0
 PHASE_MARGIN_LOW_DEG = 35.0
+# Repères de Brian White sur l'échelle des spectres de PIDtoolbox (docs/spec-methodes.md, [S20]–[S22]) :
+# terme D au plus −10 dB (déclenche le constat, avec le p90 du corpus), gyro filtré sous −30 dB (affiché)
+DTERM_PTB_MAX_DB = -10.0
+GYRO_PTB_MAX_DB = -30.0
+# Q du filtre RPM proposé pour gagner du retard sur un drone propre (Brian White, [S20] 34:12)
+RPM_Q_LOW_DELAY = 750
 
 # Niveaux de gravité
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
@@ -67,6 +73,14 @@ def _band_db(x: np.ndarray, fs: float, lo: float, hi: float) -> float:
     hi = min(hi, 0.95 * fs / 2)
     m = (s.freqs >= lo) & (s.freqs <= hi)
     return float(np.mean(s.values[m])) if m.any() else float("nan")
+
+
+def band_peak_ptb_db(x: np.ndarray, fs: float, lo: float, hi: float) -> float:
+    """Sommet du spectre lissé dans la bande, sur l'échelle de PIDtoolbox (ce que l'œil lit sur sa courbe)."""
+    s = spectral.spectrum(x, fs, resolution_hz=2.0, smoothing=2)
+    hi = min(hi, 0.95 * fs / 2)
+    m = (s.freqs >= lo) & (s.freqs <= hi)
+    return float(np.max(s.values[m])) - spectral.PTB_PSD_OFFSET_DB if m.any() else float("nan")
 
 
 def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | None = None) -> Report:
@@ -145,36 +159,75 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     g_db = [_band_db(log.gyro[a, sel], fs, 80, hi) for a in range(2)]
     d_db = [_band_db(log.d_term[a, sel], fs, 80, hi) for a in range(2) if np.any(log.d_term[a])]
     low_db = [_band_db(log.gyro[a, sel], fs, 20, 80) for a in range(2)]
-    meas.update(gyro_noise_db=g_db, dterm_noise_db=d_db, low_band_db=low_db)
+    g_ptb = max(band_peak_ptb_db(log.gyro[a, sel], fs, 80, hi) for a in range(2))
+    d_ptb = max((band_peak_ptb_db(log.d_term[a, sel], fs, 80, hi) for a in range(2) if np.any(log.d_term[a])),
+                default=float("nan"))
+    meas.update(gyro_noise_db=g_db, dterm_noise_db=d_db, low_band_db=low_db, gyro_peak_ptb_db=g_ptb,
+                dterm_peak_ptb_db=d_ptb)
     gyro_noisy = max(g_db) > profile.gyro_noise_high_db
-    dterm_noisy = bool(d_db) and max(d_db) > profile.dterm_noise_high_db
+    dterm_corpus = bool(d_db) and max(d_db) > profile.dterm_noise_high_db
+    dterm_ptb = bool(np.isfinite(d_ptb) and d_ptb > DTERM_PTB_MAX_DB)
+    dterm_noisy = dterm_corpus or dterm_ptb
     if dterm_noisy:
+        why = []
+        if dterm_corpus:
+            why.append(f"bruit moyen {max(d_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille "
+                       f"(seuil {profile.dterm_noise_high_db:.1f} dB)")
+        if dterm_ptb:
+            why.append(f"sommet du spectre à {d_ptb:.0f} dB sur l'échelle de PIDtoolbox, au-dessus du repère de "
+                       f"{DTERM_PTB_MAX_DB:.0f} dB (idéal : sous −20 dB)")
         F.append(Finding("Bruit", ATTENTION, "Terme D bruité",
-                         f"Bruit du terme D {max(d_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille (seuil {profile.dterm_noise_high_db:.1f} dB). "
-                         "Un D bruité fait chauffer les moteurs et use les ESC.",
+                         "Terme D : " + " ; ".join(why) + ". Un D bruité fait chauffer les moteurs et use les ESC.",
                          ["Vérifiez d'abord la mécanique (hélices, roulements, vis du châssis).",
                           "Curseur « filtre D » : −0,1 à −0,2 (filtrage plus fort), ou baisser le D (curseur Damping) si la réponse le permet.",
                           "Après le vol : moteurs tièdes = OK ; chauds = réduire D ou filtrer plus."]))
     if gyro_noisy:
         F.append(Finding("Bruit", ATTENTION, "Gyro filtré bruité",
-                         f"Bruit du gyro filtré {max(g_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille (seuil {profile.gyro_noise_high_db:.1f} dB).",
+                         f"Bruit du gyro filtré {max(g_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille (seuil {profile.gyro_noise_high_db:.1f} dB). "
+                         f"Sommet du spectre à {g_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : sous {GYRO_PTB_MAX_DB:.0f} dB).",
                          ["Contrôlez hélices et moteurs (vibrations), la fixation du contrôleur de vol (silentblocs).",
                           "Curseur « filtre gyro » : −0,1 à −0,2."]))
+    elif np.isfinite(g_ptb):
+        F.append(Finding("Bruit", OK if g_ptb <= GYRO_PTB_MAX_DB else INFO, "Bruit du gyro filtré",
+                         f"Sommet du spectre à {g_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : sous "
+                         f"{GYRO_PTB_MAX_DB:.0f} dB) ; bruit moyen {max(g_db):.1f} dB, dans les 90 % du corpus "
+                         f"(seuil {profile.gyro_noise_high_db:.1f} dB)."))
+    if not dterm_noisy and np.isfinite(d_ptb):
+        F.append(Finding("Bruit", OK, "Bruit du terme D",
+                         f"Sommet du spectre à {d_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : au plus "
+                         f"{DTERM_PTB_MAX_DB:.0f} dB, idéal sous −20 dB)."))
+    target = filter_delay_target_ms(profile.nominal_inch)
+    g_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[0]:.2f} ms."
+              if target else "")
     if np.isfinite(delays.gyro_ms):
         if delays.gyro_ms > profile.gyro_delay_max_ms and not gyro_noisy and not dterm_noisy:
+            actions = ["Curseur « filtre gyro » : +0,1 à +0,2 (moins de retard → meilleure réactivité, moins de propwash)."]
+            if s.rpm_harmonics > 0 and s.rpm_q < RPM_Q_LOW_DELAY:
+                actions.append(f"Filtre RPM : rpm_filter_q {s.rpm_q} → {RPM_Q_LOW_DELAY} (notchs plus étroits, moins "
+                               "de retard) si le bruit moteur reste bien éliminé.")
+            actions.append("Contrôlez la température des moteurs après chaque changement.")
             F.append(Finding("Filtres", CONSEIL, "Filtrage gyro peut-être trop prudent",
                              f"Retard des filtres gyro {delays.gyro_ms:.2f} ms (repère {profile.gyro_delay_max_ms:.1f} ms pour "
-                             f"{profile.label}) alors que le bruit est faible.",
-                             ["Curseur « filtre gyro » : +0,1 à +0,2 (moins de retard → meilleure réactivité, moins de propwash).",
-                              "Contrôlez la température des moteurs après chaque changement."]))
+                             f"{profile.label}, plus que 90 % des drones du corpus) alors que le bruit est faible." + g_goal,
+                             actions))
+        elif delays.gyro_ms > profile.gyro_delay_max_ms:
+            F.append(Finding("Filtres", INFO, "Retard des filtres gyro",
+                             f"{delays.gyro_ms:.2f} ms, au-dessus du repère ({profile.gyro_delay_max_ms:.1f} ms pour "
+                             f"{profile.label}), mais le bruit ne permet pas de filtrer moins." + g_goal))
         else:
             F.append(Finding("Filtres", OK, "Retard des filtres gyro",
-                             f"{delays.gyro_ms:.2f} ms (repère ≤ {profile.gyro_delay_max_ms:.1f} ms pour {profile.label})."))
-    if np.isfinite(delays.dterm_ms) and delays.dterm_ms > profile.dterm_delay_max_ms and not dterm_noisy:
-        F.append(Finding("Filtres", CONSEIL, "Filtrage du D peut-être trop fort",
-                         f"Retard des filtres D {delays.dterm_ms:.2f} ms (repère {profile.dterm_delay_max_ms:.1f} ms) "
-                         "avec un D peu bruité.",
-                         ["Curseur « filtre D » : +0,1."]))
+                             f"{delays.gyro_ms:.2f} ms (repère ≤ {profile.gyro_delay_max_ms:.1f} ms pour {profile.label})." + g_goal))
+    if np.isfinite(delays.dterm_ms):
+        d_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[1]:.2f} ms "
+                  "lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms plus court qu'ici." if target else "")
+        if delays.dterm_ms > profile.dterm_delay_max_ms and not dterm_noisy:
+            F.append(Finding("Filtres", CONSEIL, "Filtrage du D peut-être trop fort",
+                             f"Retard des filtres D {delays.dterm_ms:.2f} ms (repère {profile.dterm_delay_max_ms:.1f} ms) "
+                             "avec un D peu bruité." + d_goal,
+                             ["Curseur « filtre D » : +0,1."]))
+        elif delays.dterm_ms <= profile.dterm_delay_max_ms:
+            F.append(Finding("Filtres", OK, "Retard des filtres D",
+                             f"{delays.dterm_ms:.2f} ms (repère ≤ {profile.dterm_delay_max_ms:.1f} ms pour {profile.label})." + d_goal))
     if log.motor_hz is not None and log.gyro_unfilt is not None and s.rpm_harmonics > 0:
         mn = [motor_noise(log.gyro[a, sel], log.motor_hz[:, sel], fs) for a in range(2)]
         mp = [motor_noise(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], fs) for a in range(2)]
