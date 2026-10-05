@@ -73,6 +73,35 @@ sinon communs à tout le corpus (90 drones). La saturation est toujours commune 
 | Écart de pic roll / pitch | 0,12 | 0,12 | 0,07 |
 | Résonance (dB au-dessus du bruit voisin) | 7,9 | 7,4 | 7,3 |
 
+### Corpus de référence (`corpus.csv`)
+
+Plus de la moitié des logs du corpus (« 1. PTB », « 3. BBLR FB ») sont des **demandes d'aide** : les
+percentiles ci-dessus décrivent donc surtout des drones à problème, et sont probablement trop indulgents.
+Pour les recalculer sur des drones connus, `scripts/corpus_labels.py` tient un tableau d'étiquettes,
+`corpus.csv`, rangé dans le dossier des logs (`OTB_LOGS`, hors du dépôt), une ligne par drone (même
+identité que la calibration), séparateur « ; » :
+
+| Colonne | Contenu |
+|---|---|
+| `drone`, `dossiers`, `sessions`, `origine` | identité, dossiers des logs, sessions de 8 s ou plus, dossier de 1er niveau |
+| `taille_detectee`, `freq_moteur_hz` | profil détecté par l'assistant, fréquence moteur médiane en vol |
+| `motor_kv` | réglage `motor_kv` ; vide s'il vaut 1960, la valeur par défaut du firmware (`pg/motor.c`) |
+| `cellules` | formule du firmware (`sensors/battery.c`) : tension au branchement (`vbatref`) / `vbatcellvoltage` max + 1 |
+| `etat` | `aide`, `origine` (réglages d'usine), `regle` (réglage terminé) ou `inconnu` |
+| `taille_reelle` | taille en pouces (« 3,5 ») ou « whoop » |
+| `remarque` | texte libre |
+
+Les colonnes automatiques sont mises à jour à chaque passage du script. `etat`, `taille_reelle` et
+`remarque` sont pré-remplies à la création de la ligne, puis **jamais écrasées** : `etat` = `aide` pour
+« 1. PTB » et « 3. BBLR FB », sinon `regle` si un nom de fichier ou de dossier contient « final »,
+« tuned » ou « last », sinon `origine` s'il contient « stock », sinon `inconnu` ; `taille_reelle` seulement
+si la taille est écrite dans un nom (« 3.5 inch », « 5" », « Air65 »). Le pré-remplissage est à vérifier à la
+main.
+
+**Corpus de référence** = drones dont l'état est `regle` ou `origine`. `calibrate_advisor.py --resume`
+affiche chaque groupe (taille, puis TOUS) suivi de sa partie « référence » quand `corpus.csv` existe. Les
+seuils actuels restent ceux du corpus entier tant que le tableau n'est pas rempli.
+
 ## Règles
 
 Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit

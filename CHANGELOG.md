@@ -10,6 +10,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   (trop peu de drones dans le corpus de calibration).
 - `scripts/calibrate_advisor.py` : déséquilibre, terme I, saturation, résonance, fréquence moteur et nom
   du drone mesurés ; `--resume` affiche les percentiles par taille, par session et avec une voix par drone.
+- `scripts/corpus_labels.py` : tableau d'étiquettes du corpus (`corpus.csv` dans le dossier des logs, une
+  ligne par drone : état, taille réelle, fréquence moteur, KV, cellules), pré-rempli puis complété à la
+  main ; `calibrate_advisor.py --resume` affiche à côté de chaque groupe son corpus de référence (drones
+  réglés ou d'origine, hors demandes d'aide).
 
 ### Modifié
 - Assistant : seuils mécaniques calibrés sur 90 drones (déséquilibre 11–14 % au lieu de 12 %, terme I
