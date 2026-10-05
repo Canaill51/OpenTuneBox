@@ -251,6 +251,36 @@ LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallumen
   sessions, d'où la prévision ajoutée au seul conseil « filtrage du D peut-être trop fort » (34 sessions
   candidates).
 
+### Pic de réponse indicielle (2026-10-05)
+
+Les anciens paliers (conseil > 1,10, attention > 1,20, objectif 1,02–1,08) étaient des estimations sans
+source. Ils signalaient 46 % des sessions du corpus (23 % en attention). Mesures sur 681 sessions, axes roll
+et pitch, une voix par drone (médiane de ses axes) :
+
+| Pic de réponse | Axes | Drones | p50 | p75 | p90 | p95 |
+|---|---|---|---|---|---|---|
+| Sans feedforward (F = 0) | 492 | 40 | 1,06 | 1,10 | 1,15 | 1,20 (axes : 1,25) |
+| Avec feedforward (F > 0) | 761 | 76 | 1,12 | 1,22 | 1,42 | 1,60 (axes : 1,55) |
+
+- **Le feedforward gonfle le pic** (mesuré ici ; aussi dit par Brian White dans une vidéo de questions-réponses,
+  non citée faute de citation vérifiée) : p90 par session 1,18 sans, 1,38 avec. Un même
+  palier pour les deux signalerait surtout les drones avec feedforward.
+- **Paliers communs à toutes les tailles** : moins de 20 drones par taille dans chaque groupe (sauf le 5"
+  avec feedforward), percentiles par taille instables. Par session, sans feedforward : 5" p90 1,16, 7"
+  1,11, 2–3,5" 1,28.
+- **Paliers retenus** (décision de Cédric) : conseil = p90 par drone, attention = p95 par axe, arrondis :
+  sans feedforward 1,15 / 1,25, avec feedforward 1,40 / 1,55 (`rules.STEP_PEAK_HIGH`,
+  `rules.STEP_PEAK_HIGH_FF`). Sessions signalées : 13 % (`advisor_rates.py`, au moins un constat de
+  dépassement ; environ 7 % en attention) ; 5" 12 %, 7" 7 %, 2–3,5" 23 %,
+  whoop 18 %, 8"+ 21 %. Le corpus est fait surtout de demandes d'aide : ces paliers sont probablement
+  indulgents (Damping 1.0 de BlackSummer, pic 1,14, n'est plus signalé).
+- **Repère sans dépassement** : série BlackSummer (`1. PTB/BlackSummer`, sans feedforward, seul le D change),
+  méthode de Brian White (garder la première valeur de Damping sans dépassement [S24, S25]) : pic roll 1,25 /
+  1,14 / 1,03 / 1,03 / 1,02 (D croissant ; 1,23 / 1,11 / 1,00 / 0,98 dans PIDtoolbox, `validation.md`) ;
+  la série « Master multi » faite ensuite avec ce Damping donne 1,02 à 1,03. « Sans dépassement visible »
+  ≈ **1,03** sur notre échelle (`rules.STEP_PEAK_FLAT`), un seul drone : repère indicatif, affiché dans les
+  textes, sans seuil.
+
 ## Règles
 
 Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit
@@ -262,7 +292,8 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   moitié de la fréquence du log (conseil, `blackbox_sample_rate` pour 6 × la fréquence moteur) ; gyro non filtré absent ; pas de télémétrie RPM ; plus de 20 trames corrompues (info).
 - **Vol** : crash détecté, la période d'analyse s'arrête avant (info).
 - **Réponse** (au moins 20 fenêtres par axe, sinon « Pas assez de mouvements de manche ») :
-  - dépassement : pic > 1,20 (attention), > 1,10 (conseil) ; attribué au feedforward si F > 0 et si la
+  - dépassement : sans feedforward, pic > 1,25 (attention), > 1,15 (conseil) ; avec feedforward (F > 0),
+    > 1,55 et > 1,40 ; attribué au feedforward si F > 0 et si la
     latence est plus courte que le repère bas de la taille ;
   - réponse molle : pic < 0,98 et latence au-delà du repère haut de la taille ;
   - roll et pitch différents : écart de pic > seuil de la taille (curseur « D pitch ») ;
@@ -343,7 +374,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Trames corrompues | > 20 | Estimation | Constat informatif ; p90 du corpus ≈ 1 trame, un seuil calibré signalerait la moindre trame |
 | Mouvements de manche suffisants | ≥ 20 fenêtres | Estimation | |
 | Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Code de PID-Analyzer (2018) et de PIDtoolbox v0.55 (2022) [S5, S2] |
-| Dépassement | pic > 1,10 (conseil), > 1,20 (attention) ; objectif 1,02–1,08 | Estimation | Aucune source publique pour ces paliers (recherche du 2026-10-05) : les sources ne donnent que le sens (« not too much overshoot », plus de D contre le dépassement [S1, S4]) ; UAV Tech vise une réponse sans dépassement. Dans le corpus, le p90 vaut 1,2 à 1,3 : plus de 10 % des sessions sont en « attention ». À calibrer sur le corpus |
+| Dépassement | sans feedforward : pic > 1,15 (conseil), > 1,25 (attention) ; avec feedforward : > 1,40, > 1,55 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon F (« Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode de Brian White [S24, S25]) |
 | Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
 | Réponse molle | pic < 0,98 et latence > p90 de la taille | Estimation (0,98) + corpus (latence) | |
 | Roll et pitch différents | écart de pic > 0,07 à 0,12 selon la taille | Corpus | Seuils mécaniques |

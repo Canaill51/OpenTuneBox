@@ -101,7 +101,8 @@ lecteur ; un clic sur un spectrogramme le déplace).
 
 ### Réponse indicielle (Indicielle)
 La réaction du drone à un ordre de manche « en marche d'escalier », moyennée sur tout le vol.
-Objectifs : montée rapide, **pic entre 1,02 et 1,08**, pas de rebond. Colonnes de mesures au choix :
+Objectifs : montée rapide, **pic proche de 1** (sans feedforward, une réponse sans dépassement visible donne
+environ 1,03 ; le feedforward fait monter le pic), pas de rebond. Colonnes de mesures au choix :
 latence, temps de montée, bande passante, pic de sensibilité (< 7 dB), marge de phase (> 35°), marge de
 gain, fréquence de croisement…
 Les marges de stabilité sont **mesurées** à partir des termes P, I, D et F enregistrés dans le log (point
