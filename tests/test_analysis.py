@@ -87,6 +87,20 @@ def test_dyn_notch_targets_skip_motor_lines():
     assert dyn_notch_targets(x, mhz, FS, (100, 600)).freqs.size >= 2
 
 
+def test_stick_movement_criterion():
+    from types import SimpleNamespace
+
+    from opentunebox.analysis.delay import MOVING_SETPOINT_DPS, stick_p95_dps
+
+    # stationnaire : consigne de quelques °/s ; vol : flips à 300 °/s 10 % du temps
+    rng = np.random.default_rng(0)
+    hover = rng.normal(0, 5, (3, 4000))
+    flight = hover.copy()
+    flight[0, :400] = 300.0
+    p = lambda sp: stick_p95_dps(SimpleNamespace(setpoint=sp), slice(None))  # noqa: E731
+    assert p(hover) < MOVING_SETPOINT_DPS <= p(flight)
+
+
 def test_freq_throttle_tracks_motor_line():
     # raie dont la fréquence suit le gaz : f = 100 + 4 × gaz
     n = int(60 * FS)

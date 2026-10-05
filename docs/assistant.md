@@ -209,7 +209,7 @@ LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallumen
 - **Simulateur** (`rules.predict_filter_change`, spectre « et si » de `bf_filters`, variation ajoutée aux
   mesures des règles) : couper le LPF1 du gyro (92 sessions) fait gagner 0,47 ms (médiane) pour +3,4 dB de
   gyro et +3,1 dB de D ; le bruit reste sous les repères (gyro et D sous le p90, sommet du D sous −10 dB
-  PIDtoolbox) dans 55 cas (8 % du corpus). Relever les filtres du gyro de 25 % ne fait gagner que 0,06 ms
+  PIDtoolbox) dans 55 cas (8 % du corpus), 30 (4 %) en ne gardant que les vols avec mouvements. Relever les filtres du gyro de 25 % ne fait gagner que 0,06 ms
   (règle écartée). Relever ceux du D de 25 % : 0,48 ms pour +2,6 dB, sous les repères dans 60 % des
   sessions, d'où la prévision ajoutée au seul conseil « filtrage du D peut-être trop fort » (34 sessions
   candidates).
@@ -247,6 +247,10 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   du bruit voisin après filtrage) alors que son poids est < 100 → remonter le poids ; en 4.5 et plus, si le
   bruit moteur est bien éliminé, poids de la 2e ou de la 3e harmonique plus fort que nécessaire d'au moins
   0,5 → `rpm_filter_weights` proposés (voir « Filtre RPM : poids et Q »).
+- **Retards des filtres** : seulement si le vol contient des mouvements (consigne au-delà de 50 °/s au
+  moins 5 % du temps) ; sinon « Retard des filtres peu représentatif » (info), sans conseil de filtrage
+  fondé sur le retard (« filtrage gyro trop prudent », « filtrage du D trop fort », « LPF1 du gyro peut
+  être coupé »).
 - **Passe-bas** (voir « Passe-bas du gyro et du D ») : LPF2 du gyro coupé avec une boucle PID plus lente
   que le gyro (attention sous 3 kHz, conseil à 4 kHz) ; D filtré à l'ordre 1 seulement (attention) ; LPF1
   du D statique et biquad sur le gyro (info) ; avec le filtre RPM et un bruit sous les repères, « Le LPF1
@@ -316,10 +320,11 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
 | Relèvement de `dyn_notch_min_hz` | jusqu'à 200 Hz (7" et plus : 125 Hz), sous le pic le plus bas − 20 Hz, si le gain atteint 30 Hz | Firmware (doc) + communauté + estimation (30 Hz) | « as high as practical (eg 200hz) » [S19] ; presets officiels 7–10" entre 80 et 125 Hz [S16] ; seulement dans le conseil « filtrage gyro trop prudent » (2 % des sessions) |
 | Nombre de notchs | autant que de pics à suivre, 1 au moins | Firmware (doc) | « Usually no more than two or three are needed […] and often only one » ; « only using the minimum number of notches » [S19] ; constat **info** : 27 % des sessions (16 % des drones)
+| Vol avec mouvements (retards représentatifs) | 95e centile de \|consigne\| ≥ 50 °/s (roll ou pitch) | Corpus + estimation | Remarque de Cédric (2026-10-05) ; vols stationnaires du corpus ≤ 24 °/s, avec wobble ≥ 92 °/s ; l'intercorrélation s'y trompe une fois sur deux (`validation.md`). 108 sessions (16 %) en dessous ; `calibrate_advisor.py` en écarte les retards. Seuils de retard calibrés avant ce tri |
 | LPF2 du gyro anti-repliement | PID < gyro : PT1 500 Hz (attention sous 3 kHz), 500–1000 Hz (conseil à 4 kHz) | Firmware (doc) | [S12, S19, S29] |
 | Ordre minimal du filtrage du D | 2 (deux PT1 ou un filtre d'ordre 2) | Firmware (doc) | [S29] ; PT2 et biquad comptent pour 2, PT3 pour 3 |
 | LPF1 du D dynamique proposé | min = coupure statique, max = 2 × min | Firmware (défauts 75–150 Hz) + estimation | Mode statique « not recommended » [S29] |
-| Coupure du LPF1 du gyro | si filtre RPM actif, bruit actuel et prévu sous les repères | Firmware (doc) + corpus (repères) | [S29, S30] ; 8 % des sessions |
+| Coupure du LPF1 du gyro | si filtre RPM actif, vol avec mouvements, bruit actuel et prévu sous les repères | Firmware (doc) + corpus (repères) | [S29, S30] ; 4 % des sessions |
 | Prévision du curseur « filtre D » | +0,1 = multiplicateur +10 (×1,1 sans curseur) | Firmware | `simplified_tuning.c` ; relèvement proposé seulement si le D prévu reste sous les repères |
 | Déséquilibre des moteurs | > 11 à 14,1 % selon la taille | Corpus | L'interprétation (côté ou diagonale au-delà de 12 %) reste estimée |
 | Terme I décentré | moyenne > 29 à 33 (unités PID) selon la taille | Corpus | |

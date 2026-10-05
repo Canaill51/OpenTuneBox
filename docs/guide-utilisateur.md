@@ -80,7 +80,9 @@ Chaque outil s'ouvre par son bouton dans la barre d'outils (nom du bouton entre 
 ### Analyse spectrale (Spectre)
 Spectres (FFT) du gyro et des termes PID : on y voit où se trouve le bruit et ce que les filtres
 enlèvent (préfiltre en pointillés, filtré en trait plein). Volet « < 100 Hz » pour les oscillations et
-le propwash, avec les **retards des filtres** ; volet « bruit moteur » pour l'efficacité du filtre RPM
+le propwash, avec les **retards des filtres** (mesurables seulement si le vol contient des mouvements :
+sur un simple vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime et le retard affiché
+est marqué « peu fiable ») ; volet « bruit moteur » pour l'efficacité du filtre RPM
 sur chaque harmonique. Les courbes en S montrent où se situent les harmoniques moteur pendant le vol.
 
 ### Fréquence × gaz (Fréq. × gaz)
@@ -125,7 +127,9 @@ Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, fil
 mécanique. Chaque constat donne la mesure et le seuil (calibré sur ~700 vols réels, en comparant votre
 drone à ceux de la même taille) et propose une action. Le bruit et le retard des filtres sont aussi comparés
 aux repères de Brian White, l'auteur de PIDtoolbox (gyro filtré sous −30 dB, terme D au plus −10 dB sur
-l'échelle de ses spectres, objectif de retard selon la taille). Pour les tailles encore peu représentées (whoop,
+l'échelle de ses spectres, objectif de retard selon la taille). Les conseils fondés sur le retard des filtres demandent un vol avec des
+mouvements francs (flips, rolls, wobbles) : sur un vol stationnaire, l'assistant affiche le retard sans
+conseiller. Pour les tailles encore peu représentées (whoop,
 2–3,5", 8" et plus), l'assistant prévient que ses seuils sont provisoires. Les conseils sont des points de départ : confirmez au ressenti et à la
 température des moteurs.
 

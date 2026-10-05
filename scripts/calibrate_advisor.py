@@ -4,7 +4,8 @@
 Usage : calibrate_advisor.py NB_FICHIERS SORTIE.json  (dossier de logs : variable OTB_LOGS)
         calibrate_advisor.py --resume SORTIE.json      (p10 / p50 / p90 par taille, voir docs/assistant.md)
 
-Les sessions sont reclassées par taille avec les limites actuelles (fréquence moteur et cellules). Tout le
+Les sessions sont reclassées par taille avec les limites actuelles (fréquence moteur et cellules). Les
+retards des filtres ne comptent que pour les vols avec mouvements (delay.MOVING_SETPOINT_DPS). Tout le
 corpus compte : pas de corpus de référence (états « regle » / « origine » invérifiables, docs/assistant.md).
 """
 import sys, json, os, random
@@ -13,7 +14,7 @@ from opentunebox.log.flightlog import load
 from opentunebox.analysis.period import auto_period
 from opentunebox.analysis.spectral import spectrum
 from opentunebox.analysis.step import step_response
-from opentunebox.analysis.delay import compute_delays, xcorr_delay_ms
+from opentunebox.analysis.delay import MOVING_SETPOINT_DPS, compute_delays, stick_p95_dps, xcorr_delay_ms
 from opentunebox.analysis.motors import harmonic_prominence, motor_noise
 from opentunebox.advisor.profiles import PROFILES, detect_profile, profile_key
 from opentunebox.advisor.rules import band_peak_ptb_db, frame_resonance
@@ -36,6 +37,8 @@ def summary(path):
             for k,n in (("hprom","prom"),("hleft","left")):  # par harmonique : prom1…3, left1…3
                 for h,v in enumerate(r.get(f"{k}_{a}") or []): r[f"{n}{h+1}_{a}"]=v
         if r.get("res_db") is not None and not r.get("res_near"): r["res_free_db"]=r["res_db"]
+        if r.get("sp95",1e9)<MOVING_SETPOINT_DPS:  # vol sans mouvements : retards des filtres non représentatifs
+            for k in [k for k in r if k.startswith(("gdelay","ddelay"))]: del r[k]
     keys=sorted({k.rsplit("_",1)[0] if k[-2:] in ("_0","_1") else k for r in rows for k in r}
                 - {"file","sess","profile","craft","drone","res_near","mnoise","hprom","hleft","rpmw","imean","cells"})
     def vals(sub,k):
@@ -108,7 +111,7 @@ for f in files[:int(sys.argv[1])]:
                         r[f"fcold_{a}"]=old.crossover_hz
                 if lg.motor_hz is not None:
                     mn=motor_noise(lg.gyro[a,sel],lg.motor_hz[:,sel],lg.fs); r[f"mnoise_{a}"]=mn.mean_db.tolist()
-            d=compute_delays(lg,sel); r["gdelay"]=d.gyro_ms; r["ddelay"]=d.dterm_ms
+            d=compute_delays(lg,sel); r["gdelay"]=d.gyro_ms; r["ddelay"]=d.dterm_ms; r["sp95"]=stick_p95_dps(lg,sel)
             fst=flight_stats(lg,sel); r["sat"]=fst.motor_saturation_pct; r["imb"]=fst.motor_imbalance_pct
             for a in range(2): r[f"imean_{a}"]=float(np.mean(lg.i_term[a,sel]))
             res=frame_resonance(lg,sel)

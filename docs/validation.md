@@ -54,6 +54,21 @@ trop bas pour nos mesures (`assistant.md`, « Repères de PIDtoolbox »).
 (hauteur avant filtres + 20·log10(1 − poids)) à 1 dB près en médiane, et reste invisible (≤ 3 dB) dans
 97 à 99 % des cas.
 
+**Retard des filtres et mouvements** (2026-10-05, 681 sessions) : écart entre le retard mesuré et le modèle
+des filtres de l'en-tête (notchs RPM au régime médian, 30 Hz), autour de sa médiane. Le 95e centile de
+|consigne| (roll ou pitch) sépare les vols : stationnaires purs 1 à 24 °/s (40 sessions nommées « hover »),
+stationnaire + wobble 92 à 409 °/s, vols ordinaires 174 °/s en médiane ; 108 sessions sont sous 50 °/s.
+
+| Méthode | Écarts > 0,5 ms, ≥ 50 °/s (573) | Écarts > 0,5 ms, < 50 °/s (107) |
+|---|---|---|
+| Intercorrélation gyro (PIDtoolbox) | 16 % | 50 % (p10 / p90 −1,22 / +1,28 ms) |
+| Phase gyro (OpenTuneBox) | 9 % | 9 % |
+| Phase D (OpenTuneBox) | 2 % | 5 % |
+
+La méthode de phase résiste mieux au manque de mouvement, mais le retard d'un vol stationnaire ne vaut
+qu'à son régime : l'assistant ne conseille rien sur le retard sous 50 °/s. Sans ces vols, le p90 du retard
+gyro passerait de 2,04 à 1,85 ms en 5" et de 1,94 à 1,71 ms en 2–3,5" (seuils non modifiés).
+
 Écart connu : la latence 50 % peut différer d'environ 1 ms (interpolation au passage exact à 50 % contre
 lecture échantillon par échantillon).
 

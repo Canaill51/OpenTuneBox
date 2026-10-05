@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..analysis import bf_filters, spectral
-from ..analysis.delay import compute_delays
+from ..analysis.delay import MOVING_SETPOINT_DPS, compute_delays
 from ..analysis.motors import dyn_notch_targets, harmonic_prominence, hover_motor_hz, motor_noise, rpm_weight_needed
 from ..analysis.period import crash_time
 from ..analysis.sliders import slider_view
@@ -217,7 +217,18 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     target = filter_delay_target_ms(profile.nominal_inch)
     g_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[0]:.2f} ms."
               if target else "")
-    if np.isfinite(delays.gyro_ms):
+    if not delays.moving and (np.isfinite(delays.gyro_ms) or np.isfinite(delays.dterm_ms)):
+        vals = " ; ".join(f"{name} {v:.2f} ms" for name, v in (("gyro", delays.gyro_ms), ("D", delays.dterm_ms))
+                          if np.isfinite(v))
+        F.append(Finding("Filtres", INFO, "Retard des filtres peu représentatif",
+                         f"Retards mesurés : {vals}. Le vol contient trop peu de mouvements (consigne au-delà de "
+                         f"{MOVING_SETPOINT_DPS:.0f} °/s moins de 5 % du temps, 95e centile {delays.stick_p95_dps:.0f} °/s) : "
+                         "en vol stationnaire, les filtres dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne "
+                         "travaillent qu'à un régime, et le retard ne se mesure pas bien. Aucun conseil de filtrage "
+                         "fondé sur le retard." + g_goal,
+                         ["Pour juger le retard des filtres : log avec des mouvements francs (flips, rolls, wobbles), "
+                          "pas seulement du vol stationnaire."]))
+    if delays.moving and np.isfinite(delays.gyro_ms):
         if delays.gyro_ms > profile.gyro_delay_max_ms and not gyro_noisy and not dterm_noisy:
             actions = ["Curseur « filtre gyro » : +0,1 à +0,2 (moins de retard → meilleure réactivité, moins de propwash)."]
             if s.rpm_harmonics > 0 and s.rpm_q < RPM_Q_MAX:
@@ -244,7 +255,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         else:
             F.append(Finding("Filtres", OK, "Retard des filtres gyro",
                              f"{delays.gyro_ms:.2f} ms (repère ≤ {profile.gyro_delay_max_ms:.1f} ms pour {profile.label})." + g_goal))
-    if np.isfinite(delays.dterm_ms):
+    if delays.moving and np.isfinite(delays.dterm_ms):
         d_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[1]:.2f} ms "
                   "lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms plus court qu'ici." if target else "")
         if delays.dterm_ms > profile.dterm_delay_max_ms and not dterm_noisy:
@@ -253,7 +264,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
             F.append(Finding("Filtres", OK, "Retard des filtres D",
                              f"{delays.dterm_ms:.2f} ms (repère ≤ {profile.dterm_delay_max_ms:.1f} ms pour {profile.label})." + d_goal))
     F.extend(_lowpass_setup_rules(s))
-    if (s.gyro_lpf1.enabled and log.gyro_unfilt is not None and log.motor_hz is not None and s.rpm_harmonics > 0
+    if (delays.moving and s.gyro_lpf1.enabled and log.gyro_unfilt is not None and log.motor_hz is not None and s.rpm_harmonics > 0
             and not gyro_noisy and not dterm_noisy):
         f = _gyro_lpf1_off(log, sel, hi, profile, g_db, d_db, d_ptb)
         if f is not None:

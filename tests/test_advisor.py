@@ -142,12 +142,17 @@ def test_lowpass_rules():
     assert f.severity == CONSEIL
     assert findings("1. PTB/StraylightFPV/KM/PID/011326 KM PDBAL 1.4.bbl")["Filtrage du D insuffisant"].severity == ATTENTION
     assert findings("Pelafoin/btfl_PUNCH_1-modif2.bbl")["LPF1 du D en mode statique"].severity == INFO
-    # simulateur : AIR65 d'origine, LPF1 du gyro superflu avec le filtre RPM
-    f = findings("Cedric/Air65/26112025/stock.bbl")["Le LPF1 du gyro peut être coupé"]
+    # simulateur : KL d'origine, LPF1 du gyro superflu avec le filtre RPM
+    f = findings("Cedric/KL/stock.bbl")["Le LPF1 du gyro peut être coupé"]
     assert "ms de retard en moins" in f.detail and f.actions[0].startswith("gyro_lpf1_static_hz = 0")
     # retard du D au-dessus du repère, D propre : relèvement proposé avec la prévision
-    f = findings("1. PTB/BlackSummer/Hover_24kHz.bfl")["Filtrage du D peut-être trop fort"]
+    f = findings("1. PTB/Fitz/btfl_004.bbl")["Filtrage du D peut-être trop fort"]
     assert "le simulateur prévoit" in f.detail and f.actions[0] == "Curseur « filtre D » : +0,1."
+    # vol stationnaire : retard non représentatif, aucun conseil fondé sur le retard
+    hover = findings("1. PTB/BlackSummer/Hover_24kHz.bfl")
+    assert hover["Retard des filtres peu représentatif"].severity == INFO
+    assert not {"Filtrage du D peut-être trop fort", "Filtrage gyro peut-être trop prudent",
+                "Le LPF1 du gyro peut être coupé"} & set(hover)
 
 
 def test_imbalance_interpretation():

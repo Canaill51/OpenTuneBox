@@ -36,6 +36,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   (20 Hz de marge, jusqu'à la limite de 20 Hz du firmware) ; `dyn_notch_min_hz` relevé dans le conseil
   « filtrage gyro trop prudent ».
 - Assistant : raies fixes (résonances) cherchées dès 20 Hz au lieu de 60 Hz.
+- Retards des filtres jugés seulement sur un vol avec des mouvements (consigne au-delà de 50 °/s au moins
+  5 % du temps) : sur un vol stationnaire, l'assistant affiche « Retard des filtres peu représentatif »
+  sans conseil, et l'outil Spectre marque le retard « peu fiable ».
 - Assistant : passe-bas du gyro et du D (configurateur et notes de réglage de Betaflight) — LPF2 du gyro
   coupé avec une boucle PID plus lente (repliement) ; D filtré à l'ordre 1 seulement ; LPF1 du D statique ;
   biquad sur le gyro ; « Le LPF1 du gyro peut être coupé » quand le simulateur de filtres prévoit un bruit
