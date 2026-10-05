@@ -30,7 +30,8 @@ class CraftProfile:
 
 
 PROFILES: dict[str, CraftProfile] = {
-    # clé, libellé, f moteur stationnaire, résonances, latence p10–p90, retard gyro / D max (p90),
+    # clé, libellé, f moteur stationnaire, résonances, latence p10–p90 (arrondis), repères de retard gyro / D
+    # (p90 arrondi vers le haut),
     # bruit gyro, D, 20–80 Hz, harmonique moteur (p90) — calibrés sur 708 sessions (2026-10-01)
     "whoop": CraftProfile("whoop", "Tiny whoop / micro (≤ 75 mm, 1–2S)", (380, 900), (250, 600), (11, 17),
                           1.6, 2.5, -28.4, -11.7, -15.6, -29.1),

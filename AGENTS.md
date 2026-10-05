@@ -27,16 +27,19 @@ les commandes qui demandent `sudo` : préparer la commande ou un script, ne pas 
 src/opentunebox/
   decoder/    décodage binaire BBL (numba, cache=True) → DecodedSession (valeurs brutes)
   log/        FlightLog (unités physiques), settings.py (en-tête normalisé par version), debug_tables.py, modes.py
-  analysis/   calculs purs numpy/scipy : spectral, step (Wiener), delay, bf_filters, sliders, motors, stats, period
+  analysis/   calculs purs numpy/scipy : spectral, step (Wiener), delay, bf_filters, sliders, motors, stats, period,
+              datasets (jeux de données analysables)
   advisor/    profils de taille (profiles.py) et règles (rules.py)
-  gui/        app.py, main_window.py (visualiseur), state.py, worker.py, tools/ (une fenêtre par outil), widgets/
+  gui/        app.py, main_window.py (visualiseur), state.py, worker.py, theme.py, icons.py, geometry.py,
+              tools/ (une fenêtre par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
-tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents)
+tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
+              test_docs.py vérifie la documentation
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
               release.py (préparer une version, notes de la page Releases)
 packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes (make_icons.py), installateurs :
               windows/ (Inno Setup), macos/ (.dmg), linux/ (AppImage)
-docs/         guide utilisateur, architecture, validation, assistant, spécifications
+docs/         guide utilisateur, architecture, validation, assistant, spécifications (index : docs/README.md)
 ```
 
 Règles :
@@ -51,7 +54,8 @@ Règles :
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/pytest -q                                  # tous les tests (≈ 30 s avec le corpus, 1 s sans)
 .venv/bin/pytest -q -m "not corpus"                  # tests rapides, sans vrais logs
-.venv/bin/python -m pyflakes src tests scripts       # lint (doit être vide)
+.venv/bin/python -m pyflakes src tests scripts packaging/make_icons.py   # lint (doit être vide)
+.venv/bin/pytest -q tests/test_docs.py               # cohérence de la documentation (< 1 s)
 .venv/bin/opentunebox-gui [LOG…]                     # interface
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande
 .venv/bin/python scripts/validate_corpus.py [DOSSIER] [--limit N]   # décodeur vs blackbox_decode
@@ -72,8 +76,8 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   (Betaflight récents) et jette les trames P qui suivent la 1re trame I d'un bloc : comparer en alignant sur
   `time`. Il accepte aussi des trames corrompues (tronquées avant un trou de carte SD, trames S parasites)
   et se bloque sur certains fichiers ; notre décodeur suit le firmware (itération = boucle PID).
-- `FlightLog._drop_implausible` écarte les trames impossibles (valeurs ±2³¹) ; une session corrompue à
-  plus de 50 % est ignorée.
+- `log/flightlog.py:_drop_implausible` écarte les trames impossibles (gyro ou consigne > 4000 °/s, terme PID > ±65535) ;
+  une session corrompue à plus de 50 % est ignorée.
 - Numéros de `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12) → `log/debug_tables.py`.
 - 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max` → normalisé dans `log/settings.py`.
 - Retards de filtres : méthode de **phase** (10–100 Hz, pondérée par la cohérence), pas l'intercorrélation
@@ -110,7 +114,10 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
    pour les analyses, `docs/architecture.md`).
 2. Valider sur **de vrais logs** en plus des tests synthétiques ; recouper avec les captures PIDtoolbox
    (`PTB_FIGS_*` du corpus) quand elles existent (résultats de référence dans `docs/validation.md`).
-3. `pytest` et `pyflakes` propres avant chaque commit ; mettre à jour `CHANGELOG.md` (section *Non publié*).
+3. **Documentation à jour à chaque modification**, dans le même commit que le code : suivre la compétence
+   `.claude/skills/docs-sync` (quels documents relire selon le changement) ; `tests/test_docs.py` vérifie
+   automatiquement liens, chemins, outils, modules, fichiers publiés et langue.
+   `pytest` et `pyflakes` propres avant chaque commit ; mettre à jour `CHANGELOG.md` (section *Non publié*).
 4. Commits en français, à l'impératif ou descriptifs, un sujet par commit. Auteur `Cedric <desmetgerry@gmail.com>`.
    Ne jamais pousser sur GitHub ni publier quoi que ce soit sans l'accord de Cédric.
 5. Une branche par sujet, nommée `type/description-courte` (convention GitHub : `feat`, `fix`, `docs`,

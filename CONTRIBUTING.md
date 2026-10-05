@@ -22,7 +22,10 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    .venv/bin/pytest -q
    .venv/bin/python -m pyflakes src tests scripts
    ```
-3. Ajouter une ligne dans `CHANGELOG.md` (section *Non publié*).
+3. Mettre la documentation à jour **dans le même commit** : le tableau de `.claude/skills/docs-sync/SKILL.md`
+   indique quels documents relire selon le changement ; `tests/test_docs.py` (lancé par `pytest`) vérifie
+   automatiquement liens, chemins, outils, modules et fichiers publiés. Ajouter une ligne dans
+   `CHANGELOG.md` (section *Non publié*).
 4. Commit en français, un sujet par commit, puis demande de fusion (*Pull request*) vers `main`.
    **Le titre de la PR est exactement le nom de la branche** (ex. `fix/windows-close-crash`) ; la
    description, en français, suit le modèle de PR.

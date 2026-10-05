@@ -8,18 +8,21 @@ calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux, Window
 
 ## Outils
 
-| Outil | Ce qu'il montre |
-|---|---|
-| Visualiseur de log | Gyro, consigne, termes P/I/D/F, moteurs, gaz, debug ; période d'analyse (crash exclu automatiquement), lecteur, manches, modes de vol |
-| Analyse spectrale | Spectres avant/après filtres, retards des filtres, bruit moteur par harmonique |
-| Fréquence × gaz | Cartes de bruit en fonction des gaz (4 colonnes, préréglages type PIDtoolbox) |
-| Fréquence × temps | Spectrogrammes avec harmoniques moteur et notchs dynamiques |
-| Réponse indicielle | Déconvolution de Wiener : pic, latence, temps de montée, bande passante, marge de phase… |
-| Curseurs PID | Position des curseurs simplifiés retrouvée depuis les PID, simulation « et si » + commandes CLI |
-| Simulateur de filtres | Chaînes gyro et D exactes de la version Betaflight, Bode, retards, spectre filtré recalculé sur le vrai vol |
-| Infos de configuration | Réglages des logs côte à côte, différences surlignées |
-| Statistiques de vol | Manches, termes PID, moteurs, erreur PID |
-| Assistant de réglage | Diagnostic à règles, seuils calibrés par taille de drone, chaque conseil justifié par sa mesure |
+La fenêtre principale est le **visualiseur de log** : gyro, consigne, termes P/I/D/F, moteurs, gaz, debug ;
+période d'analyse (crash exclu automatiquement), lecteur, manches, modes de vol. Chaque outil s'ouvre par
+son bouton dans la barre d'outils.
+
+| Bouton | Outil | Ce qu'il montre |
+|---|---|---|
+| Spectre | Analyse spectrale | Spectres avant/après filtres, retards des filtres, bruit moteur par harmonique |
+| Fréq. × gaz | Fréquence × gaz | Cartes de bruit en fonction des gaz (4 colonnes, préréglages type PIDtoolbox) |
+| Fréq. × temps | Fréquence × temps | Spectrogrammes avec harmoniques moteur et notchs dynamiques |
+| Indicielle | Réponse indicielle | Déconvolution de Wiener : pic, latence, temps de montée, bande passante, marge de phase… |
+| Curseurs PID | Curseurs PID | Position des curseurs simplifiés retrouvée depuis les PID, simulation « et si » + commandes CLI |
+| Filtres | Simulateur de filtres | Chaînes gyro et D exactes de la version Betaflight, Bode, retards, spectre filtré recalculé sur le vrai vol |
+| Configuration | Infos de configuration | Réglages des logs côte à côte, différences surlignées |
+| Statistiques | Statistiques de vol | Manches, termes PID, moteurs, erreur PID, batterie |
+| Assistant | Assistant de réglage | Diagnostic à règles, seuils calibrés par taille de drone, chaque conseil justifié par sa mesure |
 
 Jusqu'à 10 logs comparés à la fois. Formats `.bbl`, `.bfl` (Betaflight 4.4 → 2026.x).
 
@@ -30,48 +33,22 @@ Jusqu'à 10 logs comparés à la fois. Formats `.bbl`, `.bfl` (Betaflight 4.4 �
 
 ## Installation
 
-### Télécharger (recommandé)
-
-Dernière version : page [**Releases**](../../releases/latest), section *Assets*. Rien d'autre à installer
-(Python et les bibliothèques sont inclus).
+Dernière version : page [**Releases**](../../releases/latest), section *Assets*. Un seul fichier par
+système, rien d'autre à installer (Python et les bibliothèques sont inclus).
 
 | Système | Fichier | Installation |
 |---|---|---|
 | Windows 10 / 11 | `OpenTuneBox-Windows-Setup.exe` | double-clic, puis suivre l'assistant (menu Démarrer, Bureau, ouverture des `.bbl`) |
 | macOS (puce Apple) | `OpenTuneBox-macOS.dmg` | ouvrir, puis glisser OpenTuneBox sur Applications |
-| Linux (Ubuntu 22.04 ou plus récent) | `OpenTuneBox-Linux.AppImage` | rendre le fichier exécutable, puis double-clic |
+| Linux (Ubuntu 22.04, Debian 12, Fedora 36… ou plus récent) | `OpenTuneBox-Linux.AppImage` | rendre le fichier exécutable, puis double-clic |
 
 Le programme n'est pas signé : Windows et macOS affichent un avertissement au premier lancement (marche à
-suivre dans le [guide](docs/guide-utilisateur.md#installer-une-version-construite-par-github)).
+suivre dans le [guide](docs/guide-utilisateur.md#1-installer)).
 
-### Fabriquer soi-même la version autonome
-
-| Système | Fabrication |
-|---|---|
-| Linux | `pyinstaller packaging/opentunebox.spec --noconfirm` (nécessite `binutils`) → `dist/OpenTuneBox/` |
-| Windows | Double-clic sur `packaging\windows\construire_windows.bat` → `dist\OpenTuneBox\OpenTuneBox.exe` |
-| macOS | `pyinstaller packaging/opentunebox.spec --noconfirm` → `dist/OpenTuneBox.app` |
-
-Chaque version se fabrique sur son propre système. Le workflow GitHub
-[`construire.yml`](.github/workflows/construire.yml) fabrique d'un coup les installateurs des trois systèmes
-(onglet *Actions*) et les publie sur la page Releases pour chaque version (voir [Contribuer](CONTRIBUTING.md)).
-Le dossier `dist/OpenTuneBox/` se partage **en entier**.
-
-### Depuis les sources (Python 3.11 à 3.14)
+## Ligne de commande (depuis les sources)
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
-.venv/bin/opentunebox-gui                 # interface graphique
-sh packaging/linux/install_linux.sh       # Linux : ajoute OpenTuneBox au menu des applications
-```
-
-Sous Windows, remplacer `.venv/bin/` par `.venv\Scripts\`.
-
-## Ligne de commande
-
-```sh
-opentunebox info LOG.bbl                  # sessions, firmware, réglages principaux
+opentunebox info LOG.bbl                     # sessions, firmware, réglages principaux
 opentunebox report LOG.bbl [--profil five]   # diagnostic (profils : whoop micro five seven large)
 ```
 
@@ -86,10 +63,24 @@ opentunebox report LOG.bbl [--profil five]   # diagnostic (profils : whoop micro
 
 ## Développement
 
+Depuis les sources (Python 3.11 ou plus récent) :
+
 ```sh
-.venv/bin/pytest -q                  # tests (ceux qui demandent de vrais logs sont ignorés sans corpus)
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/opentunebox-gui                 # interface graphique
+sh packaging/linux/install_linux.sh       # Linux : ajoute OpenTuneBox au menu des applications
+.venv/bin/pytest -q                       # tests (ceux qui demandent de vrais logs sont ignorés sans corpus)
 OTB_LOGS=/chemin/logs .venv/bin/pytest -q -m corpus   # tests sur un dossier de vrais logs
 ```
+
+Sous Windows, remplacer `.venv/bin/` par `.venv\Scripts\`.
+
+Exécutable autonome fabriqué soi-même, sur le système visé : `pyinstaller packaging/opentunebox.spec --noconfirm`
+(Linux : nécessite `binutils`) → `dist/OpenTuneBox/` (`dist/OpenTuneBox.app` sous macOS) ; sous Windows,
+double-clic sur `packaging\windows\construire_windows.bat`. Les installateurs des trois systèmes sont
+fabriqués par le workflow GitHub [`construire.yml`](.github/workflows/construire.yml) et publiés sur la page
+Releases à chaque version ([Contribuer](CONTRIBUTING.md)).
 
 Les consignes pour les agents IA (Claude Code, Codex, Copilot…) sont dans [AGENTS.md](AGENTS.md).
 

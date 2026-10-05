@@ -9,7 +9,8 @@ analyses (`scripts/validate_corpus.py`, tests `-m corpus`).
 
 - 568 fichiers décodés ; **95 % des sessions identiques** valeur par valeur.
 - Les écarts restants sont des trames corrompues que la référence accepte : trames tronquées avant un trou
-  d'écriture sur la carte SD (`gap`), trames S parasites (`slow`), valeurs ±2³¹. OpenTuneBox les rejette.
+  d'écriture sur la carte SD (`gap`), trames S parasites (`slow`), valeurs impossibles (gyro ou consigne
+  > 4000 °/s, terme PID > ±65535). OpenTuneBox les rejette.
 - La référence se bloque sur 3 fichiers (`refhang`) qu'OpenTuneBox lit.
 - Démarrage à froid du décodeur ≈ 0,6 s (cache numba).
 
@@ -30,4 +31,7 @@ lecture échantillon par échantillon).
 - Curseurs simplifiés : les formules redonnent les PID de l'en-tête pour 740 sessions sur 741.
 - Simulateur de filtres : sans modification des réglages, le spectre « et si » égale le spectre loggé à 0,009 dB près.
 - Filtres Betaflight : réponses comparées aux formules analytiques (`tests/test_bf_filters.py`).
-- Interface : les 9 outils s'ouvrent et calculent sans erreur en moins de 1,5 s (`tests/test_gui_*.py`).
+- Interface : les 9 outils s'ouvrent et calculent sans erreur sur de vrais logs (`tests/test_gui_spectral.py`,
+  `tests/test_gui_step.py`, `tests/test_advisor.py`).
+- Documentation : liens, chemins, outils, modules, fichiers publiés et langue vérifiés à chaque `pytest`
+  (`tests/test_docs.py`).

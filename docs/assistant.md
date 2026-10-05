@@ -6,8 +6,10 @@ curseurs du réglage simplifié de Betaflight, par petits pas (0,1), une chose �
 
 ## Taille du drone
 
-Détectée par la fréquence de rotation des moteurs en vol (eRPM), sinon par le nom du drone :
-≥ 420 Hz whoop · 290–420 Hz 2–3,5" · 175–290 Hz 4–5" · 115–175 Hz 6–7" · < 115 Hz 8"+.
+Détectée par la fréquence de rotation des moteurs en vol (médiane de l'eRPM mesuré, drone armé, gaz > 5 %,
+moteurs > 10 Hz) : ≥ 420 Hz whoop · 290–420 Hz 2–3,5" · 175–290 Hz 4–5" · 115–175 Hz 6–7" · < 115 Hz 8"+.
+Sans eRPM, par le nom du drone : « whoop », « 65 », « 75 », « Meteor » → whoop ; sinon une taille en pouces
+(« 5" », « 7 pouces ») : < 3,8 → 2–3,5", < 5,8 → 5", < 7,8 → 7", au-delà 8"+. À défaut : profil 5".
 Le profil peut être forcé dans la fenêtre de l'assistant ou avec `opentunebox report --profil`.
 
 ## Calibration (2026-10-01)
@@ -33,15 +35,35 @@ partie des 10 % les plus bruités / lents de sa catégorie.
 
 Unités : densité spectrale de puissance en dB de (°/s)²/Hz pour le gyro, d'unités PID²/Hz pour le D.
 
-## Règles principales
+Profil 8"+ : 20 sessions seulement, trop peu pour un percentile fiable. Ses seuils sont provisoires
+(gyro −31 dB, D −17 dB, 20–80 Hz −22 dB, harmonique −32 dB, latence 18–30 ms, retards 3,2 / 3,5 ms).
 
-- **Dépassement** : pic > 1,20 (attention), > 1,10 (conseil). Si la latence est plus courte que le
-  p10 de la taille et que le feedforward est actif, le dépassement est attribué au feedforward.
-- **Réponse molle** : pic < 0,98 et latence au-delà du p90.
-- **Stabilité** : pic de sensibilité > 6 dB, ou marge de phase < 40°.
-- **Bruit** : gyro filtré, terme D, bande 20–80 Hz, harmonique moteur restante > p90 de la taille.
-- **Filtrage trop prudent** : retard gyro / D > p90 de la taille alors que le bruit est faible.
-- **Résonance** : raie fixe ≥ 6 dB au-dessus de son voisinage, présente à tous les gaz et ne
-  correspondant pas à une harmonique moteur.
-- **Mécanique** : déséquilibre moteurs > 12 % (interprété avant/arrière, gauche/droite ou diagonale),
-  terme I moyen décentré, saturation moteur > 5 % du temps.
+Dans `advisor/profiles.py`, les repères de latence (p10 / p90) et de retard des filtres sont arrondis
+vers le haut (≈ +0,1 ms pour les retards) ; les seuils de bruit sont les p90 du tableau.
+
+## Règles
+
+Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit
+portent sur le roll et le pitch (le yaw n'est pas jugé).
+
+- **Enregistrement** : fréquence du log < 900 Hz (attention) ; 3e harmonique moteur au-delà de la moitié de
+  la fréquence du log ; gyro non filtré absent ; pas de télémétrie RPM ; plus de 20 trames corrompues (info).
+- **Vol** : crash détecté, la période d'analyse s'arrête avant (info).
+- **Réponse** (au moins 20 fenêtres par axe, sinon « Pas assez de mouvements de manche ») :
+  - dépassement : pic > 1,20 (attention), > 1,10 (conseil) ; attribué au feedforward si F > 0 et si la
+    latence est plus courte que le repère bas de la taille ;
+  - réponse molle : pic < 0,98 et latence au-delà du repère haut de la taille ;
+  - roll et pitch différents : écart de pic > 0,08 (curseur « D pitch ») ;
+  - stabilité : pic de sensibilité > 6 dB (attention) ; sinon marge de phase < 40° (conseil) ;
+  - oscillations basses fréquences : gyro filtré 20–80 Hz > p90 de la taille.
+- **Bruit** (80 Hz à min(500 Hz ; 0,95 × Nyquist), valeur maximale du roll et du pitch) : gyro filtré et
+  terme D > p90 de la taille ; 1re harmonique moteur restante > p90 (seulement avec eRPM, gyro non filtré
+  et filtre RPM actif).
+- **Filtrage trop prudent** : retard gyro > repère de la taille alors que gyro et D sont peu bruités ;
+  retard D > repère alors que le D est peu bruité.
+- **Résonance** : raie ≥ 6 dB au-dessus de la moyenne glissante voisine (60 Hz à min(900 Hz ; 0,9 × Nyquist)),
+  présente dans la médiane de toutes les tranches de gaz (au moins 8 tranches), à plus de ±8 % des
+  harmoniques 1 à 3 du moteur.
+- **Mécanique** : déséquilibre des moteurs > 12 % (lu avant/arrière, gauche/droite ou diagonale) ; terme I
+  moyen décentré (moyenne > 40 en valeur absolue, roll ou pitch) ; saturation moteur (≥ 98 %) > 5 % du temps.
+- **Réglage** : réglage simplifié désactivé, les conseils « curseur » sont indicatifs (info).

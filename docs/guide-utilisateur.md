@@ -1,53 +1,40 @@
 # OpenTuneBox — guide d'utilisation
 
-## 1. Lancer le programme
+## 1. Installer
 
-- Version installée (voir ci-dessous) : menu Démarrer, Launchpad / Applications, ou double-clic sur l'AppImage.
-- Depuis les sources : menu des applications **OpenTuneBox** (après `sh packaging/linux/install_linux.sh`),
-  ou dans un terminal `~/Documents/Github/OpenTuneBox/.venv/bin/opentunebox-gui [logs…]`.
-- Diagnostic rapide sans interface (depuis les sources) : `opentunebox report LOG.bbl` ; résumé : `opentunebox info LOG.bbl`.
-- Version autonome fabriquée soi-même : dossier `dist/OpenTuneBox/` ; à partager **en entier**.
+Télécharger le fichier de son système sur la page **Releases** du dépôt GitHub (colonne de droite de la
+page d'accueil), section *Assets* de la dernière version. Un seul fichier par système ; Python et les
+bibliothèques sont inclus.
 
-### Installer une version construite par GitHub
-
-Versions publiées : page **Releases** du dépôt (à droite de la page d'accueil sur GitHub), section
-*Assets* de la version voulue. Versions d'essai (toute construction lancée à la main) : onglet **Actions**
-→ **Construire OpenTuneBox** → une exécution réussie → section **Artifacts** en bas de page (conservées
-90 jours).
-
-**Windows** : `OpenTuneBox-Windows-Setup.exe`. Double-cliquer, puis suivre l'assistant : raccourci du
-Bureau et ouverture des `.bbl` / `.bfl` par double-clic en option. Pas besoin des droits administrateur
-(installation dans le dossier de l'utilisateur). Une nouvelle version s'installe par-dessus l'ancienne ;
-désinstallation : *Paramètres → Applications → OpenTuneBox → Désinstaller*. Au premier lancement de
-l'installateur, SmartScreen peut afficher « Windows a protégé votre ordinateur » (programme non signé) :
-**Informations complémentaires → Exécuter quand même**.
+**Windows 10 / 11** : `OpenTuneBox-Windows-Setup.exe`. Double-cliquer, puis suivre l'assistant ; en
+option, raccourci sur le Bureau et ouverture des `.bbl` / `.bfl` par double-clic. Pas besoin des droits
+administrateur (installation dans le dossier de l'utilisateur). Une nouvelle version s'installe
+par-dessus l'ancienne ; désinstallation : *Paramètres → Applications → OpenTuneBox → Désinstaller*.
+Le programme n'est pas signé : au premier lancement de l'installateur, SmartScreen peut afficher
+« Windows a protégé votre ordinateur » → **Informations complémentaires → Exécuter quand même**.
 
 **macOS** (Mac à puce Apple : M1 et suivants) : `OpenTuneBox-macOS.dmg`. L'ouvrir, puis glisser
 **OpenTuneBox** sur **Applications**. L'application n'est pas signée par Apple : au premier lancement,
 macOS refuse de l'ouvrir. Aller dans *Réglages Système → Confidentialité et sécurité*, en bas :
-**Ouvrir quand même** (une seule fois). Ensuite, un double-clic sur un `.bbl` / `.bfl` peut l'ouvrir
-dans OpenTuneBox (*Ouvrir avec* la première fois).
+**Ouvrir quand même** (une seule fois). Un `.bbl` / `.bfl` s'ouvre ensuite dans OpenTuneBox par
+double-clic (*Ouvrir avec* la première fois).
 
-**Linux** (Ubuntu 22.04 ou équivalent, ou plus récent) : `OpenTuneBox-Linux.AppImage`, un seul fichier.
-Le rendre exécutable (clic droit → *Propriétés* → *Autoriser l'exécution*, ou
+**Linux** (Ubuntu 22.04, Debian 12, Fedora 36… ou plus récent) : `OpenTuneBox-Linux.AppImage`, un seul
+fichier. Le rendre exécutable (clic droit → *Propriétés* → *Autoriser l'exécution*, ou
 `chmod +x OpenTuneBox-Linux.AppImage`), puis double-clic. S'il ne démarre pas (système sans FUSE) :
 `./OpenTuneBox-Linux.AppImage --appimage-extract-and-run`.
 
-### Fabriquer soi-même l'exécutable Windows
+Lancer OpenTuneBox depuis ses sources ou fabriquer l'exécutable soi-même : voir la partie
+*Développement* du [README](../README.md#développement).
 
-Inutile pour utiliser OpenTuneBox (l'installateur de la page Releases suffit). L'exécutable Windows se
-fabrique sur un PC Windows (PyInstaller ne sait pas le faire depuis Linux) :
-copier le dossier du projet sur le PC (sans `.venv`, `build`, `dist`), puis double-cliquer
-`packaging\windows\construire_windows.bat`. Le script installe Python 3.13 si besoin (winget), les dépendances,
-puis fabrique `dist\OpenTuneBox\OpenTuneBox.exe` et l'archive `dist\OpenTuneBox-windows.zip`.
-Au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » (programme
-non signé) : **Informations complémentaires → Exécuter quand même**.
+## 2. Ouvrir des logs
 
-Ouvrez un ou plusieurs fichiers `.bbl` / `.bfl` (bouton bleu **Ouvrir** de la barre d'outils, Ctrl+O, ou glisser-déposer). Chaque session
-d'un fichier (un armement = une session) apparaît comme un log séparé ; 10 logs au maximum, chacun
-avec sa couleur, que l'on retrouve dans tous les outils.
+Bouton bleu **Ouvrir** de la barre d'outils (ou Ctrl+O), glisser-déposer dans la fenêtre, ou double-clic
+sur un `.bbl` / `.bfl` (Windows et macOS, voir ci-dessus). Sous Linux, la fenêtre d'ouverture est celle
+du bureau (KDE, GNOME…). Chaque session d'un fichier (un armement = une session) apparaît comme un log
+séparé ; 10 logs au maximum, chacun avec sa couleur, que l'on retrouve dans tous les outils.
 
-## 2. Bien enregistrer
+## 3. Bien enregistrer
 
 Dans le CLI Betaflight :
 
@@ -71,7 +58,7 @@ save
 | Propwash | Descentes dans sa propre turbulence (split-S, gaz coupés puis remis) |
 | Comparaison de réglages | Le même vol, la même batterie (charge similaire), un seul réglage changé entre deux logs |
 
-## 3. Le visualiseur (fenêtre principale)
+## 4. Le visualiseur (fenêtre principale)
 
 - **Barre d'outils** en haut : ouvrir et fermer les logs, puis un bouton par outil (Spectre, Fréq. × gaz,
   Indicielle…) ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton pour sa description.
@@ -86,24 +73,26 @@ save
 - Zoom : molette ; déplacement : clic-glisser ; **Vue entière** pour tout revoir.
 - **Tous / Roll / Pitch / Yaw** : un seul axe sur toute la hauteur.
 
-## 4. Les outils
+## 5. Les outils
 
-### Analyse spectrale
+Chaque outil s'ouvre par son bouton dans la barre d'outils (nom du bouton entre parenthèses).
+
+### Analyse spectrale (Spectre)
 Spectres (FFT) du gyro et des termes PID : on y voit où se trouve le bruit et ce que les filtres
 enlèvent (préfiltre en pointillés, filtré en trait plein). Volet « < 100 Hz » pour les oscillations et
 le propwash, avec les **retards des filtres** ; volet « bruit moteur » pour l'efficacité du filtre RPM
 sur chaque harmonique. Les courbes en S montrent où se situent les harmoniques moteur pendant le vol.
 
-### Fréquence × gaz
+### Fréquence × gaz (Fréq. × gaz)
 Carte du bruit selon le gaz. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
 retiré par le filtre RPM). Une **ligne horizontale** = résonance de châssis ou pièce qui vibre. Une
 tache basse fréquence à mi-gaz = oscillation de réglage ou propwash.
 
-### Fréquence × temps
+### Fréquence × temps (Fréq. × temps)
 Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
-lecteur).
+lecteur ; un clic sur un spectrogramme le déplace).
 
-### Réponse indicielle
+### Réponse indicielle (Indicielle)
 La réaction du drone à un ordre de manche « en marche d'escalier », moyennée sur tout le vol.
 Objectifs : montée rapide, **pic entre 1,02 et 1,08**, pas de rebond. Colonnes de mesures au choix :
 latence, temps de montée, bande passante, pic de sensibilité (< 6 dB), marge de phase (> 45°)…
@@ -113,25 +102,25 @@ latence, temps de montée, bande passante, pic de sensibilité (< 6 dB), marge d
 Positions des curseurs (lues dans le log, ou estimées si le réglage simplifié est désactivé) et
 simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, copiez les commandes CLI.
 
-### Simulateur de filtres
+### Simulateur de filtres (Filtres)
 Reconstitue exactement la chaîne de filtres de Betaflight à partir du log. Modifiez un filtre :
 le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
 le vrai gyro du vol. Copiez ensuite les commandes CLI.
 
-### Infos de configuration
+### Infos de configuration (Configuration)
 Tous les réglages des logs côte à côte ; les différences sont surlignées (« Seulement les différences »).
 
-### Statistiques de vol
+### Statistiques de vol (Statistiques)
 Utilisation des manches et des gaz, moyennes des termes PID, charge des moteurs, distribution de
 l'erreur PID, batterie.
 
-### Assistant de réglage
+### Assistant de réglage (Assistant)
 Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, filtres, moteurs,
 mécanique. Chaque constat donne la mesure et le seuil (calibré sur ~700 vols réels de la même taille)
 et propose une action. Les conseils sont des points de départ : confirmez au ressenti et à la
 température des moteurs.
 
-## 5. Méthode de réglage conseillée
+## 6. Méthode de réglage conseillée
 
 1. **Mécanique d'abord** : hélices neuves, vis serrées, moteurs sains. Un log de stationnaire + montée
    de gaz ; vérifiez Fréquence × gaz et l'assistant (résonances, déséquilibre).

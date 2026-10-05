@@ -17,6 +17,20 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   - Essais automatiques de chaque fichier : démarrage sur les trois systèmes ; sous Windows,
     installation, lancement puis désinstallation complète.
 - Icônes macOS (`.icns`) et Linux (`.png`) fabriquées depuis le SVG par `packaging/make_icons.py`.
+- Documentation vérifiée automatiquement à chaque `pytest` et sur chaque demande de fusion
+  (`tests/test_docs.py`) : liens et titres, chemins et fonctions cités, chaque outil dans le README et le
+  guide, chaque module dans `AGENTS.md` / `docs/architecture.md`, fichiers publiés, commandes, langue.
+  Compétence `docs-sync` (quels documents relire selon le changement) et crochet Claude Code qui bloque
+  un commit si la documentation n'est plus cohérente.
+
+### Modifié
+- Documentation entièrement relue et mise à jour : README (outils sous le nom de leur bouton, partie
+  développeur séparée), guide (installation et ouverture des logs réorganisées), assistant (toutes les
+  règles réelles, détection de la taille, profil 8"+ provisoire), méthodes d'analyse (retards, lissages,
+  latence corrigés), architecture (fenêtres d'outils, distribution), validation ; spécifications
+  traduites en français.
+- Tests rapides (`-m "not corpus"`) de nouveau en ≈ 1 s : les tests d'interface sur vrais logs portent
+  la marque `corpus`.
 
 ### Corrigé
 - Linux : la fenêtre d'ouverture de fichiers était peu lisible (icônes claires presque invisibles avec le
