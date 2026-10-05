@@ -95,7 +95,13 @@ lecteur ; un clic sur un spectrogramme le déplace).
 ### Réponse indicielle (Indicielle)
 La réaction du drone à un ordre de manche « en marche d'escalier », moyennée sur tout le vol.
 Objectifs : montée rapide, **pic entre 1,02 et 1,08**, pas de rebond. Colonnes de mesures au choix :
-latence, temps de montée, bande passante, pic de sensibilité (< 6 dB), marge de phase (> 45°)…
+latence, temps de montée, bande passante, pic de sensibilité (< 6 dB), marge de phase (> 40°), marge de
+gain, fréquence de croisement…
+Les marges de stabilité sont **mesurées** à partir des termes P, I, D et F enregistrés dans le log (point
+plein, barre d'erreur = incertitude de la mesure). Si un de ces termes manque, elles sont seulement
+**approchées** (point creux) : à prendre avec prudence. Un triangle signifie « au moins cette valeur » :
+le pic de sensibilité se trouve au-delà des fréquences que vos mouvements de manche permettent de mesurer.
+Plus vous donnez de coups de manche francs et variés, plus la mesure va loin en fréquence.
 « Vue curseurs Betaflight » : position des curseurs du réglage simplifié de chaque log.
 
 ### Curseurs PID

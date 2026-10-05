@@ -102,6 +102,13 @@ def test_step_window(app):
     assert p08 > p12
     assert res[0].axes[0].res.n > 100
     assert np.isfinite(res[0].axes[0].sp_delay_ms)
+    # boucle ouverte mesurée à partir des termes P, I, D, F (mode angle : instrument = manche)
+    from opentunebox.gui.tools.step_window import loop_marker, metric_value
+
+    lp = res[0].axes[0].res.loop
+    assert lp.measured and 30 < lp.phase_margin_deg < 60
+    assert metric_value(res[0], 0, "phase_margin")[1] > 0  # barre d'erreur = écart-type jackknife
+    assert loop_marker(res[0], 0, "phase_margin") == "mesurée"
     # toutes les options d'affichage se rendent sans erreur
     for i in range(win.metric1.count()):
         win.metric1.setCurrentIndex(i)

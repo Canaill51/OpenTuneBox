@@ -64,9 +64,11 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 
 ## 4. Pièges
 
-- Pic de sensibilité et marge de phase utilisent L = T/(1 − T) : approché, car dans Betaflight le D agit
-  sur le gyro et le feedforward sur la consigne (`docs/assistant.md`, « Limite connue »). Les limites des
-  manuels s'y appliquent seulement par analogie.
+- Pic de sensibilité et marge de phase : boucle ouverte **mesurée** (`analysis/loop.py`) quand les termes
+  P, I, D, F sont loggés, sinon approchée par L = T/(1 − T) (faux pour Betaflight, `docs/assistant.md`,
+  « Boucle ouverte mesurée »). Les percentiles calculés avec l'ancienne méthode ne sont pas comparables
+  (marge de phase environ 10° plus haute, croisement environ 2 fois trop bas). Le pic de sensibilité est
+  souvent un minorant (`smaxedge` dans `stats.json`).
 - Limites de taille par fréquence moteur : peu fiables entre 250 et 400 Hz (whoops 2,5", 3,5" lents).
   Vérifier par drone (nom + fréquence médiane), pas par session.
 - Le corpus mélange des logs de demandes d'aide (« 1. PTB », « 3. BBLR FB ») et des drones connus

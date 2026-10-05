@@ -3,7 +3,9 @@
 À gauche, une ligne par axe : réponse indicielle moyenne de chaque fichier (couleur du fichier),
 bande ± écart-type et réponses brutes en option, bloc de texte « P, I, D, Dm, F (n=…) ».
 À droite, deux colonnes de métriques au choix (une valeur par fichier = « test » 1…N, barres
-d'erreur = dispersion entre fenêtres pour le pic et la latence), ou la vue « Curseurs Betaflight ».
+d'erreur = dispersion entre fenêtres pour le pic et la latence, écart-type jackknife pour les marges),
+ou la vue « Curseurs Betaflight ». Marges de stabilité : point plein = boucle ouverte mesurée,
+point creux = méthode approchée, triangle = minorant (pic de sensibilité au bord de la bande mesurable).
 """
 
 from __future__ import annotations
@@ -43,8 +45,11 @@ METRICS = {
     "sens_peak": ("Pic de sensibilité", "Pic de sensibilité (dB)"),
     "sens_hz": ("Fréq. du pic de sensibilité", "Fréq. pic sensibilité (Hz)"),
     "phase_margin": ("Marge de phase", "Marge de phase (°)"),
+    "gain_margin": ("Marge de gain", "Marge de gain (dB)"),
     "crossover": ("Fréquence de croisement", "Fréq. de croisement (Hz)"),
 }
+LOOP_KEYS = {"sens_peak": "sensitivity_peak_db", "sens_hz": "sensitivity_peak_hz", "phase_margin": "phase_margin_deg",
+             "gain_margin": "gain_margin_db", "crossover": "crossover_hz"}
 MAX_RAW = 300  # réponses brutes dessinées au plus par fichier et par axe
 
 
@@ -60,15 +65,26 @@ def metric_value(f: FileStep, ax: int, key: str) -> tuple[float, float]:
         return m.latency_ms, _spread(a.seg_latency)
     if key == "sp_delay":
         return a.sp_delay_ms, 0.0
-    val = {
-        "rise": m.rise_ms,
-        "bandwidth": lp.bandwidth_hz,
-        "sens_peak": lp.sensitivity_peak_db,
-        "sens_hz": lp.sensitivity_peak_hz,
-        "phase_margin": lp.phase_margin_deg,
-        "crossover": lp.crossover_hz,
-    }[key]
-    return float(val), 0.0
+    if key == "rise":
+        return m.rise_ms, 0.0
+    if key == "bandwidth":
+        return lp.bandwidth_hz, 0.0
+    field = LOOP_KEYS[key]
+    err = lp.std.get(field, 0.0)
+    return float(getattr(lp, field)), float(err) if np.isfinite(err) else 0.0
+
+
+def loop_marker(f: FileStep, ax: int, key: str) -> str:
+    """Forme du point d'une marge : « mesurée », « approchée » ou « minorant » (pic au bord de la bande)."""
+    a = f.axes[ax] if ax < len(f.axes) else None
+    if key not in LOOP_KEYS or a is None or a.res.n == 0:
+        return "mesurée"
+    lp = a.res.loop
+    if not lp.measured:
+        return "approchée"
+    if key == "sens_peak" and lp.sensitivity_peak_at_edge:
+        return "minorant"
+    return "mesurée"
 
 
 def _spread(v) -> float:
@@ -149,7 +165,9 @@ class StepWindow(ToolWindow):
         help_ = QLabel(
             "Courbe idéale : montée rapide, pic 1,02–1,08 puis plat à 1. "
             "Pic > 1,1 : manque de D (ou trop de P) ; montée molle sans pic : trop de D ou P faible. "
-            "Barres d'erreur : dispersion entre fenêtres de 2 s.")
+            "Barres d'erreur : dispersion entre fenêtres de 2 s. "
+            "Marges de stabilité : ● mesurées sur les termes P, I, D, F du log ; "
+            "○ approchées (termes absents) ; ▲ au moins cette valeur (pic hors de la bande mesurable).")
         help_.setWordWrap(True)
         help_.setStyleSheet(theme.muted_style())
         layout.addWidget(help_)
@@ -299,8 +317,11 @@ class StepWindow(ToolWindow):
             if err[i] > 0:
                 p.addItem(pg.ErrorBarItem(x=xs[i:i + 1], y=ys[i:i + 1], height=2 * err[i:i + 1], beam=0.12,
                                           pen=pg.mkPen(f.color, width=1.5)))
-            p.addItem(pg.ScatterPlotItem(xs[i:i + 1], ys[i:i + 1], size=10, brush=pg.mkBrush(f.color),
-                                         pen=pg.mkPen(f.color)))
+            kind = loop_marker(f, ax, key)
+            symbol = "t1" if kind == "minorant" else "o"
+            brush = pg.mkBrush(None) if kind == "approchée" else pg.mkBrush(f.color)
+            p.addItem(pg.ScatterPlotItem(xs[i:i + 1], ys[i:i + 1], size=11, symbol=symbol, brush=brush,
+                                         pen=pg.mkPen(f.color, width=2)))
         p.getAxis("bottom").setTicks([[(i, str(i)) for i in range(1, n + 1)]])
         p.setXRange(0.5, n + 0.5, padding=0)
         p.setMouseEnabled(x=False)
