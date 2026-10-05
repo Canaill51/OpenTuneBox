@@ -5,6 +5,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+## [0.4.0] — 2026-10-06
+
 ### Ajouté
 - Assistant : constat « Seuils provisoires pour cette taille » pour les whoops, les 2–3,5" et les 8"+
   (trop peu de drones dans le corpus de calibration).
@@ -236,7 +238,8 @@ Première version complète.
 - Lanceur Linux (menu des applications) et recette PyInstaller.
 - Guide d'utilisation en français.
 
-[Non publié]: ../../compare/v0.3.0...HEAD
+[Non publié]: ../../compare/v0.4.0...HEAD
+[0.4.0]: ../../releases/tag/v0.4.0
 [0.3.0]: ../../releases/tag/v0.3.0
 [0.2.0]: ../../releases/tag/v0.2.0
 [0.1.0]: ../../releases/tag/v0.1.0
