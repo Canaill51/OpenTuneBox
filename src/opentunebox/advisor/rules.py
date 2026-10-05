@@ -16,7 +16,7 @@ import numpy as np
 
 from ..analysis import spectral
 from ..analysis.delay import compute_delays
-from ..analysis.motors import hover_motor_hz, motor_noise
+from ..analysis.motors import harmonic_prominence, hover_motor_hz, motor_noise, rpm_weight_needed
 from ..analysis.period import crash_time
 from ..analysis.sliders import slider_view
 from ..analysis.stats import flight_stats, pid_error_stats
@@ -32,8 +32,13 @@ PHASE_MARGIN_LOW_DEG = 35.0
 # terme D au plus −10 dB (déclenche le constat, avec le p90 du corpus), gyro filtré sous −30 dB (affiché)
 DTERM_PTB_MAX_DB = -10.0
 GYRO_PTB_MAX_DB = -30.0
-# Q du filtre RPM proposé pour gagner du retard sur un drone propre (Brian White, [S20] 34:12)
-RPM_Q_LOW_DELAY = 750
+# Filtre RPM (doc Betaflight 4.5, [S27]) : monter Q par pas jusqu'à 1000 au plus pour gagner du retard ;
+# poids (4.5 et plus) juste suffisant pour que la raie ne se voie plus, avec une marge de 6 dB, proposé
+# s'il fait gagner au moins 0,5 (8 % des sessions du corpus) ; raie « visible » à plus de 3 dB du bruit voisin
+RPM_Q_STEP, RPM_Q_MAX = 250, 1000
+RPM_WEIGHT_MARGIN_DB = 6.0
+RPM_WEIGHT_GAIN_MIN = 0.5
+HARMONIC_VISIBLE_DB = 3.0
 
 # Niveaux de gravité
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
@@ -202,9 +207,10 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     if np.isfinite(delays.gyro_ms):
         if delays.gyro_ms > profile.gyro_delay_max_ms and not gyro_noisy and not dterm_noisy:
             actions = ["Curseur « filtre gyro » : +0,1 à +0,2 (moins de retard → meilleure réactivité, moins de propwash)."]
-            if s.rpm_harmonics > 0 and s.rpm_q < RPM_Q_LOW_DELAY:
-                actions.append(f"Filtre RPM : rpm_filter_q {s.rpm_q} → {RPM_Q_LOW_DELAY} (notchs plus étroits, moins "
-                               "de retard) si le bruit moteur reste bien éliminé.")
+            if s.rpm_harmonics > 0 and s.rpm_q < RPM_Q_MAX:
+                actions.append(f"Filtre RPM : rpm_filter_q {s.rpm_q} → {min(s.rpm_q + RPM_Q_STEP, RPM_Q_MAX)} (notchs "
+                               f"plus étroits, moins de retard), puis par pas de {RPM_Q_STEP} jusqu'à {RPM_Q_MAX} au plus, "
+                               "en vérifiant à chaque pas que les raies moteur ne réapparaissent pas.")
             actions.append("Contrôlez la température des moteurs après chaque changement.")
             F.append(Finding("Filtres", CONSEIL, "Filtrage gyro peut-être trop prudent",
                              f"Retard des filtres gyro {delays.gyro_ms:.2f} ms (repère {profile.gyro_delay_max_ms:.1f} ms pour "
@@ -240,6 +246,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                              f"(avant filtrage : {meas['motor_harmonic_raw_db']:.1f} dB).",
                              ["Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs).",
                               "Filtre RPM : baisser rpm_filter_q (ex. 500 → 350) élargit les notchs."]))
+        F.extend(_rpm_weight_rules(log, sel, s, lighten=left[0] <= profile.motor_left_high_db))
     if max(low_db) > profile.low_band_high_db:
         F.append(Finding("Réponse", CONSEIL, "Oscillations basses fréquences (20–80 Hz)",
                          f"Énergie du gyro filtré entre 20 et 80 Hz : {max(low_db):.1f} dB (seuil {profile.low_band_high_db:.1f} dB, "
@@ -332,6 +339,54 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
         F.append(Finding("Réponse", CONSEIL, f"Marge de phase réduite en {ax.lower()}",
                          f"Marge de phase {lp.phase_margin_deg:.0f}° (< {PHASE_MARGIN_LOW_DEG:.0f}°) au croisement de {lp.crossover_hz:.0f} Hz."
                          + _loop_caveat(lp), _margin_actions(lp), ax))
+
+
+def rpm_harmonic_levels(log: FlightLog, sel: slice) -> tuple[np.ndarray, np.ndarray]:
+    """Hauteur de chaque harmonique moteur au-dessus du bruit voisin (dB, maximum du roll et du pitch),
+    avant filtres (gyro non filtré) et après (gyro filtré)."""
+    raw = [harmonic_prominence(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs) for a in range(2)]
+    left = [harmonic_prominence(log.gyro[a, sel], log.motor_hz[:, sel], log.fs) for a in range(2)]
+    with np.errstate(all="ignore"):
+        return np.fmax(*raw), np.fmax(*left)
+
+
+def _rpm_weight_rules(log: FlightLog, sel: slice, s, lighten: bool = True) -> list[Finding]:
+    """Poids du filtre RPM : raie restée visible avec un poids réduit, ou poids plus fort que nécessaire
+    (seulement si `lighten`, c'est-à-dire si le bruit moteur est bien éliminé)."""
+    raw, left = rpm_harmonic_levels(log, sel)
+    n = min(s.rpm_harmonics, 3)
+    cur = [w / 100 for w in (list(s.rpm_weights) + [100] * 3)[:3]]
+    out = []
+    low = [k for k in range(n) if left[k] > HARMONIC_VISIBLE_DB and cur[k] < 1.0]
+    if low:
+        out.append(Finding("Filtres", CONSEIL, "Poids du filtre RPM trop bas",
+                           "Raie moteur encore visible après filtrage : " + " ; ".join(
+                               f"{k + 1}e harmonique {left[k]:.1f} dB au-dessus du bruit voisin, poids {cur[k] * 100:.0f}"
+                               for k in low) + ".",
+                           ["rpm_filter_weights : remontez le poids de cette harmonique (vers 100) avant de toucher à "
+                            "rpm_filter_q."]))
+    if not lighten or (s.version and s.version < (4, 5)):
+        return out  # rpm_filter_weights n'existe qu'à partir de Betaflight 4.5
+    new = list(cur)
+    for k in range(1, n):  # 2e et 3e harmoniques, comme la documentation de Betaflight
+        if not (np.isfinite(raw[k]) and left[k] <= HARMONIC_VISIBLE_DB):
+            continue
+        need = np.ceil(10 * rpm_weight_needed(raw[k] + RPM_WEIGHT_MARGIN_DB) - 1e-9) / 10
+        if cur[k] - need >= RPM_WEIGHT_GAIN_MIN - 1e-9:
+            new[k] = need
+    if new != cur:
+        fmt = lambda w: ", ".join(f"{x * 100:.0f}" for x in w[:max(n, 1)])  # noqa: E731
+        changed = [k for k in range(n) if new[k] != cur[k]]
+        out.append(Finding("Filtres", CONSEIL, "Filtre RPM plus fort que nécessaire",
+                           "Avant filtrage, " + " ; ".join(
+                               f"la {k + 1}e harmonique ne dépasse le bruit voisin que de {raw[k]:.1f} dB" if raw[k] > 0
+                               else f"la {k + 1}e harmonique ne dépasse pas le bruit voisin" for k in changed) +
+                           f" : un poids de {', '.join(f'{new[k] * 100:.0f}' for k in changed)} suffit à l'effacer "
+                           f"(marge de {RPM_WEIGHT_MARGIN_DB:.0f} dB). Moins de filtrage = moins de retard.",
+                           [f"rpm_filter_weights = {fmt(new)} (actuellement {fmt(cur)}).",
+                            "Vérifiez sur le log suivant que les raies moteur restent invisibles dans le spectre du gyro "
+                            "filtré et du terme D."]))
+    return out
 
 
 def _loop_caveat(lp) -> str:

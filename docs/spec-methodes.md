@@ -104,6 +104,9 @@ ils viennent du bruit (`validation.md`).
   Superpositions : harmoniques moteur (eRPM) et centres des notchs dynamiques (debug FFT_FREQ).
 - **Bruit moteur** : moyenne ± écart-type de la DSP aux fréquences des harmoniques moteur (1re / 2e / 3e),
   en fenêtres de 300 ms, filtré contre préfiltre ; texte « poids | Q » du filtre RPM tiré de l'en-tête.
+- **Hauteur des harmoniques** (`motors.harmonic_prominence`) : par fenêtre de 300 ms, DSP moyenne entre
+  h × (moteur le plus lent) et h × (moteur le plus rapide) ± une case, moins la DSP moyenne de 15 à 30 % de
+  part et d'autre de h × (fréquence moyenne) ; médiane des fenêtres. ≈ 0 dB sans raie.
 - **Estimation RPM** sans télémétrie : fréquence moteur ≈ multiplicateur (2,1) × % moteur (« RPM est. » de PTB),
   à calibrer par drone.
 
@@ -177,7 +180,9 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   de filtrage plus bas que ≈ 100 Hz [S22].
   `rpm_filter_q` : 500 par défaut [S17] ; le monter tant que le bruit moteur ne réapparaît pas, sans
   dépasser 750 [S9] ou 1000 [S6, S14] selon les sources ; Brian White conseille 750 à 1000 sur un 5"
-  propre pour réduire le retard [S20].
+  propre pour réduire le retard [S20] ; documentation de Betaflight 4.5 : avec des tripales, monter Q par
+  pas de 500 jusqu'à 1000 au plus, puis baisser les poids de la 2e et de la 3e harmonique (« the second
+  almost invisible ») pour n'avoir que juste assez de filtrage [S27] ; presets officiels [S28].
 - **Feedforward** (Betaflight 4.3 et plus) : liaison 250 Hz → `feedforward_smooth_factor` 40–50 et
   `feedforward_averaging` 2_POINT (35–40 ailleurs sur la même page ; preset officiel 45) ; 500 Hz → 65–70
   [S19, S18] ; `feedforward_jitter_factor` 12–15 « for freestyle/cinematic » [S19].
@@ -256,3 +261,16 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   publié sur le serveur Discord de PIDtoolbox, date non relevée ; capture transmise par Cédric le
   2026-10-05. Brian White l'évoque dans [S20] ([40:24](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2424s) :
   « I made this little chart […] purely out of experience »).
+- [S27] Documentation Betaflight, [*4.5 Release Notes*, § 10 « Dimmable RPM Harmonics »](https://betaflight.com/docs/wiki/release/Betaflight-4-5-Release-Notes)
+  (source `betaflight.com`, commit 711c78d du 2026-06-26, [PR 12838](https://github.com/betaflight/betaflight/pull/12838)) :
+  « A weight of 100 applies the filter at full strength, while 0 means 'completely off'. The Q factor of
+  the RPM filter still sets the 'width' » ; tripales : « Typically the first is strongest, the second
+  almost invisible, and the third is a bit less than the first » ; exemple `100, 0, 80`, bipales
+  `100, 80, 0` ; « It's best to have only just enough RPM filtering that the motor harmonic lines are only
+  just not visible in a D or motor trace spectrum » ; « stepwise increasing the Q from the default of 500
+  up to a max of 1000, and checking the noise at each step ».
+- [S28] Presets officiels de Betaflight (dépôt `firmware-presets`, commit ac721ff du 2026-09-23),
+  `rpm_filter_weights` en 4.5 et plus : AOS RC « RPM Filter Weights for triblade props » 100, 0, 80
+  (`presets/4.5/tune/aos_rc/aos_ul5_tune.txt`) ; Karatebrot, auteur de la fonction, « 3 blade prop »
+  100, 20, 100 et « 2 blade prop » 100, 100, 50 (`presets/4.5/tune/karate/karate_brushless_whoop.txt`) ;
+  SupaflyFPV 90, 30, 90 et 90, 50, 90 avec Q 700–800.

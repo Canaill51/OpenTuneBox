@@ -14,7 +14,7 @@ from opentunebox.analysis.period import auto_period
 from opentunebox.analysis.spectral import spectrum
 from opentunebox.analysis.step import step_response
 from opentunebox.analysis.delay import compute_delays, xcorr_delay_ms
-from opentunebox.analysis.motors import motor_noise
+from opentunebox.analysis.motors import harmonic_prominence, motor_noise
 from opentunebox.advisor.profiles import PROFILES, detect_profile, profile_key
 from opentunebox.advisor.rules import band_peak_ptb_db, frame_resonance
 from opentunebox.analysis.motors import hover_motor_hz
@@ -33,11 +33,11 @@ def summary(path):
         if "imean_0" in r: r["imean_abs"]=max(abs(r["imean_0"]),abs(r["imean_1"]))
         for a in range(2):
             if f"mnoise_{a}" in r: r[f"mleft_{a}"]=r[f"mnoise_{a}"][0]
-            if f"mnoiseu_{a}" in r:  # 2e harmonique brute par rapport à la plus faible des 1re et 3e
-                h=r[f"mnoiseu_{a}"]; r[f"h2drop_{a}"]=h[1]-min(h[0],h[2]); r[f"mraw_{a}"]=h[0]
+            for k,n in (("hprom","prom"),("hleft","left")):  # par harmonique : prom1…3, left1…3
+                for h,v in enumerate(r.get(f"{k}_{a}") or []): r[f"{n}{h+1}_{a}"]=v
         if r.get("res_db") is not None and not r.get("res_near"): r["res_free_db"]=r["res_db"]
     keys=sorted({k.rsplit("_",1)[0] if k[-2:] in ("_0","_1") else k for r in rows for k in r}
-                - {"file","sess","profile","craft","drone","res_near","mnoise","mnoiseu","rpmw","imean","cells"})
+                - {"file","sess","profile","craft","drone","res_near","mnoise","hprom","hleft","rpmw","imean","cells"})
     def vals(sub,k):
         return [x for r in sub for n in (k,k+"_0",k+"_1") for x in [r.get(n)]
                 if isinstance(x,(int,float)) and not isinstance(x,bool) and np.isfinite(x)]
@@ -88,8 +88,9 @@ for f in files[:int(sys.argv[1])]:
                 if np.any(lg.d_term[a]): r[f"dptb_{a}"]=band_peak_ptb_db(lg.d_term[a,sel],lg.fs,80,500)
                 if lg.gyro_unfilt is not None:
                     r[f"gdelayx_{a}"]=xcorr_delay_ms(lg.gyro_unfilt[a,sel],lg.gyro[a,sel],lg.fs,30.0)
-                    if lg.motor_hz is not None:
-                        r[f"mnoiseu_{a}"]=motor_noise(lg.gyro_unfilt[a,sel],lg.motor_hz[:,sel],lg.fs).mean_db.tolist()
+                    if lg.motor_hz is not None:  # hauteur des harmoniques au-dessus du bruit voisin, avant / après filtres
+                        r[f"hprom_{a}"]=harmonic_prominence(lg.gyro_unfilt[a,sel],lg.motor_hz[:,sel],lg.fs).tolist()
+                        r[f"hleft_{a}"]=harmonic_prominence(lg.gyro[a,sel],lg.motor_hz[:,sel],lg.fs).tolist()
                 if lg.gyro_unfilt is not None: r[f"gyrou_{a}"]=band(lg.gyro_unfilt[a,sel],80,500)
                 if np.any(lg.d_term[a]): r[f"dterm_{a}"]=band(lg.d_term[a,sel],80,500)
                 r[f"lowband_{a}"]=band(lg.gyro[a,sel],20,80)

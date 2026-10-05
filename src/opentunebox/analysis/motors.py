@@ -95,6 +95,50 @@ def motor_noise(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int = 3, seg_
     return MotorNoise(harm, np.array(means), np.array(stds))
 
 
+def harmonic_prominence(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int = 3, seg_ms: float = 300.0,
+                        min_hz: float = 20.0) -> np.ndarray:
+    """Hauteur (dB) de chaque harmonique moteur au-dessus du bruit voisin, médiane des fenêtres de 300 ms.
+
+    Raie = DSP moyenne entre h × (moteur le plus lent) et h × (moteur le plus rapide), ± une case ;
+    bruit voisin = DSP moyenne de 15 à 30 % de part et d'autre de h × (fréquence moyenne). Sans raie,
+    le résultat vaut environ 0 dB. NaN quand l'harmonique sort de la plage mesurable.
+    """
+    L = max(16, int(round(fs * seg_ms / 1000.0)))
+    hop = L // 2
+    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop)
+    if segs.shape[0] == 0:
+        return np.full(n_harm, np.nan)
+    f, P = _seg_spectra(segs, fs, "psd")
+    df = f[1] - f[0]
+    lo_m = _segments(mhz.min(axis=0), L, hop)[0].mean(axis=1)
+    hi_m = _segments(mhz.max(axis=0), L, hop)[0].mean(axis=1)
+    mean_m = _segments(mhz.mean(axis=0), L, hop)[0].mean(axis=1)
+    out = []
+    for h in range(1, n_harm + 1):
+        vals = []
+        for k in range(P.shape[0]):
+            fc = h * mean_m[k]
+            if fc < min_hz or 1.3 * fc > 0.95 * fs / 2:
+                continue
+            line = (f >= h * lo_m[k] - df) & (f <= h * hi_m[k] + df)
+            floor = ((f >= 0.7 * fc) & (f <= 0.85 * fc)) | ((f >= 1.15 * fc) & (f <= 1.3 * fc))
+            if line.any() and floor.sum() >= 2:
+                vals.append(to_db(P[k, line].mean()) - to_db(P[k, floor].mean()))
+        out.append(float(np.median(vals)) if vals else np.nan)
+    return np.array(out)
+
+
+def rpm_weight_needed(prominence_db: float) -> float:
+    """Poids RPM (0–1) juste suffisant pour ramener une raie au niveau du bruit voisin.
+
+    Firmware (`rpmNotchUpdate`, `common/filter.c`) : le notch retranche poids × passe-bande, il reste
+    (1 − poids) de la raie à sa fréquence centrale, soit 20·log10(1 − poids) dB.
+    """
+    if not np.isfinite(prominence_db) or prominence_db <= 0:
+        return 0.0
+    return float(1.0 - 10 ** (-prominence_db / 20.0))
+
+
 def hover_motor_hz(log: FlightLog) -> float | None:
     """Fréquence moteur typique en vol stationnaire (médiane quand le gaz est stable), pour
     reconnaître la taille du drone."""

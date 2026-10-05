@@ -75,7 +75,7 @@ def test_filter_delay_targets_and_rpm_q():
     from dataclasses import replace
 
     from opentunebox.advisor.profiles import PROFILES, filter_delay_target_ms
-    from opentunebox.advisor.rules import RPM_Q_LOW_DELAY, analyze
+    from opentunebox.advisor.rules import RPM_Q_MAX, analyze
     from opentunebox.analysis.period import auto_period
 
     # graphique de Brian White : 1 ms à 2", 4 ms (gyro) et 3 ms (D) à 14"
@@ -84,11 +84,23 @@ def test_filter_delay_targets_and_rpm_q():
     assert filter_delay_target_ms(None) is None and filter_delay_target_ms(1.6) is None
     # repère de retard nul : le conseil apparaît, avec l'objectif et le Q RPM plus haut si Q < 750
     lg = _load("1. PTB/Fred28/Stock.BFL")
-    assert lg.settings.rpm_q < RPM_Q_LOW_DELAY
+    assert lg.settings.rpm_q < RPM_Q_MAX
     rep = analyze(lg, lg.slice_time(*auto_period(lg)), replace(PROFILES["five"], gyro_delay_max_ms=0.0))
     f = next(f for f in rep.findings if f.title == "Filtrage gyro peut-être trop prudent")
     assert "Brian White" in f.detail
     assert any("rpm_filter_q" in a for a in f.actions)
+
+
+def test_rpm_weights_rule():
+    from opentunebox.advisor.rules import analyze
+    from opentunebox.analysis.period import auto_period
+
+    # AIR65 : 2e harmonique invisible avant filtrage, poids 100 → poids réduit proposé, les autres gardés
+    lg = _load("Cedric/Air65/16012025/F3.bbl")
+    rep = analyze(lg, lg.slice_time(*auto_period(lg)))
+    f = next(f for f in rep.findings if f.title == "Filtre RPM plus fort que nécessaire")
+    assert "2e harmonique" in f.detail
+    assert f.actions[0].startswith("rpm_filter_weights = 100, 30, 100")
 
 
 def test_imbalance_interpretation():

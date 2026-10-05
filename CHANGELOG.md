@@ -26,9 +26,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   plus hautes) : terme D signalé aussi quand le sommet de son spectre dépasse −10 dB ; niveau du gyro
   filtré affiché face au repère −30 dB ; objectifs de retard des filtres selon la taille (graphique de
   Brian White) rappelés dans les textes ; conseil « filtrage gyro trop prudent » complété par
-  `rpm_filter_q` → 750 quand Q est plus bas.
+  `rpm_filter_q` + 250, par pas jusqu'à 1000 (documentation de Betaflight 4.5).
+- Assistant : poids du filtre RPM (`rpm_filter_weights`, 4.5 et plus) — poids juste suffisant calculé pour
+  chaque harmonique à partir de sa hauteur au-dessus du bruit voisin et de la formule du firmware ;
+  conseil quand la 2e ou la 3e harmonique est filtrée bien plus que nécessaire, ou quand une raie reste
+  visible alors que son poids a été baissé.
 - `scripts/calibrate_advisor.py` : sommets des spectres gyro et D sur l'échelle de PIDtoolbox, retard gyro
-  par intercorrélation, réglages et harmoniques brutes du filtre RPM.
+  par intercorrélation, réglages du filtre RPM, hauteur des harmoniques avant et après filtres.
 
 ### Modifié
 - Assistant : un retard des filtres gyro au-dessus du repère n'est plus affiché « ok » quand le bruit

@@ -51,6 +51,25 @@ def test_band_peak_on_ptb_scale():
     assert level < band_peak_ptb_db(x, FS, 80, 500) < level + 2.5
 
 
+def test_harmonic_prominence_and_rpm_weight():
+    from opentunebox.analysis.motors import harmonic_prominence, rpm_weight_needed
+
+    # 4 moteurs vers 200 Hz (fréquence variable), raies 1 et 3 seulement, dans un bruit blanc
+    n = int(20 * FS)
+    t = np.arange(n) / FS
+    base = 200 + 30 * np.sin(2 * np.pi * 0.1 * t)
+    mhz = np.vstack([base * (1 + d) for d in (-0.02, -0.01, 0.01, 0.02)])
+    x = np.random.default_rng(0).normal(0, 1, n)
+    for h, a in ((1, 2.0), (3, 1.0)):
+        for m in mhz:
+            x += a / 2 * np.sin(2 * np.pi * np.cumsum(h * m) / FS)
+    p = harmonic_prominence(x, mhz, FS)
+    assert p[0] > 15 and abs(p[1]) < 2 and 8 < p[2] < p[0]
+    # firmware : il reste (1 − poids) de la raie → 20 dB demandent un poids de 0,9 ; pas de raie, pas de filtre
+    assert rpm_weight_needed(20.0) == pytest.approx(0.9)
+    assert rpm_weight_needed(-1.0) == 0.0
+
+
 def test_freq_throttle_tracks_motor_line():
     # raie dont la fréquence suit le gaz : f = 100 + 4 × gaz
     n = int(60 * FS)
