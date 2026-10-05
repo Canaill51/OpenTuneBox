@@ -44,9 +44,9 @@ fichier .bbl/.bfl
 | `step.py` | Réponse indicielle par déconvolution de Wiener ; métriques (pic, latence, montée), bande passante, et boucle ouverte par `loop.py` |
 | `loop.py` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.py` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
-| `bf_filters.py` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si » |
+| `bf_filters.py` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si », passe-bas relevé ou coupé |
 | `sliders.py` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |
-| `motors.py` | Fréquences moteur depuis l'eRPM, harmoniques, centres des notchs dynamiques, bruit moteur |
+| `motors.py` | Fréquences moteur depuis l'eRPM, harmoniques, centres des notchs dynamiques, bruit moteur, hauteur des harmoniques et poids RPM juste suffisant, pics à suivre par le notch dynamique, raies hors moteurs (vol stationnaire) |
 | `stats.py`, `period.py` | Statistiques de vol, erreur PID robuste, période automatique, détection de crash |
 | `datasets.py` | Jeux de données analysables (gyro, gyro préfiltre, terme D…, comme les listes de PIDtoolbox) |
 

@@ -72,11 +72,30 @@ def phase_delay_ms(x: np.ndarray, y: np.ndarray, fs: float, band: tuple[float, f
     return float(np.average(d, weights=coh[m]) * 1000.0)
 
 
+# Le retard des filtres n'est représentatif que si le vol contient des mouvements : en vol stationnaire, les
+# filtres dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne travaillent qu'à un régime, et il y a peu de
+# signal entre 10 et 100 Hz (l'intercorrélation de PIDtoolbox s'y trompe une fois sur deux). Critère : la
+# consigne dépasse 50 °/s au moins 5 % du temps en roll ou en pitch ; les vols stationnaires du corpus
+# restent sous 25 °/s, ceux avec wobble au-dessus de 90 °/s (docs/validation.md).
+MOVING_SETPOINT_DPS = 50.0
+
+
+def stick_p95_dps(log, sel: slice) -> float:
+    """95e centile de |consigne| (°/s), maximum du roll et du pitch : ampleur des mouvements de manche."""
+    return float(max(np.percentile(np.abs(log.setpoint[a, sel]), 95) for a in range(2)))
+
+
 @dataclass
 class Delays:
     gyro_ms: float  # filtres gyro (gyro non filtré → gyro filtré)
     dterm_ms: float  # filtres du D (D préfiltre → D)
     sp_gyro_ms: list[float]  # consigne → gyro, par axe (latence de la boucle)
+    stick_p95_dps: float = float("inf")  # ampleur des mouvements de manche (stick_p95_dps)
+
+    @property
+    def moving(self) -> bool:
+        """Assez de mouvements pour que les retards des filtres soient représentatifs."""
+        return self.stick_p95_dps >= MOVING_SETPOINT_DPS
 
 
 def compute_delays(log: FlightLog, sel: slice | None = None) -> Delays:
@@ -98,4 +117,4 @@ def compute_delays(log: FlightLog, sel: slice | None = None) -> Delays:
             sp.append(float("nan"))
         else:
             sp.append(xcorr_delay_ms(x, log.gyro[a, sel], fs, 100.0))
-    return Delays(gyro_ms, dterm_ms, sp)
+    return Delays(gyro_ms, dterm_ms, sp, stick_p95_dps(log, sel))

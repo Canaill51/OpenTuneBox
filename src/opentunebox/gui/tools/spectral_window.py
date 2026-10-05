@@ -54,6 +54,7 @@ class FileSpectra:
     noise: dict[tuple[str, int], tuple[np.ndarray, np.ndarray]] = field(default_factory=dict)
     gyro_ms: float = float("nan")
     dterm_ms: float = float("nan")
+    delays_moving: bool = True  # assez de mouvements pour que les retards soient représentatifs
     motor_sorted: list[np.ndarray] = field(default_factory=list)  # fréquences moteur triées, par moteur
     notch_sorted: list[np.ndarray] = field(default_factory=list)  # centres des notchs dynamiques triés
     rpm_text: str = ""
@@ -186,7 +187,7 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
                         mn = motor_noise(x, mhz, log.fs)
                         fsp.noise[(key, ax)] = (mn.mean_db, mn.std_db)
             d = compute_delays(log, sel)
-            fsp.gyro_ms, fsp.dterm_ms = d.gyro_ms, d.dterm_ms
+            fsp.gyro_ms, fsp.dterm_ms, fsp.delays_moving = d.gyro_ms, d.dterm_ms, d.moving
             files.append(fsp)
         return SpectralResult(mode, keys, files)
 
@@ -305,6 +306,8 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
             txt = f"Gyro : {sc.fmt_ms(fsp.gyro_ms)}"
             if ax < 2 or datasets.has_axis(fsp.entry.log, "dterm", ax):
                 txt += f" | D : {sc.fmt_ms(fsp.dterm_ms)}"
+            if not fsp.delays_moving:
+                txt += " (vol sans mouvements : peu fiable)"
             lines.append((txt, fsp.entry.color))
         sc.CornerText(p, sc.html_lines(lines))
 

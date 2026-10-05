@@ -14,7 +14,7 @@ Conventions :
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import NamedTuple, Sequence
 
 import numpy as np
@@ -200,6 +200,22 @@ def _as_chain(specs, fs: float | None) -> Chain:
 
 
 # ---------------------------------------------------------------- chaînes depuis l'en-tête
+
+
+LPF_MAX_HZ = 1000  # coupure maximale d'un passe-bas dans le firmware (LPF_MAX_HZ, DYN_LPF_MAX_HZ)
+
+
+def scale_lowpass(lp, factor: float):
+    """Passe-bas aux coupures multipliées par `factor` (comme un curseur de filtre), plafonnées à 1000 Hz ;
+    un filtre coupé le reste (le firmware ne recalcule que les coupures non nulles, simplified_tuning.c)."""
+    def k(v):
+        return int(min(LPF_MAX_HZ, round(v * factor))) if v else 0
+    return replace(lp, static_hz=k(lp.static_hz), dyn_min_hz=k(lp.dyn_min_hz), dyn_max_hz=k(lp.dyn_max_hz))
+
+
+def lowpass_off(lp):
+    """Passe-bas désactivé (coupures à 0)."""
+    return replace(lp, static_hz=0, dyn_min_hz=0, dyn_max_hz=0)
 
 
 def _lowpass_spec(lp, throttle_frac: float) -> FilterSpec | None:

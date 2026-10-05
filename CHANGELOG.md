@@ -22,7 +22,53 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   d'erreur (jackknife) sur les marges ; point creux quand la valeur n'est qu'approchée (termes absents),
   triangle quand le pic de sensibilité n'est qu'un minimum (au-delà des fréquences mesurables).
 
+- Assistant : repères de Brian White (PIDtoolbox) sur l'échelle de ses spectres (nos DSP sont 6,5 dB
+  plus hautes) : terme D signalé aussi quand le sommet de son spectre dépasse −10 dB ; niveau du gyro
+  filtré affiché face au repère −30 dB ; objectifs de retard des filtres selon la taille (graphique de
+  Brian White) rappelés dans les textes ; conseil « filtrage gyro trop prudent » complété par
+  `rpm_filter_q` + 250, par pas jusqu'à 1000 (documentation de Betaflight 4.5).
+- Assistant : poids du filtre RPM (`rpm_filter_weights`, 4.5 et plus) — poids juste suffisant calculé pour
+  chaque harmonique à partir de sa hauteur au-dessus du bruit voisin et de la formule du firmware ;
+  conseil quand la 2e ou la 3e harmonique est filtrée bien plus que nécessaire, ou quand une raie reste
+  visible alors que son poids a été baissé.
+- Assistant : notch dynamique (notes de réglage Betaflight 4.3 et code du firmware) — pics qu'il a à suivre
+  après le filtre RPM ; « moins de notchs suffiraient » (info) ; plage élargie quand une raie fixe en sort
+  (20 Hz de marge, jusqu'à la limite de 20 Hz du firmware) ; `dyn_notch_min_hz` relevé dans le conseil
+  « filtrage gyro trop prudent ».
+- Assistant : raies fixes (résonances) cherchées dès 20 Hz au lieu de 60 Hz.
+- Assistant : **stratégie de filtrage** en tête du diagnostic, qui ordonne les réglages (enregistrement,
+  bruit à corriger, mécanique, filtre RPM, notch dynamique, passe-bas du gyro et du D).
+- Assistant : vol stationnaire exploité pour identifier le bruit (« Vol stationnaire : bruit identifié » :
+  harmoniques avant / après filtres, autres raies, bruit restant) et conseiller un notch pour chaque raie
+  encore visible ; harmonique moteur hors du filtre RPM (`rpm_filter_harmonics`) ou visible malgré un poids
+  de 100 (`motor_poles`, `rpm_filter_q`).
+- Assistant : fréquence d'enregistrement minimale selon le gyro (2 kHz à 8 kHz, 1,6 kHz à 3,2 kHz, plus
+  pour voir la 3e harmonique des petits drones) au lieu de 900 Hz ; sous ce minimum, aucun allègement de
+  filtre n'est proposé.
+- Retards des filtres jugés seulement sur un vol avec des mouvements (consigne au-delà de 50 °/s au moins
+  5 % du temps) : sur un vol stationnaire, l'assistant affiche « Retard des filtres peu représentatif »
+  sans conseil, et l'outil Spectre marque le retard « peu fiable ».
+- Assistant : passe-bas du gyro et du D (configurateur et notes de réglage de Betaflight) — LPF2 du gyro
+  coupé avec une boucle PID plus lente (repliement) ; D filtré à l'ordre 1 seulement ; LPF1 du D statique ;
+  biquad sur le gyro ; « Le LPF1 du gyro peut être coupé » quand le simulateur de filtres prévoit un bruit
+  encore sous les repères ; prévision du simulateur dans le conseil sur le filtrage du D, qui n'est plus
+  proposé si le D dépasserait les repères.
+- `scripts/calibrate_advisor.py` : sommets des spectres gyro et D sur l'échelle de PIDtoolbox, retard gyro
+  par intercorrélation, réglages du filtre RPM, hauteur des harmoniques avant et après filtres.
+- Scripts du corpus en parallèle sur tous les cœurs (`-j N` pour choisir, `-j 1` = un fichier à la fois) :
+  `calibrate_advisor.py` en 2 min 40 au lieu d'une dizaine de minutes, `corpus_labels.py` en 40 s ; un
+  fichier en erreur dans un processus est refait seul à la fin. Nouveau `scripts/advisor_rates.py` : part
+  des sessions du corpus signalées par chaque constat de l'assistant (vols avec mouvements, stationnaires).
+
 ### Modifié
+- Assistant : repères de retard des filtres recalculés sur les seuls vols avec mouvements, pour toutes les
+  tailles (gyro / D : whoop 1,5 / 2,5 ms, 2–3,5" 1,8 / 2,6, 5" 1,9 / 2,7, 7" 2,6 / 2,8, 8"+ 3,5 / 3,1) :
+  les vols stationnaires les avaient fait monter, et les conseils sur le retard ne touchaient plus que 2 à
+  4 % des vols.
+- Assistant : la stratégie de filtrage n'apparaît plus qu'à partir de deux étapes de filtrage à revoir
+  (37 % des sessions du corpus au lieu de 79 %) ; une seule étape, le constat seul suffit.
+- Assistant : un retard des filtres gyro au-dessus du repère n'est plus affiché « ok » quand le bruit
+  empêche de filtrer moins (info) ; nouvelle ligne « ok » pour le retard des filtres du D.
 - Assistant : taille du drone détectée par la fréquence des moteurs **et** le nombre de cellules
   (1S → whoop ; 2 à 4S entre 200 et 290 Hz → 2–3,5") ; limite 5"/7" abaissée de 175 à 160 Hz. Juste pour
   38 drones de taille connue sur 41, au lieu de 27 : les 3,5" et 2,5" ne sont plus pris pour des 5".

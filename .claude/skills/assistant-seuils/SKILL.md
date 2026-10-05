@@ -13,10 +13,14 @@ permise, mais elle doit être déclarée comme telle et listée pour être véri
 ## 1. Calibrer sur le corpus
 
 ```sh
-.venv/bin/python scripts/corpus_labels.py                                  # ≈ 3 min, met à jour $OTB_LOGS/corpus.csv
-.venv/bin/python scripts/calibrate_advisor.py 600 SCRATCH/stats.json        # ≈ 10 min, tout le corpus
+.venv/bin/python scripts/corpus_labels.py                                  # ≈ 40 s, met à jour $OTB_LOGS/corpus.csv
+.venv/bin/python scripts/calibrate_advisor.py 600 SCRATCH/stats.json        # ≈ 3 min, tout le corpus
 .venv/bin/python scripts/calibrate_advisor.py --resume SCRATCH/stats.json   # p10/p50/p90 par taille
+.venv/bin/python scripts/advisor_rates.py SCRATCH/rates.json                # ≈ 2 min, taux de chaque constat
 ```
+
+Les scripts tournent en parallèle sur tous les cœurs : charger la compétence `calculs-corpus` avant de les
+lancer (essai sur un échantillon, réutilisation d'un JSON récent, bits inversés sur le poste de Cédric).
 
 `SCRATCH` = répertoire de travail temporaire de la session (jamais dans le dépôt). Lancer le calcul en
 arrière-plan. `--resume` reclasse les sessions avec les limites de taille actuelles
@@ -43,7 +47,8 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
   seuil commun à tout le corpus (seuils mécaniques), ou marquer le profil `provisional=True`.
 - Rejeter un percentile sans sens physique (ex. saturation p90 = 0 % en 7" → la moindre saturation
   serait signalée) : seuil commun à la place, et l'écrire dans la doc.
-- Vérifier le **taux de déclenchement** d'un seuil sur le corpus (part des sessions signalées) : très
+- Vérifier le **taux de déclenchement** d'un seuil sur le corpus (part des sessions signalées,
+  `scripts/advisor_rates.py`, avant / après le changement) : très
   au-dessus de 10 % → seuil trop sévère ; proche de 0 % → règle inutile.
 - Arrondis : bruit au 0,1 dB ; latence p10 vers le bas, p90 vers le haut (ms entière) ; retards de filtres
   au dixième supérieur (+0,1 ms).
@@ -61,6 +66,9 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
   **Estimation**, même si beaucoup de pilotes la répètent (cas des paliers 1,02–1,08 / 1,20 du pic de
   réponse, recherche du 2026-10-05). Préférer la source primaire (auteur de l'outil, développeurs
   Betaflight, code) au blog qui la reprend ; une page disparue se lit sur la Wayback Machine.
+- **Repère lu dans PIDtoolbox** : ses spectres sont 6,5 dB sous les nôtres (`spectral.PTB_PSD_OFFSET_DB`,
+  mesure `rules.band_peak_ptb_db`) et son retard D 0,3 à 0,9 ms sous le nôtre ; recouper avec les captures
+  `PTB_FIGS_*` avant d'adopter un autre repère chiffré (`docs/validation.md`).
 - **Fonctionnalité récente d'un autre outil** : vérifier son historique (PR, version publiée ou non,
   essais en vol, tickets ouverts) avant de la citer. L'onglet Autotune du configurateur (2026) a été
   examiné et **n'est pas une source** (voir `docs/assistant.md`).

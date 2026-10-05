@@ -17,6 +17,10 @@ from scipy import ndimage, signal
 
 EPS = 1e-12
 
+# Nos DSP en dB sont plus hautes que celles de PIDtoolbox d'environ 6,5 dB (± 1 dB, 4 sessions de 3 drones
+# avec captures PTB, docs/validation.md) : à retrancher pour lire un repère donné sur l'échelle de PTB.
+PTB_PSD_OFFSET_DB = 6.5
+
 
 # ---------------------------------------------------------------- outils
 

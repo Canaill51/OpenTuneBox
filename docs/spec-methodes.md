@@ -104,6 +104,17 @@ ils viennent du bruit (`validation.md`).
   Superpositions : harmoniques moteur (eRPM) et centres des notchs dynamiques (debug FFT_FREQ).
 - **Bruit moteur** : moyenne ± écart-type de la DSP aux fréquences des harmoniques moteur (1re / 2e / 3e),
   en fenêtres de 300 ms, filtré contre préfiltre ; texte « poids | Q » du filtre RPM tiré de l'en-tête.
+- **Hauteur des harmoniques** (`motors.harmonic_prominence`) : par fenêtre de 300 ms, DSP moyenne entre
+  h × (moteur le plus lent) et h × (moteur le plus rapide) ± une case, moins la DSP moyenne de 15 à 30 % de
+  part et d'autre de h × (fréquence moyenne) ; médiane des fenêtres. ≈ 0 dB sans raie.
+- **Raies hors moteurs** (`motors.spectrum_lines`, vol stationnaire) : DSP moyenne des fenêtres de 300 ms,
+  bandes des harmoniques 1 à 8 retirées (± 5 % de l'harmonique pour les trois premières, de la fréquence
+  moteur ensuite, images repliées comprises), hauteur d'un maximum local au-dessus du bruit voisin (10 à
+  20 % de part et d'autre), avant et après filtres ; une raie par groupe de ± 10 %.
+- **Pics du notch dynamique** (`motors.dyn_notch_targets`) : gyro non filtré, bandes des harmoniques
+  traitées par le filtre RPM retirées (± 5 %, image repliée comprise), DSP moyenne regroupée en cases de
+  18,5 Hz ; pic suivi s'il dépasse 2 fois la puissance moyenne hors pics (au-dessus de 60 Hz), comme le
+  firmware.
 - **Estimation RPM** sans télémétrie : fréquence moteur ≈ multiplicateur (2,1) × % moteur (« RPM est. » de PTB),
   à calibrer par drone.
 
@@ -113,6 +124,10 @@ ils viennent du bruit (`validation.md`).
   H = Sxy/Sxx (Welch, fenêtres d'environ 0,5 s), entre 10 et 100 Hz, points de cohérence ≥ 0,6, moyenne
   pondérée par la cohérence, roll et pitch moyennés. L'intercorrélation est écartée : elle est dominée par
   le bruit haute fréquence.
+- **Représentativité** : retard des filtres retenu seulement si la consigne dépasse 50 °/s au moins 5 % du
+  temps (95e centile de |consigne|, roll ou pitch, `delay.stick_p95_dps`). En vol stationnaire, les filtres
+  dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne travaillent qu'au régime du stationnaire et il
+  y a peu de signal entre 10 et 100 Hz (`validation.md`).
 - **Consigne → gyro**, par axe : maximum de l'intercorrélation dans ±100 ms, interpolation parabolique sous
   l'échantillon ; axe ignoré si l'écart-type de la consigne est < 5 °/s.
 
@@ -149,8 +164,8 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz
   résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (Brian White situait les
   moteurs vers 200–500 Hz [S7]). Propwash le plus souvent vers 30–50 Hz [S23].
-- **Niveaux de bruit** (échelle en dB des spectres de PIDtoolbox, pas notre densité spectrale : non
-  comparables tels quels aux seuils de l'assistant) : gyro filtré sous −30 dB, « a good rule of thumb »
+- **Niveaux de bruit** (échelle en dB des spectres de PIDtoolbox, 6,5 dB sous notre densité spectrale,
+  `validation.md`) : gyro filtré sous −30 dB, « a good rule of thumb »
   [S21, S22, repris par S6] ; terme D idéalement sous −20 dB, au plus −10 dB [S20] (S6 citait −10 dB).
 - **Spectrogramme fréquence × gaz** : bruit moteur = ligne qui suit le gaz (diagonale) [S8, S6] ; résonance
   = fréquence fixe quel que soit le gaz [S6, S9] (ligne horizontale ou verticale selon l'axe des
@@ -158,7 +173,10 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - **Retard des filtres** : « aim for < 5ms total latency if possible » [S1, retard gyro estimé par
   PIDtoolbox par intercorrélation, roll seul : pas tout à fait notre méthode de phase] ; Brian White vise
   désormais 1,5 ms au plus pour le gyro filtré d'un 5", jusqu'à ≈ 5 ms pour un 10" (« rough
-  guestimate ») [S20] ; 4–5 ms « raisonnable » pour un 5" [S10] ; 7–8 ms = filtrage très lourd [S11].
+  guestimate ») [S20] ; son graphique « Rough guide to ideal filter delay » donne des droites de 1 ms à 2"
+  jusqu'à 4 ms (gyro) et 3 ms (D) à 14", soit 1,75 / 1,5 ms pour un 5" [S26] (valeurs lues par PIDtoolbox,
+  dont le retard D est environ 0,5 ms sous le nôtre, `validation.md`) ; 4–5 ms « raisonnable » pour un 5"
+  [S10] ; 7–8 ms = filtrage très lourd [S11].
 - **Fréquence fondamentale des moteurs** : régime en charge ≈ 70 % du régime à vide KV × cellules × 4 V
   [S12], soit ≈ KV × tension nominale × 0,75. Tableau par taille (whoop 65–75 mm 550–800 Hz en
   stationnaire / 1,1–1,4 kHz plein gaz ; 2,5–3,5" 350–450 / 800–950 ; 5" 200–270 / 500–650 ; 7" 130–170 /
@@ -174,7 +192,9 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   de filtrage plus bas que ≈ 100 Hz [S22].
   `rpm_filter_q` : 500 par défaut [S17] ; le monter tant que le bruit moteur ne réapparaît pas, sans
   dépasser 750 [S9] ou 1000 [S6, S14] selon les sources ; Brian White conseille 750 à 1000 sur un 5"
-  propre pour réduire le retard [S20].
+  propre pour réduire le retard [S20] ; documentation de Betaflight 4.5 : avec des tripales, monter Q par
+  pas de 500 jusqu'à 1000 au plus, puis baisser les poids de la 2e et de la 3e harmonique (« the second
+  almost invisible ») pour n'avoir que juste assez de filtrage [S27] ; presets officiels [S28].
 - **Feedforward** (Betaflight 4.3 et plus) : liaison 250 Hz → `feedforward_smooth_factor` 40–50 et
   `feedforward_averaging` 2_POINT (35–40 ailleurs sur la même page ; preset officiel 45) ; 500 Hz → 65–70
   [S19, S18] ; `feedforward_jitter_factor` 12–15 « for freestyle/cinematic » [S19].
@@ -210,6 +230,7 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S11] Wiki Betaflight, [Gyro and Dterm Filtering Recommendations 3.1](https://betaflight.com/docs/wiki/guides/archive/Gyro-And-Dterm-Filtering-Recommendations-3-1)
   (archive, vers 2017) : « 7-8ms delay from strong filtering ».
 - [S12] ctzsnooze, [4.2 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-2-Tuning-Notes) (vers 2020) :
+  LPF2 du gyro anti-repliement, « With a 2k PID loop, don't disable gyro lowpass 2 » ;
   « 70% of the peak theoretical no-load rpm ».
 - [S13] Oscar Liang, [*How to Setup RPM Filters in Betaflight*](https://oscarliang.com/rpm-filter/),
   2023-03-31 : « 14 poles in 22XX, 23XX, 24XX motors 12 poles in 08XX, 11XX, 12XX, 13XX, 14XX, 16XX motors ».
@@ -224,7 +245,10 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S18] ctzsnooze, presets officiels ELRS 250 Hz et 500 Hz (`presets/4.3/rc_link/`, firmware-presets,
   2021-2022) : `feedforward_smooth_factor` 45 (250 Hz) et 65 (500 Hz), `feedforward_averaging = 2_POINT`.
 - [S19] ctzsnooze, [4.3 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-3-Tuning-Notes),
-  2021-07-16 à 2022-02-12 : « Q values around 300-450 » ; sans filtre RPM, « three or four notches and Q
+  2021-07-16 à 2022-02-12 : LPF2 du gyro « absolutely essential » à 2 kHz, « strongly recommend » à
+  4 kHz ; biquad remplacé par le PT2 (+60 % de retard pour un PT2, ×2 pour un PT3 face au PT1) ; notch dynamique, « often only one » (souvent un seul notch), minimum « as high
+  as practical (eg 200hz) », plage qui englobe la résonance avec « 20hz additional range each side » ;
+  « Q values around 300-450 » ; sans filtre RPM, « three or four notches and Q
   values around 120-150 » ; « For 250hz RC links […] 40-50 », « For 500hx RC links […] 65-70 »
   (`feedforward_smooth_factor`) ; jitter « 12-15 […] for freestyle/cinematic ».
 - [S20] Brian White, chaîne YouTube PIDtoolbox, [*PTB Q&A #16 : Filter tuning for performance*](https://www.youtube.com/watch?v=TiwaQEkOdyo),
@@ -248,3 +272,29 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S25] Brian White, [réglage Betaflight avec PIDtoolbox](https://www.youtube.com/watch?v=ehvQm8Rqrzk),
   2025-09-04 : Damping 0,6 à 1,2, « the 1.2 is even really overdampened […] 0.8 or 1.0 is fine »
   ([13:30](https://www.youtube.com/watch?v=ehvQm8Rqrzk&t=810s)).
+- [S26] Brian White, graphique « Rough guide to ideal filter delay » (axe X « Drone size (inch) » de 2 à
+  14, axe Y « Target Filter Delay (msec) » ; droites « gyro » de 1 à 4 ms et « dterm » de 1 à 3 ms),
+  publié sur le serveur Discord de PIDtoolbox, date non relevée ; capture transmise par Cédric le
+  2026-10-05. Brian White l'évoque dans [S20] ([40:24](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2424s) :
+  « I made this little chart […] purely out of experience »).
+- [S27] Documentation Betaflight, [*4.5 Release Notes*, § 10 « Dimmable RPM Harmonics »](https://betaflight.com/docs/wiki/release/Betaflight-4-5-Release-Notes)
+  (source `betaflight.com`, commit 711c78d du 2026-06-26, [PR 12838](https://github.com/betaflight/betaflight/pull/12838)) :
+  « A weight of 100 applies the filter at full strength, while 0 means 'completely off'. The Q factor of
+  the RPM filter still sets the 'width' » ; tripales : « Typically the first is strongest, the second
+  almost invisible, and the third is a bit less than the first » ; exemple `100, 0, 80`, bipales
+  `100, 80, 0` ; « It's best to have only just enough RPM filtering that the motor harmonic lines are only
+  just not visible in a D or motor trace spectrum » ; « stepwise increasing the Q from the default of 500
+  up to a max of 1000, and checking the noise at each step ».
+- [S28] Presets officiels de Betaflight (dépôt `firmware-presets`, commit ac721ff du 2026-09-23),
+  `rpm_filter_weights` en 4.5 et plus : AOS RC « RPM Filter Weights for triblade props » 100, 0, 80
+  (`presets/4.5/tune/aos_rc/aos_ul5_tune.txt`) ; Karatebrot, auteur de la fonction, « 3 blade prop »
+  100, 20, 100 et « 2 blade prop » 100, 100, 50 (`presets/4.5/tune/karate/karate_brushless_whoop.txt`) ;
+  SupaflyFPV 90, 30, 90 et 90, 50, 90 avec Q 700–800.
+- [S29] Configurateur Betaflight, aides de l'onglet PID / filtres (`locales/en/messages.json`, commit
+  a38c4a79 du 2026-10-05) : LPF1 du gyro « can usually be disabled completely in firmware 4.3 when RPM
+  filtering is used » ; LPF2 du gyro « should be retained to prevent aliasing » quand la boucle PID est
+  plus lente que le gyro ; D : « At least two PT1 lowpass filters, or a single second order filter, are
+  required » ; LPF1 du D statique « not recommended for D filtering ».
+- [S30] Documentation Betaflight, [*DSHOT RPM Filtering*](https://betaflight.com/docs/wiki/guides/current/DSHOT-RPM-Filtering) :
+  si les moteurs restent froids, « move gyro lowpass filtering to higher values », « disable gyro lowpass
+  1 entirely », un filtre à la fois, en vérifiant la température des moteurs.

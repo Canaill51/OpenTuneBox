@@ -40,6 +40,84 @@ def test_spectrum_finds_sine():
     assert s.values[k] == pytest.approx(3.0, rel=0.1)
 
 
+def test_band_peak_on_ptb_scale():
+    from opentunebox.advisor.rules import band_peak_ptb_db
+    from opentunebox.analysis.spectral import PTB_PSD_OFFSET_DB
+
+    # bruit blanc d'écart-type σ : DSP unilatérale 2σ²/fs, plate ; le sommet lissé dépasse à peine ce niveau
+    sigma = 3.0
+    x = np.random.default_rng(1).normal(0, sigma, int(20 * FS))
+    level = 10 * np.log10(2 * sigma**2 / FS) - PTB_PSD_OFFSET_DB
+    assert level < band_peak_ptb_db(x, FS, 80, 500) < level + 2.5
+
+
+def test_harmonic_prominence_and_rpm_weight():
+    from opentunebox.analysis.motors import harmonic_prominence, rpm_weight_needed
+
+    # 4 moteurs vers 200 Hz (fréquence variable), raies 1 et 3 seulement, dans un bruit blanc
+    n = int(20 * FS)
+    t = np.arange(n) / FS
+    base = 200 + 30 * np.sin(2 * np.pi * 0.1 * t)
+    mhz = np.vstack([base * (1 + d) for d in (-0.02, -0.01, 0.01, 0.02)])
+    x = np.random.default_rng(0).normal(0, 1, n)
+    for h, a in ((1, 2.0), (3, 1.0)):
+        for m in mhz:
+            x += a / 2 * np.sin(2 * np.pi * np.cumsum(h * m) / FS)
+    p = harmonic_prominence(x, mhz, FS)
+    assert p[0] > 15 and abs(p[1]) < 2 and 8 < p[2] < p[0]
+    # firmware : il reste (1 − poids) de la raie → 20 dB demandent un poids de 0,9 ; pas de raie, pas de filtre
+    assert rpm_weight_needed(20.0) == pytest.approx(0.9)
+    assert rpm_weight_needed(-1.0) == 0.0
+
+
+def test_dyn_notch_targets_skip_motor_lines():
+    from opentunebox.analysis.motors import dyn_notch_targets
+
+    # raie moteur variable (traitée par le filtre RPM) + résonance fixe à 330 Hz : seule la seconde reste
+    n = int(20 * FS)
+    t = np.arange(n) / FS
+    base = 200 + 30 * np.sin(2 * np.pi * 0.1 * t)
+    mhz = np.vstack([base * (1 + d) for d in (-0.02, 0.0, 0.02)])
+    x = np.random.default_rng(0).normal(0, 1, n) + 1.0 * np.sin(2 * np.pi * 330 * t)
+    for m in mhz:
+        x += 2.0 * np.sin(2 * np.pi * np.cumsum(m) / FS)
+    r = dyn_notch_targets(x, mhz, FS, (100, 600), rpm_harmonics=3)
+    assert r.freqs.size == 1 and abs(r.freqs[0] - 330) < 15 and r.ratios_db[0] > 3
+    # sans filtre RPM, le notch dynamique doit aussi suivre la raie moteur
+    assert dyn_notch_targets(x, mhz, FS, (100, 600)).freqs.size >= 2
+
+
+def test_stick_movement_criterion():
+    from types import SimpleNamespace
+
+    from opentunebox.analysis.delay import MOVING_SETPOINT_DPS, stick_p95_dps
+
+    # stationnaire : consigne de quelques °/s ; vol : flips à 300 °/s 10 % du temps
+    rng = np.random.default_rng(0)
+    hover = rng.normal(0, 5, (3, 4000))
+    flight = hover.copy()
+    flight[0, :400] = 300.0
+    p = lambda sp: stick_p95_dps(SimpleNamespace(setpoint=sp), slice(None))  # noqa: E731
+    assert p(hover) < MOVING_SETPOINT_DPS <= p(flight)
+
+
+def test_spectrum_lines_hover():
+    from opentunebox.analysis.motors import spectrum_lines
+
+    # stationnaire : moteurs vers 190 Hz (raies 1 à 3), résonance à 330 Hz que le « filtre » laisse à moitié
+    n = int(20 * FS)
+    t = np.arange(n) / FS
+    rng = np.random.default_rng(2)
+    mhz = np.vstack([np.full(n, 190.0 * (1 + d)) for d in (-0.01, 0.0, 0.01)])
+    raw = rng.normal(0, 1, n) + 1.0 * np.sin(2 * np.pi * 330 * t)
+    for h in (1, 2, 3):
+        raw += 1.0 * np.sin(2 * np.pi * h * 190 * t)
+    filt = rng.normal(0, 1, n) + 0.3 * np.sin(2 * np.pi * 330 * t)
+    lines = spectrum_lines(raw, filt, mhz, FS, (20, 900))
+    assert len(lines) == 1 and abs(lines[0].freq_hz - 330) < 5
+    assert lines[0].raw_db > lines[0].left_db > 3
+
+
 def test_freq_throttle_tracks_motor_line():
     # raie dont la fréquence suit le gaz : f = 100 + 4 × gaz
     n = int(60 * FS)

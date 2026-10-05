@@ -36,6 +36,7 @@ class CraftProfile:
     roll_pitch_gap_high: float = 0.12  # écart de pic de réponse entre roll et pitch
     resonance_high_db: float = 7.9  # raie fixe au-dessus du bruit voisin
     provisional: bool = False  # trop peu de drones dans le corpus : seuils peu fiables
+    nominal_inch: float | None = None  # taille d'hélice représentative, pour les objectifs de retard des filtres
 
 
 # Recalibration du 2026-10-05 sur 681 sessions, 94 drones, tout le corpus (docs/assistant.md, « Calibration »),
@@ -45,33 +46,44 @@ class CraftProfile:
 # - 2–3,5", 5", 7" recalculés ; whoop (11 drones) et 8"+ (6 drones) inchangés (calibration précédente :
 #   un seul drone de plus y déplace le seuil de plusieurs dB) ;
 # - seuils mécaniques : une voix par drone ; communs (valeurs par défaut de CraftProfile) sauf 5" et 7".
+# Retards des filtres recalculés le 2026-10-05 (décision de Cédric) sur les seuls vols avec mouvements
+# (delay.MOVING_SETPOINT_DPS, 573 sessions sur 681), pour toutes les tailles, whoop et 8"+ compris.
 PROFILES: dict[str, CraftProfile] = {
     "whoop": CraftProfile(
         "whoop", "Tiny whoop / micro (≤ 75 mm, 1–2S)", hover_hz=(345, 900), resonance_hz=(250, 600),
-        latency_ms=(13, 20), gyro_delay_max_ms=2.1, dterm_delay_max_ms=3.5,
+        latency_ms=(13, 20), gyro_delay_max_ms=1.5, dterm_delay_max_ms=2.5,
         gyro_noise_high_db=-28.0, dterm_noise_high_db=-14.7, low_band_high_db=-13.9, motor_left_high_db=-32.2,
         provisional=True),
     "micro": CraftProfile(
-        "micro", "2 à 3,5 pouces", hover_hz=(200, 345), resonance_hz=(180, 450),
-        latency_ms=(10, 21), gyro_delay_max_ms=2.0, dterm_delay_max_ms=2.6,
+        "micro", "2 à 3,5 pouces", hover_hz=(200, 345), resonance_hz=(180, 450), nominal_inch=3,
+        latency_ms=(10, 21), gyro_delay_max_ms=1.8, dterm_delay_max_ms=2.6,
         gyro_noise_high_db=-29.4, dterm_noise_high_db=-14.8, low_band_high_db=-13.9, motor_left_high_db=-32.5,
         provisional=True),
     "five": CraftProfile(
-        "five", "4 à 5 pouces", hover_hz=(160, 290), resonance_hz=(120, 350),
-        latency_ms=(10, 22), gyro_delay_max_ms=2.1, dterm_delay_max_ms=2.8,
+        "five", "4 à 5 pouces", hover_hz=(160, 290), resonance_hz=(120, 350), nominal_inch=5,
+        latency_ms=(10, 22), gyro_delay_max_ms=1.9, dterm_delay_max_ms=2.7,
         gyro_noise_high_db=-28.3, dterm_noise_high_db=-13.1, low_band_high_db=-15.7, motor_left_high_db=-28.4,
         imbalance_high_pct=14.0, iterm_offset_high=32, roll_pitch_gap_high=0.11, resonance_high_db=6.8),
     "seven": CraftProfile(
-        "seven", "6 à 7 pouces", hover_hz=(115, 160), resonance_hz=(80, 220),
+        "seven", "6 à 7 pouces", hover_hz=(115, 160), resonance_hz=(80, 220), nominal_inch=7,
         latency_ms=(15, 24), gyro_delay_max_ms=2.6, dterm_delay_max_ms=2.8,
         gyro_noise_high_db=-31.4, dterm_noise_high_db=-17.5, low_band_high_db=-21.7, motor_left_high_db=-31.8,
         imbalance_high_pct=11.2, iterm_offset_high=31, roll_pitch_gap_high=0.08, resonance_high_db=8.2),
     "large": CraftProfile(
-        "large", "8 pouces et plus", hover_hz=(50, 125), resonance_hz=(40, 160),
-        latency_ms=(18, 30), gyro_delay_max_ms=3.2, dterm_delay_max_ms=3.5,
+        "large", "8 pouces et plus", hover_hz=(50, 125), resonance_hz=(40, 160), nominal_inch=8,
+        latency_ms=(18, 30), gyro_delay_max_ms=3.5, dterm_delay_max_ms=3.1,
         gyro_noise_high_db=-31.0, dterm_noise_high_db=-17.0, low_band_high_db=-22.0, motor_left_high_db=-32.0,
         provisional=True),
 }
+
+
+def filter_delay_target_ms(inch: float | None) -> tuple[float, float] | None:
+    """Objectifs de retard des filtres (gyro, D) selon la taille, graphique « Rough guide to ideal filter
+    delay » de Brian White : droites de 1 ms à 2 pouces jusqu'à 4 ms (gyro) et 3 ms (D) à 14 pouces.
+    Valeurs lues par PIDtoolbox, qui mesure le retard du D environ 0,5 ms plus court que nous (docs/assistant.md)."""
+    if inch is None or inch < 2:
+        return None
+    return 1.0 + (inch - 2) * 3.0 / 12, 1.0 + (inch - 2) * 2.0 / 12
 
 
 # Limites de taille, vérifiées sur 41 drones de taille connue (docs/assistant.md, « Taille du drone »)

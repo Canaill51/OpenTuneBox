@@ -36,7 +36,8 @@ src/opentunebox/
 tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
               test_docs.py vérifie la documentation
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
-              corpus_labels.py (tableau d'étiquettes du corpus), release.py (préparer une version, notes de la page Releases)
+              advisor_rates.py (taux de déclenchement des constats), corpus_labels.py (tableau d'étiquettes
+              du corpus, passages parallèles map_files), release.py (préparer une version, notes de la page Releases)
 packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes (make_icons.py), installateurs :
               windows/ (Inno Setup), macos/ (.dmg), linux/ (AppImage)
 docs/         guide utilisateur, architecture, validation, assistant, spécifications (index : docs/README.md)
@@ -60,6 +61,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande
 .venv/bin/python scripts/validate_corpus.py [DOSSIER] [--limit N]   # décodeur vs blackbox_decode
 .venv/bin/python scripts/corpus_labels.py                        # tableau d'étiquettes $OTB_LOGS/corpus.csv
+.venv/bin/python scripts/advisor_rates.py SORTIE.json            # taux de chaque constat sur le corpus (≈ 2 min)
 .venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
 .venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```
@@ -83,14 +85,23 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
 - Numéros de `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12) → `log/debug_tables.py`.
 - 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max` → normalisé dans `log/settings.py`.
 - Retards de filtres : méthode de **phase** (10–100 Hz, pondérée par la cohérence), pas l'intercorrélation
-  (dominée par le bruit haute fréquence).
+  (dominée par le bruit haute fréquence). PIDtoolbox affiche un retard D 0,3 à 0,9 ms trop court (le gyro
+  concorde) : ses objectifs de retard D ne s'appliquent pas tels quels.
+- Retard des filtres : représentatif seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne
+  > 50 °/s au moins 5 % du temps) ; en vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime.
+- Fréquence du log : au moins 2 kHz pour un gyro à 8 kHz, 1,6 kHz à 3,2 kHz, plus pour les petits drones
+  (`rules.log_rate_needed`) ; le blackbox sous-échantillonne sans filtre, tout ce qui dépasse fs/2 se replie.
+  Vol stationnaire = identifier le bruit ; vol avec mouvements = juger le retard.
+- Repères en dB de PIDtoolbox (gyro −30, D −10) : nos DSP sont 6,5 dB plus hautes → `spectral.PTB_PSD_OFFSET_DB`,
+  `rules.band_peak_ptb_db` (sommet du spectre lissé, sur l'échelle de PTB).
 - Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic
   cherché dans max(150 ms, 3 × latence). Bande passante calculée à partir de 2 Hz, lissage `uniform_filter1d(mode="nearest")`.
 - Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²
   à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
   `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log.
 - Seuils de l'assistant = 90e percentile du corpus par taille de drone (`docs/assistant.md`) : les recalculer
-  avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles), ne pas les inventer. Compter **une voix
+  avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles ; scripts du corpus en parallèle sur
+  tous les cœurs, compétence `calculs-corpus`), ne pas les inventer. Compter **une voix
   par drone** quand quelques drones dominent une taille (whoop, seuils mécaniques) ; moins de ~20 drones →
   seuil commun ou profil provisoire. Chaque seuil a une origine notée (corpus, théorie, firmware…).
 - Boucle ouverte (`analysis/loop.py`) : L = G·(Ce + Cd) **mesurée** à partir des termes P, I, D, F loggés ;
