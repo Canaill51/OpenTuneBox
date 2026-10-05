@@ -15,12 +15,21 @@ if sys.platform == "win32" and (root / "packaging" / "opentunebox.ico").exists()
 elif sys.platform == "darwin" and (root / "packaging" / "opentunebox.icns").exists():
     icon = str(root / "packaging" / "opentunebox.icns")
 
+# Parties de pyqtgraph jamais utilisées : les exemples de démonstration (les parcourir ouvre une fenêtre,
+# ce qui plante sur un serveur sans écran), l'affichage 3D (OpenGL) et l'intégration Jupyter.
+PYQTGRAPH_UNUSED = ["pyqtgraph.examples", "pyqtgraph.opengl", "pyqtgraph.jupyter"]
+
+
+def used_by_app(name):
+    return not any(name == mod or name.startswith(mod + ".") for mod in PYQTGRAPH_UNUSED)
+
+
 a = Analysis(
     [str(root / "packaging" / "launcher.py")],
     pathex=[str(root / "src")],
     datas=[(str(root / "src" / "opentunebox" / "gui" / "assets"), "opentunebox/gui/assets")],
-    hiddenimports=collect_submodules("opentunebox") + collect_submodules("pyqtgraph"),
-    excludes=["tkinter", "matplotlib", "IPython", "pytest",
+    hiddenimports=collect_submodules("opentunebox") + collect_submodules("pyqtgraph", filter=used_by_app),
+    excludes=["tkinter", "matplotlib", "IPython", "pytest", *PYQTGRAPH_UNUSED,
               "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtPdf", "PySide6.QtVirtualKeyboard"],
 )
 
