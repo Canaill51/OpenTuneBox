@@ -10,18 +10,18 @@ Méthode (docs/spec-methodes.md, d'après la description publique de PIDtoolbox)
 6. contrôle qualité : régime établi (200–500 ms) entre 0,5 et 3.
 
 Les mêmes spectres croisés donnent la fonction de transfert en boucle fermée T(f) = consigne → gyro,
-d'où : bande passante (−3 dB), boucle ouverte L = T/(1 − T) et ses marges (`loop.margins` :
-sensibilité S = 1/(1 + L) = 1 − T, croisement |L| = 1, marges de phase et de gain).
+d'où la bande passante (−3 dB) et le pic de suivi max |1 − T|. La boucle ouverte et ses marges viennent
+de `loop.py` : mesurée à partir des termes P, I, D, F loggés (`terms`), sinon approchée par T/(1 − T).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 from scipy import signal
 
-from .loop import margins
+from .loop import LoopMetrics, PidTerms, loop_from_T, loop_from_terms
 
 
 PAD = 100
@@ -35,20 +35,6 @@ class StepMetrics:
     rise_ms: float = float("nan")  # 10 % → 90 %
     settling_ms: float = float("nan")  # entrée définitive dans ±5 %
     overshoot_pct: float = float("nan")
-
-
-@dataclass
-class LoopMetrics:
-    bandwidth_hz: float = float("nan")  # |T| = −3 dB
-    sensitivity_peak_db: float = float("nan")  # max |1 − T| en dB
-    sensitivity_peak_hz: float = float("nan")
-    sensitivity_peak_at_edge: bool = False  # pic au bord de la bande analysée : Ms réel ≥ valeur donnée
-    crossover_hz: float = float("nan")  # |L| = 1
-    phase_margin_deg: float = float("nan")  # la plus petite sur tous les croisements, négative possible
-    gain_margin_db: float = float("nan")
-    freqs: np.ndarray = field(default_factory=lambda: np.zeros(0))
-    T: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=complex))
-    coherence: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
 
 @dataclass
@@ -79,11 +65,14 @@ def step_response(
     reg: float = 1e-4,
     smooth: int = 0,
     y_correction: bool = False,
+    terms: PidTerms | None = None,
 ) -> StepResult:
     """Réponse indicielle d'un axe. `max_input` permet de séparer petits / grands mouvements
-    (ex. < 500 °/s et ≥ 500 °/s comme PIDtoolbox et PID-Analyzer)."""
+    (ex. < 500 °/s et ≥ 500 °/s comme PIDtoolbox et PID-Analyzer). `terms` (P, I, D, F loggés sur la
+    même période) : boucle ouverte mesurée ; sans eux, méthode approchée."""
     sp = np.asarray(sp, dtype=np.float64)
     gy = np.asarray(gy, dtype=np.float64)
+    sp_raw, gy_raw = sp, gy
     if smooth > 1:
         gy = np.convolve(gy, np.ones(smooth) / smooth, mode="same")
     n = min(sp.size, gy.size)
@@ -144,8 +133,14 @@ def step_response(
     with np.errstate(invalid="ignore", divide="ignore"):
         T = sum_gh / sum_hh
         coh = np.abs(sum_gh) ** 2 / (sum_gg * sum_hh)
-    return StepResult(t_ms, R, mean, std, R.shape[0], step_metrics(t_ms, mean),
-                      loop_metrics(freqs, T, coh), maxin)
+    loop = loop_from_T(freqs, T, coh)
+    if terms is None:
+        loop.notes.append("termes PID non fournis")
+    elif terms.note:
+        loop.notes.append(terms.note)
+    else:
+        loop = loop_from_terms(sp_raw, gy_raw, terms, fs, loop, seg_s, min_input, max_input)
+    return StepResult(t_ms, R, mean, std, R.shape[0], step_metrics(t_ms, mean), loop, maxin)
 
 
 def _seg_max(x: np.ndarray, s0: int, L: int) -> float:
@@ -186,37 +181,3 @@ def _crossing(t: np.ndarray, r: np.ndarray, level: float) -> float:
     r0, r1 = r[k - 1], r[k]
     frac = (level - r0) / (r1 - r0) if r1 != r0 else 0.0
     return float(t[k - 1] + frac * (t[k] - t[k - 1]))
-
-
-def loop_metrics(freqs: np.ndarray, T: np.ndarray, coh: np.ndarray, f_max: float = 150.0,
-                 min_coh: float = 0.5) -> LoopMetrics:
-    """Métriques fréquentielles de la boucle à partir de T(f) (consigne → gyro)."""
-    lm = LoopMetrics(freqs=freqs, T=T, coherence=coh)
-    valid = (freqs >= 2.0) & (freqs <= f_max) & np.isfinite(T) & (coh >= min_coh)
-    if valid.sum() < 5:
-        return lm
-    f = freqs[valid]
-    Tv = _smooth_complex(T[valid], 5)
-    mag = np.abs(Tv)
-    below = np.nonzero(mag < 1 / np.sqrt(2))[0]
-    if below.size:
-        lm.bandwidth_hz = float(f[below[0]])
-    with np.errstate(invalid="ignore", divide="ignore"):
-        Lo = Tv / (1.0 - Tv)
-    mg = margins(f, Lo)
-    lm.sensitivity_peak_db = mg.sensitivity_peak_db
-    lm.sensitivity_peak_hz = mg.sensitivity_peak_hz
-    lm.sensitivity_peak_at_edge = mg.sensitivity_peak_at_edge
-    lm.crossover_hz = mg.crossover_hz
-    lm.phase_margin_deg = mg.phase_margin_deg
-    lm.gain_margin_db = mg.gain_margin_db
-    return lm
-
-
-def _smooth_complex(z: np.ndarray, width: int) -> np.ndarray:
-    """Moyenne glissante sur parties réelle et imaginaire, bords prolongés (pas d'écrasement)."""
-    if width <= 1 or z.size < width:
-        return z
-    from scipy.ndimage import uniform_filter1d
-
-    return uniform_filter1d(z.real, width, mode="nearest") + 1j * uniform_filter1d(z.imag, width, mode="nearest")

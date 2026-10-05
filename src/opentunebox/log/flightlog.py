@@ -15,10 +15,13 @@ from pathlib import Path
 
 import numpy as np
 
+from ..analysis.loop import PidTerms
 from ..decoder.reader import DecodedSession, decode_file
 from .settings import Settings, parse_settings
 
 AXES = ("Roll", "Pitch", "Yaw")
+ANGLE_HORIZON_MASK = 0b110  # boîtes ANGLE (bit 1) et HORIZON (bit 2), mêmes rangs dans toutes les versions
+MAX_LEVEL_SHARE = 0.2  # au-delà, consigne calculée par l'autolevel : instrument = commande radio
 
 
 @dataclass
@@ -46,6 +49,7 @@ class FlightLog:
     mode_flags: np.ndarray | None  # flightModeFlags (masque des boîtes actives)
     events: np.ndarray  # (e, 4) : type, ligne, donnée1, donnée2
     stats: dict = field(default_factory=dict)
+    pid_columns: frozenset[str] = frozenset()  # champs axisP[0]… présents dans le log
 
     # ------------------------------------------------------------ propriétés dérivées
     @property
@@ -98,6 +102,32 @@ class FlightLog:
         if self.mode_flags is None:
             return np.ones(self.n, dtype=bool)
         return (self.mode_flags & 1).astype(bool)
+
+    def term_present(self, term: str, ax: int) -> bool:
+        """Le terme « P », « I », « D » ou « F » de l'axe est-il enregistré (sinon il vaut 0 partout) ?"""
+        return f"axis{term}[{ax}]" in self.pid_columns
+
+    def pid_terms(self, ax: int, sel: slice = slice(None)) -> PidTerms:
+        """Termes PID de l'axe sur `sel`, pour mesurer la boucle ouverte (`analysis/loop.py`).
+
+        `note` explique pourquoi la mesure est impossible (terme de gain non nul absent du log).
+        En mode angle ou horizon plus de 20 % du temps, la consigne dépend de l'attitude du drone et
+        n'est plus extérieure à la boucle : l'instrument devient la commande radio (manche).
+        """
+        pid = self.settings.pids[ax] if ax < len(self.settings.pids) else None
+        need = {"P": True, "I": True, "D": pid is None or max(pid.D, pid.Dmax) > 0, "F": pid is None or pid.F > 0}
+        missing = [t for t, needed in need.items() if needed and not self.term_present(t, ax)]
+        note = ""
+        if missing:
+            s = "s" if len(missing) > 1 else ""
+            note = f"terme{s} {', '.join(missing)} non enregistré{s}"
+        instrument = None
+        if self.mode_flags is not None:
+            level = (self.mode_flags[sel] & ANGLE_HORIZON_MASK) != 0
+            if level.size and level.mean() > MAX_LEVEL_SHARE:
+                instrument = self.rc_command[ax, sel]
+        return PidTerms(self.p_term[ax, sel], self.i_term[ax, sel], self.d_term[ax, sel], self.f_term[ax, sel],
+                        note, instrument)
 
     def debug_name(self) -> str:
         return self.settings.debug_mode
@@ -300,4 +330,5 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
         mode_flags=flags.astype(np.int64) if flags is not None else None,
         events=sess.events,
         stats=sess.stats,
+        pid_columns=frozenset(n for n in sess.main_names if n.startswith(("axisP[", "axisI[", "axisD[", "axisF["))),
     )

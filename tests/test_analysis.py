@@ -7,7 +7,8 @@ from scipy import signal
 
 from opentunebox.analysis.delay import phase_delay_ms, xcorr_delay_ms
 from opentunebox.analysis.spectral import freq_throttle, freq_time, spectrum
-from opentunebox.analysis.step import loop_metrics, step_metrics, step_response
+from opentunebox.analysis.loop import loop_from_T
+from opentunebox.analysis.step import step_metrics, step_response
 
 FS = 2000.0
 from corpus_paths import LOGS  # noqa: E402
@@ -84,7 +85,7 @@ def test_step_response_second_order():
     assert r.metrics.latency_ms == pytest.approx(tm.latency_ms, abs=0.5)
     f = np.linspace(0, 150, 3001)
     _, h = signal.freqz(b, a, worN=f, fs=FS)
-    lt = loop_metrics(f, h * np.exp(-2j * np.pi * f * 0.005), np.ones_like(f))
+    lt = loop_from_T(f, h * np.exp(-2j * np.pi * f * 0.005), np.ones_like(f))
     assert r.loop.phase_margin_deg == pytest.approx(lt.phase_margin_deg, abs=4)
     assert r.loop.crossover_hz == pytest.approx(lt.crossover_hz, abs=0.6)
     assert r.loop.gain_margin_db == pytest.approx(lt.gain_margin_db, abs=1.0)

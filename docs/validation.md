@@ -39,6 +39,31 @@ lecture échantillon par échantillon).
   50 à 100° d'un point au suivant). Prendre la plus petite marge sur **tous** les croisements |L| = 1 a été
   essayé puis écarté : |L| repasse au-dessus de 1 vers 100 Hz sur les logs bruités et donnait des marges
   de −1100°. Le pic de sensibilité tombe au bord de la bande analysée pour 57 axes sur 133.
+- Boucle ouverte mesurée (`analysis/loop.py`, 2026-10-05) :
+  - **simulation** d'une boucle Betaflight (`tests/bf_loop_sim.py` : P, I sur l'erreur, D sur le gyro
+    filtré, F lissé, retard, moteur, filtres, perturbation et bruit ; vraie boucle connue), 5 tirages par
+    cas : marge de phase à ±2,6° près (±3,2° en yaw), croisement à ±5 %, pic de sensibilité à +0,1 à
+    +1,7 dB, quand le pic est dans la bande ; log à 2 kHz, 1 kHz ou 500 Hz, vol de 20 s, D variable (entre
+    les boucles du D de base et du D max). Objectif initial (±3°, ±3 %, ±0,5 dB) tenu pour la marge, pas
+    tout à fait pour le croisement et le pic (lissage sur 20 % de la fréquence). Ancienne formule sans
+    feedforward : croisement à 7–10 Hz au lieu de 11–32 Hz, marge surestimée jusqu'à 31°, d'autant plus
+    que le D domine (−2° à +31° sur 9 réglages) ;
+  - **série BlackSummer** (Damping 0.6 à 1.6, même drone, seul le D change ; le D réel est lu dans
+    l'en-tête : les noms de fichiers sont décalés, « 0.6 » a D = 30 comme « 1.2 ») : |Ĉd|/D constant à
+    ±1,3 % (31,3 à 32,1 × 10⁻³), Ĝ identique d'un log à l'autre à 0,5–1,4 dB et 3–7° près sur la bande
+    commune (5–20 Hz), sauf « 0.6 » (1,9 dB, 12°). Roll, D = 17 → 42 : marge mesurée 39 → 48 → 47°,
+    pic de sensibilité 4,9 → 6,4 → 5,6 dB quand le D domine (|Ĉd/Ĉe| > 1,4) ; l'ancienne formule
+    annonçait 49 → 77°. Phase de Ĉd égale au modèle des filtres de l'en-tête à ±4° jusqu'à 20 Hz ;
+  - **mode angle** : dans les vols « angle » du corpus, la consigne et la commande radio comme instrument
+    donnent la même boucle (0,0 à 0,3 dB, 0 à 2° jusqu'à 30 Hz) : la boucle d'attitude, lente, ne fausse
+    pas la mesure au croisement ;
+  - **corpus** (`scripts/calibrate_advisor.py`, 539 logs, 681 sessions, 1253 axes roll / pitch) : boucle
+    mesurée pour 88 % des axes (objectif ≥ 80 %), croisement trouvé dans la bande pour 70 % d'entre eux,
+    pic de sensibilité au bord (minorant) pour 34 %. Médianes, mesurée contre ancienne formule :
+    croisement 14,7 contre 8,8 Hz, marge de phase 50 contre 65°, pic de sensibilité 3,7 contre 3,2 dB ;
+    le D domine au croisement (|Ĉd/Ĉe| > 1) pour 62 % des axes. Avec les seuils actuels, sessions signalées :
+    pic > 6 dB 29 % (14 % avant), marge < 40° 3 % (1 % avant) ;
+  - `test_matches_ptb_damping_sweep` inchangé (partie Wiener identique).
 - Interface : les 9 outils s'ouvrent et calculent sans erreur sur de vrais logs (`tests/test_gui_spectral.py`,
   `tests/test_gui_step.py`, `tests/test_advisor.py`).
 - Documentation : liens, chemins, outils, modules, fichiers publiés et langue vérifiés à chaque `pytest`

@@ -41,8 +41,8 @@ fichier .bbl/.bfl
 | Module | Rôle |
 |---|---|
 | `spectral.py` | PSD de Welch, fréquence × gaz (fenêtres 300 ms, 100 tranches), fréquence × temps |
-| `step.py` | Réponse indicielle par déconvolution de Wiener ; métriques (pic, latence, montée) et de boucle (bande passante, sensibilité, marge de phase, croisement) |
-| `loop.py` | Marges de stabilité d'une boucle ouverte L(f) : phase déroulée, croisement, marges de phase et de gain, pic de sensibilité |
+| `step.py` | Réponse indicielle par déconvolution de Wiener ; métriques (pic, latence, montée), bande passante, et boucle ouverte par `loop.py` |
+| `loop.py` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.py` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
 | `bf_filters.py` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si » |
 | `sliders.py` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |

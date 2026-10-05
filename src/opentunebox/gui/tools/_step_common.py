@@ -86,7 +86,8 @@ def compute_file_step(entry, opts: dict) -> FileStep:
         sp = log.setpoint[ax, sel]
         gy = log.gyro[ax, sel]
         res = step_response(sp, gy, log.fs, seg_s=opts.get("seg_s", 2.0), min_input=lo, max_input=hi,
-                            smooth=opts.get("smooth", 0), y_correction=opts.get("y_corr", False))
+                            smooth=opts.get("smooth", 0), y_correction=opts.get("y_corr", False),
+                            terms=log.pid_terms(ax, sel))
         peak, lat = segment_metrics(res.t_ms, res.responses)
         delay = xcorr_delay_ms(sp, gy, log.fs, 100.0) if np.std(sp) >= 5.0 else float("nan")
         fs.axes.append(AxisStep(res, peak, lat, delay))

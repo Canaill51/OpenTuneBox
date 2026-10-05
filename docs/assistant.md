@@ -44,8 +44,8 @@ plus bruités / lents / déséquilibrés de sa catégorie. Deux façons de compt
 | 1re harmonique moteur restante (dB) | −42,2 / −36,0 / −29,8 | −39,2 / −36,9 / −32,0 | −40,5 / −35,3 / −28,8 | −41,2 / −38,1 / −31,9 |
 | Pic de réponse indicielle | 1,03 / 1,08 / 1,27 | 1,03 / 1,10 / 1,89 | 1,00 / 1,07 / 1,34 | 1,01 / 1,07 / 1,23 |
 | Latence 50 % (ms) | 10,5 / 14,5 / 18,2 | 12,1 / 17,9 / 24,5 | 10,5 / 15,2 / 20,9 | 14,5 / 19,0 / 23,5 |
-| Pic de sensibilité (dB) | 2,4 / 3,9 / 7,5 | 2,2 / 3,1 / 5,5 | 0,0 / 3,1 / 5,4 | 1,7 / 3,0 / 5,0 |
-| Marge de phase (°) | 37 / 63 / 74 | 45 / 66 / 71 | 49 / 68 / 77 | 51 / 65 / 74 |
+| Pic de sensibilité (dB), méthode approchée | 2,4 / 3,9 / 7,5 | 2,2 / 3,1 / 5,5 | 0,0 / 3,1 / 5,4 | 1,7 / 3,0 / 5,0 |
+| Marge de phase (°), méthode approchée | 37 / 63 / 74 | 45 / 66 / 71 | 49 / 68 / 77 | 51 / 65 / 74 |
 | Retard filtres gyro (ms) | 1,1 / 1,2 / 1,5 | 1,0 / 1,1 / 1,6 | 1,0 / 1,3 / 2,0 | 1,2 / 1,8 / 2,5 |
 | Retard filtres D (ms) | 1,7 / 2,3 / 2,5 | 1,7 / 2,3 / 2,5 | 1,9 / 2,3 / 2,7 | 2,2 / 2,5 / 2,8 |
 
@@ -122,7 +122,10 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
     latence est plus courte que le repère bas de la taille ;
   - réponse molle : pic < 0,98 et latence au-delà du repère haut de la taille ;
   - roll et pitch différents : écart de pic > seuil de la taille (curseur « D pitch ») ;
-  - stabilité : pic de sensibilité > 6 dB (attention) ; sinon marge de phase < 40° (conseil) ;
+  - stabilité (boucle ouverte, voir « Boucle ouverte mesurée ») : pic de sensibilité > 6 dB (conseil ;
+    « au moins » quand le pic est au bord de la bande mesurable ; précision ajoutée si la boucle n'est
+    qu'approchée) ; sinon marge de phase < 40° (conseil). Conseil : Damping +0,1 ou Master −0,1 ; seulement
+    Master −0,1 quand le D domine déjà au croisement (|Ĉd/Ĉe| > 1) ;
   - oscillations basses fréquences : gyro filtré 20–80 Hz > p90 de la taille.
 - **Bruit** (80 Hz à min(500 Hz ; 0,95 × Nyquist), valeur maximale du roll et du pitch) : gyro filtré et
   terme D > p90 de la taille ; 1re harmonique moteur restante > p90 (seulement avec eRPM, gyro non filtré
@@ -165,8 +168,9 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
 | Réponse molle | pic < 0,98 et latence > p90 de la taille | Estimation (0,98) + corpus (latence) | |
 | Roll et pitch différents | écart de pic > 0,07 à 0,12 selon la taille | Corpus | Seuils mécaniques |
-| Stabilité | pic de sensibilité > 6 dB | Théorie (approchée) | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) ». Notre Ms est calculé avec L = T/(1 − T), ce qui n'est **pas** la boucle des manuels (voir ci-dessous) : la limite s'applique par analogie. Dans le corpus, plus de 10 % des whoops le dépassent (p90 7,5 dB) |
-| Marge de phase | < 40° | Théorie (approchée) + estimation | Åström et Murray : valeurs raisonnables 30–60° ; 40° est choisi dans cette plage. Même réserve sur L que ci-dessus |
+| Stabilité | pic de sensibilité > 6 dB | Théorie | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) ». S'applique directement à la boucle **mesurée** (celle des manuels) ; la valeur approchée (repli) n'est qu'une analogie. Mesuré, il signale 29 % des sessions du corpus (14 % avec l'ancienne formule) : constat ramené de « attention » à « conseil » jusqu'à la recalibration sur le corpus de référence (décision de Cédric, 2026-10-05) |
+| Marge de phase | < 40° | Théorie + estimation | Åström et Murray : valeurs raisonnables 30–60° ; 40° est choisi dans cette plage. Même réserve pour la valeur approchée |
+| D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Estimation | Choisit le conseil (Master −0,1 plutôt que plus de D). Appuyé sur la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) : au-delà, plus de D monte le croisement sans gagner de marge, et le pic de sensibilité augmente |
 | Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | `spec-methodes.md` situe le propwash entre 20 et 100 Hz ; bornes exactes choisies |
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
 | Retards des filtres gyro et D | p90 de la taille, arrondi vers le haut | Corpus | |
@@ -196,19 +200,34 @@ Les champs `hover_hz` et `resonance_hz` des profils (`advisor/profiles.py`) sont
   (`pg/motor.c`), `blackbox_sample_rate` = 1/4 (`blackbox/blackbox.c`). Configurateur : pas et bornes des
   curseurs (`PidSubTab.vue`, `FilterSubTab.vue`, `useTuningSliders.js`).
 
-### Limite connue : la boucle ouverte L = T/(1 − T)
+### Boucle ouverte mesurée
 
-Le pic de sensibilité et la marge de phase (`analysis/step.py`, marges par `analysis/loop.py`) sont calculés sur L = T/(1 − T), T étant
-la fonction de transfert consigne → gyro. Ce n'est la vraie boucle ouverte que si tout le régulateur agit
-sur l'erreur. Dans Betaflight, le terme D agit sur le gyro et le feedforward sur la consigne : avec P + I
-sur l'erreur (Ce), D sur le gyro (Cd) et le drone G, T/(1 − T) = G·Ce / (1 + G·Cd), et le feedforward
-s'y ajoute sur des vols au manche. Les limites des manuels (6 dB, 30–60°) ne s'appliquent donc que par
-analogie. Piste de correction, non étudiée : Ce et Cd se déduisent des réglages et des filtres de
-l'en-tête, d'où G puis la vraie boucle G·(Ce + Cd).
+Jusqu'à la version 0.3.0, le pic de sensibilité et la marge de phase étaient calculés sur L = T/(1 − T),
+T étant la fonction de transfert consigne → gyro. Ce n'est la vraie boucle ouverte que si tout le
+régulateur agit sur l'erreur ; dans Betaflight le D agit sur le gyro et le feedforward sur la consigne.
+Depuis, `analysis/loop.py` **mesure** L = G·(Ce + Cd) à partir des termes P, I, D, F loggés
+(`spec-methodes.md`, « Boucle ouverte ») : c'est la boucle des manuels, à laquelle les limites de
+Skogestad et Postlethwaite et d'Åström et Murray s'appliquent directement. Ce que montrent la simulation
+et les vrais logs (`validation.md`) :
+
+- l'ancienne formule place le croisement environ 2 fois trop bas et surestime la marge de phase d'une
+  dizaine de degrés en moyenne ; elle fait croire que plus de D augmente toujours la marge. Quand le D
+  domine déjà au croisement, plus de D monte le croisement là où les filtres retardent : la marge ne
+  progresse plus et le pic de sensibilité augmente ;
+- la mesure ne va pas plus loin que l'énergie des mouvements de manche (souvent 20 à 40 Hz) : le
+  croisement est en général mesuré, le pic de sensibilité souvent au-delà (affiché « au moins ») ;
+- repli sur l'ancienne formule (« approchée ») quand un terme de gain non nul n'est pas enregistré ou que
+  la mesure manque de points : le constat le précise ;
+- avec les seuils actuels, le pic > 6 dB signalerait 29 % des sessions du corpus (14 % avec l'ancienne
+  formule), la marge < 40° 3 % (1 %) : les constats de stabilité restent des conseils jusqu'à la
+  recalibration.
+
+Les percentiles du pic de sensibilité et de la marge de phase de la section « Calibration » datent de
+l'ancienne méthode : à recalculer avec la mesure lors de la prochaine recalibration.
 
 ### Onglet Autotune du configurateur Betaflight
 
-Il utilise les mêmes calculs (L = T/(1 − T), Ms ≤ 2) avec des marges de phase cibles de 50°, 60° et
+Il utilise l'ancienne méthode approchée (L = T/(1 − T), Ms ≤ 2) avec des marges de phase cibles de 50°, 60° et
 72,5°. Il **n'est pas cité comme source** (vérifié le 2026-10-05) : ces valeurs n'existent que sur la branche
 de développement (PR [#5406](https://github.com/betaflight/betaflight-configurator/pull/5406), absente de
 2026.6.2) ; 50 et 60° sont des choix dans la plage classique, 72,5° est propre à l'auteur, réglé sur deux

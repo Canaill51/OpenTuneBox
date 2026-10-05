@@ -112,7 +112,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     # ------------------------------------------------------------ 2. réponse indicielle
     steps = []
     for ax in range(3):
-        r = step_response(log.setpoint[ax, sel], log.gyro[ax, sel], fs)
+        r = step_response(log.setpoint[ax, sel], log.gyro[ax, sel], fs, terms=log.pid_terms(ax, sel))
         steps.append(AxisStep(AXES[ax], r))
     meas["steps"] = {st.axis: st.result.metrics for st in steps}
     for ax, st in enumerate(steps[:2]):
@@ -264,13 +264,39 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
         F.append(Finding("Réponse", OK, f"Réponse indicielle {ax.lower()}",
                          f"Pic {pk:.2f}, latence {lat:.1f} ms, {r.n} fenêtres analysées.", [], ax))
     if np.isfinite(lp.sensitivity_peak_db) and lp.sensitivity_peak_db > 6.0:
-        F.append(Finding("Réponse", ATTENTION, f"Marge de stabilité faible en {ax.lower()}",
-                         f"Pic de sensibilité {lp.sensitivity_peak_db:.1f} dB à {lp.sensitivity_peak_hz:.0f} Hz (> 6 dB) : "
-                         "le drone amplifie les perturbations à cette fréquence et risque d'osciller.",
-                         ["Baisser le Master de 0,1, ou augmenter le D.", "Réduire le retard des filtres si le bruit le permet."], ax))
+        at_least = "au moins " if lp.sensitivity_peak_at_edge else ""
+        # conseil et non attention : mesuré, ce seuil signale 29 % des sessions du corpus ; à recalibrer
+        # (docs/assistant.md, « Boucle ouverte mesurée »)
+        F.append(Finding("Réponse", CONSEIL, f"Marge de stabilité faible en {ax.lower()}",
+                         f"Pic de sensibilité {at_least}{lp.sensitivity_peak_db:.1f} dB à {lp.sensitivity_peak_hz:.0f} Hz "
+                         "(> 6 dB) : le drone amplifie les perturbations à cette fréquence et risque d'osciller."
+                         + _loop_caveat(lp),
+                         [*_margin_actions(lp), "Réduire le retard des filtres si le bruit le permet."], ax))
     elif np.isfinite(lp.phase_margin_deg) and lp.phase_margin_deg < 40:
         F.append(Finding("Réponse", CONSEIL, f"Marge de phase réduite en {ax.lower()}",
-                         f"Marge de phase {lp.phase_margin_deg:.0f}° (< 40°).", ["Damping +0,1."], ax))
+                         f"Marge de phase {lp.phase_margin_deg:.0f}° (< 40°) au croisement de {lp.crossover_hz:.0f} Hz."
+                         + _loop_caveat(lp), _margin_actions(lp), ax))
+
+
+def _loop_caveat(lp) -> str:
+    """Précision ajoutée au constat quand la boucle ouverte n'a pas pu être mesurée."""
+    if lp.measured:
+        return ""
+    why = f" ({'; '.join(lp.notes)})" if lp.notes else ""
+    return (f" Valeur approchée{why} : calculée sans séparer le D (sur le gyro) et le feedforward (sur la consigne), "
+            "elle peut s'écarter de plusieurs dB ou dizaines de degrés.")
+
+
+def _margin_actions(lp) -> list[str]:
+    """Que faire d'une marge faible. Quand le D domine déjà le P et le I au croisement (|Cd/Ce| > 1),
+    plus de D fait surtout monter le croisement là où les filtres retardent : il apporte peu de marge
+    et peut augmenter le pic de sensibilité (docs/assistant.md, « Boucle ouverte mesurée »)."""
+    if not lp.measured:
+        return ["Master −0,1.", "Pour une mesure exacte, enregistrez les termes P, I, D et F (champs PID du blackbox)."]
+    if np.isfinite(lp.d_ratio) and lp.d_ratio > 1.0:
+        return [f"Master −0,1. Le D domine déjà au croisement ({lp.d_ratio:.1f} × P et I) : "
+                "plus de D apporterait peu de marge et peut augmenter le pic de sensibilité."]
+    return ["Damping (D) +0,1, ou Master −0,1."]
 
 
 def _imbalance_finding(m: list[float], imbalance: float) -> Finding:

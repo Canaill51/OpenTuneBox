@@ -45,6 +45,12 @@ def summary(path):
     if labels:
         print(f"Référence : {sum(r['ref'] for r in rows)} sessions de {len({r['drone'] for r in rows if r['ref']})} drones"
               f" (états {', '.join(REFERENCE_STATES)} dans {CSV_NAME})")
+    ax=[(r,a) for r in rows for a in range(2) if f"measured_{a}" in r]
+    if ax:  # boucle ouverte (analysis/loop.py) : part des axes mesurés, croisements trouvés, pics au bord
+        meas=[(r,a) for r,a in ax if r[f"measured_{a}"]]
+        fc=sum(np.isfinite(r[f"fc_{a}"]) for r,a in meas); edge=sum(r[f"smaxedge_{a}"] for r,a in meas)
+        print(f"Boucle ouverte : {len(meas)}/{len(ax)} axes mesurés ({100*len(meas)/len(ax):.0f} %), croisement trouvé"
+              f" {100*fc/max(1,len(meas)):.0f} %, pic de sensibilité au bord {100*edge/max(1,len(meas)):.0f} %")
     groups=[(key,[r for r in rows if key=="TOUS" or r["profile"]==key]) for key in [*PROFILES,"TOUS"]]
     if labels:
         groups=[g for key,sub in groups for g in ((key,sub),(key+" référence",[r for r in sub if r["ref"]]))]
@@ -86,10 +92,18 @@ for f in files[:int(sys.argv[1])]:
                 if lg.gyro_unfilt is not None: r[f"gyrou_{a}"]=band(lg.gyro_unfilt[a,sel],80,500)
                 if np.any(lg.d_term[a]): r[f"dterm_{a}"]=band(lg.d_term[a,sel],80,500)
                 r[f"lowband_{a}"]=band(lg.gyro[a,sel],20,80)
-                st=step_response(lg.setpoint[a,sel],lg.gyro[a,sel],lg.fs)
+                st=step_response(lg.setpoint[a,sel],lg.gyro[a,sel],lg.fs,terms=lg.pid_terms(a,sel))
                 if st.n>=20:
+                    lp=st.loop
                     r[f"peak_{a}"]=st.metrics.peak; r[f"lat_{a}"]=st.metrics.latency_ms
-                    r[f"smax_{a}"]=st.loop.sensitivity_peak_db; r[f"pm_{a}"]=st.loop.phase_margin_deg
+                    r[f"smax_{a}"]=lp.sensitivity_peak_db; r[f"pm_{a}"]=lp.phase_margin_deg  # comme les règles
+                    r[f"measured_{a}"]=lp.measured; r[f"smaxedge_{a}"]=lp.sensitivity_peak_at_edge
+                    r[f"fc_{a}"]=lp.crossover_hz; r[f"gm_{a}"]=lp.gain_margin_db; r[f"dratio_{a}"]=lp.d_ratio
+                    r[f"bandtop_{a}"]=lp.band_hz[1]; r[f"track_{a}"]=lp.tracking_peak_db
+                    if lp.measured:  # mêmes mesures par l'ancienne formule T/(1 − T), pour comparaison
+                        old=step_response(lg.setpoint[a,sel],lg.gyro[a,sel],lg.fs).loop
+                        r[f"smaxold_{a}"]=old.sensitivity_peak_db; r[f"pmold_{a}"]=old.phase_margin_deg
+                        r[f"fcold_{a}"]=old.crossover_hz
                 if lg.motor_hz is not None:
                     mn=motor_noise(lg.gyro[a,sel],lg.motor_hz[:,sel],lg.fs); r[f"mnoise_{a}"]=mn.mean_db.tolist()
             d=compute_delays(lg,sel); r["gdelay"]=d.gyro_ms; r["ddelay"]=d.dterm_ms

@@ -93,8 +93,11 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles), ne pas les inventer. Compter **une voix
   par drone** quand quelques drones dominent une taille (whoop, seuils mécaniques) ; moins de ~20 drones →
   seuil commun ou profil provisoire. Chaque seuil a une origine notée (corpus, théorie, firmware…).
-- Pic de sensibilité et marge de phase : calculés sur L = T/(1 − T), approché car le D de Betaflight agit sur
-  le gyro (`docs/assistant.md`, « Limite connue »). L'onglet Autotune du configurateur n'est pas une source.
+- Boucle ouverte (`analysis/loop.py`) : L = G·(Ce + Cd) **mesurée** à partir des termes P, I, D, F loggés ;
+  G par estimateur instrumental (consigne, ou `rcCommand` en mode angle/horizon), jamais S(u, gyro)/S(u, u)
+  (biaisé en boucle fermée). L = T/(1 − T) n'est qu'un repli « approché » (faux pour Betaflight : D sur le
+  gyro, FF sur la consigne). La bande mesurable s'arrête vers 20–40 Hz (énergie du manche) : pic de
+  sensibilité souvent minorant. L'onglet Autotune du configurateur n'est pas une source.
 - Interface : style Qt **Fusion** imposé partout (`gui/theme.py`). Le style natif Windows 11 ignore la palette
   et grise les textes. Sous Fusion (Qt 6.11), les cases et boutons radio sont presque invisibles : ils sont
   redessinés par la feuille de style globale. Le délégué natif des `QComboBox` ignore cette feuille

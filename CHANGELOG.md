@@ -16,7 +16,16 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   (même contenu) et les dossiers `__MACOSX` sont ignorés, aussi par `calibrate_advisor.py` ; `calibrate_advisor.py --resume` affiche à côté de chaque groupe son corpus de référence (drones
   réglés ou d'origine, hors demandes d'aide).
 
+- Réponse indicielle : **boucle ouverte mesurée** à partir des termes P, I, D et F du log (D sur le gyro,
+  feedforward sur la consigne, comme dans Betaflight) au lieu de l'approximation T/(1 − T), qui plaçait
+  le croisement environ 2 fois trop bas et surestimait la marge de phase. Marge de gain ajoutée ; barres
+  d'erreur (jackknife) sur les marges ; point creux quand la valeur n'est qu'approchée (termes absents),
+  triangle quand le pic de sensibilité n'est qu'un minimum (au-delà des fréquences mesurables).
+
 ### Modifié
+- Assistant : constats de stabilité sur la boucle mesurée, en conseil (et non plus en alerte) jusqu'à la
+  recalibration du seuil ; quand le D domine déjà au croisement, il conseille Master −0,1 plutôt que plus
+  de D.
 - Assistant : seuils mécaniques calibrés sur 90 drones (déséquilibre 11–14 % au lieu de 12 %, terme I
   29–33 au lieu de 40, saturation 1,5 % du temps au lieu de 5 %, écart roll / pitch 0,07–0,12 au lieu
   de 0,08, résonance 7,3–7,9 dB au lieu de 6 dB).

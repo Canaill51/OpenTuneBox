@@ -30,20 +30,62 @@ Entrées : consigne SP = setpoint[axe], GY = gyroADC[axe] sur la période choisi
 9. Mesures sur la moyenne : pic = maximum sur t ≤ max(150 ms, 3 × latence) et son instant ;
    latence = passage à 50 % interpolé ; temps de montée 10–90 % ; établissement à ±5 %.
 
-Mesures de boucle (conception propre, même déconvolution) : T(f) = réponse en fréquence en boucle fermée
-consigne → gyro (moyenne des interspectres / autospectres des fenêtres), de 2 à 150 Hz, points de
-cohérence ≥ 0,5, lissage complexe sur 5 points (`uniform_filter1d(mode="nearest")`) ; sensibilité
-S = 1 − T, pic de |S| en dB et sa fréquence (repères 4 dB jaune / 6 dB rouge, comme PTB) ; boucle
-ouverte L = T/(1 − T), marges calculées par `analysis/loop.py:margins` : phase déroulée (`np.unwrap`,
-premier point ramené dans (−360°, 0]) ; croisement = premier passage de |L| au-dessous de 1, interpolé
-en (log f, log |L|) ; marge de phase = 180° + ∠L, négative si la phase y est sous −180° ; marge de gain
-= −20·log10 |L| au premier passage de la phase par −180° (− k·360°) après le croisement ; pic de
-sensibilité signalé « au bord de la bande » s'il tombe sur le premier ou le dernier point (ce n'est
-alors qu'un minorant). Les croisements suivants sont ignorés : sur les vrais logs ils viennent du bruit
-(`validation.md`). Bande passante = −3 dB de |T|, cherchée à partir de 2 Hz.
-**Limite** : L = T/(1 − T) n'est la vraie boucle ouverte que si tout le régulateur agit sur l'erreur ; dans
-Betaflight le D agit sur le gyro et le feedforward sur la consigne, donc S et la marge de phase sont
-approchées (détail et piste de correction : `assistant.md`, « Limite connue »).
+Mesures de boucle fermée (conception propre, même déconvolution) : T(f) = réponse en fréquence consigne →
+gyro (moyenne des interspectres / autospectres des fenêtres), de 2 à 150 Hz, points de cohérence ≥ 0,5,
+lissage complexe sur 5 points (`uniform_filter1d(mode="nearest")`). Bande passante = −3 dB de |T|,
+cherchée à partir de 2 Hz ; pic de suivi = max |1 − T| (consigne → erreur).
+
+### Boucle ouverte (`analysis/loop.py`)
+
+Boucle coupée à l'entrée du drone, comme dans les manuels. Le régulateur de Betaflight
+(`flight/pid.c`) : P + I agissent sur l'erreur e = consigne − gyro (Ce), le D sur le gyro seul (D = −Cd·gyro,
+après les filtres du D), le feedforward F sur la consigne ; u = P + I + D + F commande le drone G (moteurs,
+cadre, filtres gyro). Le gyro et la consigne loggés sont exactement ceux qu'utilise le PID
+(`gyro.gyroADCf`, `previousPidSetpoint`). Vraie boucle ouverte : **L = G·(Ce + Cd)**, sensibilité
+S = 1/(1 + L).
+
+**Méthode « mesurée »** (termes P, I, D, F loggés, `FlightLog.pid_terms`) :
+1. fenêtres de Hann de 2 s recouvertes de moitié, gardées si la consigne dépasse 20 °/s (et reste sous
+   500 °/s avec la séparation « Consigne max ») ; interspectres sommés par bloc de fenêtres consécutives ;
+2. Ĉe = S(e, P+I)/S(e, e) et Ĉd = −S(gyro, D)/S(gyro, gyro) : régressions directes, ces termes étant des
+   fonctions déterministes de l'erreur et du gyro ;
+3. Ĝ = S(z, gyro)/S(z, u) : estimateur **instrumental**, l'instrument z étant un signal extérieur à la
+   boucle — la consigne, ou la commande radio (`rcCommand`) quand le mode angle ou horizon est actif plus
+   de 20 % de la période (la consigne dépend alors de l'attitude). L'estimateur direct S(u, gyro)/S(u, u)
+   est biaisé en boucle fermée : les perturbations (vent, prop wash) font bouger u et le gyro ensemble ;
+4. spectres lissés sur 20 % de la fréquence (au moins 5 points, moyenne glissante centrée) ;
+5. bande valide : points **contigus** depuis 2 Hz, jusqu'à min(200 Hz ; 0,4 × fréquence du log), tant que
+   l'erreur aléatoire de Ĝ reste ≤ 0,2 (≈ ±1,6 dB, ±11°) et que les cohérences erreur → P+I et gyro → D
+   restent ≥ 0,8. Erreur aléatoire relative d'une fonction de transfert estimée avec la cohérence γ² sur
+   n moyennes : √((1 − γ²)/(2·n·γ²)) (formule classique de l'analyse spectrale, Bendat et Piersol,
+   *Random Data*, chap. 9 ; non vérifiée à la page), cumulée sur instrument → gyro et instrument → u, avec
+   n = fenêtres × largeur du lissage / 2. Une cohérence gyro → D faible signale aussi un **biais** de Ĉd
+   (bruit du gyro replié par le sous-échantillonnage du log, absent du D) ;
+6. marges de L (ci-dessous) sur la bande valide ; rapport |Ĉd/Ĉe| au croisement (le D domine au-delà
+   de 1) ; incertitude de chaque marge par **jackknife** sur 8 blocs (écart-type, barres d'erreur de
+   l'interface).
+
+La bande s'arrête là où le manche n'apporte plus assez d'énergie (souvent 20 à 40 Hz) : le croisement
+y est en général, le pic de sensibilité souvent au-delà (valeur alors minorante). Contrôles (`LoopEstimate`) :
+variante A, S = 1 − T·(Ce + Cd)/(Ce + Cf) ; variante C, Ce et Cd estimés eux aussi par l'instrument ;
+phase de Ĉd comparée au modèle de l'en-tête `loop.dterm_model` (dérivée discrète × filtres du D,
+`bf_filters.dterm_chain`). Résultats : `validation.md`.
+
+**Méthode « approchée »** (repli) : L = T/(1 − T), sur les points de T décrits plus haut. Juste seulement
+si tout le régulateur agit sur l'erreur. Pour Betaflight, T = G·(Ce + Cf)/(1 + L), donc
+T/(1 − T) = G·(Ce + Cf)/(1 + G·(Cd − Cf)), qui n'est pas L = G·(Ce + Cd). Sur simulation sans feedforward, elle place le croisement jusqu'à 4 fois trop bas et
+surestime la marge jusqu'à 31°, d'autant plus que le D domine ; elle fait croire que plus de D augmente
+toujours la marge. Utilisée
+quand un terme de gain non nul manque dans le log, ou quand la mesure n'a pas assez de points valides
+(raison dans `LoopMetrics.notes`).
+
+Marges (`analysis/loop.py:margins`) : phase déroulée (`np.unwrap`, premier point ramené dans
+(−360°, 0]) ; croisement = premier passage de |L| au-dessous de 1, interpolé en (log f, log |L|) ; marge de
+phase = 180° + ∠L, négative si la phase y est sous −180° ; marge de gain = −20·log10 |L| au premier passage
+de la phase par −180° (− k·360°) après le croisement ; pic de sensibilité Ms = max |S| en dB (repères
+4 dB jaune / 6 dB rouge, comme PTB), signalé « au bord de la bande » s'il tombe sur le premier ou le
+dernier point (ce n'est alors qu'un minorant). Les croisements suivants sont ignorés : sur les vrais logs
+ils viennent du bruit (`validation.md`).
 
 ## Spectres (`analysis/spectral.py`)
 
