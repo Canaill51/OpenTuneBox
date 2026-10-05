@@ -5,6 +5,19 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- Installateurs construits par GitHub (`construire.yml`) et joints à la page Releases :
+  - Windows : `OpenTuneBox-Windows-Setup.exe` (Inno Setup), sans droits administrateur, menu Démarrer,
+    raccourci du Bureau et ouverture des `.bbl` / `.bfl` en option, désinstallation depuis les
+    Paramètres, mise à jour par-dessus l'ancienne version. Il remplace le `.zip` : une seule version
+    Windows, pour ne pas faire hésiter l'utilisateur.
+  - macOS : image disque `OpenTuneBox-macOS.dmg` (glisser dans Applications), icône de l'application,
+    numéro de version et ouverture des `.bbl` / `.bfl` depuis le Finder.
+  - Linux : `OpenTuneBox-Linux.AppImage`, un seul fichier à rendre exécutable (remplace le `.tar.gz`).
+  - Essais automatiques de chaque fichier : démarrage sur les trois systèmes ; sous Windows,
+    installation, lancement puis désinstallation complète.
+- Icônes macOS (`.icns`) et Linux (`.png`) fabriquées depuis le SVG par `packaging/make_icons.py`.
+
 ### Corrigé
 - Page Releases : la publication échouait parce que les archives `.zip` Windows et macOS étaient
   décompressées avant d'être jointes (`skip-decompress` de `download-artifact`).

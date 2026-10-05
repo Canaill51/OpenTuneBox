@@ -7,9 +7,24 @@ import sys
 from pathlib import Path
 
 import pyqtgraph as pg
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QEvent, QObject, QSettings
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
+
+
+class FileOpenFilter(QObject):
+    """macOS : un log ouvert depuis le Finder (double-clic, « Ouvrir avec ») arrive en QFileOpenEvent,
+    pas dans les arguments de la ligne de commande comme sous Windows et Linux."""
+
+    def __init__(self, open_paths, parent: QObject | None = None):
+        super().__init__(parent)
+        self._open_paths = open_paths
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.FileOpen and event.file():
+            self._open_paths([event.file()])
+            return True
+        return super().eventFilter(obj, event)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,6 +43,8 @@ def main(argv: list[str] | None = None) -> int:
 
     win = MainWindow()
     win.show()
+    file_open = FileOpenFilter(win.load_paths, win)
+    app.installEventFilter(file_open)
     files = [a for a in argv[1:] if not a.startswith("-")]
     if files:
         win.load_paths(files)

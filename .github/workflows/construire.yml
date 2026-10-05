@@ -1,12 +1,12 @@
 # Construction automatique d'OpenTuneBox pour Windows, macOS et Linux sur les serveurs de GitHub.
 # Se lance à la main (onglet « Actions » → « Construire OpenTuneBox » → « Run workflow ») ou en poussant
-# une étiquette de version (git tag v0.2.0 && git push --tags).
-# Avec une étiquette de version, les trois archives sont aussi publiées sur une page « Releases » permanente
+# une étiquette de version (git tag v0.2.0 && git push origin v0.2.0).
+# Avec une étiquette de version, les fichiers sont aussi publiés sur une page « Releases » permanente
 # (préparer d'abord la version : python scripts/release.py prepare 0.2.0, voir CONTRIBUTING.md).
-# Chaque système produit une seule archive, téléchargeable en bas de la page de l'exécution (« Artifacts ») :
-#   OpenTuneBox-Windows.zip   → décompresser, puis OpenTuneBox\OpenTuneBox.exe
-#   OpenTuneBox-macOS.zip     → décompresser, puis OpenTuneBox.app (Mac Apple Silicon)
-#   OpenTuneBox-Linux.tar.gz  → tar xzf, puis OpenTuneBox/OpenTuneBox
+# Fichiers produits, téléchargeables en bas de la page de l'exécution (« Artifacts ») :
+#   OpenTuneBox-Windows-Setup.exe  installateur Windows (menu Démarrer, Bureau, .bbl, désinstallation)
+#   OpenTuneBox-macOS.dmg          glisser OpenTuneBox dans Applications (Mac Apple Silicon)
+#   OpenTuneBox-Linux.AppImage     un seul fichier : le rendre exécutable, puis double-clic
 name: Construire OpenTuneBox
 on:
   workflow_dispatch:
@@ -20,13 +20,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            archive: OpenTuneBox-Windows.zip
+            package: OpenTuneBox-Windows-Setup.exe
           - os: macos-latest
-            archive: OpenTuneBox-macOS.zip
+            package: OpenTuneBox-macOS.dmg
           # Ubuntu le plus ancien disponible : l'exécutable fonctionne sur les Linux de même âge ou plus récents
           # (il dépend de la version de la bibliothèque C du système qui l'a fabriqué).
           - os: ubuntu-22.04
-            archive: OpenTuneBox-Linux.tar.gz
+            package: OpenTuneBox-Linux.AppImage
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -58,33 +58,88 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m PyInstaller packaging/opentunebox.spec --noconfirm
-      - name: Démarrage de l'exécutable (Linux)
-        if: runner.os == 'Linux'
-        # L'interface doit rester ouverte 20 s sans planter : « timeout » l'arrête alors avec le code 124.
+      # Essais de démarrage : l'interface doit rester ouverte 20 s sans planter.
+      - name: Démarrage de l'exécutable (Windows)
+        if: runner.os == 'Windows'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $p = Start-Process -FilePath dist\OpenTuneBox\OpenTuneBox.exe -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) { Write-Error "OpenTuneBox s'est arrêté (code $($p.ExitCode))"; exit 1 }
+          Stop-Process -Id $p.Id -Force
+      - name: Démarrage de l'exécutable (macOS)
+        if: runner.os == 'macOS'
+        # perl coupe le programme au bout de 20 s (signal d'alarme, code 142) : il était donc toujours ouvert.
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
           set +e
-          timeout 20 dist/OpenTuneBox/OpenTuneBox
+          perl -e 'alarm 20; exec @ARGV' dist/OpenTuneBox.app/Contents/MacOS/OpenTuneBox
+          code=$?
+          echo "code de sortie : $code"
+          test $code -eq 142
+
+      - name: Installateur (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $version = python -c "import opentunebox; print(opentunebox.__version__)"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=$version" packaging\windows\opentunebox.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Move-Item dist\OpenTuneBox-Windows-Setup.exe ${{ matrix.package }}
+      - name: Essai de l'installateur (Windows)
+        if: runner.os == 'Windows'
+        # Installe sans questions pour l'utilisateur courant, lance le programme installé, puis désinstalle.
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          Start-Process -Wait -FilePath .\${{ matrix.package }} -ArgumentList '/VERYSILENT', '/CURRENTUSER', '/TASKS=associate'
+          $dir = "$env:LOCALAPPDATA\Programs\OpenTuneBox"
+          if (-not (Test-Path "$dir\OpenTuneBox.exe")) { Write-Error "programme absent de $dir"; exit 1 }
+          if (-not (Test-Path "Registry::HKEY_CURRENT_USER\Software\Classes\OpenTuneBox.BlackboxLog\shell\open\command")) { Write-Error "association .bbl absente"; exit 1 }
+          $p = Start-Process -FilePath "$dir\OpenTuneBox.exe" -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) { Write-Error "OpenTuneBox installé s'est arrêté (code $($p.ExitCode))"; exit 1 }
+          Stop-Process -Id $p.Id -Force
+          Start-Sleep -Seconds 2
+          Start-Process -Wait -FilePath "$dir\unins000.exe" -ArgumentList '/VERYSILENT'
+          Start-Sleep -Seconds 5
+          if (Test-Path "$dir\OpenTuneBox.exe") { Write-Error "la désinstallation a laissé le programme"; exit 1 }
+          if (Test-Path "Registry::HKEY_CURRENT_USER\Software\Classes\OpenTuneBox.BlackboxLog") { Write-Error "la désinstallation a laissé l'association .bbl"; exit 1 }
+          Write-Host "installation, lancement et désinstallation : ok"
+      - name: Image disque (macOS)
+        if: runner.os == 'macOS'
+        # Seulement OpenTuneBox.app : le dossier dist/OpenTuneBox en est une copie.
+        run: |
+          sh packaging/macos/build_dmg.sh dist/OpenTuneBox.app ${{ matrix.package }}
+          hdiutil verify ${{ matrix.package }}
+          plutil -p dist/OpenTuneBox.app/Contents/Info.plist | grep -E "CFBundleShortVersionString|blackbox-log"
+      - name: AppImage (Linux)
+        if: runner.os == 'Linux'
+        # appimagetool en version fixe, vérifiée par son empreinte SHA-256.
+        run: |
+          curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum -c -
+          chmod +x appimagetool
+          APPIMAGETOOL="$PWD/appimagetool" sh packaging/linux/build_appimage.sh dist/OpenTuneBox ${{ matrix.package }}
+      - name: Démarrage de l'AppImage (Linux)
+        if: runner.os == 'Linux'
+        # « timeout » arrête le programme au bout de 20 s avec le code 124 : il était donc toujours ouvert.
+        # APPIMAGE_EXTRACT_AND_RUN : les serveurs de GitHub n'autorisent pas FUSE.
+        env:
+          QT_QPA_PLATFORM: offscreen
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          set +e
+          timeout 20 ./${{ matrix.package }}
           code=$?
           echo "code de sortie : $code"
           test $code -eq 124
-      # Une seule archive par système, qui garde les droits d'exécution et les liens symboliques
-      # (le zip automatique de GitHub les perd : programme Linux non exécutable, application Mac abîmée).
-      - name: Archive (Windows)
-        if: runner.os == 'Windows'
-        run: Compress-Archive -Path dist\OpenTuneBox -DestinationPath ${{ matrix.archive }}
-      - name: Archive (macOS)
-        if: runner.os == 'macOS'
-        # Seulement OpenTuneBox.app : le dossier dist/OpenTuneBox en est une copie.
-        run: ditto -c -k --sequesterRsrc --keepParent dist/OpenTuneBox.app ${{ matrix.archive }}
-      - name: Archive (Linux)
-        if: runner.os == 'Linux'
-        run: tar -czf ${{ matrix.archive }} -C dist OpenTuneBox
+
+      # Fichiers envoyés tels quels, sans être zippés une seconde fois (droits d'exécution conservés).
       - uses: actions/upload-artifact@v7
         with:
-          path: ${{ matrix.archive }}
-          # Envoyée telle quelle, sans être zippée une seconde fois.
+          path: ${{ matrix.package }}
           archive: false
           if-no-files-found: error
 
@@ -110,7 +165,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la archives
-          # Exactement les trois archives attendues (Windows, macOS, Linux), sinon on s'arrête.
+          # Exactement les trois fichiers attendus (Windows, macOS, Linux), sinon on s'arrête.
           test "$(ls archives/OpenTuneBox-* | wc -l)" -eq 3
           gh release create "$GITHUB_REF_NAME" archives/OpenTuneBox-* \
             --title "OpenTuneBox ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag

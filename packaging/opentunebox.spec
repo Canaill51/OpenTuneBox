@@ -46,4 +46,25 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="OpenTuneBox", console=False, icon=icon)
 coll = COLLECT(exe, a.binaries, a.datas, name="OpenTuneBox")
 if sys.platform == "darwin":
-    app = BUNDLE(coll, name="OpenTuneBox.app", icon=icon, bundle_identifier="org.opentunebox.app")
+    version = re.search(r'__version__ = "([^"]+)"', (root / "src" / "opentunebox" / "__init__.py").read_text()).group(1)
+    log_type = "org.opentunebox.blackbox-log"
+    app = BUNDLE(
+        coll, name="OpenTuneBox.app", icon=icon, bundle_identifier="org.opentunebox.app", version=version,
+        info_plist={
+            "CFBundleDisplayName": "OpenTuneBox",
+            "NSHighResolutionCapable": True,
+            # Logs Blackbox .bbl / .bfl : type déclaré par l'application, proposé dans « Ouvrir avec ».
+            "UTExportedTypeDeclarations": [{
+                "UTTypeIdentifier": log_type,
+                "UTTypeDescription": "Log Blackbox Betaflight",
+                "UTTypeConformsTo": ["public.data"],
+                "UTTypeTagSpecification": {"public.filename-extension": ["bbl", "bfl", "BBL", "BFL"]},
+            }],
+            "CFBundleDocumentTypes": [{
+                "CFBundleTypeName": "Log Blackbox Betaflight",
+                "CFBundleTypeRole": "Viewer",
+                "LSHandlerRank": "Owner",
+                "LSItemContentTypes": [log_type],
+            }],
+        },
+    )

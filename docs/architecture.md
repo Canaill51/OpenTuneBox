@@ -70,6 +70,9 @@ fichier .bbl/.bfl
 
 - Linux : `packaging/linux/install_linux.sh` (raccourci du menu + icônes) ; PyInstaller pour un exécutable autonome.
 - Windows : `packaging/windows/construire_windows.bat` sur un PC Windows.
+- Installateurs (construits par `construire.yml`) : `packaging/windows/opentunebox.iss` (Inno Setup),
+  `packaging/macos/build_dmg.sh` (.dmg), `packaging/linux/build_appimage.sh` (AppImage, appimagetool 1.9.1).
+  Sous macOS, un log ouvert depuis le Finder arrive en `QFileOpenEvent` (`gui/app.py:FileOpenFilter`).
 - Tous systèmes : workflow `.github/workflows/construire.yml`.
 
 ## Hors périmètre (pour l'instant)

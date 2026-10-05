@@ -64,4 +64,7 @@ créer `MainWindow`, `load_paths([...])`, pomper les événements (`app.processE
   puis `packaging\windows\construire_windows.bat` sur le PC Windows (Python 3.13 installé par winget).
 - Tous systèmes : workflow `construire.yml` (manuel, ou étiquette `v*` → page Releases ; préparer la version
   avec `scripts/release.py prepare X.Y.Z`, voir `CONTRIBUTING.md`) : une archive par système
-  (`.zip` Windows, `.zip` de l'`.app` macOS faite par `ditto`, `.tar.gz` Linux construit sur Ubuntu 22.04).
+  (installateur Inno Setup Windows, `.dmg` macOS, AppImage Linux construite sur Ubuntu 22.04),
+  chacun essayé au démarrage. AppImage en local : télécharger appimagetool 1.9.1 dans le répertoire temporaire,
+  puis `APPIMAGETOOL=… sh packaging/linux/build_appimage.sh dist/OpenTuneBox SORTIE.AppImage`.
+  Icônes `.icns` / `.png` : `python packaging/make_icons.py` si le SVG change.

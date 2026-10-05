@@ -30,7 +30,21 @@ Jusqu'à 10 logs comparés à la fois. Formats `.bbl`, `.bfl` (Betaflight 4.4 �
 
 ## Installation
 
-### Version autonome (sans Python)
+### Télécharger (recommandé)
+
+Dernière version : page [**Releases**](../../releases/latest), section *Assets*. Rien d'autre à installer
+(Python et les bibliothèques sont inclus).
+
+| Système | Fichier | Installation |
+|---|---|---|
+| Windows 10 / 11 | `OpenTuneBox-Windows-Setup.exe` | double-clic, puis suivre l'assistant (menu Démarrer, Bureau, ouverture des `.bbl`) |
+| macOS (puce Apple) | `OpenTuneBox-macOS.dmg` | ouvrir, puis glisser OpenTuneBox sur Applications |
+| Linux (Ubuntu 22.04 ou plus récent) | `OpenTuneBox-Linux.AppImage` | rendre le fichier exécutable, puis double-clic |
+
+Le programme n'est pas signé : Windows et macOS affichent un avertissement au premier lancement (marche à
+suivre dans le [guide](docs/guide-utilisateur.md#installer-une-version-construite-par-github)).
+
+### Fabriquer soi-même la version autonome
 
 | Système | Fabrication |
 |---|---|
@@ -39,7 +53,8 @@ Jusqu'à 10 logs comparés à la fois. Formats `.bbl`, `.bfl` (Betaflight 4.4 �
 | macOS | `pyinstaller packaging/opentunebox.spec --noconfirm` → `dist/OpenTuneBox.app` |
 
 Chaque version se fabrique sur son propre système. Le workflow GitHub
-[`construire.yml`](.github/workflows/construire.yml) fabrique les trois d'un coup (onglet *Actions*).
+[`construire.yml`](.github/workflows/construire.yml) fabrique d'un coup les installateurs des trois systèmes
+(onglet *Actions*) et les publie sur la page Releases pour chaque version (voir [Contribuer](CONTRIBUTING.md)).
 Le dossier `dist/OpenTuneBox/` se partage **en entier**.
 
 ### Depuis les sources (Python 3.11 à 3.14)

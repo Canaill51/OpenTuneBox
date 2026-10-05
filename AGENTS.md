@@ -34,7 +34,8 @@ src/opentunebox/
 tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents)
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
               release.py (préparer une version, notes de la page Releases)
-packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes, linux/, windows/
+packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes (make_icons.py), installateurs :
+              windows/ (Inno Setup), macos/ (.dmg), linux/ (AppImage)
 docs/         guide utilisateur, architecture, validation, assistant, spécifications
 ```
 

@@ -2,31 +2,41 @@
 
 ## 1. Lancer le programme
 
-- Menu des applications : **OpenTuneBox** (après `sh packaging/linux/install_linux.sh`).
-- Ou dans un terminal : `~/Documents/Github/OpenTuneBox/.venv/bin/opentunebox-gui [logs…]`
-- Diagnostic rapide sans interface : `opentunebox report LOG.bbl` ; résumé : `opentunebox info LOG.bbl`.
-- Version autonome (sans Python) : dossier `dist/OpenTuneBox/` ; à partager **en entier**.
+- Version installée (voir ci-dessous) : menu Démarrer, Launchpad / Applications, ou double-clic sur l'AppImage.
+- Depuis les sources : menu des applications **OpenTuneBox** (après `sh packaging/linux/install_linux.sh`),
+  ou dans un terminal `~/Documents/Github/OpenTuneBox/.venv/bin/opentunebox-gui [logs…]`.
+- Diagnostic rapide sans interface (depuis les sources) : `opentunebox report LOG.bbl` ; résumé : `opentunebox info LOG.bbl`.
+- Version autonome fabriquée soi-même : dossier `dist/OpenTuneBox/` ; à partager **en entier**.
 
-### Versions construites par GitHub
+### Installer une version construite par GitHub
 
 Versions publiées : page **Releases** du dépôt (à droite de la page d'accueil sur GitHub), section
 *Assets* de la version voulue. Versions d'essai (toute construction lancée à la main) : onglet **Actions**
 → **Construire OpenTuneBox** → une exécution réussie → section **Artifacts** en bas de page (conservées
-90 jours). Une archive par système :
+90 jours).
 
-| Système | Archive | Lancer |
-|---|---|---|
-| Windows | `OpenTuneBox-Windows.zip` | décompresser, puis `OpenTuneBox\OpenTuneBox.exe` |
-| macOS (Apple Silicon) | `OpenTuneBox-macOS.zip` | décompresser, puis clic droit sur `OpenTuneBox.app` → **Ouvrir** (1re fois) |
-| Linux (Ubuntu 22.04 ou plus récent) | `OpenTuneBox-Linux.tar.gz` | `tar xzf OpenTuneBox-Linux.tar.gz`, puis `OpenTuneBox/OpenTuneBox` |
+**Windows** : `OpenTuneBox-Windows-Setup.exe`. Double-cliquer, puis suivre l'assistant : raccourci du
+Bureau et ouverture des `.bbl` / `.bfl` par double-clic en option. Pas besoin des droits administrateur
+(installation dans le dossier de l'utilisateur). Une nouvelle version s'installe par-dessus l'ancienne ;
+désinstallation : *Paramètres → Applications → OpenTuneBox → Désinstaller*. Au premier lancement de
+l'installateur, SmartScreen peut afficher « Windows a protégé votre ordinateur » (programme non signé) :
+**Informations complémentaires → Exécuter quand même**.
 
-Le programme a besoin du dossier `_internal` placé à côté de lui : garder le dossier `OpenTuneBox` entier
-(pour un raccourci sur le Bureau sous Windows : clic droit sur `OpenTuneBox.exe` → *Envoyer vers* →
-*Bureau (créer un raccourci)*).
+**macOS** (Mac à puce Apple : M1 et suivants) : `OpenTuneBox-macOS.dmg`. L'ouvrir, puis glisser
+**OpenTuneBox** sur **Applications**. L'application n'est pas signée par Apple : au premier lancement,
+macOS refuse de l'ouvrir. Aller dans *Réglages Système → Confidentialité et sécurité*, en bas :
+**Ouvrir quand même** (une seule fois). Ensuite, un double-clic sur un `.bbl` / `.bfl` peut l'ouvrir
+dans OpenTuneBox (*Ouvrir avec* la première fois).
 
-### Windows
+**Linux** (Ubuntu 22.04 ou équivalent, ou plus récent) : `OpenTuneBox-Linux.AppImage`, un seul fichier.
+Le rendre exécutable (clic droit → *Propriétés* → *Autoriser l'exécution*, ou
+`chmod +x OpenTuneBox-Linux.AppImage`), puis double-clic. S'il ne démarre pas (système sans FUSE) :
+`./OpenTuneBox-Linux.AppImage --appimage-extract-and-run`.
 
-L'exécutable Windows se fabrique sur un PC Windows (PyInstaller ne sait pas le faire depuis Linux) :
+### Fabriquer soi-même l'exécutable Windows
+
+Inutile pour utiliser OpenTuneBox (l'installateur de la page Releases suffit). L'exécutable Windows se
+fabrique sur un PC Windows (PyInstaller ne sait pas le faire depuis Linux) :
 copier le dossier du projet sur le PC (sans `.venv`, `build`, `dist`), puis double-cliquer
 `packaging\windows\construire_windows.bat`. Le script installe Python 3.13 si besoin (winget), les dépendances,
 puis fabrique `dist\OpenTuneBox\OpenTuneBox.exe` et l'archive `dist\OpenTuneBox-windows.zip`.
