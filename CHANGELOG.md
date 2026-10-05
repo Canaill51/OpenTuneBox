@@ -12,6 +12,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `construire.yml` (Windows, macOS, Linux).
 - Icône d'application sous Linux (fenêtres, barre des tâches Wayland, menu) et sous Windows (`.ico`).
 - Dossier de logs des tests réglable par la variable `OTB_LOGS`.
+- Page de téléchargement **Releases** créée automatiquement pour chaque étiquette de version `v…`, avec
+  les archives Windows, macOS et Linux et la section du CHANGELOG ; script `scripts/release.py` qui
+  prépare une version (numéro dans `pyproject.toml` et `__init__.py`, section datée du CHANGELOG) et
+  arrête la construction si l'étiquette ne correspond pas.
 - Convention de nommage des branches (`type/description-courte`) et des demandes de fusion (titre = nom
   de la branche) dans `CONTRIBUTING.md`, `AGENTS.md` et le modèle de PR.
 

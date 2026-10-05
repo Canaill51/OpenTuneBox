@@ -32,7 +32,8 @@ src/opentunebox/
   gui/        app.py, main_window.py (visualiseur), state.py, worker.py, tools/ (une fenêtre par outil), widgets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
 tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents)
-scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant)
+scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
+              release.py (préparer une version, notes de la page Releases)
 packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes, linux/, windows/
 docs/         guide utilisateur, architecture, validation, assistant, spécifications
 ```
@@ -54,6 +55,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande
 .venv/bin/python scripts/validate_corpus.py [DOSSIER] [--limit N]   # décodeur vs blackbox_decode
 .venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
+.venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```
 
 Variables d'environnement : `OTB_LOGS` (dossier de vrais logs, défaut `~/Documents/Drones/Logs`),

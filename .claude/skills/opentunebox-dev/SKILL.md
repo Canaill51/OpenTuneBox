@@ -62,5 +62,6 @@ créer `MainWindow`, `load_paths([...])`, pomper les événements (`app.processE
   `opentunebox report` avec un `NUMBA_CACHE_DIR` vide puis ouvre chaque outil hors écran).
 - Windows : sources par `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`,
   puis `packaging\windows\construire_windows.bat` sur le PC Windows (Python 3.13 installé par winget).
-- Tous systèmes : workflow `construire.yml` (manuel ou étiquette `v*`) : une archive par système
+- Tous systèmes : workflow `construire.yml` (manuel, ou étiquette `v*` → page Releases ; préparer la version
+  avec `scripts/release.py prepare X.Y.Z`, voir `CONTRIBUTING.md`) : une archive par système
   (`.zip` Windows, `.zip` de l'`.app` macOS faite par `ditto`, `.tar.gz` Linux construit sur Ubuntu 22.04).
