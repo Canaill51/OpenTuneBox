@@ -56,7 +56,11 @@ créer `MainWindow`, `load_paths([...])`, pomper les événements (`app.processE
 
 ## Fabriquer les exécutables
 
-- Linux : `.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm` (≈ 30 s, `dist/OpenTuneBox/` ≈ 490 Mo).
+- Linux : `.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm` (≈ 30 s, `dist/OpenTuneBox/` ≈ 460 Mo).
+  Pas d'option `strip` : celui d'Ubuntu 22.04 abîme `libscipy_openblas` de numpy (« not page-aligned »).
+  Vérifier après tout changement de la recette : exécutable d'essai (même recette, script qui lance
+  `opentunebox report` avec un `NUMBA_CACHE_DIR` vide puis ouvre chaque outil hors écran).
 - Windows : sources par `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`,
   puis `packaging\windows\construire_windows.bat` sur le PC Windows (Python 3.13 installé par winget).
-- Tous systèmes : workflow `construire.yml` (manuel ou étiquette `v*`), une fois le dépôt sur GitHub.
+- Tous systèmes : workflow `construire.yml` (manuel ou étiquette `v*`) : une archive par système
+  (`.zip` Windows, `.zip` de l'`.app` macOS faite par `ditto`, `.tar.gz` Linux construit sur Ubuntu 22.04).

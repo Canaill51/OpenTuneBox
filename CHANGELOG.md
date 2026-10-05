@@ -34,6 +34,15 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Le raccourci Linux ne se déclare plus capable d'ouvrir tous les fichiers binaires.
 - Windows : erreur « 'NoneType' object has no attribute 'flush' » à la fermeture de l'exécutable
   (pas de console, donc pas de `sys.stdout`).
+- Exécutables construits par GitHub (`construire.yml`) : une seule archive par système, qui garde les
+  droits d'exécution et les liens symboliques (le programme Linux se lançait mal et l'application macOS
+  pouvait être abîmée) ; macOS n'envoie plus l'application en double (481 Mo auparavant) ; version Linux
+  fabriquée sur Ubuntu 22.04 pour fonctionner aussi sur les distributions plus anciennes, avec les
+  bibliothèques `libxcb` embarquées et un essai de démarrage.
+- Exécutable allégé de 488 à 460 Mo sous Linux : sans le clavier virtuel de Qt (et son moteur QML/Quick),
+  le lecteur PDF, les traductions de Qt ni les exemples, la 3D et l'intégration Jupyter de pyqtgraph.
+  La construction Linux ne plante plus en parcourant les exemples de pyqtgraph (ouverture d'une fenêtre
+  sur un serveur sans écran).
 
 ### Problèmes connus
 - Analyse spectrale : les courbes des notchs dynamiques chargent fortement le spectre complet.
