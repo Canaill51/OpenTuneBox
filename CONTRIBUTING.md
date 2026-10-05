@@ -42,6 +42,7 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    git tag v0.2.0 && git push origin v0.2.0
    ```
 3. Le workflow `construire.yml` vérifie que l'étiquette correspond au numéro du projet (sinon il s'arrête
-   tout de suite), fabrique les exécutables Windows, macOS et Linux, puis crée la page **Releases** de la
-   version avec les trois archives et la section du CHANGELOG (≈ 10 min). Le dépôt étant privé, seules les
+   tout de suite), fabrique et essaie les installateurs Windows (`Setup.exe`), macOS (`.dmg`)
+   et Linux (AppImage), puis crée la page **Releases** de la version avec ces trois fichiers et la
+   section du CHANGELOG (≈ 10 min). Le dépôt étant privé, seules les
    personnes ayant accès au dépôt peuvent télécharger.
