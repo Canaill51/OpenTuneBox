@@ -36,6 +36,9 @@ cohérence ≥ 0,5, lissage complexe sur 5 points (`uniform_filter1d(mode="neare
 S = 1 − T, pic de |S| en dB et sa fréquence (repères 4 dB jaune / 6 dB rouge, comme PTB) ; boucle
 ouverte L = T/(1 − T) : croisement où |L| = 1, marge de phase = 180° + ∠L ; bande passante = −3 dB de |T|,
 cherchée à partir de 2 Hz.
+**Limite** : L = T/(1 − T) n'est la vraie boucle ouverte que si tout le régulateur agit sur l'erreur ; dans
+Betaflight le D agit sur le gyro et le feedforward sur la consigne, donc S et la marge de phase sont
+approchées (détail et piste de correction : `assistant.md`, « Limite connue »).
 
 ## Spectres (`analysis/spectral.py`)
 
@@ -90,7 +93,9 @@ montées de gaz pour le bruit.
   horizontale sur fréquence × gaz ; moteur = diagonale.
 - Fréquence fondamentale des moteurs selon la taille (physique au premier ordre, RPM ≈ KV · V · 0,75) :
   whoop 65–75 mm 550–800 Hz en stationnaire / 1,1–1,4 kHz plein gaz ; 2,5–3,5" 350–450 / 800–950 ;
-  5" 200–270 / 500–650 ; 7" 130–170 / 350–420 ; 10" 85–110 / 250–300. Les whoops demandent un log rapide ;
+  5" 200–270 / 500–650 ; 7" 130–170 / 350–420 ; 10" 85–110 / 250–300. Mesuré sur le corpus (médiane par drone en vol) :
+  AIR65 ≈ 480 Hz, Meteor 75 ≈ 355 Hz, 3" ≈ 325 Hz, 5" ≈ 210 Hz, 7" ≈ 140 Hz, 9" ≈ 110 Hz : les valeurs
+  « stationnaire » ci-dessus sont trop hautes pour les whoops (`assistant.md`, « Taille du drone »). Les whoops demandent un log rapide ;
   sur les 7" / 10", la bande moteur recouvre le propwash (notch dynamique min jusqu'à 20 Hz).
 - Notch dynamique avec filtre RPM : Q 300–450, 1–2 notchs ; sans RPM : 3–4 notchs, Q 120–150.
 - Feedforward : liaison 250 Hz → smooth 40–50, 2 points ; 500 Hz → 65–70 ; jitter 12–15 pour le cinématique.

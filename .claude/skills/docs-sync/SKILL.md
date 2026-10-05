@@ -32,7 +32,7 @@ et les comparer au code :
 | Nouvel outil | tout ce qui précède + étapes de la compétence `opentunebox-dev` (« Ajouter un outil ») |
 | Analyse (paramètre, fenêtre, seuil, méthode) | `docs/spec-methodes.md`, `docs/validation.md` (refaire la mesure si besoin), `AGENTS.md` (Pièges connus) |
 | Formule ou réglage du firmware | `docs/spec-betaflight.md`, `log/settings.py` / `log/debug_tables.py` cohérents |
-| Assistant (règle, seuil, profil) | `docs/assistant.md` (Règles, tableau, taille du drone), `advisor/profiles.py` (commentaires) |
+| Assistant (règle, seuil, profil) | `docs/assistant.md` (Taille du drone, Calibration, Règles, Origine des seuils), `advisor/profiles.py` (commentaires), compétence `assistant-seuils` |
 | Décodeur | `docs/validation.md` (relancer `scripts/validate_corpus.py`), `AGENTS.md` (Pièges connus) |
 | Nouveau module ou fichier déplacé | `AGENTS.md` (Organisation), `docs/architecture.md` |
 | Construction, installateurs, workflow | `README.md` (Installation, Développement), guide (1. Installer), `CONTRIBUTING.md` (Publier une version), `docs/architecture.md` (Distribution), compétence `opentunebox-dev` (Fabriquer les exécutables) |
