@@ -97,6 +97,11 @@ class FlightLog:
         return out
 
     @cached_property
+    def cells(self) -> int | None:
+        """Nombre de cellules de la batterie (formule du firmware), ou None sans tension connue."""
+        return cell_count(self.settings, self.vbat)
+
+    @cached_property
     def armed(self) -> np.ndarray:
         """Vrai quand le drone est armé (bit ARM des modes), ou partout si inconnu."""
         if self.mode_flags is None:
@@ -158,6 +163,19 @@ class FlightLog:
             f" gyro non filtré {'oui' if self.gyro_unfilt is not None else 'non'}\n"
             f"  PID (P,I,D,Dmax,F) : {pid}"
         )
+
+
+def cell_count(settings, vbat):
+    """Nombre de cellules par la formule du firmware (sensors/battery.c : tension / vbatmaxcellvoltage + 1),
+    avec la tension au branchement (`vbatref`), sinon la première tension loggée."""
+    v = settings.get_int("vbatref", 0) / 100.0
+    if v <= 0 and vbat is not None and vbat.size:
+        v = float(vbat[0])
+    if v <= 0.5:
+        return None
+    cv = settings.get_ints("vbatcellvoltage")  # min, alerte, max (centièmes de volt)
+    vmax = cv[2] / 100.0 if len(cv) == 3 and cv[2] > 0 else 4.30  # VBAT_CELL_VOLTAGE_DEFAULT_MAX
+    return min(int(v / vmax) + 1, 24)
 
 
 def _slow_gain(raw: np.ndarray, d: np.ndarray, fs: float) -> float:

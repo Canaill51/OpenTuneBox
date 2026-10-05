@@ -1,7 +1,8 @@
 """Profils de taille de drone et détection automatique.
 
-La taille se devine surtout par la fréquence de rotation des moteurs en vol stationnaire :
-plus l'hélice est petite, plus le moteur tourne vite (docs/spec-methodes.md, table des fréquences).
+La taille se devine surtout par la fréquence de rotation des moteurs en vol stationnaire : plus l'hélice
+est petite, plus le moteur tourne vite. Le nombre de cellules départage les petits drones (2 à 3,5") qui
+tournent aussi vite qu'un 5" (docs/assistant.md, « Taille du drone »).
 """
 
 from __future__ import annotations
@@ -37,11 +38,13 @@ class CraftProfile:
     provisional: bool = False  # trop peu de drones dans le corpus : seuils peu fiables
 
 
-# Calibration du 2026-10-05 sur 707 sessions, 90 drones (docs/assistant.md, « Calibration ») :
+# Recalibration du 2026-10-05 sur 681 sessions, 94 drones, tout le corpus (docs/assistant.md, « Calibration »),
+# avec la détection de taille par fréquence moteur + cellules :
 # - bruit : p90 par session ; latence : p10 arrondi vers le bas, p90 vers le haut ; retards : p90 arrondi
-#   vers le haut ;
-# - whoop : une voix par drone (le corpus est dominé par quelques drones) ; 2–3,5" et 8"+ : provisoires ;
-# - seuils mécaniques : valeurs par défaut de CraftProfile (communes) sauf 5" et 7" (≥ 20 drones).
+#   au dixième supérieur ;
+# - 2–3,5", 5", 7" recalculés ; whoop (11 drones) et 8"+ (6 drones) inchangés (calibration précédente :
+#   un seul drone de plus y déplace le seuil de plusieurs dB) ;
+# - seuils mécaniques : une voix par drone ; communs (valeurs par défaut de CraftProfile) sauf 5" et 7".
 PROFILES: dict[str, CraftProfile] = {
     "whoop": CraftProfile(
         "whoop", "Tiny whoop / micro (≤ 75 mm, 1–2S)", hover_hz=(345, 900), resonance_hz=(250, 600),
@@ -49,20 +52,20 @@ PROFILES: dict[str, CraftProfile] = {
         gyro_noise_high_db=-28.0, dterm_noise_high_db=-14.7, low_band_high_db=-13.9, motor_left_high_db=-32.2,
         provisional=True),
     "micro": CraftProfile(
-        "micro", "2 à 3,5 pouces", hover_hz=(290, 345), resonance_hz=(180, 450),
-        latency_ms=(12, 25), gyro_delay_max_ms=1.8, dterm_delay_max_ms=2.7,
-        gyro_noise_high_db=-27.3, dterm_noise_high_db=-11.5, low_band_high_db=-13.6, motor_left_high_db=-32.0,
+        "micro", "2 à 3,5 pouces", hover_hz=(200, 345), resonance_hz=(180, 450),
+        latency_ms=(10, 21), gyro_delay_max_ms=2.0, dterm_delay_max_ms=2.6,
+        gyro_noise_high_db=-29.4, dterm_noise_high_db=-14.8, low_band_high_db=-13.9, motor_left_high_db=-32.5,
         provisional=True),
     "five": CraftProfile(
-        "five", "4 à 5 pouces", hover_hz=(170, 300), resonance_hz=(120, 350),
-        latency_ms=(10, 21), gyro_delay_max_ms=2.1, dterm_delay_max_ms=2.8,
-        gyro_noise_high_db=-28.5, dterm_noise_high_db=-13.6, low_band_high_db=-15.3, motor_left_high_db=-28.8,
-        imbalance_high_pct=14.1, iterm_offset_high=32, roll_pitch_gap_high=0.12, resonance_high_db=7.4),
+        "five", "4 à 5 pouces", hover_hz=(160, 290), resonance_hz=(120, 350),
+        latency_ms=(10, 22), gyro_delay_max_ms=2.1, dterm_delay_max_ms=2.8,
+        gyro_noise_high_db=-28.3, dterm_noise_high_db=-13.1, low_band_high_db=-15.7, motor_left_high_db=-28.4,
+        imbalance_high_pct=14.0, iterm_offset_high=32, roll_pitch_gap_high=0.11, resonance_high_db=6.8),
     "seven": CraftProfile(
-        "seven", "6 à 7 pouces", hover_hz=(110, 190), resonance_hz=(80, 220),
-        latency_ms=(14, 24), gyro_delay_max_ms=2.6, dterm_delay_max_ms=3.0,
-        gyro_noise_high_db=-30.2, dterm_noise_high_db=-16.2, low_band_high_db=-21.2, motor_left_high_db=-31.7,
-        imbalance_high_pct=11.0, iterm_offset_high=29, roll_pitch_gap_high=0.07, resonance_high_db=7.3),
+        "seven", "6 à 7 pouces", hover_hz=(115, 160), resonance_hz=(80, 220),
+        latency_ms=(15, 24), gyro_delay_max_ms=2.6, dterm_delay_max_ms=2.8,
+        gyro_noise_high_db=-31.4, dterm_noise_high_db=-17.5, low_band_high_db=-21.7, motor_left_high_db=-31.8,
+        imbalance_high_pct=11.2, iterm_offset_high=31, roll_pitch_gap_high=0.08, resonance_high_db=8.2),
     "large": CraftProfile(
         "large", "8 pouces et plus", hover_hz=(50, 125), resonance_hz=(40, 160),
         latency_ms=(18, 30), gyro_delay_max_ms=3.2, dterm_delay_max_ms=3.5,
@@ -71,24 +74,38 @@ PROFILES: dict[str, CraftProfile] = {
 }
 
 
-def profile_key_from_hz(hz: float) -> str:
-    """Taille d'après la fréquence moteur médiane en vol (limites vérifiées sur le corpus)."""
-    if hz >= 345:
+# Limites de taille, vérifiées sur 41 drones de taille connue (docs/assistant.md, « Taille du drone »)
+WHOOP_HZ, MICRO_HZ, FIVE_HZ, SEVEN_HZ = 345, 290, 160, 115
+SMALL_PACK_HZ = 200  # 2 à 4S au-dessus de 200 Hz : petit drone (un 5" en 4S tourne plus lentement)
+# Pas de règle pour le 6S : les 3,5" en 6S (~255 Hz) recouvrent les 5" en vol freestyle (jusqu'à 275 Hz)
+
+
+def profile_key(hz: float, cells: int | None = None) -> str:
+    """Taille d'après la fréquence moteur médiane en vol et, si connu, le nombre de cellules."""
+    if cells == 1:
         return "whoop"
-    if hz >= 290:
+    if hz >= WHOOP_HZ:
+        return "whoop"
+    if hz >= MICRO_HZ:
         return "micro"
-    if hz >= 175:
+    if hz >= FIVE_HZ:
+        if cells is not None and cells <= 4 and hz >= SMALL_PACK_HZ:
+            return "micro"
         return "five"
-    if hz >= 115:
+    if hz >= SEVEN_HZ:
         return "seven"
     return "large"
 
 
 def detect_profile(log: FlightLog) -> tuple[CraftProfile, str]:
-    """(profil, explication). Fréquence moteur en stationnaire en priorité, puis nom du drone."""
+    """(profil, explication). Fréquence moteur en vol et nombre de cellules en priorité, puis nom du drone."""
     hz = hover_motor_hz(log)
+    cells = log.cells
     if hz is not None:
-        return PROFILES[profile_key_from_hz(hz)], f"moteurs à {hz:.0f} Hz en vol (≈ {hz * 60:.0f} tr/min)"
+        why = f"moteurs à {hz:.0f} Hz en vol (≈ {hz * 60:.0f} tr/min)" + (f", batterie {cells}S" if cells else "")
+        return PROFILES[profile_key(hz, cells)], why
+    if cells == 1:
+        return PROFILES["whoop"], "batterie 1S"
     name = (log.settings.craft_name or "").lower()
     if re.search(r"whoop|65|75|air ?65|meteor", name):
         return PROFILES["whoop"], f"nom du drone « {log.settings.craft_name} »"

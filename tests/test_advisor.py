@@ -23,16 +23,21 @@ def test_profiles_detected_by_motor_speed():
     assert detect_profile(_load("Cedric/JeNo 5/FINAL.bbl"))[0].key == "five"
     # Meteor 75 (≈ 355 Hz en vol) : whoop depuis la limite à 345 Hz
     assert detect_profile(_load("Cedric/Meteor 75 Pro O4 HD/03112025/D.bbl"))[0].key == "whoop"
+    # JeNo 3,5" en 4S : tourne à ~235 Hz comme un 5", reconnu par le nombre de cellules
+    assert detect_profile(_load("Cedric/J3.5/Emax Avan/24k-Emax.bbl"))[0].key == "micro"
 
 
 def test_profile_thresholds():
     from dataclasses import replace
 
-    from opentunebox.advisor.profiles import PROFILES, profile_key_from_hz
+    from opentunebox.advisor.profiles import PROFILES, profile_key
     from opentunebox.advisor.rules import analyze
 
-    assert [profile_key_from_hz(h) for h in (480, 350, 300, 220, 140, 100)] == \
-        ["whoop", "whoop", "micro", "five", "seven", "large"]
+    assert [profile_key(h) for h in (480, 350, 300, 220, 165, 140, 100)] == \
+        ["whoop", "whoop", "micro", "five", "five", "seven", "large"]
+    # cellules : 1S = whoop ; petit drone en 2–4S au-dessus de 200 Hz ; rien pour le 6S (recouvrement)
+    assert [profile_key(h, c) for h, c in ((306, 1), (237, 4), (195, 4), (255, 6), (242, 2))] == \
+        ["whoop", "micro", "five", "five", "micro"]
     lg = _load("Cedric/JeNo 5/FINAL.bbl")
     titles = lambda rep: {f.title for f in rep.findings}  # noqa: E731
     # un seuil mécanique nul déclenche le constat : la règle lit bien le profil

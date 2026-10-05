@@ -23,6 +23,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   triangle quand le pic de sensibilité n'est qu'un minimum (au-delà des fréquences mesurables).
 
 ### Modifié
+- Assistant : taille du drone détectée par la fréquence des moteurs **et** le nombre de cellules
+  (1S → whoop ; 2 à 4S entre 200 et 290 Hz → 2–3,5") ; limite 5"/7" abaissée de 175 à 160 Hz. Juste pour
+  38 drones de taille connue sur 41, au lieu de 27 : les 3,5" et 2,5" ne sont plus pris pour des 5".
+- Assistant : seuils recalibrés sur tout le corpus avec la nouvelle détection (2–3,5", 5", 7" ; whoop et
+  8"+ inchangés) ; stabilité en conseil au-delà de 7 dB de pic de sensibilité ou sous 35° de marge de phase
+  (au lieu de 6 dB et 40°). Plus de corpus de référence : `calibrate_advisor.py --resume` compte tout le
+  corpus.
 - Assistant : constats de stabilité sur la boucle mesurée, en conseil (et non plus en alerte) jusqu'à la
   recalibration du seuil ; quand le D domine déjà au croisement, il conseille Master −0,1 plutôt que plus
   de D.
@@ -68,6 +75,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   un commit si la documentation n'est plus cohérente.
 
 ### Modifié
+- Assistant : taille du drone détectée par la fréquence des moteurs **et** le nombre de cellules
+  (1S → whoop ; 2 à 4S entre 200 et 290 Hz → 2–3,5") ; limite 5"/7" abaissée de 175 à 160 Hz. Juste pour
+  38 drones de taille connue sur 41, au lieu de 27 : les 3,5" et 2,5" ne sont plus pris pour des 5".
+- Assistant : seuils recalibrés sur tout le corpus avec la nouvelle détection (2–3,5", 5", 7" ; whoop et
+  8"+ inchangés) ; stabilité en conseil au-delà de 7 dB de pic de sensibilité ou sous 35° de marge de phase
+  (au lieu de 6 dB et 40°). Plus de corpus de référence : `calibrate_advisor.py --resume` compte tout le
+  corpus.
 - Documentation entièrement relue et mise à jour : README (outils sous le nom de leur bouton, partie
   développeur séparée), guide (installation et ouverture des logs réorganisées), assistant (toutes les
   règles réelles, détection de la taille, profil 8"+ provisoire), méthodes d'analyse (retards, lissages,
@@ -102,6 +116,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   de la branche) dans `CONTRIBUTING.md`, `AGENTS.md` et le modèle de PR.
 
 ### Modifié
+- Assistant : taille du drone détectée par la fréquence des moteurs **et** le nombre de cellules
+  (1S → whoop ; 2 à 4S entre 200 et 290 Hz → 2–3,5") ; limite 5"/7" abaissée de 175 à 160 Hz. Juste pour
+  38 drones de taille connue sur 41, au lieu de 27 : les 3,5" et 2,5" ne sont plus pris pour des 5".
+- Assistant : seuils recalibrés sur tout le corpus avec la nouvelle détection (2–3,5", 5", 7" ; whoop et
+  8"+ inchangés) ; stabilité en conseil au-delà de 7 dB de pic de sensibilité ou sous 35° de marge de phase
+  (au lieu de 6 dB et 40°). Plus de corpus de référence : `calibrate_advisor.py --resume` compte tout le
+  corpus.
 - Scripts d'installation rangés par système : `packaging/linux/`, `packaging/windows/`.
 - Interface plus lisible, identique sous Windows, macOS et Linux : style Qt « Fusion » avec palettes
   claire et sombre complètes (fini le gris beige et les boutons qui semblaient désactivés sous Windows),
