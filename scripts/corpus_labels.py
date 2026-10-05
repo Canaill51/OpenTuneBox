@@ -19,7 +19,6 @@ COLUMNS = ["drone", "dossiers", "sessions", "origine", "taille_detectee", "freq_
            "cellules", "etat", "taille_reelle", "remarque"]
 USER_COLUMNS = ("etat", "taille_reelle", "remarque")
 STATES = ("aide", "origine", "regle", "inconnu")
-REFERENCE_STATES = ("regle", "origine")  # corpus de référence : drones réglés ou d'origine connus
 HELP_FOLDERS = ("1. PTB", "3. BBLR FB")  # demandes d'aide (forums, groupes)
 DEFAULT_KV = 1960  # motor_kv par défaut du firmware (pg/motor.c) : laissé vide, réglage probablement absent
 CSV_NAME = "corpus.csv"
@@ -86,19 +85,6 @@ def guess_size(texts):
     return m.group(1).replace(".", ",") if m else ""
 
 
-def cell_count(settings, vbat):
-    """Nombre de cellules par la formule du firmware (sensors/battery.c : tension / vbatmaxcellvoltage + 1),
-    avec la tension au branchement (`vbatref`), sinon la première tension loggée."""
-    v = settings.get_int("vbatref", 0) / 100.0
-    if v <= 0 and vbat is not None and vbat.size:
-        v = float(vbat[0])
-    if v <= 0.5:
-        return None
-    cv = settings.get_ints("vbatcellvoltage")  # min, alerte, max (centièmes de volt)
-    vmax = cv[2] / 100.0 if len(cv) == 3 and cv[2] > 0 else 4.30  # VBAT_CELL_VOLTAGE_DEFAULT_MAX
-    return min(int(v / vmax) + 1, 24)
-
-
 def read_labels(path):
     """{drone: ligne} depuis le tableau (séparateur « ; » ou « , »), ou {} s'il n'existe pas."""
     if not os.path.exists(path):
@@ -128,7 +114,7 @@ def write_labels(path, rows):
 
 def scan(root, limit=None):
     """{drone: ligne} pour tous les logs du dossier (sessions d'au moins 8 s, comme la calibration)."""
-    from opentunebox.advisor.profiles import detect_profile, profile_key_from_hz
+    from opentunebox.advisor.profiles import detect_profile, profile_key
     from opentunebox.analysis.motors import hover_motor_hz
     from opentunebox.log.flightlog import load
 
@@ -157,7 +143,7 @@ def scan(root, limit=None):
                 a["hz"].append(hz)
             if lg.settings.motor_kv > 0 and lg.settings.motor_kv != DEFAULT_KV:
                 a["kv"].append(lg.settings.motor_kv)
-            n = cell_count(lg.settings, lg.vbat)
+            n = lg.cells
             if n:
                 a["cells"].append(n)
             a["profiles"].append(detect_profile(lg)[0].key)
@@ -168,7 +154,8 @@ def scan(root, limit=None):
         rows[d] = {
             "drone": d, "dossiers": " | ".join(sorted(a["dirs"])), "sessions": a["sessions"],
             "origine": " | ".join(sorted(a["origins"])),
-            "taille_detectee": profile_key_from_hz(hz) if hz else Counter(a["profiles"]).most_common(1)[0][0],
+            "taille_detectee": profile_key(hz, Counter(a["cells"]).most_common(1)[0][0] if a["cells"] else None)
+            if hz else Counter(a["profiles"]).most_common(1)[0][0],
             "freq_moteur_hz": f"{hz:.0f}" if hz else "",
             "motor_kv": Counter(a["kv"]).most_common(1)[0][0] if a["kv"] else "",
             "cellules": Counter(a["cells"]).most_common(1)[0][0] if a["cells"] else "",

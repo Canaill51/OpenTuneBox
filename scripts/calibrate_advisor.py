@@ -4,8 +4,8 @@
 Usage : calibrate_advisor.py NB_FICHIERS SORTIE.json  (dossier de logs : variable OTB_LOGS)
         calibrate_advisor.py --resume SORTIE.json      (p10 / p50 / p90 par taille, voir docs/assistant.md)
 
-Avec --resume, si OTB_LOGS/corpus.csv existe (scripts/corpus_labels.py), chaque groupe est suivi de son
-corpus de référence : drones dont l'état est « regle » ou « origine » (hors demandes d'aide).
+Les sessions sont reclassées par taille avec les limites actuelles (fréquence moteur et cellules). Tout le
+corpus compte : pas de corpus de référence (états « regle » / « origine » invérifiables, docs/assistant.md).
 """
 import sys, json, os, random
 import numpy as np
@@ -15,22 +15,19 @@ from opentunebox.analysis.spectral import spectrum
 from opentunebox.analysis.step import step_response
 from opentunebox.analysis.delay import compute_delays
 from opentunebox.analysis.motors import motor_noise
-from opentunebox.advisor.profiles import PROFILES, detect_profile, profile_key_from_hz
+from opentunebox.advisor.profiles import PROFILES, detect_profile, profile_key
 from opentunebox.advisor.rules import frame_resonance
 from opentunebox.analysis.motors import hover_motor_hz
 from opentunebox.analysis.stats import flight_stats
-from corpus_labels import CSV_NAME, REFERENCE_STATES, drone_id, log_files, logs_root, read_labels
+from corpus_labels import drone_id, log_files, logs_root
 
 def summary(path):
     """Affiche, par taille puis pour tout le corpus (TOUS) : p10 / p50 / p90 par session (roll et pitch
-    regroupés) et p10 / p90 avec une voix par drone (médiane de ses sessions ; drone = nom, sinon dossier).
-    Chaque groupe est suivi de sa partie « référence » quand le tableau d'étiquettes existe."""
+    regroupés) et p10 / p90 avec une voix par drone (médiane de ses sessions ; drone = nom, sinon dossier)."""
     rows=json.load(open(path))
-    labels=read_labels(os.path.join(logs_root(),CSV_NAME))
     for r in rows:
-        if r.get("hover_hz"): r["profile"]=profile_key_from_hz(r["hover_hz"])  # limites actuelles
+        if r.get("hover_hz"): r["profile"]=profile_key(r["hover_hz"],r.get("cells"))  # limites actuelles
         r["drone"]=drone_id(r.get("craft"),r["file"])
-        r["ref"]=labels.get(r["drone"],{}).get("etat") in REFERENCE_STATES
         # mesures dérivées, telles que les règles les utilisent
         if "peak_0" in r and "peak_1" in r: r["peakdiff"]=abs(r["peak_1"]-r["peak_0"])
         if "imean_0" in r: r["imean_abs"]=max(abs(r["imean_0"]),abs(r["imean_1"]))
@@ -38,13 +35,10 @@ def summary(path):
             if f"mnoise_{a}" in r: r[f"mleft_{a}"]=r[f"mnoise_{a}"][0]
         if r.get("res_db") is not None and not r.get("res_near"): r["res_free_db"]=r["res_db"]
     keys=sorted({k.rsplit("_",1)[0] if k[-2:] in ("_0","_1") else k for r in rows for k in r}
-                - {"file","sess","profile","craft","drone","ref","res_near","mnoise","imean"})
+                - {"file","sess","profile","craft","drone","res_near","mnoise","imean","cells"})
     def vals(sub,k):
         return [x for r in sub for n in (k,k+"_0",k+"_1") for x in [r.get(n)]
                 if isinstance(x,(int,float)) and not isinstance(x,bool) and np.isfinite(x)]
-    if labels:
-        print(f"Référence : {sum(r['ref'] for r in rows)} sessions de {len({r['drone'] for r in rows if r['ref']})} drones"
-              f" (états {', '.join(REFERENCE_STATES)} dans {CSV_NAME})")
     ax=[(r,a) for r in rows for a in range(2) if f"measured_{a}" in r]
     if ax:  # boucle ouverte (analysis/loop.py) : part des axes mesurés, croisements trouvés, pics au bord
         meas=[(r,a) for r,a in ax if r[f"measured_{a}"]]
@@ -52,8 +46,6 @@ def summary(path):
         print(f"Boucle ouverte : {len(meas)}/{len(ax)} axes mesurés ({100*len(meas)/len(ax):.0f} %), croisement trouvé"
               f" {100*fc/max(1,len(meas)):.0f} %, pic de sensibilité au bord {100*edge/max(1,len(meas)):.0f} %")
     groups=[(key,[r for r in rows if key=="TOUS" or r["profile"]==key]) for key in [*PROFILES,"TOUS"]]
-    if labels:
-        groups=[g for key,sub in groups for g in ((key,sub),(key+" référence",[r for r in sub if r["ref"]]))]
     for key,sub in groups:
         print(f"\n== {key} : {len(sub)} sessions, {len({r['drone'] for r in sub})} drones"
               "   (par session p10 / p50 / p90 | une voix par drone p10 / p90)")
@@ -82,7 +74,7 @@ for f in files[:int(sys.argv[1])]:
             if sel.stop-sel.start < lg.fs*5: continue
             prof,_=detect_profile(lg)
             r={"file":os.path.relpath(f,root),"sess":lg.session,"profile":prof.key,"fs":lg.fs,
-               "craft":lg.settings.craft_name,"hover_hz":hover_motor_hz(lg),
+               "craft":lg.settings.craft_name,"hover_hz":hover_motor_hz(lg),"cells":lg.cells,
                "corrupt":lg.stats.get("corrupt_frames",0)}
             nyq=lg.fs/2
             def band(x,lo,hi):

@@ -47,13 +47,15 @@ def test_guess_size():
 
 
 def test_cell_count_firmware_formula():
+    from opentunebox.log.flightlog import cell_count
+
     s = parse_settings({"vbatref": "2520", "vbatcellvoltage": "330,350,430"})
-    assert cl.cell_count(s, None) == 6
+    assert cell_count(s, None) == 6
     s = parse_settings({"vbatref": "420", "vbatcellvoltage": "330,350,440"})
-    assert cl.cell_count(s, None) == 1
+    assert cell_count(s, None) == 1
     # sans vbatref : première tension loggée, tension max par cellule par défaut (4,30 V)
-    assert cl.cell_count(parse_settings({}), np.array([16.6, 15.0])) == 4
-    assert cl.cell_count(parse_settings({}), None) is None
+    assert cell_count(parse_settings({}), np.array([16.6, 15.0])) == 4
+    assert cell_count(parse_settings({}), None) is None
 
 
 def test_merge_keeps_user_columns(tmp_path):

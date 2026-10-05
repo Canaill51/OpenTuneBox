@@ -20,10 +20,10 @@ permise, mais elle doit être déclarée comme telle et listée pour être véri
 
 `SCRATCH` = répertoire de travail temporaire de la session (jamais dans le dépôt). Lancer le calcul en
 arrière-plan. `--resume` reclasse les sessions avec les limites de taille actuelles
-(`profiles.profile_key_from_hz`), sans tout recalculer. Avec `corpus.csv` (tableau d'étiquettes rempli
-par Cédric, `docs/assistant.md`, « Corpus de référence »), chaque groupe est suivi de sa partie
-**référence** (drones `regle` ou `origine`) : la préférer pour fixer un seuil quand elle compte assez de
-drones. `corpus_labels.py` ne réécrit jamais les colonnes `etat`, `taille_reelle` et `remarque`. Il
+(`profiles.profile_key`, fréquence moteur et cellules), sans tout recalculer. **Tout le corpus compte** :
+Cédric ne peut pas dire quels drones sont réglés ou d'origine, il n'y a donc pas de corpus de référence
+(décision du 2026-10-05, `docs/assistant.md`, « Calibration ») ; ne pas lui redemander ces étiquettes ni la
+taille réelle. `corpus_labels.py` (tableau `corpus.csv`) ne réécrit jamais les colonnes `etat`, `taille_reelle` et `remarque`. Il
 signale les noms de drone trouvés dans plusieurs dossiers : demander à Cédric si ce sont des machines
 différentes : oui → `SHARED_NAMES`, non → `SAME_DRONE_NAMES`. Les deux scripts lisent les logs par
 `corpus_labels.log_files` (sans doublons de contenu ni `__MACOSX`).
@@ -72,11 +72,12 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
   « Boucle ouverte mesurée »). Les percentiles calculés avec l'ancienne méthode ne sont pas comparables
   (marge de phase environ 10° plus haute, croisement environ 2 fois trop bas). Le pic de sensibilité est
   souvent un minorant (`smaxedge` dans `stats.json`).
-- Limites de taille par fréquence moteur : peu fiables entre 250 et 400 Hz (whoops 2,5", 3,5" lents).
-  Vérifier par drone (nom + fréquence médiane), pas par session.
-- Le corpus mélange des logs de demandes d'aide (« 1. PTB », « 3. BBLR FB ») et des drones connus
-  (dossiers des amis de Cédric) : un percentile du corpus entier est probablement trop indulgent.
-  Comparer avec le groupe « référence » de `--resume`.
+- Taille : la fréquence moteur seule confond les 2–3,5" et les 5" entre 200 et 290 Hz ; le nombre de
+  cellules les départage (2–4S), sauf en 6S (recouvrement avec les 5" en vol freestyle). Évaluer une
+  limite par drone **et** par session (la fréquence d'une session freestyle monte de 10 à 30 %), sur la
+  liste de vérification de `docs/assistant.md` (« Taille du drone »).
+- Le corpus est surtout fait de demandes d'aide (« 1. PTB », « 3. BBLR FB ») : un percentile du corpus
+  est probablement trop indulgent. Le dire dans les textes et la doc.
 
 ## 5. Terminer
 

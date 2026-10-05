@@ -7,84 +7,102 @@ curseurs du réglage simplifié de Betaflight, par petits pas (0,1), une chose �
 ## Taille du drone
 
 Détectée par la fréquence de rotation des moteurs en vol (médiane de l'eRPM mesuré, drone armé, gaz > 5 %,
-moteurs > 10 Hz) : ≥ 345 Hz whoop · 290–345 Hz 2–3,5" · 175–290 Hz 4–5" · 115–175 Hz 6–7" · < 115 Hz 8"+.
-Sans eRPM, par le nom du drone : « whoop », « 65 », « 75 », « Meteor » → whoop ; sinon une taille en pouces
-(« 5" », « 7 pouces ») : < 3,8 → 2–3,5", < 5,8 → 5", < 7,8 → 7", au-delà 8"+. À défaut : profil 5".
-Le profil peut être forcé dans la fenêtre de l'assistant ou avec `opentunebox report --profil`.
+moteurs > 10 Hz) et par le nombre de cellules de la batterie (`FlightLog.cells`, formule du firmware) :
 
-Limites vérifiées sur le corpus (fréquence médiane par drone) : AIR65 ≈ 480 Hz, Meteor 75 ≈ 355 Hz,
-P85 ≈ 385 Hz → whoop ; Pavo20 ≈ 340 Hz, 3" ≈ 325 Hz → 2–3,5". Entre 250 et 400 Hz, la fréquence sépare mal
-les tailles : un « FoxWhoop 25 » tourne à 280 Hz et des 3,5" (Bee35, JeNo 3.5) vers 255–265 Hz, rangés en 5".
+- batterie 1S → whoop ;
+- ≥ 345 Hz whoop · 290–345 Hz 2–3,5" · 160–290 Hz 4–5" · 115–160 Hz 6–7" · < 115 Hz 8"+ ;
+- entre 200 et 290 Hz, une batterie de 2 à 4S → 2–3,5" (un 5" en 4S tourne plus lentement).
+
+Sans eRPM : 1S → whoop ; sinon par le nom du drone : « whoop », « 65 », « 75 », « Meteor » → whoop ; une
+taille en pouces (« 5" », « 7 pouces ») : < 3,8 → 2–3,5", < 5,8 → 5", < 7,8 → 7", au-delà 8"+. À défaut :
+profil 5". Le profil peut être forcé dans la fenêtre de l'assistant ou avec `opentunebox report --profil`.
+
+Vérification (2026-10-05) sur 41 drones de taille connue : les 20 tailles notées par Cédric dans
+`corpus.csv` et 21 drones dont le nom donne la taille (Bee35, Whisper25, Pavo20, SevenInch, Mario8, M5…).
+Justes : 38 drones sur 41 (27 avec la fréquence seule) ; par session, 80 % (68 %). Restent faux un 5" en
+4S à 222 Hz (classé 2–3,5"), un drone rangé dans un dossier « 3.5 » qui tourne à 203 Hz, et un 3" sans
+tension enregistrée. Pas de règle pour le 6S : deux 3,5" en 6S tournent vers 255 Hz, mais des 5" en vol
+freestyle montent jusqu'à 275 Hz (JeNo 5 « FINAL » à 255 Hz) ; ils restent donc rangés en 5". La limite
+5"/7" est passée de 175 à 160 Hz : plusieurs 5" tournent entre 160 et 170 Hz. La moitié des tailles de
+vérification vient de noms interprétés à la main et les limites ont été choisies sur cette liste : le
+score est un peu optimiste.
 
 ## Calibration (2026-10-05)
 
 `scripts/calibrate_advisor.py 600 stats.json` sur le corpus `~/Documents/Drones/Logs`, puis
-`scripts/calibrate_advisor.py --resume stats.json` : 707 sessions exploitables de 90 drones
-(366 × 5" / 54 drones, 179 × 7" / 31, 120 whoops / 10, 22 × 2–3,5" / 8, 20 × 8"+ / 6), période automatique,
-roll + pitch. Un drone est identifié par son nom (`craft_name`), à défaut par le dossier du log ; un nom
-porté par plusieurs machines (`SHARED_NAMES` de `scripts/corpus_labels.py`, ex. « Jax » chez Guigui) est
-complété par le dossier. Les logs sont lus par `corpus_labels.py:log_files` : dossiers `__MACOSX` ignorés,
-et un fichier au contenu identique à un autre n'est compté qu'une fois (26 doublons sur 565 fichiers le
-2026-10-05, dont 23 logs d'un même drone publiés deux fois dans « 1. PTB »). Les chiffres de cette section
-datent d'avant : doublons comptés deux fois, deux « Jax » et deux « Blueberry » comptés comme un drone.
+`scripts/calibrate_advisor.py --resume stats.json` : 681 sessions exploitables de 94 drones
+(299 × 5" / 55 drones, 133 × 7" / 19, 121 whoops / 11, 108 × 2–3,5" / 20, 20 × 8"+ / 6 ; un drone peut
+compter dans deux tailles si ses sessions diffèrent), période automatique, roll + pitch. Un drone est
+identifié par son nom (`craft_name`), à défaut par le dossier du log ; un nom porté par plusieurs machines
+(`SHARED_NAMES` de `scripts/corpus_labels.py`, ex. « Jax » chez Guigui) est complété par le dossier. Les
+logs sont lus par `corpus_labels.py:log_files` : dossiers `__MACOSX` ignorés, et un fichier au contenu
+identique à un autre n'est compté qu'une fois.
+
+**Tout le corpus compte** : il n'y a pas de corpus de référence. Plus de la moitié des logs (« 1. PTB »,
+« 3. BBLR FB ») sont des demandes d'aide, donc surtout des drones à problème, et Cédric ne peut pas dire
+quels drones sont bien réglés (décision du 2026-10-05). Les percentiles sont donc **probablement trop
+indulgents** : « plus bruité que 90 % du corpus » est une limite haute.
 
 Les seuils « élevé » sont des **90e percentiles** : un drone est signalé quand il fait partie des 10 % les
 plus bruités / lents / déséquilibrés de sa catégorie. Deux façons de compter :
 
-- **par session** (seuils de bruit, de latence et de retard des 5", 7" et 2–3,5") ;
+- **par session** (seuils de bruit, de latence et de retard des 2–3,5", 5" et 7") ;
 - **une voix par drone** (médiane de ses sessions), pour qu'un drone très souvent loggé ne fixe pas seul le
-  seuil : seuils du whoop (63 des sessions whoop viennent d'un même AIR65) et seuils mécaniques.
+  seuil : seuils du whoop (la plupart des sessions whoop viennent d'un même AIR65) et seuils mécaniques.
 
-| Mesure (p10 / p50 / p90 par session) | whoop | 2–3,5" | 5" | 7" |
-|---|---|---|---|---|
-| Gyro filtré 80–500 Hz (dB) | −36,6 / −31,7 / −28,5 | −35,0 / −32,9 / −27,3 | −37,8 / −33,3 / −28,5 | −39,4 / −36,9 / −30,3 |
-| Gyro non filtré 80–500 Hz (dB) | −25,1 / −22,3 / −13,5 | −22,7 / −21,0 / −10,2 | −28,4 / −19,9 / −13,3 | −29,4 / −24,1 / −17,5 |
-| Terme D 80–500 Hz (dB) | −25,2 / −18,2 / −12,0 | −27,0 / −20,3 / −11,5 | −27,7 / −20,4 / −13,6 | −33,4 / −24,6 / −16,5 |
-| Gyro filtré 20–80 Hz (dB) | −26,0 / −21,5 / −14,9 | −27,2 / −23,5 / −13,6 | −30,0 / −24,9 / −15,3 | −32,5 / −28,6 / −21,2 |
-| 1re harmonique moteur restante (dB) | −42,2 / −36,0 / −29,8 | −39,2 / −36,9 / −32,0 | −40,5 / −35,3 / −28,8 | −41,2 / −38,1 / −31,9 |
-| Pic de réponse indicielle | 1,03 / 1,08 / 1,27 | 1,03 / 1,10 / 1,89 | 1,00 / 1,07 / 1,34 | 1,01 / 1,07 / 1,23 |
-| Latence 50 % (ms) | 10,5 / 14,5 / 18,2 | 12,1 / 17,9 / 24,5 | 10,5 / 15,2 / 20,9 | 14,5 / 19,0 / 23,5 |
-| Pic de sensibilité (dB), méthode approchée | 2,4 / 3,9 / 7,5 | 2,2 / 3,1 / 5,5 | 0,0 / 3,1 / 5,4 | 1,7 / 3,0 / 5,0 |
-| Marge de phase (°), méthode approchée | 37 / 63 / 74 | 45 / 66 / 71 | 49 / 68 / 77 | 51 / 65 / 74 |
-| Retard filtres gyro (ms) | 1,1 / 1,2 / 1,5 | 1,0 / 1,1 / 1,6 | 1,0 / 1,3 / 2,0 | 1,2 / 1,8 / 2,5 |
-| Retard filtres D (ms) | 1,7 / 2,3 / 2,5 | 1,7 / 2,3 / 2,5 | 1,9 / 2,3 / 2,7 | 2,2 / 2,5 / 2,8 |
+| Mesure (p10 / p50 / p90 par session) | whoop | 2–3,5" | 5" | 7" | 8"+ |
+|---|---|---|---|---|---|
+| Gyro filtré 80–500 Hz (dB) | −36,5 / −31,7 / −28,4 | −38,1 / −33,3 / −29,4 | −37,6 / −33,3 / −28,3 | −39,5 / −37,5 / −31,4 | −38,9 / −36,2 / −28,1 |
+| Gyro non filtré 80–500 Hz (dB) | −25,1 / −22,2 / −13,2 | −31,2 / −20,6 / −13,1 | −27,7 / −20,6 / −13,1 | −29,5 / −25,4 / −18,1 | −24,9 / −21,3 / −16,9 |
+| Terme D 80–500 Hz (dB) | −25,1 / −18,1 / −11,8 | −27,0 / −21,3 / −14,8 | −29,8 / −20,6 / −13,1 | −33,2 / −24,9 / −17,5 | −30,9 / −22,7 / −12,9 |
+| Gyro filtré 20–80 Hz (dB) | −26,0 / −21,5 / −14,9 | −29,9 / −24,6 / −13,9 | −30,6 / −25,0 / −15,7 | −32,4 / −28,6 / −21,7 | −34,2 / −26,2 / −16,8 |
+| 1re harmonique moteur restante (dB) | −42,1 / −36,0 / −29,6 | −40,4 / −36,5 / −32,5 | −40,2 / −34,9 / −28,4 | −41,3 / −38,8 / −31,8 | −40,2 / −33,4 / −25,0 |
+| Pic de réponse indicielle | 1,03 / 1,08 / 1,27 | 1,00 / 1,09 / 1,39 | 1,00 / 1,06 / 1,29 | 1,01 / 1,07 / 1,21 | 1,04 / 1,11 / 1,38 |
+| Latence 50 % (ms) | 10,5 / 14,5 / 18,2 | 10,8 / 15,5 / 20,1 | 10,6 / 15,7 / 21,4 | 15,5 / 19,9 / 24,0 | 19,1 / 23,4 / 29,3 |
+| Pic de sensibilité, boucle mesurée (dB) | −1,1 / 5,6 / 8,4 | −8,7 / 3,6 / 6,3 | −13,0 / 3,0 / 6,7 | −1,6 / 3,5 / 6,0 | −0,5 / 3,5 / 7,5 |
+| Marge de phase, boucle mesurée (°) | 30 / 40 / 51 | 40 / 52 / 71 | 37 / 52 / 66 | 41 / 54 / 63 | 39 / 48 / 65 |
+| Fréquence de croisement (Hz) | 12 / 20 / 27 | 8 / 14 / 23 | 10 / 15 / 25 | 7 / 12 / 20 | 6 / 10 / 13 |
+| Retard filtres gyro (ms) | 1,1 / 1,2 / 1,5 | 1,0 / 1,3 / 1,9 | 1,0 / 1,4 / 2,0 | 1,3 / 1,9 / 2,6 | 1,0 / 2,9 / 3,6 |
+| Retard filtres D (ms) | 1,7 / 2,3 / 2,5 | 1,7 / 2,3 / 2,6 | 1,9 / 2,3 / 2,8 | 2,3 / 2,5 / 2,7 | 1,9 / 2,5 / 2,9 |
 
-Unités : densité spectrale de puissance en dB de (°/s)²/Hz pour le gyro, d'unités PID²/Hz pour le D.
+Unités : densité spectrale de puissance en dB de (°/s)²/Hz pour le gyro, d'unités PID²/Hz pour le D. Pic
+de sensibilité et marge de phase : boucle ouverte mesurée (voir « Boucle ouverte mesurée ») ; un pic négatif
+vient d'une bande mesurable trop courte (minorant).
 
 Seuils retenus dans `advisor/profiles.py` :
 
-- **5" et 7"** : seuils de bruit = p90 par session ; latence = p10 arrondi vers le bas et p90 vers le haut ;
-  retards = p90 arrondi vers le haut (+0,1 à +0,2 ms). Valeurs de la calibration du 2026-10-01
-  (708 sessions), que celle-ci reproduit à 0,3 dB près.
-- **Whoop** (provisoire, 10 drones) : une voix par drone — gyro −28,0 dB, D −14,7 dB, 20–80 Hz −13,9 dB,
-  harmonique −32,2 dB, latence 13–20 ms, retards 2,1 / 3,5 ms (p90 arrondi au dixième supérieur + 0,1 ms).
-- **2–3,5"** (provisoire, 8 drones) : par session — gyro −27,3 dB, D −11,5 dB, 20–80 Hz −13,6 dB,
-  harmonique −32,0 dB, latence 12–25 ms, retards 1,8 / 2,7 ms. Avec une voix par drone, un seul drone très
-  bruité fixait le seuil (D −3,6 dB).
-- **8"+** (provisoire, 6 drones, 20 sessions) : seuils estimés à la main (gyro −31 dB, D −17 dB,
+- **2–3,5", 5" et 7"** (recalculés le 2026-10-05) : bruit = p90 par session arrondi au 0,1 dB ; latence =
+  p10 arrondi vers le bas et p90 vers le haut ; retards = p90 arrondi au dixième supérieur.
+  2–3,5" : gyro −29,4 dB, D −14,8 dB, 20–80 Hz −13,9 dB, harmonique −32,5 dB, latence 10–21 ms, retards
+  2,0 / 2,6 ms (provisoire : 20 drones, à la limite). 5" : −28,3 / −13,1 / −15,7 / −28,4 dB, 10–22 ms,
+  2,1 / 2,8 ms. 7" : −31,4 / −17,5 / −21,7 / −31,8 dB, 15–24 ms, 2,6 / 2,8 ms.
+- **Whoop** (provisoire, 11 drones) : inchangé depuis la calibration précédente (10 drones, une voix par
+  drone) — gyro −28,0 dB, D −14,7 dB, 20–80 Hz −13,9 dB, harmonique −32,2 dB, latence 13–20 ms, retards
+  2,1 / 3,5 ms. Un seul drone ajouté (un whoop 1S) déplaçait le seuil gyro de 4 dB.
+- **8"+** (provisoire, 6 drones, 20 sessions) : seuils estimés à la main, inchangés (gyro −31 dB, D −17 dB,
   20–80 Hz −22 dB, harmonique −32 dB, latence 18–30 ms, retards 3,2 / 3,5 ms).
 
 Pour un profil provisoire, l'assistant ajoute le constat « Seuils provisoires pour cette taille » (info).
 
-**Seuils mécaniques** (p90, une voix par drone) : par taille quand elle compte au moins 20 drones (5" et 7"),
-sinon communs à tout le corpus (90 drones). La saturation est toujours commune : par taille, son p90 vaut
-0 % en 7" (la moindre saturation serait signalée).
+**Seuils mécaniques** (p90, une voix par drone) : propres au 5" (55 drones) et au 7" (19 drones, gardé à
+part bien qu'à la limite de 20), communs à tout le corpus (94 drones) pour les autres tailles. La saturation
+est toujours commune : par taille, son p90 vaut 0 % en 7" (la moindre saturation serait signalée).
 
 | Seuil mécanique | Commun (whoop, 2–3,5", 8"+) | 5" | 7" |
 |---|---|---|---|
-| Déséquilibre des moteurs (%) | 13,5 | 14,1 | 11,0 |
-| Terme I moyen (valeur absolue) | 33 | 32 | 29 |
+| Déséquilibre des moteurs (%) | 13,5 | 14,0 | 11,2 |
+| Terme I moyen (valeur absolue) | 33 | 32 | 31 |
 | Saturation (% du temps ≥ 98 %) | 1,5 | 1,5 | 1,5 |
-| Écart de pic roll / pitch | 0,12 | 0,12 | 0,07 |
-| Résonance (dB au-dessus du bruit voisin) | 7,9 | 7,4 | 7,3 |
+| Écart de pic roll / pitch | 0,12 | 0,11 | 0,08 |
+| Résonance (dB au-dessus du bruit voisin) | 7,9 | 6,8 | 8,2 |
 
-### Corpus de référence (`corpus.csv`)
+Les seuils communs, recalculés (déséquilibre 13,3 %, terme I 33, écart 0,12, résonance 7,9 dB, saturation
+1,4 %), restent ceux de la calibration précédente.
 
-Plus de la moitié des logs du corpus (« 1. PTB », « 3. BBLR FB ») sont des **demandes d'aide** : les
-percentiles ci-dessus décrivent donc surtout des drones à problème, et sont probablement trop indulgents.
-Pour les recalculer sur des drones connus, `scripts/corpus_labels.py` tient un tableau d'étiquettes,
-`corpus.csv`, rangé dans le dossier des logs (`OTB_LOGS`, hors du dépôt), une ligne par drone (même
-identité que la calibration), séparateur « ; » :
+### Tableau d'étiquettes (`corpus.csv`)
+
+`scripts/corpus_labels.py` tient un tableau, `corpus.csv`, rangé dans le dossier des logs (`OTB_LOGS`, hors
+du dépôt), une ligne par drone (même identité que la calibration), séparateur « ; » :
 
 | Colonne | Contenu |
 |---|---|
@@ -92,22 +110,18 @@ identité que la calibration), séparateur « ; » :
 | `taille_detectee`, `freq_moteur_hz` | profil détecté par l'assistant, fréquence moteur médiane en vol |
 | `motor_kv` | réglage `motor_kv` ; vide s'il vaut 1960, la valeur par défaut du firmware (`pg/motor.c`) |
 | `cellules` | formule du firmware (`sensors/battery.c`) : tension au branchement (`vbatref`) / `vbatcellvoltage` max + 1 |
-| `etat` | `aide`, `origine` (réglages d'usine), `regle` (réglage terminé) ou `inconnu` |
-| `taille_reelle` | taille en pouces (« 3,5 ») ou « whoop » |
+| `etat` | `aide`, `origine` (réglages d'usine), `regle` (réglage terminé) ou `inconnu` ; deviné, non utilisé |
+| `taille_reelle` | taille en pouces (« 3,5 ») ou « whoop » : sert à vérifier la détection de taille |
 | `remarque` | texte libre |
 
 Les colonnes automatiques sont mises à jour à chaque passage du script. `etat`, `taille_reelle` et
 `remarque` sont pré-remplies à la création de la ligne, puis **jamais écrasées** : `etat` = `aide` pour
 « 1. PTB » et « 3. BBLR FB », sinon `regle` si un nom de fichier ou de dossier contient « final »,
 « tuned » ou « last », sinon `origine` s'il contient « stock », sinon `inconnu` ; `taille_reelle` seulement
-si la taille est écrite dans un nom (« 3.5 inch », « 5" », « Air65 »). Le pré-remplissage est à vérifier à la
-main. Un drone absent d'un passage complet garde sa ligne avec 0 session (à effacer à la main). Le script
-signale les noms trouvés dans des dossiers sans lien (ni l'un dans l'autre) : si ce sont des machines
-différentes, ajouter le nom à `SHARED_NAMES`, sinon à `SAME_DRONE_NAMES` (plus d'alerte).
-
-**Corpus de référence** = drones dont l'état est `regle` ou `origine`. `calibrate_advisor.py --resume`
-affiche chaque groupe (taille, puis TOUS) suivi de sa partie « référence » quand `corpus.csv` existe. Les
-seuils actuels restent ceux du corpus entier tant que le tableau n'est pas rempli.
+si la taille est écrite dans un nom (« 3.5 inch », « 5" », « Air65 »). Un drone absent d'un passage complet
+garde sa ligne avec 0 session (à effacer à la main). Le script signale les noms trouvés dans des dossiers
+sans lien (ni l'un dans l'autre) : si ce sont des machines différentes, ajouter le nom à `SHARED_NAMES`,
+sinon à `SAME_DRONE_NAMES` (plus d'alerte).
 
 ## Règles
 
@@ -122,9 +136,9 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
     latence est plus courte que le repère bas de la taille ;
   - réponse molle : pic < 0,98 et latence au-delà du repère haut de la taille ;
   - roll et pitch différents : écart de pic > seuil de la taille (curseur « D pitch ») ;
-  - stabilité (boucle ouverte, voir « Boucle ouverte mesurée ») : pic de sensibilité > 6 dB (conseil ;
+  - stabilité (boucle ouverte, voir « Boucle ouverte mesurée ») : pic de sensibilité > 7 dB (conseil ;
     « au moins » quand le pic est au bord de la bande mesurable ; précision ajoutée si la boucle n'est
-    qu'approchée) ; sinon marge de phase < 40° (conseil). Conseil : Damping +0,1 ou Master −0,1 ; seulement
+    qu'approchée) ; sinon marge de phase < 35° (conseil). Conseil : Damping +0,1 ou Master −0,1 ; seulement
     Master −0,1 quand le D domine déjà au croisement (|Ĉd/Ĉe| > 1) ;
   - oscillations basses fréquences : gyro filtré 20–80 Hz > p90 de la taille.
 - **Bruit** (80 Hz à min(500 Hz ; 0,95 × Nyquist), valeur maximale du roll et du pitch) : gyro filtré et
@@ -156,7 +170,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 
 | Règle | Seuil | Origine | Remarque |
 |---|---|---|---|
-| Taille par l'eRPM | 345 / 290 / 175 / 115 Hz | Corpus (345) + estimation | 345 Hz placé entre les whoops et les 2–3,5" du corpus (voir « Taille du drone ») ; les autres limites ne sont pas vérifiées. La table de `spec-methodes.md` (whoop 550–800 Hz) ne correspond pas aux logs |
+| Taille par l'eRPM et les cellules | 345 / 290 / 160 / 115 Hz ; 1S → whoop ; 2–4S entre 200 et 290 Hz → 2–3,5" | Corpus + estimation | Vérifié sur 41 drones de taille connue, 38 justes (voir « Taille du drone ») ; la limite 8"+ (115 Hz) n'est vérifiée que sur 6 drones. Le tableau de fréquences par taille de `spec-methodes.md` est une estimation qui ne correspond pas aux logs |
 | Taille par le nom | « whoop », « 65 », « 75 », « Meteor » ; 3,8 / 5,8 / 7,8 pouces | Estimation | |
 | Profil par défaut | 5" | Corpus | Taille la plus fréquente (366 sessions sur 707) |
 | Fréquence du log trop basse | < 900 Hz | Firmware + estimation | Défaut de Betaflight : 1 trame sur 4 (`blackbox_sample_rate` = 1/4), soit 2 kHz avec une boucle à 8 kHz et 1 kHz à 4 kHz ; 900 Hz laisse une marge sous 1 kHz |
@@ -165,12 +179,12 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Trames corrompues | > 20 | Estimation | Constat informatif ; p90 du corpus ≈ 1 trame, un seuil calibré signalerait la moindre trame |
 | Mouvements de manche suffisants | ≥ 20 fenêtres | Estimation | |
 | Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Code de PID-Analyzer (2018) et de PIDtoolbox v0.55 (2022) [S5, S2] |
-| Dépassement | pic > 1,10 (conseil), > 1,20 (attention) ; objectif 1,02–1,08 | Estimation | Aucune source publique pour ces paliers (recherche du 2026-10-05) : les sources ne donnent que le sens (« not too much overshoot », plus de D contre le dépassement [S1, S4]) ; UAV Tech vise une réponse sans dépassement. Dans le corpus, le p90 vaut 1,2 à 1,3 : plus de 10 % des sessions sont en « attention ». À calibrer sur le corpus de référence |
+| Dépassement | pic > 1,10 (conseil), > 1,20 (attention) ; objectif 1,02–1,08 | Estimation | Aucune source publique pour ces paliers (recherche du 2026-10-05) : les sources ne donnent que le sens (« not too much overshoot », plus de D contre le dépassement [S1, S4]) ; UAV Tech vise une réponse sans dépassement. Dans le corpus, le p90 vaut 1,2 à 1,3 : plus de 10 % des sessions sont en « attention ». À calibrer sur le corpus |
 | Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
 | Réponse molle | pic < 0,98 et latence > p90 de la taille | Estimation (0,98) + corpus (latence) | |
 | Roll et pitch différents | écart de pic > 0,07 à 0,12 selon la taille | Corpus | Seuils mécaniques |
-| Stabilité | pic de sensibilité > 6 dB | Théorie | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) ». S'applique directement à la boucle **mesurée** (celle des manuels) ; la valeur approchée (repli) n'est qu'une analogie. Mesuré, il signale 29 % des sessions du corpus (14 % avec l'ancienne formule) : constat ramené de « attention » à « conseil » jusqu'à la recalibration sur le corpus de référence (décision de Cédric, 2026-10-05) |
-| Marge de phase | < 40° | Théorie + estimation | Åström et Murray : valeurs raisonnables 30–60° ; 40° est choisi dans cette plage. Même réserve pour la valeur approchée |
+| Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
+| Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Estimation | Choisit le conseil (Master −0,1 plutôt que plus de D). Appuyé sur la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) : au-delà, plus de D monte le croisement sans gagner de marge, et le pic de sensibilité augmente |
 | Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes exactes choisies |
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu. Repères de Brian White (gyro filtré < −30 dB, D < −20 dB idéal, −10 dB au plus [S20, S21]) sur l'échelle de PIDtoolbox, non comparable à notre densité spectrale moyenne 80–500 Hz |
@@ -219,12 +233,9 @@ et les vrais logs (`validation.md`) :
   croisement est en général mesuré, le pic de sensibilité souvent au-delà (affiché « au moins ») ;
 - repli sur l'ancienne formule (« approchée ») quand un terme de gain non nul n'est pas enregistré ou que
   la mesure manque de points : le constat le précise ;
-- avec les seuils actuels, le pic > 6 dB signalerait 29 % des sessions du corpus (14 % avec l'ancienne
-  formule), la marge < 40° 3 % (1 %) : les constats de stabilité restent des conseils jusqu'à la
-  recalibration.
-
-Les percentiles du pic de sensibilité et de la marge de phase de la section « Calibration » datent de
-l'ancienne méthode : à recalculer avec la mesure lors de la prochaine recalibration.
+- seuils de stabilité recalibrés le 2026-10-05 avec la mesure : pic > 7 dB ou marge < 35°, en conseil
+  (20 % des sessions du corpus ; avec 6 dB / 40°, 33 %). Les whoops restent souvent signalés (46 %) : à
+  revoir quand leur mesure sera mieux comprise.
 
 ### Onglet Autotune du configurateur Betaflight
 

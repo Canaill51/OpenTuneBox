@@ -24,6 +24,11 @@ from ..analysis.step import StepResult, step_response
 from ..log.flightlog import AXES, FlightLog
 from .profiles import CraftProfile, detect_profile
 
+# Stabilité (boucle ouverte mesurée), en conseil : Ms ≤ ~2 (6 dB) et marge 30–60° dans les manuels ;
+# 7 dB et 35° retenus sur le corpus du 2026-10-05 (20 % des sessions au lieu de 33 %, docs/assistant.md)
+SENSITIVITY_HIGH_DB = 7.0
+PHASE_MARGIN_LOW_DEG = 35.0
+
 # Niveaux de gravité
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
 SEVERITY_ORDER = {ALERTE: 0, ATTENTION: 1, CONSEIL: 2, INFO: 3, OK: 4}
@@ -263,18 +268,16 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
     else:
         F.append(Finding("Réponse", OK, f"Réponse indicielle {ax.lower()}",
                          f"Pic {pk:.2f}, latence {lat:.1f} ms, {r.n} fenêtres analysées.", [], ax))
-    if np.isfinite(lp.sensitivity_peak_db) and lp.sensitivity_peak_db > 6.0:
+    if np.isfinite(lp.sensitivity_peak_db) and lp.sensitivity_peak_db > SENSITIVITY_HIGH_DB:
         at_least = "au moins " if lp.sensitivity_peak_at_edge else ""
-        # conseil et non attention : mesuré, ce seuil signale 29 % des sessions du corpus ; à recalibrer
-        # (docs/assistant.md, « Boucle ouverte mesurée »)
         F.append(Finding("Réponse", CONSEIL, f"Marge de stabilité faible en {ax.lower()}",
                          f"Pic de sensibilité {at_least}{lp.sensitivity_peak_db:.1f} dB à {lp.sensitivity_peak_hz:.0f} Hz "
-                         "(> 6 dB) : le drone amplifie les perturbations à cette fréquence et risque d'osciller."
+                         f"(> {SENSITIVITY_HIGH_DB:.0f} dB) : le drone amplifie les perturbations à cette fréquence et risque d'osciller."
                          + _loop_caveat(lp),
                          [*_margin_actions(lp), "Réduire le retard des filtres si le bruit le permet."], ax))
-    elif np.isfinite(lp.phase_margin_deg) and lp.phase_margin_deg < 40:
+    elif np.isfinite(lp.phase_margin_deg) and lp.phase_margin_deg < PHASE_MARGIN_LOW_DEG:
         F.append(Finding("Réponse", CONSEIL, f"Marge de phase réduite en {ax.lower()}",
-                         f"Marge de phase {lp.phase_margin_deg:.0f}° (< 40°) au croisement de {lp.crossover_hz:.0f} Hz."
+                         f"Marge de phase {lp.phase_margin_deg:.0f}° (< {PHASE_MARGIN_LOW_DEG:.0f}°) au croisement de {lp.crossover_hz:.0f} Hz."
                          + _loop_caveat(lp), _margin_actions(lp), ax))
 
 
