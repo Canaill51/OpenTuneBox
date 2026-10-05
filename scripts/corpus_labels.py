@@ -29,7 +29,7 @@ SHARED_NAMES = {
     "Blueberry",  # 1. PTB/JL et JL/3.5, 2026-10-05
 }
 # noms trouvés dans plusieurs dossiers, mais d'un seul drone (confirmé par Cédric, 2026-10-05) : pas d'alerte
-SAME_DRONE_NAMES = {"JeNo Ced", "M75 O4 CED", "AIR65 CED", "BABYDRONE"}
+SAME_DRONE_NAMES = {"JeNo Ced", "JeNo CED", "M75 O4 CED", "AIR65 CED", "BABYDRONE"}
 
 
 def logs_root():
