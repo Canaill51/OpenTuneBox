@@ -32,7 +32,16 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
 
 ## Publier une version
 
-1. Déplacer la section *Non publié* de `CHANGELOG.md` sous un nouveau numéro, mettre à jour `version`
-   dans `pyproject.toml`.
-2. `git tag v0.2.0 && git push --tags` : le workflow `construire.yml` fabrique les exécutables Windows,
-   macOS et Linux, à joindre à la version (*Releases*).
+1. Sur une branche (`chore/release-0.2.0`) : `python scripts/release.py prepare 0.2.0`. Le script met le
+   numéro dans `pyproject.toml` et `src/opentunebox/__init__.py`, transforme la section *Non publié* de
+   `CHANGELOG.md` en `[0.2.0] — date du jour` et en rouvre une vide. Relire le CHANGELOG (c'est le texte
+   de la page de téléchargement), puis demande de fusion vers `main` comme d'habitude.
+2. Une fois fusionnée, sur `main` à jour :
+   ```sh
+   git switch main && git pull
+   git tag v0.2.0 && git push origin v0.2.0
+   ```
+3. Le workflow `construire.yml` vérifie que l'étiquette correspond au numéro du projet (sinon il s'arrête
+   tout de suite), fabrique les exécutables Windows, macOS et Linux, puis crée la page **Releases** de la
+   version avec les trois archives et la section du CHANGELOG (≈ 10 min). Le dépôt étant privé, seules les
+   personnes ayant accès au dépôt peuvent télécharger.

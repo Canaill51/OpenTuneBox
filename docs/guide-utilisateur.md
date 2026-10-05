@@ -9,8 +9,10 @@
 
 ### Versions construites par GitHub
 
-Onglet **Actions** du dépôt → **Construire OpenTuneBox** → une exécution réussie → section **Artifacts**
-en bas de page. Une archive par système :
+Versions publiées : page **Releases** du dépôt (à droite de la page d'accueil sur GitHub), section
+*Assets* de la version voulue. Versions d'essai (toute construction lancée à la main) : onglet **Actions**
+→ **Construire OpenTuneBox** → une exécution réussie → section **Artifacts** en bas de page (conservées
+90 jours). Une archive par système :
 
 | Système | Archive | Lancer |
 |---|---|---|

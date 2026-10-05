@@ -1,6 +1,8 @@
 # Construction automatique d'OpenTuneBox pour Windows, macOS et Linux sur les serveurs de GitHub.
 # Se lance à la main (onglet « Actions » → « Construire OpenTuneBox » → « Run workflow ») ou en poussant
 # une étiquette de version (git tag v0.2.0 && git push --tags).
+# Avec une étiquette de version, les trois archives sont aussi publiées sur une page « Releases » permanente
+# (préparer d'abord la version : python scripts/release.py prepare 0.2.0, voir CONTRIBUTING.md).
 # Chaque système produit une seule archive, téléchargeable en bas de la page de l'exécution (« Artifacts ») :
 #   OpenTuneBox-Windows.zip   → décompresser, puis OpenTuneBox\OpenTuneBox.exe
 #   OpenTuneBox-macOS.zip     → décompresser, puis OpenTuneBox.app (Mac Apple Silicon)
@@ -31,6 +33,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      - name: Cohérence de l'étiquette de version
+        if: startsWith(github.ref, 'refs/tags/v')
+        # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette.
+        shell: bash
+        run: python scripts/release.py notes "$GITHUB_REF_NAME" > /dev/null
       - name: Bibliothèques système Qt (Linux)
         if: runner.os == 'Linux'
         # Installées ici pour que PyInstaller les embarque : certaines (libxcb-cursor…) manquent sur
@@ -80,3 +87,26 @@ jobs:
           # Envoyée telle quelle, sans être zippée une seconde fois.
           archive: false
           if-no-files-found: error
+
+  # Page « Releases » de la version : seulement pour une étiquette v…, une fois les trois systèmes construits.
+  publier:
+    needs: construire
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: archives
+          merge-multiple: true
+      - name: Notes de version (section du CHANGELOG)
+        run: python3 scripts/release.py notes "$GITHUB_REF_NAME" > notes.md
+      - name: Page de la version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la archives
+          gh release create "$GITHUB_REF_NAME" $(find archives -type f) \
+            --title "OpenTuneBox ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
