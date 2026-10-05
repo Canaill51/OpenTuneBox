@@ -101,6 +101,8 @@ jobs:
         with:
           path: archives
           merge-multiple: true
+          # Garder les archives telles quelles : sinon les .zip Windows et macOS sont décompressés.
+          skip-decompress: true
       - name: Notes de version (section du CHANGELOG)
         run: python3 scripts/release.py notes "$GITHUB_REF_NAME" > notes.md
       - name: Page de la version
@@ -108,5 +110,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la archives
-          gh release create "$GITHUB_REF_NAME" $(find archives -type f) \
+          # Exactement les trois archives attendues (Windows, macOS, Linux), sinon on s'arrête.
+          test "$(ls archives/OpenTuneBox-* | wc -l)" -eq 3
+          gh release create "$GITHUB_REF_NAME" archives/OpenTuneBox-* \
             --title "OpenTuneBox ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
