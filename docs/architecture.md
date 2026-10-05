@@ -47,6 +47,7 @@ fichier .bbl/.bfl
 | `sliders.py` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |
 | `motors.py` | Fréquences moteur depuis l'eRPM, harmoniques, centres des notchs dynamiques, bruit moteur |
 | `stats.py`, `period.py` | Statistiques de vol, erreur PID robuste, période automatique, détection de crash |
+| `datasets.py` | Jeux de données analysables (gyro, gyro préfiltre, terme D…, comme les listes de PIDtoolbox) |
 
 ## Interface
 
@@ -54,26 +55,45 @@ fichier .bbl/.bfl
   ses signaux relancent les outils ouverts.
 - `gui/worker.py:run_async` : calcul dans un `QThreadPool`, résultat renvoyé au thread de l'interface.
 - `gui/tools/base.py:ToolWindow` : sélection des fichiers, axes R/P/Y, boutons communs, file de recalcul.
-- `gui/app.py:hard_exit` : sortie sans le nettoyage automatique de PySide6 (contournement d'un plantage).
+- Fenêtres d'outils (`gui/tools/`, enregistrées dans `gui/tools/__init__.py:REGISTRY`) :
+
+  | Bouton | Module | Fenêtre |
+  |---|---|---|
+  | Spectre | `spectral_window.py` | analyse spectrale (+ `_spectral_common.py`, partagé avec les deux suivantes) |
+  | Fréq. × gaz | `freq_throttle.py` | fréquence × gaz, jusqu'à 4 colonnes |
+  | Fréq. × temps | `freq_time.py` | spectrogrammes, curseur lié au lecteur |
+  | Indicielle | `step_window.py` | réponse indicielle (+ `_step_common.py`, partagé avec les curseurs PID) |
+  | Curseurs PID | `pid_slider.py` | curseurs du réglage simplifié et simulation |
+  | Filtres | `filter_sim.py` | simulateur de filtres |
+  | Configuration | `setup_info.py` | réglages des logs côte à côte |
+  | Statistiques | `flight_stats.py` | statistiques de vol et erreur PID |
+  | Assistant | `advisor_panel.py` | rapport de l'assistant de réglage |
+- `gui/app.py` : démarrage. `hard_exit` sort sans le nettoyage automatique de PySide6 (contournement d'un
+  plantage) ; `FileOpenFilter` charge les logs ouverts depuis le Finder de macOS (`QFileOpenEvent`) ;
+  sous Linux, fenêtres d'ouverture du bureau par le portail XDG.
 - `gui/main_window.py` : visualiseur. Barre d'outils (`TOOLS` : clé, libellé, icône, info-bulle), traces
   groupées (`TRACE_GROUPS`, traces absentes du log masquées), sections repliables Affichage et Lecteur.
 - `gui/theme.py` : thèmes clair et sombre. Style Qt **Fusion** sur tous les systèmes, palette complète,
   feuille de style globale (boutons, champs, listes, cases), couleurs d'accent par thème (`accent_style`),
-  textes d'aide (`muted_style`), police de l'application × 1,15.
+  textes d'aide (`muted_style`), police de l'application × 1,15. Textes de Qt en français
+  (`install_qt_translations`) ; thème d'icônes du bureau accordé au thème clair / sombre (`_match_icon_theme`).
 - `gui/icons.py` : icônes Lucide (`gui/assets/icons/`, licence ISC) colorées selon le thème.
-- `gui/geometry.py` : taille des fenêtres (95 % de l'écran pour la principale, 90 % pour les outils au
-  premier lancement), puis taille et position mémorisées (`geometry/<fenêtre>` dans les réglages).
+- `gui/geometry.py` : taille des fenêtres (95 % de l'écran pour la principale, 90 % pour les outils, 80 % pour
+  Configuration, au premier lancement), puis taille et position mémorisées (`geometry/<fenêtre>` dans les réglages).
 - `gui/widgets/` : `section.py` (section repliable mémorisée), `axis.py` (axes à grille principale seule),
   `sticks.py` (manches du lecteur).
 
 ## Distribution
 
-- Linux : `packaging/linux/install_linux.sh` (raccourci du menu + icônes) ; PyInstaller pour un exécutable autonome.
-- Windows : `packaging/windows/construire_windows.bat` sur un PC Windows.
-- Installateurs (construits par `construire.yml`) : `packaging/windows/opentunebox.iss` (Inno Setup),
-  `packaging/macos/build_dmg.sh` (.dmg), `packaging/linux/build_appimage.sh` (AppImage, appimagetool 1.9.1).
-  Sous macOS, un log ouvert depuis le Finder arrive en `QFileOpenEvent` (`gui/app.py:FileOpenFilter`).
-- Tous systèmes : workflow `.github/workflows/construire.yml`.
+- Exécutable autonome : PyInstaller (`packaging/opentunebox.spec`, point d'entrée `packaging/launcher.py`),
+  allégé des parties de Qt et de pyqtgraph inutilisées.
+- Installateurs, un par système, fabriqués et essayés par `.github/workflows/construire.yml`, publiés sur la
+  page Releases à chaque étiquette `v…` (`scripts/release.py`, procédure dans `CONTRIBUTING.md`) :
+  Windows `packaging/windows/opentunebox.iss` (Inno Setup), macOS `packaging/macos/build_dmg.sh` (.dmg),
+  Linux `packaging/linux/build_appimage.sh` (AppImage, appimagetool 1.9.1, construite sur Ubuntu 22.04).
+- Icônes : `packaging/make_icons.py` fabrique `.icns` (macOS) et `.png` (Linux) depuis le SVG ; `.ico` pour Windows.
+- Depuis les sources : `packaging/linux/install_linux.sh` (raccourci du menu Linux) ;
+  `packaging/windows/construire_windows.bat` fabrique l'exécutable sur un PC Windows.
 
 ## Hors périmètre (pour l'instant)
 

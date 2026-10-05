@@ -6,7 +6,9 @@ description: Procédures du projet OpenTuneBox (analyse Blackbox Betaflight, clo
 # OpenTuneBox — procédures
 
 Les règles générales (organisation, décisions, commandes, pièges) sont dans `AGENTS.md` à la racine :
-le lire d'abord. Cette compétence détaille les procédures récurrentes.
+le lire d'abord. Cette compétence détaille les procédures récurrentes. Après **toute** modification,
+mettre la documentation à jour avec la compétence `docs-sync` (un crochet bloque les commits si
+`tests/test_docs.py` échoue).
 
 ## Où trouver quoi
 
@@ -63,7 +65,7 @@ créer `MainWindow`, `load_paths([...])`, pomper les événements (`app.processE
 - Windows : sources par `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`,
   puis `packaging\windows\construire_windows.bat` sur le PC Windows (Python 3.13 installé par winget).
 - Tous systèmes : workflow `construire.yml` (manuel, ou étiquette `v*` → page Releases ; préparer la version
-  avec `scripts/release.py prepare X.Y.Z`, voir `CONTRIBUTING.md`) : une archive par système
+  avec `scripts/release.py prepare X.Y.Z`, voir `CONTRIBUTING.md`) : un fichier par système
   (installateur Inno Setup Windows, `.dmg` macOS, AppImage Linux construite sur Ubuntu 22.04),
   chacun essayé au démarrage. AppImage en local : télécharger appimagetool 1.9.1 dans le répertoire temporaire,
   puis `APPIMAGETOOL=… sh packaging/linux/build_appimage.sh dist/OpenTuneBox SORTIE.AppImage`.

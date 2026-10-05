@@ -84,6 +84,7 @@ def test_colormaps_and_helpers():
 # ---------------------------------------------------------------- avec logs
 
 
+@pytest.mark.corpus
 @needs_logs
 def test_spectral_window(app, state):
     from opentunebox.gui.tools.spectral_window import SpectralWindow
@@ -129,6 +130,7 @@ def test_spectral_window(app, state):
         _close(app, win)
 
 
+@pytest.mark.corpus
 @needs_logs
 def test_freq_throttle_window(app, state):
     from opentunebox.gui.tools.freq_throttle import FreqThrottleWindow
@@ -177,6 +179,7 @@ def test_freq_throttle_window(app, state):
         _close(app, win)
 
 
+@pytest.mark.corpus
 @needs_logs
 def test_freq_time_window(app, state):
     from opentunebox.gui.tools.freq_time import FreqTimeWindow
