@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Tableau d'étiquettes du corpus : une ligne par drone, à compléter dans un tableur (docs/assistant.md).
 
-Usage : corpus_labels.py [--limit N]   (dossier de logs : variable OTB_LOGS ; écrit OTB_LOGS/corpus.csv)
+Usage : corpus_labels.py [--limit N] [-j PROCESSUS]   (dossier de logs : variable OTB_LOGS ; écrit
+        OTB_LOGS/corpus.csv ; défaut : tous les cœurs, -j 1 = un fichier à la fois)
 
 Colonnes remplies par le script à chaque passage : drone, dossiers, sessions, origine, taille_detectee,
 freq_moteur_hz, motor_kv (vide si absent ou égal au défaut 1960), cellules. Colonnes de Cédric, pré-remplies seulement à la création de la ligne
@@ -64,6 +65,46 @@ def log_files(root):
     return out
 
 
+def default_jobs():
+    """Nombre de processus par défaut des passages sur le corpus : tous les cœurs."""
+    return os.cpu_count() or 1
+
+
+def map_files(work, files, jobs=None, root=None):
+    """[(chemin, work(chemin))] dans l'ordre de `files`, calculés sur `jobs` processus (défaut : tous les
+    cœurs ; 1 = dans ce processus). Les plus gros fichiers partent en premier (meilleure répartition).
+    Un fichier en erreur dans un processus est refait seul à la fin, ici : erreur d'indice rare vue en
+    parallèle le 2026-10-05, non reproduite depuis. S'il échoue encore, il est signalé (ERR) et ignoré."""
+    from multiprocessing import get_context
+    jobs = jobs or default_jobs()
+    rel = (lambda f: os.path.relpath(f, root)) if root else (lambda f: f)
+    done, failed = {}, []
+    if jobs > 1 and len(files) > 1:
+        order = sorted(files, key=os.path.getsize, reverse=True)
+        ctx = get_context("fork" if sys.platform.startswith("linux") else "spawn")
+        with ctx.Pool(min(jobs, len(files))) as pool:
+            for i, (f, ok, res) in enumerate(pool.imap_unordered(_guarded, [(work, f) for f in order])):
+                print(f"[{i + 1}/{len(files)}] {rel(f)}", file=sys.stderr)
+                (done.__setitem__(f, res) if ok else failed.append(f))
+    else:
+        failed = list(files)
+    for f in failed:  # en séquentiel, ou reprise des fichiers en erreur
+        ok, res = _guarded((work, f))[1:]
+        if ok:
+            done[f] = res
+        else:
+            print("ERR", rel(f), res, file=sys.stderr)
+    return [(f, done[f]) for f in files if f in done]
+
+
+def _guarded(arg):
+    work, f = arg
+    try:
+        return f, True, work(f)
+    except Exception as e:
+        return f, False, repr(e)[:150]
+
+
 def guess_state(origins, texts):
     """État pré-rempli : dossier de demandes d'aide, puis mots des noms de fichiers et dossiers."""
     if any(o in HELP_FOLDERS for o in origins):
@@ -112,41 +153,38 @@ def write_labels(path, rows):
         w.writerows(rows)
 
 
-def scan(root, limit=None):
-    """{drone: ligne} pour tous les logs du dossier (sessions d'au moins 8 s, comme la calibration)."""
-    from opentunebox.advisor.profiles import detect_profile, profile_key
+def _scan_file(f):
+    """Sessions d'au moins 8 s d'un log : (nom du drone, fréquence moteur, KV, cellules, taille détectée)."""
+    from opentunebox.advisor.profiles import detect_profile
     from opentunebox.analysis.motors import hover_motor_hz
     from opentunebox.log.flightlog import load
 
-    files = log_files(root)[:limit]
+    return [(lg.settings.craft_name, hover_motor_hz(lg), lg.settings.motor_kv, lg.cells, detect_profile(lg)[0].key)
+            for lg in load(f) if lg.duration >= 8]
+
+
+def scan(root, limit=None, jobs=None):
+    """{drone: ligne} pour tous les logs du dossier (sessions d'au moins 8 s, comme la calibration)."""
+    from opentunebox.advisor.profiles import profile_key
+
     acc = {}
-    for i, f in enumerate(files):
+    for f, sessions in map_files(_scan_file, log_files(root)[:limit], jobs, root):
         rel = os.path.relpath(f, root)
-        print(f"[{i + 1}/{len(files)}] {rel}", file=sys.stderr)
-        try:
-            logs = load(f)
-        except Exception as e:
-            print("ERR", rel, repr(e)[:150], file=sys.stderr)
-            continue
-        for lg in logs:
-            if lg.duration < 8:
-                continue
-            a = acc.setdefault(drone_id(lg.settings.craft_name, rel), {
+        for craft, hz, kv, n, prof in sessions:
+            a = acc.setdefault(drone_id(craft, rel), {
                 "dirs": set(), "origins": set(), "names": set(), "sessions": 0, "hz": [], "kv": [],
                 "cells": [], "profiles": []})
             a["dirs"].add(os.path.dirname(rel))
             a["origins"].add(rel.split(os.sep, 1)[0] if os.sep in rel else "")
             a["names"].add(os.path.basename(rel))
             a["sessions"] += 1
-            hz = hover_motor_hz(lg)
             if hz is not None:
                 a["hz"].append(hz)
-            if lg.settings.motor_kv > 0 and lg.settings.motor_kv != DEFAULT_KV:
-                a["kv"].append(lg.settings.motor_kv)
-            n = lg.cells
+            if kv > 0 and kv != DEFAULT_KV:
+                a["kv"].append(kv)
             if n:
                 a["cells"].append(n)
-            a["profiles"].append(detect_profile(lg)[0].key)
+            a["profiles"].append(prof)
     rows = {}
     for d, a in acc.items():
         hz = float(np.median(a["hz"])) if a["hz"] else None
@@ -178,10 +216,11 @@ def shared_name_candidates(rows):
 
 if __name__ == "__main__":
     limit = int(sys.argv[sys.argv.index("--limit") + 1]) if "--limit" in sys.argv else None
+    jobs = int(sys.argv[sys.argv.index("-j") + 1]) if "-j" in sys.argv else None
     root = logs_root()
     path = os.path.join(root, CSV_NAME)
     old = read_labels(path)
-    new = scan(root, limit)
+    new = scan(root, limit, jobs)
     rows = merge(old, new, full=limit is None)
     write_labels(path, rows)
     shared = shared_name_candidates(new)

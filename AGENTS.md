@@ -36,7 +36,8 @@ src/opentunebox/
 tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
               test_docs.py vérifie la documentation
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
-              corpus_labels.py (tableau d'étiquettes du corpus), release.py (préparer une version, notes de la page Releases)
+              advisor_rates.py (taux de déclenchement des constats), corpus_labels.py (tableau d'étiquettes
+              du corpus, passages parallèles map_files), release.py (préparer une version, notes de la page Releases)
 packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes (make_icons.py), installateurs :
               windows/ (Inno Setup), macos/ (.dmg), linux/ (AppImage)
 docs/         guide utilisateur, architecture, validation, assistant, spécifications (index : docs/README.md)
@@ -60,6 +61,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande
 .venv/bin/python scripts/validate_corpus.py [DOSSIER] [--limit N]   # décodeur vs blackbox_decode
 .venv/bin/python scripts/corpus_labels.py                        # tableau d'étiquettes $OTB_LOGS/corpus.csv
+.venv/bin/python scripts/advisor_rates.py SORTIE.json            # taux de chaque constat sur le corpus (≈ 2 min)
 .venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
 .venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```
@@ -98,7 +100,8 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
   `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log.
 - Seuils de l'assistant = 90e percentile du corpus par taille de drone (`docs/assistant.md`) : les recalculer
-  avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles), ne pas les inventer. Compter **une voix
+  avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles ; scripts du corpus en parallèle sur
+  tous les cœurs, compétence `calculs-corpus`), ne pas les inventer. Compter **une voix
   par drone** quand quelques drones dominent une taille (whoop, seuils mécaniques) ; moins de ~20 drones →
   seuil commun ou profil provisoire. Chaque seuil a une origine notée (corpus, théorie, firmware…).
 - Boucle ouverte (`analysis/loop.py`) : L = G·(Ce + Cd) **mesurée** à partir des termes P, I, D, F loggés ;

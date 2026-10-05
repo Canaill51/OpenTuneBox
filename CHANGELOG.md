@@ -55,6 +55,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   proposé si le D dépasserait les repères.
 - `scripts/calibrate_advisor.py` : sommets des spectres gyro et D sur l'échelle de PIDtoolbox, retard gyro
   par intercorrélation, réglages du filtre RPM, hauteur des harmoniques avant et après filtres.
+- Scripts du corpus en parallèle sur tous les cœurs (`-j N` pour choisir, `-j 1` = un fichier à la fois) :
+  `calibrate_advisor.py` en 2 min 40 au lieu d'une dizaine de minutes, `corpus_labels.py` en 40 s ; un
+  fichier en erreur dans un processus est refait seul à la fin. Nouveau `scripts/advisor_rates.py` : part
+  des sessions du corpus signalées par chaque constat de l'assistant (vols avec mouvements, stationnaires).
 
 ### Modifié
 - Assistant : un retard des filtres gyro au-dessus du repère n'est plus affiché « ok » quand le bruit
