@@ -7,6 +7,21 @@
 - Diagnostic rapide sans interface : `opentunebox report LOG.bbl` ; résumé : `opentunebox info LOG.bbl`.
 - Version autonome (sans Python) : dossier `dist/OpenTuneBox/` ; à partager **en entier**.
 
+### Versions construites par GitHub
+
+Onglet **Actions** du dépôt → **Construire OpenTuneBox** → une exécution réussie → section **Artifacts**
+en bas de page. Une archive par système :
+
+| Système | Archive | Lancer |
+|---|---|---|
+| Windows | `OpenTuneBox-Windows.zip` | décompresser, puis `OpenTuneBox\OpenTuneBox.exe` |
+| macOS (Apple Silicon) | `OpenTuneBox-macOS.zip` | décompresser, puis clic droit sur `OpenTuneBox.app` → **Ouvrir** (1re fois) |
+| Linux (Ubuntu 22.04 ou plus récent) | `OpenTuneBox-Linux.tar.gz` | `tar xzf OpenTuneBox-Linux.tar.gz`, puis `OpenTuneBox/OpenTuneBox` |
+
+Le programme a besoin du dossier `_internal` placé à côté de lui : garder le dossier `OpenTuneBox` entier
+(pour un raccourci sur le Bureau sous Windows : clic droit sur `OpenTuneBox.exe` → *Envoyer vers* →
+*Bureau (créer un raccourci)*).
+
 ### Windows
 
 L'exécutable Windows se fabrique sur un PC Windows (PyInstaller ne sait pas le faire depuis Linux) :
