@@ -5,6 +5,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Modifié
+- Documentation de l'assistant : origine de chaque seuil (corpus, communauté, théorie, firmware ou
+  estimation), comparaison avec le corpus et champs de profil inutilisés (`docs/assistant.md`).
+
 ## [0.3.0] — 2026-10-05
 
 ### Ajouté

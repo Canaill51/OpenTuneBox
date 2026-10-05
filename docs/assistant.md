@@ -38,8 +38,9 @@ Unités : densité spectrale de puissance en dB de (°/s)²/Hz pour le gyro, d'u
 Profil 8"+ : 20 sessions seulement, trop peu pour un percentile fiable. Ses seuils sont provisoires
 (gyro −31 dB, D −17 dB, 20–80 Hz −22 dB, harmonique −32 dB, latence 18–30 ms, retards 3,2 / 3,5 ms).
 
-Dans `advisor/profiles.py`, les repères de latence (p10 / p90) et de retard des filtres sont arrondis
-vers le haut (≈ +0,1 ms pour les retards) ; les seuils de bruit sont les p90 du tableau.
+Dans `advisor/profiles.py`, les repères de latence sont arrondis à la milliseconde (p10 vers le bas, p90
+vers le haut), ceux de retard des filtres vers le haut (+0,1 à +0,2 ms) ; les seuils de bruit sont les p90
+du tableau.
 
 ## Règles
 
@@ -67,3 +68,49 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
 - **Mécanique** : déséquilibre des moteurs > 12 % (lu avant/arrière, gauche/droite ou diagonale) ; terme I
   moyen décentré (moyenne > 40 en valeur absolue, roll ou pitch) ; saturation moteur (≥ 98 %) > 5 % du temps.
 - **Réglage** : réglage simplifié désactivé, les conseils « curseur » sont indicatifs (info).
+
+## Origine des seuils
+
+Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origine :
+
+- **Corpus** : mesuré sur les vrais logs (percentile par taille), recalculable avec
+  `scripts/calibrate_advisor.py` ;
+- **Communauté** : repère de pilotes ou d'outils publics (wiki PIDtoolbox v0.55, Blackbox Explorer…,
+  voir `docs/spec-methodes.md`, « Repères de réglage »), sans référence précise notée valeur par valeur ;
+- **Théorie** : critère classique d'automatique ou de traitement du signal ;
+- **Firmware** : valeur par défaut ou fonctionnement de Betaflight (`docs/spec-betaflight.md`) ;
+- **Estimation** : choisi en écrivant les règles, ni calibré ni sourcé. À vérifier en priorité.
+
+| Règle | Seuil | Origine | Remarque |
+|---|---|---|---|
+| Taille par l'eRPM | 420 / 290 / 175 / 115 Hz | Estimation | Inspiré de la table des fréquences moteur de `spec-methodes.md`, mais pas aligné : la table place un whoop à 550–800 Hz |
+| Taille par le nom | « whoop », « 65 », « 75 », « Meteor » ; 3,8 / 5,8 / 7,8 pouces | Estimation | |
+| Profil par défaut | 5" | Corpus | Taille la plus fréquente (366 sessions sur 708) |
+| Fréquence du log trop basse | < 900 Hz | Communauté + estimation | 2 kHz recommandé, 1 kHz suffit pour la réponse indicielle ; 900 Hz laisse une marge sous 1 kHz |
+| Harmoniques hors de la plage visible | 3 × f moteur > Fs / 2 | Théorie | Fréquence de Nyquist |
+| Gyro non filtré absent, pas d'eRPM | présence des champs | Firmware | |
+| Trames corrompues | > 20 | Estimation | |
+| Mouvements de manche suffisants | ≥ 20 fenêtres | Estimation | |
+| Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Convention de PIDtoolbox |
+| Dépassement | pic > 1,10 (conseil), > 1,20 (attention) ; objectif 1,02–1,08 | Communauté | `spec-methodes.md` juge « acceptable » jusqu'à 1,12 : la règle est plus sévère. Dans le corpus, le p90 vaut 1,2 à 1,3 : plus de 10 % des sessions sont en « attention » |
+| Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
+| Réponse molle | pic < 0,98 et latence > p90 de la taille | Estimation (0,98) + corpus (latence) | |
+| Roll et pitch différents | écart de pic > 0,08 | Estimation | |
+| Stabilité | pic de sensibilité > 6 dB | Théorie | Pic ≤ 2 (6 dB) : critère de robustesse usuel. Dans le corpus, plus de 10 % des whoops et des 2–3,5" le dépassent (p90 6,9 et 7,5 dB) |
+| Marge de phase | < 40° | Théorie + estimation | Les manuels visent 45–60° ; 40° est un compromis choisi. Le p10 des 2–3,5" vaut 37° |
+| Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | `spec-methodes.md` situe le propwash entre 20 et 100 Hz ; bornes exactes choisies |
+| Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
+| Retards des filtres gyro et D | p90 de la taille, arrondi vers le haut (+0,1 à +0,2 ms) | Corpus | |
+| Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
+| Seuils du profil 8"+ | voir plus haut | Estimation | 20 sessions seulement |
+| Résonance | raie ≥ 6 dB, 60–900 Hz, ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Estimation | |
+| Déséquilibre des moteurs | > 12 % | Estimation | |
+| Terme I décentré | moyenne > 40 (unités PID) | Estimation | |
+| Saturation des moteurs | ≥ 98 % pendant > 5 % du temps | Estimation | Déjà mesurée par `calibrate_advisor.py`, pas encore exploitée |
+| Pas des curseurs conseillés | 0,1 (0,1 à 0,2 pour les filtres) | Estimation | Prudence : un changement à la fois |
+| `rpm_filter_q` conseillé | 500 → 350 | Firmware (500) + estimation (350) | |
+| `motor_poles` | 14 (12 pour certains micro-moteurs) | Communauté | |
+| Notch statique conseillé | coupure = 0,7 × fréquence de la raie | Estimation | |
+
+Les champs `hover_hz` et `resonance_hz` des profils (`advisor/profiles.py`) sont renseignés mais
+**aucune règle ne les utilise**.
