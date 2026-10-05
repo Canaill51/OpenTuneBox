@@ -42,6 +42,7 @@ fichier .bbl/.bfl
 |---|---|
 | `spectral.py` | PSD de Welch, fréquence × gaz (fenêtres 300 ms, 100 tranches), fréquence × temps |
 | `step.py` | Réponse indicielle par déconvolution de Wiener ; métriques (pic, latence, montée) et de boucle (bande passante, sensibilité, marge de phase, croisement) |
+| `loop.py` | Marges de stabilité d'une boucle ouverte L(f) : phase déroulée, croisement, marges de phase et de gain, pic de sensibilité |
 | `delay.py` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
 | `bf_filters.py` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si » |
 | `sliders.py` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |

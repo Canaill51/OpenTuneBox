@@ -23,6 +23,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   limite connue du pic de sensibilité et de la marge de phase (L = T/(1 − T), D sur le gyro) ; l'onglet
   Autotune du configurateur examiné et écarté comme source.
 
+### Corrigé
+- Marge de phase de la réponse indicielle : la phase est maintenant déroulée. Une phase sous −180° au
+  croisement donnait une marge repliée vers +180° (ex. +299° au lieu de −109°), donc aucune alerte de
+  l'assistant ; elle est désormais négative. Croisement interpolé entre deux points de mesure.
+
 ## [0.3.0] — 2026-10-05
 
 ### Ajouté

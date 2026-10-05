@@ -10,8 +10,8 @@ Méthode (docs/spec-methodes.md, d'après la description publique de PIDtoolbox)
 6. contrôle qualité : régime établi (200–500 ms) entre 0,5 et 3.
 
 Les mêmes spectres croisés donnent la fonction de transfert en boucle fermée T(f) = consigne → gyro,
-d'où : bande passante (−3 dB), sensibilité S = 1 − T (pic en dB), boucle ouverte L = T/(1 − T)
-(fréquence de croisement |L| = 1 et marge de phase).
+d'où : bande passante (−3 dB), boucle ouverte L = T/(1 − T) et ses marges (`loop.margins` :
+sensibilité S = 1/(1 + L) = 1 − T, croisement |L| = 1, marges de phase et de gain).
 """
 
 from __future__ import annotations
@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import signal
+
+from .loop import margins
 
 
 PAD = 100
@@ -40,8 +42,10 @@ class LoopMetrics:
     bandwidth_hz: float = float("nan")  # |T| = −3 dB
     sensitivity_peak_db: float = float("nan")  # max |1 − T| en dB
     sensitivity_peak_hz: float = float("nan")
+    sensitivity_peak_at_edge: bool = False  # pic au bord de la bande analysée : Ms réel ≥ valeur donnée
     crossover_hz: float = float("nan")  # |L| = 1
-    phase_margin_deg: float = float("nan")
+    phase_margin_deg: float = float("nan")  # la plus petite sur tous les croisements, négative possible
+    gain_margin_db: float = float("nan")
     freqs: np.ndarray = field(default_factory=lambda: np.zeros(0))
     T: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=complex))
     coherence: np.ndarray = field(default_factory=lambda: np.zeros(0))
@@ -197,18 +201,15 @@ def loop_metrics(freqs: np.ndarray, T: np.ndarray, coh: np.ndarray, f_max: float
     below = np.nonzero(mag < 1 / np.sqrt(2))[0]
     if below.size:
         lm.bandwidth_hz = float(f[below[0]])
-    S = np.abs(1.0 - Tv)
-    k = int(np.argmax(S))
-    lm.sensitivity_peak_db = float(20 * np.log10(S[k]))
-    lm.sensitivity_peak_hz = float(f[k])
     with np.errstate(invalid="ignore", divide="ignore"):
         Lo = Tv / (1.0 - Tv)
-    lmag = np.abs(Lo)
-    cross = np.nonzero((lmag[:-1] >= 1.0) & (lmag[1:] < 1.0))[0]
-    if cross.size:
-        c = int(cross[0])
-        lm.crossover_hz = float(f[c])
-        lm.phase_margin_deg = float(180.0 + np.degrees(np.angle(Lo[c])))
+    mg = margins(f, Lo)
+    lm.sensitivity_peak_db = mg.sensitivity_peak_db
+    lm.sensitivity_peak_hz = mg.sensitivity_peak_hz
+    lm.sensitivity_peak_at_edge = mg.sensitivity_peak_at_edge
+    lm.crossover_hz = mg.crossover_hz
+    lm.phase_margin_deg = mg.phase_margin_deg
+    lm.gain_margin_db = mg.gain_margin_db
     return lm
 
 
