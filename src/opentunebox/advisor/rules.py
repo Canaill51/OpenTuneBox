@@ -16,7 +16,7 @@ import numpy as np
 
 from ..analysis import spectral
 from ..analysis.delay import compute_delays
-from ..analysis.motors import harmonic_prominence, hover_motor_hz, motor_noise, rpm_weight_needed
+from ..analysis.motors import dyn_notch_targets, harmonic_prominence, hover_motor_hz, motor_noise, rpm_weight_needed
 from ..analysis.period import crash_time
 from ..analysis.sliders import slider_view
 from ..analysis.stats import flight_stats, pid_error_stats
@@ -39,6 +39,14 @@ RPM_Q_STEP, RPM_Q_MAX = 250, 1000
 RPM_WEIGHT_MARGIN_DB = 6.0
 RPM_WEIGHT_GAIN_MIN = 0.5
 HARMONIC_VISIBLE_DB = 3.0
+# Notch dynamique (notes de réglage Betaflight 4.3, [S19]) : plage qui englobe la résonance à 20 Hz près,
+# le moins de notchs possible, minimum « as high as practical (eg 200hz) », mais 80–125 Hz dans les presets
+# officiels des 7–10" ([S16]) ; relevé proposé dès 30 Hz
+DYN_NOTCH_MARGIN_HZ = 20
+DYN_NOTCH_MIN_TARGET_HZ = {"seven": 125, "large": 125}  # 200 Hz pour les autres tailles
+DYN_NOTCH_MIN_HZ, DYN_NOTCH_MIN_MAX_HZ = 20, 250  # bornes de dyn_notch_min_hz dans le firmware (cli/settings.c)
+DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_max_hz
+DYN_NOTCH_MIN_STEP_HZ = 30
 
 # Niveaux de gravité
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
@@ -201,6 +209,10 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         F.append(Finding("Bruit", OK, "Bruit du terme D",
                          f"Sommet du spectre à {d_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : au plus "
                          f"{DTERM_PTB_MAX_DB:.0f} dB, idéal sous −20 dB)."))
+    fr = frame_resonance(log, sel)
+    fixed = fr[0] if fr is not None and fr[1] >= profile.resonance_high_db and not fr[2] else None
+    dn = dyn_notch_view(log, sel, fixed)
+    meas["dyn_notch"] = dn
     target = filter_delay_target_ms(profile.nominal_inch)
     g_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[0]:.2f} ms."
               if target else "")
@@ -211,6 +223,14 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                 actions.append(f"Filtre RPM : rpm_filter_q {s.rpm_q} → {min(s.rpm_q + RPM_Q_STEP, RPM_Q_MAX)} (notchs "
                                f"plus étroits, moins de retard), puis par pas de {RPM_Q_STEP} jusqu'à {RPM_Q_MAX} au plus, "
                                "en vérifiant à chaque pas que les raies moteur ne réapparaissent pas.")
+            if dn is not None:
+                low = dn["lowest"]
+                cap = min(DYN_NOTCH_MIN_TARGET_HZ.get(profile.key, 200), DYN_NOTCH_MIN_MAX_HZ)
+                new_min = min(cap, low - DYN_NOTCH_MARGIN_HZ) if low else cap
+                new_min = int(new_min // 10 * 10)
+                if new_min - dn["min_hz"] >= DYN_NOTCH_MIN_STEP_HZ:
+                    actions.append(f"Notch dynamique : dyn_notch_min_hz {dn['min_hz']} → {new_min} (le plus haut possible "
+                                   "sous le pic le plus bas à suivre : moins de retard).")
             actions.append("Contrôlez la température des moteurs après chaque changement.")
             F.append(Finding("Filtres", CONSEIL, "Filtrage gyro peut-être trop prudent",
                              f"Retard des filtres gyro {delays.gyro_ms:.2f} ms (repère {profile.gyro_delay_max_ms:.1f} ms pour "
@@ -255,9 +275,19 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          ["Si cela arrive en descente/gaz coupés : propwash → plus de D (Damping +0,1) ou D max.",
                           "Si cela arrive en vol stable : oscillation → baisser le Master ou P (Tracking −0,1).",
                           "Regardez l'outil Fréquence × gaz pour voir à quel gaz le phénomène apparaît."]))
-    res = _frame_resonance(log, sel, profile)
+    res = _frame_resonance(log, fr, profile)
     if res is not None:
         F.append(res)
+    if dn is not None and dn["count"] > max(1, len(dn["peaks"])):
+        n = max(1, len(dn["peaks"]))
+        found = (f"{len(dn['peaks'])} pic(s) à suivre ({', '.join(f'{f:.0f}' for f in dn['peaks'])} Hz)" if dn["peaks"]
+                 else "aucun pic à suivre")
+        F.append(Finding("Filtres", INFO, "Notch dynamique : moins de notchs suffiraient",
+                         f"Entre {dn['min_hz']} et {dn['max_hz']} Hz, après le filtre RPM, {found} pour "
+                         f"{dn['count']} notchs. Chaque notch filtre en permanence, même sans pic à suivre (il reste à "
+                         "sa dernière fréquence), et ajoute du retard.",
+                         [f"dyn_notch_count = {n} (actuellement {dn['count']}), puis vérifiez sur le log suivant que "
+                          "les raies de résonance ne réapparaissent pas dans le gyro filtré."]))
 
     # ------------------------------------------------------------ 4. moteurs et mécanique
     fst = flight_stats(log, sel)
@@ -437,11 +467,11 @@ def _imbalance_finding(m: list[float], imbalance: float) -> Finding:
     return Finding("Mécanique", CONSEIL, "Moteurs déséquilibrés", f"{cause} ({values}).", actions)
 
 
-def frame_resonance(log: FlightLog, sel: slice) -> tuple[float, float, bool] | None:
+def frame_resonance(log: FlightLog, sel: slice, lo_hz: float = 20.0) -> tuple[float, float, bool] | None:
     """Raie la plus marquée au-dessus du bruit voisin, quel que soit le gaz : (fréquence en Hz, excès en dB,
     proche d'une harmonique moteur). None si le log ne couvre pas assez de tranches de gaz."""
     x = log.gyro_unfilt if log.gyro_unfilt is not None else log.gyro
-    lo, hi = 60.0, min(0.9 * log.fs / 2, 900.0)
+    lo, hi = lo_hz, min(0.9 * log.fs / 2, 900.0)
     prof = []
     for a in range(2):
         ft = spectral.freq_throttle(x[a, sel], log.throttle[sel], log.fs, mode="amp")
@@ -457,6 +487,9 @@ def frame_resonance(log: FlightLog, sel: slice) -> tuple[float, float, bool] | N
         return None
     base = np.convolve(pm, np.ones(15) / 15, mode="same")
     excess = pm - base
+    # dès 20 Hz (dyn_notch_min_hz descend jusque-là), sans les 5 premiers Hz : une raie collée au bord vient
+    # des mouvements du drone ou d'un test d'excitation (wobble, chirp), pas d'une résonance
+    excess[fm < lo + 5] = -np.inf
     k = int(np.argmax(excess))
     f0 = float(fm[k])
     # une raie moteur se déplace avec le gaz : si f0 correspond à la vitesse moteur en stationnaire,
@@ -466,17 +499,52 @@ def frame_resonance(log: FlightLog, sel: slice) -> tuple[float, float, bool] | N
     return f0, float(excess[k]), near_motor
 
 
-def _frame_resonance(log: FlightLog, sel: slice, profile: CraftProfile) -> Finding | None:
-    """Raie de fréquence fixe quel que soit le gaz (résonance du châssis ou pièce desserrée)."""
-    res = frame_resonance(log, sel)
+def _frame_resonance(log: FlightLog, res, profile: CraftProfile) -> Finding | None:
+    """Raie de fréquence fixe quel que soit le gaz (résonance du châssis ou pièce desserrée) ; `res` vient
+    de frame_resonance."""
     if res is None:
         return None
     f0, excess, near_motor = res
     if excess < profile.resonance_high_db or near_motor:
         return None
+    actions = ["Resserrez les vis, fixez antennes et câbles, vérifiez la caméra et la pile de cartes."]
+    s = log.settings
+    if dyn_notch_active(s):
+        lo, hi = f0 - DYN_NOTCH_MARGIN_HZ, f0 + DYN_NOTCH_MARGIN_HZ
+        if lo < s.dyn_notch_min_hz or hi > s.dyn_notch_max_hz:
+            new_lo = max(DYN_NOTCH_MIN_HZ, min(s.dyn_notch_min_hz, int(lo // 10 * 10)))
+            new_hi = min(DYN_NOTCH_MAX_MAX_HZ, max(s.dyn_notch_max_hz, int(-(-hi // 10) * 10)))
+            actions.append(f"Le notch dynamique ({s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz) ne couvre pas cette raie à "
+                           f"{DYN_NOTCH_MARGIN_HZ} Hz près : dyn_notch_min_hz = {new_lo}, dyn_notch_max_hz = {new_hi}.")
+        else:
+            actions.append(f"Elle est dans la plage du notch dynamique ({s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz), qui "
+                           "peut la suivre si un notch est libre.")
+    actions.append(f"Si elle persiste : notch statique gyro à {f0:.0f} Hz (gyro_notch1_hz = {f0:.0f}, "
+                   f"gyro_notch1_cutoff = {0.7 * f0:.0f}).")
     return Finding("Mécanique", CONSEIL, f"Raie fixe vers {f0:.0f} Hz",
                    f"Une vibration à ~{f0:.0f} Hz reste présente quel que soit le gaz (+{excess:.0f} dB au-dessus du "
-                   "bruit voisin) : résonance du châssis, d'une antenne, d'une caméra ou pièce desserrée.",
-                   ["Resserrez les vis, fixez antennes et câbles, vérifiez la caméra et la pile de cartes.",
-                    f"Si elle persiste : notch statique gyro à {f0:.0f} Hz (gyro_notch1_hz = {f0:.0f}, "
-                    f"gyro_notch1_cutoff = {0.7 * f0:.0f})."])
+                   "bruit voisin) : résonance du châssis, d'une antenne, d'une caméra ou pièce desserrée.", actions)
+
+
+def dyn_notch_active(s) -> bool:
+    """Notch dynamique en service : au moins un notch et boucle PID ≥ 2 kHz (`DYN_NOTCH_UPDATE_MIN_HZ`)."""
+    return s.dyn_notch_count > 0 and s.dyn_notch_max_hz > 0 and s.pid_rate_hz >= 2000
+
+
+def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) -> dict | None:
+    """Pics que le notch dynamique a à suivre (roll ou pitch, celui qui en compte le plus, plus la raie fixe
+    signalée `fixed_hz`), avec filtre RPM actif et gyro non filtré ; None sinon (sans filtre RPM, il doit
+    aussi suivre les raies moteur). La recherche déborde de deux cases SDFT de chaque côté de la plage, pour
+    ne pas manquer un pic collé à une limite."""
+    s = log.settings
+    if not dyn_notch_active(s) or log.gyro_unfilt is None or log.motor_hz is None or s.rpm_harmonics == 0:
+        return None
+    band = (max(s.dyn_notch_min_hz - 37, DYN_NOTCH_MIN_HZ), s.dyn_notch_max_hz + 37)
+    t = [dyn_notch_targets(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, band, s.rpm_harmonics)
+         for a in range(2)]
+    peaks = [float(f) for f in max(t, key=lambda x: x.freqs.size).freqs]
+    if fixed_hz is not None and all(abs(f - fixed_hz) > 37 for f in peaks):
+        peaks.append(float(fixed_hz))
+    every = [float(f) for x in t for f in x.freqs] + ([float(fixed_hz)] if fixed_hz is not None else [])
+    return {"count": s.dyn_notch_count, "min_hz": s.dyn_notch_min_hz, "max_hz": s.dyn_notch_max_hz,
+            "peaks": sorted(peaks), "lowest": min(every, default=None)}

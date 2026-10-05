@@ -70,6 +70,23 @@ def test_harmonic_prominence_and_rpm_weight():
     assert rpm_weight_needed(-1.0) == 0.0
 
 
+def test_dyn_notch_targets_skip_motor_lines():
+    from opentunebox.analysis.motors import dyn_notch_targets
+
+    # raie moteur variable (traitée par le filtre RPM) + résonance fixe à 330 Hz : seule la seconde reste
+    n = int(20 * FS)
+    t = np.arange(n) / FS
+    base = 200 + 30 * np.sin(2 * np.pi * 0.1 * t)
+    mhz = np.vstack([base * (1 + d) for d in (-0.02, 0.0, 0.02)])
+    x = np.random.default_rng(0).normal(0, 1, n) + 1.0 * np.sin(2 * np.pi * 330 * t)
+    for m in mhz:
+        x += 2.0 * np.sin(2 * np.pi * np.cumsum(m) / FS)
+    r = dyn_notch_targets(x, mhz, FS, (100, 600), rpm_harmonics=3)
+    assert r.freqs.size == 1 and abs(r.freqs[0] - 330) < 15 and r.ratios_db[0] > 3
+    # sans filtre RPM, le notch dynamique doit aussi suivre la raie moteur
+    assert dyn_notch_targets(x, mhz, FS, (100, 600)).freqs.size >= 2
+
+
 def test_freq_throttle_tracks_motor_line():
     # raie dont la fréquence suit le gaz : f = 100 + 4 × gaz
     n = int(60 * FS)

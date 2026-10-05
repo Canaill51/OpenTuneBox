@@ -31,6 +31,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   chaque harmonique à partir de sa hauteur au-dessus du bruit voisin et de la formule du firmware ;
   conseil quand la 2e ou la 3e harmonique est filtrée bien plus que nécessaire, ou quand une raie reste
   visible alors que son poids a été baissé.
+- Assistant : notch dynamique (notes de réglage Betaflight 4.3 et code du firmware) — pics qu'il a à suivre
+  après le filtre RPM ; « moins de notchs suffiraient » (info) ; plage élargie quand une raie fixe en sort
+  (20 Hz de marge, jusqu'à la limite de 20 Hz du firmware) ; `dyn_notch_min_hz` relevé dans le conseil
+  « filtrage gyro trop prudent ».
+- Assistant : raies fixes (résonances) cherchées dès 20 Hz au lieu de 60 Hz.
 - `scripts/calibrate_advisor.py` : sommets des spectres gyro et D sur l'échelle de PIDtoolbox, retard gyro
   par intercorrélation, réglages du filtre RPM, hauteur des harmoniques avant et après filtres.
 

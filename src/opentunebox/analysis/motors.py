@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -137,6 +138,72 @@ def rpm_weight_needed(prominence_db: float) -> float:
     if not np.isfinite(prominence_db) or prominence_db <= 0:
         return 0.0
     return float(1.0 - 10 ** (-prominence_db / 20.0))
+
+
+@dataclass
+class NotchTargets:
+    freqs: np.ndarray  # fréquences des pics que le notch dynamique suivrait (Hz, du plus fort au plus faible)
+    ratios_db: np.ndarray  # hauteur de chaque pic au-dessus du bruit moyen de la plage (dB)
+    band: tuple[float, float]  # plage examinée (Hz)
+
+
+def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tuple[float, float],
+                      rpm_harmonics: int = 0, seg_ms: float = 300.0, bin_hz: float = 18.5) -> NotchTargets:
+    """Pics que le notch dynamique de Betaflight suivrait dans `band`, d'après le gyro non filtré.
+
+    Comme le firmware (`flight/dyn_notch_filter.c`) : spectre de puissance à la résolution de sa SDFT
+    (≈ 18,5 Hz), bruit = puissance moyenne de la plage hors pics, pic suivi s'il dépasse 2 fois ce bruit
+    (+3 dB). Le notch dynamique est placé après le filtre RPM : les bandes des harmoniques traitées par
+    celui-ci (h × [moteur le plus lent ; le plus rapide] pendant la fenêtre ± 5 %, et leur image repliée quand le log est plus
+    lent que la boucle) sont retirées fenêtre par fenêtre.
+    """
+    L = max(16, int(round(fs * seg_ms / 1000.0)))
+    hop = L // 2
+    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop)
+    lo, hi = band[0], min(band[1], 0.95 * fs / 2)
+    empty = NotchTargets(np.zeros(0), np.zeros(0), (lo, hi))
+    if segs.shape[0] == 0 or hi <= lo:
+        return empty
+    f, P = _seg_spectra(segs, fs, "psd")
+    if mhz is not None and rpm_harmonics > 0:
+        lo_m = _segments(mhz.min(axis=0), L, hop)[0].min(axis=1)  # étendue parcourue pendant la fenêtre
+        hi_m = _segments(mhz.max(axis=0), L, hop)[0].max(axis=1)
+        P = P.copy()
+        for k in range(P.shape[0]):
+            for h in range(1, rpm_harmonics + 1):
+                a, b = 0.95 * h * lo_m[k], 1.05 * h * hi_m[k]
+                P[k, (f >= a) & (f <= b)] = np.nan
+                P[k, (f >= fs - b) & (f <= fs - a)] = np.nan  # image repliée si le log est trop lent
+    with np.errstate(all="ignore"), warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        S = np.nanmean(P, axis=0)
+    # regroupement en cases de la largeur de celles de la SDFT
+    edges = np.arange(lo, hi + bin_hz, bin_hz)
+    centres, power = [], []
+    for a, b in zip(edges[:-1], edges[1:]):
+        v = S[(f >= a) & (f < b)]
+        v = v[np.isfinite(v)]
+        if v.size:
+            centres.append(0.5 * (a + b))
+            power.append(v.mean())
+    c, p = np.array(centres), np.array(power)
+    if p.size < 5:
+        return empty
+    peaks = [i for i in range(1, p.size - 1) if p[i] > p[i - 1] and p[i] >= p[i + 1]]
+    # bruit moyen hors pics, au-dessus de 60 Hz comme le firmware (DYN_NOTCH_FLOOR_MIN_HZ : les mouvements
+    # du drone sont plus bas), qui retire chaque pic et ses deux voisines ; les pics sont cherchés partout
+    above = c >= 60
+    if not above.any():
+        above = np.ones(p.size, bool)
+    floor = p[above].mean()
+    for _ in range(3):
+        keep = above.copy()
+        for i in peaks:
+            if p[i] > 2 * floor:
+                keep[max(0, i - 1):i + 2] = False
+        floor = p[keep].mean() if keep.any() else floor
+    kept = sorted((i for i in peaks if p[i] > 2 * floor), key=lambda i: -p[i])
+    return NotchTargets(c[kept], 10 * np.log10(p[kept] / floor), (lo, hi))
 
 
 def hover_motor_hz(log: FlightLog) -> float | None:

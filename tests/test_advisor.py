@@ -103,6 +103,32 @@ def test_rpm_weights_rule():
     assert f.actions[0].startswith("rpm_filter_weights = 100, 30, 100")
 
 
+def test_dyn_notch_rules():
+    from opentunebox.advisor.rules import analyze
+    from opentunebox.analysis.period import auto_period
+
+    def report(rel):
+        lg = _load(rel)
+        return analyze(lg, lg.slice_time(*auto_period(lg)))
+
+    # Kris : raie fixe à 97 Hz sous la plage du notch dynamique (80–350 Hz, marge de 20 Hz) → plage élargie,
+    # et pas de relèvement de dyn_notch_min_hz proposé en même temps
+    rep = report("1. PTB/Kris/13. Hover.bbl")
+    f = next(f for f in rep.findings if f.title.startswith("Raie fixe"))
+    assert any("dyn_notch_min_hz = 70" in a for a in f.actions)
+    assert not any("dyn_notch_min_hz 80 →" in a for g in rep.findings for a in g.actions)
+    # Thalhammer (7") : résonance à 37 Hz, sous 60 Hz → dyn_notch_min_hz jusqu'à la limite du firmware (20 Hz)
+    from opentunebox.log.flightlog import load
+
+    found = [f for lg in load(LOGS / "1. PTB/Thalhammer/Hover Test 48kHz.bbl")
+             for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings if f.title == "Raie fixe vers 37 Hz"]
+    assert found and any("dyn_notch_min_hz = 20," in a for a in found[0].actions)
+    # JeNo 5 « PD » : rien à suivre après le filtre RPM, 2 notchs réglés → 1 suffit (info)
+    rep = report("Cedric/JeNo 5/PD.bbl")
+    f = next(f for f in rep.findings if f.title == "Notch dynamique : moins de notchs suffiraient")
+    assert f.actions[0].startswith("dyn_notch_count = 1")
+
+
 def test_imbalance_interpretation():
     from opentunebox.advisor.rules import _imbalance_finding
 

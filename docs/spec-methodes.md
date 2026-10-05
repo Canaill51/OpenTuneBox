@@ -107,6 +107,10 @@ ils viennent du bruit (`validation.md`).
 - **Hauteur des harmoniques** (`motors.harmonic_prominence`) : par fenêtre de 300 ms, DSP moyenne entre
   h × (moteur le plus lent) et h × (moteur le plus rapide) ± une case, moins la DSP moyenne de 15 à 30 % de
   part et d'autre de h × (fréquence moyenne) ; médiane des fenêtres. ≈ 0 dB sans raie.
+- **Pics du notch dynamique** (`motors.dyn_notch_targets`) : gyro non filtré, bandes des harmoniques
+  traitées par le filtre RPM retirées (± 5 %, image repliée comprise), DSP moyenne regroupée en cases de
+  18,5 Hz ; pic suivi s'il dépasse 2 fois la puissance moyenne hors pics (au-dessus de 60 Hz), comme le
+  firmware.
 - **Estimation RPM** sans télémétrie : fréquence moteur ≈ multiplicateur (2,1) × % moteur (« RPM est. » de PTB),
   à calibrer par drone.
 
@@ -232,7 +236,9 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S18] ctzsnooze, presets officiels ELRS 250 Hz et 500 Hz (`presets/4.3/rc_link/`, firmware-presets,
   2021-2022) : `feedforward_smooth_factor` 45 (250 Hz) et 65 (500 Hz), `feedforward_averaging = 2_POINT`.
 - [S19] ctzsnooze, [4.3 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-3-Tuning-Notes),
-  2021-07-16 à 2022-02-12 : « Q values around 300-450 » ; sans filtre RPM, « three or four notches and Q
+  2021-07-16 à 2022-02-12 : notch dynamique, « often only one » (souvent un seul notch), minimum « as high
+  as practical (eg 200hz) », plage qui englobe la résonance avec « 20hz additional range each side » ;
+  « Q values around 300-450 » ; sans filtre RPM, « three or four notches and Q
   values around 120-150 » ; « For 250hz RC links […] 40-50 », « For 500hx RC links […] 65-70 »
   (`feedforward_smooth_factor`) ; jitter « 12-15 […] for freestyle/cinematic ».
 - [S20] Brian White, chaîne YouTube PIDtoolbox, [*PTB Q&A #16 : Filter tuning for performance*](https://www.youtube.com/watch?v=TiwaQEkOdyo),

@@ -171,6 +171,25 @@ retranche poids × passe-bande : au centre du notch il reste (1 − poids) de la
   après filtres) : 49 à 66 % des sessions, donc seulement en action du conseil sur le retard. Raie encore
   visible avec un poids < 100 : 3 % des sessions.
 
+### Notch dynamique (2026-10-05)
+
+Notes de réglage Betaflight 4.3, § « Multi dynamic notch » [S19] : englober chaque résonance avec 20 Hz de
+marge de chaque côté, garder le minimum « as high as practical (eg 200hz) » et le moins de notchs possible
+(« often only one ») pour limiter le retard ; sans filtre RPM, 3 à 4 notchs et Q 120–150 ; une résonance
+fixe forte se traite mieux par un notch statique. Code (`flight/dyn_notch_filter.c`) : SDFT de 72 points
+(cases d'environ 18,5 Hz), les N plus grands pics de la plage sont suivis s'ils dépassent 2 fois la
+puissance moyenne (bruit estimé au-dessus de 60 Hz) ; un notch sans pic garde sa dernière fréquence et
+filtre toujours ; désactivé sous 2 kHz de boucle PID.
+
+- **Mesure** (`motors.dyn_notch_targets`, `rules.dyn_notch_view`) : spectre du gyro non filtré, bandes des
+  harmoniques traitées par le filtre RPM retirées fenêtre par fenêtre (et leur image repliée si le log est
+  lent), cases de 18,5 Hz, plage réglée élargie de deux cases de chaque côté, plus la raie fixe signalée.
+- **Corpus** (681 sessions) : toutes à 2 kHz de boucle PID ou plus, une seule sans filtre RPM ; 1 à 3
+  notchs (2 le plus souvent), Q 300–500, plage 100–600 Hz le plus souvent (minimum de 60 à 240 Hz).
+- **Taux** : « moins de notchs suffiraient » 27 % des sessions (16 % des drones) — d'où le niveau info ;
+  raie fixe hors de la plage 1 % ; relèvement de `dyn_notch_min_hz` dans le conseil sur le retard 2 %.
+  La règle « sans filtre RPM » n'a pas été retenue (une session).
+
 ## Règles
 
 Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit
@@ -204,8 +223,12 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   du bruit voisin après filtrage) alors que son poids est < 100 → remonter le poids ; en 4.5 et plus, si le
   bruit moteur est bien éliminé, poids de la 2e ou de la 3e harmonique plus fort que nécessaire d'au moins
   0,5 → `rpm_filter_weights` proposés (voir « Filtre RPM : poids et Q »).
+- **Notch dynamique** (actif : au moins un notch, boucle PID ≥ 2 kHz ; filtre RPM actif et gyro non
+  filtré) : plus de notchs que de pics à suivre → « moins de notchs suffiraient » (info) ; raie fixe hors de
+  la plage à 20 Hz près → plage proposée dans le constat « Raie fixe » ; `dyn_notch_min_hz` relevé dans le
+  conseil « filtrage gyro trop prudent » (voir « Notch dynamique »).
 - **Résonance** : raie au-dessus de la moyenne glissante voisine de plus que le seuil de la taille
-  (60 Hz à min(900 Hz ; 0,9 × Nyquist)), présente dans la médiane de toutes les tranches de gaz (au moins
+  (20 Hz à min(900 Hz ; 0,9 × Nyquist), sans les 5 premiers Hz), présente dans la médiane de toutes les tranches de gaz (au moins
   8 tranches), à plus de ±8 % des harmoniques 1 à 3 du moteur.
 - **Mécanique** : déséquilibre des moteurs > seuil (lu avant/arrière, gauche/droite ou diagonale, côté ou
   diagonale retenus au-delà de 12 %) ; terme I moyen décentré (roll ou pitch, valeur absolue > seuil) ;
@@ -258,7 +281,11 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
 | Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 10 et 8 drones seulement |
 | Seuils du profil 8"+ | voir « Calibration » | Estimation | 6 drones, 20 sessions |
-| Résonance | raie > 7,3 à 7,9 dB selon la taille ; 60–900 Hz, ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil) + estimation (méthode) | |
+| Résonance | raie > 7,3 à 7,9 dB selon la taille ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil) + estimation (méthode) | | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage
+| Pic suivi par le notch dynamique | > 2 × la puissance moyenne de la plage (+3 dB), cases de 18,5 Hz | Firmware | `flight/dyn_notch_filter.c` (`sdftNoiseThreshold *= 2`, bruit au-dessus de 60 Hz) ; bandes des harmoniques traitées par le filtre RPM retirées (± 5 % : estimation) |
+| Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
+| Relèvement de `dyn_notch_min_hz` | jusqu'à 200 Hz (7" et plus : 125 Hz), sous le pic le plus bas − 20 Hz, si le gain atteint 30 Hz | Firmware (doc) + communauté + estimation (30 Hz) | « as high as practical (eg 200hz) » [S19] ; presets officiels 7–10" entre 80 et 125 Hz [S16] ; seulement dans le conseil « filtrage gyro trop prudent » (2 % des sessions) |
+| Nombre de notchs | autant que de pics à suivre, 1 au moins | Firmware (doc) | « Usually no more than two or three are needed […] and often only one » ; « only using the minimum number of notches » [S19] ; constat **info** : 27 % des sessions (16 % des drones)
 | Déséquilibre des moteurs | > 11 à 14,1 % selon la taille | Corpus | L'interprétation (côté ou diagonale au-delà de 12 %) reste estimée |
 | Terme I décentré | moyenne > 29 à 33 (unités PID) selon la taille | Corpus | |
 | Saturation des moteurs | ≥ 98 % pendant > 1,5 % du temps | Corpus | La notion de « moteur à 98 % » est estimée : le firmware ne journalise pas de saturation (il renormalise le mixage quand l'écart entre moteurs dépasse 100 %) |
