@@ -147,8 +147,9 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 
 - **Corpus** : mesuré sur les vrais logs (percentile par taille), recalculable avec
   `scripts/calibrate_advisor.py` ;
-- **Communauté** : repère de pilotes ou d'outils publics (wiki PIDtoolbox v0.55, Blackbox Explorer…,
-  voir `docs/spec-methodes.md`, « Repères de réglage »), sans référence précise notée valeur par valeur ;
+- **Communauté** : repère de pilotes ou d'outils publics, avec sa source (auteur, date, adresse, citation)
+  dans `docs/spec-methodes.md`, « Sources des repères » (recherche du 2026-10-05) ; les renvois [S1]… du
+  tableau désignent cette liste ;
 - **Théorie** : critère classique d'automatique ou de traitement du signal ;
 - **Firmware** : valeur par défaut ou fonctionnement de Betaflight (`docs/spec-betaflight.md`) ;
 - **Estimation** : choisi en écrivant les règles, ni calibré ni sourcé. À vérifier en priorité.
@@ -163,15 +164,15 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Gyro non filtré absent, pas d'eRPM | présence des champs | Firmware | |
 | Trames corrompues | > 20 | Estimation | Constat informatif ; p90 du corpus ≈ 1 trame, un seuil calibré signalerait la moindre trame |
 | Mouvements de manche suffisants | ≥ 20 fenêtres | Estimation | |
-| Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Convention de PIDtoolbox |
-| Dépassement | pic > 1,10 (conseil), > 1,20 (attention) ; objectif 1,02–1,08 | Communauté | `spec-methodes.md` juge « acceptable » jusqu'à 1,12 : la règle est plus sévère. Dans le corpus, le p90 vaut 1,2 à 1,3 : plus de 10 % des sessions sont en « attention » |
+| Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Code de PID-Analyzer (2018) et de PIDtoolbox v0.55 (2022) [S5, S2] |
+| Dépassement | pic > 1,10 (conseil), > 1,20 (attention) ; objectif 1,02–1,08 | Estimation | Aucune source publique pour ces paliers (recherche du 2026-10-05) : les sources ne donnent que le sens (« not too much overshoot », plus de D contre le dépassement [S1, S4]) ; UAV Tech vise une réponse sans dépassement. Dans le corpus, le p90 vaut 1,2 à 1,3 : plus de 10 % des sessions sont en « attention ». À calibrer sur le corpus de référence |
 | Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
 | Réponse molle | pic < 0,98 et latence > p90 de la taille | Estimation (0,98) + corpus (latence) | |
 | Roll et pitch différents | écart de pic > 0,07 à 0,12 selon la taille | Corpus | Seuils mécaniques |
 | Stabilité | pic de sensibilité > 6 dB | Théorie | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) ». S'applique directement à la boucle **mesurée** (celle des manuels) ; la valeur approchée (repli) n'est qu'une analogie. Mesuré, il signale 29 % des sessions du corpus (14 % avec l'ancienne formule) : constat ramené de « attention » à « conseil » jusqu'à la recalibration sur le corpus de référence (décision de Cédric, 2026-10-05) |
 | Marge de phase | < 40° | Théorie + estimation | Åström et Murray : valeurs raisonnables 30–60° ; 40° est choisi dans cette plage. Même réserve pour la valeur approchée |
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Estimation | Choisit le conseil (Master −0,1 plutôt que plus de D). Appuyé sur la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) : au-delà, plus de D monte le croisement sans gagner de marge, et le pic de sensibilité augmente |
-| Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | `spec-methodes.md` situe le propwash entre 20 et 100 Hz ; bornes exactes choisies |
+| Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes exactes choisies |
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
 | Retards des filtres gyro et D | p90 de la taille, arrondi vers le haut | Corpus | |
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
@@ -182,8 +183,8 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Terme I décentré | moyenne > 29 à 33 (unités PID) selon la taille | Corpus | |
 | Saturation des moteurs | ≥ 98 % pendant > 1,5 % du temps | Corpus | La notion de « moteur à 98 % » est estimée : le firmware ne journalise pas de saturation (il renormalise le mixage quand l'écart entre moteurs dépasse 100 %) |
 | Pas des curseurs conseillés | 0,1 (0,1 à 0,2 pour les filtres) | Estimation | Le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
-| `rpm_filter_q` conseillé | 500 → 350 | Firmware (500) + estimation (350) | Défaut 500, plage 250–3000 |
-| `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight |
+| `rpm_filter_q` conseillé | 500 → 350 | Firmware (500) + estimation (350) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14]) et de redescendre seulement si le bruit moteur réapparaît ; aucune ne donne de valeur sous 500 |
+| `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
 | Notch statique conseillé | coupure = 0,7 × fréquence de la raie | Estimation | |
 
 Les champs `hover_hz` et `resonance_hz` des profils (`advisor/profiles.py`) sont renseignés mais

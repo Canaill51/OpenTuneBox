@@ -129,20 +129,93 @@ Log à 2 kHz (1 kHz suffit pour la réponse indicielle) ; debug FFT_FREQ (ou GYR
 20–30 s avec des coups de manche francs sur chaque axe pour la réponse indicielle ; stationnaire et
 montées de gaz pour le bruit.
 
-## Repères de réglage (indicatifs, confiance moindre)
+## Repères de réglage (indicatifs)
 
-- Pic de réponse : < 1,00 suramorti ; 1,02–1,08 optimal ; 1,08–1,12 acceptable ; 1,12–1,20 ajouter ~10–30 %
-  de D ; > 1,20 ajouter davantage de D ; > 1,5 suspecter la mécanique. Rebond après les flips → plus de D.
-  P plus élevé = plus rapide, plus de dépassement.
-- Bandes (5") : < 20 Hz mouvements commandés ; 20–100 Hz propwash / oscillation ; 100–250 Hz résonance de
-  châssis / pièces desserrées ; > 250 Hz moteurs / hélices. Plancher de bruit du gyro < −30 dB au-dessus de
-  50 Hz ; terme D < −10 dB (DSP de BBE). Retard total des filtres idéalement < 5 ms. Résonance = ligne
-  horizontale sur fréquence × gaz ; moteur = diagonale.
-- Fréquence fondamentale des moteurs selon la taille (physique au premier ordre, RPM ≈ KV · V · 0,75) :
-  whoop 65–75 mm 550–800 Hz en stationnaire / 1,1–1,4 kHz plein gaz ; 2,5–3,5" 350–450 / 800–950 ;
-  5" 200–270 / 500–650 ; 7" 130–170 / 350–420 ; 10" 85–110 / 250–300. Mesuré sur le corpus (médiane par drone en vol) :
-  AIR65 ≈ 480 Hz, Meteor 75 ≈ 355 Hz, 3" ≈ 325 Hz, 5" ≈ 210 Hz, 7" ≈ 140 Hz, 9" ≈ 110 Hz : les valeurs
-  « stationnaire » ci-dessus sont trop hautes pour les whoops (`assistant.md`, « Taille du drone »). Les whoops demandent un log rapide ;
-  sur les 7" / 10", la bande moteur recouvre le propwash (notch dynamique min jusqu'à 20 Hz).
-- Notch dynamique avec filtre RPM : Q 300–450, 1–2 notchs ; sans RPM : 3–4 notchs, Q 120–150.
-- Feedforward : liaison 250 Hz → smooth 40–50, 2 points ; 500 Hz → 65–70 ; jitter 12–15 pour le cinématique.
+Chaque repère porte sa source entre crochets (liste ci-dessous) ou la mention **Estimation** : aucune
+source publique trouvée (recherche du 2026-10-05). Les citations sont reprises mot pour mot, en version
+originale.
+
+- **Pic de réponse** : seules des règles de sens sont publiées. Plus de P → montée plus rapide, plus de
+  dépassement ; plus de D → moins de dépassement, montée plus lente [S1, S4] ; rebond après les flips → plus
+  de D [S3, S4]. Objectif : « fast rise time and peak time with not too much overshoot » [S1] ; UAV Tech vise
+  une réponse sans dépassement (« critically damped ») [S4]. Les paliers chiffrés (< 1,00 suramorti ;
+  1,02–1,08 optimal ; 1,08–1,12 acceptable ; 1,12–1,20 ajouter ~10–30 % de D ; > 1,20 plus de D ; > 1,5
+  mécanique) : **Estimation**, aucune source.
+- **Fenêtres de la réponse indicielle** : consigne ≥ 20 °/s [S5, S2] ; séparation à 500 °/s [S5, S1].
+- **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz
+  résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (Brian White situait les
+  moteurs vers 200–500 Hz [S7]).
+- **Niveaux de bruit** : gyro filtré sous −30 dB au-dessus de 50 Hz, terme D sous −10 dB [S6, attribué à
+  « the author of PIDToolBox » sans référence ; unité non précisée].
+- **Spectrogramme fréquence × gaz** : bruit moteur = ligne qui suit le gaz (diagonale) [S8, S6] ; résonance
+  = fréquence fixe quel que soit le gaz [S6, S9] (ligne horizontale ou verticale selon l'axe des
+  fréquences de l'outil).
+- **Retard des filtres** : « aim for < 5ms total latency if possible » [S1, retard gyro estimé par
+  PIDtoolbox par intercorrélation, roll seul : pas tout à fait notre méthode de phase] ; 4–5 ms
+  « raisonnable » pour un 5" [S10] ; 7–8 ms = filtrage très lourd [S11].
+- **Fréquence fondamentale des moteurs** : régime en charge ≈ 70 % du régime à vide KV × cellules × 4 V
+  [S12], soit ≈ KV × tension nominale × 0,75. Tableau par taille (whoop 65–75 mm 550–800 Hz en
+  stationnaire / 1,1–1,4 kHz plein gaz ; 2,5–3,5" 350–450 / 800–950 ; 5" 200–270 / 500–650 ; 7" 130–170 /
+  350–420 ; 10" 85–110 / 250–300) : **Estimation** déduite de la formule, aucune source ; trop haut pour les
+  whoops. Mesuré sur le corpus (médiane par drone en vol) : AIR65 ≈ 480 Hz, Meteor 75 ≈ 355 Hz,
+  3" ≈ 325 Hz, 5" ≈ 210 Hz, 7" ≈ 140 Hz, 9" ≈ 110 Hz (`assistant.md`, « Taille du drone »). Les whoops
+  demandent un log rapide. Pôles : 14 par défaut, « Smaller motors have fewer magnets, often 12 » [S9] ;
+  12 pour les 08XX à 16XX, 14 pour les 22XX à 24XX [S13].
+- **Notch dynamique** : avec filtre RPM, Q 300–450 [S19] et 1–2 notchs [S14] (conseil de 2022 : 1 notch,
+  Q 500 [S9]) ; sans filtre RPM, 3–4 notchs, Q 120–150 [S19] (4–5 notchs selon les pages de 2025–2026
+  [S14]). Sur les grands drones (7" et plus), `dyn_notch_min_hz` plus bas que le défaut [S15] ; les presets
+  officiels 7–10" restent entre 80 et 125 Hz [S16] (20 Hz n'est que la limite du firmware).
+  `rpm_filter_q` : 500 par défaut [S17] ; le monter tant que le bruit moteur ne réapparaît pas, sans
+  dépasser 750 [S9] ou 1000 [S6, S14] selon les sources.
+- **Feedforward** (Betaflight 4.3 et plus) : liaison 250 Hz → `feedforward_smooth_factor` 40–50 et
+  `feedforward_averaging` 2_POINT (35–40 ailleurs sur la même page ; preset officiel 45) ; 500 Hz → 65–70
+  [S19, S18] ; `feedforward_jitter_factor` 12–15 « for freestyle/cinematic » [S19].
+
+### Sources des repères
+
+- [S1] Brian White, *PIDtoolbox user guide*, wiki GitHub, modifié le 2022-02-26 (texte déjà présent en
+  2019). Dépôt supprimé : lu sur [l'archive](https://web.archive.org/web/20220422084353/https://github.com/bw1129/PIDtoolbox/wiki/PIDtoolbox-user-guide).
+  « higher P gains will produce more overshoot, faster rise time » ; « ~20Hz to ~100Hz […] propwash » ;
+  « aim for < 5ms total latency ».
+- [S2] Brian White, code de PIDtoolbox v0.55 (2022-03-30, archive Wayback) : `minInput = 20;` sur des
+  fenêtres de 2 s (`PTstepcalc.m`).
+- [S3] Wiki Betaflight, [PID Tuning Guide](https://betaflight.com/docs/wiki/guides/current/PID-Tuning-Guide)
+  (sans auteur ni date ; historique 2023–2026) : « bounce back, increase D ».
+- [S4] Mark Spatz (UAV Tech), [*UAV Tech PID Tuning Principles*](https://theuavtech.com/wp-content/uploads/2020/10/UAV-Tech-PID-Tuning-Principles.pdf),
+  PDF du 2020-10-26 : réponse visée « Critically damped ».
+- [S5] Florian Melsheimer (Plasmatree), [PID-Analyzer](https://github.com/Plasmatree/PID-Analyzer), 2018 :
+  « above and below 500 deg/s » ; code :
+  `self.low_high_mask(self.max_in, 20)` (fenêtres sous 20 °/s ignorées).
+- [S6] Oscar Liang, [*How to Tune FPV Drone Filters & PID with Blackbox*](https://oscarliang.com/pid-filter-tuning-blackbox/),
+  2024-06-27 (modifié 2026-03-03) : « 100Hz – 250Hz: Frame resonance » ; « Above 250Hz: Noise from
+  motors » ; « below -30dB above 50Hz » et « below -10dB » pour le D, attribués à l'auteur de PIDtoolbox
+  (gyro filtré : réponse de l'auteur dans les commentaires) ; `rpm_filter_q` : « Do not exceed 1000 ».
+- [S7] Brian White, README de PIDtoolbox, 2019 (copie [ianrmurphy/PIDtoolbox](https://github.com/ianrmurphy/PIDtoolbox)) :
+  « particularly in the ~200-500Hz range associated with motor vibration ».
+- [S8] Plasmatree, wiki [Noise analysis](https://github.com/Plasmatree/PID-Analyzer/wiki/Noise-analysis),
+  2018-06-06 : « The diagonal 'line' is the motor noise ».
+- [S9] Betaflight, guide [DShot RPM Filtering](https://betaflight.com/docs/wiki/guides/current/DSHOT-RPM-Filtering)
+  (ctzsnooze, époque 4.1–4.3) : « fewer magnets, often 12 » ; notch dynamique « Count to 1 and Q to 500 » ;
+  `rpm_filter_q` « Above 750 is not recommended ».
+- [S10] UAV Tech, [Filter Calc](https://theuavtech.com/filter-calc/), 2020 : « A reasonable amount of filter
+  delay is 4ms to 5ms for a 5″ quad ».
+- [S11] Wiki Betaflight, [Gyro and Dterm Filtering Recommendations 3.1](https://betaflight.com/docs/wiki/guides/archive/Gyro-And-Dterm-Filtering-Recommendations-3-1)
+  (archive, vers 2017) : « 7-8ms delay from strong filtering ».
+- [S12] ctzsnooze, [4.2 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-2-Tuning-Notes) (vers 2020) :
+  « 70% of the peak theoretical no-load rpm ».
+- [S13] Oscar Liang, [*How to Setup RPM Filters in Betaflight*](https://oscarliang.com/rpm-filter/),
+  2023-03-31 : « 14 poles in 22XX, 23XX, 24XX motors 12 poles in 08XX, 11XX, 12XX, 13XX, 14XX, 16XX motors ».
+- [S14] Betaflight, [référence CLI](https://betaflight.com/docs/wiki/guides/current/Cli) (Bob Vandevliet,
+  2026-03-16) : « 1–2 notches » avec filtre RPM, « 4–5 » sans ;
+  même conseil sur la page de l'onglet PID (Yaros, 2025-02-15).
+- [S15] ctzsnooze, 4.2 Tuning Notes [S12] : pour les drones lents et la classe X, « a lower `dyn_notch_min_hz`
+  than defaults ».
+- [S16] Mark Spatz, presets officiels UAV Tech 6–7", 8–9" et 10" ([firmware-presets](https://github.com/betaflight/firmware-presets), 4.5, 2024-07-25) :
+  `dyn_notch_min_hz` 80 à 125.
+- [S17] Firmware Betaflight, `pg/rpm_filter.c` : `.rpm_filter_q = 500`.
+- [S18] ctzsnooze, presets officiels ELRS 250 Hz et 500 Hz (`presets/4.3/rc_link/`, firmware-presets,
+  2021-2022) : `feedforward_smooth_factor` 45 (250 Hz) et 65 (500 Hz), `feedforward_averaging = 2_POINT`.
+- [S19] ctzsnooze, [4.3 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-3-Tuning-Notes),
+  2021-07-16 à 2022-02-12 : « Q values around 300-450 » ; sans filtre RPM, « three or four notches and Q
+  values around 120-150 » ; « For 250hz RC links […] 40-50 », « For 500hx RC links […] 65-70 »
+  (`feedforward_smooth_factor`) ; jitter « 12-15 […] for freestyle/cinematic ».

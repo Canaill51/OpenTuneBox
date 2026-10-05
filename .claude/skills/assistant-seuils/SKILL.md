@@ -56,8 +56,11 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 - **Théorie** : citer l'ouvrage, la section et la page, vérifiées dans le texte (pas de mémoire).
   Déjà vérifiés : Skogestad et Postlethwaite 2005 § 2.4.3 (Ms ≤ 2) ; Åström et Murray 2008 § 9.3
   (marge de phase 30–60°).
-- **Communauté** : une valeur répétée par des pilotes reste « Communauté » tant qu'aucune source
-  précise (URL, auteur, date) n'est notée.
+- **Communauté** : seulement avec une source précise (URL, auteur, date, citation exacte lue sur la page),
+  ajoutée à `docs/spec-methodes.md`, « Sources des repères » ([S1]…). Sans source, c'est une
+  **Estimation**, même si beaucoup de pilotes la répètent (cas des paliers 1,02–1,08 / 1,20 du pic de
+  réponse, recherche du 2026-10-05). Préférer la source primaire (auteur de l'outil, développeurs
+  Betaflight, code) au blog qui la reprend ; une page disparue se lit sur la Wayback Machine.
 - **Fonctionnalité récente d'un autre outil** : vérifier son historique (PR, version publiée ou non,
   essais en vol, tickets ouverts) avant de la citer. L'onglet Autotune du configurateur (2026) a été
   examiné et **n'est pas une source** (voir `docs/assistant.md`).
