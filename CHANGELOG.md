@@ -5,6 +5,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+## [0.2.0] — 2026-10-05
+
 ### Ajouté
 - Structure GitHub : `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, modèles de tickets et de demande de fusion,
   tests automatiques à chaque envoi (workflow `tests.yml`), `.gitattributes`, `.editorconfig`.
@@ -75,5 +77,6 @@ Première version complète.
 - Lanceur Linux (menu des applications) et recette PyInstaller.
 - Guide d'utilisation en français.
 
-[Non publié]: ../../compare/v0.1.0...HEAD
+[Non publié]: ../../compare/v0.2.0...HEAD
+[0.2.0]: ../../releases/tag/v0.2.0
 [0.1.0]: ../../releases/tag/v0.1.0
