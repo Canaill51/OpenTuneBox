@@ -61,6 +61,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   des sessions du corpus signalées par chaque constat de l'assistant (vols avec mouvements, stationnaires).
 
 ### Modifié
+- Assistant : repères de retard des filtres recalculés sur les seuls vols avec mouvements, pour toutes les
+  tailles (gyro / D : whoop 1,5 / 2,5 ms, 2–3,5" 1,8 / 2,6, 5" 1,9 / 2,7, 7" 2,6 / 2,8, 8"+ 3,5 / 3,1) :
+  les vols stationnaires les avaient fait monter, et les conseils sur le retard ne touchaient plus que 2 à
+  4 % des vols.
+- Assistant : la stratégie de filtrage n'apparaît plus qu'à partir de deux étapes de filtrage à revoir
+  (37 % des sessions du corpus au lieu de 79 %) ; une seule étape, le constat seul suffit.
 - Assistant : un retard des filtres gyro au-dessus du repère n'est plus affiché « ok » quand le bruit
   empêche de filtrer moins (info) ; nouvelle ligne « ok » pour le retard des filtres du D.
 - Assistant : taille du drone détectée par la fréquence des moteurs **et** le nombre de cellules

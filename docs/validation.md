@@ -67,7 +67,8 @@ stationnaire + wobble 92 à 409 °/s, vols ordinaires 174 °/s en médiane ; 108
 
 La méthode de phase résiste mieux au manque de mouvement, mais le retard d'un vol stationnaire ne vaut
 qu'à son régime : l'assistant ne conseille rien sur le retard sous 50 °/s. Sans ces vols, le p90 du retard
-gyro passerait de 2,04 à 1,85 ms en 5" et de 1,94 à 1,71 ms en 2–3,5" (seuils non modifiés).
+gyro passe de 2,04 à 1,85 ms en 5" et de 1,94 à 1,71 ms en 2–3,5" : repères de retard recalculés
+sur ces seuls vols (`docs/assistant.md`, « Calibration »).
 
 Écart connu : la latence 50 % peut différer d'environ 1 ms (interpolation au passage exact à 50 % contre
 lecture échantillon par échantillon).

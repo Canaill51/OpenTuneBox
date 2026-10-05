@@ -132,7 +132,7 @@ Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, fil
 mécanique. Chaque constat donne la mesure et le seuil (calibré sur ~700 vols réels, en comparant votre
 drone à ceux de la même taille) et propose une action. Le bruit et le retard des filtres sont aussi comparés
 aux repères de Brian White, l'auteur de PIDtoolbox (gyro filtré sous −30 dB, terme D au plus −10 dB sur
-l'échelle de ses spectres, objectif de retard selon la taille). En tête, la **stratégie de filtrage** ordonne les réglages à faire :
+l'échelle de ses spectres, objectif de retard selon la taille). Quand plusieurs filtres sont à revoir, la **stratégie de filtrage**, en tête, ordonne les réglages à faire :
 enregistrement, bruit à corriger, mécanique, filtre RPM, notch dynamique, passe-bas du gyro puis du D, un
 changement à la fois. Les conseils fondés sur le retard des filtres demandent un vol avec des
 mouvements francs (flips, rolls, wobbles) : sur un vol stationnaire, l'assistant affiche le retard sans

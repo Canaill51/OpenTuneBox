@@ -538,17 +538,22 @@ FILTER_STAGES = [
     ("Passe-bas du D", ("LPF1 du D en mode statique", "Filtrage du D peut-être trop fort")),
 ]
 
+# Stratégie affichée à partir de 2 étapes (décision de Cédric, 2026-10-05) : 37 % des sessions du corpus,
+# contre 79 % dès une étape (scripts/advisor_rates.py).
+STRATEGY_MIN_STAGES = 2
+
 
 def filter_strategy(findings: list[Finding], moving: bool = True) -> Finding | None:
     """Synthèse ordonnée des constats de filtrage : quelles étapes (filtre RPM, notch dynamique, passe-bas du
-    gyro et du D) modifier, dans quel ordre. None si aucun constat de filtrage ne demande d'action."""
+    gyro et du D) modifier, dans quel ordre. None sous STRATEGY_MIN_STAGES étapes : une seule étape, le
+    constat seul dit déjà quoi faire."""
     steps = []
     for stage, prefixes in FILTER_STAGES:
         hits = [f for f in findings if f.actions and f.severity in (ATTENTION, CONSEIL)
                 and any(f.title.startswith(p) for p in prefixes)]
         if hits:
             steps.append((stage, hits))
-    if not steps:
+    if len(steps) < STRATEGY_MIN_STAGES:
         return None
     detail = " ; ".join(f"{i + 1}. {stage} : " + ", ".join(f"« {f.title} »" for f in hits)
                         for i, (stage, hits) in enumerate(steps))

@@ -157,6 +157,16 @@ def test_lowpass_rules():
                 "Le LPF1 du gyro peut être coupé"} & set(hover)
 
 
+def test_filter_strategy_needs_two_stages():
+    from opentunebox.advisor.rules import CONSEIL, Finding, filter_strategy
+
+    rate = Finding("Filtres", CONSEIL, "Fréquence d'enregistrement trop basse", "", ["blackbox_sample_rate = 1/2"])
+    rpm = Finding("Filtres", CONSEIL, "Poids du filtre RPM trop bas", "", ["rpm_filter_weights = 100,100,100"])
+    assert filter_strategy([rate]) is None and filter_strategy([rpm]) is None  # le constat seul suffit
+    s = filter_strategy([rpm, rate])
+    assert s.actions[0].startswith("1. Enregistrement") and s.actions[1].startswith("2. Filtre RPM")
+
+
 def test_hover_noise_and_filter_strategy():
     from opentunebox.advisor.rules import analyze
     from opentunebox.analysis.period import auto_period
