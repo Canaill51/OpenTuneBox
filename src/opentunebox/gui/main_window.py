@@ -594,6 +594,15 @@ class MainWindow(QMainWindow):
         for a, b in self.shades:
             a.setRegion((lo, t0))
             b.setRegion((t1, hi))
+        self._update_region_tips()
+
+    def _update_region_tips(self) -> None:
+        """Info-bulles des bords (début / fin), avec le temps : les bords peuvent se croiser en glissant."""
+        for r in self.regions:
+            lines = sorted(r.lines, key=lambda ln: ln.value())
+            for ln, what in zip(lines, ("Début", "Fin")):
+                t = f"{ln.value():.2f}".replace(".", ",")
+                ln.setToolTip(f"{what} de la période d'analyse : {t} s\nGlisser pour ajuster.")
 
     def _on_region_dragged(self, region: pg.LinearRegionItem) -> None:
         """Pendant le glissement : les autres graphiques suivent en direct, sans relancer les calculs."""
