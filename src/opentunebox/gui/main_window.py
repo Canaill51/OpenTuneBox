@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
         self.tool_windows: dict[str, QWidget] = {}
         self._loading = 0
+        self._measure: list[float] = []  # temps des points de mesure (0, 1 ou 2)
         self._play_timer = QTimer(self)
         self._play_timer.setInterval(40)
         self._play_timer.timeout.connect(self._play_step)
@@ -122,6 +123,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self.state.logs_changed.connect(self._on_logs_changed)
         self.state.current_changed.connect(lambda _i: self._redraw())
+        self.state.current_changed.connect(lambda _i: self._reset_measure())
         self.state.period_changed.connect(self._on_period_changed)
         self.state.cursor_changed.connect(self._on_cursor_changed)
         self._redraw()
@@ -132,6 +134,7 @@ class MainWindow(QMainWindow):
         split = QSplitter(Qt.Horizontal)
         split.addWidget(self._build_selection_panel())
         self.plots_widget = pg.GraphicsLayoutWidget()
+        self.plots_widget.scene().sigMouseClicked.connect(self._on_plot_clicked)
         split.addWidget(self.plots_widget)
         split.addWidget(self._build_control_panel())
         split.setStretchFactor(1, 1)
@@ -179,6 +182,7 @@ class MainWindow(QMainWindow):
             if b is self.play_btn and self._play_timer.isActive():
                 name = "pause"
             b.setIcon(icons.icon(name, theme.current().ui["text"], 16))
+        self.measure_btn.setIcon(icons.icon("ruler", theme.current().ui["text"], 16))
 
     def _build_selection_panel(self) -> QWidget:
         panel = QWidget()
@@ -258,12 +262,25 @@ class MainWindow(QMainWindow):
         row = QHBoxLayout()
         b_period = QPushButton("Période auto")
         b_period.setToolTip("Recalcule la période d'analyse : du décollage à l'atterrissage, avant un éventuel crash.\n"
-                            "Vous pouvez aussi déplacer les bords de la zone claire sur le graphique des gaz.")
+                            "Vous pouvez aussi déplacer les bords de la zone claire sur n'importe quel graphique.")
         b_period.clicked.connect(lambda: self.state.reset_period(self.state.current))
         b_full = QPushButton("Vue entière")
         b_full.clicked.connect(self._view_all)
         row.addWidget(b_period)
         row.addWidget(b_full)
+        lay.addLayout(row)
+
+        row = QHBoxLayout()
+        self.measure_btn = QPushButton("Mesurer")
+        self.measure_btn.setCheckable(True)
+        self.measure_btn.setToolTip("Mesure le temps entre deux points (ms) et la fréquence correspondante (Hz) :\n"
+                                    "cliquez deux points sur un graphique roll, pitch ou yaw. Les repères se\n"
+                                    "déplacent à la souris ; un nouveau clic recommence la mesure.")
+        self.measure_btn.toggled.connect(lambda _on: self._reset_measure())
+        row.addWidget(self.measure_btn)
+        self.measure_label = QLabel("")
+        self.measure_label.setWordWrap(True)
+        row.addWidget(self.measure_label, 1)
         lay.addLayout(row)
 
         display = Section("Affichage", "viewer_display", expanded=False)
@@ -369,11 +386,15 @@ class MainWindow(QMainWindow):
         for i in range(3):
             pw.ci.layout.setRowStretchFactor(i, 2)
 
-        # période d'analyse : zone claire déplaçable + zones grisées hors période
-        self.region = pg.LinearRegionItem(brush=(80, 160, 255, 30))
-        self.region.setZValue(-10)
-        self.region.sigRegionChangeFinished.connect(self._on_region_moved)
-        self.motor_plot.addItem(self.region)
+        # période d'analyse : zone claire déplaçable sur chaque graphique (synchronisées) + zones grisées
+        self.regions: list[pg.LinearRegionItem] = []
+        for p in [*self.axis_plots, self.motor_plot]:
+            r = pg.LinearRegionItem(brush=(80, 160, 255, 30))
+            r.setZValue(-10)
+            r.sigRegionChanged.connect(self._on_region_dragged)
+            r.sigRegionChangeFinished.connect(self._on_region_moved)
+            p.addItem(r)
+            self.regions.append(r)
         self.shades: list[tuple[pg.LinearRegionItem, pg.LinearRegionItem]] = []
         for p in [*self.axis_plots, self.motor_plot]:
             a = pg.LinearRegionItem(movable=False, brush=theme.current().shade, pen=pg.mkPen(None))
@@ -390,6 +411,25 @@ class MainWindow(QMainWindow):
             c.sigPositionChanged.connect(self._on_cursor_dragged)
             p.addItem(c)
             self.cursors.append(c)
+        # mesure entre deux points (bouton « Mesurer ») : deux repères sur roll, pitch et yaw
+        color = theme.accent("purple")
+        pen = pg.mkPen(color, width=2, style=Qt.DashDotLine)
+        self.measure_lines: list[list[pg.InfiniteLine]] = [[], []]
+        self.measure_texts: list[pg.TextItem] = []
+        for p in self.axis_plots:
+            for k in range(2):
+                ln = pg.InfiniteLine(angle=90, movable=True, pen=pen, hoverPen=pg.mkPen(color, width=4))
+                ln.setZValue(20)
+                ln.setToolTip("Point de mesure : glisser pour ajuster.")
+                ln.sigPositionChanged.connect(lambda line, k=k: self._on_measure_dragged(k, line))
+                p.addItem(ln)
+                self.measure_lines[k].append(ln)
+            txt = pg.TextItem(color=color, fill=pg.mkBrush(theme.current().bg), anchor=(0.5, 0))
+            txt.setZValue(21)
+            p.addItem(txt, ignoreBounds=True)
+            p.sigRangeChanged.connect(lambda *_a: self._place_measure_texts())
+            self.measure_texts.append(txt)
+        self._update_measure_items()
         self._curves: list = []
         self._mode_labels: list = []
 
@@ -564,7 +604,8 @@ class MainWindow(QMainWindow):
     # ================================================================ période
     def _set_period_items_visible(self, on: bool) -> None:
         """Zone de période, zones grisées et curseur : seulement quand un log est affiché."""
-        self.region.setVisible(on)
+        for r in self.regions:
+            r.setVisible(on)
         for a, b in self.shades:
             a.setVisible(on)
             b.setVisible(on)
@@ -577,21 +618,113 @@ class MainWindow(QMainWindow):
             return
         t0, t1 = ll.period
         lo, hi = float(ll.log.t[0]), float(ll.log.t[-1])
-        self.region.blockSignals(True)
-        self.region.setRegion((t0, t1))
-        self.region.blockSignals(False)
+        self._show_period(t0, t1, lo, hi)
+
+    def _show_period(self, t0: float, t1: float, lo: float, hi: float, source=None) -> None:
+        """Recopie la période sur toutes les zones (sauf celle qu'on tire) et les zones grisées."""
+        for r in self.regions:
+            if r is not source:
+                r.blockSignals(True)
+                r.setRegion((t0, t1))
+                r.blockSignals(False)
         for a, b in self.shades:
             a.setRegion((lo, t0))
             b.setRegion((t1, hi))
+        self._update_region_tips()
 
-    def _on_region_moved(self) -> None:
-        t0, t1 = self.region.getRegion()
+    def _update_region_tips(self) -> None:
+        """Info-bulles des bords (début / fin), avec le temps : les bords peuvent se croiser en glissant."""
+        for r in self.regions:
+            lines = sorted(r.lines, key=lambda ln: ln.value())
+            for ln, what in zip(lines, ("Début", "Fin")):
+                t = f"{ln.value():.2f}".replace(".", ",")
+                ln.setToolTip(f"{what} de la période d'analyse : {t} s\nGlisser pour ajuster.")
+
+    def _on_region_dragged(self, region: pg.LinearRegionItem) -> None:
+        """Pendant le glissement : les autres graphiques suivent en direct, sans relancer les calculs."""
+        ll = self.state.current_log()
+        if ll is None:
+            return
+        t0, t1 = sorted(region.getRegion())
+        self._show_period(t0, t1, float(ll.log.t[0]), float(ll.log.t[-1]), source=region)
+
+    def _on_region_moved(self, region: pg.LinearRegionItem) -> None:
+        t0, t1 = region.getRegion()
         self.state.set_period(self.state.current, t0, t1)
         self._update_period_items()
 
     def _on_period_changed(self, index: int) -> None:
         if index == self.state.current:
             self._update_period_items()
+
+    # ================================================================ mesure entre deux points
+    def _reset_measure(self) -> None:
+        self._measure = []
+        self._update_measure_items()
+
+    def _on_plot_clicked(self, ev) -> None:
+        """En mode mesure : un clic sur roll, pitch ou yaw place un point ; le 3e recommence la mesure."""
+        if not self.measure_btn.isChecked() or ev.button() != Qt.LeftButton or ev.double():
+            return
+        if self.state.current_log() is None:
+            return
+        pos = ev.scenePos()
+        for p in self.axis_plots:
+            if p.isVisible() and p.vb.sceneBoundingRect().contains(pos):
+                t = float(p.vb.mapSceneToView(pos).x())
+                self._measure = [*self._measure, t] if len(self._measure) == 1 else [t]
+                self._update_measure_items()
+                ev.accept()
+                return
+
+    def _on_measure_dragged(self, k: int, line: pg.InfiniteLine) -> None:
+        if k < len(self._measure):
+            self._measure[k] = float(line.value())
+            self._update_measure_items()
+
+    def measure_text(self) -> str:
+        """Résultat de la mesure : écart en ms et fréquence correspondante (vide sans deux points)."""
+        if len(self._measure) < 2:
+            return ""
+        dt = abs(self._measure[1] - self._measure[0])
+        ms = f"{dt * 1000:.1f}".replace(".", ",")
+        hz = f"{1 / dt:.1f}".replace(".", ",") if dt > 0 else "—"
+        return f"Δt {ms} ms · {hz} Hz"
+
+    def _update_measure_items(self) -> None:
+        """Repères, résultat sur les graphiques et texte du panneau, d'après self._measure."""
+        on = self.measure_btn.isChecked() and self.state.current_log() is not None
+        for k, lines in enumerate(self.measure_lines):
+            shown = on and k < len(self._measure)
+            for ln in lines:
+                ln.setVisible(shown)
+                if shown and ln.value() != self._measure[k]:
+                    ln.blockSignals(True)
+                    ln.setValue(self._measure[k])
+                    ln.blockSignals(False)
+        result = self.measure_text() if on else ""
+        for txt in self.measure_texts:
+            txt.setText(result)
+            txt.setVisible(bool(result))
+        self._place_measure_texts()
+        if not on:
+            self.measure_label.setText("")
+        elif len(self._measure) == 0:
+            self.measure_label.setText("Cliquez un 1er point sur roll, pitch ou yaw.")
+        elif len(self._measure) == 1:
+            self.measure_label.setText("Cliquez le 2e point.")
+        else:
+            self.measure_label.setText(result)
+        self.measure_label.setStyleSheet(theme.accent_style("purple") if len(self._measure) == 2
+                                         else theme.muted_style())
+
+    def _place_measure_texts(self) -> None:
+        """Résultat centré entre les deux repères, en haut de chaque graphique."""
+        if len(self._measure) < 2:
+            return
+        x = (self._measure[0] + self._measure[1]) / 2
+        for p, txt in zip(self.axis_plots, self.measure_texts):
+            txt.setPos(x, p.vb.viewRange()[1][1])
 
     # ================================================================ curseur / lecteur
     def _on_cursor_dragged(self, line: pg.InfiniteLine) -> None:

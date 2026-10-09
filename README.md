@@ -9,8 +9,8 @@ calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux, Window
 ## Outils
 
 La fenêtre principale est le **visualiseur de log** : gyro, consigne, termes P/I/D/F, moteurs, gaz, debug ;
-période d'analyse (crash exclu automatiquement), lecteur, manches, modes de vol. Chaque outil s'ouvre par
-son bouton dans la barre d'outils.
+période d'analyse (crash exclu automatiquement), mesure de temps et de fréquence entre deux points, lecteur,
+manches, modes de vol. Chaque outil s'ouvre par son bouton dans la barre d'outils.
 
 | Bouton | Outil | Ce qu'il montre |
 |---|---|---|
