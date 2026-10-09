@@ -369,11 +369,15 @@ class MainWindow(QMainWindow):
         for i in range(3):
             pw.ci.layout.setRowStretchFactor(i, 2)
 
-        # période d'analyse : zone claire déplaçable + zones grisées hors période
-        self.region = pg.LinearRegionItem(brush=(80, 160, 255, 30))
-        self.region.setZValue(-10)
-        self.region.sigRegionChangeFinished.connect(self._on_region_moved)
-        self.motor_plot.addItem(self.region)
+        # période d'analyse : zone claire déplaçable sur chaque graphique (synchronisées) + zones grisées
+        self.regions: list[pg.LinearRegionItem] = []
+        for p in [*self.axis_plots, self.motor_plot]:
+            r = pg.LinearRegionItem(brush=(80, 160, 255, 30))
+            r.setZValue(-10)
+            r.sigRegionChanged.connect(self._on_region_dragged)
+            r.sigRegionChangeFinished.connect(self._on_region_moved)
+            p.addItem(r)
+            self.regions.append(r)
         self.shades: list[tuple[pg.LinearRegionItem, pg.LinearRegionItem]] = []
         for p in [*self.axis_plots, self.motor_plot]:
             a = pg.LinearRegionItem(movable=False, brush=theme.current().shade, pen=pg.mkPen(None))
@@ -564,7 +568,8 @@ class MainWindow(QMainWindow):
     # ================================================================ période
     def _set_period_items_visible(self, on: bool) -> None:
         """Zone de période, zones grisées et curseur : seulement quand un log est affiché."""
-        self.region.setVisible(on)
+        for r in self.regions:
+            r.setVisible(on)
         for a, b in self.shades:
             a.setVisible(on)
             b.setVisible(on)
@@ -577,15 +582,29 @@ class MainWindow(QMainWindow):
             return
         t0, t1 = ll.period
         lo, hi = float(ll.log.t[0]), float(ll.log.t[-1])
-        self.region.blockSignals(True)
-        self.region.setRegion((t0, t1))
-        self.region.blockSignals(False)
+        self._show_period(t0, t1, lo, hi)
+
+    def _show_period(self, t0: float, t1: float, lo: float, hi: float, source=None) -> None:
+        """Recopie la période sur toutes les zones (sauf celle qu'on tire) et les zones grisées."""
+        for r in self.regions:
+            if r is not source:
+                r.blockSignals(True)
+                r.setRegion((t0, t1))
+                r.blockSignals(False)
         for a, b in self.shades:
             a.setRegion((lo, t0))
             b.setRegion((t1, hi))
 
-    def _on_region_moved(self) -> None:
-        t0, t1 = self.region.getRegion()
+    def _on_region_dragged(self, region: pg.LinearRegionItem) -> None:
+        """Pendant le glissement : les autres graphiques suivent en direct, sans relancer les calculs."""
+        ll = self.state.current_log()
+        if ll is None:
+            return
+        t0, t1 = sorted(region.getRegion())
+        self._show_period(t0, t1, float(ll.log.t[0]), float(ll.log.t[-1]), source=region)
+
+    def _on_region_moved(self, region: pg.LinearRegionItem) -> None:
+        t0, t1 = region.getRegion()
         self.state.set_period(self.state.current, t0, t1)
         self._update_period_items()
 

@@ -69,9 +69,11 @@ save
   Indicielle…) ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton pour sa description.
 - **Traces** à gauche, rangées par groupe (Gyro, Consigne et PID, Autres, Moteurs). Les traces que le log
   ne contient pas sont masquées.
-- **Période d'analyse** : la zone claire sur le graphique des gaz. Tous les outils n'analysent que cette
-  zone. Elle est choisie automatiquement (du décollage à l'atterrissage, en s'arrêtant avant un crash) ;
-  déplacez ses bords à la souris pour l'ajuster, **Période auto** pour revenir au calcul automatique.
+- **Période d'analyse** : la zone claire, affichée sur les graphiques roll, pitch, yaw et moteurs (le reste
+  du vol est grisé). Tous les outils n'analysent que cette zone. Elle est choisie automatiquement (du
+  décollage à l'atterrissage, en s'arrêtant avant un crash) ; déplacez ses bords à la souris sur n'importe
+  quel graphique pour l'ajuster (les autres suivent), **Période auto** pour revenir au calcul automatique.
+  Chaque log ouvert garde sa propre période.
 - **Lecteur** : curseur temporel, manches et valeurs à l'instant choisi ; ▶ pour rejouer le vol.
 - **Affichage** (section repliable à droite) : lissage et épaisseur des traces, thème clair ou sombre.
   Les sections Affichage et Lecteur se replient d'un clic sur leur titre.
