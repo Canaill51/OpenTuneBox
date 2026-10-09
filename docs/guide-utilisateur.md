@@ -75,6 +75,11 @@ save
   quel graphique pour l'ajuster (les autres suivent ; au survol, une info-bulle indique le bord et son
   temps), **Période auto** pour revenir au calcul automatique.
   Chaque log ouvert garde sa propre période.
+- **Mesurer** : mesure l'écart de temps entre deux points, en millisecondes, et la fréquence correspondante
+  en hertz (1 / écart), par exemple la période d'une oscillation. Enfoncez le bouton, puis cliquez deux
+  points sur un graphique roll, pitch ou yaw : deux repères violets apparaissent sur les trois axes, et le
+  résultat s'affiche en haut des graphiques et à côté du bouton. Glissez un repère pour ajuster ; un
+  nouveau clic recommence la mesure ; désenfoncez le bouton pour l'effacer.
 - **Lecteur** : curseur temporel, manches et valeurs à l'instant choisi ; ▶ pour rejouer le vol.
 - **Affichage** (section repliable à droite) : lissage et épaisseur des traces, thème clair ou sombre.
   Les sections Affichage et Lecteur se replient d'un clic sur leur titre.

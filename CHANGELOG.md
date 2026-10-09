@@ -5,6 +5,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- Visualiseur : bouton **Mesurer**, écart de temps (ms) et fréquence correspondante (Hz) entre deux points
+  cliqués sur les graphiques roll, pitch ou yaw ; repères déplaçables à la souris.
+
 ### Modifié
 - Visualiseur : la période d'analyse se règle sur les graphiques roll, pitch et yaw, plus seulement sur
   celui des moteurs ; les quatre zones restent synchronisées pendant le glissement.
