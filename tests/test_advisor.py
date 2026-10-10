@@ -264,3 +264,36 @@ def test_betaflight_chirp_measured_in_angle_mode():
     assert lp.method == MEASURED and not lp.sensitivity_peak_at_edge
     assert 20 < lp.crossover_hz < 27 and 34 < lp.phase_margin_deg < 46  # 23,6 Hz, 39,5° (2026-10-06)
     assert _load("Cedric/JeNo 5/FINAL.bbl").chirp_excitation(0) is None
+
+
+def test_noise_report_classifies_every_title():
+    """Chaque constat de bruit ou de filtre de l'assistant a sa place dans le diagnostic de la fenêtre Spectre."""
+    import re
+    from pathlib import Path
+
+    from opentunebox.advisor import noise, rules
+    from opentunebox.advisor.rules import CONSEIL, Finding
+
+    src = Path(rules.__file__).read_text(encoding="utf-8")
+    titles = re.findall(r'Finding\("(Bruit|Filtres|Mécanique|Réponse)",\s*[^,]+,\s*f?"([^"{]*)', src)
+    explicit = noise.CONDITION_TITLES + noise.DTERM_TITLES + noise.GYRO_TITLES + (noise.STRATEGY_TITLE,)
+    for cat, title in titles:
+        f = Finding(cat, CONSEIL, title, "")
+        if cat in ("Réponse", "Mécanique") and not title.startswith(noise.GYRO_TITLES):
+            assert noise.section_of(f) is None, title
+        else:
+            assert title.startswith(explicit), f"constat non rangé : {title}"
+    assert noise.section_of(Finding("Filtres", CONSEIL, "Retard des filtres D", "")) == "dterm"
+    assert noise.section_of(Finding("Filtres", CONSEIL, "Retard des filtres gyro", "")) == "gyro"
+    assert noise.section_of(Finding("Enregistrement", CONSEIL, "Gyro non filtré absent", "")) == "conditions"
+
+
+def test_noise_report_strategy_fallback():
+    from opentunebox.advisor.noise import noise_report
+
+    nr = noise_report(_load("Cedric/JeNo 5/FINAL.bbl"))
+    assert nr.moving and nr.has_unfiltered and nr.harmonics is not None
+    assert [f.title for f in nr.dterm_findings][0] == "Terme D bruité"
+    # une seule étape de filtrage : pas de « Stratégie de filtrage » de l'assistant, mais un conseil quand même
+    assert len(nr.strategy) == 1 and nr.strategy[0].title == "Un seul réglage de filtre à faire"
+    assert "filtre D" in nr.strategy[0].actions[0]

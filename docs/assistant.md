@@ -283,6 +283,12 @@ et pitch, une voix par drone (médiane de ses axes) :
 
 ## Règles
 
+Le diagnostic du bruit de la fenêtre Spectre (`advisor/noise.py`) reprend ces mêmes constats, rangés par
+début de titre en quatre parties (conditions du log, gyro, terme D, stratégie) ; il n'a aucun seuil à lui.
+Quand l'assistant n'écrit pas de stratégie (moins de deux étapes), il indique le seul réglage de filtre à
+faire, ou qu'aucun n'est conseillé. Un nouveau constat de bruit ou de filtre doit avoir sa place dans
+`noise.GYRO_TITLES` ou `noise.DTERM_TITLES` (vérifié par `tests/test_advisor.py`).
+
 Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit
 portent sur le roll et le pitch (le yaw n'est pas jugé).
 

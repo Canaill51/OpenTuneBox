@@ -98,6 +98,19 @@ sur un simple vol stationnaire, les filtres dynamiques ne travaillent qu'à un r
 est marqué « peu fiable ») ; volet « bruit moteur » pour l'efficacité du filtre RPM
 sur chaque harmonique. Les courbes en S montrent où se situent les harmoniques moteur pendant le vol.
 
+Case **Diagnostic du bruit** : ouvre, à côté des courbes, un rapport sur le bruit et la stratégie de
+filtrage, pour chaque log choisi et sur la période d'analyse. Il est calculé seulement quand la case est
+cochée (quelques secondes) et compte quatre parties :
+1. **Conditions du log** : fréquence d'enregistrement suffisante, vol stationnaire (bon pour identifier le
+   bruit) ou avec mouvements (nécessaire pour juger le retard des filtres).
+2. **Gyro** : bruit avant et après filtrage, axe par axe (sommet du spectre et sa fréquence, baisse
+   moyenne obtenue par les filtres), hauteur des harmoniques moteur avant et après filtres, raie la plus
+   marquée quel que soit le gaz, pics que le notch dynamique doit suivre, puis les constats et conseils.
+3. **Terme D** : même tableau (le D avant filtres est reconstruit à partir du gyro) et constats.
+4. **Stratégie de filtrage** : les réglages à faire, dans l'ordre, un à la fois.
+
+Les constats et les seuils sont ceux de l'assistant : les deux fenêtres donnent les mêmes conseils.
+
 ### Fréquence × gaz (Fréq. × gaz)
 Carte du bruit selon le gaz. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
 retiré par le filtre RPM). Une **ligne horizontale** = résonance de châssis ou pièce qui vibre. Une

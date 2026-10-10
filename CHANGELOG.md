@@ -6,6 +6,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Spectre : case **Diagnostic du bruit**, rapport à côté des courbes sur le bruit du gyro et du terme D
+  avant et après filtrage (niveaux par axe, harmoniques moteur, raie fixe, pics du notch dynamique) et
+  stratégie de filtrage conseillée, avec les constats et seuils de l'assistant.
 - Visualiseur : bouton **Mesurer**, écart de temps (ms) et fréquence correspondante (Hz) entre deux points
   cliqués sur les graphiques roll, pitch ou yaw ; repères déplaçables à la souris.
 

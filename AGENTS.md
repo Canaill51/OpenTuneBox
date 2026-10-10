@@ -29,7 +29,7 @@ src/opentunebox/
   log/        FlightLog (unités physiques), settings.py (en-tête normalisé par version), debug_tables.py, modes.py
   analysis/   calculs purs numpy/scipy : spectral, step (Wiener), loop (marges de stabilité), delay, bf_filters,
               sliders, motors, stats, period, datasets (jeux de données analysables)
-  advisor/    profils de taille (profiles.py) et règles (rules.py)
+  advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py)
   gui/        app.py, main_window.py (visualiseur), state.py, worker.py, theme.py, icons.py, geometry.py,
               tools/ (une fenêtre par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`

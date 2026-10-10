@@ -100,12 +100,20 @@ def _band_db(x: np.ndarray, fs: float, lo: float, hi: float) -> float:
     return float(np.mean(s.values[m])) if m.any() else float("nan")
 
 
-def band_peak_ptb_db(x: np.ndarray, fs: float, lo: float, hi: float) -> float:
-    """Sommet du spectre lissé dans la bande, sur l'échelle de PIDtoolbox (ce que l'œil lit sur sa courbe)."""
+def band_peak_ptb(x: np.ndarray, fs: float, lo: float, hi: float) -> tuple[float, float]:
+    """Sommet du spectre lissé dans la bande : (fréquence en Hz, niveau sur l'échelle de PIDtoolbox)."""
     s = spectral.spectrum(x, fs, resolution_hz=2.0, smoothing=2)
     hi = min(hi, 0.95 * fs / 2)
     m = (s.freqs >= lo) & (s.freqs <= hi)
-    return float(np.max(s.values[m])) - spectral.PTB_PSD_OFFSET_DB if m.any() else float("nan")
+    if not m.any():
+        return float("nan"), float("nan")
+    k = int(np.argmax(s.values[m]))
+    return float(s.freqs[m][k]), float(s.values[m][k]) - spectral.PTB_PSD_OFFSET_DB
+
+
+def band_peak_ptb_db(x: np.ndarray, fs: float, lo: float, hi: float) -> float:
+    """Sommet du spectre lissé dans la bande, sur l'échelle de PIDtoolbox (ce que l'œil lit sur sa courbe)."""
+    return band_peak_ptb(x, fs, lo, hi)[1]
 
 
 def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | None = None) -> Report:
@@ -235,7 +243,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     fr = frame_resonance(log, sel)
     fixed = fr[0] if fr is not None and fr[1] >= profile.resonance_high_db and not fr[2] else None
     dn = dyn_notch_view(log, sel, fixed)
-    meas["dyn_notch"] = dn
+    meas.update(frame_resonance=fr, dyn_notch=dn, aliased=aliased)
     target = filter_delay_target_ms(profile.nominal_inch)
     g_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[0]:.2f} ms."
               if target else "")
@@ -559,6 +567,11 @@ FILTER_STAGES = [
 STRATEGY_MIN_STAGES = 2
 
 
+def main_action(f: Finding) -> str:
+    """L'action qui change un réglage, sinon la première."""
+    return next((a for a in f.actions if "=" in a or "→" in a or "Curseur" in a), f.actions[0])
+
+
 def filter_strategy(findings: list[Finding], moving: bool = True) -> Finding | None:
     """Synthèse ordonnée des constats de filtrage : quelles étapes (filtre RPM, notch dynamique, passe-bas du
     gyro et du D) modifier, dans quel ordre. None sous STRATEGY_MIN_STAGES étapes : une seule étape, le
@@ -573,8 +586,6 @@ def filter_strategy(findings: list[Finding], moving: bool = True) -> Finding | N
         return None
     detail = " ; ".join(f"{i + 1}. {stage} : " + ", ".join(f"« {f.title} »" for f in hits)
                         for i, (stage, hits) in enumerate(steps))
-    def main_action(f):  # l'action qui change un réglage, sinon la première
-        return next((a for a in f.actions if "=" in a or "→" in a or "Curseur" in a), f.actions[0])
     actions = [f"{i + 1}. {stage} — {main_action(hits[0])}" + (f" (+ {len(hits) - 1} autre(s) constat(s))" if len(hits) > 1 else "")
                for i, (stage, hits) in enumerate(steps)]
     actions.append("Un seul changement à la fois, vol d'essai court, puis température des moteurs ; nouveau log "
