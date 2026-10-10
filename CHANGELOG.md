@@ -21,6 +21,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   cliqués sur les graphiques roll, pitch ou yaw ; repères déplaçables à la souris.
 
 ### Modifié
+- Visualiseur : barre d'outils allégée. Fréq. × gaz et Fréq. × temps s'ouvrent depuis la fenêtre Spectre ;
+  le bouton Configuration passe en bas du panneau de droite.
 - Réponse indicielle : courbes plus larges (gains, pic, latence et cassure de chaque fichier écrits dans le
   graphique, plus de colonne à part), durée affichée au choix (250 ms par défaut, 500 ou 150 ms), yaw
   masqué au départ, curseurs PID Betaflight toujours affichés sous le diagnostic (plus de case « Vue curseurs
@@ -43,6 +45,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Visualiseur : la période d'analyse se règle sur les graphiques roll, pitch et yaw, plus seulement sur
   celui des moteurs ; les quatre zones restent synchronisées pendant le glissement.
 - Visualiseur : info-bulle sur les bords de la période d'analyse (début ou fin, avec le temps).
+
+### Supprimé
+- Fenêtre Statistiques de vol (peu utile ; les mesures restent utilisées par l'assistant).
 
 ## [0.4.0] — 2026-10-06
 

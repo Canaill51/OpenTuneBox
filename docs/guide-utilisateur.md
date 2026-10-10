@@ -65,8 +65,9 @@ save
 
 ## 4. Le visualiseur (fenêtre principale)
 
-- **Barre d'outils** en haut : ouvrir et fermer les logs, puis un bouton par outil (Spectre, Fréq. × gaz,
-  Indicielle…) ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton pour sa description.
+- **Barre d'outils** en haut : ouvrir et fermer les logs, puis un bouton par outil (Spectre, Indicielle…) ;
+  l'icône tout à droite exporte la fenêtre en image. Survolez un bouton pour sa description. Fréq. × gaz et
+  Fréq. × temps s'ouvrent depuis la fenêtre Spectre ; Configuration, depuis le bouton en bas du panneau de droite.
 - **Traces** à gauche, rangées par groupe (Gyro, Consigne et PID, Autres, Moteurs). Les traces que le log
   ne contient pas sont masquées.
 - **Période d'analyse** : la zone claire, affichée sur les graphiques roll, pitch, yaw et moteurs (le reste
@@ -120,12 +121,12 @@ cochée (quelques secondes) et compte quatre parties :
 Les constats et les seuils sont ceux de l'assistant : les deux fenêtres donnent les mêmes conseils.
 
 ### Fréquence × gaz (Fréq. × gaz)
-Carte du bruit selon le gaz. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
+Bouton de la fenêtre Spectre. Carte du bruit selon le gaz. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
 retiré par le filtre RPM). Une **ligne horizontale** = résonance de châssis ou pièce qui vibre. Une
 tache basse fréquence à mi-gaz = oscillation de réglage ou propwash.
 
 ### Fréquence × temps (Fréq. × temps)
-Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
+Bouton de la fenêtre Spectre. Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
 lecteur ; un clic sur un spectrogramme le déplace).
 
 ### Réponse indicielle (Indicielle)
@@ -177,11 +178,7 @@ le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui
 le vrai gyro du vol. Copiez ensuite les commandes CLI.
 
 ### Infos de configuration (Configuration)
-Tous les réglages des logs côte à côte ; les différences sont surlignées (« Seulement les différences »).
-
-### Statistiques de vol (Statistiques)
-Utilisation des manches et des gaz, moyennes des termes PID, charge des moteurs, distribution de
-l'erreur PID, batterie.
+Bouton **Configuration** en bas du panneau de droite du visualiseur. Tous les réglages des logs côte à côte ; les différences sont surlignées (« Seulement les différences »).
 
 ### Assistant de réglage (Assistant)
 Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, filtres, moteurs,
