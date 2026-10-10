@@ -32,7 +32,7 @@ src/opentunebox/
   advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py),
               diagnostic du réglage de la Réponse indicielle (step_tuning.py)
   gui/        app.py, main_window.py (visualiseur), state.py, worker.py, theme.py, icons.py, geometry.py,
-              tools/ (une fenêtre par outil), widgets/, assets/
+              tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
 tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
               test_docs.py vérifie la documentation
@@ -46,7 +46,8 @@ docs/         guide utilisateur, architecture, validation, assistant, spécifica
 
 Règles :
 - `analysis/` et `advisor/` n'importent **jamais** `gui/` : tout calcul doit rester utilisable en ligne de commande et testable.
-- `gui/` affiche seulement ce que `analysis/` calcule. Une fenêtre d'outil hérite de `gui/tools/base.py:ToolWindow`
+- `gui/` affiche seulement ce que `analysis/` calcule. Un outil s'affiche dans une page de la fenêtre principale
+  (`gui/main_window.py:MainWindow.open_tool`, boutons de la barre = onglets, jamais de fenêtre séparée) ; il hérite de `gui/tools/base.py:ToolWindow`
   (`build_controls`, `snapshot_options`, `compute` en arrière-plan, `render`) et s'enregistre dans `gui/tools/__init__.py:REGISTRY`.
 - Les widgets Qt ne se lisent pas dans `compute` (autre thread) : copier leurs valeurs dans `snapshot_options`.
 

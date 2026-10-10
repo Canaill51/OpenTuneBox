@@ -80,6 +80,8 @@ ACCENTS = {
     "blue": ("#1f57c3", "#82acff"),
     "orange": ("#9a5300", "#ffb54d"),
     "purple": ("#7432a0", "#cf9df5"),
+    "teal": ("#00756f", "#4fd1c5"),
+    "pink": ("#b0306a", "#ff8cc6"),
 }
 
 _current = THEMES["clair"]
@@ -265,6 +267,7 @@ QToolBar::separator {{ background: {u['mid']}; width: 1px; margin: 4px 6px; }}
 QToolBar QToolButton {{ border: none; border-radius: 6px; padding: 4px 8px; }}
 QToolBar QToolButton:hover {{ background: {u['hover']}; }}
 QToolBar QToolButton:pressed {{ background: {u['mid']}; }}
+QToolBar QToolButton:checked {{ background: {u['hover']}; border-bottom: 2px solid {u['highlight']}; font-weight: 600; }}
 QToolBar QToolButton#primary {{ background: {u['highlight']}; color: #ffffff; font-weight: 600; }}
 QToolBar QToolButton#primary:hover {{ background: {u['link']}; }}
 

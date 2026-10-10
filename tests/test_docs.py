@@ -99,22 +99,26 @@ def test_code_paths_and_symbols_exist(md):
     assert not missing, f"{_rel(md)} : chemins ou symboles introuvables : {missing}"
 
 
-def _tools() -> list[tuple[str, str, str, str]]:
-    """Barre d'outils du visualiseur : (clé, libellé du bouton, icône, info-bulle)."""
+def _constant(name: str):
     tree = ast.parse((SRC / "gui" / "main_window.py").read_text(encoding="utf-8"))
     for node in tree.body:
-        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "TOOLS" for t in node.targets):
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == name for t in node.targets):
             return ast.literal_eval(node.value)
-    raise AssertionError("TOOLS introuvable dans gui/main_window.py")
+    raise AssertionError(f"{name} introuvable dans gui/main_window.py")
+
+
+def _tool_labels() -> list[str]:
+    """Libellés de tous les outils : barre d'outils (TOOLS) et outils ouverts ailleurs (OTHER_TOOLS)."""
+    return [t[1] for t in _constant("TOOLS")] + [v[0] for v in _constant("OTHER_TOOLS").values()]
 
 
 def test_every_tool_documented():
-    """Chaque bouton d'outil figure dans le tableau du README et dans un titre du guide."""
+    """Chaque outil figure dans le tableau du README et dans un titre du guide."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     guide = (ROOT / "docs" / "guide-utilisateur.md").read_text(encoding="utf-8")
     guide_titles = re.findall(r"^### (.+)$", guide, re.M)
     missing = []
-    for _key, label, _icon, _tip in _tools():
+    for label in _tool_labels():
         if not re.search(rf"^\| {re.escape(label)} \|", readme, re.M):
             missing.append(f"README : ligne « | {label} | » du tableau des outils")
         if not any(t == label or t.endswith(f"({label})") for t in guide_titles):
