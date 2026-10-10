@@ -117,6 +117,7 @@ class ToolWindow(QWidget):
         self.panel_layout.addWidget(self.status)
         self.panel_layout.addStretch(1)
         panel.setFixedWidth(280)
+        self._panel = panel
         split.addWidget(panel)
         split.setStretchFactor(0, 1)
         lay = QVBoxLayout(self)
@@ -124,6 +125,19 @@ class ToolWindow(QWidget):
         lay.addWidget(split)
 
         state.period_changed.connect(lambda _i: self.auto_run and self.isVisible() and self.run())
+
+    def show_beside_canvas(self, w: QWidget, width: int) -> None:
+        """Affiche `w`, placé dans le séparateur entre les courbes et le panneau de réglages : il prend
+        `width` px aux courbes, le panneau garde sa largeur fixe."""
+        if not w.isHidden():
+            return
+        split = w.parentWidget()
+        total = sum(split.sizes()) or split.width() or self.width()
+        w.show()
+        panel = self._panel.width()
+        canvas = max(total - width - panel, 400)
+        split.setSizes([canvas if i == 0 else width if split.widget(i) is w else panel if split.widget(i) is self._panel
+                        else 0 for i in range(split.count())])
 
     # ------------------------------------------------------------ à surcharger
     def build_controls(self, layout: QVBoxLayout) -> None:

@@ -21,6 +21,7 @@ from .settings import Settings, parse_settings
 
 AXES = ("Roll", "Pitch", "Yaw")
 ANGLE_HORIZON_MASK = 0b110  # boîtes ANGLE (bit 1) et HORIZON (bit 2), mêmes rangs dans toutes les versions
+ANGLE_MODE_MASK = 0b010  # ANGLE seul : le feedforward de la boucle de vitesse y est à 0 (pas en HORIZON)
 MAX_LEVEL_SHARE = 0.2  # au-delà, consigne calculée par l'autolevel : instrument = commande radio
 
 

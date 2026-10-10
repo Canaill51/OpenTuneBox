@@ -131,6 +131,10 @@ Fins de liste :
   `d_max_gain`, `d_max_advance` partout.
 - Feedforward : `feedforward_transition/_averaging/_smooth_factor/_jitter_factor/_boost/_max_rate_limit`
   (+ `feedforward_yaw_hold_gain/_time` 2025.12+).
+  En mode **Angle**, le feedforward de la boucle de vitesse est forcé à 0 sur les axes nivelés
+  (`pidSetpointDelta = 0`, `flight/pid.c`, vérifié au commit cc1bb9d28 ; déjà le cas avant 4.5 selon le
+  commentaire du code) ; `angle_feedforward` n'agit que sur la consigne d'angle, en amont. Pas en Horizon :
+  le feedforward y reste actif. Le terme F loggé vaut 0 dans les vols en Angle du corpus.
 - Réglage simplifié : `simplified_pids_mode`, `simplified_master_multiplier`, `simplified_i_gain`,
   `simplified_d_gain`, `simplified_pi_gain`, `simplified_feedforward_gain`, `simplified_pitch_d_gain`
   (= roll_pitch_ratio), `simplified_pitch_pi_gain`, `simplified_dterm_filter(_multiplier)`,

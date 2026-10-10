@@ -6,6 +6,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Réponse indicielle : **Diagnostic du réglage**, toujours affiché à côté des courbes, méthode de Brian White. Reconnaît
+  les séries de vols chargées (un seul curseur changé, mêmes filtres) et conseille le Damping (équilibre P/D),
+  le Master (cassure « ripple », vagues et plateau de la latence) et l'équilibre roll / pitch (écart de latence
+  de 1 à 2 ms au plus) ; vérifie le feedforward (0 ou mode Angle), le curseur I (0,2–0,3) et le pas (0,2).
+  Vols conseillés entourés dans les colonnes de mesures, cassure marquée sur les courbes, colonne
+  « Cassure (ripple) ».
 - Spectre : case **Diagnostic du bruit** (cadre « Diagnostic », en bas du panneau), rapport à côté des courbes sur le bruit du gyro et du terme D
   avant et après filtrage (niveaux par axe), un bloc par filtre (filtre RPM, notch dynamique, passe-bas
   du gyro et du D) avec ses réglages, ses mesures et un verdict même sans conseil (« rien à changer »
@@ -15,6 +21,15 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   cliqués sur les graphiques roll, pitch ou yaw ; repères déplaçables à la souris.
 
 ### Modifié
+- Réponse indicielle : courbes plus larges (gains, pic, latence et cassure de chaque fichier écrits dans le
+  graphique, plus de colonne à part), durée affichée au choix (250 ms par défaut, 500 ou 150 ms), yaw
+  masqué au départ, curseurs PID Betaflight toujours affichés sous le diagnostic (plus de case « Vue curseurs
+  Betaflight »).
+- Curseurs PID Betaflight (Réponse indicielle et Curseurs PID) : noms du configurateur Betaflight (Damping /
+  D Gains, Tracking / P & I Gains, Stick Response, Dynamic Damping, Drift - Wobble, Pitch Damping, Pitch
+  Tracking, Master Multiplier) au lieu de traductions maison.
+- Spectre et Réponse indicielle : le panneau de réglages garde sa largeur quand le rapport s'ouvre (il
+  laissait un grand vide à droite).
 - Assistant : `rpm_filter_q` conseillé par pas de 100 dans les deux sens (au lieu de +250 et −30 %) ;
   nouveau conseil « Filtre RPM : Q peut monter » quand les harmoniques traitées sont effacées et que le
   bruit est sous les repères (jusqu'à 1000) ; nouveau conseil « Notch dynamique : Q peut monter » (+50

@@ -9,6 +9,11 @@ Méthode (docs/spec-methodes.md, d'après la description publique de PIDtoolbox)
 5. réponse indicielle = somme cumulée de h, sur 500 ms ;
 6. contrôle qualité : régime établi (200–500 ms) entre 0,5 et 3.
 
+Forme de la montée (`shape_metrics`, méthode de Brian White pour le Master) : la cassure (« ripple ») est
+l'arrêt de la montée avant la consigne, suivi d'une remontée lente ; les vagues sont l'oscillation de la
+courbe sur son palier. Incertitudes par jackknife sur des blocs de fenêtres consécutives (les fenêtres se
+chevauchent : une fenêtre seule n'est pas une mesure indépendante).
+
 Les mêmes spectres croisés donnent la fonction de transfert en boucle fermée T(f) = consigne → gyro,
 d'où la bande passante (−3 dB) et le pic de suivi max |1 − T|. La boucle ouverte et ses marges viennent
 de `loop.py` : mesurée à partir des termes P, I, D, F loggés (`terms`), sinon approchée par T/(1 − T).
@@ -20,11 +25,17 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy import signal
+from scipy.ndimage import uniform_filter1d
 
 from .loop import LoopMetrics, PidTerms, loop_from_T, loop_from_terms
 
 
 PAD = 100
+STALL_SLOPE = 0.1  # la montée s'arrête quand la pente retombe sous 10 % de son maximum
+STALL_SMOOTH_MS = 2.5  # lissage de la courbe avant d'en prendre la pente
+WAVES_TREND_MS = 15.0  # tendance retirée avant de mesurer les vagues
+WAVES_END_MS = 250.0
+JACKKNIFE_BLOCKS = 10
 
 
 @dataclass
@@ -35,6 +46,11 @@ class StepMetrics:
     rise_ms: float = float("nan")  # 10 % → 90 %
     settling_ms: float = float("nan")  # entrée définitive dans ±5 %
     overshoot_pct: float = float("nan")
+    ripple: float = float("nan")  # cassure : ce qui manque pour atteindre min(palier, 1) quand la montée s'arrête
+    ripple_std: float = float("nan")  # écart-type (jackknife par blocs)
+    ripple_ms: float = float("nan")  # instant de l'arrêt de la montée
+    waves: float = float("nan")  # écart quadratique moyen de la courbe autour de sa tendance, sur le palier
+    waves_ratio: float = float("nan")  # vagues ÷ ce que le bruit de mesure seul donnerait (≈ 1 : bruit)
 
 
 @dataclass
@@ -140,7 +156,9 @@ def step_response(
         loop.notes.append(terms.note)
     else:
         loop = loop_from_terms(sp_raw, gy_raw, terms, fs, loop, seg_s, min_input, max_input)
-    return StepResult(t_ms, R, mean, std, R.shape[0], step_metrics(t_ms, mean), loop, maxin)
+    metrics = step_metrics(t_ms, mean)
+    shape_metrics(t_ms, R, metrics)
+    return StepResult(t_ms, R, mean, std, R.shape[0], metrics, loop, maxin)
 
 
 def _seg_max(x: np.ndarray, s0: int, L: int) -> float:
@@ -168,6 +186,61 @@ def step_metrics(t_ms: np.ndarray, r: np.ndarray) -> StepMetrics:
     elif not out[-1]:
         m.settling_ms = float(t_ms[np.nonzero(out)[0][-1] + 1])
     return m
+
+
+def _smooth(x: np.ndarray, n: int) -> np.ndarray:
+    return uniform_filter1d(x, max(1, n), axis=-1, mode="nearest")
+
+
+def _ripple(t_ms: np.ndarray, r: np.ndarray, latency_ms: float) -> tuple[float, float]:
+    """(cassure, instant de l'arrêt de la montée) d'une réponse moyenne."""
+    dt = t_ms[1] - t_ms[0]
+    rs = _smooth(r, int(round(STALL_SMOOTH_MS / dt)))
+    d = np.gradient(rs, t_ms)
+    rise = t_ms <= max(100.0, 3.0 * latency_ms)
+    k0 = int(np.argmax(d[rise]))
+    below = np.nonzero(d[k0:] < STALL_SLOPE * d[k0])[0]
+    if below.size == 0:
+        return float("nan"), float("nan")
+    k = k0 + int(below[0])
+    flat = (t_ms >= max(50.0, 3.0 * latency_ms)) & (t_ms <= 200.0)
+    if not flat.any():
+        return float("nan"), float("nan")
+    plateau = float(np.median(r[flat]))
+    return min(plateau, 1.0) - float(rs[k]), float(t_ms[k])
+
+
+def _detrended(t_ms: np.ndarray, r: np.ndarray, w: np.ndarray) -> np.ndarray:
+    dt = t_ms[1] - t_ms[0]
+    return (r - _smooth(r, int(round(WAVES_TREND_MS / dt))))[..., w]
+
+
+def shape_metrics(t_ms: np.ndarray, R: np.ndarray, m: StepMetrics) -> None:
+    """Cassure et vagues de la réponse moyenne de `R` (une réponse par fenêtre, dans l'ordre du vol),
+    avec leur incertitude ; complète `m` (latence déjà calculée)."""
+    if R.shape[0] == 0 or t_ms.size < 3 or not np.isfinite(m.latency_ms):
+        return
+    mean = R.mean(axis=0)
+    m.ripple, m.ripple_ms = _ripple(t_ms, mean, m.latency_ms)
+    w = (t_ms >= 3.0 * m.latency_ms) & (t_ms <= WAVES_END_MS)
+    if not w.any():
+        return
+    m.waves = float(np.sqrt(np.mean(_detrended(t_ms, mean, w) ** 2)))
+    k = min(JACKKNIFE_BLOCKS, R.shape[0] // 4)
+    if k < 4:
+        return
+    blocks = np.array_split(np.arange(R.shape[0]), k)
+    sums = np.array([R[b].sum(axis=0) for b in blocks])
+    sizes = np.array([b.size for b in blocks])
+    loo = (sums.sum(axis=0) - sums) / (R.shape[0] - sizes)[:, None]  # moyennes sans chaque bloc
+    rip = np.array([_ripple(t_ms, x, m.latency_ms)[0] for x in loo])
+    if np.all(np.isfinite(rip)):
+        m.ripple_std = float(np.sqrt((k - 1) / k * np.sum((rip - rip.mean()) ** 2)))
+    det = _detrended(t_ms, loo, w)
+    noise = np.sqrt((k - 1) / k * np.sum((det - det.mean(axis=0)) ** 2, axis=0))
+    floor = float(np.sqrt(np.mean(noise ** 2)))
+    if floor > 0:
+        m.waves_ratio = m.waves / floor
 
 
 def _crossing(t: np.ndarray, r: np.ndarray, level: float) -> float:

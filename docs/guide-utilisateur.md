@@ -142,7 +142,30 @@ plein, barre d'erreur = incertitude de la mesure). Si un de ces termes manque, e
 **approchées** (point creux) : à prendre avec prudence. Un triangle signifie « au moins cette valeur » :
 le pic de sensibilité se trouve au-delà des fréquences que vos mouvements de manche permettent de mesurer.
 Plus vous donnez de coups de manche francs et variés, plus la mesure va loin en fréquence.
-« Vue curseurs Betaflight » : position des curseurs du réglage simplifié de chaque log.
+Sous le diagnostic : **curseurs PID Betaflight** de chaque log (réglage simplifié ; point plein = curseurs de
+l'en-tête, point creux = estimés depuis les PID), pour voir d'un coup d'œil ce qui change entre les vols.
+Dans chaque graphique, en bas à droite : gains P, I, D, Dm, F de chaque fichier, nombre de fenêtres (n), pic,
+latence et cassure. « Temps affiché » : 250 ms par défaut (la montée en grand), 500 ms comme PIDtoolbox, ou
+150 ms pour bien voir la cassure. Le yaw est masqué au départ (case Y) : la méthode ne le juge pas et ses
+mouvements suffisent rarement. La colonne « Cassure (ripple) » suit la cassure d'un vol à l'autre.
+
+**Diagnostic du réglage**, toujours affiché à côté des courbes, d'après la méthode de Brian White. Chargez une **série de vols** du même drone, mêmes filtres, où un seul curseur change par pas
+de 0,2 ; l'outil reconnaît la série tout seul et lit, selon le curseur :
+- **Damping** (équilibre P/D) : jugé sur le **roll**, la première valeur sans dépassement visible (pic
+  ≤ 1,05), ou celle au-delà de laquelle le pic ne baisse plus. Si le pitch dépasse encore, il a plus
+  d'inertie : l'outil conseille alors de monter **Pitch Damping** (son D à part) plutôt que le Damping ;
+- **Pitch Damping** : même lecture, sur le pic du pitch ;
+- **Master** (niveau des gains) : on monte tant que la latence baisse sans **cassure** (« ripple » : la
+  montée s'arrête un instant avant la consigne, puis reprend lentement) ni **vagues** sur le palier. Chaque
+  vol est classé propre, premiers signes (proche de l'optimum) ou trop haut ; au premier vol trop haut, on
+  garde la valeur d'avant ;
+- **Pitch Tracking** (ou, sans série, le vol conseillé) : écart de latence entre pitch et roll, visé
+  sous 1 ms, acceptable jusqu'à 2 ms selon le drone.
+
+Conditions vérifiées pour chaque vol : feedforward à 0 en Acro, ou vol en **mode Angle** (le feedforward y
+est coupé ; pas en Horizon), curseur I (Drift-Wobble) à 0,2–0,3, assez de mouvements.
+Dans les colonnes de mesures, un cercle entoure les vols conseillés ; sur les courbes, un point creux marque
+l'arrêt de la montée quand il y a une cassure.
 
 ### Curseurs PID
 Positions des curseurs (lues dans le log, ou estimées si le réglage simplifié est désactivé) et
@@ -179,7 +202,10 @@ température des moteurs.
    de gaz ; vérifiez Fréquence × gaz et l'assistant (résonances, déséquilibre).
 2. **Filtres** : réglez le filtre RPM (motor_poles juste), puis les curseurs de filtres. Visez le moins
    de retard possible tant que le terme D reste peu bruité et les moteurs tièdes.
-3. **PID** avec les curseurs, un à la fois, par pas de 0,1 : Damping (D) jusqu'à un pic ≈ 1,05,
-   puis Tracking (P/I) et Master pour la vivacité, Stick response (FF) pour la réactivité au manche.
+3. **PID** par séries de vols (méthode de Brian White), un curseur à la fois, par pas de 0,2 ; feedforward à 0
+   (ou vols en mode Angle) et curseur I à 0,2–0,3 pendant les séries. D'abord **Damping** avec Master 1,0
+   (0,8 pour un drone très puissant), puis **Master**, puis l'équilibre roll / pitch (Pitch Tracking), puis
+   affinage ; le « Diagnostic du réglage » de la Réponse indicielle lit chaque série. Ensuite, I et
+   Stick response (FF) à votre goût.
 4. **Comparez** : ouvrez les logs successifs ensemble (réponse indicielle, infos de configuration).
 5. Revenez en arrière dès qu'un changement dégrade le ressenti, le bruit ou la température.

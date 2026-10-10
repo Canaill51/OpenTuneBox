@@ -29,6 +29,19 @@ Entrées : consigne SP = setpoint[axe], GY = gyroADC[axe] sur la période choisi
 8. Réponse sur 500 ms ; moyenne ± écart-type et nombre de fenêtres n. Séparation possible à max|SP| 500 °/s.
 9. Mesures sur la moyenne : pic = maximum sur t ≤ max(150 ms, 3 × latence) et son instant ;
    latence = passage à 50 % interpolé ; temps de montée 10–90 % ; établissement à ±5 %.
+10. Forme de la montée (`step.shape_metrics`), pour la méthode de Brian White [S32] :
+    - **cassure** (« ripple ») : la montée s'arrête avant la consigne puis reprend lentement. Courbe lissée
+      sur 2,5 ms ; arrêt = premier instant après la pente maximale où la pente retombe sous 10 % de
+      celle-ci ; cassure = min(palier, 1) − réponse à cet instant, palier = médiane sur
+      [max(50 ms, 3 × latence), 200 ms]. Négative quand la réponse atteint déjà la consigne. Une réponse
+      très amortie s'approche lentement de 1 et donne une petite cassure (+0,03 pour un second ordre
+      ζ = 0,9) ; avec un léger dépassement (ζ = 0,7), −0,03 ;
+    - **vagues** : écart quadratique moyen de la courbe autour de sa tendance (moyenne glissante de
+      15 ms), de 3 × latence à 250 ms ; rapporté à ce que le bruit de mesure seul donnerait (≈ 1 : bruit) ;
+    - incertitudes par jackknife sur 10 blocs de fenêtres consécutives (les fenêtres de 2 s, décalées de
+      62,5 ms, se chevauchent : une fenêtre seule n'est pas une mesure indépendante). Elles ne couvrent que
+      le bruit d'un vol : deux vols aux mouvements de manche différents s'écartent davantage (environ 0,01
+      sur la cassure, essais synthétiques).
 
 Mesures de boucle fermée (conception propre, même déconvolution) : T(f) = réponse en fréquence consigne →
 gyro (moyenne des interspectres / autospectres des fenêtres), de 2 à 150 Hz, points de cohérence ≥ 0,5,
@@ -163,6 +176,13 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   et le pic de la première valeur sans dépassement de la série BlackSummer (1,03), voir `assistant.md`.
 - **Fenêtres de la réponse indicielle** : consigne ≥ 20 °/s [S5, S2] ; séparation à 500 °/s [S5, S1].
   Réponse indicielle en mode angle pratiquement identique à l'acro [S24].
+- **Séries de vols (méthode de Brian White)** [S32] : un seul curseur change d'un vol à l'autre, par pas
+  de 0,2 (0,1 ne se lit pas sur la réponse) ; feedforward à 0 en Acro, ou vol en mode Angle (le firmware
+  y force à 0 le feedforward de la boucle de vitesse, `pid.c`, voir `spec-betaflight.md`) ; curseur I à
+  0,2–0,3 (le I déforme la réponse). Ordre : Damping (équilibre P/D) avec Master 1,0 (0,8 pour un drone
+  très puissant), puis Master, puis équilibre roll / pitch (écart de latence rapproché à 1–2
+  ms près, selon le drone), puis affinage, et parfois retouche du filtrage. Gains trop hauts :
+  cassure, vagues sur le palier et latence qui ne baisse plus (plateau), à lire ensemble.
 - **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz
   résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (Brian White situait les
   moteurs vers 200–500 Hz [S7]). Propwash le plus souvent vers 30–50 Hz [S23].
@@ -305,3 +325,8 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   « between -3 dB frequencies for BPF and notch ». Le notch dynamique de Betaflight est de cette forme
   (`svfNotchUpdate`, `common/filter.c`, Q = `dyn_notch_q` / 100) : largeur à −3 dB = fréquence / Q, et à
   l'écart d du centre |H| ≈ 2d / √((2d)² + (f0/Q)²).
+- [S32] Brian White, consignes de réglage par séries de vols (discussions et vidéos), transmises par
+  Cédric le 2026-10-10 : pas de 0,2, feedforward à 0 ou mode Angle, curseur I à 0,2–0,3, ordre des séries,
+  cassure (« ripple ») dans la montée, vagues et plateau de la latence comme signes de gains trop hauts.
+  Exemple : capture PIDtoolbox de l'Air65 de Cédric (`Cedric/Air65/MM.bbl`, Master 1,0 puis 1,2 ; cassure
+  roll visible à 1,2, Master 1,0 gardé).
