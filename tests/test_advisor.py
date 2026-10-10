@@ -19,7 +19,7 @@ def _load(rel):
 def test_profiles_detected_by_motor_speed():
     from opentunebox.advisor.profiles import detect_profile
 
-    assert detect_profile(_load("Cedric/Air65/stock.bbl"))[0].key == "whoop"
+    assert detect_profile(_load("Cedric/Air65/1.Stock.bbl"))[0].key == "whoop"
     assert detect_profile(_load("Cedric/JeNo 5/FINAL.bbl"))[0].key == "five"
     # Meteor 75 (≈ 355 Hz en vol) : whoop depuis la limite à 345 Hz
     assert detect_profile(_load("Cedric/Meteor 75 Pro O4 HD/03112025/D.bbl"))[0].key == "whoop"
@@ -99,12 +99,13 @@ def test_rpm_weights_rule():
     from opentunebox.advisor.rules import analyze
     from opentunebox.analysis.period import auto_period
 
-    # AIR65 : 2e harmonique invisible avant filtrage, poids 100 → poids réduit proposé, les autres gardés
-    lg = _load("Cedric/Air65/16012025/F3.bbl")
+    # Meteor 75 d'origine : 3e harmonique invisible avant filtrage, poids 100 → poids réduit proposé, les
+    # autres gardés
+    lg = _load("Cedric/Meteor 75 Pro O4 HD/48k Base/stock.bbl")
     rep = analyze(lg, lg.slice_time(*auto_period(lg)))
     f = next(f for f in rep.findings if f.title == "Filtre RPM plus fort que nécessaire")
-    assert "2e harmonique" in f.detail
-    assert f.actions[0].startswith("rpm_filter_weights = 100, 30, 100")
+    assert "3e harmonique" in f.detail
+    assert f.actions[0].startswith("rpm_filter_weights = 100, 100, 50")
 
 
 def test_dyn_notch_rules():
@@ -175,16 +176,20 @@ def test_hover_noise_and_filter_strategy():
     from opentunebox.advisor.rules import analyze
     from opentunebox.analysis.period import auto_period
 
-    def report(rel):
-        lg = _load(rel)
+    def report(rel, session=1):
+        from opentunebox.log.flightlog import load
+
+        lg = next(x for x in load(LOGS / rel) if x.session == session)
         return analyze(lg, lg.slice_time(*auto_period(lg))).findings
 
-    # AIR65 en stationnaire : 2e harmonique hors du filtre RPM (1 seule harmonique) ; stratégie en tête
-    rep = report("Cedric/Air65/Cedric - Hover.bbl")
+    # 7" de Thalhammer en stationnaire (3e session) : 3e harmonique hors du filtre RPM (2 harmoniques) ;
+    # stratégie en tête, bruit à corriger d'abord, puis le filtre RPM
+    rep = report("1. PTB/Thalhammer/Hover Test 48kHz.bbl", session=3)
     f = {x.title: x for x in rep}
     assert "Vol stationnaire : bruit identifié" in f
-    assert f["Harmonique moteur hors du filtre RPM"].actions[0].startswith("rpm_filter_harmonics = 2")
-    assert rep[0].title == "Stratégie de filtrage" and rep[0].actions[0].startswith("1. Filtre RPM")
+    assert f["Harmonique moteur hors du filtre RPM"].actions[0].startswith("rpm_filter_harmonics = 3")
+    assert rep[0].title == "Stratégie de filtrage" and rep[0].actions[0].startswith("1. À corriger d'abord")
+    assert any(a.split(" — ")[0].endswith("Filtre RPM") for a in rep[0].actions)
     # J3.5 en stationnaire : raie à 67 Hz que rien ne filtre, avec la mise en garde sous 100 Hz
     f = {x.title: x for x in report("Cedric/J3.5/JHEMCU F722HD AIO/Hovering/24k.bbl")}
     assert "où le PID travaille" in f["Raie à 67 Hz encore visible après filtrage"].detail
