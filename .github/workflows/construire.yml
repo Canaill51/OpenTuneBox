@@ -1,9 +1,13 @@
 # Construction automatique d'OpenTuneBox pour Windows, macOS et Linux sur les serveurs de GitHub.
 # Se lance à la main (onglet « Actions » → « Construire OpenTuneBox » → « Run workflow ») ou en poussant
 # une étiquette de version (git tag v0.2.0 && git push origin v0.2.0).
-# Avec une étiquette de version, les fichiers sont aussi publiés sur une page « Releases » permanente
-# (préparer d'abord la version : python scripts/release.py prepare 0.2.0, voir CONTRIBUTING.md).
-# Fichiers produits, téléchargeables en bas de la page de l'exécution (« Artifacts ») :
+# Avec une étiquette de version, les fichiers sont publiés sur une page « Releases » permanente
+# (préparer d'abord la version : python scripts/release.py prepare 0.2.0, voir CONTRIBUTING.md) :
+# brouillon de la page, chaque système y envoie son fichier, puis publication quand les trois sont là.
+# Les fichiers ne passent pas par les « Artifacts » de GitHub : leur stockage, limité à 500 Mo pour un
+# dépôt privé, se remplissait (≈ 290 Mo par construction, gardés 90 jours). Lancement à la main : fichiers
+# téléchargeables en bas de la page de l'exécution (« Artifacts »), gardés un jour seulement.
+# Fichiers produits :
 #   OpenTuneBox-Windows-Setup.exe  installateur Windows (menu Démarrer, Bureau, .bbl, désinstallation)
 #   OpenTuneBox-macOS.dmg          glisser OpenTuneBox dans Applications (Mac Apple Silicon)
 #   OpenTuneBox-Linux.AppImage     un seul fichier : le rendre exécutable, puis double-clic
@@ -14,7 +18,32 @@ on:
     tags: ["v*"]
 
 jobs:
+  # Brouillon de la page « Releases » (invisible tant qu'il n'est pas publié) : seulement pour une étiquette v….
+  # Déjà créé (relance après un échec) : on le garde.
+  brouillon:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Notes de version (section du CHANGELOG)
+        # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette.
+        run: python3 scripts/release.py notes "$GITHUB_REF_NAME" > notes.md
+      - name: Brouillon de la page de la version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+              --title "OpenTuneBox ${GITHUB_REF_NAME#v}" --notes-file notes.md
+
   construire:
+    needs: brouillon
+    # Lancement à la main : « brouillon » est sauté, la construction a quand même lieu.
+    if: ${{ !failure() && !cancelled() }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -136,14 +165,23 @@ jobs:
           echo "code de sortie : $code"
           test $code -eq 124
 
-      # Fichiers envoyés tels quels, sans être zippés une seconde fois (droits d'exécution conservés).
+      # Version : fichier envoyé dans le brouillon de la page « Releases » (remplacé s'il y est déjà).
+      - name: Envoi sur la page de la version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" ${{ matrix.package }} --clobber
+      # Lancement à la main : fichier envoyé tel quel (droits d'exécution conservés), gardé un jour.
       - uses: actions/upload-artifact@v7
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         with:
           path: ${{ matrix.package }}
           archive: false
           if-no-files-found: error
+          retention-days: 1
 
-  # Page « Releases » de la version : seulement pour une étiquette v…, une fois les trois systèmes construits.
+  # Publication de la page « Releases », une fois les trois systèmes construits et envoyés.
   publier:
     needs: construire
     if: startsWith(github.ref, 'refs/tags/v')
@@ -151,21 +189,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
-        with:
-          path: archives
-          merge-multiple: true
-          # Garder les archives telles quelles : sinon les .zip Windows et macOS sont décompressés.
-          skip-decompress: true
-      - name: Notes de version (section du CHANGELOG)
-        run: python3 scripts/release.py notes "$GITHUB_REF_NAME" > notes.md
-      - name: Page de la version
+      - name: Publication de la page de la version
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          ls -la archives
+          gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name' | LC_ALL=C sort | tee fichiers.txt
           # Exactement les trois fichiers attendus (Windows, macOS, Linux), sinon on s'arrête.
-          test "$(ls archives/OpenTuneBox-* | wc -l)" -eq 3
-          gh release create "$GITHUB_REF_NAME" archives/OpenTuneBox-* \
-            --title "OpenTuneBox ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
+          printf '%s\n' OpenTuneBox-Linux.AppImage OpenTuneBox-Windows-Setup.exe OpenTuneBox-macOS.dmg | diff - fichiers.txt
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest

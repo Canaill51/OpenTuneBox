@@ -96,8 +96,9 @@ fichier .bbl/.bfl
 
 - Exécutable autonome : PyInstaller (`packaging/opentunebox.spec`, point d'entrée `packaging/launcher.py`),
   allégé des parties de Qt et de pyqtgraph inutilisées.
-- Installateurs, un par système, fabriqués et essayés par `.github/workflows/construire.yml`, publiés sur la
-  page Releases à chaque étiquette `v…` (`scripts/release.py`, procédure dans `CONTRIBUTING.md`) :
+- Installateurs, un par système, fabriqués et essayés par `.github/workflows/construire.yml`, envoyés dans un
+  brouillon de la page Releases à chaque étiquette `v…`, publiée quand les trois y sont (sans *Artifacts* :
+  quota de 500 Mo d'un dépôt privé ; `scripts/release.py`, procédure dans `CONTRIBUTING.md`) :
   Windows `packaging/windows/opentunebox.iss` (Inno Setup), macOS `packaging/macos/build_dmg.sh` (.dmg),
   Linux `packaging/linux/build_appimage.sh` (AppImage, appimagetool 1.9.1, construite sur Ubuntu 22.04).
 - Icônes : `packaging/make_icons.py` fabrique `.icns` (macOS) et `.png` (Linux) depuis le SVG ; `.ico` pour Windows.
