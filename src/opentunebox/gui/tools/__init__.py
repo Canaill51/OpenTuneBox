@@ -13,7 +13,6 @@ REGISTRY = {
     "sliders": ("pid_slider", "PidSliderWindow"),
     "filter_sim": ("filter_sim", "FilterSimWindow"),
     "setup": ("setup_info", "SetupInfoWindow"),
-    "stats": ("flight_stats", "FlightStatsWindow"),
     "advisor": ("advisor_panel", "AdvisorWindow"),
 }
 

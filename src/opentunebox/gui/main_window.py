@@ -65,13 +65,9 @@ SMOOTHING = {"aucun": 1, "léger": 5, "moyen": 11, "fort": 25}
 # Barre d'outils : (clé, libellé court, icône Lucide, info-bulle)
 TOOLS = [
     ("spectral", "Spectre", "audio-waveform", "Analyse spectrale"),
-    ("freq_throttle", "Fréq. × gaz", "gauge", "Spectre en fonction des gaz"),
-    ("freq_time", "Fréq. × temps", "timer", "Spectrogramme : spectre au cours du vol"),
     ("step", "Indicielle", "chart-line", "Réponse indicielle (réactivité, dépassement)"),
     ("sliders", "Curseurs PID", "sliders-horizontal", "Curseurs PID du configurateur Betaflight"),
     ("filter_sim", "Filtres", "funnel", "Simulateur de filtres"),
-    ("setup", "Configuration", "cpu", "Infos de configuration (en-tête du log)"),
-    ("stats", "Statistiques", "chart-column", "Statistiques de vol"),
     ("advisor", "Assistant", "lightbulb", "Assistant de réglage"),
 ]
 
@@ -183,6 +179,7 @@ class MainWindow(QMainWindow):
                 name = "pause"
             b.setIcon(icons.icon(name, theme.current().ui["text"], 16))
         self.measure_btn.setIcon(icons.icon("ruler", theme.current().ui["text"], 16))
+        self.setup_btn.setIcon(icons.icon("cpu", theme.current().ui["text"], 16))
 
     def _build_selection_panel(self) -> QWidget:
         panel = QWidget()
@@ -340,6 +337,10 @@ class MainWindow(QMainWindow):
         self.readout.setFont(mono)
         pl.addWidget(self.readout)
         lay.addWidget(player)
+        self.setup_btn = QPushButton("Configuration")
+        self.setup_btn.setToolTip("Infos de configuration (en-tête du log) : réglages des logs côte à côte")
+        self.setup_btn.clicked.connect(lambda: self.open_tool("setup"))
+        lay.addWidget(self.setup_btn)
         lay.addStretch(1)
         w.setMinimumWidth(270)
         return w

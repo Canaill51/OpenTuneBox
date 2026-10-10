@@ -66,13 +66,12 @@ fichier .bbl/.bfl
   | Bouton | Module | Fenêtre |
   |---|---|---|
   | Spectre | `spectral_window.py` | analyse spectrale (+ `_spectral_common.py`, partagé avec les deux suivantes) |
-  | Fréq. × gaz | `freq_throttle.py` | fréquence × gaz, jusqu'à 4 colonnes |
-  | Fréq. × temps | `freq_time.py` | spectrogrammes, curseur lié au lecteur |
+  | Fréq. × gaz (dans Spectre) | `freq_throttle.py` | fréquence × gaz, jusqu'à 4 colonnes |
+  | Fréq. × temps (dans Spectre) | `freq_time.py` | spectrogrammes, curseur lié au lecteur |
   | Indicielle | `step_window.py` | réponse indicielle (+ `_step_common.py`, partagé avec les curseurs PID) |
   | Curseurs PID | `pid_slider.py` | curseurs du réglage simplifié et simulation |
   | Filtres | `filter_sim.py` | simulateur de filtres |
-  | Configuration | `setup_info.py` | réglages des logs côte à côte |
-  | Statistiques | `flight_stats.py` | statistiques de vol et erreur PID |
+  | Configuration (panneau de droite) | `setup_info.py` | réglages des logs côte à côte |
   | Assistant | `advisor_panel.py` | rapport de l'assistant de réglage |
 - `gui/app.py` : démarrage. `hard_exit` sort sans le nettoyage automatique de PySide6 (contournement d'un
   plantage) ; `FileOpenFilter` charge les logs ouverts depuis le Finder de macOS (`QFileOpenEvent`) ;

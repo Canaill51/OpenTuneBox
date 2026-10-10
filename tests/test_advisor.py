@@ -230,7 +230,6 @@ def test_tool_windows_render():
 
     from opentunebox.gui.state import AppState
     from opentunebox.gui.tools.advisor_panel import AdvisorWindow
-    from opentunebox.gui.tools.flight_stats import FlightStatsWindow
     from opentunebox.gui.tools.setup_info import SetupInfoWindow
 
     app = QApplication.instance() or QApplication([])
@@ -238,7 +237,7 @@ def test_tool_windows_render():
     st.add(_load("1. PTB/BlackSummer/Damping 0.8.BFL"))
     st.add(_load("1. PTB/BlackSummer/Damping 1.4.BFL"))
     wins = []
-    for cls in (FlightStatsWindow, AdvisorWindow):
+    for cls in (AdvisorWindow,):
         w = cls(st)
         w.files.selectAll() if w.multi_file else None
         w.render(w.compute(w.files.selected_entries()))

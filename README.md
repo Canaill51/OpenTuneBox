@@ -10,7 +10,8 @@ calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux, Window
 
 La fenêtre principale est le **visualiseur de log** : gyro, consigne, termes P/I/D/F, moteurs, gaz, debug ;
 période d'analyse (crash exclu automatiquement), mesure de temps et de fréquence entre deux points, lecteur,
-manches, modes de vol. Chaque outil s'ouvre par son bouton dans la barre d'outils.
+manches, modes de vol. Chaque outil s'ouvre par son bouton dans la barre d'outils (Fréq. × gaz et Fréq. × temps depuis la fenêtre
+Spectre, Configuration depuis le panneau de droite du visualiseur).
 
 | Bouton | Outil | Ce qu'il montre |
 |---|---|---|
@@ -21,7 +22,6 @@ manches, modes de vol. Chaque outil s'ouvre par son bouton dans la barre d'outil
 | Curseurs PID | Curseurs PID | Position des curseurs simplifiés retrouvée depuis les PID, simulation « et si » + commandes CLI |
 | Filtres | Simulateur de filtres | Chaînes gyro et D exactes de la version Betaflight, Bode, retards, spectre filtré recalculé sur le vrai vol |
 | Configuration | Infos de configuration | Réglages des logs côte à côte, différences surlignées |
-| Statistiques | Statistiques de vol | Manches, termes PID, moteurs, erreur PID, batterie |
 | Assistant | Assistant de réglage | Diagnostic à règles, seuils calibrés par taille de drone, chaque conseil justifié par sa mesure |
 
 Jusqu'à 10 logs comparés à la fois. Formats `.bbl`, `.bfl` (Betaflight 4.4 → 2026.x).
