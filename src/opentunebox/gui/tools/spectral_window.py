@@ -376,12 +376,9 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
     def _render_diagnosis(self, res: SpectralResult) -> None:
         reports = [f for f in res.files if f.diagnosis is not None]
         visible = self.diag_box.isChecked() and bool(reports)
-        if visible and self.report.isHidden():
-            split = self.report.parentWidget()
-            sizes = split.sizes()
-            self.report.show()
-            split.setSizes([max(sizes[0] - REPORT_WIDTH, 400), REPORT_WIDTH, sizes[2]])
-        elif not visible:
+        if visible:
+            self.show_beside_canvas(self.report, REPORT_WIDTH)
+        else:
             self.report.hide()
         if visible:
             self.report.setHtml("".join(_diagnosis_html(f.entry, f.diagnosis) for f in reports) +

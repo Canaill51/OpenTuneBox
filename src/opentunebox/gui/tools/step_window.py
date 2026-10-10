@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ...advisor.step_tuning import TuningReport, step_tuning
+from ...advisor.step_tuning import RIPPLE_EARLY, TuningReport, step_tuning
 from .. import theme
 from ._step_common import (
     SPLITS,
@@ -46,6 +46,7 @@ METRICS = {
     "latency": ("Latence (50 %)", "Latence (ms)"),
     "sp_delay": ("Retard consigne→gyro", "Retard consigne→gyro (ms)"),
     "rise": ("Temps de montée", "Montée 10–90 % (ms)"),
+    "ripple": ("Cassure (ripple)", "Cassure"),
     "bandwidth": ("Bande passante", "Bande passante (Hz)"),
     "sens_peak": ("Pic de sensibilité", "Pic de sensibilité (dB)"),
     "sens_hz": ("Fréq. du pic de sensibilité", "Fréq. pic sensibilité (Hz)"),
@@ -56,7 +57,9 @@ METRICS = {
 LOOP_KEYS = {"sens_peak": "sensitivity_peak_db", "sens_hz": "sensitivity_peak_hz", "phase_margin": "phase_margin_deg",
              "gain_margin": "gain_margin_db", "crossover": "crossover_hz"}
 MAX_RAW = 300  # réponses brutes dessinées au plus par fichier et par axe
-REPORT_WIDTH = 460  # largeur du rapport « Diagnostic du réglage » à son ouverture (px)
+REPORT_WIDTH = 400  # largeur du rapport « Diagnostic du réglage » à son ouverture (px)
+X_RANGES = (500, 250, 150)  # durées affichées (ms) : 150 pour bien voir la montée et la cassure
+X_DEFAULT = 250  # la montée (pic, cassure) occupe assez de largeur, le palier reste visible
 
 
 def metric_value(f: FileStep, ax: int, key: str) -> tuple[float, float]:
@@ -73,6 +76,8 @@ def metric_value(f: FileStep, ax: int, key: str) -> tuple[float, float]:
         return a.sp_delay_ms, 0.0
     if key == "rise":
         return m.rise_ms, 0.0
+    if key == "ripple":
+        return m.ripple, m.ripple_std if np.isfinite(m.ripple_std) else 0.0
     if key == "bandwidth":
         return lp.bandwidth_hz, 0.0
     field = LOOP_KEYS[key]
@@ -122,6 +127,8 @@ class StepWindow(ToolWindow):
         self.report.setMinimumWidth(320)
         self.report.hide()
         self._canvas_container.parentWidget().insertWidget(1, self.report)
+        self._best: set[int] = set()
+        self.axis_boxes[2].setChecked(False)  # yaw : ni jugé par le diagnostic, ni souvent mesurable
 
     # ------------------------------------------------------------ panneau de réglages
     def build_controls(self, layout: QVBoxLayout) -> None:
@@ -146,6 +153,13 @@ class StepWindow(ToolWindow):
         self.expand.addItems(["non", "Roll", "Pitch", "Yaw"])
         self.expand.currentIndexChanged.connect(self.on_options_changed)
         form.addRow("Agrandir", self.expand)
+        self.xmax = QComboBox()
+        for ms in X_RANGES:
+            self.xmax.addItem(f"{ms} ms", ms)
+        self.xmax.setToolTip("150 ms : la montée en grand, pour voir la cassure (« ripple »).")
+        self.xmax.setCurrentIndex(X_RANGES.index(X_DEFAULT))
+        self.xmax.currentIndexChanged.connect(self.on_options_changed)
+        form.addRow("Temps affiché", self.xmax)
         self.raw = QCheckBox("Brutes (toutes les fenêtres)")
         self.sd = QCheckBox("± écart-type")
         self.bf_view = QCheckBox("Vue curseurs Betaflight")
@@ -184,20 +198,6 @@ class StepWindow(ToolWindow):
         help_.setWordWrap(True)
         help_.setStyleSheet(theme.muted_style())
         layout.addWidget(help_)
-
-        box3 = QGroupBox("Diagnostic")
-        bl = QVBoxLayout(box3)
-        self.diag_box = QCheckBox("Diagnostic du réglage")
-        self.diag_box.setToolTip("Lit les séries de vols chargées (un seul curseur changé par pas de 0,2) : "
-                                 "équilibre P/D, niveau des gains (Master), équilibre roll / pitch.")
-        self.diag_box.toggled.connect(self.on_options_changed)
-        bl.addWidget(self.diag_box)
-        help2 = QLabel("Méthode de Brian White : chargez une série de vols (Damping, puis Master) avec le "
-                       "feedforward à 0 ou en mode Angle et le curseur I à 0,2–0,3.")
-        help2.setWordWrap(True)
-        help2.setStyleSheet(theme.muted_style())
-        bl.addWidget(help2)
-        layout.addWidget(box3)
 
     def _calc_options_changed(self, *_a) -> None:
         self._opts = {
@@ -246,28 +246,25 @@ class StepWindow(ToolWindow):
         for col in range(5):
             grid.setColumnStretchFactor(col, 0)
         grid.setColumnStretchFactor(0, 5)
+        grid.setColumnStretchFactor(1, 2)
         grid.setColumnStretchFactor(2, 2)
-        grid.setColumnStretchFactor(3, 2)
         if not result or not axes:
             return
         bf = self.bf_view.isChecked()
         for row, ax in enumerate(axes):
             p = c.addPlot(row=row, col=0)
             self._draw_step(p, result, ax, first=row == 0, last=row == len(axes) - 1)
-            lab = c.addLabel(self._text_block(result, ax), row=row, col=1, justify="left")
-            lab.setMinimumWidth(190)
-            grid.setAlignment(lab, Qt.AlignTop | Qt.AlignLeft)
             if bf:
                 continue
-            for col, combo in ((2, self.metric1), (3, self.metric2)):
+            for col, combo in ((1, self.metric1), (2, self.metric2)):
                 mp = c.addPlot(row=row, col=col)
                 self._draw_metric(mp, result, ax, combo.currentData(), last=row == len(axes) - 1)
         self.metric1.setEnabled(not bf)
         self.metric2.setEnabled(not bf)
         if bf:
-            sp = c.addPlot(row=0, col=2, colspan=2)
+            sp = c.addPlot(row=0, col=1, colspan=2)
             draw_slider_plot(sp, [(f.color, f.sliders) for f in result])
-            leg = c.addLabel(sliders_legend_html(result), row=0, col=4, justify="left")
+            leg = c.addLabel(sliders_legend_html(result), row=0, col=3, justify="left")
             grid.setAlignment(leg, Qt.AlignTop | Qt.AlignLeft)
         if self._pending:
             self._pending = False
@@ -276,17 +273,14 @@ class StepWindow(ToolWindow):
     # ------------------------------------------------------------ diagnostic du réglage
     def _render_diagnosis(self, result: list[FileStep]) -> None:
         flights = [f.flight for f in result if f.flight is not None]
-        visible = self.diag_box.isChecked() and bool(flights)
-        if visible and self.report.isHidden():
-            split = self.report.parentWidget()
-            sizes = split.sizes()
-            self.report.show()
-            split.setSizes([max(sizes[0] - REPORT_WIDTH, 400), REPORT_WIDTH, sizes[2]])
-        elif not visible:
+        if not flights:
             self.report.hide()
-        if visible:
-            colors = {f.label: f.color for f in result}
-            self.report.setHtml(_tuning_html(step_tuning(flights), colors))
+            self._best = set()
+            return
+        self.show_beside_canvas(self.report, REPORT_WIDTH)
+        rep = step_tuning(flights)
+        self._best = {b.best for b in rep.blocks if b.best is not None}  # vols conseillés, entourés
+        self.report.setHtml(_tuning_html(rep, {f.label: f.color for f in result}))
 
     def _draw_step(self, p: pg.PlotItem, result: list[FileStep], ax: int, first: bool, last: bool) -> None:
         style_plot(p)
@@ -322,21 +316,34 @@ class StepWindow(ToolWindow):
             if self.raw.isChecked():  # liseré sombre pour détacher la moyenne du nuage
                 p.plot(r.t_ms, r.mean, pen=pg.mkPen(th.fg, width=4.5))
             p.plot(r.t_ms, r.mean, pen=pg.mkPen(f.color, width=2.5))
-        p.setXRange(0, 500, padding=0.025)
+            m = r.metrics
+            if np.isfinite(m.ripple) and m.ripple >= RIPPLE_EARLY:  # arrêt de la montée : la cassure
+                y = float(np.interp(m.ripple_ms, r.t_ms, r.mean))
+                p.addItem(pg.ScatterPlotItem([m.ripple_ms], [y], size=10, symbol="o", brush=pg.mkBrush(th.bg),
+                                             pen=pg.mkPen(f.color, width=2.5)))
+        xmax = float(self.xmax.currentData() or X_DEFAULT)
+        p.setXRange(0, xmax, padding=0.025)
         p.setYRange(0, ymax, padding=0.04)
-        p.getAxis("bottom").setTicks([[(v, f"{v:g}") for v in range(0, 501, 100)],
-                                      [(v, "") for v in range(50, 500, 100)]])
+        major = 100 if xmax > 300 else 50 if xmax > 160 else 25
+        p.getAxis("bottom").setTicks([[(v, f"{v:g}") for v in np.arange(0, xmax + 1, major)],
+                                      [(v, "") for v in np.arange(major / 2, xmax, major)]])
+        text = pg.TextItem(html=self._text_block(result, ax), anchor=(1, 1))
+        text.setPos(xmax, 0.02 * ymax)
+        p.addItem(text)
         step = 0.25 if ymax <= 2.5 else 0.5
         p.getAxis("left").setTicks([[(v, f"{v:g}") for v in np.arange(0, ymax + 1e-9, step)]])
 
     def _text_block(self, result: list[FileStep], ax: int) -> str:
-        rows = [f"<b style='color:{theme.current().fg}'>P, I, D, Dm, F</b>"]
+        """Bloc par fichier, en bas à droite du graphique (zone sans courbe) : gains, pic, latence, cassure."""
+        rows = [f"<b style='color:{theme.current().fg}'>P, I, D, Dm, F · pic · latence · cassure</b>"]
         for i, f in enumerate(result):
             a = f.axes[ax]
             if a is None or a.res.n == 0:
                 txt = "données insuffisantes"
             else:
-                txt = f"{f.pids[ax].text()}&nbsp;&nbsp;(n={a.res.n})"
+                m = a.res.metrics
+                rip = f" · {m.ripple:+.3f}".replace(".", ",") if np.isfinite(m.ripple) else ""
+                txt = f"{f.pids[ax].text()} (n={a.res.n}) · {m.peak:.2f} · {m.latency_ms:.1f} ms".replace(".", ",") + rip
             rows.append(f"<span style='color:{f.color}; font-weight:600'>{i + 1}) {txt}</span>")
         return "<br>".join(rows)
 
@@ -367,6 +374,9 @@ class StepWindow(ToolWindow):
             brush = pg.mkBrush(None) if kind == "approchée" else pg.mkBrush(f.color)
             p.addItem(pg.ScatterPlotItem(xs[i:i + 1], ys[i:i + 1], size=11, symbol=symbol, brush=brush,
                                          pen=pg.mkPen(f.color, width=2)))
+            if i in self._best:  # vol conseillé par le diagnostic
+                p.addItem(pg.ScatterPlotItem(xs[i:i + 1], ys[i:i + 1], size=24, symbol="o",
+                                             brush=pg.mkBrush(None), pen=pg.mkPen(th.fg, width=2)))
         p.getAxis("bottom").setTicks([[(i, str(i)) for i in range(1, n + 1)]])
         p.setXRange(0.5, n + 0.5, padding=0)
         p.setMouseEnabled(x=False)
@@ -393,7 +403,9 @@ def _tuning_html(rep: TuningReport, colors: dict[str, str]) -> str:
         if b.finding is not None:
             parts.append(finding_html(b.finding))
     legend = " · ".join(f"<span style='color:{c}'>■</span> {html.escape(lab)}" for lab, c in colors.items())
-    parts.append(f"<hr><p style='{theme.muted_style()}'>Vols : {legend}<br>Ordre de la méthode : Damping avec "
+    parts.append(f"<hr><p style='{theme.muted_style()}'>Vols : {legend}<br>Dans les colonnes de mesures, un "
+                 "cercle entoure les vols conseillés ; sur les courbes, un point creux marque l'arrêt de la montée "
+                 "quand il y a une cassure.<br>Ordre de la méthode : Damping avec "
                  "Master 1,0, puis Master, puis roll / pitch, puis affinage. Cassure (« ripple ») : la montée "
                  "s'arrête avant la consigne puis reprend lentement ; vagues : oscillation sur le palier, "
                  "comparée au bruit de mesure (≈ 1 : bruit).</p>")

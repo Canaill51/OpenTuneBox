@@ -283,7 +283,7 @@ et pitch, une voix par drone (médiane de ses axes) :
 
 ### Diagnostic du réglage par séries (2026-10-10)
 
-Case « Diagnostic du réglage » de la Réponse indicielle (`advisor/step_tuning.py`), méthode de Brian White
+« Diagnostic du réglage » de la Réponse indicielle, toujours affiché (`advisor/step_tuning.py`), méthode de Brian White
 (`spec-methodes.md`, [S32]). Séries reconnues dans tout le corpus (`analysis/step_series.py:find_series` :
 mêmes filtres, un seul curseur changé) : 28 séries Master, 43 Damping, 6 Pitch T. / Pitch D. Le choix final
 des pilotes est relu dans les vols faits ensuite (« FINAL », « FF », « tune »…), faute d'étiquette.
