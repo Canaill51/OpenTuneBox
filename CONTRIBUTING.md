@@ -45,7 +45,10 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    git tag v0.2.0 && git push origin v0.2.0
    ```
 3. Le workflow `construire.yml` vérifie que l'étiquette correspond au numéro du projet (sinon il s'arrête
-   tout de suite), fabrique et essaie les installateurs Windows (`Setup.exe`), macOS (`.dmg`)
-   et Linux (AppImage), puis crée la page **Releases** de la version avec ces trois fichiers et la
-   section du CHANGELOG (≈ 10 min). Le dépôt étant privé, seules les
-   personnes ayant accès au dépôt peuvent télécharger.
+   tout de suite) et crée un **brouillon** de la page **Releases** avec la section du CHANGELOG. Il
+   fabrique et essaie les installateurs Windows (`Setup.exe`), macOS (`.dmg`) et Linux (AppImage), envoie
+   chacun dans le brouillon, puis publie la page quand les trois fichiers y sont (≈ 10 min). Les fichiers
+   ne passent pas par les *Artifacts* de GitHub (stockage limité à 500 Mo pour un dépôt privé). Si un
+   système échoue : corriger, puis relancer les tâches échouées (`gh run rerun ID --failed`) ; le
+   brouillon est réutilisé. Le dépôt étant privé, seules les personnes ayant accès au dépôt peuvent
+   télécharger.
