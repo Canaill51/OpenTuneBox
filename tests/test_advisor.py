@@ -310,3 +310,21 @@ def test_noise_report_strategy_fallback():
     assert lpf.verdict.title == "Passe-bas du gyro : rien à changer" and "gyro_lpf1 : coupé" in lpf.settings
     assert nr.dterm_block.verdict is None  # D bruité : le constat dit déjà quoi faire
     assert not {id(f) for b in nr.gyro_blocks for f in b.findings} & {id(f) for f in nr.gyro_other}
+
+
+def test_rpm_and_dyn_notch_q_steps():
+    """Q du filtre RPM par pas de 100, Q du notch dynamique par pas de 50 (décision du 2026-10-10)."""
+    from opentunebox.advisor.rules import analyze
+    from opentunebox.analysis.period import auto_period
+
+    def findings(rel):
+        lg = _load(rel)
+        return lg.settings, {f.title: f for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings}
+
+    # Air65 d'origine : harmoniques effacées, bruit sous les repères → Q du filtre RPM + 100
+    s, f = findings("Cedric/Air65/1.Stock.bbl")
+    assert f["Filtre RPM : Q peut monter"].actions[0].startswith(f"rpm_filter_q {s.rpm_q} → {s.rpm_q + 100}")
+    # banc d'hélices 5" : aucune raie qui passe, notch dynamique sous Q 450 → + 50
+    s, f = findings("Cedric/Benchmark Props 5inch/HQ J37.bbl")
+    q = f["Notch dynamique : Q peut monter"].actions[0]
+    assert q.startswith(f"dyn_notch_q {s.dyn_notch_q} → {min(s.dyn_notch_q + 50, 450)}")

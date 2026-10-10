@@ -25,6 +25,8 @@ from .rules import (
     HARMONIC_VISIBLE_DB,
     INFO,
     OK,
+    DYN_NOTCH_Q_RPM,
+    RPM_Q_MAX,
     RPM_WEIGHT_GAIN_MIN,
     RPM_WEIGHT_MARGIN_DB,
     SEVERITY_ORDER,
@@ -45,7 +47,7 @@ DTERM_TITLES = ("Terme D bruité", "Bruit du terme D", "Filtrage du D insuffisan
                 "Filtrage du D peut-être trop fort", "Retard des filtres D")
 GYRO_TITLES = ("Gyro filtré bruité", "Bruit du gyro filtré", "Retard des filtres gyro",
                "Filtrage gyro peut-être trop prudent", "Le LPF1 du gyro", "LPF2 du gyro coupé", "Biquad sur le",
-               "Bruit moteur mal éliminé", "Poids du filtre RPM trop bas", "Harmonique moteur hors du filtre RPM",
+               "Bruit moteur mal éliminé", "Filtre RPM : Q", "Poids du filtre RPM trop bas", "Harmonique moteur hors du filtre RPM",
                "Raie moteur encore visible", "Filtre RPM plus fort", "Raie fixe", "Raie à ", "Notch dynamique",
                "Vol stationnaire : bruit identifié", "Oscillations basses fréquences")
 STRATEGY_TITLE = "Stratégie de filtrage"
@@ -182,8 +184,9 @@ def _rpm_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Filt
     else:
         why.append(f"aucun poids ne peut baisser d'au moins {RPM_WEIGHT_GAIN_MIN:.1f} en gardant {RPM_WEIGHT_MARGIN_DB:.0f} dB "
                    "de marge sous le bruit voisin")
-    q = ("L'assistant ne propose de monter rpm_filter_q (notchs plus étroits, moins de retard) que sur un vol avec "
-         "mouvements, quand le retard des filtres gyro dépasse le repère alors que le bruit est faible")
+    q = (f"rpm_filter_q est déjà à {s.rpm_q}, le maximum conseillé ({RPM_Q_MAX})" if s.rpm_q >= RPM_Q_MAX else
+         "L'assistant propose de monter rpm_filter_q (notchs plus étroits, moins de retard) quand les harmoniques "
+         "sont effacées et que le bruit du gyro et du D est sous les repères")
     b.verdict = Finding("Filtres", OK, "Filtre RPM : rien à changer",
                         f"Les harmoniques traitées sont effacées (au plus {HARMONIC_VISIBLE_DB:.0f} dB au-dessus du bruit "
                         f"voisin après filtres) ; {'; '.join(why)}. {q}.")
@@ -242,9 +245,10 @@ def _notch_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Fi
                             ["Vol stationnaire de 20 à 30 s pour confirmer la raie."])
     else:
         b.verdict = Finding("Filtres", OK, "Notch dynamique : rien à changer",
-                            detail + " L'assistant ne propose de relever dyn_notch_min_hz (moins de retard) que sur un "
-                            "vol avec mouvements, quand le retard des filtres gyro dépasse le repère alors que le bruit "
-                            "est faible.")
+                            detail + f" dyn_notch_q {s.dyn_notch_q} : l'assistant propose de le monter jusqu'à "
+                            f"{DYN_NOTCH_Q_RPM[1]} quand aucune raie ne passe et que le bruit du gyro et du D est sous les repères ; il propose "
+                            "de relever dyn_notch_min_hz (moins de retard) sur un vol avec mouvements, quand le retard "
+                            "des filtres gyro dépasse le repère alors que le bruit est faible.")
     return b
 
 

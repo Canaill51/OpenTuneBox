@@ -39,10 +39,11 @@ PHASE_MARGIN_LOW_DEG = 35.0
 # terme D au plus −10 dB (déclenche le constat, avec le p90 du corpus), gyro filtré sous −30 dB (affiché)
 DTERM_PTB_MAX_DB = -10.0
 GYRO_PTB_MAX_DB = -30.0
-# Filtre RPM (doc Betaflight 4.5, [S27]) : monter Q par pas jusqu'à 1000 au plus pour gagner du retard ;
+# Filtre RPM (doc Betaflight 4.5, [S27]) : monter Q par pas jusqu'à 1000 au plus pour gagner du retard,
+# pas de 100 dans les deux sens (décision de Cédric, 2026-10-10) ;
 # poids (4.5 et plus) juste suffisant pour que la raie ne se voie plus, avec une marge de 6 dB, proposé
 # s'il fait gagner au moins 0,5 (8 % des sessions du corpus) ; raie « visible » à plus de 3 dB du bruit voisin
-RPM_Q_STEP, RPM_Q_MAX = 250, 1000
+RPM_Q_STEP, RPM_Q_MAX = 100, 1000
 RPM_Q_MIN = 250  # borne basse de rpm_filter_q dans le firmware (cli/settings.c)
 RPM_WEIGHT_MARGIN_DB = 6.0
 RPM_WEIGHT_GAIN_MIN = 0.5
@@ -54,6 +55,10 @@ DYN_NOTCH_MARGIN_HZ = 20
 DYN_NOTCH_MIN_TARGET_HZ = {"seven": 125, "large": 125}  # 200 Hz pour les autres tailles
 DYN_NOTCH_MIN_HZ, DYN_NOTCH_MIN_MAX_HZ = 20, 250  # bornes de dyn_notch_min_hz dans le firmware (cli/settings.c)
 DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_max_hz
+# Q du notch dynamique avec filtre RPM : 300–450 [S19] ; pas de 50 (décision de Cédric, 2026-10-10)
+DYN_NOTCH_Q_RPM = (300, 450)
+DYN_NOTCH_Q_STEP = 50
+DYN_NOTCH_Q_MIN = 1  # borne basse de dyn_notch_q dans le firmware (cli/settings.c)
 # Vol stationnaire : raies hors moteurs listées dès 6 dB au-dessus du bruit voisin ; sous 100 Hz, prudence
 # avant de les filtrer (bande de travail du PID, propwash ~20–100 Hz [S1])
 HOVER_LINE_MIN_DB = 6.0
@@ -314,9 +319,15 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                              f"Il reste {left[0]:.1f} dB sur la fréquence de rotation des moteurs après filtrage "
                              f"(avant filtrage : {meas['motor_harmonic_raw_db']:.1f} dB).",
                              ["Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs).",
-                              "Filtre RPM : baisser rpm_filter_q (ex. 500 → 350) élargit les notchs."]))
+                              f"Filtre RPM : rpm_filter_q {s.rpm_q} → {max(RPM_Q_MIN, s.rpm_q - RPM_Q_STEP)} (notchs plus "
+                              f"larges), puis par pas de {RPM_Q_STEP} tant que la raie reste visible."]))
         F.extend(_rpm_weight_rules(log, sel, s, lighten=left[0] <= profile.motor_left_high_db and not aliased,
                                    h1_flagged=left[0] > profile.motor_left_high_db))
+        q_said = any("rpm_filter_q" in a for f in F for a in f.actions)  # retard, raie visible : déjà conseillé
+        if not aliased and not gyro_noisy and not dterm_noisy and s.rpm_q < RPM_Q_MAX and not q_said:
+            f = _rpm_q_raise(log, sel, s, F, hover=not delays.moving)
+            if f is not None:
+                F.append(f)
     if max(low_db) > profile.low_band_high_db:
         F.append(Finding("Réponse", CONSEIL, "Oscillations basses fréquences (20–80 Hz)",
                          f"Énergie du gyro filtré entre 20 et 80 Hz : {max(low_db):.1f} dB (seuil {profile.low_band_high_db:.1f} dB, "
@@ -330,6 +341,10 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         F.append(res)
     if not delays.moving and log.motor_hz is not None and log.gyro_unfilt is not None:
         F.extend(_hover_noise(log, sel, profile, g_ptb, d_ptb, fr[0] if res is not None else None, meas, aliased))
+    lines_pass = any(f.title.startswith(("Raie fixe", "Raie à ")) for f in F)
+    if (not aliased and dn is not None and not gyro_noisy and not dterm_noisy and not lines_pass and s.dyn_notch_q < DYN_NOTCH_Q_RPM[1]
+            and not any("dyn_notch_q" in a for f in F for a in f.actions)):
+        F.append(_dyn_notch_q_raise(s, hover=not delays.moving))
     if not aliased and dn is not None and dn["count"] > max(1, len(dn["peaks"])):
         n = max(1, len(dn["peaks"]))
         found = (f"{len(dn['peaks'])} pic(s) à suivre ({', '.join(f'{f:.0f}' for f in dn['peaks'])} Hz)" if dn["peaks"]
@@ -555,7 +570,7 @@ FILTER_STAGES = [
     ("Enregistrement", ("Fréquence d'enregistrement trop basse", "Harmoniques moteur au-delà")),
     ("À corriger d'abord", ("LPF2 du gyro coupé", "Filtrage du D insuffisant", "Gyro filtré bruité", "Terme D bruité")),
     ("Mécanique", ("Raie fixe",)),
-    ("Filtre RPM", ("Harmonique moteur hors du filtre RPM", "Poids du filtre RPM trop bas", "Raie moteur encore visible", "Bruit moteur mal éliminé",
+    ("Filtre RPM", ("Filtre RPM : Q", "Harmonique moteur hors du filtre RPM", "Poids du filtre RPM trop bas", "Raie moteur encore visible", "Bruit moteur mal éliminé",
                     "Filtre RPM plus fort que nécessaire")),
     ("Notch dynamique", ("Raie à ", "Notch dynamique")),
     ("Passe-bas du gyro", ("Le LPF1 du gyro", "Filtrage gyro peut-être trop prudent", "Biquad sur le")),
@@ -651,7 +666,8 @@ def _residual_line(s, ln) -> Finding:
                            f"{new_lo}, dyn_notch_max_hz = {new_hi} (20 Hz de marge autour de la raie).")
         else:
             actions.append(f"La raie est dans la plage du notch dynamique mais passe quand même : dyn_notch_count "
-                           f"{s.dyn_notch_count} → {min(s.dyn_notch_count + 1, 7)} ou dyn_notch_q plus bas (notch plus large).")
+                           f"{s.dyn_notch_count} → {min(s.dyn_notch_count + 1, 7)}, ou dyn_notch_q {s.dyn_notch_q} → "
+                           f"{max(DYN_NOTCH_Q_MIN, s.dyn_notch_q - DYN_NOTCH_Q_STEP)} (notchs plus larges).")
     actions.append(f"Ou notch statique : gyro_notch1_hz = {f0:.0f}, gyro_notch1_cutoff = {0.7 * f0:.0f}.")
     caveat = ""
     if f0 < HOVER_LOW_LINE_HZ:
@@ -734,14 +750,15 @@ def _rpm_weight_rules(log: FlightLog, sel: slice, s, lighten: bool = True, h1_fl
     # 1re harmonique déjà signalée par « Bruit moteur mal éliminé » : pas de doublon
     full = [k for k in range(n) if left[k] > HARMONIC_VISIBLE_DB and cur[k] >= 1.0 and not (k == 0 and h1_flagged)]
     if full:
-        q_new = max(RPM_Q_MIN, int(round(0.7 * s.rpm_q / 50) * 50))  # 500 → 350, comme « Bruit moteur mal éliminé »
+        q_new = max(RPM_Q_MIN, s.rpm_q - RPM_Q_STEP)  # comme « Bruit moteur mal éliminé »
         out.append(Finding("Filtres", CONSEIL, "Raie moteur encore visible après le filtre RPM",
                            "Malgré un poids de 100 : " + " ; ".join(
                                f"{k + 1}e harmonique {raw[k]:.0f} dB avant filtres, {left[k]:.0f} dB après (au-dessus du "
                                "bruit voisin)" for k in full) + ". Les notchs RPM sont trop étroits pour la raie, ou mal placés.",
                            ["Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs) : un "
                             "mauvais nombre de pôles décale tous les notchs.",
-                            f"rpm_filter_q {s.rpm_q} → {q_new} (notchs plus larges, un peu plus de retard)."]))
+                            f"rpm_filter_q {s.rpm_q} → {q_new} (notchs plus larges, un peu plus de retard), puis par "
+                            f"pas de {RPM_Q_STEP} tant que la raie reste visible."]))
     if not lighten or (s.version and s.version < (4, 5)):
         return out  # rpm_filter_weights n'existe qu'à partir de Betaflight 4.5
     new = list(cur)
@@ -764,6 +781,43 @@ def _rpm_weight_rules(log: FlightLog, sel: slice, s, lighten: bool = True, h1_fl
                             "Vérifiez sur le log suivant que les raies moteur restent invisibles dans le spectre du gyro "
                             "filtré et du terme D."]))
     return out
+
+
+def _rpm_q_raise(log: FlightLog, sel: slice, s, F: list[Finding], hover: bool) -> Finding | None:
+    """Toutes les harmoniques traitées effacées avec le Q actuel et bruit sous les repères : des notchs plus
+    étroits suffiraient (moins de retard). Pas de 100 jusqu'à 1000 [S27] ; décision de Cédric (2026-10-10)."""
+    _raw, left = rpm_harmonic_levels(log, sel)
+    treated = [k for k in range(min(s.rpm_harmonics, 3)) if np.isfinite(left[k])]
+    if not treated or any(left[k] > HARMONIC_VISIBLE_DB for k in treated):
+        return None
+    levels = ", ".join(f"{k + 1}e {left[k]:.0f} dB" for k in treated)
+    then = (" Un réglage à la fois : d'abord les poids (« Filtre RPM plus fort que nécessaire »), puis Q."
+            if any(f.title == "Filtre RPM plus fort que nécessaire" for f in F) else "")
+    return Finding("Filtres", CONSEIL, "Filtre RPM : Q peut monter",
+                   f"Les harmoniques traitées sont effacées après filtres (au-dessus du bruit voisin : {levels} ; "
+                   f"visible au-delà de {HARMONIC_VISIBLE_DB:.0f} dB) et le bruit du gyro et du D est sous les repères : "
+                   "des notchs plus étroits suffiraient, avec moins de retard." + then +
+                   (" Vol stationnaire : bruit vu à un seul régime, à confirmer sur un vol avec des gaz plus hauts."
+                    if hover else ""),
+                   [f"rpm_filter_q {s.rpm_q} → {min(s.rpm_q + RPM_Q_STEP, RPM_Q_MAX)}, puis par pas de {RPM_Q_STEP} "
+                    f"jusqu'à {RPM_Q_MAX} au plus, en vérifiant à chaque pas que les raies moteur ne réapparaissent pas "
+                    "dans le gyro filtré.",
+                    "Température des moteurs après chaque vol d'essai."])
+
+
+def _dyn_notch_q_raise(s, hover: bool) -> Finding:
+    """Avec le filtre RPM, notch dynamique sous Q 450 alors qu'aucune raie ne passe : notchs plus étroits.
+    Q 300–450 avec filtre RPM [S19] ; pas de 50, décision de Cédric (2026-10-10)."""
+    lo, hi = DYN_NOTCH_Q_RPM
+    seen = ("aucune raie ne passe les filtres en vol stationnaire" if hover else
+            "aucune raie fixe n'est signalée")
+    return Finding("Filtres", CONSEIL, "Notch dynamique : Q peut monter",
+                   f"Avec le filtre RPM, le notch dynamique ne traite que les résonances qui ne viennent pas des moteurs ; "
+                   f"{seen} et le bruit du gyro et du D est sous les repères. dyn_notch_q {s.dyn_notch_q} : avec filtre RPM, {lo} à {hi} "
+                   "suffit d'habitude ; un Q plus haut donne des notchs plus étroits, avec moins de retard.",
+                   [f"dyn_notch_q {s.dyn_notch_q} → {min(s.dyn_notch_q + DYN_NOTCH_Q_STEP, hi)}, puis par pas de "
+                    f"{DYN_NOTCH_Q_STEP} jusqu'à {hi} au plus, en vérifiant que les raies de résonance ne réapparaissent "
+                    "pas dans le gyro filtré."])
 
 
 def _loop_caveat(lp) -> str:
