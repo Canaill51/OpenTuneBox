@@ -52,6 +52,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   celui des moteurs ; les quatre zones restent synchronisées pendant le glissement.
 - Visualiseur : info-bulle sur les bords de la période d'analyse (début ou fin, avec le temps).
 
+### Corrigé
+- Réponse indicielle : les noms des curseurs Betaflight (sur deux lignes) ne se chevauchent plus sous le
+  diagnostic ; le graphique reçoit la hauteur nécessaire, le rapport défile.
+
 ### Supprimé
 - Fenêtre Statistiques de vol (peu utile ; les mesures restent utilisées par l'assistant).
 
