@@ -43,10 +43,10 @@ def test_damping_judged_on_roll_pitch_by_pitch_d():
     fl = [flight("d10", Damping=1.0, peak=(1.08, 1.11)), flight("d12", Damping=1.2, peak=(1.052, 1.08))]
     b = block(step_tuning(fl), "Équilibre P/D")
     assert b.best == 1 and "1,2" in b.finding.title
-    assert b.finding.severity == CONSEIL and any(a.startswith("Pitch D.") for a in b.finding.actions)
+    assert b.finding.severity == CONSEIL and any(a.startswith("Pitch Damping") for a in b.finding.actions)
     # série Pitch D. : jugée sur le pic du pitch
     fl = [flight("p10", Pitch_D=1.0, peak=(1.03, 1.10)), flight("p12", Pitch_D=1.2, peak=(1.03, 1.04))]
-    b = block(step_tuning(fl), "Équilibre roll / pitch (série Pitch D.)")
+    b = block(step_tuning(fl), "Équilibre roll / pitch (série Pitch Damping)")
     assert b.best == 1 and b.finding.severity == OK
 
 

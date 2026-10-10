@@ -285,12 +285,12 @@ et pitch, une voix par drone (médiane de ses axes) :
 
 « Diagnostic du réglage » de la Réponse indicielle, toujours affiché (`advisor/step_tuning.py`), méthode de Brian White
 (`spec-methodes.md`, [S32]). Séries reconnues dans tout le corpus (`analysis/step_series.py:find_series` :
-mêmes filtres, un seul curseur changé) : 28 séries Master, 43 Damping, 6 Pitch T. / Pitch D. Le choix final
+mêmes filtres, un seul curseur changé) : 28 séries Master, 43 Damping, 6 Pitch Tracking / Pitch Damping Le choix final
 des pilotes est relu dans les vols faits ensuite (« FINAL », « FF », « tune »…), faute d'étiquette.
 
 | Série Master | Choix du pilote | Diagnostic |
 |---|---|---|
-| Air65 (Cédric) 1,0 / 1,2 | 1,0 | 1,0 (cassure 0,080 à 1,2) ; puis roll / pitch +2,1 ms → Pitch T. +0,2, ce que Cédric a fait (MM2) |
+| Air65 (Cédric) 1,0 / 1,2 | 1,0 | 1,0 (cassure 0,080 à 1,2) ; puis roll / pitch +2,1 ms → Pitch Tracking +0,2, ce que Cédric a fait (MM2) |
 | JeNo 5 (Cédric) 1,0 → 1,4 | 1,3 | 1,4 proche de l'optimum (début de cassure 0,064) |
 | Gerrykiki (Cédric) 1,2 → 1,6 | 1,6 | 1,6 proche de l'optimum |
 | Meteor 75 03112025 (Cédric) 1,2 / 1,4 | 1,6 | 1,4 proche de l'optimum, voler à 1,6 |
@@ -307,15 +307,15 @@ plutôt qu'un seul seuil. Les vagues ne dépassent jamais 1,7 fois le bruit dans
 n'est allé jusqu'à l'oscillation, le seuil des vagues vient des essais synthétiques.
 
 Séries Damping (choix connu pour 9 drones), jugées sur le **roll** (pic arrondi à 0,01, la valeur lue à
-l'écran) : Damping règle le D des deux axes, et un pitch qui dépasse encore se corrige par Pitch D.
+l'écran) : Damping règle le D des deux axes, et un pitch qui dépasse encore se corrige par Pitch Damping
 (remarque de Cédric sur l'Air65, 2026-10-10 : roll sans dépassement à 1,2, pitch 1,08 ; il a gardé
-Damping 1,2 et monté Pitch D. à 1,2). La première valeur au pic roll ≤ 1,05, ou au-delà de laquelle il
+Damping 1,2 et monté Pitch Damping à 1,2). La première valeur au pic roll ≤ 1,05, ou au-delà de laquelle il
 baisse de moins de 0,02, donne le choix du pilote pour 6 drones (Air65, Gerrykiki, Meteor 1,2 et 1,35,
 Guigui, BlackSummer), à 0,1 près pour 2 (JeNo 5 1,0 pour 1,1, Davy 1,0 pour 1,05) ; écarts : Valkyrie 2
-(1,4 pour 1,2), dcodemonster (0,8 et Pitch D. +0,2, pour 1,0). Jugée sur le plus fort des deux axes, la
+(1,4 pour 1,2), dcodemonster (0,8 et Pitch Damping +0,2, pour 1,0). Jugée sur le plus fort des deux axes, la
 règle conseillait 1,4 sur l'Air65.
 
-Écart de latence pitch − roll : Air65 MM2 (Pitch T. 1,4) 0,6 ms, BlackSummer 1,9 à 2,0 ms, Sohail 1,6 ms ;
+Écart de latence pitch − roll : Air65 MM2 (Pitch Tracking 1,4) 0,6 ms, BlackSummer 1,9 à 2,0 ms, Sohail 1,6 ms ;
 le plus grand des séries, Seeker 3 (st7ven3241), 3,8 ms.
 
 ## Règles
@@ -442,7 +442,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Diagnostic du réglage : pas de série | 0,2 ; plus fin que 0,15 signalé | Communauté [S32] | Brian White : un pas de 0,1 ne se lit pas sur la réponse |
 | Diagnostic du réglage : curseur I | 0,2–0,3 (signalé hors de 0,15–0,35) | Communauté [S32] | Le I déforme la réponse |
 | Diagnostic du réglage : feedforward | F > 0 hors mode Angle (≥ 90 % du vol) | Firmware + communauté [S32] | Le feedforward est forcé à 0 en Angle (`pid.c`), pas en Horizon |
-| Diagnostic du réglage : Damping | pic roll ≤ 1,05 ; ou le cran suivant baisse le pic de moins de 0,02 (pic ≤ 1,10) ; pitch au-dessus de 1,05 et de 0,02 de plus que le roll → Pitch D. +0,2 | Communauté [S24, S25, S32] + corpus | Repère 1,03 (`rules.STEP_PEAK_FLAT`) plus le bruit d'un vol ; 9 séries de choix connu. Série Pitch D. : même règle sur le pitch |
+| Diagnostic du réglage : Damping | pic roll ≤ 1,05 ; ou le cran suivant baisse le pic de moins de 0,02 (pic ≤ 1,10) ; pitch au-dessus de 1,05 et de 0,02 de plus que le roll → Pitch Damping +0,2 | Communauté [S24, S25, S32] + corpus | Repère 1,03 (`rules.STEP_PEAK_FLAT`) plus le bruit d'un vol ; 9 séries de choix connu. Série Pitch Damping : même règle sur le pitch |
 | Diagnostic du réglage : Master, cassure | début 0,03 ; nette 0,065 ; forte 0,10 (pas d'affinage) | Corpus (10 séries) | Gardés ≤ 0,067, rejetés ≥ 0,064 : cas limites possibles |
 | Diagnostic du réglage : Master, plateau | gain de latence < 4 % par cran ; arrêt si cassure ≥ 0,05 et qui grandit de 0,02 | Corpus (10 séries) + communauté [S32] | Un drone qui progresse gagne 6 à 10 % par cran de 0,2 |
 | Diagnostic du réglage : vagues | 2,5 fois le bruit de mesure | Estimation | Bruit 1 à 1,7 dans le corpus ; mode peu amorti synthétique × 8 à 9 |

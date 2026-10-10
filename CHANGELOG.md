@@ -25,6 +25,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   graphique, plus de colonne à part), durée affichée au choix (250 ms par défaut, 500 ou 150 ms), yaw
   masqué au départ, curseurs PID Betaflight toujours affichés sous le diagnostic (plus de case « Vue curseurs
   Betaflight »).
+- Curseurs PID Betaflight (Réponse indicielle et Curseurs PID) : noms du configurateur Betaflight (Damping /
+  D Gains, Tracking / P & I Gains, Stick Response, Dynamic Damping, Drift - Wobble, Pitch Damping, Pitch
+  Tracking, Master Multiplier) au lieu de traductions maison.
 - Spectre et Réponse indicielle : le panneau de réglages garde sa largeur quand le rapport s'ouvre (il
   laissait un grand vide à droite).
 - Assistant : `rpm_filter_q` conseillé par pas de 100 dans les deux sens (au lieu de +250 et −30 %) ;

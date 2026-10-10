@@ -43,19 +43,19 @@ from ...analysis.sliders import (
 )
 from ...log.settings import AxisPID, Settings
 from .. import theme
-from ._step_common import CATEGORY_FR, draw_slider_plot, mode_text, wrap_canvas
+from ._step_common import CATEGORY_BF, draw_slider_plot, mode_text, wrap_canvas
 from .base import ToolWindow
 
-# (clé du curseur, libellé, explication courte)
+# (clé du curseur, libellé du configurateur Betaflight, explication courte)
 SLIDERS = [
-    ("d_gain", "Amortissement", "D (et D max) : freine les dépassements, plus de bruit moteur."),
-    ("pi_gain", "Suivi", "P et I ensemble : colle mieux à la consigne, trop → oscillations."),
-    ("ff_gain", "Réponse manche", "Feedforward F : réactivité aux mouvements de manche."),
-    ("dmax_gain", "D dynamique", "Écart D → D max : D renforcé seulement pendant les mouvements vifs."),
-    ("i_gain", "Dérive-oscillation", "I seul : tient le cap (vent, gaz) ; trop → lente oscillation."),
-    ("pitch_d", "D pitch", "Rapport D tangage / roulis."),
-    ("pitch_pi", "Suivi pitch", "Rapport P, I, F tangage / roulis."),
-    ("master", "Maître", "Multiplie tous les gains (P, I, D, F) à la fois."),
+    ("d_gain", "Damping", "D Gains (et D max) : freine les dépassements, plus de bruit moteur."),
+    ("pi_gain", "Tracking", "P & I Gains ensemble : colle mieux à la consigne, trop → oscillations."),
+    ("ff_gain", "Stick Response", "FF Gains (feedforward) : réactivité aux mouvements de manche."),
+    ("dmax_gain", "Dynamic Damping", "D Max : D renforcé seulement pendant les mouvements vifs."),
+    ("i_gain", "Drift - Wobble", "I Gains : tient le cap (vent, gaz) ; trop → lente oscillation."),
+    ("pitch_d", "Pitch Damping", "Pitch:Roll D : rapport D tangage / roulis."),
+    ("pitch_pi", "Pitch Tracking", "Pitch:Roll P, I & FF : rapport P, I, F tangage / roulis."),
+    ("master", "Master Multiplier", "Multiplie tous les gains (P, I, D, F) à la fois."),
 ]
 PID_COLS = ("P", "I", "D", "Dmax", "F")
 
@@ -102,9 +102,9 @@ class PidSliderWindow(ToolWindow):
     def build_controls(self, layout: QVBoxLayout) -> None:
         help_ = QLabel(
             "<b>Les curseurs Betaflight</b><br>"
-            "• <b>Amortissement</b> = D<br>• <b>Suivi</b> = P et I<br>• <b>Réponse manche</b> = F (feedforward)<br>"
-            "• <b>D dynamique</b> = D max<br>• <b>Dérive-oscillation</b> = I<br>"
-            "• <b>D pitch / Suivi pitch</b> = rapport tangage/roulis<br>• <b>Maître</b> = tout<br><br>"
+            "• <b>Damping</b> = D<br>• <b>Tracking</b> = P et I<br>• <b>Stick Response</b> = F (feedforward)<br>"
+            "• <b>Dynamic Damping</b> = D max<br>• <b>Drift - Wobble</b> = I<br>"
+            "• <b>Pitch Damping / Pitch Tracking</b> = rapport tangage/roulis<br>• <b>Master Multiplier</b> = tout<br><br>"
             "Point plein : curseurs lus dans l'en-tête du log. Point creux : réglage simplifié désactivé, "
             "position estimée à partir des PID. Losange : votre simulation.")
         help_.setWordWrap(True)
@@ -237,7 +237,7 @@ class PidSliderWindow(ToolWindow):
                         f"<span style='color:{fg}'> &nbsp;BF {f.family}, mode {mode_text(f.mode)}, {src}{warn}</span>")
             pid = " &nbsp;|&nbsp; ".join(f"{a[0]} {p.text()}" for a, p in zip(theme.AXIS_NAMES, f.pids))
             rows.append(f"<span style='color:{f.color}'>&nbsp;&nbsp;&nbsp;{pid}</span>")
-            pos = ", ".join(f"{CATEGORY_FR[k]} {v:.2f}" for k, v in f.view.values.items())
+            pos = ", ".join(f"{CATEGORY_BF[k][0]} {v:.2f}" for k, v in f.view.values.items())
             rows.append(f"<span style='color:{fg}; font-size:8pt'>&nbsp;&nbsp;&nbsp;{pos}</span>")
         return "<br>".join(rows)
 

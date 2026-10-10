@@ -403,7 +403,7 @@ def _tuning_html(rep: TuningReport, colors: dict[str, str]) -> str:
         "<p>Feedforward à 0 ou mode Angle, curseur I bas, assez de mouvements : vols exploitables.</p>"]
     if not rep.blocks:
         parts.append("<p>Aucune série reconnue : chargez plusieurs vols du même drone, mêmes filtres, où un seul "
-                     "curseur change (Damping, Master, Pitch T. ou Pitch D.).</p>")
+                     "curseur change (Damping, Master, Pitch Tracking ou Pitch Damping).</p>")
     for b in rep.blocks:
         parts.append(f"<h3>{html.escape(b.title)}</h3>")
         if b.lines:

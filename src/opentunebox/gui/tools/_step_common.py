@@ -19,16 +19,17 @@ from ...analysis.step_series import FlightStep, filter_signature, flight_conditi
 from ...log.settings import AxisPID
 from .. import theme
 
-# Noms français des 8 catégories PIDtoolbox (même ordre que PTB_CATEGORIES)
-CATEGORY_FR = {
-    "Damping": "Amortissement",
-    "Tracking": "Suivi",
-    "Stick Resp.": "Réponse manche",
-    "Dynamic D.": "D dynamique",
-    "Drift-Wobble": "Dérive-oscillation",
-    "Pitch D.": "D pitch",
-    "Pitch T.": "Suivi pitch",
-    "Master": "Maître",
+# Noms des 8 curseurs dans le configurateur Betaflight (locales/en/messages.json, pidTuning*Slider) :
+# nom affiché et, dessous, ce que le curseur règle (même ordre que PTB_CATEGORIES)
+CATEGORY_BF = {
+    "Damping": ("Damping", "D Gains"),
+    "Tracking": ("Tracking", "P & I Gains"),
+    "Stick Resp.": ("Stick Response", "FF Gains"),
+    "Dynamic D.": ("Dynamic Damping", "D Max"),
+    "Drift-Wobble": ("Drift - Wobble", "I Gains"),
+    "Pitch D.": ("Pitch Damping", "Pitch:Roll D"),
+    "Pitch T.": ("Pitch Tracking", "Pitch:Roll P, I & FF"),
+    "Master": ("Master Multiplier", ""),
 }
 
 # Séparation petits / grands mouvements : (min_input, max_input)
@@ -120,7 +121,7 @@ def draw_slider_plot(p: pg.PlotItem, files: list[tuple[str, SliderView]],
     style_plot(p)
     cats = list(PTB_CATEGORIES)
     n = len(cats)
-    ticks = [(n - 1 - i, CATEGORY_FR[c]) for i, c in enumerate(cats)]
+    ticks = [(n - 1 - i, "\n".join(t for t in CATEGORY_BF[c] if t)) for i, c in enumerate(cats)]
     p.getAxis("left").setTicks([ticks])
     p.getAxis("bottom").setTicks([[(x / 10, f"{x / 10:g}") for x in range(0, 21, 2)]])
     p.setLabel("bottom", "Position du curseur")
