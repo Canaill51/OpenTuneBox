@@ -6,7 +6,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
-- Spectre : case **Diagnostic du bruit**, rapport à côté des courbes sur le bruit du gyro et du terme D
+- Spectre : case **Diagnostic du bruit** (cadre « Diagnostic », en bas du panneau), rapport à côté des courbes sur le bruit du gyro et du terme D
   avant et après filtrage (niveaux par axe), un bloc par filtre (filtre RPM, notch dynamique, passe-bas
   du gyro et du D) avec ses réglages, ses mesures et un verdict même sans conseil (« rien à changer »
   ou « impossible à juger », avec la raison), et stratégie de filtrage conseillée, avec les constats et

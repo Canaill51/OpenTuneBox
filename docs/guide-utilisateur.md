@@ -98,7 +98,7 @@ sur un simple vol stationnaire, les filtres dynamiques ne travaillent qu'à un r
 est marqué « peu fiable ») ; volet « bruit moteur » pour l'efficacité du filtre RPM
 sur chaque harmonique. Les courbes en S montrent où se situent les harmoniques moteur pendant le vol.
 
-Case **Diagnostic du bruit** : ouvre, à côté des courbes, un rapport sur le bruit et la stratégie de
+Case **Diagnostic du bruit** (cadre « Diagnostic », en bas du panneau de réglages) : ouvre, à côté des courbes, un rapport sur le bruit et la stratégie de
 filtrage, pour chaque log choisi et sur la période d'analyse. Il est calculé seulement quand la case est
 cochée (quelques secondes) et compte quatre parties :
 1. **Conditions du log** : fréquence d'enregistrement suffisante, vol stationnaire (bon pour identifier le

@@ -119,11 +119,6 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
             b.clicked.connect(lambda _c=False, k=key: self._open(k))
             row.addWidget(b)
         layout.addLayout(row)
-        self.diag_box = QCheckBox("Diagnostic du bruit")
-        self.diag_box.setToolTip("Rapport sur le bruit du gyro et du terme D avant et après filtrage, avec la "
-                                 "stratégie de filtrage conseillée (mêmes règles que l'assistant).")
-        self.diag_box.toggled.connect(self._on_diagnosis_toggled)
-        layout.addWidget(self.diag_box)
 
         g = QGridLayout()
         self.psd_box = QCheckBox("PSD (dB)")
@@ -160,6 +155,20 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
         self.multiplier.setToolTip("Utilisé seulement si le log n'a pas l'eRPM (télémétrie DShot).")
         row.addWidget(self.multiplier)
         layout.addLayout(row)
+
+        box = QGroupBox("Diagnostic")
+        bl = QVBoxLayout(box)
+        self.diag_box = QCheckBox("Diagnostic du bruit")
+        self.diag_box.setToolTip("Rapport sur le bruit du gyro et du terme D avant et après filtrage, avec la "
+                                 "stratégie de filtrage conseillée (mêmes règles que l'assistant).")
+        self.diag_box.toggled.connect(self._on_diagnosis_toggled)
+        bl.addWidget(self.diag_box)
+        help_ = QLabel("Rapport à côté des courbes : bruit gyro et D avant / après filtres, conseils par filtre "
+                       "(RPM, notch dynamique, passe-bas) et stratégie de filtrage.")
+        help_.setWordWrap(True)
+        help_.setStyleSheet(theme.muted_style())
+        bl.addWidget(help_)
+        layout.addWidget(box)
 
     def _open(self, key: str) -> None:
         if self.main_window is not None:
