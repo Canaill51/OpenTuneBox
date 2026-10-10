@@ -17,6 +17,7 @@ import html
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -280,7 +281,11 @@ class StepWindow(ToolWindow):
         if self.side.isHidden():
             self.show_beside_canvas(self.side, REPORT_WIDTH)
             h = sum(self.side.sizes()) or self.height()
-            self.side.setSizes([int(h * SIDE_REPORT_SHARE), h - int(h * SIDE_REPORT_SHARE)])
+            # 8 curseurs sur deux lignes (nom, ce qu'il règle) : assez de hauteur pour que les noms ne se
+            # chevauchent pas, plus le titre, l'axe et la légende (≈ 7 lignes) ; le rapport défile
+            need = int((8 * 2 * 1.15 + 7) * QFontMetrics(self.font()).lineSpacing())
+            sliders = min(max(h - int(h * SIDE_REPORT_SHARE), need), int(h * 0.75))
+            self.side.setSizes([h - sliders, sliders])
         sc = self.slider_canvas
         sc.clear()
         sc.setBackground(theme.current().bg)

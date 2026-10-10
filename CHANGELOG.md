@@ -5,6 +5,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+## [0.5.0] — 2026-10-10
+
 ### Ajouté
 - Réponse indicielle : **Diagnostic du réglage**, toujours affiché à côté des courbes, méthode de Brian White. Reconnaît
   les séries de vols chargées (un seul curseur changé, mêmes filtres) et conseille le Damping (équilibre P/D),
@@ -49,6 +51,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Visualiseur : la période d'analyse se règle sur les graphiques roll, pitch et yaw, plus seulement sur
   celui des moteurs ; les quatre zones restent synchronisées pendant le glissement.
 - Visualiseur : info-bulle sur les bords de la période d'analyse (début ou fin, avec le temps).
+
+### Corrigé
+- Réponse indicielle : les noms des curseurs Betaflight (sur deux lignes) ne se chevauchent plus sous le
+  diagnostic ; le graphique reçoit la hauteur nécessaire, le rapport défile.
 
 ### Supprimé
 - Fenêtre Statistiques de vol (peu utile ; les mesures restent utilisées par l'assistant).
@@ -286,7 +292,8 @@ Première version complète.
 - Lanceur Linux (menu des applications) et recette PyInstaller.
 - Guide d'utilisation en français.
 
-[Non publié]: ../../compare/v0.4.0...HEAD
+[Non publié]: ../../compare/v0.5.0...HEAD
+[0.5.0]: ../../releases/tag/v0.5.0
 [0.4.0]: ../../releases/tag/v0.4.0
 [0.3.0]: ../../releases/tag/v0.3.0
 [0.2.0]: ../../releases/tag/v0.2.0
