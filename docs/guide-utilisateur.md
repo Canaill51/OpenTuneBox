@@ -142,7 +142,8 @@ plein, barre d'erreur = incertitude de la mesure). Si un de ces termes manque, e
 **approchées** (point creux) : à prendre avec prudence. Un triangle signifie « au moins cette valeur » :
 le pic de sensibilité se trouve au-delà des fréquences que vos mouvements de manche permettent de mesurer.
 Plus vous donnez de coups de manche francs et variés, plus la mesure va loin en fréquence.
-« Vue curseurs Betaflight » : position des curseurs du réglage simplifié de chaque log.
+Sous le diagnostic : **curseurs PID Betaflight** de chaque log (réglage simplifié ; point plein = curseurs de
+l'en-tête, point creux = estimés depuis les PID), pour voir d'un coup d'œil ce qui change entre les vols.
 Dans chaque graphique, en bas à droite : gains P, I, D, Dm, F de chaque fichier, nombre de fenêtres (n), pic,
 latence et cassure. « Temps affiché » : 250 ms par défaut (la montée en grand), 500 ms comme PIDtoolbox, ou
 150 ms pour bien voir la cassure. Le yaw est masqué au départ (case Y) : la méthode ne le juge pas et ses

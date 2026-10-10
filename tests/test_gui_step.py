@@ -118,11 +118,11 @@ def test_step_window(app):
     win.expand.setCurrentIndex(2)
     win.xmax.setCurrentIndex(2)
     win.metric1.setCurrentIndex(list(win.metric1.itemData(i) for i in range(win.metric1.count())).index("ripple"))
-    win.bf_view.setChecked(True)
     win.render(res)
     # diagnostic du réglage, toujours affiché : série Damping 0,6 → 1,0 (curseurs de l'en-tête), pic 1,25 → 1,03
     text = win.report.toPlainText()
-    assert not win.report.isHidden()
+    assert not win.side.isHidden()
+    assert win.slider_canvas.ci.getItem(0, 0) is not None  # curseurs Betaflight sous le rapport
     assert "Équilibre P/D (série Damping)" in text and "Damping conseillé : 1,0" in text
     _close(app, win)
 

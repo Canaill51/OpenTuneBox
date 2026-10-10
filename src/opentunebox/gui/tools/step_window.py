@@ -1,11 +1,13 @@
 """Fenêtre « Réponse indicielle » (équivalent du Step Response Tool de PIDtoolbox).
 
-À gauche, une ligne par axe : réponse indicielle moyenne de chaque fichier (couleur du fichier),
-bande ± écart-type et réponses brutes en option, bloc de texte « P, I, D, Dm, F (n=…) ».
-À droite, deux colonnes de métriques au choix (une valeur par fichier = « test » 1…N, barres
-d'erreur = dispersion entre fenêtres pour le pic et la latence, écart-type jackknife pour les marges),
-ou la vue « Curseurs Betaflight ». Marges de stabilité : point plein = boucle ouverte mesurée,
-point creux = méthode approchée, triangle = minorant (pic de sensibilité au bord de la bande mesurable).
+À gauche, une ligne par axe (yaw masqué au départ) : réponse indicielle moyenne de chaque fichier (couleur
+du fichier), bande ± écart-type et réponses brutes en option, point creux à l'arrêt de la montée quand il y
+a une cassure, et dans le graphique le bloc « P, I, D, Dm, F (n=…) · pic · latence · cassure ».
+Au milieu, deux colonnes de métriques au choix (une valeur par fichier = « test » 1…N, barres d'erreur =
+dispersion entre fenêtres pour le pic et la latence, écart-type jackknife pour les marges et la cassure ;
+vols conseillés entourés). Marges de stabilité : point plein = boucle ouverte mesurée, point creux =
+méthode approchée, triangle = minorant (pic de sensibilité au bord de la bande mesurable).
+À droite, le « Diagnostic du réglage » (advisor/step_tuning.py) et, dessous, les curseurs PID Betaflight.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QLabel,
+    QSplitter,
     QTextBrowser,
     QVBoxLayout,
 )
@@ -33,7 +36,7 @@ from ._step_common import (
     FileStep,
     compute_file_step,
     draw_slider_plot,
-    sliders_legend_html,
+    mode_text,
     style_plot,
     wrap_canvas,
 )
@@ -58,6 +61,7 @@ LOOP_KEYS = {"sens_peak": "sensitivity_peak_db", "sens_hz": "sensitivity_peak_hz
              "gain_margin": "gain_margin_db", "crossover": "crossover_hz"}
 MAX_RAW = 300  # réponses brutes dessinées au plus par fichier et par axe
 REPORT_WIDTH = 400  # largeur du rapport « Diagnostic du réglage » à son ouverture (px)
+SIDE_REPORT_SHARE = 0.6  # part de la hauteur pour le rapport, le reste pour les curseurs Betaflight
 X_RANGES = (500, 250, 150)  # durées affichées (ms) : 150 pour bien voir la montée et la cassure
 X_DEFAULT = 250  # la montée (pic, cassure) occupe assez de largeur, le palier reste visible
 
@@ -121,12 +125,19 @@ class StepWindow(ToolWindow):
         top.addWidget(QLabel("Colonne 2 :"))
         top.addWidget(self.metric2)
         top.addSpacing(20)
-        # rapport entre les courbes et le panneau de réglages, masqué tant que la case n'est pas cochée
+        # colonne entre les courbes et le panneau de réglages : rapport du diagnostic, puis curseurs Betaflight
         self.report = QTextBrowser()
         self.report.setOpenExternalLinks(False)
-        self.report.setMinimumWidth(320)
-        self.report.hide()
-        self._canvas_container.parentWidget().insertWidget(1, self.report)
+        self.slider_canvas = pg.GraphicsLayoutWidget()
+        self.slider_canvas.setBackground(theme.current().bg)
+        self.side = QSplitter(Qt.Vertical)
+        self.side.addWidget(self.report)
+        self.side.addWidget(self.slider_canvas)
+        self.side.setStretchFactor(0, 3)
+        self.side.setStretchFactor(1, 2)
+        self.side.setMinimumWidth(320)
+        self.side.hide()
+        self._canvas_container.parentWidget().insertWidget(1, self.side)
         self._best: set[int] = set()
         self.axis_boxes[2].setChecked(False)  # yaw : ni jugé par le diagnostic, ni souvent mesurable
 
@@ -162,8 +173,7 @@ class StepWindow(ToolWindow):
         form.addRow("Temps affiché", self.xmax)
         self.raw = QCheckBox("Brutes (toutes les fenêtres)")
         self.sd = QCheckBox("± écart-type")
-        self.bf_view = QCheckBox("Vue curseurs Betaflight")
-        for cb in (self.raw, self.sd, self.bf_view):
+        for cb in (self.raw, self.sd):
             cb.toggled.connect(self.on_options_changed)
             form.addRow(cb)
         layout.addWidget(box)
@@ -250,22 +260,12 @@ class StepWindow(ToolWindow):
         grid.setColumnStretchFactor(2, 2)
         if not result or not axes:
             return
-        bf = self.bf_view.isChecked()
         for row, ax in enumerate(axes):
             p = c.addPlot(row=row, col=0)
             self._draw_step(p, result, ax, first=row == 0, last=row == len(axes) - 1)
-            if bf:
-                continue
             for col, combo in ((1, self.metric1), (2, self.metric2)):
                 mp = c.addPlot(row=row, col=col)
                 self._draw_metric(mp, result, ax, combo.currentData(), last=row == len(axes) - 1)
-        self.metric1.setEnabled(not bf)
-        self.metric2.setEnabled(not bf)
-        if bf:
-            sp = c.addPlot(row=0, col=1, colspan=2)
-            draw_slider_plot(sp, [(f.color, f.sliders) for f in result])
-            leg = c.addLabel(sliders_legend_html(result), row=0, col=3, justify="left")
-            grid.setAlignment(leg, Qt.AlignTop | Qt.AlignLeft)
         if self._pending:
             self._pending = False
             QTimer.singleShot(0, self.run)
@@ -274,10 +274,18 @@ class StepWindow(ToolWindow):
     def _render_diagnosis(self, result: list[FileStep]) -> None:
         flights = [f.flight for f in result if f.flight is not None]
         if not flights:
-            self.report.hide()
+            self.side.hide()
             self._best = set()
             return
-        self.show_beside_canvas(self.report, REPORT_WIDTH)
+        if self.side.isHidden():
+            self.show_beside_canvas(self.side, REPORT_WIDTH)
+            h = sum(self.side.sizes()) or self.height()
+            self.side.setSizes([int(h * SIDE_REPORT_SHARE), h - int(h * SIDE_REPORT_SHARE)])
+        sc = self.slider_canvas
+        sc.clear()
+        sc.setBackground(theme.current().bg)
+        draw_slider_plot(sc.addPlot(row=0, col=0), [(f.color, f.sliders) for f in result])
+        sc.addLabel(_modes_legend(result), row=1, col=0)
         rep = step_tuning(flights)
         self._best = {b.best for b in rep.blocks if b.best is not None}  # vols conseillés, entourés
         self.report.setHtml(_tuning_html(rep, {f.label: f.color for f in result}))
@@ -410,3 +418,13 @@ def _tuning_html(rep: TuningReport, colors: dict[str, str]) -> str:
                  "s'arrête avant la consigne puis reprend lentement ; vagues : oscillation sur le palier, "
                  "comparée au bruit de mesure (≈ 1 : bruit).</p>")
     return "".join(parts)
+
+
+def _modes_legend(result: list[FileStep]) -> str:
+    """Légende courte sous les curseurs (la colonne fait 400 px) : mode du réglage simplifié par fichier,
+    cinq par ligne ; ⚠ si les PID ne correspondent pas aux curseurs."""
+    items = [f"<span style='color:{f.color}'>{i + 1}) {mode_text(f.mode)}{'' if f.sliders.consistent else ' ⚠'}</span>"
+             for i, f in enumerate(result)]
+    lines = [" &nbsp;".join(items[k:k + 5]) for k in range(0, len(items), 5)]
+    return ("<b>MODE</b> &nbsp;" + "<br>".join(lines) +
+            "<br><span style='font-size:8pt'>● curseurs de l'en-tête &nbsp; ○ estimés depuis les PID</span>")

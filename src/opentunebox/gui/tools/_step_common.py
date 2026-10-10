@@ -154,16 +154,6 @@ def mode_text(mode: int) -> str:
     return {0: "OFF", 1: "RP", 2: "RPY"}.get(mode, "?")
 
 
-def sliders_legend_html(files: list[FileStep]) -> str:
-    rows = ["<b>MODE</b>"]
-    for i, f in enumerate(files):
-        src = "en-tête" if f.sliders.from_header else "estimé"
-        warn = "" if f.sliders.consistent else " ⚠"
-        rows.append(f"<span style='color:{f.color}'>{i + 1}) {mode_text(f.mode)} ({src}){warn}</span>")
-    rows.append("<span style='font-size:8pt'>● en-tête &nbsp; ○ estimé</span>")
-    return "<br>".join(rows)
-
-
 # ---------------------------------------------------------------- mise en page
 
 
