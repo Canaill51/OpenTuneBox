@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
 )
 
 from .. import theme
-from ..geometry import restore_geometry, save_geometry
 from ..state import AppState, LoadedLog
 from ..worker import run_async
 
@@ -71,13 +70,13 @@ class ToolWindow(QWidget):
     run_options: dict = {}
 
     def __init__(self, state: AppState, main_window=None) -> None:
-        super().__init__(None, Qt.Window)
+        super().__init__()  # affiché dans un onglet de la fenêtre principale
         self.state = state
         self.main_window = main_window
         self.setWindowTitle(f"OpenTuneBox — {self.title}")
-        restore_geometry(self, f"tool/{type(self).__name__}", 0.9)
         self._busy = False
         self._pending = False
+        self._stale = False  # période changée pendant que l'onglet était caché
 
         split = QSplitter(Qt.Horizontal, self)
         self.canvas = pg.GraphicsLayoutWidget()
@@ -124,7 +123,7 @@ class ToolWindow(QWidget):
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(split)
 
-        state.period_changed.connect(lambda _i: self.auto_run and self.isVisible() and self.run())
+        state.period_changed.connect(self._on_period_changed)
 
     def show_beside_canvas(self, w: QWidget, width: int) -> None:
         """Affiche `w`, placé dans le séparateur entre les courbes et le panneau de réglages : il prend
@@ -163,13 +162,18 @@ class ToolWindow(QWidget):
         if self._last_result is not None:
             self.render(self._last_result)
 
-    def closeEvent(self, e) -> None:  # noqa: N802
-        save_geometry(self, f"tool/{type(self).__name__}")
-        super().closeEvent(e)
+    def _on_period_changed(self, _i: int) -> None:
+        # onglet caché : recalcul seulement quand il redevient visible
+        if self.auto_run:
+            if self.isVisible():
+                self.run()
+            else:
+                self._stale = True
 
     def showEvent(self, e) -> None:  # noqa: N802
         super().showEvent(e)
-        if self.auto_run and self._last_result is None:
+        if self.auto_run and (self._last_result is None or self._stale):
+            self._stale = False
             self.run()
 
     def run(self) -> None:

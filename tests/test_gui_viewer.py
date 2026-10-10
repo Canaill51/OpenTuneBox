@@ -113,3 +113,31 @@ def test_measure_between_two_points(app):
     win.close()
     win.deleteLater()
     app.processEvents()
+
+
+@pytest.mark.corpus
+@pytest.mark.skipif(not FINAL.exists(), reason="log du corpus absent")
+def test_toolbar_buttons_switch_pages(app):
+    from opentunebox.gui.main_window import MainWindow
+    from opentunebox.gui.state import AppState
+    from opentunebox.log.flightlog import load
+
+    st = AppState()
+    st.add(load(FINAL)[0])
+    win = MainWindow(st)
+    checked = lambda: [k for k, a in win._tool_actions.items() if a.isChecked()]  # noqa: E731
+    assert win.current_page() == "viewer" and checked() == ["viewer"]
+    win.open_tool("step")
+    win.open_tool("spectral")
+    win.open_tool("step")  # déjà ouvert : on revient à sa page, sans en créer une autre
+    assert win.pages.count() == 3 and win.current_page() == "step" and checked() == ["step"]
+    win.open_tool("freq_time")  # ouvert depuis Spectre : le bouton Spectre reste mis en valeur
+    assert checked() == ["spectral"]
+    win.show_viewer()
+    assert checked() == ["viewer"] and win.pages.currentWidget() is win.viewer_page
+    t0, t1 = st.logs[0].period
+    st.set_period(0, t0 + 1.0, t1 - 1.0)
+    assert win.tool_windows["step"]._stale  # page cachée : recalcul repoussé à son affichage
+    win.close()
+    win.deleteLater()
+    app.processEvents()

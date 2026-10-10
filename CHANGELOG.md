@@ -21,7 +21,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   cliqués sur les graphiques roll, pitch ou yaw ; repères déplaçables à la souris.
 
 ### Modifié
-- Visualiseur : barre d'outils allégée. Fréq. × gaz et Fréq. × temps s'ouvrent depuis la fenêtre Spectre ;
+- Interface : plus aucune nouvelle fenêtre. Les boutons de la barre d'outils servent d'**onglets** : un clic
+  affiche l'outil dans la fenêtre principale, nouveau bouton **Visualiseur** pour revenir aux courbes du vol,
+  bouton de l'affichage en cours mis en valeur. Icônes des outils en couleur (une couleur par outil, lisible dans les
+  deux thèmes).
+- Visualiseur : barre d'outils allégée. Fréq. × gaz et Fréq. × temps s'ouvrent depuis l'outil Spectre ;
   le bouton Configuration passe en bas du panneau de droite.
 - Réponse indicielle : courbes plus larges (gains, pic, latence et cassure de chaque fichier écrits dans le
   graphique, plus de colonne à part), durée affichée au choix (250 ms par défaut, 500 ou 150 ms), yaw

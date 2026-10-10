@@ -65,9 +65,14 @@ save
 
 ## 4. Le visualiseur (fenêtre principale)
 
-- **Barre d'outils** en haut : ouvrir et fermer les logs, puis un bouton par outil (Spectre, Indicielle…) ;
-  l'icône tout à droite exporte la fenêtre en image. Survolez un bouton pour sa description. Fréq. × gaz et
-  Fréq. × temps s'ouvrent depuis la fenêtre Spectre ; Configuration, depuis le bouton en bas du panneau de droite.
+- **Barre d'outils** en haut : ouvrir et fermer les logs, puis les boutons **Visualiseur**, Spectre,
+  Indicielle…, chacun avec sa couleur ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton
+  pour sa description.
+- **Les boutons servent d'onglets** : un clic remplace l'affichage par l'outil choisi, dans la même fenêtre
+  (aucune nouvelle fenêtre) ; le bouton de l'affichage en cours est mis en valeur. **Visualiseur** ramène aux
+  courbes du vol. Un outil garde ses réglages et ses résultats quand on passe à un autre. Fréq. × gaz et
+  Fréq. × temps s'ouvrent depuis l'outil Spectre ; Configuration, depuis le bouton en bas du panneau de
+  droite du visualiseur.
 - **Traces** à gauche, rangées par groupe (Gyro, Consigne et PID, Autres, Moteurs). Les traces que le log
   ne contient pas sont masquées.
 - **Période d'analyse** : la zone claire, affichée sur les graphiques roll, pitch, yaw et moteurs (le reste
@@ -89,7 +94,7 @@ save
 
 ## 5. Les outils
 
-Chaque outil s'ouvre par son bouton dans la barre d'outils (nom du bouton entre parenthèses).
+Chaque outil s'affiche par son bouton dans la barre d'outils (nom du bouton entre parenthèses).
 
 ### Analyse spectrale (Spectre)
 Spectres (FFT) du gyro et des termes PID : on y voit où se trouve le bruit et ce que les filtres
@@ -118,15 +123,15 @@ cochée (quelques secondes) et compte quatre parties :
    **Passe-bas du D**.
 4. **Stratégie de filtrage** : les réglages à faire, dans l'ordre, un à la fois.
 
-Les constats et les seuils sont ceux de l'assistant : les deux fenêtres donnent les mêmes conseils.
+Les constats et les seuils sont ceux de l'assistant : les deux outils donnent les mêmes conseils.
 
 ### Fréquence × gaz (Fréq. × gaz)
-Bouton de la fenêtre Spectre. Carte du bruit selon le gaz. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
+Bouton de l'outil Spectre. Carte du bruit selon le gaz. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
 retiré par le filtre RPM). Une **ligne horizontale** = résonance de châssis ou pièce qui vibre. Une
 tache basse fréquence à mi-gaz = oscillation de réglage ou propwash.
 
 ### Fréquence × temps (Fréq. × temps)
-Bouton de la fenêtre Spectre. Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
+Bouton de l'outil Spectre. Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
 lecteur ; un clic sur un spectrogramme le déplace).
 
 ### Réponse indicielle (Indicielle)

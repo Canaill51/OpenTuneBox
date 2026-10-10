@@ -37,7 +37,7 @@ fichier .bbl/.bfl
                  ├─ advisor/step_tuning.py  diagnostic du réglage de la Réponse indicielle (séries de vols :
                  │                        équilibre P/D, Master, roll / pitch ; analysis/step_series.py)
                  ├─ cli.py                opentunebox info / report
-                 └─ gui/tools/*           une fenêtre par outil (calcul en arrière-plan, affichage pyqtgraph)
+                 └─ gui/tools/*           une page par outil (calcul en arrière-plan, affichage pyqtgraph)
 ```
 
 ## Modules d'analyse
@@ -61,7 +61,7 @@ fichier .bbl/.bfl
   ses signaux relancent les outils ouverts.
 - `gui/worker.py:run_async` : calcul dans un `QThreadPool`, résultat renvoyé au thread de l'interface.
 - `gui/tools/base.py:ToolWindow` : sélection des fichiers, axes R/P/Y, boutons communs, file de recalcul.
-- Fenêtres d'outils (`gui/tools/`, enregistrées dans `gui/tools/__init__.py:REGISTRY`) :
+- Outils (`gui/tools/`, une page chacun dans la fenêtre principale, enregistrés dans `gui/tools/__init__.py:REGISTRY`) :
 
   | Bouton | Module | Fenêtre |
   |---|---|---|
@@ -76,15 +76,19 @@ fichier .bbl/.bfl
 - `gui/app.py` : démarrage. `hard_exit` sort sans le nettoyage automatique de PySide6 (contournement d'un
   plantage) ; `FileOpenFilter` charge les logs ouverts depuis le Finder de macOS (`QFileOpenEvent`) ;
   sous Linux, fenêtres d'ouverture du bureau par le portail XDG.
-- `gui/main_window.py` : visualiseur. Barre d'outils (`TOOLS` : clé, libellé, icône, info-bulle), traces
+- `gui/main_window.py` : fenêtre principale. Barre d'outils (`TOOLS` : clé, libellé, icône, couleur, info-bulle)
+  dont les boutons servent d'onglets : `QStackedWidget` (`pages`), une page pour le visualiseur et une par outil
+  ouvert (`open_tool`, `show_viewer`), bouton coché = page affichée (`OTHER_TOOLS` : bouton d'origine de
+  Fréq. × gaz, Fréq. × temps, Configuration) ; un outil caché ne recalcule qu'à son affichage
+  (`ToolWindow._stale`). Visualiseur : traces
   groupées (`TRACE_GROUPS`, traces absentes du log masquées), sections repliables Affichage et Lecteur.
 - `gui/theme.py` : thèmes clair et sombre. Style Qt **Fusion** sur tous les systèmes, palette complète,
-  feuille de style globale (boutons, champs, listes, cases), couleurs d'accent par thème (`accent_style`),
+  feuille de style globale (boutons, champs, listes, cases), couleurs d'accent par thème (`accent`, `accent_style` ; aussi celles des icônes d'outils),
   textes d'aide (`muted_style`), police de l'application × 1,15. Textes de Qt en français
   (`install_qt_translations`) ; thème d'icônes du bureau accordé au thème clair / sombre (`_match_icon_theme`).
 - `gui/icons.py` : icônes Lucide (`gui/assets/icons/`, licence ISC) colorées selon le thème.
-- `gui/geometry.py` : taille des fenêtres (95 % de l'écran pour la principale, 90 % pour les outils, 80 % pour
-  Configuration, au premier lancement), puis taille et position mémorisées (`geometry/<fenêtre>` dans les réglages).
+- `gui/geometry.py` : taille de la fenêtre principale (95 % de l'écran au premier lancement), puis taille et
+  position mémorisées (`geometry/main` dans les réglages).
 - `gui/widgets/` : `section.py` (section repliable mémorisée), `axis.py` (axes à grille principale seule),
   `sticks.py` (manches du lecteur).
 

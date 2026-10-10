@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QSplitter,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -62,14 +63,20 @@ TRACE_GROUPS = [
 DEFAULT_TRACES = {"gyro", "setpoint"}
 SMOOTHING = {"aucun": 1, "léger": 5, "moyen": 11, "fort": 25}
 
-# Barre d'outils : (clé, libellé court, icône Lucide, info-bulle)
+# Barre d'outils : (clé, libellé court, icône Lucide, couleur de theme.ACCENTS, info-bulle)
 TOOLS = [
-    ("spectral", "Spectre", "audio-waveform", "Analyse spectrale"),
-    ("step", "Indicielle", "chart-line", "Réponse indicielle (réactivité, dépassement)"),
-    ("sliders", "Curseurs PID", "sliders-horizontal", "Curseurs PID du configurateur Betaflight"),
-    ("filter_sim", "Filtres", "funnel", "Simulateur de filtres"),
-    ("advisor", "Assistant", "lightbulb", "Assistant de réglage"),
+    ("spectral", "Spectre", "audio-waveform", "blue", "Analyse spectrale"),
+    ("step", "Indicielle", "chart-line", "green", "Réponse indicielle (réactivité, dépassement)"),
+    ("sliders", "Curseurs PID", "sliders-horizontal", "pink", "Curseurs PID du configurateur Betaflight"),
+    ("filter_sim", "Filtres", "funnel", "teal", "Simulateur de filtres"),
+    ("advisor", "Assistant", "lightbulb", "orange", "Assistant de réglage"),
 ]
+# Outils ouverts ailleurs que par la barre : (libellé, bouton de la barre qui reste mis en valeur)
+OTHER_TOOLS = {
+    "freq_throttle": ("Fréq. × gaz", "spectral"),
+    "freq_time": ("Fréq. × temps", "spectral"),
+    "setup": ("Configuration", "viewer"),
+}
 
 
 def _trace_data(log, key: str) -> np.ndarray | None:
@@ -106,10 +113,10 @@ class MainWindow(QMainWindow):
         self.state = state or AppState()
         self.settings = QSettings("OpenTuneBox", "OpenTuneBox")
         theme.apply(self.settings.value("theme", "clair"))
-        self.setWindowTitle(f"OpenTuneBox {__version__} — visualiseur de log")
         restore_geometry(self, "main", 0.95)
         self.setAcceptDrops(True)
-        self.tool_windows: dict[str, QWidget] = {}
+        self.tool_windows: dict[str, QWidget] = {}  # outils déjà ouverts, une page chacun
+        self._tool_actions: dict[str, QAction] = {}
         self._loading = 0
         self._measure: list[float] = []  # temps des points de mesure (0, 1 ou 2)
         self._play_timer = QTimer(self)
@@ -135,7 +142,12 @@ class MainWindow(QMainWindow):
         split.addWidget(self._build_control_panel())
         split.setStretchFactor(1, 1)
         split.setSizes([200, 1110, 290])
-        self.setCentralWidget(split)
+        # une page par outil : les boutons de la barre servent d'onglets (visualiseur ou outil affiché)
+        self.pages = QStackedWidget()
+        self.pages.addWidget(split)
+        self.viewer_page = split
+        self.setCentralWidget(self.pages)
+        self._sync_tool_actions()
         self._apply_icons()
         self._build_plots()
         self.statusBar().showMessage("Ouvrez un log Blackbox (.bbl, .bfl) — ou glissez-le dans la fenêtre.")
@@ -145,9 +157,10 @@ class MainWindow(QMainWindow):
         tb.setObjectName("mainToolbar")
         tb.setMovable(False)
         tb.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self._icon_actions: list[tuple[QAction, str, bool]] = []  # (action, icône, bouton principal)
+        self._icon_actions: list[tuple[QAction, str, bool, str | None]] = []  # (action, icône, principal, couleur)
 
-        def add(text: str, icon: str, slot, tip: str = "", primary: bool = False, icon_only: bool = False) -> QAction:
+        def add(text: str, icon: str, slot, tip: str = "", primary: bool = False, icon_only: bool = False,
+                color: str | None = None) -> QAction:
             act = QAction(text, self)
             act.setToolTip(tip or text)
             act.triggered.connect(slot)
@@ -156,7 +169,7 @@ class MainWindow(QMainWindow):
                 tb.widgetForAction(act).setObjectName("primary")
             if icon_only:
                 tb.widgetForAction(act).setToolButtonStyle(Qt.ToolButtonIconOnly)
-            self._icon_actions.append((act, icon, primary))
+            self._icon_actions.append((act, icon, primary, color))
             return act
 
         act_open = add("Ouvrir…", "folder-open", self.open_files, "Ouvrir des logs Blackbox (Ctrl+O)", primary=True)
@@ -164,22 +177,32 @@ class MainWindow(QMainWindow):
         add("Fermer", "x", lambda: self.state.remove(self.state.current), "Fermer le log affiché", icon_only=True)
         add("Tout fermer", "trash-2", self.state.clear, "Fermer tous les logs", icon_only=True)
         tb.addSeparator()
-        for key, text, icon, tip in TOOLS:
-            add(text, icon, lambda _c=False, k=key: self.open_tool(k), tip)
+        # boutons-onglets : un seul coché, celui de la page affichée
+        act = add("Visualiseur", "activity", self.show_viewer, "Visualiseur de log (courbes du vol)")
+        act.setCheckable(True)
+        self._tool_actions["viewer"] = act
+        for key, text, icon, color, tip in TOOLS:
+            act = add(text, icon, lambda _c=False, k=key: self.open_tool(k), tip, color=color)
+            act.setCheckable(True)
+            self._tool_actions[key] = act
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         tb.addWidget(spacer)
         add("Exporter image", "image-down", lambda: self.save_figure(self), "Exporter la fenêtre en image PNG", icon_only=True)
 
     def _apply_icons(self) -> None:
-        for act, name, primary in self._icon_actions:
-            act.setIcon(icons.icon(name, "#ffffff" if primary else theme.current().ui["text"]))
+        for act, name, primary, color in self._icon_actions:
+            act.setIcon(icons.icon(name, "#ffffff" if primary else self._icon_color(color)))
         for b, name in self._player_buttons:
             if b is self.play_btn and self._play_timer.isActive():
                 name = "pause"
             b.setIcon(icons.icon(name, theme.current().ui["text"], 16))
         self.measure_btn.setIcon(icons.icon("ruler", theme.current().ui["text"], 16))
         self.setup_btn.setIcon(icons.icon("cpu", theme.current().ui["text"], 16))
+
+    @staticmethod
+    def _icon_color(color: str | None) -> str:
+        return theme.accent(color) if color else theme.current().ui["text"]
 
     def _build_selection_panel(self) -> QWidget:
         panel = QWidget()
@@ -794,9 +817,28 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Bientôt", "Cet outil arrive dans une prochaine étape.")
                 return
             self.tool_windows[key] = win
-        win.show()
-        win.raise_()
-        win.activateWindow()
+            self.pages.addWidget(win)
+        self.pages.setCurrentWidget(win)
+        self._sync_tool_actions()
+
+    def show_viewer(self) -> None:
+        self.pages.setCurrentWidget(self.viewer_page)
+        self._sync_tool_actions()
+
+    def current_page(self) -> str:
+        """Clé de la page affichée : « viewer » ou celle de l'outil."""
+        w = self.pages.currentWidget()
+        return next((k for k, v in self.tool_windows.items() if v is w), "viewer")
+
+    def _sync_tool_actions(self) -> None:
+        """Coche le bouton de la page affichée (un clic sur un bouton déjà coché le décocherait) ; pour
+        Fréq. × gaz, Fréq. × temps et Configuration, le bouton d'où on les ouvre. Titre de la fenêtre."""
+        key = self.current_page()
+        label, button = OTHER_TOOLS.get(key, (None, key))
+        for k, act in self._tool_actions.items():
+            act.setChecked(k == button)
+        label = label or self._tool_actions[key].text()
+        self.setWindowTitle(f"OpenTuneBox {__version__} — {label}")
 
     @staticmethod
     def save_figure(widget: QWidget, base_dir: str | None = None) -> str | None:
