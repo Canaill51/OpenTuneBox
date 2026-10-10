@@ -171,6 +171,38 @@ def test_step_response_second_order():
     assert r.loop.bandwidth_hz == pytest.approx(lt.bandwidth_hz, rel=0.08)
 
 
+def _shape_of(b, a, seed=1):
+    sp, rng = stick_input(seed=seed)
+    gy = signal.lfilter(b, a, sp)
+    gy = np.concatenate([np.zeros(10), gy[:-10]]) + rng.normal(0, 2, sp.size)
+    return step_response(sp, gy, FS).metrics
+
+
+def test_step_ripple_and_waves():
+    """Cassure (« ripple ») : montée rapide jusqu'à 88 %, puis le reste lentement ; vagues : mode peu amorti."""
+    # réponse réglée avec un léger dépassement : pas de cassure (valeur exacte −0,033 ; une réponse plus
+    # amortie s'approche lentement de 1 et donne une petite cassure, +0,028 pour ζ = 0,9)
+    clean = _shape_of(*second_order(zeta=0.7, f_n=14.0))
+    assert clean.ripple == pytest.approx(-0.033, abs=0.02)
+    assert clean.waves_ratio < 2.0
+    # 0,87 × second ordre rapide + 0,13 × premier ordre lent (τ = 60 ms)
+    bf, af = second_order(zeta=0.9, f_n=22.0)
+    bs, as_ = signal.bilinear([1.0], [0.060, 1.0], FS)
+    b = 0.87 * np.convolve(bf, as_) + 0.13 * np.convolve(bs, af)
+    a = np.convolve(af, as_)
+    shelf = _shape_of(b, a)
+    assert shelf.ripple > 0.05
+    assert shelf.ripple_std < 0.03
+    assert 15 < shelf.ripple_ms < 40
+    # 0,9 × réponse propre + 0,1 × mode à 45 Hz très peu amorti : vagues sur le palier
+    bw, aw = second_order(zeta=0.03, f_n=45.0)
+    bc, ac = second_order(zeta=0.9, f_n=14.0)
+    b = 0.9 * np.convolve(bc, aw) + 0.1 * np.convolve(bw, ac)
+    wavy = _shape_of(b, np.convolve(ac, aw))
+    assert wavy.waves_ratio > 3.0
+    assert wavy.waves > 3 * clean.waves
+
+
 @pytest.mark.corpus
 @pytest.mark.skipif(not (LOGS / "1. PTB/BlackSummer").exists(), reason="corpus absent")
 def test_matches_ptb_damping_sweep():
