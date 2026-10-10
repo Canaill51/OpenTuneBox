@@ -286,7 +286,13 @@ et pitch, une voix par drone (médiane de ses axes) :
 Le diagnostic du bruit de la fenêtre Spectre (`advisor/noise.py`) reprend ces mêmes constats, rangés par
 début de titre en quatre parties (conditions du log, gyro, terme D, stratégie) ; il n'a aucun seuil à lui.
 Quand l'assistant n'écrit pas de stratégie (moins de deux étapes), il indique le seul réglage de filtre à
-faire, ou qu'aucun n'est conseillé. Un nouveau constat de bruit ou de filtre doit avoir sa place dans
+faire, ou qu'aucun n'est conseillé. Les constats du gyro sont répartis en blocs (filtre RPM, notch
+dynamique, passe-bas ; étapes de `rules.FILTER_STAGES`) ; un bloc sans constat à appliquer reçoit un
+verdict qui reprend les repères existants (harmonique effacée à 3 dB au plus, gain de poids 0,5, marge
+6 dB) et dit quand l'assistant proposerait un changement (Q du filtre RPM, `dyn_notch_min_hz` : vol avec
+mouvements, retard au-dessus du repère, bruit faible). Seules valeurs ajoutées, toutes du firmware :
+`rpm_filter_harmonics = 3` proposé si le filtre RPM est coupé malgré l'eRPM (défaut de Betaflight,
+`pg/rpm_filter.c`), `blackbox_disable_rpm = OFF` si `dshot_bidir` est actif sans eRPM enregistré. Un nouveau constat de bruit ou de filtre doit avoir sa place dans
 `noise.GYRO_TITLES` ou `noise.DTERM_TITLES` (vérifié par `tests/test_advisor.py`).
 
 Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit
@@ -440,6 +446,8 @@ Les champs `hover_hz` et `resonance_hz` des profils (`advisor/profiles.py`) sont
 - Firmware Betaflight (commit e796d7f87) : `rpm_filter_q` = 500 (`pg/rpm_filter.c`), `motor_poles` = 14
   (`pg/motor.c`), `blackbox_sample_rate` = 1/4 (`blackbox/blackbox.c`). Configurateur : pas et bornes des
   curseurs (`PidSubTab.vue`, `FilterSubTab.vue`, `useTuningSliders.js`).
+- Firmware Betaflight (commit cc1bb9d28) : `rpm_filter_harmonics` = 3 (`pg/rpm_filter.c`) ; réglages
+  `blackbox_disable_rpm` et `blackbox_disable_gyrounfilt` (`cli/settings.c`).
 
 ### Boucle ouverte mesurée
 

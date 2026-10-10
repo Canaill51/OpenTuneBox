@@ -302,3 +302,11 @@ def test_noise_report_strategy_fallback():
     # une seule étape de filtrage : pas de « Stratégie de filtrage » de l'assistant, mais un conseil quand même
     assert len(nr.strategy) == 1 and nr.strategy[0].title == "Un seul réglage de filtre à faire"
     assert "filtre D" in nr.strategy[0].actions[0]
+    # un bloc par filtre, avec un verdict quand aucun constat ne demande de changement
+    rpm, notch, lpf = nr.gyro_blocks
+    assert rpm.title == "Filtre RPM" and "rpm_filter_q = 700" in rpm.settings and len(rpm.observations) == 3
+    assert rpm.verdict.title == "Filtre RPM : rien à changer"
+    assert notch.verdict.title == "Notch dynamique : rien à changer"
+    assert lpf.verdict.title == "Passe-bas du gyro : rien à changer" and "gyro_lpf1 : coupé" in lpf.settings
+    assert nr.dterm_block.verdict is None  # D bruité : le constat dit déjà quoi faire
+    assert not {id(f) for b in nr.gyro_blocks for f in b.findings} & {id(f) for f in nr.gyro_other}

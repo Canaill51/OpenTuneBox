@@ -232,7 +232,8 @@ def test_spectral_noise_diagnosis(app, state):
         assert nr.strategy
         assert not win.report.isHidden()
         text = win.report.toPlainText()
-        for part in ("Conditions du log", "Gyro : bruit avant et après", "Terme D :", "Stratégie de filtrage"):
+        for part in ("Conditions du log", "Gyro : bruit avant et après", "Filtre RPM", "Notch dynamique",
+                     "Passe-bas du gyro", "Terme D :", "Passe-bas du D", "Stratégie de filtrage"):
             assert part in text
         win.diag_box.setChecked(False)  # masqué sans recalcul
         assert win.report.isHidden()

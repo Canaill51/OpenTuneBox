@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ...advisor.noise import AxisNoise, NoiseReport, level_note, noise_report
+from ...advisor.noise import AxisNoise, FilterBlock, NoiseReport, level_note, noise_report
 from ...analysis import datasets
 from ...analysis.delay import compute_delays
 from ...analysis.motors import dyn_notch_centres, motor_noise
@@ -402,27 +402,16 @@ def _levels_table(rows: list[AxisNoise], band: tuple[float, float], kind: str) -
             f"{html.escape(level_note(kind))}</p>")
 
 
-def _gyro_measures(nr: NoiseReport) -> str:
-    """Ce que montre le gyro avant filtrage : harmoniques moteur, raie fixe, pics du notch dynamique."""
-    m = nr.report.measures
-    items = []
-    if nr.harmonics is not None:
-        raw, left = nr.harmonics
-        h = [f"{k + 1}<sup>e</sup> {_db(raw[k])} → {_db(left[k])}" for k in range(3)
-             if np.isfinite(raw[k]) and np.isfinite(left[k])]
-        if h:
-            items.append("Harmoniques moteur au-dessus du bruit voisin, avant → après filtres : " + ", ".join(h) + ".")
-    fr = m.get("frame_resonance")
-    if fr is not None:
-        f0, excess, near_motor = fr
-        items.append(f"Raie la plus marquée quel que soit le gaz : ~{f0:.0f} Hz, {excess:+.0f} dB au-dessus du bruit "
-                     "voisin" + (" (proche d'une harmonique moteur)." if near_motor else "."))
-    dn = m.get("dyn_notch")
-    if dn is not None:
-        peaks = ", ".join(f"{f:.0f}" for f in dn["peaks"])
-        items.append(f"Notch dynamique {dn['min_hz']}–{dn['max_hz']} Hz, {dn['count']} notch(s) : "
-                     + (f"pics à suivre après le filtre RPM à {peaks} Hz." if peaks else "aucun pic à suivre après le filtre RPM."))
-    return "<ul>" + "".join(f"<li>{i}</li>" for i in items) + "</ul>" if items else ""
+def _block_html(b: FilterBlock) -> str:
+    """Un filtre : réglages, mesures, constats de l'assistant, puis le verdict s'il n'y a rien à faire."""
+    out = [f"<h4>{html.escape(b.title)}</h4>",
+           f"<p style='{theme.muted_style()}'>Réglages : {html.escape(b.settings)}</p>"]
+    if b.observations:
+        out.append("<ul>" + "".join(f"<li>{html.escape(o)}</li>" for o in b.observations) + "</ul>")
+    out += [finding_html(f) for f in b.findings]
+    if b.verdict is not None:
+        out.append(finding_html(b.verdict))
+    return "".join(out)
 
 
 def _diagnosis_html(entry: LoadedLog, nr: NoiseReport) -> str:
@@ -441,15 +430,16 @@ def _diagnosis_html(entry: LoadedLog, nr: NoiseReport) -> str:
     parts.append("<h3>2. Gyro : bruit avant et après filtrage</h3>")
     if not nr.has_unfiltered:
         parts.append("<p>Pas de gyro non filtré dans ce log : seul le gyro filtré est mesuré.</p>")
-    parts += [_levels_table(nr.gyro, nr.band, "gyro"), _gyro_measures(nr)]
-    parts += [finding_html(f) for f in nr.gyro_findings]
+    parts.append(_levels_table(nr.gyro, nr.band, "gyro"))
+    parts += [finding_html(f) for f in nr.gyro_other]
+    parts += [_block_html(b) for b in nr.gyro_blocks]
     n = 3
     if nr.dterm:
         parts.append(f"<h3>{n}. Terme D : bruit avant et après filtrage</h3>")
         n += 1
         parts.append(_levels_table(nr.dterm, nr.band, "dterm"))
         parts.append(f"<p style='{theme.muted_style()}'>Terme D avant filtres reconstruit à partir du gyro filtré.</p>")
-        parts += [finding_html(f) for f in nr.dterm_findings]
+        parts.append(_block_html(nr.dterm_block))
     parts.append(f"<h3>{n}. Stratégie de filtrage</h3>")
     parts += [finding_html(f) for f in nr.strategy]
     return "".join(parts)
