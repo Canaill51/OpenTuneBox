@@ -180,8 +180,8 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   de 0,2 (0,1 ne se lit pas sur la réponse) ; feedforward à 0 en Acro, ou vol en mode Angle (le firmware
   y force à 0 le feedforward de la boucle de vitesse, `pid.c`, voir `spec-betaflight.md`) ; curseur I à
   0,2–0,3 (le I déforme la réponse). Ordre : Damping (équilibre P/D) avec Master 1,0 (0,8 pour un drone
-  très puissant), puis Master, puis équilibre roll / pitch (écart de latence rapproché à 0,1–0,2 de
-  curseur près, selon le drone), puis affinage, et parfois retouche du filtrage. Gains trop hauts :
+  très puissant), puis Master, puis équilibre roll / pitch (écart de latence rapproché à 1–2
+  ms près, selon le drone), puis affinage, et parfois retouche du filtrage. Gains trop hauts :
   cassure, vagues sur le palier et latence qui ne baisse plus (plateau), à lire ensemble.
 - **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz
   résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (Brian White situait les

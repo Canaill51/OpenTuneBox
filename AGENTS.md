@@ -27,9 +27,10 @@ les commandes qui demandent `sudo` : préparer la commande ou un script, ne pas 
 src/opentunebox/
   decoder/    décodage binaire BBL (numba, cache=True) → DecodedSession (valeurs brutes)
   log/        FlightLog (unités physiques), settings.py (en-tête normalisé par version), debug_tables.py, modes.py
-  analysis/   calculs purs numpy/scipy : spectral, step (Wiener), loop (marges de stabilité), delay, bf_filters,
-              sliders, motors, stats, period, datasets (jeux de données analysables)
-  advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py)
+  analysis/   calculs purs numpy/scipy : spectral, step (Wiener), step_series (séries de vols), loop (marges de
+              stabilité), delay, bf_filters, sliders, motors, stats, period, datasets (jeux de données analysables)
+  advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py),
+              diagnostic du réglage de la Réponse indicielle (step_tuning.py)
   gui/        app.py, main_window.py (visualiseur), state.py, worker.py, theme.py, icons.py, geometry.py,
               tools/ (une fenêtre par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
@@ -92,6 +93,11 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
 - Fréquence du log : au moins 2 kHz pour un gyro à 8 kHz, 1,6 kHz à 3,2 kHz, plus pour les petits drones
   (`rules.log_rate_needed`) ; le blackbox sous-échantillonne sans filtre, tout ce qui dépasse fs/2 se replie.
   Vol stationnaire = identifier le bruit ; vol avec mouvements = juger le retard.
+- Feedforward : forcé à 0 par le firmware en mode **Angle** seulement (pas en Horizon) → masque
+  `flightlog.ANGLE_MODE_MASK`, distinct de `ANGLE_HORIZON_MASK` (instrument de la boucle ouverte).
+- Réponse indicielle par séries (`advisor/step_tuning.py`) : seuils tirés de 10 séries Master du corpus,
+  choix des pilotes relus dans les vols suivants ; la cassure varie d'environ 0,01 entre deux vols
+  identiques (incertitude jackknife plus faible : elle ne couvre que le bruit d'un vol).
 - Repères en dB de PIDtoolbox (gyro −30, D −10) : nos DSP sont 6,5 dB plus hautes → `spectral.PTB_PSD_OFFSET_DB`,
   `rules.band_peak_ptb_db` (sommet du spectre lissé, sur l'échelle de PTB).
 - Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic

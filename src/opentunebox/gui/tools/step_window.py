@@ -10,6 +10,8 @@ point creux = méthode approchée, triangle = minorant (pic de sensibilité au b
 
 from __future__ import annotations
 
+import html
+
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt, QTimer
@@ -20,9 +22,11 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QLabel,
+    QTextBrowser,
     QVBoxLayout,
 )
 
+from ...advisor.step_tuning import TuningReport, step_tuning
 from .. import theme
 from ._step_common import (
     SPLITS,
@@ -33,6 +37,7 @@ from ._step_common import (
     style_plot,
     wrap_canvas,
 )
+from .advisor_panel import finding_html
 from .base import ToolWindow
 
 # clé → (titre de la liste, libellé d'axe)
@@ -51,6 +56,7 @@ METRICS = {
 LOOP_KEYS = {"sens_peak": "sensitivity_peak_db", "sens_hz": "sensitivity_peak_hz", "phase_margin": "phase_margin_deg",
              "gain_margin": "gain_margin_db", "crossover": "crossover_hz"}
 MAX_RAW = 300  # réponses brutes dessinées au plus par fichier et par axe
+REPORT_WIDTH = 460  # largeur du rapport « Diagnostic du réglage » à son ouverture (px)
 
 
 def metric_value(f: FileStep, ax: int, key: str) -> tuple[float, float]:
@@ -110,6 +116,12 @@ class StepWindow(ToolWindow):
         top.addWidget(QLabel("Colonne 2 :"))
         top.addWidget(self.metric2)
         top.addSpacing(20)
+        # rapport entre les courbes et le panneau de réglages, masqué tant que la case n'est pas cochée
+        self.report = QTextBrowser()
+        self.report.setOpenExternalLinks(False)
+        self.report.setMinimumWidth(320)
+        self.report.hide()
+        self._canvas_container.parentWidget().insertWidget(1, self.report)
 
     # ------------------------------------------------------------ panneau de réglages
     def build_controls(self, layout: QVBoxLayout) -> None:
@@ -173,6 +185,20 @@ class StepWindow(ToolWindow):
         help_.setStyleSheet(theme.muted_style())
         layout.addWidget(help_)
 
+        box3 = QGroupBox("Diagnostic")
+        bl = QVBoxLayout(box3)
+        self.diag_box = QCheckBox("Diagnostic du réglage")
+        self.diag_box.setToolTip("Lit les séries de vols chargées (un seul curseur changé par pas de 0,2) : "
+                                 "équilibre P/D, niveau des gains (Master), équilibre roll / pitch.")
+        self.diag_box.toggled.connect(self.on_options_changed)
+        bl.addWidget(self.diag_box)
+        help2 = QLabel("Méthode de Brian White : chargez une série de vols (Damping, puis Master) avec le "
+                       "feedforward à 0 ou en mode Angle et le curseur I à 0,2–0,3.")
+        help2.setWordWrap(True)
+        help2.setStyleSheet(theme.muted_style())
+        bl.addWidget(help2)
+        layout.addWidget(box3)
+
     def _calc_options_changed(self, *_a) -> None:
         self._opts = {
             "seg_s": float(self.seg.currentData()),
@@ -202,11 +228,14 @@ class StepWindow(ToolWindow):
                 e.extras[key] = fs
             # couleur / nom à jour (le fichier a pu changer de rang)
             fs.color, fs.label = e.color, e.label
+            if fs.flight is not None:
+                fs.flight.label = e.label
             out.append(fs)
         return out
 
     # ------------------------------------------------------------ affichage
     def render(self, result: list[FileStep]) -> None:
+        self._render_diagnosis(result)
         c = self.canvas
         c.clear()
         c.setBackground(theme.current().bg)
@@ -243,6 +272,21 @@ class StepWindow(ToolWindow):
         if self._pending:
             self._pending = False
             QTimer.singleShot(0, self.run)
+
+    # ------------------------------------------------------------ diagnostic du réglage
+    def _render_diagnosis(self, result: list[FileStep]) -> None:
+        flights = [f.flight for f in result if f.flight is not None]
+        visible = self.diag_box.isChecked() and bool(flights)
+        if visible and self.report.isHidden():
+            split = self.report.parentWidget()
+            sizes = split.sizes()
+            self.report.show()
+            split.setSizes([max(sizes[0] - REPORT_WIDTH, 400), REPORT_WIDTH, sizes[2]])
+        elif not visible:
+            self.report.hide()
+        if visible:
+            colors = {f.label: f.color for f in result}
+            self.report.setHtml(_tuning_html(step_tuning(flights), colors))
 
     def _draw_step(self, p: pg.PlotItem, result: list[FileStep], ax: int, first: bool, last: bool) -> None:
         style_plot(p)
@@ -333,3 +377,24 @@ class StepWindow(ToolWindow):
                 lo, hi = min(lo, 0.0), max(hi, 7.0)
             span = max(hi - lo, 0.1 * max(abs(hi), 1e-3), 0.02)
             p.setYRange(lo - 0.25 * span, hi + 0.25 * span, padding=0)
+
+
+def _tuning_html(rep: TuningReport, colors: dict[str, str]) -> str:
+    parts = ["<h2>Diagnostic du réglage</h2>", "<h3>Conditions des vols</h3>"]
+    parts += [finding_html(f) for f in rep.conditions] or [
+        "<p>Feedforward à 0 ou mode Angle, curseur I bas, assez de mouvements : vols exploitables.</p>"]
+    if not rep.blocks:
+        parts.append("<p>Aucune série reconnue : chargez plusieurs vols du même drone, mêmes filtres, où un seul "
+                     "curseur change (Damping, Master, Pitch T. ou Pitch D.).</p>")
+    for b in rep.blocks:
+        parts.append(f"<h3>{html.escape(b.title)}</h3>")
+        if b.lines:
+            parts.append("<ul>" + "".join(f"<li>{html.escape(line)}</li>" for line in b.lines) + "</ul>")
+        if b.finding is not None:
+            parts.append(finding_html(b.finding))
+    legend = " · ".join(f"<span style='color:{c}'>■</span> {html.escape(lab)}" for lab, c in colors.items())
+    parts.append(f"<hr><p style='{theme.muted_style()}'>Vols : {legend}<br>Ordre de la méthode : Damping avec "
+                 "Master 1,0, puis Master, puis roll / pitch, puis affinage. Cassure (« ripple ») : la montée "
+                 "s'arrête avant la consigne puis reprend lentement ; vagues : oscillation sur le palier, "
+                 "comparée au bruit de mesure (≈ 1 : bruit).</p>")
+    return "".join(parts)

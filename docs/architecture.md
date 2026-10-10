@@ -34,6 +34,8 @@ fichier .bbl/.bfl
                  ├─ advisor/rules.py      constats + actions, seuils par profil (advisor/profiles.py)
                  ├─ advisor/noise.py      diagnostic du bruit de la fenêtre Spectre (constats de rules.py rangés
                  │                        par partie : conditions, gyro, terme D, stratégie ; niveaux avant/après)
+                 ├─ advisor/step_tuning.py  diagnostic du réglage de la Réponse indicielle (séries de vols :
+                 │                        équilibre P/D, Master, roll / pitch ; analysis/step_series.py)
                  ├─ cli.py                opentunebox info / report
                  └─ gui/tools/*           une fenêtre par outil (calcul en arrière-plan, affichage pyqtgraph)
 ```
@@ -43,7 +45,8 @@ fichier .bbl/.bfl
 | Module | Rôle |
 |---|---|
 | `spectral.py` | PSD de Welch, fréquence × gaz (fenêtres 300 ms, 100 tranches), fréquence × temps |
-| `step.py` | Réponse indicielle par déconvolution de Wiener ; métriques (pic, latence, montée), bande passante, et boucle ouverte par `loop.py` |
+| `step.py` | Réponse indicielle par déconvolution de Wiener ; métriques (pic, latence, montée, cassure, vagues), bande passante, et boucle ouverte par `loop.py` |
+| `step_series.py` | Séries de vols à un seul curseur changé (Damping, Master, Pitch T., Pitch D.) et conditions du protocole (feedforward, mode Angle, curseur I) |
 | `loop.py` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.py` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
 | `bf_filters.py` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si », passe-bas relevé ou coupé |

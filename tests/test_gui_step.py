@@ -118,6 +118,13 @@ def test_step_window(app):
     win.expand.setCurrentIndex(2)
     win.bf_view.setChecked(True)
     win.render(res)
+    assert win.report.isHidden()
+    # diagnostic du réglage : série Damping 0,6 → 1,0 (curseurs de l'en-tête), pic 1,25 → 1,03
+    win.diag_box.setChecked(True)
+    win.render(res)
+    text = win.report.toPlainText()
+    assert not win.report.isHidden()
+    assert "Équilibre P/D (série Damping)" in text and "Damping conseillé : 1,0" in text
     _close(app, win)
 
 

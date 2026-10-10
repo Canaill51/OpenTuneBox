@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Réponse indicielle : case **Diagnostic du réglage** (cadre « Diagnostic »), méthode de Brian White. Reconnaît
+  les séries de vols chargées (un seul curseur changé, mêmes filtres) et conseille le Damping (équilibre P/D),
+  le Master (cassure « ripple », vagues et plateau de la latence) et l'équilibre roll / pitch (écart de latence
+  de 1 à 2 ms au plus) ; vérifie le feedforward (0 ou mode Angle), le curseur I (0,2–0,3) et le pas (0,2).
 - Spectre : case **Diagnostic du bruit** (cadre « Diagnostic », en bas du panneau), rapport à côté des courbes sur le bruit du gyro et du terme D
   avant et après filtrage (niveaux par axe), un bloc par filtre (filtre RPM, notch dynamique, passe-bas
   du gyro et du D) avec ses réglages, ses mesures et un verdict même sans conseil (« rien à changer »

@@ -144,6 +144,21 @@ le pic de sensibilité se trouve au-delà des fréquences que vos mouvements de 
 Plus vous donnez de coups de manche francs et variés, plus la mesure va loin en fréquence.
 « Vue curseurs Betaflight » : position des curseurs du réglage simplifié de chaque log.
 
+Case **Diagnostic du réglage** (cadre « Diagnostic ») : rapport à côté des courbes, d'après la méthode de
+Brian White. Chargez une **série de vols** du même drone, mêmes filtres, où un seul curseur change par pas
+de 0,2 ; l'outil reconnaît la série tout seul et lit, selon le curseur :
+- **Damping** (équilibre P/D) : la première valeur sans dépassement visible (pic ≤ 1,05 sur roll et pitch),
+  ou celle au-delà de laquelle le pic ne baisse plus ;
+- **Master** (niveau des gains) : on monte tant que la latence baisse sans **cassure** (« ripple » : la
+  montée s'arrête un instant avant la consigne, puis reprend lentement) ni **vagues** sur le palier. Chaque
+  vol est classé propre, premiers signes (proche de l'optimum) ou trop haut ; au premier vol trop haut, on
+  garde la valeur d'avant ;
+- **Pitch T. / Pitch D.** (ou, sans série, le vol conseillé) : écart de latence entre pitch et roll, visé
+  sous 1 ms, acceptable jusqu'à 2 ms selon le drone.
+
+Conditions vérifiées pour chaque vol : feedforward à 0 en Acro, ou vol en **mode Angle** (le feedforward y
+est coupé ; pas en Horizon), curseur I (Drift-Wobble) à 0,2–0,3, assez de mouvements.
+
 ### Curseurs PID
 Positions des curseurs (lues dans le log, ou estimées si le réglage simplifié est désactivé) et
 simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, copiez les commandes CLI.
@@ -179,7 +194,10 @@ température des moteurs.
    de gaz ; vérifiez Fréquence × gaz et l'assistant (résonances, déséquilibre).
 2. **Filtres** : réglez le filtre RPM (motor_poles juste), puis les curseurs de filtres. Visez le moins
    de retard possible tant que le terme D reste peu bruité et les moteurs tièdes.
-3. **PID** avec les curseurs, un à la fois, par pas de 0,1 : Damping (D) jusqu'à un pic ≈ 1,05,
-   puis Tracking (P/I) et Master pour la vivacité, Stick response (FF) pour la réactivité au manche.
+3. **PID** par séries de vols (méthode de Brian White), un curseur à la fois, par pas de 0,2 ; feedforward à 0
+   (ou vols en mode Angle) et curseur I à 0,2–0,3 pendant les séries. D'abord **Damping** avec Master 1,0
+   (0,8 pour un drone très puissant), puis **Master**, puis l'équilibre roll / pitch (Pitch T.), puis
+   affinage ; la case « Diagnostic du réglage » de la Réponse indicielle lit chaque série. Ensuite, I et
+   Stick response (FF) à votre goût.
 4. **Comparez** : ouvrez les logs successifs ensemble (réponse indicielle, infos de configuration).
 5. Revenez en arrière dès qu'un changement dégrade le ressenti, le bruit ou la température.

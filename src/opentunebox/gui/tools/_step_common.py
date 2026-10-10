@@ -15,6 +15,7 @@ import pyqtgraph as pg
 from ...analysis.delay import xcorr_delay_ms
 from ...analysis.sliders import PTB_CATEGORIES, SliderView, slider_view
 from ...analysis.step import StepResult, step_response
+from ...analysis.step_series import FlightStep, filter_signature, flight_conditions
 from ...log.settings import AxisPID
 from .. import theme
 
@@ -51,6 +52,7 @@ class FileStep:
     sliders: SliderView
     mode: int  # simplified_pids_mode (0 = réglage simplifié désactivé ou absent)
     axes: list[AxisStep | None] = field(default_factory=list)
+    flight: FlightStep | None = None  # roll / pitch pour le « Diagnostic du réglage »
 
 
 def segment_metrics(t_ms: np.ndarray, R: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -91,6 +93,9 @@ def compute_file_step(entry, opts: dict) -> FileStep:
         peak, lat = segment_metrics(res.t_ms, res.responses)
         delay = xcorr_delay_ms(sp, gy, log.fs, 100.0) if np.std(sp) >= 5.0 else float("nan")
         fs.axes.append(AxisStep(res, peak, lat, delay))
+    fs.flight = FlightStep(entry.label, fs.sliders.values, filter_signature(s), flight_conditions(log, sel),
+                           [a.res.metrics for a in fs.axes[:2]], [a.res.n for a in fs.axes[:2]],
+                           [a.sp_delay_ms for a in fs.axes[:2]], [a.res.loop for a in fs.axes[:2]])
     return fs
 
 
