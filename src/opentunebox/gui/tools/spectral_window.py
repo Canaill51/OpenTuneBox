@@ -7,10 +7,14 @@ Grille de graphiques, une ligne par axe (Roll, Pitch, Yaw) :
 
 Superpositions comme dans PTB : courbes en « S » montrant où se situent les harmoniques moteur
 (et les notchs dynamiques) pendant la période analysée.
+
+Case « Diagnostic du bruit » : rapport à côté des courbes (bruit gyro et terme D avant / après filtres,
+stratégie de filtrage), calculé seulement quand elle est cochée (advisor/noise.py).
 """
 
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -26,9 +30,11 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QTextBrowser,
     QVBoxLayout,
 )
 
+from ...advisor.noise import AxisNoise, FilterBlock, NoiseReport, level_note, noise_report
 from ...analysis import datasets
 from ...analysis.delay import compute_delays
 from ...analysis.motors import dyn_notch_centres, motor_noise
@@ -36,6 +42,7 @@ from ...analysis.spectral import smooth_freq, spectrum
 from .. import theme
 from ..state import LoadedLog
 from . import _spectral_common as sc
+from .advisor_panel import finding_html
 from .base import ToolWindow
 
 RESOLUTIONS = [(0.5, "0,5 Hz"), (1.0, "1 Hz"), (2.0, "2 Hz"), (4.0, "4 Hz")]
@@ -43,6 +50,7 @@ HARMONIC_CHOICES = [((), "Harmoniques : aucune"), ((1,), "1re harmonique"), ((1,
                     ("rpm", "Plage du filtre RPM")]
 RIGHT_MODES = [("sub100", "< 100 Hz"), ("motor_noise", "Bruit moteur")]
 DEFAULT_DATASETS = ("gyro", "gyro_prefilt")
+REPORT_WIDTH = 460  # largeur du rapport « Diagnostic du bruit » à son ouverture (px)
 
 
 @dataclass
@@ -59,6 +67,7 @@ class FileSpectra:
     notch_sorted: list[np.ndarray] = field(default_factory=list)  # centres des notchs dynamiques triés
     rpm_text: str = ""
     nyquist: float = 0.0
+    diagnosis: NoiseReport | None = None  # seulement si la case « Diagnostic du bruit » est cochée
 
 
 @dataclass
@@ -76,6 +85,15 @@ def _cdf(sorted_vals: np.ndarray, freqs: np.ndarray) -> np.ndarray:
 
 class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
     title = "Analyse spectrale"
+
+    def __init__(self, state, main_window=None) -> None:
+        super().__init__(state, main_window)
+        # rapport entre les courbes et le panneau de réglages, masqué tant que la case n'est pas cochée
+        self.report = QTextBrowser()
+        self.report.setOpenExternalLinks(False)
+        self.report.setMinimumWidth(320)
+        self.report.hide()
+        self.canvas.parentWidget().insertWidget(1, self.report)
 
     # ------------------------------------------------------------ panneau de réglages
     def build_controls(self, layout: QVBoxLayout) -> None:
@@ -138,6 +156,20 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
         row.addWidget(self.multiplier)
         layout.addLayout(row)
 
+        box = QGroupBox("Diagnostic")
+        bl = QVBoxLayout(box)
+        self.diag_box = QCheckBox("Diagnostic du bruit")
+        self.diag_box.setToolTip("Rapport sur le bruit du gyro et du terme D avant et après filtrage, avec la "
+                                 "stratégie de filtrage conseillée (mêmes règles que l'assistant).")
+        self.diag_box.toggled.connect(self._on_diagnosis_toggled)
+        bl.addWidget(self.diag_box)
+        help_ = QLabel("Rapport à côté des courbes : bruit gyro et D avant / après filtres, conseils par filtre "
+                       "(RPM, notch dynamique, passe-bas) et stratégie de filtrage.")
+        help_.setWordWrap(True)
+        help_.setStyleSheet(theme.muted_style())
+        bl.addWidget(help_)
+        layout.addWidget(box)
+
     def _open(self, key: str) -> None:
         if self.main_window is not None:
             self.main_window.open_tool(key)
@@ -149,6 +181,13 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
             s.blockSignals(False)
         self.run()
 
+    def _on_diagnosis_toggled(self, on: bool) -> None:
+        res = self._last_result
+        if on and (res is None or any(f.diagnosis is None for f in res.files)):
+            self.run()  # le diagnostic n'est calculé que sur demande
+        else:
+            self.on_options_changed()
+
     def selected_keys(self) -> list[str]:
         return [self.ds_list.item(i).data(Qt.UserRole) for i in range(self.ds_list.count())
                 if self.ds_list.item(i).isSelected()]
@@ -159,6 +198,7 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
             "mode": "psd" if self.psd_box.isChecked() else "amp",
             "resolution": float(self.resolution.currentData()),
             "multiplier": float(self.multiplier.value()),
+            "diagnosis": self.diag_box.isChecked(),
         }
 
     # ------------------------------------------------------------ calcul (arrière-plan)
@@ -188,11 +228,14 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
                         fsp.noise[(key, ax)] = (mn.mean_db, mn.std_db)
             d = compute_delays(log, sel)
             fsp.gyro_ms, fsp.dterm_ms, fsp.delays_moving = d.gyro_ms, d.dterm_ms, d.moving
+            if opts["diagnosis"]:
+                fsp.diagnosis = noise_report(log, sel)
             files.append(fsp)
         return SpectralResult(mode, keys, files)
 
     # ------------------------------------------------------------ affichage
     def render(self, res: SpectralResult) -> None:
+        self._render_diagnosis(res)
         self.canvas.clear()
         axes = self.axes()
         if not res.files or not axes:
@@ -328,3 +371,84 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
                 err = pg.ErrorBarItem(x=x[ok], y=mean[ok], height=2 * np.nan_to_num(std[ok]), beam=0.06,
                                       pen=pg.mkPen(fsp.entry.color, width=1.5))
                 p.addItem(err)
+
+    # ------------------------------------------------------------ diagnostic du bruit
+    def _render_diagnosis(self, res: SpectralResult) -> None:
+        reports = [f for f in res.files if f.diagnosis is not None]
+        visible = self.diag_box.isChecked() and bool(reports)
+        if visible and self.report.isHidden():
+            split = self.report.parentWidget()
+            sizes = split.sizes()
+            self.report.show()
+            split.setSizes([max(sizes[0] - REPORT_WIDTH, 400), REPORT_WIDTH, sizes[2]])
+        elif not visible:
+            self.report.hide()
+        if visible:
+            self.report.setHtml("".join(_diagnosis_html(f.entry, f.diagnosis) for f in reports) +
+                                f"<hr><p style='{theme.muted_style()}'>Diagnostic automatique à partir des mesures du "
+                                "log, mêmes règles que l'assistant : un seul changement à la fois, puis vol d'essai "
+                                "court et température des moteurs.</p>")
+
+
+def _db(x: float) -> str:
+    return f"{x:.0f} dB".replace("-", "−") if np.isfinite(x) else "–"
+
+
+def _levels_table(rows: list[AxisNoise], band: tuple[float, float], kind: str) -> str:
+    """Niveaux avant / après filtres, axe par axe (échelle de PIDtoolbox)."""
+    if not rows:
+        return ""
+    head = "".join(f"<th>{h}</th>" for h in ("Axe", "Avant", "à", "Après", "Baisse"))
+    body = "".join(
+        f"<tr><td>{r.axis}</td><td align='right'>{_db(r.before_db)}</td>"
+        f"<td align='right'>{f'{r.peak_hz:.0f} Hz' if np.isfinite(r.peak_hz) else '–'}</td>"
+        f"<td align='right'>{_db(r.after_db)}</td>"
+        f"<td align='right'>{f'{r.reduction_db:.1f} dB' if np.isfinite(r.reduction_db) else '–'}</td></tr>"
+        for r in rows)
+    return (f"<table cellpadding='3' cellspacing='0' border='1'><tr>{head}</tr>{body}</table>"
+            f"<p style='{theme.muted_style()}'>Sommet du spectre lissé entre {band[0]:.0f} et {band[1]:.0f} Hz "
+            "(échelle de PIDtoolbox) et baisse du niveau moyen dans cette bande. "
+            f"{html.escape(level_note(kind))}</p>")
+
+
+def _block_html(b: FilterBlock) -> str:
+    """Un filtre : réglages, mesures, constats de l'assistant, puis le verdict s'il n'y a rien à faire."""
+    out = [f"<h4>{html.escape(b.title)}</h4>",
+           f"<p style='{theme.muted_style()}'>Réglages : {html.escape(b.settings)}</p>"]
+    if b.observations:
+        out.append("<ul>" + "".join(f"<li>{html.escape(o)}</li>" for o in b.observations) + "</ul>")
+    out += [finding_html(f) for f in b.findings]
+    if b.verdict is not None:
+        out.append(finding_html(b.verdict))
+    return "".join(out)
+
+
+def _diagnosis_html(entry: LoadedLog, nr: NoiseReport) -> str:
+    rep = nr.report
+    need, _ = rep.measures["log_rate_needed_hz"]
+    flight = ("vol avec mouvements : le retard des filtres est jugé" if nr.moving else
+              "vol surtout stationnaire : bon pour identifier le bruit, pas pour juger le retard des filtres")
+    parts = [
+        f"<h2 style='color:{entry.color}'>{html.escape(entry.label)}</h2>",
+        f"<p><b>Drone :</b> {html.escape(rep.profile.label)} <i>({html.escape(rep.profile_reason)})</i><br>"
+        f"<b>Période :</b> {rep.period[0]:.1f} – {rep.period[1]:.1f} s · <b>Log :</b> {entry.log.fs:.0f} Hz "
+        f"(au moins {need:.0f} Hz) · {flight}.</p>",
+        "<h3>1. Conditions du log</h3>",
+    ]
+    parts += [finding_html(f) for f in nr.conditions] or ["<p>Log exploitable pour juger le bruit et les filtres.</p>"]
+    parts.append("<h3>2. Gyro : bruit avant et après filtrage</h3>")
+    if not nr.has_unfiltered:
+        parts.append("<p>Pas de gyro non filtré dans ce log : seul le gyro filtré est mesuré.</p>")
+    parts.append(_levels_table(nr.gyro, nr.band, "gyro"))
+    parts += [finding_html(f) for f in nr.gyro_other]
+    parts += [_block_html(b) for b in nr.gyro_blocks]
+    n = 3
+    if nr.dterm:
+        parts.append(f"<h3>{n}. Terme D : bruit avant et après filtrage</h3>")
+        n += 1
+        parts.append(_levels_table(nr.dterm, nr.band, "dterm"))
+        parts.append(f"<p style='{theme.muted_style()}'>Terme D avant filtres reconstruit à partir du gyro filtré.</p>")
+        parts.append(_block_html(nr.dterm_block))
+    parts.append(f"<h3>{n}. Stratégie de filtrage</h3>")
+    parts += [finding_html(f) for f in nr.strategy]
+    return "".join(parts)

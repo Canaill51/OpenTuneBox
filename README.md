@@ -14,7 +14,7 @@ manches, modes de vol. Chaque outil s'ouvre par son bouton dans la barre d'outil
 
 | Bouton | Outil | Ce qu'il montre |
 |---|---|---|
-| Spectre | Analyse spectrale | Spectres avant/après filtres, retards des filtres, bruit moteur par harmonique |
+| Spectre | Analyse spectrale | Spectres avant/après filtres, retards des filtres, bruit moteur par harmonique ; diagnostic du bruit gyro et D avec stratégie de filtrage (case à cocher) |
 | Fréq. × gaz | Fréquence × gaz | Cartes de bruit en fonction des gaz (4 colonnes, préréglages type PIDtoolbox) |
 | Fréq. × temps | Fréquence × temps | Spectrogrammes avec harmoniques moteur et notchs dynamiques |
 | Indicielle | Réponse indicielle | Déconvolution de Wiener : pic, latence, temps de montée, bande passante, marge de phase… |

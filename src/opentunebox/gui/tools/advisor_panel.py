@@ -9,7 +9,7 @@ import pyqtgraph as pg
 from PySide6.QtWidgets import QComboBox, QLabel, QTextBrowser
 
 from ...advisor.profiles import PROFILES
-from ...advisor.rules import ALERTE, ATTENTION, CONSEIL, INFO, OK, analyze
+from ...advisor.rules import ALERTE, ATTENTION, CONSEIL, INFO, OK, Finding, analyze
 from .. import theme
 from .base import ToolWindow
 
@@ -20,6 +20,16 @@ SEV_STYLE = {
     INFO: ("#7f8c8d", "INFO"),
     OK: ("#1a9a3a", "OK"),
 }
+
+
+def finding_html(f: Finding) -> str:
+    """Un constat : étiquette de gravité, titre, détail, puis les actions en liste."""
+    color, tag = SEV_STYLE.get(f.severity, ("#444", f.severity))
+    out = (f"<p><span style='background:{color}; color:white; padding:1px 5px'>&nbsp;{tag}&nbsp;</span> "
+           f"<b>{html.escape(f.title)}</b><br>{html.escape(f.detail)}</p>")
+    if f.actions:
+        out += "<ul>" + "".join(f"<li>{html.escape(a)}</li>" for a in f.actions) + "</ul>"
+    return out
 
 
 class AdvisorWindow(ToolWindow):
@@ -70,13 +80,7 @@ class AdvisorWindow(ToolWindow):
             if not items:
                 continue
             parts.append(f"<h3>{html.escape(cat)}</h3>")
-            for f in items:
-                color, tag = SEV_STYLE.get(f.severity, ("#444", f.severity))
-                parts.append(
-                    f"<p><span style='background:{color}; color:white; padding:1px 5px'>&nbsp;{tag}&nbsp;</span> "
-                    f"<b>{html.escape(f.title)}</b><br>{html.escape(f.detail)}</p>")
-                if f.actions:
-                    parts.append("<ul>" + "".join(f"<li>{html.escape(a)}</li>" for a in f.actions) + "</ul>")
+            parts.extend(finding_html(f) for f in items)
         parts.append(f"<hr><p style='color:{theme.current().muted}'>Diagnostic automatique à partir des mesures du log : "
                      "à confirmer par le ressenti en vol et la température des moteurs.</p>")
         self.report.setHtml("".join(parts))

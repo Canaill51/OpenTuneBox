@@ -300,3 +300,8 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S30] Documentation Betaflight, [*DSHOT RPM Filtering*](https://betaflight.com/docs/wiki/guides/current/DSHOT-RPM-Filtering) :
   si les moteurs restent froids, « move gyro lowpass filtering to higher values », « disable gyro lowpass
   1 entirely », un filtre à la fois, en vérifiant la température des moteurs.
+- [S31] R. Bristow-Johnson, *Audio EQ Cookbook*, [note du W3C du 2021-06-08](https://www.w3.org/TR/audio-eq-cookbook/)
+  (éd. R. Toy) : notch H(s) = (s² + 1) / (s² + s/Q + 1), Q « the EE kind of definition », largeur
+  « between -3 dB frequencies for BPF and notch ». Le notch dynamique de Betaflight est de cette forme
+  (`svfNotchUpdate`, `common/filter.c`, Q = `dyn_notch_q` / 100) : largeur à −3 dB = fréquence / Q, et à
+  l'écart d du centre |H| ≈ 2d / √((2d)² + (f0/Q)²).

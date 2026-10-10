@@ -253,6 +253,41 @@ def _line_height(f: np.ndarray, S: np.ndarray, f0: float) -> float:
     return float(10 * np.log10(line.mean() / floor.mean()))
 
 
+def _half_power_width(f: np.ndarray, S: np.ndarray, f0: float) -> float:
+    """Largeur (Hz) d'une raie à mi-puissance de son excès sur le bruit voisin (10 à 20 % de part et d'autre),
+    interpolée entre cases ; NaN si la raie ne dépasse pas le bruit ou touche une bande retirée."""
+    floor = S[((f >= 0.8 * f0) & (f <= 0.9 * f0)) | ((f >= 1.1 * f0) & (f <= 1.2 * f0))]
+    floor = floor[np.isfinite(floor)]
+    near = np.flatnonzero(np.abs(f - f0) <= 10.0)  # sommet le plus proche (pic trouvé à 18,5 Hz près)
+    if floor.size < 2 or near.size == 0 or not np.any(np.isfinite(S[near])):
+        return float("nan")
+    k = int(near[np.nanargmax(S[near])])
+    level = floor.mean() + 0.5 * (S[k] - floor.mean())
+    if not S[k] > floor.mean():
+        return float("nan")
+    edges = []
+    for step in (-1, 1):
+        j = k
+        while 0 <= j + step < f.size and np.isfinite(S[j + step]) and S[j + step] > level:
+            j += step
+        n = j + step
+        if not (0 <= n < f.size and np.isfinite(S[n])):
+            return float("nan")
+        edges.append(f[j] + (f[n] - f[j]) * (S[j] - level) / (S[j] - S[n]))
+    return float(edges[1] - edges[0])
+
+
+def line_shapes(x_raw: np.ndarray, mhz: np.ndarray, fs: float, freqs, n_harm: int,
+                seg_ms: float = 300.0) -> list[tuple[float, float]]:
+    """(largeur à mi-puissance en Hz, hauteur au-dessus du bruit voisin en dB) des raies `freqs` du gyro non
+    filtré, bandes des harmoniques moteur traitées par le filtre RPM retirées (comme pour le notch
+    dynamique, placé après lui)."""
+    f, S = _masked_spectrum(x_raw, mhz, fs, max(n_harm, 1), seg_ms)
+    if f.size < 8:
+        return [(float("nan"), float("nan"))] * len(freqs)
+    return [(_half_power_width(f, S, float(f0)), _line_height(f, S, float(f0))) for f0 in freqs]
+
+
 def spectrum_lines(x_raw: np.ndarray, x_filt: np.ndarray, mhz: np.ndarray, fs: float, band: tuple[float, float],
                    min_db: float = 6.0, n_harm: int = 8, seg_ms: float = 300.0) -> list[SpectrumLine]:
     """Raies qui ne viennent pas des moteurs (résonances, bruit résiduel), avant et après filtres.

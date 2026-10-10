@@ -213,3 +213,29 @@ def test_freq_time_window(app, state):
         assert len(win.plots) == 2
     finally:
         _close(app, win)
+
+
+@pytest.mark.corpus
+@needs_logs
+def test_spectral_noise_diagnosis(app, state):
+    from opentunebox.gui.tools.spectral_window import SpectralWindow
+
+    win = _open(state, SpectralWindow)
+    try:
+        res = _run(win)
+        assert res.files[0].diagnosis is None and win.report.isHidden()  # calculé seulement sur demande
+        win.diag_box.setChecked(True)
+        res = _run(win)
+        nr = res.files[0].diagnosis
+        assert [a.axis for a in nr.gyro] == ["Roll", "Pitch", "Yaw"] and len(nr.dterm) == 2
+        assert all(a.reduction_db > 0 for a in nr.gyro)  # les filtres baissent le bruit
+        assert nr.strategy
+        assert not win.report.isHidden()
+        text = win.report.toPlainText()
+        for part in ("Conditions du log", "Gyro : bruit avant et après", "Filtre RPM", "Notch dynamique",
+                     "Passe-bas du gyro", "Terme D :", "Passe-bas du D", "Stratégie de filtrage"):
+            assert part in text
+        win.diag_box.setChecked(False)  # masqué sans recalcul
+        assert win.report.isHidden()
+    finally:
+        _close(app, win)

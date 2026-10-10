@@ -283,6 +283,18 @@ et pitch, une voix par drone (médiane de ses axes) :
 
 ## Règles
 
+Le diagnostic du bruit de la fenêtre Spectre (`advisor/noise.py`) reprend ces mêmes constats, rangés par
+début de titre en quatre parties (conditions du log, gyro, terme D, stratégie) ; il n'a aucun seuil à lui.
+Quand l'assistant n'écrit pas de stratégie (moins de deux étapes), il indique le seul réglage de filtre à
+faire, ou qu'aucun n'est conseillé. Les constats du gyro sont répartis en blocs (filtre RPM, notch
+dynamique, passe-bas ; étapes de `rules.FILTER_STAGES`) ; un bloc sans constat à appliquer reçoit un
+verdict qui reprend les repères existants (harmonique effacée à 3 dB au plus, gain de poids 0,5, marge
+6 dB) et dit quand l'assistant proposerait un changement (Q du filtre RPM, `dyn_notch_min_hz` : vol avec
+mouvements, retard au-dessus du repère, bruit faible). Seules valeurs ajoutées, toutes du firmware :
+`rpm_filter_harmonics = 3` proposé si le filtre RPM est coupé malgré l'eRPM (défaut de Betaflight,
+`pg/rpm_filter.c`), `blackbox_disable_rpm = OFF` si `dshot_bidir` est actif sans eRPM enregistré. Un nouveau constat de bruit ou de filtre doit avoir sa place dans
+`noise.GYRO_TITLES` ou `noise.DTERM_TITLES` (vérifié par `tests/test_advisor.py`).
+
 Niveaux : **attention** (à corriger), **conseil** (amélioration), **info**. Les règles de réponse et de bruit
 portent sur le roll et le pitch (le yaw n'est pas jugé).
 
@@ -310,7 +322,7 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   filtré » (ok sous −30 dB PIDtoolbox, info au-dessus) et « Bruit du terme D » (ok) affiche le sommet sur
   l'échelle de PIDtoolbox.
 - **Filtrage trop prudent** : retard gyro > repère de la taille alors que gyro et D sont peu bruités
-  (action en plus : `rpm_filter_q` + 250, par pas jusqu'à 1000, quand le filtre RPM est actif) ; retard D > repère
+  (action en plus : `rpm_filter_q` + 100, par pas jusqu'à 1000, quand le filtre RPM est actif) ; retard D > repère
   alors que le D est peu bruité. Retard gyro au-dessus du repère avec du bruit : info. Les textes et les
   lignes « ok » rappellent l'objectif du graphique de Brian White pour la taille (2–3,5" lu à 3", 8"+ à
   8" ; pas d'objectif pour les whoops, sous 2").
@@ -319,8 +331,24 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   bruit moteur est bien éliminé, poids de la 2e ou de la 3e harmonique plus fort que nécessaire d'au moins
   0,5 → `rpm_filter_weights` proposés (voir « Filtre RPM : poids et Q ») ; harmonique 2 ou 3 visible après
   filtrage mais hors du filtre RPM → `rpm_filter_harmonics` augmenté ; harmonique visible malgré un poids de
-  100 → `motor_poles` à vérifier, `rpm_filter_q` −30 % (la 1re harmonique reste à « Bruit moteur mal
-  éliminé »).
+  100 → `motor_poles` à vérifier, `rpm_filter_q` −100 (la 1re harmonique reste à « Bruit moteur mal
+  éliminé », qui propose aussi −100) ; toutes les harmoniques traitées effacées (≤ 3 dB) avec gyro et D sous
+  leurs repères, log assez rapide, Q < 1000 → « Filtre RPM : Q peut monter », `rpm_filter_q` + 100 (tout
+  type de vol ; pas proposé si un autre constat parle déjà de `rpm_filter_q`).
+- **Notch dynamique : Q et N** (filtre RPM actif, gyro non filtré) : pour chaque pic à suivre, largeur à
+  mi-puissance et hauteur au-dessus du bruit voisin sur le gyro non filtré (harmoniques traitées retirées,
+  le plus large et le plus haut du roll et du pitch) ; Q nécessaire = le plus haut Q qui ramène chaque raie
+  à 3 dB du bruit voisin sur sa demi-largeur (forme du notch de Betaflight [S31]), arrondi à 50 vers le bas,
+  100 au moins. Q actuel plus haut → « Q trop haut pour les raies à suivre » (`dyn_notch_q` = Q nécessaire) ;
+  sinon, sans raie qui passe et avec gyro et D sous leurs repères, « Q peut monter » jusqu'au Q nécessaire,
+  450 au plus (+50 si aucune raie n'est mesurable). Plus de pics que de notchs avec une raie qui passe ou un
+  gyro bruité → « plus de notchs » (`dyn_notch_count` = nombre de pics, 7 au plus) ; une raie qui passe
+  dans la plage → `dyn_notch_count` + 1.
+- **Terme D propre** (tout vol, log assez rapide, gyro et D non signalés) : sommet du D sous −20 dB
+  PIDtoolbox → le simulateur essaie le curseur « filtre D » jusqu'à 1,2 (ou +0,2 au-delà ; sans curseur,
+  coupures × 1,1, deux pas au plus), du plus grand pas au plus petit, et retient le premier qui garde le D
+  sous −10 dB PIDtoolbox et sous le p90 de la taille. Remplace alors le conseil « filtrage du D trop
+  fort » fondé sur le retard (+0,1 seulement).
 - **Retards des filtres** : seulement si le vol contient des mouvements (consigne au-delà de 50 °/s au
   moins 5 % du temps) ; sinon « Retard des filtres peu représentatif » (info), sans conseil fondé sur le
   retard mesuré (« filtrage gyro trop prudent », « filtrage du D trop fort »). « Le LPF1 du gyro peut être
@@ -389,7 +417,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Passage à l'échelle de PIDtoolbox | −6,5 dB | Corpus | 4 sessions de 3 drones avec captures PIDtoolbox, ± 1 dB (`validation.md`) |
 | Retards des filtres gyro et D | p90 de la taille (vols avec mouvements), arrondi vers le haut | Corpus | Déclenche le conseil. Objectif affiché : graphique de Brian White [S26], 1 ms à 2" puis 0,25 ms (gyro) et 0,17 ms (D) par pouce (5" : 1,75 / 1,5 ms) ; dans la vidéo [S20] il citait de mémoire 1,5 ms pour un 5" et ≈ 5 ms pour un 10". Objectif D en valeurs PIDtoolbox, environ 0,5 ms sous notre mesure |
 | Taille pour l'objectif de retard | 2–3,5" → 3" ; 8"+ → 8" | Estimation | Le graphique commence à 2" : pas d'objectif pour les whoops |
-| `rpm_filter_q` pour gagner du retard | + 250 par pas, jusqu'à 1000 | Firmware (doc) | « stepwise increasing the Q from the default of 500 up to a max of 1000 » [S27] ; Brian White : 750 [S20, 34:12]. Pas de 250 : estimation. Proposé seulement dans le conseil « filtrage gyro trop prudent » (bruit faible) |
+| `rpm_filter_q` pour gagner du retard | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | « stepwise increasing the Q from the default of 500 up to a max of 1000 » [S27] ; Brian White : 750 [S20, 34:12]. Pas de 100 : décision de Cédric (2026-10-10), à la place de 250. Proposé seulement dans le conseil « filtrage gyro trop prudent » (bruit faible) |
 | Poids RPM juste suffisant | 1 − 10^(−(hauteur + 6 dB)/20), arrondi au dixième supérieur | Firmware + estimation (marge) | Profondeur du notch tirée du code (`rpmNotchUpdate`) ; marge de 6 dB choisie pour un taux de 6 % (voir « Filtre RPM : poids et Q ») ; seulement 2e et 3e harmoniques, comme [S27] ; presets officiels en tripale : 100, 0, 80 (AOS), 100, 20, 100 (Karatebrot), 90, 30, 90 (SupaflyFPV) [S28] |
 | Gain minimal pour proposer un poids | 0,5 | Estimation | Choisi avec Cédric sur le taux de déclenchement |
 | Raie moteur « visible » | > 3 dB au-dessus du bruit voisin | Estimation | Sans raie, la mesure vaut environ 0 dB (± 1 dB) |
@@ -403,7 +431,11 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Nombre de notchs | autant que de pics à suivre, 1 au moins | Firmware (doc) | « Usually no more than two or three are needed […] and often only one » ; « only using the minimum number of notches » [S19] ; constat **info** : 27 % des sessions (16 % des drones)
 | Raie hors moteurs listée (vol stationnaire) | ≥ 6 dB au-dessus du bruit voisin (10 à 20 % de part et d'autre) | Estimation | Visible après filtrage au-delà de 3 dB (`HARMONIC_VISIBLE_DB`) |
 | Raie basse fréquence | < 100 Hz : mise en garde avant de la filtrer | Communauté | Propwash et oscillations « ~20Hz to ~100Hz » [S1] |
-| Baisse de `rpm_filter_q` (raie moteur visible) | −30 % (500 → 350), borne 250 | Firmware (borne) + estimation | Comme « Bruit moteur mal éliminé » |
+| Baisse de `rpm_filter_q` (raie moteur visible) | −100 par pas, borne 250 | Firmware (borne) + décision | Pas de 100 : décision de Cédric (2026-10-10), à la place de −30 % ; aussi dans « Bruit moteur mal éliminé » |
+| Hausse de `rpm_filter_q` (harmoniques effacées) | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | [S27] ; condition « harmoniques effacées, bruit sous les repères, tout type de vol » : décision de Cédric (2026-10-10) |
+| `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 100 à 450 | Théorie + communauté + estimation | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 450 au plus avec filtre RPM [S19] ; 100 au moins : estimation (sources : 120–150 sans filtre RPM [S19]) ; +50 si aucune raie n'est mesurable ; raie ramenée à 3 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) |
+| `dyn_notch_count` en hausse | un notch par pic à suivre, 7 au plus, si une raie passe ou si le gyro est bruité | Firmware (borne) + décision | `cli/settings.c` (0 à 7) ; décision de Cédric (2026-10-10) |
+| Terme D propre : relèvement des filtres | D sous −20 dB PIDtoolbox ; jusqu'à 1,2 (ou +0,2 au-delà), D prévu sous −10 dB et sous le p90 | Communauté + configurateur + estimation | « ideally below about minus 20 dB » [S20] ; 0,8–1,2 hors mode expert (`useTuningSliders.ts`) ; +0,2 et deux pas × 1,1 sans curseur : estimations ; décision de Cédric (2026-10-10) |
 | `rpm_filter_harmonics` | jusqu'à 3 | Firmware | `cli/settings.c` (0 à 3) |
 | Ordre de la stratégie de filtrage | enregistrement, corrections, mécanique, RPM, notch dynamique, LPF gyro, LPF D | Firmware (doc) + estimation | Un filtre à la fois [S30] ; ordre RPM → notch → passe-bas comme le guide RPM |
 | Stratégie de filtrage affichée | à partir de 2 étapes (`rules.STRATEGY_MIN_STAGES`) | Corpus + décision de Cédric | 37 % des sessions contre 79 % dès une étape (2026-10-05) |
@@ -417,7 +449,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Terme I décentré | moyenne > 29 à 33 (unités PID) selon la taille | Corpus | |
 | Saturation des moteurs | ≥ 98 % pendant > 1,5 % du temps | Corpus | La notion de « moteur à 98 % » est estimée : le firmware ne journalise pas de saturation (il renormalise le mixage quand l'écart entre moteurs dépasse 100 %) |
 | Pas des curseurs conseillés | 0,1 (0,1 à 0,2 pour les filtres) | Estimation | Le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
-| `rpm_filter_q` conseillé | 500 → 350 | Firmware (500) + estimation (350) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre selon Brian White [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où 350 estimé. Monter Q : voir la ligne « pour gagner du retard ». Avec un poids < 100, la règle « poids trop bas » propose d'abord de le remonter |
+| `rpm_filter_q` conseillé | −100 par pas (500 → 400) | Firmware (500) + décision (pas) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre selon Brian White [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où des pas de 100 (décision de Cédric, 2026-10-10). Monter Q : voir la ligne « pour gagner du retard ». Avec un poids < 100, la règle « poids trop bas » propose d'abord de le remonter |
 | `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
 | Notch statique conseillé | coupure = 0,7 × fréquence de la raie | Estimation | |
 
@@ -434,6 +466,8 @@ Les champs `hover_hz` et `resonance_hz` des profils (`advisor/profiles.py`) sont
 - Firmware Betaflight (commit e796d7f87) : `rpm_filter_q` = 500 (`pg/rpm_filter.c`), `motor_poles` = 14
   (`pg/motor.c`), `blackbox_sample_rate` = 1/4 (`blackbox/blackbox.c`). Configurateur : pas et bornes des
   curseurs (`PidSubTab.vue`, `FilterSubTab.vue`, `useTuningSliders.js`).
+- Firmware Betaflight (commit cc1bb9d28) : `rpm_filter_harmonics` = 3 (`pg/rpm_filter.c`) ; réglages
+  `blackbox_disable_rpm` et `blackbox_disable_gyrounfilt` (`cli/settings.c`).
 
 ### Boucle ouverte mesurée
 

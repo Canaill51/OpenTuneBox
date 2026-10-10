@@ -32,6 +32,8 @@ fichier .bbl/.bfl
                             en unités physiques ; trames impossibles écartées ; settings.py normalise l'en-tête
             └─ analysis/*   calculs purs (aucun Qt)
                  ├─ advisor/rules.py      constats + actions, seuils par profil (advisor/profiles.py)
+                 ├─ advisor/noise.py      diagnostic du bruit de la fenêtre Spectre (constats de rules.py rangés
+                 │                        par partie : conditions, gyro, terme D, stratégie ; niveaux avant/après)
                  ├─ cli.py                opentunebox info / report
                  └─ gui/tools/*           une fenêtre par outil (calcul en arrière-plan, affichage pyqtgraph)
 ```
