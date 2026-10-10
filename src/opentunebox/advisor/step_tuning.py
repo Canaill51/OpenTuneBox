@@ -26,6 +26,7 @@ MIN_WINDOWS = 20  # fenêtres exploitables par axe (comme rules.py)
 PEAK_FLAT_MAX = 1.05  # pic « sans dépassement » (repère 1,03 de rules.STEP_PEAK_FLAT, plus le bruit d'un vol)
 PEAK_PLATEAU = 0.02  # le cran suivant ne baisse plus le pic que de moins de 0,02 : D suffisant
 PEAK_PLATEAU_MAX = 1.10  # … à condition que le pic soit déjà modéré
+PITCH_PEAK_GAP = 0.02  # pitch qui dépasse plus que le roll au Damping choisi : Pitch D. à monter
 # niveau des gains : séries Master du corpus (10 drones dont le choix final est connu)
 RIPPLE_HIGH = 0.065  # cassure nette (gardés ≤ 0,067, rejetés ≥ 0,064)
 RIPPLE_EARLY = 0.03  # début de cassure : près de l'optimum
@@ -115,49 +116,63 @@ def _step_note(s: Series) -> str:
             f"préférez {_fmt(SERIES_STEP)}.")
 
 
-def _peak(f: FlightStep) -> float:
-    return max((f.metrics[a].peak for a in _axes(f)), default=float("nan"))
+def _peak(f: FlightStep, ax: int) -> float:
+    """Pic arrondi à 0,01 : la valeur lue à l'écran (1,052 s'affiche et se juge 1,05)."""
+    return round(f.metrics[ax].peak, 2) if ax in _axes(f) else float("nan")
 
 
 def damping_block(flights: list[FlightStep], s: Series) -> TuningBlock:
-    b = TuningBlock("Équilibre P/D (série Damping)", s)
+    """Série Damping (jugée sur le roll : Damping règle le D des deux axes, le pitch se corrige ensuite par
+    Pitch D.) ou série Pitch D. (jugée sur le pitch)."""
+    ax = 1 if s.key == "Pitch D." else 0
+    title = "Équilibre roll / pitch (série Pitch D.)" if ax else "Équilibre P/D (série Damping)"
+    b = TuningBlock(title, s)
     vals, idx = _pick(flights, s)
-    peaks = [_peak(flights[i]) for i in idx]
-    for v, i, p in zip(vals, idx, peaks):
+    peaks = [_peak(flights[i], ax) for i in idx]
+    for v, i in zip(vals, idx):
         f = flights[i]
-        b.lines.append(f"Damping {_fmt(v)} : pic " + " / ".join(
+        b.lines.append(f"{s.key} {_fmt(v)} : pic " + " / ".join(
             f"{AXES2[a].lower()} {_n(f.metrics[a].peak, 2)}" for a in _axes(f)) + f" ({f.label})")
     ok = [k for k, p in enumerate(peaks) if math.isfinite(p)]
     if len(ok) < 2:
-        b.finding = Finding("Réponse", INFO, "Série Damping incomplète",
+        b.finding = Finding("Réponse", INFO, f"Série {s.key} incomplète",
                             "Il faut au moins deux vols exploitables.", [])
         return b
-    chosen, why = None, ""
+    axis = AXES2[ax].lower()
+    chosen, why, flat = None, "", False
     for j, k in enumerate(ok):
         if peaks[k] <= PEAK_FLAT_MAX:
-            chosen, why = k, f"premier pic sans dépassement visible (≤ {_fmt(PEAK_FLAT_MAX)})"
+            chosen, flat = k, True
+            why = f"premier pic {axis} sans dépassement visible (≤ {_fmt(PEAK_FLAT_MAX)})"
             break
-        if j + 1 < len(ok) and peaks[k] <= PEAK_PLATEAU_MAX and peaks[k] - peaks[ok[j + 1]] < PEAK_PLATEAU:
-            chosen, why = k, f"le cran suivant ne baisse plus le pic (moins de {_fmt(PEAK_PLATEAU)})"
+        if j + 1 < len(ok) and peaks[k] <= PEAK_PLATEAU_MAX and peaks[k] - peaks[ok[j + 1]] < PEAK_PLATEAU - 1e-9:
+            chosen, why = k, f"le cran suivant ne baisse plus le pic {axis} (moins de {_fmt(PEAK_PLATEAU)})"
             break
     note = _step_note(s)
     if chosen is None:
         nxt = vals[ok[-1]] + SERIES_STEP
-        b.finding = Finding("Réponse", CONSEIL, "Encore du dépassement",
-                            f"Le pic reste au-dessus de {_fmt(PEAK_FLAT_MAX)} jusqu'à Damping {_fmt(vals[ok[-1]])}." + note,
-                            [f"Volez avec Damping {_fmt(nxt)}, puis comparez."])
+        b.finding = Finding("Réponse", CONSEIL, f"Encore du dépassement en {axis}",
+                            f"Le pic {axis} reste au-dessus de {_fmt(PEAK_FLAT_MAX)} jusqu'à {s.key} "
+                            f"{_fmt(vals[ok[-1]])}." + note, [f"Volez avec {s.key} {_fmt(nxt)}, puis comparez."])
         return b
     b.best = idx[chosen]
-    if chosen == ok[0]:
+    if chosen == ok[0] and flat:
         prv = vals[chosen] - SERIES_STEP
-        b.finding = Finding("Réponse", CONSEIL, f"Damping {_fmt(vals[chosen])} : déjà sans dépassement",
-                            f"Pic {_n(peaks[chosen], 2)} dès la plus petite valeur testée : un Damping plus bas "
-                            "suffit peut-être." + note,
-                            [f"Volez avec Damping {_fmt(prv)} pour trouver la limite."])
+        b.finding = Finding("Réponse", CONSEIL, f"{s.key} {_fmt(vals[chosen])} : déjà sans dépassement",
+                            f"Pic {axis} {_n(peaks[chosen], 2)} dès la plus petite valeur testée : une valeur "
+                            "plus basse suffit peut-être." + note,
+                            [f"Volez avec {s.key} {_fmt(prv)} pour trouver la limite."])
         return b
-    b.finding = Finding("Réponse", OK, f"Damping conseillé : {_fmt(vals[chosen])}",
-                        f"Pic {_n(peaks[chosen], 2)} : {why}." + note,
-                        [f"Gardez Damping {_fmt(vals[chosen])} pour la série Master."])
+    detail = f"Pic {axis} {_n(peaks[chosen], 2)} : {why}." + note
+    actions = [f"Gardez {s.key} {_fmt(vals[chosen])}" + (" pour la série Master." if not ax else ".")]
+    sev = OK
+    pitch = _peak(flights[idx[chosen]], 1)
+    if not ax and pitch > PEAK_FLAT_MAX and pitch - peaks[chosen] >= PITCH_PEAK_GAP:
+        sev = CONSEIL
+        detail += f" Le pitch dépasse encore ({_n(pitch, 2)}) : il a plus d'inertie, son D se règle à part."
+        actions.append(f"Pitch D. (simplified_pitch_d_gain) +{_fmt(SERIES_STEP)} pour amortir le pitch, "
+                       "puis comparez son pic.")
+    b.finding = Finding("Réponse", sev, f"{s.key} conseillé : {_fmt(vals[chosen])}", detail, actions)
     return b
 
 
@@ -250,7 +265,7 @@ def _gap_line(f: FlightStep) -> str:
 
 
 def roll_pitch_block(flights: list[FlightStep], s: Series | None, ref: int | None) -> TuningBlock | None:
-    """Série Pitch T. / Pitch D. si elle existe, sinon le vol `ref` (conseillé par la série Master, ou le
+    """Série Pitch T. (latences) si elle existe, sinon le vol `ref` (conseillé par la série Master, ou le
     vol le mieux mesuré)."""
     if s is not None:
         b = TuningBlock(f"Équilibre roll / pitch (série {s.key})", s)
@@ -304,13 +319,13 @@ def step_tuning(flights: list[FlightStep]) -> TuningReport:
     series = find_series(flights)
     master_best = None
     for s in series:
-        if s.key == "Damping":
+        if s.key in ("Damping", "Pitch D."):
             rep.blocks.append(damping_block(flights, s))
         elif s.key == "Master":
             b = master_block(flights, s)
             rep.blocks.append(b)
             master_best = b.best
-    pitch = [s for s in series if s.key in ("Pitch T.", "Pitch D.")]
+    pitch = [s for s in series if s.key == "Pitch T."]
     for s in pitch:
         rep.blocks.append(roll_pitch_block(flights, s, None))
     if not pitch:

@@ -38,6 +38,18 @@ def test_damping_first_without_overshoot():
     assert b.best == 2 and b.finding.severity == OK and "1,0" in b.finding.title
 
 
+def test_damping_judged_on_roll_pitch_by_pitch_d():
+    """Air65 : roll sans dépassement à 1,2 (1,052 affiché 1,05), pitch encore 1,08 → Damping 1,2 et Pitch D."""
+    fl = [flight("d10", Damping=1.0, peak=(1.08, 1.11)), flight("d12", Damping=1.2, peak=(1.052, 1.08))]
+    b = block(step_tuning(fl), "Équilibre P/D")
+    assert b.best == 1 and "1,2" in b.finding.title
+    assert b.finding.severity == CONSEIL and any(a.startswith("Pitch D.") for a in b.finding.actions)
+    # série Pitch D. : jugée sur le pic du pitch
+    fl = [flight("p10", Pitch_D=1.0, peak=(1.03, 1.10)), flight("p12", Pitch_D=1.2, peak=(1.03, 1.04))]
+    b = block(step_tuning(fl), "Équilibre roll / pitch (série Pitch D.)")
+    assert b.best == 1 and b.finding.severity == OK
+
+
 def test_damping_peak_plateau_and_too_low():
     # le pic ne baisse plus de 1,2 à 1,4 : 1,2 suffit
     fl = [flight("a", Damping=1.0, peak=1.11), flight("b", Damping=1.2, peak=1.06), flight("c", Damping=1.4, peak=1.055)]

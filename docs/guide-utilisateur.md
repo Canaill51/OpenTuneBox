@@ -147,13 +147,15 @@ Plus vous donnez de coups de manche francs et variés, plus la mesure va loin en
 Case **Diagnostic du réglage** (cadre « Diagnostic ») : rapport à côté des courbes, d'après la méthode de
 Brian White. Chargez une **série de vols** du même drone, mêmes filtres, où un seul curseur change par pas
 de 0,2 ; l'outil reconnaît la série tout seul et lit, selon le curseur :
-- **Damping** (équilibre P/D) : la première valeur sans dépassement visible (pic ≤ 1,05 sur roll et pitch),
-  ou celle au-delà de laquelle le pic ne baisse plus ;
+- **Damping** (équilibre P/D) : jugé sur le **roll**, la première valeur sans dépassement visible (pic
+  ≤ 1,05), ou celle au-delà de laquelle le pic ne baisse plus. Si le pitch dépasse encore, il a plus
+  d'inertie : l'outil conseille alors de monter **Pitch D.** (son D à part) plutôt que le Damping ;
+- **Pitch D.** : même lecture, sur le pic du pitch ;
 - **Master** (niveau des gains) : on monte tant que la latence baisse sans **cassure** (« ripple » : la
   montée s'arrête un instant avant la consigne, puis reprend lentement) ni **vagues** sur le palier. Chaque
   vol est classé propre, premiers signes (proche de l'optimum) ou trop haut ; au premier vol trop haut, on
   garde la valeur d'avant ;
-- **Pitch T. / Pitch D.** (ou, sans série, le vol conseillé) : écart de latence entre pitch et roll, visé
+- **Pitch T.** (ou, sans série, le vol conseillé) : écart de latence entre pitch et roll, visé
   sous 1 ms, acceptable jusqu'à 2 ms selon le drone.
 
 Conditions vérifiées pour chaque vol : feedforward à 0 en Acro, ou vol en **mode Angle** (le feedforward y
