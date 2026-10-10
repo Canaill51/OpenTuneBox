@@ -44,7 +44,7 @@ from .rules import (
 # filtre absent de ces listes tombe dans la partie gyro (test_noise_report_classifies_every_title).
 CONDITION_TITLES = ("Seuils provisoires", "Retard des filtres peu représentatif")
 DTERM_TITLES = ("Terme D bruité", "Bruit du terme D", "Filtrage du D insuffisant", "LPF1 du D en mode statique",
-                "Filtrage du D peut-être trop fort", "Retard des filtres D")
+                "Filtrage du D peut-être trop fort", "Terme D propre", "Retard des filtres D")
 GYRO_TITLES = ("Gyro filtré bruité", "Bruit du gyro filtré", "Retard des filtres gyro",
                "Filtrage gyro peut-être trop prudent", "Le LPF1 du gyro", "LPF2 du gyro coupé", "Biquad sur le",
                "Bruit moteur mal éliminé", "Filtre RPM : Q", "Poids du filtre RPM trop bas", "Harmonique moteur hors du filtre RPM",
@@ -210,9 +210,11 @@ def _notch_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Fi
                               "du bruit voisin.")
     dn = m.get("dyn_notch")
     if dn is not None:
-        peaks = ", ".join(f"{f:.0f}" for f in dn["peaks"])
-        b.observations.append(f"Pics à suivre après le filtre RPM : {peaks} Hz." if peaks else
-                              "Aucun pic à suivre après le filtre RPM.")
+        peaks = ", ".join(f"{f0:.0f} Hz" + (f" ({w:.0f} Hz de large, {h:+.0f} dB)" if np.isfinite(w) and np.isfinite(h)
+                                             else "")
+                          for f0, w, h in zip(dn["peaks"], dn["widths"], dn["heights"]))
+        b.observations.append(f"Pics à suivre après le filtre RPM (largeur à mi-puissance, hauteur au-dessus du "
+                              f"bruit voisin) : {peaks}." if peaks else "Aucun pic à suivre après le filtre RPM.")
     if _actionable(findings):
         return b
     rpm_on = log.motor_hz is not None and s.rpm_harmonics > 0
@@ -237,7 +239,7 @@ def _notch_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Fi
     if len(dn["peaks"]) > dn["count"]:
         # fréquent en vol avec mouvements (les pics bougent avec les gaz) : simple remarque, pas un défaut
         detail += (" Plus de pics que de notchs : les notchs suivent les plus forts ; l'assistant propose un notch "
-                   "de plus seulement si une raie reste visible après filtrage en vol stationnaire.")
+                   "par pic seulement si une raie passe les filtres ou si le gyro filtré est bruité.")
     if out and nr.moving:  # en stationnaire, rules._hover_noise traite déjà chaque raie qui passe
         b.verdict = Finding("Filtres", INFO, "Notch dynamique : pic en dehors de la plage",
                             detail + " Pic à " + ", ".join(f"{f:.0f}" for f in out) + " Hz hors de la plage : l'assistant "
@@ -245,10 +247,11 @@ def _notch_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Fi
                             ["Vol stationnaire de 20 à 30 s pour confirmer la raie."])
     else:
         b.verdict = Finding("Filtres", OK, "Notch dynamique : rien à changer",
-                            detail + f" dyn_notch_q {s.dyn_notch_q} : l'assistant propose de le monter jusqu'à "
-                            f"{DYN_NOTCH_Q_RPM[1]} quand aucune raie ne passe et que le bruit du gyro et du D est sous les repères ; il propose "
-                            "de relever dyn_notch_min_hz (moins de retard) sur un vol avec mouvements, quand le retard "
-                            "des filtres gyro dépasse le repère alors que le bruit est faible.")
+                            detail + f" dyn_notch_q {s.dyn_notch_q} : l'assistant calcule le Q d'après la largeur et "
+                            "la hauteur des raies à suivre ; il le baisse si une raie l'exige et le monte (jusqu'à "
+                            f"{DYN_NOTCH_Q_RPM[1]}) quand rien ne passe et que le bruit du gyro et du D est sous les "
+                            "repères. Il propose de relever dyn_notch_min_hz (moins de retard) sur un vol avec "
+                            "mouvements, quand le retard des filtres gyro dépasse le repère alors que le bruit est faible.")
     return b
 
 

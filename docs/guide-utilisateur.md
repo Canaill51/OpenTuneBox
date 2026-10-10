@@ -108,7 +108,7 @@ cochée (quelques secondes) et compte quatre parties :
    - **Filtre RPM** : réglages, hauteur de chaque harmonique moteur avant et après filtres (effacée ou
      encore visible) ;
    - **Notch dynamique** : réglages, raie la plus marquée quel que soit le gaz, pics à suivre après le
-     filtre RPM ;
+     filtre RPM avec leur largeur et leur hauteur (d'où l'assistant calcule le Q conseillé) ;
    - **Passe-bas du gyro** : réglages et retard.
 
    Chaque bloc donne les conseils de l'assistant pour ce filtre ou, s'il n'y en a pas, un verdict :

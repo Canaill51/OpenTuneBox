@@ -324,7 +324,37 @@ def test_rpm_and_dyn_notch_q_steps():
     # Air65 d'origine : harmoniques effacées, bruit sous les repères → Q du filtre RPM + 100
     s, f = findings("Cedric/Air65/1.Stock.bbl")
     assert f["Filtre RPM : Q peut monter"].actions[0].startswith(f"rpm_filter_q {s.rpm_q} → {s.rpm_q + 100}")
-    # banc d'hélices 5" : aucune raie qui passe, notch dynamique sous Q 450 → + 50
+    # banc d'hélices 5" : raies étroites, aucune qui passe → Q calculé, plafonné à 450 avec filtre RPM
     s, f = findings("Cedric/Benchmark Props 5inch/HQ J37.bbl")
-    q = f["Notch dynamique : Q peut monter"].actions[0]
-    assert q.startswith(f"dyn_notch_q {s.dyn_notch_q} → {min(s.dyn_notch_q + 50, 450)}")
+    assert f["Notch dynamique : Q peut monter"].actions[0].startswith(f"dyn_notch_q {s.dyn_notch_q} → 450")
+    # Apex 5 : raie trop large ou trop haute pour Q 500 → Q calculé plus bas
+    s, f = findings("Cedric/Apex 5/filter1.bbl")
+    assert f["Notch dynamique : Q trop haut pour les raies à suivre"].actions[0].startswith("dyn_notch_q 500 → 400")
+
+
+def test_dyn_notch_q_need():
+    """Q du notch qui ramène la raie à 3 dB du bruit voisin sur sa demi-largeur (notch SVF, Q × 100)."""
+    import math
+
+    from opentunebox.advisor.rules import _q_round, dyn_notch_q_need
+
+    # raie à 200 Hz, 20 Hz de large, 15 dB : atténuation de 12 dB à ±10 Hz
+    h = 10 ** (-12 / 20)
+    q = dyn_notch_q_need([200.0], [20.0], [15.0])
+    assert q == pytest.approx(100 * 200 * h / (20 * math.sqrt(1 - h * h)))
+    assert _q_round(q) == 250
+    assert dyn_notch_q_need([200.0], [20.0], [2.0]) == float("inf")  # déjà sous 3 dB : aucun besoin
+    assert dyn_notch_q_need([200.0], [float("nan")], [15.0]) is None
+    assert _q_round(40.0) == 100  # borne basse
+
+
+def test_dterm_lift_from_noise():
+    """D sous −20 dB PIDtoolbox : filtres du D relevés jusqu'à 1,2 si le simulateur garde le D sous les repères."""
+    from opentunebox.advisor.rules import analyze
+    from opentunebox.analysis.period import auto_period
+
+    lg = _load("Cedric/JeNo 5/Stock.bbl")
+    rep = analyze(lg, lg.slice_time(*auto_period(lg)))
+    f = next(x for x in rep.findings if x.title == "Terme D propre : ses filtres peuvent être relevés")
+    assert f.actions[0] == "Curseur « filtre D » : 1,0 → 1,2, en passant par 1,1 avec un vol d'essai à chaque pas."
+    assert not any(x.title == "Filtrage du D peut-être trop fort" and x.actions for x in rep.findings)

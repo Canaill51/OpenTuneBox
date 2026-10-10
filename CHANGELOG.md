@@ -18,8 +18,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Assistant : `rpm_filter_q` conseillé par pas de 100 dans les deux sens (au lieu de +250 et −30 %) ;
   nouveau conseil « Filtre RPM : Q peut monter » quand les harmoniques traitées sont effacées et que le
   bruit est sous les repères (jusqu'à 1000) ; nouveau conseil « Notch dynamique : Q peut monter » (+50
-  jusqu'à 450 avec filtre RPM quand aucune raie ne passe) ; une raie qui passe dans la plage du notch
-  donne une valeur précise de `dyn_notch_q` (−50).
+  jusqu'à 450 avec filtre RPM quand aucune raie ne passe).
+- Assistant : `dyn_notch_q` calculé d'après la largeur et la hauteur des raies à suivre (baissé jusqu'à
+  100 si une raie l'exige, monté jusqu'à 450 sinon) ; `dyn_notch_count` augmenté (un notch par pic) quand
+  une raie passe ou que le gyro est bruité.
+- Assistant : nouveau conseil « Terme D propre : ses filtres peuvent être relevés » sur tout vol, quand le
+  D est sous −20 dB PIDtoolbox : le simulateur choisit le plus grand pas du curseur « filtre D » (jusqu'à
+  1,2) qui garde le D sous les repères.
 - Visualiseur : la période d'analyse se règle sur les graphiques roll, pitch et yaw, plus seulement sur
   celui des moteurs ; les quatre zones restent synchronisées pendant le glissement.
 - Visualiseur : info-bulle sur les bords de la période d'analyse (début ou fin, avec le temps).

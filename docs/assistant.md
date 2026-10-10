@@ -335,9 +335,20 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   éliminé », qui propose aussi −100) ; toutes les harmoniques traitées effacées (≤ 3 dB) avec gyro et D sous
   leurs repères, log assez rapide, Q < 1000 → « Filtre RPM : Q peut monter », `rpm_filter_q` + 100 (tout
   type de vol ; pas proposé si un autre constat parle déjà de `rpm_filter_q`).
-- **Notch dynamique : Q** (filtre RPM actif, gyro non filtré) : aucune raie fixe ni raie de vol stationnaire
-  qui passe, gyro et D sous leurs repères, `dyn_notch_q` < 450 → `dyn_notch_q` + 50, jusqu'à 450 ; raie qui
-  passe dans la plage → `dyn_notch_count` + 1 ou `dyn_notch_q` − 50.
+- **Notch dynamique : Q et N** (filtre RPM actif, gyro non filtré) : pour chaque pic à suivre, largeur à
+  mi-puissance et hauteur au-dessus du bruit voisin sur le gyro non filtré (harmoniques traitées retirées,
+  le plus large et le plus haut du roll et du pitch) ; Q nécessaire = le plus haut Q qui ramène chaque raie
+  à 3 dB du bruit voisin sur sa demi-largeur (forme du notch de Betaflight [S31]), arrondi à 50 vers le bas,
+  100 au moins. Q actuel plus haut → « Q trop haut pour les raies à suivre » (`dyn_notch_q` = Q nécessaire) ;
+  sinon, sans raie qui passe et avec gyro et D sous leurs repères, « Q peut monter » jusqu'au Q nécessaire,
+  450 au plus (+50 si aucune raie n'est mesurable). Plus de pics que de notchs avec une raie qui passe ou un
+  gyro bruité → « plus de notchs » (`dyn_notch_count` = nombre de pics, 7 au plus) ; une raie qui passe
+  dans la plage → `dyn_notch_count` + 1.
+- **Terme D propre** (tout vol, log assez rapide, gyro et D non signalés) : sommet du D sous −20 dB
+  PIDtoolbox → le simulateur essaie le curseur « filtre D » jusqu'à 1,2 (ou +0,2 au-delà ; sans curseur,
+  coupures × 1,1, deux pas au plus), du plus grand pas au plus petit, et retient le premier qui garde le D
+  sous −10 dB PIDtoolbox et sous le p90 de la taille. Remplace alors le conseil « filtrage du D trop
+  fort » fondé sur le retard (+0,1 seulement).
 - **Retards des filtres** : seulement si le vol contient des mouvements (consigne au-delà de 50 °/s au
   moins 5 % du temps) ; sinon « Retard des filtres peu représentatif » (info), sans conseil fondé sur le
   retard mesuré (« filtrage gyro trop prudent », « filtrage du D trop fort »). « Le LPF1 du gyro peut être
@@ -422,7 +433,9 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Raie basse fréquence | < 100 Hz : mise en garde avant de la filtrer | Communauté | Propwash et oscillations « ~20Hz to ~100Hz » [S1] |
 | Baisse de `rpm_filter_q` (raie moteur visible) | −100 par pas, borne 250 | Firmware (borne) + décision | Pas de 100 : décision de Cédric (2026-10-10), à la place de −30 % ; aussi dans « Bruit moteur mal éliminé » |
 | Hausse de `rpm_filter_q` (harmoniques effacées) | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | [S27] ; condition « harmoniques effacées, bruit sous les repères, tout type de vol » : décision de Cédric (2026-10-10) |
-| `dyn_notch_q` avec filtre RPM | + 50 par pas jusqu'à 450 ; − 50 si une raie passe | Communauté + décision | Q 300–450 avec filtre RPM [S19] ; pas de 50 : décision de Cédric (2026-10-10) ; borne basse 1 (`cli/settings.c`) |
+| `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 100 à 450 | Théorie + communauté + estimation | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 450 au plus avec filtre RPM [S19] ; 100 au moins : estimation (sources : 120–150 sans filtre RPM [S19]) ; +50 si aucune raie n'est mesurable ; raie ramenée à 3 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) |
+| `dyn_notch_count` en hausse | un notch par pic à suivre, 7 au plus, si une raie passe ou si le gyro est bruité | Firmware (borne) + décision | `cli/settings.c` (0 à 7) ; décision de Cédric (2026-10-10) |
+| Terme D propre : relèvement des filtres | D sous −20 dB PIDtoolbox ; jusqu'à 1,2 (ou +0,2 au-delà), D prévu sous −10 dB et sous le p90 | Communauté + configurateur + estimation | « ideally below about minus 20 dB » [S20] ; 0,8–1,2 hors mode expert (`useTuningSliders.ts`) ; +0,2 et deux pas × 1,1 sans curseur : estimations ; décision de Cédric (2026-10-10) |
 | `rpm_filter_harmonics` | jusqu'à 3 | Firmware | `cli/settings.c` (0 à 3) |
 | Ordre de la stratégie de filtrage | enregistrement, corrections, mécanique, RPM, notch dynamique, LPF gyro, LPF D | Firmware (doc) + estimation | Un filtre à la fois [S30] ; ordre RPM → notch → passe-bas comme le guide RPM |
 | Stratégie de filtrage affichée | à partir de 2 étapes (`rules.STRATEGY_MIN_STAGES`) | Corpus + décision de Cédric | 37 % des sessions contre 79 % dès une étape (2026-10-05) |
