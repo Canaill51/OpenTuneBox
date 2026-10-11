@@ -32,7 +32,8 @@ et les comparer au code :
 | Nouvel outil | tout ce qui précède + étapes de la compétence `opentunebox-dev` (« Ajouter un outil ») |
 | Analyse (paramètre, fenêtre, seuil, méthode) | `docs/spec-methodes.md`, `docs/validation.md` (refaire la mesure si besoin), `AGENTS.md` (Pièges connus) |
 | Formule ou réglage du firmware | `docs/spec-betaflight.md`, `log/settings.py` / `log/debug_tables.py` cohérents |
-| Assistant (règle, seuil, profil) | `docs/assistant.md` (Taille du drone, Calibration, Règles, Origine des seuils), `advisor/profiles.py` (commentaires), compétence `assistant-seuils` |
+| Assistant (règle, seuil, profil) | `docs/assistant.md` (Taille du drone, Calibration, Règles, Origine des seuils), `advisor/profiles.py` (commentaires), compétence `assistant-seuils`, textes du guide intégré `gui/assets/guide/` et `advisor/log_check.py` s'ils citent la valeur |
+| Procédure de réglage, enregistrement, outil cité par le guide | guide intégré `gui/assets/guide/` (compétence `guide-integre`), résumé dans `docs/guide-utilisateur.md` §3 et §6 |
 | Décodeur | `docs/validation.md` (relancer `scripts/validate_corpus.py`), `AGENTS.md` (Pièges connus) |
 | Nouveau module ou fichier déplacé | `AGENTS.md` (Organisation), `docs/architecture.md` |
 | Construction, installateurs, workflow | `README.md` (Installation, Développement), guide (1. Installer), `CONTRIBUTING.md` (Publier une version), `docs/architecture.md` (Distribution), compétence `opentunebox-dev` (Fabriquer les exécutables) |
