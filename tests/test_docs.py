@@ -50,8 +50,8 @@ def test_relative_links_exist(md):
     text = re.sub(r"```.*?```", "", md.read_text(encoding="utf-8"), flags=re.S)
     broken = []
     for target in re.findall(r"\]\(([^)\s]+)\)", text):
-        if target.startswith(("http://", "https://", "mailto:", "../../")):
-            continue  # pages GitHub (Releases…) et liens externes
+        if target.startswith(("http://", "https://", "mailto:", "../../", "otb:")):
+            continue  # pages GitHub (Releases…), liens externes, liens internes du guide (test_guide_links)
         file_part, _, anchor = target.partition("#")
         dest = (md.parent / file_part).resolve() if file_part else md
         if not dest.exists():
@@ -124,6 +124,22 @@ def test_every_tool_documented():
         if not any(t == label or t.endswith(f"({label})") for t in guide_titles):
             missing.append(f"guide : titre « ### … ({label}) »")
     assert not missing, missing
+
+
+def test_guide_links():
+    """Guide intégré : chaque étape a son fichier, chaque lien `otb:step/…` / `otb:tool/…` mène quelque part."""
+    from opentunebox.gui.guide import GUIDE_DIR, STEP_KEYS, STEPS
+    from opentunebox.gui.tools import REGISTRY
+
+    files = {f for _k, _t, f in STEPS if f}
+    assert files == {p.name for p in GUIDE_DIR.glob("*.md")}, "fichiers du guide et étapes de gui/guide.py:STEPS"
+    broken = []
+    for name in sorted(files):
+        for kind, key in re.findall(r"\]\(otb:(\w+)/(\w+)\)", (GUIDE_DIR / name).read_text(encoding="utf-8")):
+            ok = key in STEP_KEYS if kind == "step" else kind == "tool" and (key in REGISTRY or key == "viewer")
+            if not ok:
+                broken.append(f"{name} : otb:{kind}/{key}")
+    assert not broken, broken
 
 
 def test_every_module_documented():

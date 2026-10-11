@@ -79,11 +79,16 @@ fichier .bbl/.bfl
   plantage) ; `FileOpenFilter` charge les logs ouverts depuis le Finder de macOS (`QFileOpenEvent`) ;
   sous Linux, fenêtres d'ouverture du bureau par le portail XDG.
 - `gui/main_window.py` : fenêtre principale. Barre d'outils (`TOOLS` : clé, libellé, icône, couleur, info-bulle)
-  dont les boutons servent d'onglets : `QStackedWidget` (`pages`), une page pour le visualiseur et une par outil
+  dont les boutons servent d'onglets : `QStackedWidget` (`pages`), une page pour le visualiseur, une pour le guide et une par outil
   ouvert (`open_tool`, `show_viewer`), bouton coché = page affichée (`OTHER_TOOLS` : bouton d'origine de
   Fréq. × gaz, Fréq. × temps, Configuration) ; un outil caché ne recalcule qu'à son affichage
   (`ToolWindow._stale`). Visualiseur : traces
   groupées (`TRACE_GROUPS`, traces absentes du log masquées), sections repliables Affichage et Lecteur.
+- `gui/guide.py` : page **Guide** (`GuidePage`), affichée au démarrage sans log et par le bouton Guide
+  (`MainWindow.show_guide`). Étapes dans `STEPS`, texte de chacune dans `gui/assets/guide/*.md` (Markdown
+  affiché par `QTextBrowser`, livré avec l'application) ; liens `otb:step/<clé>` et `otb:tool/<clé>`
+  vérifiés par `tests/test_docs.py`. L'étape « Vérifier mes logs » est calculée par `advisor/log_check.py`
+  (résultat gardé dans `LoadedLog.extras` par période).
 - `gui/theme.py` : thèmes clair et sombre. Style Qt **Fusion** sur tous les systèmes, palette complète,
   feuille de style globale (boutons, champs, listes, cases), couleurs d'accent par thème (`accent`, `accent_style` ; aussi celles des icônes d'outils),
   textes d'aide (`muted_style`), police de l'application × 1,15. Textes de Qt en français

@@ -5,6 +5,17 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- **Guide** intégré (bouton de la barre d'outils, affiché au démarrage sans log) : la procédure de réglage
+  pas à pas, des prérequis aux finitions (enregistrement, récupération des logs, filtres, séries PID de
+  Brian White, application des changements). Les modifications passent d'abord par les curseurs et les
+  onglets du configurateur Betaflight, le CLI seulement en repli. Liens directs vers les outils cités.
+- Guide, étape **Vérifier mes logs** : pour chaque log ouvert, à quoi il peut servir (identifier le bruit,
+  juger le retard des filtres, vol d'une série PID) et quoi corriger avant le prochain vol (fréquence
+  d'enregistrement, gyro non filtré, mode de débogage, DShot bidirectionnel, feedforward, curseur I…), avec
+  l'endroit du configurateur et la commande CLI équivalente ; repère les séries (un seul curseur changé,
+  mêmes filtres). Bouton « Copier les commandes CLI » pour le log affiché.
+
 ### Modifié
 - Spectre, Fréq. × gaz, Fréq. × temps et Filtres : les niveaux en dB sont affichés sur l'échelle de
   PIDtoolbox (6,5 dB plus bas qu'avant), pour lire directement les repères habituels (gyro sous −30 dB,

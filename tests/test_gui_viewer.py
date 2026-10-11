@@ -130,7 +130,7 @@ def test_toolbar_buttons_switch_pages(app):
     win.open_tool("step")
     win.open_tool("spectral")
     win.open_tool("step")  # déjà ouvert : on revient à sa page, sans en créer une autre
-    assert win.pages.count() == 3 and win.current_page() == "step" and checked() == ["step"]
+    assert win.pages.count() == 4 and win.current_page() == "step"  # visualiseur, guide, 2 outils and checked() == ["step"]
     win.open_tool("freq_time")  # ouvert depuis Spectre : le bouton Spectre reste mis en valeur
     assert checked() == ["spectral"]
     win.show_viewer()

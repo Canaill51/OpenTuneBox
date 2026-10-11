@@ -29,6 +29,10 @@ Lancer OpenTuneBox depuis ses sources ou fabriquer l'exécutable soi-même : voi
 
 ## 2. Ouvrir des logs
 
+Au premier lancement, OpenTuneBox s'ouvre sur la page **Guide** : la procédure de réglage pas à pas, à
+suivre dans l'ordre (voir [6. Méthode de réglage](#6-méthode-de-réglage)). Le bouton **Guide** de la barre
+d'outils y ramène à tout moment.
+
 Bouton bleu **Ouvrir** de la barre d'outils (ou Ctrl+O), glisser-déposer dans la fenêtre, ou double-clic
 sur un `.bbl` / `.bfl` (Windows et macOS, voir ci-dessus). Sous Linux, la fenêtre d'ouverture est celle
 du bureau (KDE, GNOME…). Chaque session d'un fichier (un armement = une session) apparaît comme un log
@@ -36,36 +40,22 @@ séparé ; 10 logs au maximum, chacun avec sa couleur, que l'on retrouve dans to
 
 ## 3. Bien enregistrer
 
-Dans le CLI Betaflight :
+La préparation détaillée est dans le guide intégré, étape
+[Préparer l'enregistrement](../src/opentunebox/gui/assets/guide/03-enregistrement.md). En bref :
 
-```
-set blackbox_sample_rate = 1/2      # 2 kHz avec une boucle PID à 4 kHz (1/4 à 8 kHz, 1/2 à 3,2 kHz → 1,6 kHz)
-set debug_mode = FFT_FREQ           # centres des notchs dynamiques + gyro avant notch
-save
-```
+- onglet **Blackbox** du configurateur : fréquence d'enregistrement d'**au moins 2 kHz** avec un gyro à
+  8 kHz, **1,6 kHz** avec un gyro à 3,2 kHz (BMI270), plus pour les petits drones ; mode débug **FFT_FREQ**
+  (4.5 et plus) ou **GYRO_SCALED** (4.4) ;
+- **DShot bidirectionnel** activé (onglet **Moteurs**) ;
+- vols de test de 20 à 40 s : un vol **stationnaire** avec montées de gaz pour identifier le bruit, un vol
+  avec des **mouvements francs** pour juger le retard des filtres et la réponse des PID.
 
-- **Au moins 2 kHz** avec un gyro à 8 kHz, **au moins 1,6 kHz** avec un gyro à 3,2 kHz (BMI270) : le
-  blackbox garde un échantillon sur N sans filtre anti-repliement, tout bruit au-delà de la moitié de la
-  fréquence du log se replie dans le spectre (fausses raies). Les petits drones demandent plus : il faut
-  au moins 6 fois la fréquence des moteurs pour voir leur 3e harmonique (whoop à 480 Hz : 4 kHz).
-- **Deux vols pour régler les filtres** : un vol stationnaire (régime stable, le meilleur pour repérer les
-  harmoniques moteur, les résonances et le bruit restant) et un vol avec des mouvements francs (le seul où le
-  retard des filtres se mesure bien).
-- En **4.4**, préférez `debug_mode = GYRO_SCALED` (seul moyen d'avoir le gyro non filtré).
-- **DShot bidirectionnel** activé : sans lui, ni filtre RPM ni fréquences moteur mesurées.
-
-### Vols de test (20 à 40 s chacun)
-
-| But | Comment voler |
-|---|---|
-| Bruit, filtres, résonances | Stationnaire puis montées lentes de gaz de 0 à 100 %, sans manœuvre brusque |
-| Réponse PID (réponse indicielle) | Mouvements francs et rapides sur chaque axe, flips et rolls, retours au neutre nets ; inclure le yaw |
-| Propwash | Descentes dans sa propre turbulence (split-S, gaz coupés puis remis) |
-| Comparaison de réglages | Le même vol, la même batterie (charge similaire), un seul réglage changé entre deux logs |
+L'étape **Vérifier mes logs** du guide contrôle tout cela sur les logs ouverts et donne, pour chacun, les
+corrections à faire avant le prochain vol (où dans le configurateur, puis la commande CLI équivalente).
 
 ## 4. Le visualiseur (fenêtre principale)
 
-- **Barre d'outils** en haut : ouvrir et fermer les logs, puis les boutons **Visualiseur**, Spectre,
+- **Barre d'outils** en haut : ouvrir et fermer les logs, puis les boutons **Guide**, **Visualiseur**, Spectre,
   Indicielle…, chacun avec sa couleur ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton
   pour sa description.
 - **Les boutons servent d'onglets** : un clic remplace l'affichage par l'outil choisi, dans la même fenêtre
@@ -202,16 +192,22 @@ conseiller. Pour les tailles encore peu représentées (whoop,
 2–3,5", 8" et plus), l'assistant prévient que ses seuils sont provisoires. Les conseils sont des points de départ : confirmez au ressenti et à la
 température des moteurs.
 
-## 6. Méthode de réglage conseillée
+## 6. Méthode de réglage
 
-1. **Mécanique d'abord** : hélices neuves, vis serrées, moteurs sains. Un log de stationnaire + montée
-   de gaz ; vérifiez Fréquence × gaz et l'assistant (résonances, déséquilibre).
-2. **Filtres** : réglez le filtre RPM (motor_poles juste), puis les curseurs de filtres. Visez le moins
-   de retard possible tant que le terme D reste peu bruité et les moteurs tièdes.
-3. **PID** par séries de vols (méthode de Brian White), un curseur à la fois, par pas de 0,2 ; feedforward à 0
-   (ou vols en mode Angle) et curseur I à 0,2–0,3 pendant les séries. D'abord **Damping** avec Master 1,0
-   (0,8 pour un drone très puissant), puis **Master**, puis l'équilibre roll / pitch (Pitch Tracking), puis
-   affinage ; le « Diagnostic du réglage » de la Réponse indicielle lit chaque série. Ensuite, I et
-   Stick response (FF) à votre goût.
-4. **Comparez** : ouvrez les logs successifs ensemble (réponse indicielle, infos de configuration).
-5. Revenez en arrière dès qu'un changement dégrade le ressenti, le bruit ou la température.
+La méthode complète est dans le guide intégré (page **Guide**), une étape par fichier :
+[prérequis](../src/opentunebox/gui/assets/guide/02-prerequis.md), [enregistrement](../src/opentunebox/gui/assets/guide/03-enregistrement.md),
+[récupérer les logs](../src/opentunebox/gui/assets/guide/04-recuperer-logs.md), [appliquer une modification](../src/opentunebox/gui/assets/guide/05-appliquer.md),
+[filtres](../src/opentunebox/gui/assets/guide/06-filtres.md), [PID par séries](../src/opentunebox/gui/assets/guide/07-pid-series.md), [finitions](../src/opentunebox/gui/assets/guide/08-finitions.md),
+[dépannage](../src/opentunebox/gui/assets/guide/09-depannage.md). En résumé :
+
+1. **Mécanique d'abord** : hélices neuves, vis serrées, moteurs sains ; vérifiez Fréquence × gaz et
+   l'assistant (résonances, déséquilibre).
+2. **Filtres**, un réglage à la fois : filtre RPM, notch dynamique, passe-bas du gyro puis du D. Le moins de
+   retard possible tant que le terme D reste peu bruité et les moteurs tièdes.
+3. **PID** par séries de vols (méthode de Brian White), un curseur à la fois, par pas de 0,2 ; feedforward à
+   0 (ou vols en mode Angle) et curseur I à 0,2–0,3 pendant les séries : **Damping**, puis **Master**, puis
+   l'équilibre roll / pitch. Le « Diagnostic du réglage » de la Réponse indicielle lit chaque série.
+4. **Finitions** : terme I et feedforward à votre goût.
+5. Les changements passent d'abord par les **curseurs et les onglets** du configurateur Betaflight, le CLI
+   seulement en repli. Revenez en arrière dès qu'un changement dégrade le ressenti, le bruit ou la
+   température des moteurs.

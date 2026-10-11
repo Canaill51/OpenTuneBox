@@ -54,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     app.installEventFilter(file_open)
     files = [a for a in argv[1:] if not a.startswith("-")]
     if files:
+        win.show_viewer()  # logs ouverts au lancement (double-clic) : directement les courbes
         win.load_paths(files)
     code = app.exec()
     hard_exit(code, wait_all)

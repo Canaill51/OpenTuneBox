@@ -226,7 +226,7 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "") -> LogC
 def _first_problem(items: list[CheckItem], titles: tuple[str, ...]) -> str:
     for it in items:
         if it.title in titles and it.status in (WARN, BLOCK):
-            return f"« {it.title} » à corriger (voir ci-dessus)."
+            return f"« {it.title} » à corriger (voir ci-dessous)."
     return ""
 
 
