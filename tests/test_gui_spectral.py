@@ -14,6 +14,8 @@ import pyqtgraph as pg  # noqa: E402
 import pytest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
+from opentunebox.analysis import datasets  # noqa: E402
+from opentunebox.analysis.spectral import PTB_PSD_OFFSET_DB, spectrum  # noqa: E402
 from opentunebox.gui.tools import _spectral_common as sc  # noqa: E402
 
 from corpus_paths import LOGS  # noqa: E402
@@ -99,6 +101,10 @@ def test_spectral_window(app, state):
             f, v = fsp.spectra[("gyro", 0)]
             assert f[-1] == pytest.approx(fsp.nyquist, rel=0.01)
             assert np.all(np.isfinite(v))
+            # échelle de PIDtoolbox : densité physique − 6,5 dB, fenêtres de 2 s (0,5 Hz) par défaut
+            log = fsp.entry.log
+            ref = spectrum(datasets.get(log, "gyro")[0, fsp.entry.sel], log.fs, "psd", 0.5)
+            assert np.allclose(v, ref.values - PTB_PSD_OFFSET_DB)
             assert np.isfinite(fsp.gyro_ms) and 0 < fsp.gyro_ms < 10
             assert len(fsp.motor_sorted) == 4 and fsp.motor_sorted[0].size > 100
             assert len(fsp.notch_sorted) >= 1

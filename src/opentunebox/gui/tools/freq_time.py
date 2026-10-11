@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QCheckBox, QGridLayout, QHBoxLayout, QLabel, QVBox
 
 from ...analysis import datasets
 from ...analysis.motors import dyn_notch_centres
-from ...analysis.spectral import Spectrogram, freq_time
+from ...analysis.spectral import Spectrogram, freq_time, to_ptb_db
 from .. import theme
 from ..state import LoadedLog
 from . import _spectral_common as sc
@@ -116,8 +116,9 @@ class FreqTimeWindow(sc.OptionsSnapshot, ToolWindow):
         if data is not None:
             for ax in range(3):
                 if datasets.has_axis(log, key, ax):
-                    res.maps[ax] = freq_time(data[ax, sel], log.t[sel], log.fs, 300.0, opts["hop_div"],
-                                             opts["freq_smoothing"])
+                    m = freq_time(data[ax, sel], log.t[sel], log.fs, 300.0, opts["hop_div"], opts["freq_smoothing"])
+                    m.z = to_ptb_db(m.z)
+                    res.maps[ax] = m
         t = log.t[sel]
         mhz, _est = sc.motor_freqs(log, opts["multiplier"])
         if mhz is not None:

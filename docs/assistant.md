@@ -140,8 +140,9 @@ Brian White donne ses repères sur l'échelle de PIDtoolbox : gyro filtré sous 
 −10 dB (idéal sous −20 dB) [S20–S22], et un graphique d'objectifs de retard des filtres selon la taille
 [S26]. Pour les utiliser :
 
-- **Échelle des spectres** : nos densités spectrales sont 6,5 dB ± 1 plus hautes que celles de PIDtoolbox
-  (`spectral.PTB_PSD_OFFSET_DB`, `validation.md`). La mesure est le sommet du spectre lissé 80–500 Hz
+- **Échelle des spectres** : la densité spectrale calculée est 6,5 dB plus haute que celle de PIDtoolbox
+  (`spectral.PTB_PSD_OFFSET_DB`, `validation.md`) ; l'interface affiche l'échelle de PIDtoolbox, mais les
+  niveaux du tableau de calibration ci-dessus sont sur la densité calculée (6,5 dB au-dessus de l'affichage). La mesure est le sommet du spectre lissé 80–500 Hz
   (`rules.band_peak_ptb_db`), ce que l'œil lit sur la courbe de PIDtoolbox.
 - **Taux de déclenchement** (681 sessions, roll ou pitch) : D au-dessus de −10 dB : 18 % des sessions
   (15 % des drones ; whoop 22 %, 2–3,5" 13 %, 5" 21 %, 7" 8 %, 8"+ 40 %) ; avec le p90 du corpus, 44
@@ -463,7 +464,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
 | Terme D, échelle de PIDtoolbox | sommet > −10 dB (attention, avec le p90) ; idéal < −20 dB (texte) | Communauté | Brian White [S20] (« maybe minus 10 would be the highest ») ; 18 % des sessions (voir « Repères de PIDtoolbox ») |
 | Gyro filtré, échelle de PIDtoolbox | sommet < −30 dB (affiché) | Communauté | « a good rule of thumb » [S21, S22] ; ne déclenche rien (35 % des sessions au-dessus) |
-| Passage à l'échelle de PIDtoolbox | −6,5 dB | Corpus | 4 sessions de 3 drones avec captures PIDtoolbox, ± 1 dB (`validation.md`) |
+| Passage à l'échelle de PIDtoolbox | −6,5 dB | Corpus | 5 sessions de 4 drones avec captures PIDtoolbox, ± 1 dB (`validation.md`) |
 | Retards des filtres gyro et D | p90 de la taille (vols avec mouvements), arrondi vers le haut | Corpus | Déclenche le conseil. Objectif affiché : graphique de Brian White [S26], 1 ms à 2" puis 0,25 ms (gyro) et 0,17 ms (D) par pouce (5" : 1,75 / 1,5 ms) ; dans la vidéo [S20] il citait de mémoire 1,5 ms pour un 5" et ≈ 5 ms pour un 10". Objectif D en valeurs PIDtoolbox, environ 0,5 ms sous notre mesure |
 | Taille pour l'objectif de retard | 2–3,5" → 3" ; 8"+ → 8" | Estimation | Le graphique commence à 2" : pas d'objectif pour les whoops |
 | `rpm_filter_q` pour gagner du retard | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | « stepwise increasing the Q from the default of 500 up to a max of 1000 » [S27] ; Brian White : 750 [S20, 34:12]. Pas de 100 : décision de Cédric (2026-10-10), à la place de 250. Proposé seulement dans le conseil « filtrage gyro trop prudent » (bruit faible) |

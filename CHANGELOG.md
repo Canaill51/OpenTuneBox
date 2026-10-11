@@ -5,6 +5,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Modifié
+- Spectre, Fréq. × gaz, Fréq. × temps et Filtres : les niveaux en dB sont affichés sur l'échelle de
+  PIDtoolbox (6,5 dB plus bas qu'avant), pour lire directement les repères habituels (gyro sous −30 dB,
+  terme D sous −10 dB) et comparer aux captures de PIDtoolbox.
+- Spectre : résolution par défaut 0,5 Hz (fenêtres de 2 s), comme PIDtoolbox.
+
 ## [0.5.0] — 2026-10-10
 
 ### Ajouté

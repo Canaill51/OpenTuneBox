@@ -38,7 +38,7 @@ from ...advisor.noise import AxisNoise, FilterBlock, NoiseReport, level_note, no
 from ...analysis import datasets
 from ...analysis.delay import compute_delays
 from ...analysis.motors import dyn_notch_centres, motor_noise
-from ...analysis.spectral import smooth_freq, spectrum
+from ...analysis.spectral import smooth_freq, spectrum, to_ptb_db
 from .. import theme
 from ..state import LoadedLog
 from . import _spectral_common as sc
@@ -136,7 +136,7 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
         g.addWidget(QLabel("Lissage"), 3, 0)
         g.addWidget(QLabel("Résolution"), 3, 1)
         self.smoothing = sc.combo([(i, str(i)) for i in range(6)], 2, self.on_options_changed)
-        self.resolution = sc.combo(RESOLUTIONS, 1, self.run)
+        self.resolution = sc.combo(RESOLUTIONS, 0, self.run)
         g.addWidget(self.smoothing, 4, 0)
         g.addWidget(self.resolution, 4, 1)
         self.harmonics = sc.combo(HARMONIC_CHOICES, 2, self.on_options_changed)
@@ -222,10 +222,10 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
                         continue
                     x = datasets.get(log, key)[ax, sel]
                     s = spectrum(x, log.fs, mode, opts["resolution"], 0)
-                    fsp.spectra[(key, ax)] = (s.freqs, s.values)
+                    fsp.spectra[(key, ax)] = (s.freqs, to_ptb_db(s.values) if mode == "psd" else s.values)
                     if mhz is not None:
                         mn = motor_noise(x, mhz, log.fs)
-                        fsp.noise[(key, ax)] = (mn.mean_db, mn.std_db)
+                        fsp.noise[(key, ax)] = (to_ptb_db(mn.mean_db), mn.std_db)
             d = compute_delays(log, sel)
             fsp.gyro_ms, fsp.dterm_ms, fsp.delays_moving = d.gyro_ms, d.dterm_ms, d.moving
             if opts["diagnosis"]:

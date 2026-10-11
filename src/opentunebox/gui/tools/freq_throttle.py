@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...analysis import datasets
-from ...analysis.spectral import FreqThrottle, freq_throttle, smooth_map
+from ...analysis.spectral import FreqThrottle, freq_throttle, smooth_map, to_ptb_db
 from .. import theme
 from ..state import LoadedLog
 from . import _spectral_common as sc
@@ -257,7 +257,10 @@ class FreqThrottleWindow(sc.OptionsSnapshot, ToolWindow):
                 if not datasets.has_axis(ll.log, key, ax):
                     continue
                 x = datasets.get(ll.log, key)[ax, sel]
-                maps[ax] = freq_throttle(x, xaxis[sel], ll.log.fs, opts["mode"], x_range=x_range)
+                m = freq_throttle(x, xaxis[sel], ll.log.fs, opts["mode"], x_range=x_range)
+                if m.mode == "psd":
+                    m.z = to_ptb_db(m.z)
+                maps[ax] = m
             columns.append(Column(key, ll, maps, x_range))
         return FreqThrottleResult(opts["mode"], opts["xaxis"], columns)
 

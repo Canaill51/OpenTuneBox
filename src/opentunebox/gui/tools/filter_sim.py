@@ -48,7 +48,7 @@ from ...analysis.bf_filters import (
     whatif_spectrum,
 )
 from ...analysis.motors import hover_motor_hz
-from ...analysis.spectral import spectrum
+from ...analysis.spectral import spectrum, to_ptb_db
 from ...log.settings import LowpassSetting, Settings
 from .. import theme
 from ._step_common import style_plot, wrap_canvas
@@ -96,15 +96,15 @@ def simulate_filters(entry, mod: Settings, with_current: bool = True) -> FilterS
 
     def psd(x):
         sp = spectrum(np.asarray(x[sel], dtype=float), fs, "psd", resolution_hz=1000.0 / 300.0)
-        return sp.values
+        return to_ptb_db(sp.values)
 
     for ax in range(3):
         w = whatif_spectrum(log.gyro[ax], log.gyro_unfilt[ax] if res.has_unfilt else None, log, sel, base, mod, "gyro")
         res.freqs = w.freqs
-        res.spectra["gyro"][ax] = w.current_db
-        res.spectra["gyro_sim"][ax] = w.modified_db
+        res.spectra["gyro"][ax] = to_ptb_db(w.current_db)
+        res.spectra["gyro_sim"][ax] = to_ptb_db(w.modified_db)
         if with_current:
-            res.spectra["gyro_sim_cur"][ax] = w.current_db
+            res.spectra["gyro_sim_cur"][ax] = to_ptb_db(w.current_db)
         if res.has_unfilt:
             res.spectra["gyro_pf"][ax] = psd(log.gyro_unfilt[ax])
         if not np.any(log.d_term[ax]):
@@ -112,10 +112,10 @@ def simulate_filters(entry, mod: Settings, with_current: bool = True) -> FilterS
             continue
         res.d_scale.append(1.0)
         wd = whatif_spectrum(log.d_term[ax], log.d_term_prefilter[ax], log, sel, base, mod, "dterm")
-        res.spectra["d"][ax] = wd.current_db
-        res.spectra["d_sim"][ax] = wd.modified_db
+        res.spectra["d"][ax] = to_ptb_db(wd.current_db)
+        res.spectra["d_sim"][ax] = to_ptb_db(wd.modified_db)
         if with_current:
-            res.spectra["d_sim_cur"][ax] = wd.current_db
+            res.spectra["d_sim_cur"][ax] = to_ptb_db(wd.current_db)
         res.spectra["d_pf"][ax] = psd(log.d_term_prefilter[ax])
     return res
 
