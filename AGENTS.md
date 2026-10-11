@@ -30,7 +30,8 @@ src/opentunebox/
   analysis/   calculs purs numpy/scipy : spectral, step (Wiener), step_series (séries de vols), loop (marges de
               stabilité), delay, bf_filters, sliders, motors, stats, period, datasets (jeux de données analysables)
   advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py),
-              diagnostic du réglage de la Réponse indicielle (step_tuning.py)
+              diagnostic du réglage de la Réponse indicielle (step_tuning.py),
+              vérification rapide des logs pour le guide intégré (log_check.py)
   gui/        app.py, main_window.py (visualiseur), state.py, worker.py, theme.py, icons.py, geometry.py,
               tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`

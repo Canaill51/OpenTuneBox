@@ -36,6 +36,8 @@ fichier .bbl/.bfl
                  │                        par partie : conditions, gyro, terme D, stratégie ; niveaux avant/après)
                  ├─ advisor/step_tuning.py  diagnostic du réglage de la Réponse indicielle (séries de vols :
                  │                        équilibre P/D, Master, roll / pitch ; analysis/step_series.py)
+                 ├─ advisor/log_check.py  vérification rapide des logs ouverts (à quoi sert chaque log, quoi
+                 │                        corriger : configurateur d'abord, CLI en repli) pour le guide intégré
                  ├─ cli.py                opentunebox info / report
                  └─ gui/tools/*           une page par outil (calcul en arrière-plan, affichage pyqtgraph)
 ```

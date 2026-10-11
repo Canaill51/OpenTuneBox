@@ -162,14 +162,14 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          f"Le log est enregistré à {fs:.0f} Hz ({loops}) : il faut au moins {base_hz:.0f} Hz. Le blackbox "
                          "garde un échantillon sur N sans filtre anti-repliement : tout bruit au-dessus de "
                          f"{fs / 2:.0f} Hz se replie dans le spectre (fausses raies), et la stratégie de filtrage n'est pas fiable.",
-                         [f"blackbox_sample_rate = {_sample_rate_cli(s.pid_rate_hz, max(base_hz, harm_hz))} "
+                         [f"blackbox_sample_rate = {sample_rate_cli(s.pid_rate_hz, max(base_hz, harm_hz))} "
                           f"({max(base_hz, harm_hz):.0f} Hz)."]))
     if hz is not None and 3 * hz > fs / 2:
         F.append(Finding("Enregistrement", CONSEIL, "Harmoniques moteur au-delà de la plage visible",
                          f"Les moteurs tournent à ~{hz:.0f} Hz en vol : la 3e harmonique ({3 * hz:.0f} Hz) dépasse "
                          f"la moitié de la fréquence d'enregistrement ({fs / 2:.0f} Hz) et se replie dans le spectre "
                          "(petit drone : moteurs rapides).",
-                         [f"blackbox_sample_rate = {_sample_rate_cli(s.pid_rate_hz, harm_hz)} ({harm_hz:.0f} Hz), au moins "
+                         [f"blackbox_sample_rate = {sample_rate_cli(s.pid_rate_hz, harm_hz)} ({harm_hz:.0f} Hz), au moins "
                           "sur un vol court pour régler les filtres." if harm_hz > fs * 1.05 else
                           "Boucle PID trop lente pour enregistrer plus vite : les harmoniques au-delà restent repliées."]))
     if log.gyro_unfilt is None:
@@ -486,7 +486,7 @@ def log_rate_needed(pid_hz: float, motor_hz: float | None = None) -> float:
     return min(ok) if ok else pid_hz
 
 
-def _sample_rate_cli(pid_hz: float, rate_hz: float) -> str:
+def sample_rate_cli(pid_hz: float, rate_hz: float) -> str:
     """Valeur de blackbox_sample_rate pour enregistrer à `rate_hz`."""
     d = min(LOG_RATE_FRACTIONS, key=lambda x: abs(pid_hz / x - rate_hz))
     return f"1/{d}"
