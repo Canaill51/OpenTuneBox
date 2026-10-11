@@ -104,6 +104,10 @@ sur un simple vol stationnaire, les filtres dynamiques ne travaillent qu'à un r
 est marqué « peu fiable ») ; volet « bruit moteur » pour l'efficacité du filtre RPM
 sur chaque harmonique. Les courbes en S montrent où se situent les harmoniques moteur pendant le vol.
 
+Les niveaux en dB sont sur la **même échelle que PIDtoolbox** (gyro filtré sous −30 dB, terme D sous
+−10 dB : les repères habituels se lisent directement), dans le Spectre comme dans Fréq. × gaz, Fréq. × temps
+et le simulateur de filtres. Résolution par défaut : 0,5 Hz, comme PIDtoolbox.
+
 Case **Diagnostic du bruit** (cadre « Diagnostic », en bas du panneau de réglages) : ouvre, à côté des courbes, un rapport sur le bruit et la stratégie de
 filtrage, pour chaque log choisi et sur la période d'analyse. Il est calculé seulement quand la case est
 cochée (quelques secondes) et compte quatre parties :

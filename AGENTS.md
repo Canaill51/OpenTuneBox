@@ -99,8 +99,9 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
 - Réponse indicielle par séries (`advisor/step_tuning.py`) : seuils tirés de 10 séries Master du corpus,
   choix des pilotes relus dans les vols suivants ; la cassure varie d'environ 0,01 entre deux vols
   identiques (incertitude jackknife plus faible : elle ne couvre que le bruit d'un vol).
-- Repères en dB de PIDtoolbox (gyro −30, D −10) : nos DSP sont 6,5 dB plus hautes → `spectral.PTB_PSD_OFFSET_DB`,
-  `rules.band_peak_ptb_db` (sommet du spectre lissé, sur l'échelle de PTB).
+- Échelle des DSP : `analysis/` calcule la densité physique (= `scipy.signal.welch`), 6,5 dB au-dessus de PIDtoolbox
+  (`spectral.PTB_PSD_OFFSET_DB`) ; l'interface affiche l'échelle de PTB (`spectral.to_ptb_db`, dans `compute` des
+  outils), l'assistant convertit lui-même (`rules.band_peak_ptb_db`) : ne jamais appliquer la conversion deux fois.
 - Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic
   cherché dans max(150 ms, 3 × latence). Bande passante calculée à partir de 2 Hz, lissage `uniform_filter1d(mode="nearest")`.
 - Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²

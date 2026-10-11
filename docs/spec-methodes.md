@@ -107,6 +107,11 @@ ils viennent du bruit (`validation.md`).
 - **Spectre 2D** : Welch, fenêtre de Hann, recouvrement 50 % ; longueur de fenêtre fixée par la résolution
   (0,5 Hz par défaut, soit 2 s ; choix 0,5 / 1 / 2 / 4 Hz). DSP unilatérale en `10·log10`. Lissage de
   niveau 0 à 5 (largeur 1 + 2 × niveau). Échelle de PTB : −50..20 dB.
+- **Échelle affichée** : la DSP calculée est la densité physique (identique à `scipy.signal.welch`, intégrale
+  = variance du signal). L'interface affiche toutes ses DSP en dB (Spectre, bruit moteur, fréquence × gaz
+  en mode DSP, fréquence × temps, simulateur de filtres) sur l'échelle de PIDtoolbox : densité − 6,5 dB
+  (`spectral.to_ptb_db`, écart mesuré dans `validation.md`). Les calculs de l'assistant gardent la densité
+  physique et convertissent eux-mêmes (`rules.band_peak_ptb_db`).
 - **Fréquence × gaz** : fenêtres de 300 ms, pas de 300 / {5, 3, 1} ms (log ≤ 20 s, 20–60 s, > 60 s), gaz moyen
   par fenêtre, 100 tranches de gaz avec ±1 % de recouvrement, Hann, amplitude ou DSP moyennée par tranche,
   résolution 3,33 Hz. Affichage : lissage gaussien σ = (1,25 × niveau ; 0,5 × niveau) qui ignore les
@@ -186,8 +191,8 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz
   résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (Brian White situait les
   moteurs vers 200–500 Hz [S7]). Propwash le plus souvent vers 30–50 Hz [S23].
-- **Niveaux de bruit** (échelle en dB des spectres de PIDtoolbox, 6,5 dB sous notre densité spectrale,
-  `validation.md`) : gyro filtré sous −30 dB, « a good rule of thumb »
+- **Niveaux de bruit** (échelle en dB des spectres de PIDtoolbox, celle qu'affiche l'interface, 6,5 dB
+  sous la densité physique, `validation.md`) : gyro filtré sous −30 dB, « a good rule of thumb »
   [S21, S22, repris par S6] ; terme D idéalement sous −20 dB, au plus −10 dB [S20] (S6 citait −10 dB).
 - **Spectrogramme fréquence × gaz** : bruit moteur = ligne qui suit le gaz (diagonale) [S8, S6] ; résonance
   = fréquence fixe quel que soit le gaz [S6, S9] (ligne horizontale ou verticale selon l'axe des

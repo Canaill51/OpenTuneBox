@@ -17,8 +17,9 @@ from scipy import ndimage, signal
 
 EPS = 1e-12
 
-# Nos DSP en dB sont plus hautes que celles de PIDtoolbox d'environ 6,5 dB (± 1 dB, 4 sessions de 3 drones
-# avec captures PTB, docs/validation.md) : à retrancher pour lire un repère donné sur l'échelle de PTB.
+# Nos DSP en dB (densité physique, identique à scipy.signal.welch) sont plus hautes que celles de PIDtoolbox
+# de 6,5 dB, quelle que soit la fréquence (5 sessions de 4 drones avec captures PTB, docs/validation.md) :
+# l'interface affiche ses DSP sur l'échelle de PTB (`to_ptb_db`) ; les calculs gardent la densité physique.
 PTB_PSD_OFFSET_DB = 6.5
 
 
@@ -62,6 +63,11 @@ def _seg_spectra(segs: np.ndarray, fs: float, mode: str) -> tuple[np.ndarray, np
 
 def to_db(p: np.ndarray) -> np.ndarray:
     return 10.0 * np.log10(np.maximum(p, EPS))
+
+
+def to_ptb_db(db: np.ndarray) -> np.ndarray:
+    """DSP en dB → échelle de PIDtoolbox, celle qu'affiche l'interface (les NaN restent NaN)."""
+    return db - PTB_PSD_OFFSET_DB
 
 
 def smooth_freq(y: np.ndarray, level: int) -> np.ndarray:
