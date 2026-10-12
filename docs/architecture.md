@@ -90,7 +90,9 @@ fichier .bbl/.bfl
 - `gui/guide.py` : page **Guide** (`GuidePage`), affichée au démarrage sans log et par le bouton Guide
   (`MainWindow.show_guide`). Fiche drone (`CardDialog`, fiches en JSON dans le dossier de données de
   l'utilisateur), frise et liste des phases, cases (`StepWidget`) décrites par `advisor/tuning_path.py`,
-  logs du drone (reconnus par `craft_name`) vérifiés par `advisor/log_check.py` : rapide d'abord, complet en
+  logs du drone (reconnus par `craft_name`) rangés en logs des filtres et logs des séries PID (rôle donné par
+  le bouton d'ouverture d'une case, retenu par fichier, sinon deviné par `LogCheck.role`), vérifiés par
+  `advisor/log_check.py` : rapide d'abord, complet en
   arrière-plan (vrai nombre de fenêtres, repères des filtres), résultats gardés dans `LoadedLog.extras` par
   période. Accueil : `gui/assets/guide/accueil.md` ; liens `otb:phase/<clé>` et `otb:tool/<clé>` vérifiés
   par `tests/test_docs.py`.

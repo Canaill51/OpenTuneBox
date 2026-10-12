@@ -3,7 +3,8 @@ prochain vol.
 
 Le vol de réglage du guide a deux parties, découpées automatiquement (`analysis/period.py:flight_parts`) :
 une partie stationnaire (bruit, filtres) et une partie avec mouvements (retard des filtres, vols de série
-PID). La partie avec mouvements suit le protocole de Brian White : mode Angle, profil de rates « LOG »
+PID). La partie avec mouvements suit le protocole de Brian White : mode Angle (ou Acro avec le feedforward à 0,
+choix de Cédric), profil de rates « LOG »
 (ACTUAL 200 / 200 / 0), limite d'angle 30°, wobbles roll et pitch mêlés, Dynamic Damping à 0, curseur I à
 0,2–0,3, au moins 200 fenêtres.
 
@@ -14,6 +15,11 @@ l'assistant et de `step_tuning.py`, plus ceux du protocole ci-dessous (origine d
 Chaque correction donne d'abord l'endroit où la faire dans le configurateur Betaflight (onglet, curseur,
 champ), puis la commande CLI équivalente, en repli. Chaque point a une clé (`CheckItem.key`) : le guide
 coche ses cases d'après elle.
+
+Chaque log a un rôle (`LogCheck.role`) : vol de réglage des **filtres** ou vol d'une **série PID**. Le guide
+le fixe quand le log est ouvert depuis une phase ; sinon il est deviné (partie stationnaire → filtres). Les
+points et usages propres à l'autre rôle ne sont pas montrés (`items_for`, `usages_for`) : un vol de série PID
+enregistré à 1 kHz ne se juge pas sur la fréquence demandée pour les filtres.
 """
 
 from __future__ import annotations
@@ -22,15 +28,16 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..analysis.delay import MOVING_SETPOINT_DPS, compute_delays, stick_p95_dps
+from ..analysis.delay import MOVING_SETPOINT_DPS, compute_delays, stick_p95_dps, xcorr_delay_ms
 from ..analysis.motors import hover_motor_hz
 from ..analysis.period import crash_time, flight_parts
 from ..analysis.sliders import PTB_CATEGORIES, slider_view
 from ..analysis.step import input_windows, step_response
-from ..analysis.step_series import SERIES_KEYS, filter_signature, flight_conditions
+from ..analysis.step_series import FF_KEY, FlightStep, filter_signature, find_series, flight_conditions
 from ..log.flightlog import FlightLog
 from .profiles import filter_delay_target_ms
-from .rules import DTERM_PTB_MAX_DB, GYRO_PTB_MAX_DB, band_peak_ptb_db, log_rate_needed, sample_rate_cli
+from .rules import (DTERM_PTB_MAX_DB, GYRO_PTB_MAX_DB, PID_LOG_RATE_FLOOR_HZ, PID_LOG_RATE_MIN_HZ, band_peak_ptb_db,
+                    log_rate_needed, pid_log_rate_needed, sample_rate_cli)
 from .step_tuning import I_SLIDER_RANGE, MIN_WINDOWS, SURE_WINDOWS
 
 OK, WARN, BLOCK, INFO = "ok", "à revoir", "bloquant", "info"
@@ -60,6 +67,13 @@ CONFIGURATOR_SLIDERS = {
 }
 
 
+FILTERS, PID = "filters", "pid"  # rôles d'un log
+ROLE_NAMES = {FILTERS: "filtres", PID: "séries PID"}
+ROLE_ITEMS = {FILTERS: ("log_rate", "gyro_unfilt", "debug_mode", "rpm"),
+              PID: ("pid_log_rate", "windows", "axes_mixed", "i_slider", "dyn_damping")}
+USAGE_ROLES = {"noise": FILTERS, "delay": FILTERS, "series": PID, "ff_series": PID}
+
+
 @dataclass
 class Fix:
     """Une correction : où la faire dans le configurateur, et les commandes CLI équivalentes (repli)."""
@@ -83,6 +97,7 @@ class Usage:
     label: str
     ok: bool
     reason: str
+    shown: bool = True  # affiché dans le panneau des logs (sinon seulement lu par les cases du guide)
 
 
 @dataclass
@@ -95,6 +110,8 @@ class LogCheck:
     windows: list[int] = field(default_factory=list)  # fenêtres roll, pitch de la partie avec mouvements
     exact: bool = False  # windows = vrai N de la réponse indicielle (sinon estimation rapide)
     sliders: dict[str, float] = field(default_factory=dict)  # curseurs (catégorie PTB → fraction)
+    role: str = FILTERS  # FILTERS ou PID : deviné par check_log, fixé par le guide
+    sp_delay_ms: list[float] = field(default_factory=list)  # retard consigne → gyro roll, pitch (partie avec mouvements)
 
     def item(self, key: str) -> CheckItem | None:
         return next((it for it in self.items if it.key == key), None)
@@ -102,9 +119,19 @@ class LogCheck:
     def usage(self, key: str) -> Usage | None:
         return next((u for u in self.usages if u.key == key), None)
 
+    def items_for(self, role: str | None = None) -> list[CheckItem]:
+        """Points utiles pour ce rôle (par défaut, celui du log) : sans ceux propres à l'autre rôle."""
+        role = role or self.role
+        other = {k for r, keys in ROLE_ITEMS.items() if r != role for k in keys}
+        return [it for it in self.items if it.key not in other]
+
+    def usages_for(self, role: str | None = None) -> list[Usage]:
+        role = role or self.role
+        return [u for u in self.usages if u.shown and USAGE_ROLES.get(u.key, role) == role]
+
     def cli_commands(self) -> list[str]:
         out = []
-        for it in self.items:
+        for it in self.items_for():
             if it.status in (WARN, BLOCK):
                 for f in it.fixes:
                     out += [c for c in f.cli.splitlines() if c and c not in out]
@@ -185,15 +212,26 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
     rate_fix = [Fix(f"Onglet « Blackbox » → « Fréquence d'enregistrement de la Blackbox » : {need:.0f} Hz ({frac}).",
                     f"set blackbox_sample_rate = {frac}")]
     if not rate_ok:
-        add("log_rate", "Fréquence d'enregistrement", BLOCK,
+        add("log_rate", "Fréquence d'enregistrement (filtres)", BLOCK,
             f"{fs:.0f} Hz ({loops}) : il faut au moins {base_hz:.0f} Hz. Le bruit au-dessus de {fs / 2:.0f} Hz se "
             "replie dans le spectre (fausses raies) : les filtres ne peuvent pas être jugés.", rate_fix)
     elif not harm_ok:
-        add("log_rate", "Fréquence d'enregistrement", WARN,
+        add("log_rate", "Fréquence d'enregistrement (filtres)", WARN,
             f"{fs:.0f} Hz : les moteurs tournent à ~{hz:.0f} Hz, leur 3e harmonique ({3 * hz:.0f} Hz) se replie "
             "dans le spectre (petit drone, moteurs rapides).", rate_fix)
     else:
-        add("log_rate", "Fréquence d'enregistrement", OK, f"{fs:.0f} Hz ({loops}).")
+        add("log_rate", "Fréquence d'enregistrement (filtres)", OK, f"{fs:.0f} Hz ({loops}).")
+    pid_need = pid_log_rate_needed(s.pid_rate_hz)
+    pid_frac = sample_rate_cli(s.pid_rate_hz, pid_need)
+    pid_rate_ok = fs >= 0.95 * PID_LOG_RATE_FLOOR_HZ
+    pid_fix = [Fix(f"Onglet « Blackbox » → « Fréquence d'enregistrement de la Blackbox » : {pid_need:.0f} Hz "
+                   f"({pid_frac}).", f"set blackbox_sample_rate = {pid_frac}")]
+    if fs >= 0.95 * PID_LOG_RATE_MIN_HZ:
+        add("pid_log_rate", "Fréquence d'enregistrement (PID)", OK, f"{fs:.0f} Hz ({loops}).")
+    else:
+        add("pid_log_rate", "Fréquence d'enregistrement (PID)", WARN if pid_rate_ok else BLOCK,
+            f"{fs:.0f} Hz : il faut au moins {PID_LOG_RATE_MIN_HZ:.0f} Hz pour mesurer la réponse à la milliseconde "
+            + ("près." if pid_rate_ok else f"près, et {PID_LOG_RATE_FLOOR_HZ:.0f} Hz pour la lire."), pid_fix)
 
     unfilt = log.gyro_unfilt is not None
     if unfilt:
@@ -233,10 +271,13 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
     cond = flight_conditions(log, sel)
     sv = slider_view(s)
     windows: list[int] = []
+    sp_delay: list[float] = []
     i_ok, ff_ok, enough = True, True, False
     if parts["moving"]:
         msel = log.slice_time(*parts["moving"])
         cond = flight_conditions(log, msel)
+        sp_delay = [xcorr_delay_ms(log.setpoint[a, msel], log.gyro[a, msel], fs, 100.0)
+                    if np.std(log.setpoint[a, msel]) >= 5.0 else float("nan") for a in range(2)]
         if exact:
             windows = [step_response(log.setpoint[a, msel], log.gyro[a, msel], fs).n for a in range(2)]
         else:
@@ -264,10 +305,16 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
                 txt + ("." if good else f" : le protocole demande {LOG_RATE_DPS} / {LOG_RATE_DPS} / 0 sur les trois axes."),
                 [] if good else [log_rates_fix()])
 
+        # mode Angle (le firmware y coupe le feedforward) ou Acro avec le feedforward à 0 : même réponse lue
+        share = cond.angle_share
+        ff_zero = max(cond.ff) == 0
+        acro = share == share and not cond.angle  # modes enregistrés, pas en mode Angle : la limite d'angle ne joue pas
         lim = s.get_int("angle_limit", -1)
         lim_fix = [Fix(f"Onglet « Réglages de PID » → « Limite de l'Angle » : {LOG_ANGLE_LIMIT}.",
                        f"set {'level_limit' if s.family == '4.4' else 'angle_limit'} = {LOG_ANGLE_LIMIT}")]
-        if lim < 0:
+        if acro:
+            pass
+        elif lim < 0:
             add("angle_limit", "Limite d'angle", INFO,
                 f"Non enregistrée dans le log (Betaflight 4.4) : vérifiez qu'elle vaut {LOG_ANGLE_LIMIT}°.", lim_fix)
         else:
@@ -275,15 +322,22 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
                 f"{lim}°" + ("." if lim == LOG_ANGLE_LIMIT else f" : le protocole demande {LOG_ANGLE_LIMIT}°."),
                 [] if lim == LOG_ANGLE_LIMIT else lim_fix)
 
-        share = cond.angle_share
-        if share != share:  # modes non enregistrés
-            add("angle_mode", "Mode Angle", INFO, "Modes de vol absents du log : impossible de vérifier.")
+        mode_title = "Mode Angle ou feedforward à 0"
+        if cond.angle:
+            add("flight_mode", mode_title, OK,
+                f"{share:.0%} de la partie avec mouvements en mode Angle (le feedforward y est coupé).")
+        elif ff_zero:
+            add("flight_mode", mode_title, OK, "Acro avec le feedforward à 0 en roll et en pitch.")
         else:
-            add("angle_mode", "Mode Angle", OK if share >= ANGLE_SHARE_MIN else WARN,
-                f"{share:.0%} de la partie avec mouvements en mode Angle"
-                + ("." if share >= ANGLE_SHARE_MIN else f" : le protocole demande au moins {ANGLE_SHARE_MIN:.0%}."),
-                [] if share >= ANGLE_SHARE_MIN else
-                [Fix("Onglet « Modes » : mode ANGLE sur un interrupteur, activé pendant les mouvements.")])
+            # Acro avec le feedforward : vol d'une série Feedforward (finitions), pas d'une série PID ; simple info,
+            # l'usage « série PID » dit pourquoi il n'est pas lu comme tel
+            add("flight_mode", mode_title, WARN if share != share else INFO,
+                ("Modes de vol absents du log" if share != share else "Acro")
+                + f", feedforward actif (F roll {cond.ff[0]}, pitch {cond.ff[1]}) : vol d'une série Feedforward. "
+                "Pour une série PID, volez en mode Angle ou mettez le feedforward à 0 (il fausse la réponse).",
+                [Fix("Série PID : onglet « Modes », mode ANGLE sur un interrupteur, activé pendant les mouvements."),
+                 Fix(f"Ou en Acro : curseur « {CONFIGURATOR_SLIDERS['Stick Resp.']} » à 0.",
+                     "set simplified_feedforward_gain = 0")])
 
         mixed = axes_mixed_share(log, msel)
         add("axes_mixed", "Roll et pitch mêlés", OK if mixed >= AXES_MIXED_MIN else WARN,
@@ -293,11 +347,6 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
                "qu'un axe puis l'autre."))
 
         ff_ok = not cond.ff_active
-        if not ff_ok:
-            add("feedforward", "Feedforward", WARN,
-                f"Actif (F roll {cond.ff[0]}, pitch {cond.ff[1]}) hors mode Angle : il fausse la lecture d'une série PID.",
-                [Fix("Voler en mode Angle (le feedforward y est coupé), ou curseur « "
-                     f"{CONFIGURATOR_SLIDERS['Stick Resp.']} » à 0.", "set simplified_feedforward_gain = 0")])
         lo, hi = I_SLIDER_RANGE
         i_ok = lo <= cond.i_slider <= hi
         if not i_ok:
@@ -343,20 +392,34 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
               (f"partie avec mouvements de {_span(moving)}." if moving else
                "pas de partie avec mouvements : terminez le vol par 20 s de wobbles en mode Angle.")),
     ]
-    series_ok = version_ok and moving is not None and enough and ff_ok and i_ok
+    series_ok = version_ok and pid_rate_ok and moving is not None and enough and ff_ok and i_ok
     protocol = [it.title.lower() for it in items
-                if it.key in ("windows", "rates", "angle_limit", "angle_mode", "axes_mixed", "dyn_damping")
+                if it.key in ("pid_log_rate", "windows", "rates", "angle_limit", "axes_mixed", "dyn_damping")
                 and it.status == WARN]
     if series_ok:
         reason = "conditions respectées." if not protocol else f"lisible, mais à améliorer : {', '.join(protocol)}."
     elif moving is None:
         reason = "pas de partie avec mouvements."
     else:
-        blocking = [title for title, bad in (("Version du firmware", not version_ok), ("Fenêtres de mesure", not enough),
-                                             ("Feedforward", not ff_ok), ("Curseur I", not i_ok)) if bad]
-        reason = f"à corriger : {', '.join(f'« {b} »' for b in blocking)} (voir ci-dessous)."
+        blocking = [title for title, bad in (("Version du firmware", not version_ok),
+                                             ("Fréquence d'enregistrement (PID)", not pid_rate_ok),
+                                             ("Fenêtres de mesure", not enough),
+                                             ("Curseur I", not i_ok)) if bad]
+        reason = f"à corriger : {', '.join(f'« {b} »' for b in blocking)} (voir ci-dessous)." if blocking else ""
+        if not ff_ok:
+            reason = ("feedforward actif en Acro (vol d'une série Feedforward) ; pour une série PID, mode Angle ou "
+                      "feedforward à 0. " + reason).strip()
     usages.append(Usage("series", "Vol d'une série PID", series_ok, reason))
-    return LogCheck(label, moving is not None, parts, items, usages, windows, exact, dict(sv.values))
+    # série Feedforward (finitions) : en Acro, feedforward voulu ; le retard consigne → gyro se lit sur la partie
+    # avec mouvements
+    ffs_ok = version_ok and pid_rate_ok and moving is not None and enough and not cond.angle
+    ff_why = ("conditions respectées." if ffs_ok else "pas de partie avec mouvements." if moving is None else
+              "en mode Angle : le firmware y coupe le feedforward, volez en Acro." if cond.angle else
+              "pas assez de fenêtres de mesure ou fréquence d'enregistrement trop basse (voir ci-dessous).")
+    # affiché seulement avec le feedforward actif : un vol à 0 sert aussi de 1er vol de la série, sans le redire
+    usages.append(Usage("ff_series", "Vol d'une série Feedforward", ffs_ok, ff_why, shown=max(cond.ff) > 0))
+    return LogCheck(label, moving is not None, parts, items, usages, windows, exact, dict(sv.values),
+                    FILTERS if hover is not None else PID, sp_delay)
 
 
 @dataclass
@@ -425,8 +488,17 @@ class GroupCheck:
     detail: str
 
 
-def check_logs(logs: list[tuple[str, FlightLog]]) -> list[GroupCheck]:
-    """Logs du même drone (nom et carte) : un seul curseur doit changer entre eux, et pas les filtres."""
+def _delays(d: list[float] | None) -> str:
+    if not d or not any(np.isfinite(d)):
+        return "–"
+    return " / ".join(_n(v, 1) if np.isfinite(v) else "–" for v in d) + " ms"
+
+
+def check_logs(logs: list[tuple[str, FlightLog]], sp_delays: dict[str, list[float]] | None = None) -> list[GroupCheck]:
+    """Logs du même drone (nom et carte) : séries qu'ils forment (un seul curseur changé, mêmes filtres, comme
+    la Réponse indicielle : `step_series.find_series`), vols identiques, vols hors série. Série Feedforward :
+    retard consigne → gyro de chaque vol (`sp_delays`, par libellé : `LogCheck.sp_delay_ms`)."""
+    sp_delays = sp_delays or {}
     groups: dict[tuple[str, str], list[tuple[str, FlightLog]]] = {}
     for label, lg in logs:
         groups.setdefault((lg.settings.craft_name, lg.settings.board), []).append((label, lg))
@@ -436,27 +508,32 @@ def check_logs(logs: list[tuple[str, FlightLog]]) -> list[GroupCheck]:
             continue
         name = craft or board or "drone sans nom"
         labels = [m[0] for m in members]
-        values = [slider_view(lg.settings).values for _, lg in members]
-        changed = [k for k in PTB_CATEGORIES if len({round(v[k], 2) for v in values}) > 1]
-        same_filters = len({filter_signature(lg.settings) for _, lg in members}) == 1
-        names = ", ".join(f"« {CONFIGURATOR_SLIDERS[k]} »" for k in changed)
-        if not same_filters:
-            out.append(GroupCheck(name, labels, WARN,
-                                  "Les filtres changent entre ces logs : pour une série PID, gardez les mêmes filtres "
-                                  "et ne changez qu'un curseur."))
-        if len(changed) > 1:
-            out.append(GroupCheck(name, labels, WARN,
-                                  f"Plusieurs curseurs changent entre ces logs ({names}) : une série ne doit en changer "
-                                  "qu'un seul, par pas de 0,2."))
-        elif len(changed) == 1 and same_filters:
-            k = changed[0]
-            vals = sorted({round(v[k], 2) for v in values})
-            ok = k in SERIES_KEYS
-            out.append(GroupCheck(name, labels, OK if ok else INFO,
-                                  f"Série du curseur « {CONFIGURATOR_SLIDERS[k]} » : "
-                                  + " → ".join(_n(v, 2) for v in vals)
-                                  + (" ; à lire dans « Réponse indicielle » → Diagnostic du réglage." if ok else
-                                     " ; ce curseur ne se règle pas par série (à votre goût).")))
-        elif not changed and same_filters:
-            out.append(GroupCheck(name, labels, INFO, "Mêmes curseurs et mêmes filtres : vols comparables entre eux."))
+        flights = [FlightStep(label, slider_view(lg.settings).values, filter_signature(lg.settings), None)
+                   for label, lg in members]
+        in_series: set[int] = set()
+        for sr in find_series(flights):
+            in_series.update(sr.flights)
+            vals = " → ".join(_n(v, 2) for v in sorted(set(sr.values)))
+            who = ", ".join(labels[i] for i in sr.flights)
+            if sr.key == FF_KEY:  # réponse indicielle faussée par le feedforward : retards ici et dans l'Assistant
+                per = [f"{_n(v, 2)} → {_delays(sp_delays.get(labels[i]))}" for i, v in zip(sr.flights, sr.values)]
+                read = "retard consigne → gyro roll / pitch : " + " ; ".join(per) + " (détail dans l'Assistant)."
+            else:
+                read = "à lire dans « Réponse indicielle » → Diagnostic du réglage."
+            out.append(GroupCheck(name, [labels[i] for i in sr.flights], OK,
+                                  f"Série « {CONFIGURATOR_SLIDERS[sr.key]} » : {vals} ({who}) ; {read}"))
+        same: dict[tuple, list[int]] = {}
+        for i, f in enumerate(flights):
+            same.setdefault((f.filters, tuple(round(f.sliders[k], 2) for k in PTB_CATEGORIES)), []).append(i)
+        for idx in same.values():
+            if len(idx) > 1:
+                in_series.update(idx)
+                out.append(GroupCheck(name, [labels[i] for i in idx], INFO,
+                                      f"Mêmes curseurs et mêmes filtres : {', '.join(labels[i] for i in idx)}."))
+        alone = [labels[i] for i in range(len(flights)) if i not in in_series]
+        if alone:
+            out.append(GroupCheck(name, alone, INFO,
+                                  f"Hors série : {', '.join(alone)} (par rapport aux autres vols, plus d'un curseur ou "
+                                  "les filtres changent). Une série ne change qu'un curseur (pas de 0,2 ; 0,5 pour le "
+                                  "feedforward), filtres identiques."))
     return out

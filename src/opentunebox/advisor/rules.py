@@ -23,6 +23,7 @@ from ..analysis.period import crash_time
 from ..analysis.sliders import slider_view
 from ..analysis.stats import flight_stats, pid_error_stats
 from ..analysis.step import StepResult, step_response
+from ..analysis.step_series import FF_KEY, flight_conditions
 from ..log.flightlog import AXES, FlightLog
 from .profiles import CraftProfile, detect_profile, filter_delay_target_ms
 
@@ -157,13 +158,23 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     meas["log_rate_needed_hz"] = (base_hz, harm_hz)
     aliased = fs < 0.95 * base_hz  # spectre replié : on n'allège aucun filtre sur cette base
     loops = f"gyro à {s.gyro_rate_hz / 1000:.1f} kHz, boucle PID à {s.pid_rate_hz / 1000:.1f} kHz"
-    if fs < 0.95 * base_hz:
+    filter_fix = [f"Pour un vol de réglage des filtres : blackbox_sample_rate = "
+                  f"{sample_rate_cli(s.pid_rate_hz, max(base_hz, harm_hz))} ({max(base_hz, harm_hz):.0f} Hz)."]
+    pid_hz = pid_log_rate_needed(s.pid_rate_hz)
+    if fs < 0.95 * PID_LOG_RATE_MIN_HZ:
         F.append(Finding("Enregistrement", ATTENTION, "Fréquence d'enregistrement trop basse",
-                         f"Le log est enregistré à {fs:.0f} Hz ({loops}) : il faut au moins {base_hz:.0f} Hz. Le blackbox "
-                         "garde un échantillon sur N sans filtre anti-repliement : tout bruit au-dessus de "
-                         f"{fs / 2:.0f} Hz se replie dans le spectre (fausses raies), et la stratégie de filtrage n'est pas fiable.",
-                         [f"blackbox_sample_rate = {sample_rate_cli(s.pid_rate_hz, max(base_hz, harm_hz))} "
-                          f"({max(base_hz, harm_hz):.0f} Hz)."]))
+                         f"Le log est enregistré à {fs:.0f} Hz ({loops}) : il faut au moins {PID_LOG_RATE_MIN_HZ:.0f} Hz "
+                         f"pour régler les PID et {base_hz:.0f} Hz pour juger les filtres. Le blackbox garde un "
+                         f"échantillon sur N sans filtre anti-repliement : tout bruit au-dessus de {fs / 2:.0f} Hz se "
+                         "replie dans le spectre (fausses raies).",
+                         [f"Pour un vol de réglage des PID : blackbox_sample_rate = "
+                          f"{sample_rate_cli(s.pid_rate_hz, pid_hz)} ({pid_hz:.0f} Hz).", *filter_fix]))
+    elif fs < 0.95 * base_hz:
+        F.append(Finding("Enregistrement", CONSEIL, "Fréquence d'enregistrement trop basse pour les filtres",
+                         f"Le log est enregistré à {fs:.0f} Hz ({loops}) : assez pour régler les PID (au moins "
+                         f"{PID_LOG_RATE_MIN_HZ:.0f} Hz), pas pour juger les filtres (au moins {base_hz:.0f} Hz). Tout "
+                         f"bruit au-dessus de {fs / 2:.0f} Hz se replie dans le spectre (fausses raies) : aucun filtre "
+                         "n'est allégé d'après ce log.", filter_fix))
     if hz is not None and 3 * hz > fs / 2:
         F.append(Finding("Enregistrement", CONSEIL, "Harmoniques moteur au-delà de la plage visible",
                          f"Les moteurs tournent à ~{hz:.0f} Hz en vol : la 3e harmonique ({3 * hz:.0f} Hz) dépasse "
@@ -216,6 +227,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     # ------------------------------------------------------------ 3. bruit et filtres
     delays = compute_delays(log, sel)
     meas["delays"] = delays
+    F.extend(_setpoint_delay(log, sel, delays.sp_gyro_ms))
     nyq = fs / 2
     hi = min(500.0, 0.95 * nyq)
     g_db = [_band_db(log.gyro[a, sel], fs, 80, hi) for a in range(2)]
@@ -470,6 +482,22 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
                          + _loop_caveat(lp) + _whoop_margin_note(profile), _margin_actions(lp), ax))
 
 
+def _setpoint_delay(log: FlightLog, sel: slice, sp_ms: list[float]) -> list[Finding]:
+    """Retard consigne → gyro (intercorrélation) roll / pitch : la mesure de la série Feedforward des finitions
+    (pas de 0,5, en Acro ; choix de Cédric, 2026-10-12), lue ici plutôt que sur la réponse indicielle, que le
+    feedforward fausse."""
+    if not any(np.isfinite(sp_ms[:2])):
+        return []
+    cond = flight_conditions(log, sel)
+    ff = slider_view(log.settings).values[FF_KEY]
+    mode = ("mode Angle : le firmware y coupe le feedforward, volez en Acro pour la série" if cond.angle else "Acro")
+    txt = ", ".join(f"{AXES[a].lower()} {v:.1f} ms" for a, v in enumerate(sp_ms[:2]) if np.isfinite(v))
+    txt = f"{txt[0].upper()}{txt[1:]} (feedforward {ff:.1f}".replace(".", ",")
+    return [Finding("Réponse", INFO, "Retard consigne → gyro", f"{txt}, {mode})."
+                    + " Série Feedforward (0, 0,5, 1… en Acro) : comparez ce retard d'un vol à l'autre ; plus il est "
+                    "court, plus le drone suit le manche tôt.", [])]
+
+
 # Fréquence d'enregistrement minimale (Cédric, 2026-10-05) : 2 kHz pour un gyro à 8 kHz, 1,6 kHz pour un gyro
 # à 3,2 kHz, c'est-à-dire la plus petite fraction 1/2^n de la boucle PID qui atteint 1,6 kHz ; plus pour voir
 # la 3e harmonique moteur des petits drones (≥ 6 × la fréquence moteur). Le blackbox ne filtre pas avant de
@@ -483,6 +511,21 @@ def log_rate_needed(pid_hz: float, motor_hz: float | None = None) -> float:
     (et 6 × la fréquence moteur si elle est connue) ; la boucle PID elle-même si aucune n'y suffit."""
     need = LOG_RATE_MIN_HZ if motor_hz is None else max(LOG_RATE_MIN_HZ, 6.0 * motor_hz)
     ok = [pid_hz / d for d in LOG_RATE_FRACTIONS if pid_hz / d >= 0.95 * need]
+    return min(ok) if ok else pid_hz
+
+
+# Fréquence d'enregistrement minimale pour régler les PID (Cédric, 2026-10-12) : 1 kHz, latence et réponse
+# indicielle à la milliseconde près ; sous 500 Hz, la réponse indicielle n'est plus lisible (bande analysée
+# jusqu'à 0,4 × la fréquence du log, soit 200 Hz). Le bruit au-delà de la moitié de la fréquence du log se
+# replie aussi, mais il pèse peu sur la réponse aux mouvements du manche (quelques dizaines de hertz).
+PID_LOG_RATE_MIN_HZ = 1000.0
+PID_LOG_RATE_FLOOR_HZ = 500.0
+
+
+def pid_log_rate_needed(pid_hz: float) -> float:
+    """Fréquence d'enregistrement à viser pour un vol de réglage des PID : la plus lente des fractions de la
+    boucle PID qui atteint 1 kHz ; la boucle PID elle-même si aucune n'y suffit."""
+    ok = [pid_hz / d for d in LOG_RATE_FRACTIONS if pid_hz / d >= 0.95 * PID_LOG_RATE_MIN_HZ]
     return min(ok) if ok else pid_hz
 
 

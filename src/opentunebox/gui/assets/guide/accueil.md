@@ -18,7 +18,7 @@ déplacer les bons curseurs.
 | [1. Préparer le drone](otb:phase/prep) | aucun | configurateur, enregistrement, profil de rates « LOG » |
 | [2. Filtres](otb:phase/filters) | 2 à 6 vols | filtre RPM, notch dynamique, passe-bas du gyro et du D |
 | [3. PID par séries](otb:phase/pid) | 3 à 6 vols par série, 2 à 4 séries | Damping, Master, équilibre roll / pitch |
-| [4. Finitions](otb:phase/finish) | 1 à 3 vols | feedforward, terme I, ressenti |
+| [4. Finitions](otb:phase/finish) | 3 à 5 vols | série feedforward (Acro), terme I, ressenti |
 
 La frise en haut de la page montre où vous en êtes. Une case se coche à la main, ou toute seule quand un log
 du drone le prouve ; « ▲ À revoir » signale ce qu'un log contredit.
@@ -26,7 +26,8 @@ du drone le prouve ; « ▲ À revoir » signale ce qu'un log contredit.
 ## Avant de commencer
 
 - Le drone en état de vol, son câble USB, le configurateur Betaflight (Betaflight 4.4 ou plus récent).
-- 4 à 6 batteries chargées pareil, un endroit dégagé pour du vol stationnaire et des wobbles en mode Angle.
+- 4 à 6 batteries chargées pareil, un endroit dégagé pour du vol stationnaire et des wobbles en mode Angle
+  (ou en Acro avec le feedforward à 0).
 - Comptez une séance pour la préparation et les filtres, une ou deux pour les séries PID.
 
 ## La fiche du drone
@@ -34,6 +35,10 @@ du drone le prouve ; « ▲ À revoir » signale ce qu'un log contredit.
 Bouton **Nouveau drone** en haut : nom (le même que dans Betaflight, onglet Configuration : les logs sont
 reconnus grâce à lui), version de Betaflight, taille, boucle PID, ESC. Si un log est ouvert, la fiche se
 remplit d'après lui. Les valeurs du guide (fréquence d'enregistrement, listes des séries, plages des
-finitions) s'adaptent à la fiche, et chaque drone garde son avancement.
+finitions) s'adaptent à la fiche, et chaque drone garde son avancement (bouton **Recommencer** pour tout
+décocher, **Supprimer** pour retirer la fiche).
+
+Les logs des **filtres** et ceux des **séries PID** sont demandés à part : ouvrez-les avec le bouton de la
+case de leur phase. Ils ne s'enregistrent pas à la même fréquence et ne servent pas aux mêmes cases.
 
 Commencez par [Préparer le drone](otb:phase/prep).

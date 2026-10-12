@@ -7,7 +7,7 @@ from opentunebox.analysis.step import StepMetrics
 from opentunebox.analysis.step_series import FlightConditions, FlightStep, find_series
 
 FILTERS = ("filtres",)
-ALIASES = {"Pitch_T": "Pitch T.", "Pitch_D": "Pitch D."}  # noms de curseurs utilisables en argument
+ALIASES = {"Pitch_T": "Pitch T.", "Pitch_D": "Pitch D.", "Stick_Resp": "Stick Resp."}  # noms de curseurs utilisables en argument
 
 
 def flight(label, peak=1.03, lat=(15.0, 15.5), ripple=(0.0, 0.0), waves=1.1, ff=(0, 0), angle=1.0, i=0.3,
@@ -105,3 +105,16 @@ def test_conditions():
     assert "acro" in rep.conditions[0].detail and "angle" not in rep.conditions[0].detail.replace("Angle", "")
     fl = [flight("a", Damping=1.0, peak=1.1), flight("b", Damping=1.1, peak=1.04)]
     assert "trop fin" in block(step_tuning(fl), "Équilibre P/D").finding.detail
+
+
+def test_feedforward_series_not_judged_on_step_response():
+    """Série Feedforward en Acro (pas de 0,5) : reconnue, renvoyée à l'Assistant (réponse indicielle faussée),
+    sans « feedforward actif »."""
+    fl = [flight(f"ff{v}", ff=(int(v * 120), int(v * 125)), angle=0.0, Stick_Resp=v) for v in (0.0, 0.5, 1.0)]
+    rep = step_tuning(fl)
+    b = block(rep, "Feedforward")
+    assert [s.key for s in find_series(fl)] == ["Stick Resp."] and b.best is None
+    assert b.lines[1] == "Feedforward 0,5 : ff0.5" and "Assistant" in b.finding.title
+    assert "Feedforward actif" not in [c.title for c in rep.conditions]
+    fl[2].conditions.angle_share = 1.0  # vol en mode Angle : le feedforward n'y agit pas
+    assert "Série Feedforward en mode Angle" in [c.title for c in step_tuning(fl).conditions]

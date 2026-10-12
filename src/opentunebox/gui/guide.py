@@ -5,6 +5,9 @@ En haut, la fiche drone (choix, création, modification) et la frise des phases 
 état automatique viennent de `advisor/tuning_path.py` ; la fiche, de `advisor/drone_card.py`. Les logs
 ouverts du drone (même nom que la fiche, `craft_name`) sont vérifiés par `advisor/log_check.py` : d'abord
 en version rapide, puis en arrière-plan avec le vrai nombre de fenêtres et les repères des filtres.
+Logs des filtres et logs des séries PID à part : un log ouvert par le bouton d'une case prend le rôle de cette
+case (retenu par fichier dans les réglages), sinon le rôle deviné par `log_check` ; le panneau des logs les
+range en deux parties, avec un lien pour changer de rôle.
 L'accueil est le fichier `assets/guide/accueil.md` ; liens `otb:phase/<clé>` et `otb:tool/<clé>`.
 
 Fiches enregistrées en JSON dans le dossier de données de l'utilisateur (`QStandardPaths.AppDataLocation`).
@@ -12,18 +15,20 @@ Fiches enregistrées en JSON dans le dossier de données de l'utilisateur (`QSta
 
 from __future__ import annotations
 
+import dataclasses
 import html
 import json
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, QStandardPaths, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QHBoxLayout,
-                               QLabel, QLineEdit, QListWidget, QPushButton, QScrollArea, QSplitter, QTextBrowser,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame,
+                               QHBoxLayout, QLabel, QLineEdit, QListWidget, QMessageBox, QPushButton, QScrollArea, QSplitter, QTextBrowser,
                                QVBoxLayout, QWidget)
 
 from ..advisor.drone_card import BF_FAMILIES, ESCS, PID_RATES_KHZ, DroneCard, card_for_log
-from ..advisor.log_check import BLOCK, INFO, OK, WARN, check_log, check_logs, filter_targets
+from ..advisor.log_check import (BLOCK, FILTERS, INFO, OK, PID, ROLE_NAMES, WARN, check_log, check_logs,
+                                 filter_targets)
 from ..advisor.profiles import PROFILES, detect_profile
 from ..advisor.tuning_path import AUTO_OK, Phase, Step, auto_status, phases
 from . import theme
@@ -37,6 +42,7 @@ TOOL_NAMES = {"spectral": "Spectre", "freq_throttle": "Fréq. × gaz", "freq_tim
               "step": "Réponse indicielle", "sliders": "Curseurs PID", "filter_sim": "Filtres",
               "setup": "Configuration", "advisor": "Assistant", "viewer": "Visualiseur"}
 PART_NAMES = {"hover": "partie stationnaire", "moving": "partie avec mouvements"}
+OPEN_LABELS = {FILTERS: "Ouvrir les logs des filtres…", PID: "Ouvrir les logs de la série…"}
 _STATUS = {OK: ("green", "✔"), WARN: ("orange", "▲"), BLOCK: ("red", "✖"), INFO: ("blue", "ℹ")}
 
 
@@ -131,7 +137,7 @@ class StepWidget(QFrame):
         self.box = QCheckBox(step.text(card))
         self.box.setChecked(bool(card.done.get(step.key)))
         self.box.toggled.connect(lambda on: page.set_done(step.key, on))
-        row.addWidget(self.box, 1)
+        row.addWidget(self.box)  # boutons juste après le texte de la case, pas au bord droit
         self.help_btn = QPushButton("?")
         self.help_btn.setCheckable(True)
         self.help_btn.setFixedWidth(self.help_btn.fontMetrics().horizontalAdvance("MM") + 12)
@@ -142,6 +148,11 @@ class StepWidget(QFrame):
             tool = QPushButton(f"Ouvrir {what}")
             tool.clicked.connect(lambda: page.open_tool(step.tool, step.part))
             row.addWidget(tool)
+        if step.open_logs:
+            opener = QPushButton(OPEN_LABELS[step.logs])
+            opener.clicked.connect(lambda: page.open_logs(step.logs))
+            row.addWidget(opener)
+        row.addStretch(1)
         lay.addLayout(row)
         self.status = QLabel()
         self.status.setWordWrap(True)
@@ -183,6 +194,10 @@ class GuidePage(QWidget):
         self._widgets: list[StepWidget] = []
         self._pending: set[int] = set()  # logs en cours de vérification complète
         self._cli: list[str] = []
+        try:  # rôle choisi pour chaque fichier de log (chemin → FILTERS / PID)
+            self._roles: dict[str, str] = dict(json.loads(str(self.settings.value("guide/log_roles", "{}"))))
+        except (ValueError, TypeError):
+            self._roles = {}
 
         # ---- fiche drone et frise
         top = QHBoxLayout()
@@ -197,6 +212,14 @@ class GuidePage(QWidget):
         self.edit_btn = QPushButton("Modifier")
         self.edit_btn.clicked.connect(self.edit_card)
         top.addWidget(self.edit_btn)
+        self.reset_btn = QPushButton("Recommencer")
+        self.reset_btn.setToolTip("Décocher toutes les cases de ce drone pour reprendre le parcours au début")
+        self.reset_btn.clicked.connect(self.reset_progress)
+        top.addWidget(self.reset_btn)
+        self.delete_btn = QPushButton("Supprimer")
+        self.delete_btn.setToolTip("Supprimer la fiche de ce drone et son avancement (les logs ne sont pas touchés)")
+        self.delete_btn.clicked.connect(self.delete_card)
+        top.addWidget(self.delete_btn)
         top.addSpacing(16)
         self.strip_buttons: dict[str, QPushButton] = {}
         for key in PHASE_KEYS:
@@ -275,6 +298,8 @@ class GuidePage(QWidget):
     def _on_card_changed(self, idx: int) -> None:
         self.card = self.cards[idx] if 0 <= idx < len(self.cards) else None
         self.edit_btn.setEnabled(self.card is not None)
+        self.reset_btn.setEnabled(self.card is not None)
+        self.delete_btn.setEnabled(self.card is not None)
         if self.card:
             self.settings.setValue("guide/card", self.card.name)
         self.refresh()
@@ -313,6 +338,32 @@ class GuidePage(QWidget):
             self.card.done.pop(key, None)
         save_cards(self.cards_file, self.cards)
         self._update_progress()
+
+    def delete_card(self, confirm: bool = True) -> None:
+        """Supprime la fiche choisie (et son avancement) du fichier des fiches ; les logs ne sont pas touchés."""
+        if self.card is None:
+            return
+        if confirm and QMessageBox.question(
+                self, "Supprimer la fiche",
+                f"Supprimer la fiche « {self.card.name} » et son avancement ? Les logs ne sont pas touchés ; cette "
+                "suppression ne peut pas être annulée.") != QMessageBox.Yes:
+            return
+        self.cards = [c for c in self.cards if c is not self.card]
+        save_cards(self.cards_file, self.cards)
+        self._fill_card_combo()
+
+    def reset_progress(self, confirm: bool = True) -> None:
+        """Décoche toutes les cases du drone (les cases vérifiées par un log ouvert se recochent seules)."""
+        if self.card is None:
+            return
+        if confirm and QMessageBox.question(
+                self, "Recommencer le parcours",
+                f"Décocher toutes les cases de « {self.card.name} » ? Les cases vérifiées par un log ouvert "
+                "resteront cochées tant que ce log est ouvert.") != QMessageBox.Yes:
+            return
+        self.card.done.clear()
+        save_cards(self.cards_file, self.cards)
+        self.refresh()
 
     # ------------------------------------------------------------ navigation
     def current_key(self) -> str:
@@ -383,6 +434,12 @@ class GuidePage(QWidget):
             self.show_phase(key)
         elif kind == "tool":
             self.open_tool(key)
+        elif kind == "open" and key in ROLE_NAMES:
+            self.open_logs(key)
+        elif kind == "role":
+            i, _, role = key.partition("/")
+            if i.isdigit() and int(i) < len(self.state.logs) and role in ROLE_NAMES:
+                self.set_role(str(self.state.logs[int(i)].log.path), role)
 
     def open_tool(self, key: str, part: str | None = None) -> None:
         """Ouvre un outil ; avec `part`, règle d'abord la période d'analyse du dernier log du drone sur cette
@@ -390,7 +447,7 @@ class GuidePage(QWidget):
         if self.main_window is None:
             return
         if part:
-            idx, chk = self._last_card_log()
+            idx, chk = self._last_card_log(FILTERS)
             if idx is not None and chk.parts.get(part):
                 self.state.set_current(idx)
                 self.state.set_period(idx, *chk.parts[part])
@@ -434,15 +491,44 @@ class GuidePage(QWidget):
             run_async(work, on_done=done, on_error=lambda _e, ll=ll: self._pending.discard(id(ll)))
         return ll.extras[key]
 
-    def _card_checks(self):
-        res = [self._check(i) for i in self._card_logs()]
-        return [c for c, _t in res], (res[-1][1] if res else None)
+    def open_logs(self, role: str) -> None:
+        """Fenêtre d'ouverture : les logs choisis seront lus comme logs de ce rôle (filtres ou séries PID)."""
+        if self.main_window is None:
+            return
+        start = str(self.settings.value("last_dir", str(Path.home())))
+        files, _ = QFileDialog.getOpenFileNames(self, f"Ouvrir les logs des {ROLE_NAMES[role]}", start,
+                                                "Logs Blackbox (*.bbl *.bfl *.BBL *.BFL *.txt *.TXT);;Tous (*)")
+        if files:
+            for f in files:
+                self._roles[str(Path(f))] = role
+            self._save_roles()
+            self.main_window.load_paths(files)
 
-    def _last_card_log(self):
-        idx = self._card_logs()
-        if not idx:
-            return None, None
-        return idx[-1], self._check(idx[-1])[0]
+    def set_role(self, path: str, role: str) -> None:
+        self._roles[path] = role
+        self._save_roles()
+        self.refresh()
+
+    def _save_roles(self) -> None:
+        self.settings.setValue("guide/log_roles", json.dumps(self._roles))
+
+    def _role_check(self, i: int):
+        """(LogCheck avec le rôle choisi par l'utilisateur, sinon deviné ; FilterTargets)."""
+        c, t = self._check(i)
+        role = self._roles.get(str(self.state.logs[i].log.path))
+        return (dataclasses.replace(c, role=role) if role and role != c.role else c), t
+
+    def _card_checks(self):
+        res = [self._role_check(i) for i in self._card_logs()]
+        filt = [t for c, t in res if c.role == FILTERS]
+        return [c for c, _t in res], (filt[-1] if filt else None)
+
+    def _last_card_log(self, role: str | None = None):
+        for i in reversed(self._card_logs()):
+            c = self._role_check(i)[0]
+            if role is None or c.role == role:
+                return i, c
+        return None, None
 
     def _on_logs_changed(self) -> None:
         # log d'un drone qui a déjà une fiche : on passe sur cette fiche
@@ -467,27 +553,37 @@ class GuidePage(QWidget):
         if not idx:
             parts.append(f"<p style='color:{muted}'>Aucun log de ce drone ouvert. Les logs sont reconnus par le "
                          "nom du drone dans Betaflight (onglet Configuration), qui doit être celui de la fiche.</p>")
-        for i in idx:
-            ll = self.state.logs[i]
-            c, _t = self._check(i)
-            self._cli = c.cli_commands()
-            pending = "" if c.exact else f" <span style='color:{muted}'>(vérification complète en cours…)</span>"
-            usages = " · ".join(
-                f"<span style='color:{theme.accent('green' if u.ok else 'red')}'>{'✔' if u.ok else '✖'}</span> "
-                f"{html.escape(u.label)}" for u in c.usages)
-            parts.append(f"<p><b style='color:{ll.color}'>{html.escape(ll.label)}</b>{pending}<br>{usages}</p><ul>")
-            for it in c.items:
-                if it.status in (WARN, BLOCK):
-                    acc, sym = _STATUS[it.status]
-                    li = (f"<li><span style='color:{theme.accent(acc)}'>{sym} <b>{html.escape(it.title)}</b></span> : "
-                          f"{html.escape(it.detail)}")
-                    for f in it.fixes:
-                        li += f"<br>→ {html.escape(f.where)}"
-                    parts.append(li + "</li>")
-            parts.append("</ul>")
-        for g in check_logs([(self.state.logs[i].label, self.state.logs[i].log) for i in idx]):
-            acc, sym = _STATUS[g.status]
-            parts.append(f"<p><span style='color:{theme.accent(acc)}'>{sym}</span> {html.escape(g.detail)}</p>")
+        checks = {i: self._role_check(i)[0] for i in idx}
+        for role in (FILTERS, PID):
+            mine = [i for i in idx if checks[i].role == role]
+            other = PID if role == FILTERS else FILTERS
+            parts.append(f"<h4>Logs des {ROLE_NAMES[role]}</h4>")
+            if not mine:
+                parts.append(f"<p style='color:{muted}'>Aucun. <a href='otb:open/{role}'>{OPEN_LABELS[role]}</a></p>")
+            for i in mine:
+                ll, c = self.state.logs[i], checks[i]
+                self._cli = c.cli_commands()
+                pending = "" if c.exact else f" <span style='color:{muted}'>(vérification complète en cours…)</span>"
+                usages = "<br>".join(
+                    f"<span style='color:{theme.accent('green' if u.ok else 'red')}'>{'✔' if u.ok else '✖'}</span> "
+                    f"{html.escape(u.label)}" + ("" if u.ok else f" : {html.escape(u.reason)}") for u in c.usages_for())
+                move = f" <a href='otb:role/{i}/{other}'>→ classer dans les {ROLE_NAMES[other]}</a>"
+                parts.append(f"<p><b style='color:{ll.color}'>{html.escape(ll.label)}</b>{pending}{move}<br>{usages}"
+                             "</p><ul>")
+                for it in c.items_for():
+                    if it.status in (WARN, BLOCK):
+                        acc, sym = _STATUS[it.status]
+                        li = (f"<li><span style='color:{theme.accent(acc)}'>{sym} <b>{html.escape(it.title)}</b>"
+                              f"</span> : {html.escape(it.detail)}")
+                        for f in it.fixes:
+                            li += f"<br>→ {html.escape(f.where)}"
+                        parts.append(li + "</li>")
+                parts.append("</ul>")
+            for g in check_logs([(self.state.logs[i].label, self.state.logs[i].log) for i in mine]
+                                if role == PID else [],  # une série : un seul curseur change
+                                {self.state.logs[i].label: checks[i].sp_delay_ms for i in mine}):
+                acc, sym = _STATUS[g.status]
+                parts.append(f"<p><span style='color:{theme.accent(acc)}'>{sym}</span> {html.escape(g.detail)}</p>")
         if others:
             parts.append(f"<p style='color:{muted}'>Autres logs ouverts (autre drone) : "
                          f"{html.escape(', '.join(others))}.</p>")
