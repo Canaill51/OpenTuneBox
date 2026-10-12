@@ -6,12 +6,42 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Tests du décodeur sur des fichiers Blackbox fabriqués (`tests/bbl_factory.py`) : `P interval` (N et a/b),
+  trames corrompues et resynchronisation, trame trop longue, saut d'itération refusé, `LOGGING_RESUME`,
+  événements, trames S, sessions multiples, prédicteurs (dont la troncature vers zéro de `AVERAGE_2`).
+- Tests des contrats de l'interface sans corpus : `analysis/`, `advisor/`, `log/`, `decoder/` et la CLI
+  n'importent jamais Qt (contrôle du code et à l'exécution), icônes citées présentes avec la licence Lucide,
+  deux thèmes sur la fenêtre principale et sur chaque outil, demande rejouée après un calcul, erreur de
+  calcul affichée sans plantage.
+- Tests de l'assistant sans corpus : chaque seuil de profil encadré (constat présent juste sous le seuil,
+  absent juste au-dessus, seuil cité dans le texte), deux branches du « Terme D bruité », repères de retard,
+  bornes de la taille par la fréquence moteur, instantané des profils et des constantes (toute modification
+  volontaire passe par la compétence `assistant-seuils`), paliers de pic avec et sans feedforward, marges de
+  stabilité et de phase, règles de passe-bas, poids RPM et garde de version 4.5, repères de fin des filtres,
+  vérification des logs du guide (cadences, version, champs, rôles, usages, mode de vol, curseur I).
+- Tests d'invariants des analyses sans corpus : DSP égale à `scipy.signal.welch` (fenêtre paire ou impaire),
+  puissance d'un sinus et Parseval, échelle de PIDtoolbox appliquée une seule fois (contrôle statique des
+  appelants), valeurs par défaut de la réponse indicielle figées, compte exact des fenêtres, horizon du pic,
+  réponse identité et retard pur, bande passante dès 2 Hz, marges (gain × k, retard pur), retards par la
+  phase et par intercorrélation, `compute_delays`.
+- Tests de la couche log sans corpus : trames impossibles et session corrompue à plus de 50 %, unités de
+  `from_session` (DShot / PWM, eRPM ou debug, debug `GYRO_SCALED` comme gyro brut), masques Angle / Horizon et
+  instrument de la boucle ouverte, excitation chirp, conventions D / D max aux limites, cadences et
+  `P interval`, familles de version, tables de debug et de modes, replis de l'en-tête.
+- Tests sans corpus : logs synthétiques (`tests/synthetic.py`) et fixtures communes (`tests/conftest.py`,
+  réglages de l'application isolés pendant les tests) ; chaque page d'outil et la fenêtre principale sont
+  exercées en intégration continue ; les tests des fonctions pures de l'assistant ne dépendent plus des
+  vrais logs ; passe du décodeur en Python pur (numba désactivé) dans le workflow de tests.
 - Documentation de développement : journal des décisions (`docs/decisions.md`), leçons tirées des pièges
   (`docs/lecons.md`) et travaux reportés (`docs/travaux-reportes.md`), numérotés `D-`, `L-`, `W-` ; repris de
   `AGENTS.md` et `docs/architecture.md` avec contexte, options écartées et preuves. Numéros vérifiés à chaque
   `pytest`.
 
 ### Corrigé
+- Changer de thème (clair / sombre) repeint aussi les outils déjà ouverts : leur fond de graphique gardait
+  les couleurs de l'ancien thème jusqu'à un nouveau calcul.
+- Spectres : avec une fenêtre d'un nombre impair d'échantillons (fréquence d'enregistrement non entière),
+  la dernière case n'était pas doublée comme chez scipy (3 dB sur une seule case au bord, sans effet visible).
 - Simulateur de filtres : sur les fréquences exactement au creux d'un notch (RPM ou dynamique), le spectre
   simulé s'effondrait d'environ 90 dB, même sans aucun changement de réglage (plancher numérique appliqué
   au seul dénominateur du rapport |H_modifié|² / |H_actuel|²).

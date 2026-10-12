@@ -8,24 +8,8 @@ from opentunebox.decoder import core
 from opentunebox.log.debug_tables import TABLES, debug_mode_name
 from opentunebox.log.settings import parse_settings
 
+from bbl_factory import enc_svb, enc_uvb  # noqa: E402
 from corpus_paths import LOGS, corpus_log  # noqa: E402
-
-
-# ---------------------------------------------------------------- encodeurs de test
-
-
-def enc_uvb(v: int) -> bytes:
-    out = bytearray()
-    v &= 0xFFFFFFFF
-    while v >= 0x80:
-        out.append((v & 0x7F) | 0x80)
-        v >>= 7
-    out.append(v)
-    return bytes(out)
-
-
-def enc_svb(v: int) -> bytes:
-    return enc_uvb(((v << 1) ^ (v >> 31)) & 0xFFFFFFFF)
 
 
 def stream(data: bytes):

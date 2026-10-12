@@ -4,17 +4,11 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-import pytest  # noqa: E402
 from PySide6.QtCore import QCoreApplication  # noqa: E402
 from PySide6.QtGui import QIcon  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from opentunebox.gui import theme  # noqa: E402
 
-
-@pytest.fixture
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def test_icon_theme_follows_light_and_dark(app, tmp_path, monkeypatch):

@@ -641,6 +641,9 @@ class MainWindow(QMainWindow):
             lbl.setStyleSheet(theme.muted_style())
         self._apply_icons()
         self.guide_page.refresh()
+        for w in self.tool_windows.values():  # outils déjà ouverts : fond du canevas et courbes
+            if hasattr(w, "apply_theme"):
+                w.apply_theme()
         self._redraw()
 
     # ================================================================ période

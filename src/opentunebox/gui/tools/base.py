@@ -154,6 +154,12 @@ class ToolWindow(QWidget):
         raise NotImplementedError
 
     # ------------------------------------------------------------ mécanique commune
+    def apply_theme(self) -> None:
+        """Changement de thème : fond du canevas aux couleurs du nouveau thème, puis réaffichage du dernier résultat."""
+        self.canvas.setBackground(theme.current().bg)
+        if self._last_result is not None:
+            self.render(self._last_result)
+
     def axes(self) -> list[int]:
         return [i for i, cb in enumerate(self.axis_boxes) if cb.isChecked()]
 

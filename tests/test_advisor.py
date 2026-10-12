@@ -30,14 +30,9 @@ def test_profiles_detected_by_motor_speed():
 def test_profile_thresholds():
     from dataclasses import replace
 
-    from opentunebox.advisor.profiles import PROFILES, profile_key
+    from opentunebox.advisor.profiles import PROFILES
     from opentunebox.advisor.rules import analyze
 
-    assert [profile_key(h) for h in (480, 350, 300, 220, 165, 140, 100)] == \
-        ["whoop", "whoop", "micro", "five", "five", "seven", "large"]
-    # cellules : 1S = whoop ; petit drone en 2–4S au-dessus de 200 Hz ; rien pour le 6S (recouvrement)
-    assert [profile_key(h, c) for h, c in ((306, 1), (237, 4), (195, 4), (255, 6), (242, 2))] == \
-        ["whoop", "micro", "five", "five", "micro"]
     lg = _load("Cedric/JeNo 5/FINAL.bbl")
     titles = lambda rep: {f.title for f in rep.findings}  # noqa: E731
     # un seuil mécanique nul déclenche le constat : la règle lit bien le profil
@@ -78,14 +73,10 @@ def test_dterm_noise_on_ptb_scale():
 def test_filter_delay_targets_and_rpm_q():
     from dataclasses import replace
 
-    from opentunebox.advisor.profiles import PROFILES, filter_delay_target_ms
+    from opentunebox.advisor.profiles import PROFILES
     from opentunebox.advisor.rules import RPM_Q_MAX, analyze
     from opentunebox.analysis.period import auto_period
 
-    # graphique de Brian White : 1 ms à 2", 4 ms (gyro) et 3 ms (D) à 14"
-    assert filter_delay_target_ms(5) == (1.75, 1.5)
-    assert filter_delay_target_ms(14) == (4.0, 3.0)
-    assert filter_delay_target_ms(None) is None and filter_delay_target_ms(1.6) is None
     # repère de retard nul : le conseil apparaît, avec l'objectif et le Q RPM plus haut si Q < 750
     lg = _load("1. PTB/Fred28/Stock.BFL")
     assert lg.settings.rpm_q < RPM_Q_MAX
@@ -162,16 +153,6 @@ def test_lowpass_rules():
                 "Le LPF1 du gyro peut être coupé"} & set(hover)
 
 
-def test_filter_strategy_needs_two_stages():
-    from opentunebox.advisor.rules import CONSEIL, Finding, filter_strategy
-
-    rate = Finding("Filtres", CONSEIL, "Fréquence d'enregistrement trop basse", "", ["blackbox_sample_rate = 1/2"])
-    rpm = Finding("Filtres", CONSEIL, "Poids du filtre RPM trop bas", "", ["rpm_filter_weights = 100,100,100"])
-    assert filter_strategy([rate]) is None and filter_strategy([rpm]) is None  # le constat seul suffit
-    s = filter_strategy([rpm, rate])
-    assert s.actions[0].startswith("1. Enregistrement") and s.actions[1].startswith("2. Filtre RPM")
-
-
 def test_hover_noise_and_filter_strategy():
     from opentunebox.advisor.rules import analyze
     from opentunebox.analysis.period import auto_period
@@ -201,13 +182,8 @@ def test_hover_noise_and_filter_strategy():
 
 
 def test_log_rate_rule():
-    from opentunebox.advisor.rules import CONSEIL, analyze, log_rate_needed, pid_log_rate_needed
+    from opentunebox.advisor.rules import CONSEIL, analyze
 
-    # filtres : 8 kHz de gyro (PID 4 ou 8 kHz) → 2 kHz ; 3,2 kHz → 1,6 kHz ; whoop à 480 Hz → 3e harmonique visible
-    assert log_rate_needed(4000) == 2000 and log_rate_needed(8000) == 2000 and log_rate_needed(3200) == 1600
-    assert log_rate_needed(4000, 480) == 4000 and log_rate_needed(3200, 210) == 1600
-    # séries PID : 1 kHz suffit (1,6 kHz pour une boucle à 3,2 kHz, faute de fraction plus proche)
-    assert pid_log_rate_needed(8000) == 1000 and pid_log_rate_needed(4000) == 1000 and pid_log_rate_needed(3200) == 1600
     # Kris : 993 Hz pour une boucle PID à 4 kHz → assez pour les PID, conseil pour les filtres (1/2) ; aucun
     # allègement tiré d'un spectre replié
     lg = _load("1. PTB/Kris/BTFL_BLACKBOX_LOG_TP_20260914_181415_F722_AIO.bbl")
@@ -220,23 +196,11 @@ def test_log_rate_rule():
     assert f["Stratégie de filtrage"].actions[0].startswith("1. Enregistrement")
 
 
-def test_imbalance_interpretation():
-    from opentunebox.advisor.rules import _imbalance_finding
-
-    front = _imbalance_finding([20, 30, 20, 30], 20)
-    assert "avant" in front.detail
-    diag = _imbalance_finding([30, 20, 20, 30], 20)
-    assert "diagonale" in diag.detail
-
-
-def test_tool_windows_render():
-    from PySide6.QtWidgets import QApplication
-
+def test_tool_windows_render(app):
     from opentunebox.gui.state import AppState
     from opentunebox.gui.tools.advisor_panel import AdvisorWindow
     from opentunebox.gui.tools.setup_info import SetupInfoWindow
 
-    app = QApplication.instance() or QApplication([])
     st = AppState()
     st.add(_load("1. PTB/BlackSummer/Damping 0.8.BFL"))
     st.add(_load("1. PTB/BlackSummer/Damping 1.4.BFL"))
@@ -272,28 +236,6 @@ def test_betaflight_chirp_measured_in_angle_mode():
     assert lp.method == MEASURED and not lp.sensitivity_peak_at_edge
     assert 20 < lp.crossover_hz < 27 and 34 < lp.phase_margin_deg < 46  # 23,6 Hz, 39,5° (2026-10-06)
     assert _load("Cedric/JeNo 5/FINAL.bbl").chirp_excitation(0) is None
-
-
-def test_noise_report_classifies_every_title():
-    """Chaque constat de bruit ou de filtre de l'assistant a sa place dans le diagnostic de la fenêtre Spectre."""
-    import re
-    from pathlib import Path
-
-    from opentunebox.advisor import noise, rules
-    from opentunebox.advisor.rules import CONSEIL, Finding
-
-    src = Path(rules.__file__).read_text(encoding="utf-8")
-    titles = re.findall(r'Finding\("(Bruit|Filtres|Mécanique|Réponse)",\s*[^,]+,\s*f?"([^"{]*)', src)
-    explicit = noise.CONDITION_TITLES + noise.DTERM_TITLES + noise.GYRO_TITLES + (noise.STRATEGY_TITLE,)
-    for cat, title in titles:
-        f = Finding(cat, CONSEIL, title, "")
-        if cat in ("Réponse", "Mécanique") and not title.startswith(noise.GYRO_TITLES):
-            assert noise.section_of(f) is None, title
-        else:
-            assert title.startswith(explicit), f"constat non rangé : {title}"
-    assert noise.section_of(Finding("Filtres", CONSEIL, "Retard des filtres D", "")) == "dterm"
-    assert noise.section_of(Finding("Filtres", CONSEIL, "Retard des filtres gyro", "")) == "gyro"
-    assert noise.section_of(Finding("Enregistrement", CONSEIL, "Gyro non filtré absent", "")) == "conditions"
 
 
 def test_noise_report_strategy_fallback():
@@ -333,22 +275,6 @@ def test_rpm_and_dyn_notch_q_steps():
     # Apex 5 : raie trop large ou trop haute pour Q 500 → Q calculé plus bas
     s, f = findings("Cedric/Apex 5/filter1.bbl")
     assert f["Notch dynamique : Q trop haut pour les raies à suivre"].actions[0].startswith("dyn_notch_q 500 → 400")
-
-
-def test_dyn_notch_q_need():
-    """Q du notch qui ramène la raie à 3 dB du bruit voisin sur sa demi-largeur (notch SVF, Q × 100)."""
-    import math
-
-    from opentunebox.advisor.rules import _q_round, dyn_notch_q_need
-
-    # raie à 200 Hz, 20 Hz de large, 15 dB : atténuation de 12 dB à ±10 Hz
-    h = 10 ** (-12 / 20)
-    q = dyn_notch_q_need([200.0], [20.0], [15.0])
-    assert q == pytest.approx(100 * 200 * h / (20 * math.sqrt(1 - h * h)))
-    assert _q_round(q) == 250
-    assert dyn_notch_q_need([200.0], [20.0], [2.0]) == float("inf")  # déjà sous 3 dB : aucun besoin
-    assert dyn_notch_q_need([200.0], [float("nan")], [15.0]) is None
-    assert _q_round(40.0) == 100  # borne basse
 
 
 def test_dterm_lift_from_noise():

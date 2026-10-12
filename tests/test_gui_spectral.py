@@ -12,7 +12,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np  # noqa: E402
 import pyqtgraph as pg  # noqa: E402
 import pytest  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from opentunebox.analysis import datasets  # noqa: E402
 from opentunebox.analysis.spectral import PTB_PSD_OFFSET_DB, spectrum  # noqa: E402
@@ -24,10 +23,6 @@ FINAL = LOGS / "Cedric/JeNo 5/FINAL.bbl"
 
 needs_logs = pytest.mark.skipif(not (BTFL.exists() and FINAL.exists()), reason="logs du corpus absents")
 
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 @pytest.fixture(scope="module")

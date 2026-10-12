@@ -60,6 +60,19 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-025 : la couverture de tests ignore le code compilé par numba, et la CI ne voit pas le corpus
+- **Symptôme** — 2026-10-12 : `pytest --cov` donne 14 % pour `decoder/core.py` avec ou sans corpus, alors
+  que le décodeur tourne sur tout le corpus ; et 35 % au total sans corpus contre 86 % avec.
+- **Cause** — mesurée : les fonctions `@njit(cache=True)` s'exécutent en code machine, invisible pour
+  `coverage` ; et tous les tests marqués `corpus` sont ignorés sur GitHub (pas de vrais logs), y compris,
+  avant cette date, des tests de fonctions pures placés dans un fichier marqué `corpus` en bloc.
+- **Règle** — mesurer le décodeur avec `NUMBA_DISABLE_JIT=1` (le workflow de tests le fait sur
+  `test_decoder.py` et `test_flightlog.py`) ; ne jamais marquer `corpus` un fichier entier qui contient des
+  tests purs ; tout outil ou analyse doit avoir un test sur les logs synthétiques (`tests/synthetic.py`),
+  le corpus ne sert qu'à vérifier des valeurs réelles.
+- **Preuve** — mesure du 2026-10-12 (`pytest-cov`, installé dans `.venv` seulement) ; `tests/test_gui_tools.py`
+  exerce les 8 pages d'outils sans corpus.
+
 ### L-024 : un plancher numérique sur le seul dénominateur d'un rapport effondre le spectre simulé au creux des notchs
 - **Symptôme** — 2026-10-12 : test synthétique d'identité de `whatif_spectrum` (mêmes réglages des deux
   côtés) : spectre « modifié » 90 dB sous le spectre enregistré sur les cases tombant exactement sur un
@@ -274,6 +287,7 @@ est celle du commit qui les a introduites.
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-025 | Couverture aveugle : numba (`NUMBA_DISABLE_JIT=1`) et tests `corpus` ignorés en CI. Logs synthétiques | Outillage |
 | L-024 | Plancher sur un seul côté d'un rapport : spectre simulé effondré au creux des notchs. Diviser sans plancher, test d'identité | Analyses |
 | L-023 | Log du corpus supprimé : tests en échec ou ignorés sans bruit. `corpus_log`, `pytest -rs` | Outillage |
 | L-022 | Commit passé malgré un test en échec. Crochet élargi, pas de `&&` après `pytest \| tail` | Outillage |
