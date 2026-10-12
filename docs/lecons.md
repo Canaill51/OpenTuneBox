@@ -60,6 +60,18 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-026 : injecter une oscillation en filtrant le gyro ne l'ajoute presque pas à la réponse indicielle
+- **Symptôme** — 2026-10-12 : pour mesurer la sensibilité des vagues, un mode peu amorti à 45 ou 60 Hz
+  ajouté au gyro réel (gyro + c × (mode(gyro) − gyro)) ne change presque rien, même à c = 0,2 ; parfois le
+  rapport baisse.
+- **Cause** — mesurée : le gyro contient très peu de mouvement lié à la consigne à ces fréquences ; la
+  déconvolution ne voit que la part liée à la consigne, et l'oscillation ajoutée n'y pèse qu'environ 1 %.
+- **Règle** — injecter la vague par la consigne : gyro + A × (mode peu amorti − mode amorti)(consigne), qui
+  ajoute à la réponse une vague d'amplitude connue, avec le vrai bruit du vol. Choisir des vols au rapport
+  ordinaire (≈ 1,2), pas ceux qui déclenchent déjà. Un rapport au bruit grandit avec le nombre de fenêtres :
+  une ondulation de 0,35 % y dépasse 3 sur 1 000 fenêtres.
+- **Preuve** — branche feat/calibrate-step-waves (`docs/assistant.md`, « Vagues »).
+
 ### L-025 : la couverture de tests ignore le code compilé par numba, et la CI ne voit pas le corpus
 - **Symptôme** — 2026-10-12 : `pytest --cov` donne 14 % pour `decoder/core.py` avec ou sans corpus, alors
   que le décodeur tourne sur tout le corpus ; et 35 % au total sans corpus contre 86 % avec.
@@ -292,6 +304,7 @@ est celle du commit qui les a introduites.
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-026 | Oscillation injectée par le gyro : invisible dans la réponse. Injecter par la consigne | Analyses |
 | L-025 | Couverture aveugle : numba (`NUMBA_DISABLE_JIT=1`) et tests `corpus` ignorés en CI. Logs synthétiques | Outillage |
 | L-024 | Plancher sur un seul côté d'un rapport : spectre simulé effondré au creux des notchs. Diviser sans plancher, test d'identité | Analyses |
 | L-023 | Log du corpus supprimé : tests en échec ou ignorés sans bruit. `corpus_log`, `pytest -rs` | Outillage |

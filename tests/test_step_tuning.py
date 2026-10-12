@@ -83,6 +83,10 @@ def test_master_plateau_with_ripple_stops_early_signs_do_not():
 def test_master_waves_stop():
     fl = [flight("a", Master=1.0, lat=(18.0, 18.5)), flight("b", Master=1.2, lat=(16.5, 17.0), waves=4.0)]
     assert block(step_tuning(fl), "Niveau des gains").best == 0
+    # moins de 200 fenêtres : vagues non lues (le bruit seul y donne ≈ 2), la série continue
+    fl[1].n = [150, 150]
+    b = block(step_tuning(fl), "Niveau des gains")
+    assert b.best == 1 and "vagues non lues (moins de 200 fenêtres)" in b.lines[1]
 
 
 def test_roll_pitch_gap():

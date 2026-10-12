@@ -41,7 +41,9 @@ LATENCY_PLATEAU_PCT = 4.0  # gain de latence d'un cran de +0,2 sous lequel la la
 # équilibre roll / pitch [S32]
 LATENCY_GAP_OK_MS = 1.0  # écart de latence pitch − roll : équilibré
 LATENCY_GAP_MAX_MS = 2.0  # acceptable selon le drone (inertie, moteurs) ; au-delà, à corriger
-WAVES_RATIO_HIGH = 2.5  # vagues nettement au-dessus du bruit (Estimation : bruit ≈ 1–1,5, essais synthétiques)
+WAVES_RATIO_HIGH = 2.5  # vagues nettement au-dessus du bruit : corpus sans feedforward p99 2,35 ; vague de ~3 % détectée
+# ⚠️ sous SURE_WINDOWS fenêtres, les vagues ne sont pas lues : le bruit seul y donne ≈ 2 et une vague de 10 % passe
+# inaperçue (mesure à vide et injection sur le corpus, 2026-10-12, docs/assistant.md « Diagnostic du réglage »)
 
 AXES2 = ("Roll", "Pitch")
 # noms des curseurs dans le configurateur Betaflight (les séries gardent les clés de PIDtoolbox)
@@ -213,6 +215,12 @@ def _latency(f: FlightStep) -> float:
     return sum(v) / len(v) if v else float("nan")
 
 
+def _waves(f: FlightStep) -> float:
+    """Plus fortes vagues des axes assez fournis (au moins SURE_WINDOWS fenêtres) ; nan sinon."""
+    v = [f.metrics[a].waves_ratio for a in _axes(f) if f.n[a] >= SURE_WINDOWS]
+    return max(v) if v else float("nan")
+
+
 def _master_signs(rip: tuple[float, float], prev_rip: float, gain: float, waves: float) -> tuple[list[str], list[str]]:
     """(signes de gains trop hauts, premiers signes) d'un cran de la série Master."""
     strong, early = [], []
@@ -228,12 +236,16 @@ def _master_signs(rip: tuple[float, float], prev_rip: float, gain: float, waves:
     return strong, early
 
 
+def _waves_text(w: float) -> str:
+    return f"vagues × {_n(w, 1)}" if math.isfinite(w) else f"vagues non lues (moins de {SURE_WINDOWS} fenêtres)"
+
+
 def master_block(flights: list[FlightStep], s: Series) -> TuningBlock:
     b = TuningBlock("Niveau des gains (série Master)", s)
     vals, idx = _pick(flights, s)
     rip = [_ripple(flights[i]) for i in idx]
     lat = [_latency(flights[i]) for i in idx]
-    waves = [max((flights[i].metrics[a].waves_ratio for a in _axes(flights[i])), default=float("nan")) for i in idx]
+    waves = [_waves(flights[i]) for i in idx]
     gains = [float("nan")] + [100 * (1 - lat[k] / lat[k - 1]) if lat[k - 1] > 0 else float("nan")
                               for k in range(1, len(idx))]
     signs = [([], [])] + [_master_signs(rip[k], rip[k - 1][0], gains[k], waves[k]) for k in range(1, len(idx))]
@@ -242,7 +254,7 @@ def master_block(flights: list[FlightStep], s: Series) -> TuningBlock:
         unc = f" ± {_n(rip[k][1], 3)}" if math.isfinite(rip[k][1]) else ""
         state = "trop haut" if signs[k][0] else "premiers signes" if signs[k][1] else "propre"
         b.lines.append((f"Master {_fmt(v)} : latence {_n(lat[k], 1)} ms{gain}, cassure {_n(rip[k][0], 3, True)}{unc}, "
-                        f"vagues × {_n(waves[k], 1)} — {state} ({flights[i].label})"))
+                        f"{_waves_text(waves[k])} — {state} ({flights[i].label})"))
     note = _step_note(s)
     stop = next((k for k in range(1, len(idx)) if signs[k][0]), None)
     if stop is None:

@@ -98,6 +98,8 @@ def measure_file(f, root):
             if st.n>=20:
                 lp=st.loop
                 r[f"peak_{a}"]=st.metrics.peak; r[f"lat_{a}"]=st.metrics.latency_ms
+                r[f"nwin_{a}"]=st.n; r[f"ripple_{a}"]=st.metrics.ripple  # vagues : mesure à vide du Diagnostic du réglage
+                r[f"waves_{a}"]=st.metrics.waves; r[f"wavesr_{a}"]=st.metrics.waves_ratio
                 pid=lg.settings.pids[a]; r[f"ff_{a}"]=pid.F; r[f"dgain_{a}"]=pid.D; r[f"pgain_{a}"]=pid.P  # pic selon le feedforward
                 r[f"smax_{a}"]=lp.sensitivity_peak_db; r[f"pm_{a}"]=lp.phase_margin_deg  # comme les règles
                 r[f"measured_{a}"]=lp.measured; r[f"smaxedge_{a}"]=lp.sensitivity_peak_at_edge

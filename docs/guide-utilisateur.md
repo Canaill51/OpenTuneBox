@@ -154,7 +154,8 @@ de 0,2 ; l'outil reconnaît la série tout seul et lit, selon le curseur :
   d'inertie : l'outil conseille alors de monter **Pitch Damping** (son D à part) plutôt que le Damping ;
 - **Pitch Damping** : même lecture, sur le pic du pitch ;
 - **Master** (niveau des gains) : on monte tant que la latence baisse sans **cassure** (« ripple » : la
-  montée s'arrête un instant avant la consigne, puis reprend lentement) ni **vagues** sur le palier. Chaque
+  montée s'arrête un instant avant la consigne, puis reprend lentement) ni **vagues** sur le palier (lues
+  seulement à partir de 200 fenêtres : en dessous, le bruit seul en fabrique). Chaque
   vol est classé propre, premiers signes (proche de l'optimum) ou trop haut ; au premier vol trop haut, on
   garde la valeur d'avant ;
 - **Pitch Tracking** (ou, sans série, le vol conseillé) : écart de latence entre pitch et roll, visé
