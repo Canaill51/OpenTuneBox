@@ -36,6 +36,13 @@ SENSITIVITY_HIGH_DB = 7.0
 STEP_PEAK_HIGH = (1.15, 1.25)
 STEP_PEAK_HIGH_FF = (1.40, 1.55)
 STEP_PEAK_FLAT = 1.03
+# Réponse molle : pic sous le p10 des axes du corpus (1,008 sans feedforward, 1,012 avec, 2026-10-12) et latence
+# au-dessus du p90 de la taille
+STEP_PEAK_SOFT = 1.01
+# Fenêtres de la réponse indicielle : lue dès 20 par axe, « mesure moins sûre » sous 200 [S35]. Corpus du
+# 2026-10-12 (tranches de n fenêtres de 646 axes, comparées au vol entier) : écart du pic p90 0,20 à 20
+# fenêtres, 0,07 à 200 (docs/assistant.md, « Pic de réponse indicielle »)
+STEP_MIN_WINDOWS, STEP_SURE_WINDOWS = 20, 200
 PHASE_MARGIN_LOW_DEG = 35.0
 # Repères de Brian White sur l'échelle des spectres de PIDtoolbox (docs/spec-methodes.md, [S20]–[S22]) :
 # terme D au plus −10 dB (déclenche le constat, avec le p90 du corpus), gyro filtré sous −30 dB (affiché)
@@ -51,12 +58,15 @@ GYRO_PTB_MAX_DB = -30.0
 # Filtre RPM (doc Betaflight 4.5, [S27]) : monter Q par pas jusqu'à 1000 au plus pour gagner du retard,
 # pas de 100 dans les deux sens (décision de Cédric, 2026-10-10) ;
 # poids (4.5 et plus) juste suffisant pour que la raie ne se voie plus, avec une marge de 6 dB, proposé
-# s'il fait gagner au moins 0,5 (8 % des sessions du corpus) ; raie « visible » à plus de 3 dB du bruit voisin
+# s'il fait gagner au moins 0,5 (8 % des sessions du corpus) ; raie « visible » à plus de 4 dB du bruit voisin
 RPM_Q_STEP, RPM_Q_MAX = 100, 1000
 RPM_Q_MIN = 250  # borne basse de rpm_filter_q dans le firmware (cli/settings.c)
 RPM_WEIGHT_MARGIN_DB = 6.0
 RPM_WEIGHT_GAIN_MIN = 0.5
-HARMONIC_VISIBLE_DB = 3.0
+# Calibration du 2026-10-12 (704 sessions) : la même mesure prise là où il n'y a aucune raie (0,45 et 0,6 ×
+# la fréquence moteur, gyro filtré, maximum du roll et du pitch) dépasse 3 dB dans 1,4 à 2,8 % des sessions,
+# 4 dB dans 0,3 à 0,9 % : 4 dB garde les fausses alertes sous 1 % (docs/assistant.md, « Filtre RPM : poids et Q »)
+HARMONIC_VISIBLE_DB = 4.0
 # Notch dynamique (notes de réglage Betaflight 4.3, [S19]) : plage qui englobe la résonance à 20 Hz près,
 # le moins de notchs possible, minimum « as high as practical (eg 200hz) », mais 80–125 Hz dans les presets
 # officiels des 7–10" ([S16]) ; relevé proposé dès 30 Hz
@@ -66,16 +76,23 @@ DYN_NOTCH_MIN_HZ, DYN_NOTCH_MIN_MAX_HZ = 20, 250  # bornes de dyn_notch_min_hz d
 DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_max_hz
 # Q du notch dynamique avec filtre RPM : 300–450 [S19] ; pas de 50 (décision de Cédric, 2026-10-10).
 # Q calculé d'après la forme des raies à suivre (notch SVF de Betaflight, `common/filter.c`, largeur à −3 dB
-# = fréquence / Q [S31], Q × 100) : le plus haut Q qui atténue chaque raie de sa hauteur moins 3 dB
+# = fréquence / Q [S31], Q × 100) : le plus haut Q qui atténue chaque raie de sa hauteur moins 4 dB
 # (HARMONIC_VISIBLE_DB) sur sa demi-largeur à mi-puissance ; le firmware vise le pic par interpolation
 # parabolique (`flight/dyn_notch_filter.c`). Arrondi à 50 vers le bas, 100 au moins (estimation : les
 # sources descendent à 120 sans filtre RPM [S19]) ; hausse jusqu'à 450 au plus [S19]
 DYN_NOTCH_Q_RPM = (300, 450)
 DYN_NOTCH_Q_STEP = 50
 DYN_NOTCH_Q_LOW = 100
-# Vol stationnaire : raies hors moteurs listées dès 6 dB au-dessus du bruit voisin ; sous 100 Hz, prudence
-# avant de les filtrer (bande de travail du PID, propwash ~20–100 Hz [S1])
+# Vol stationnaire : raies hors moteurs listées dès 6 dB au-dessus du bruit voisin (2026-10-12 : du bruit sans
+# raie simulé sur les vols stationnaires du corpus ne dépasse jamais 3 dB ; 6 dB fixe le nombre de conseils,
+# choix de Cédric) ; sous 100 Hz, prudence avant de les filtrer (bande de travail du PID, propwash ~20–100 Hz [S1])
 HOVER_LINE_MIN_DB = 6.0
+# Notch statique conseillé (gyro_notch1) : coupure tirée du Q nécessaire pour la raie, même calcul et mêmes bornes
+# que le Q du notch dynamique (dyn_notch_q_need, DYN_NOTCH_Q_LOW à DYN_NOTCH_Q_RPM[1], soit 0,62 à 0,89 × la
+# fréquence) ; firmware : Q = f·c / (f² − c²) (`filterGetNotchQ`, common/filter.c). Sans mesure de la raie (pas de
+# gyro non filtré ou d'eRPM, raie sous 4 dB dans le spectre moyen) : 0,7, entre les anciens défauts de Betaflight 3.2.0 (gyro 400 / 300 et
+# 200 / 100 Hz, D 260 / 160 Hz : 0,5 à 0,75) ; choix de Cédric, 2026-10-12
+STATIC_NOTCH_FALLBACK = 0.7
 HOVER_LOW_LINE_HZ = 100.0
 DYN_NOTCH_MIN_STEP_HZ = 30
 
@@ -209,13 +226,13 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     meas["steps"] = {st.axis: st.result.metrics for st in steps}
     for ax, st in enumerate(steps[:2]):
         _step_rules(F, st, profile, s.pids[ax].F)
-    if steps[0].result.n < 20 and steps[1].result.n < 20:
+    if steps[0].result.n < STEP_MIN_WINDOWS and steps[1].result.n < STEP_MIN_WINDOWS:
         F.append(Finding("Réponse", ATTENTION, "Pas assez de mouvements de manche",
                          f"Seulement {steps[0].result.n} fenêtres exploitables en roll et {steps[1].result.n} en pitch "
                          "(il faut des mouvements de plus de 20 °/s).",
                          ["Volez 20 à 30 s avec des mouvements francs et des flips/rolls rapides sur chaque axe."]))
     r0, r1 = steps[0].result, steps[1].result
-    if r0.n >= 20 and r1.n >= 20 and np.isfinite(r0.metrics.peak) and np.isfinite(r1.metrics.peak):
+    if r0.n >= STEP_MIN_WINDOWS and r1.n >= STEP_MIN_WINDOWS and np.isfinite(r0.metrics.peak) and np.isfinite(r1.metrics.peak):
         d = r1.metrics.peak - r0.metrics.peak
         if abs(d) > profile.roll_pitch_gap_high:
             more = "pitch" if d > 0 else "roll"
@@ -368,7 +385,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          ["Si cela arrive en descente/gaz coupés : propwash → plus de D (Damping +0,1) ou D max.",
                           "Si cela arrive en vol stable : oscillation → baisser le Master ou P (Tracking −0,1).",
                           "Regardez l'outil Fréquence × gaz pour voir à quel gaz le phénomène apparaît."]))
-    res = _frame_resonance(log, fr, profile)
+    res = _frame_resonance(log, fr, profile, sel)
     if res is not None:
         F.append(res)
     if not delays.moving and log.motor_hz is not None and log.gyro_unfilt is not None:
@@ -430,9 +447,21 @@ def _fr(x: float) -> str:
 
 def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int = 0) -> None:
     r = st.result
-    ax = st.axis
-    if r.n < 20:
+    if r.n < STEP_MIN_WINDOWS:
         return
+    first = len(F)
+    _step_findings(F, st, profile, ff_gain)
+    if r.n < STEP_SURE_WINDOWS:
+        for f in F[first:]:
+            if f.title.startswith("Marge"):
+                continue  # boucle ouverte : précision non mesurée ici, elle a sa propre réserve (_loop_caveat)
+            f.detail += (f" Mesure moins sûre : {r.n} fenêtres ({STEP_SURE_WINDOWS} conseillées, soit environ 20 s de "
+                         "wobbles roll et pitch mêlés).")
+
+
+def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int) -> None:
+    r = st.result
+    ax = st.axis
     m = r.metrics
     lp = r.loop
     pk, lat = m.peak, m.latency_ms
@@ -461,7 +490,7 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
                          f"Pic {pk:.2f} (> {_fr(advice)}{with_ff}, plus que 90 % des drones du corpus). Sans "
                          f"feedforward, une réponse sans dépassement visible donne environ {_fr(STEP_PEAK_FLAT)} ; "
                          "le feedforward fait monter le pic.", ["Curseur Damping (D) : +0,1."], ax))
-    elif pk < 0.98 and np.isfinite(lat) and lat > profile.latency_ms[1]:
+    elif pk < STEP_PEAK_SOFT and np.isfinite(lat) and lat > profile.latency_ms[1]:
         F.append(Finding("Réponse", CONSEIL, f"Réponse molle en {ax.lower()}",
                          f"Pic {pk:.2f} et latence {lat:.1f} ms (repère {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms "
                          f"pour {profile.label}) : trop amorti.",
@@ -767,11 +796,40 @@ def _hover_noise(log, sel, profile, g_ptb, d_ptb, fixed_hz, meas, aliased: bool 
             continue
         if fixed_hz is not None and abs(ln.freq_hz - fixed_hz) <= 0.1 * fixed_hz:
             continue  # déjà traitée par le constat « Raie fixe »
-        out.append(_residual_line(s, ln))
+        out.append(_residual_line(s, ln, static_notch_cutoff(ln.freq_hz, *_line_shape(log, sel, ln.freq_hz))))
     return out
 
 
-def _residual_line(s, ln) -> Finding:
+def static_notch_cutoff(f0: float, width: float, height: float) -> tuple[int, bool]:
+    """Coupure (Hz) de gyro_notch1 pour une raie de largeur à mi-puissance `width` et de hauteur `height` (dB) :
+    Q nécessaire (dyn_notch_q_need, arrondi et borné comme le notch dynamique), puis coupure c telle que
+    Q = f0·c / (f0² − c²), soit c = f0·(√(1 + 4Q²) − 1) / (2Q). Arrondie vers le bas (notch un peu plus large).
+    Renvoie aussi si la raie a été mesurée (sinon STATIC_NOTCH_FALLBACK)."""
+    q = dyn_notch_q_need([f0], [width], [height])
+    if q is None or not np.isfinite(q):
+        return int(f0 * STATIC_NOTCH_FALLBACK), False
+    Q = min(_q_round(q), DYN_NOTCH_Q_RPM[1]) / 100
+    return int(f0 * (np.sqrt(1 + 4 * Q * Q) - 1) / (2 * Q)), True
+
+
+def _line_shape(log: FlightLog, sel: slice, f0: float) -> tuple[float, float]:
+    """Largeur et hauteur d'une raie dans le gyro non filtré, la plus large et la plus haute du roll et du pitch
+    (comme le Q du notch dynamique) ; NaN sans gyro non filtré ou sans eRPM."""
+    if log.gyro_unfilt is None or log.motor_hz is None:
+        return float("nan"), float("nan")
+    sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, [f0], log.settings.rpm_harmonics)[0]
+          for a in range(2)]
+    def worst(vals):
+        return float(np.nanmax(vals)) if np.any(np.isfinite(vals)) else float("nan")
+    return worst([x[0] for x in sh]), worst([x[1] for x in sh])
+
+
+def _static_notch_text(f0: float, cutoff: tuple[int, bool]) -> str:
+    how = "calculée d'après la largeur de la raie" if cutoff[1] else "0,7 × la fréquence : raie trop faible ou absente dans le spectre moyen du gyro non filtré"
+    return f"gyro_notch1_hz = {f0:.0f}, gyro_notch1_cutoff = {cutoff[0]} (coupure {how})"
+
+
+def _residual_line(s, ln, cutoff: tuple[int, bool] | None = None) -> Finding:
     """Raie hors moteurs encore visible après filtrage : où la traiter."""
     f0 = ln.freq_hz
     actions = ["Cherchez d'abord une cause mécanique : vis, antennes, câbles, caméra, pile de cartes, hélices."]
@@ -786,7 +844,9 @@ def _residual_line(s, ln) -> Finding:
             actions.append(f"La raie est dans la plage du notch dynamique mais passe quand même : dyn_notch_count "
                            f"{s.dyn_notch_count} → {min(s.dyn_notch_count + 1, 7)} (si le Q est trop haut pour elle, le "
                            "constat « Notch dynamique : Q trop haut » le dit).")
-    actions.append(f"Ou notch statique : gyro_notch1_hz = {f0:.0f}, gyro_notch1_cutoff = {0.7 * f0:.0f}.")
+    if cutoff is None:
+        cutoff = (int(f0 * STATIC_NOTCH_FALLBACK), False)
+    actions.append(f"Ou notch statique : {_static_notch_text(f0, cutoff)}.")
     caveat = ""
     if f0 < HOVER_LOW_LINE_HZ:
         caveat = (f" Sous {HOVER_LOW_LINE_HZ:.0f} Hz, un notch ajoute du retard là où le PID travaille, et la raie peut venir "
@@ -1070,7 +1130,7 @@ def frame_resonance(log: FlightLog, sel: slice, lo_hz: float = 20.0) -> tuple[fl
     return f0, float(excess[k]), near_motor
 
 
-def _frame_resonance(log: FlightLog, res, profile: CraftProfile) -> Finding | None:
+def _frame_resonance(log: FlightLog, res, profile: CraftProfile, sel: slice | None = None) -> Finding | None:
     """Raie de fréquence fixe quel que soit le gaz (résonance du châssis ou pièce desserrée) ; `res` vient
     de frame_resonance."""
     if res is None:
@@ -1090,8 +1150,8 @@ def _frame_resonance(log: FlightLog, res, profile: CraftProfile) -> Finding | No
         else:
             actions.append(f"Elle est dans la plage du notch dynamique ({s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz), qui "
                            "peut la suivre si un notch est libre.")
-    actions.append(f"Si elle persiste : notch statique gyro à {f0:.0f} Hz (gyro_notch1_hz = {f0:.0f}, "
-                   f"gyro_notch1_cutoff = {0.7 * f0:.0f}).")
+    cutoff = static_notch_cutoff(f0, *_line_shape(log, sel if sel is not None else slice(0, log.n), f0))
+    actions.append(f"Si elle persiste : notch statique gyro à {f0:.0f} Hz, {_static_notch_text(f0, cutoff)}.")
     return Finding("Mécanique", CONSEIL, f"Raie fixe vers {f0:.0f} Hz",
                    f"Une vibration à ~{f0:.0f} Hz reste présente quel que soit le gaz (+{excess:.0f} dB au-dessus du "
                    "bruit voisin) : résonance du châssis, d'une antenne, d'une caméra ou pièce desserrée.", actions)
@@ -1130,8 +1190,8 @@ def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) ->
 
 
 def dyn_notch_q_need(peaks: list[float], widths: list[float], heights: list[float]) -> float | None:
-    """Plus haut Q du notch dynamique (× 100, comme Betaflight) qui ramène chaque raie à 3 dB au plus du bruit
-    voisin sur sa demi-largeur. Notch centré en f0, à l'écart d : |H| ≈ 2d / √((2d)² + (f0/Q)²), d'où
+    """Plus haut Q du notch dynamique (× 100, comme Betaflight) qui ramène chaque raie à HARMONIC_VISIBLE_DB au plus du
+    bruit voisin sur sa demi-largeur. Notch centré en f0, à l'écart d : |H| ≈ 2d / √((2d)² + (f0/Q)²), d'où
     Q = f0·h / (2d·√(1 − h²)) pour une atténuation h. None sans raie mesurable ; inf si aucune n'en a besoin."""
     qs = []
     for f0, w, ht in zip(peaks, widths, heights):

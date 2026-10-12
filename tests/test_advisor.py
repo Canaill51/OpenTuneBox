@@ -262,8 +262,10 @@ def test_rpm_and_dyn_notch_q_steps():
     from opentunebox.advisor.rules import analyze
     from opentunebox.analysis.period import auto_period
 
-    def findings(rel):
-        lg = _load(rel)
+    def findings(rel, session=0):
+        from opentunebox.log.flightlog import load
+
+        lg = load(corpus_log(rel))[session]
         return lg.settings, {f.title: f for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings}
 
     # Air65 d'origine : harmoniques effacées, bruit sous les repères → Q du filtre RPM + 100
@@ -272,9 +274,10 @@ def test_rpm_and_dyn_notch_q_steps():
     # banc d'hélices 5" : raies étroites, aucune qui passe → Q calculé, plafonné à 450 avec filtre RPM
     s, f = findings("Cedric/Benchmark Props 5inch/HQ J37.bbl")
     assert f["Notch dynamique : Q peut monter"].actions[0].startswith(f"dyn_notch_q {s.dyn_notch_q} → 450")
-    # Apex 5 : raie trop large ou trop haute pour Q 500 → Q calculé plus bas
-    s, f = findings("Cedric/Apex 5/filter1.bbl")
-    assert f["Notch dynamique : Q trop haut pour les raies à suivre"].actions[0].startswith("dyn_notch_q 500 → 400")
+    # 2e vol de cheussure : raie trop large ou trop haute pour Q 500 → Q calculé plus bas (l'Apex 5
+    # filter1.bbl, 500 → 400 avec une raie « visible » à 3 dB, n'en a plus besoin à 4 dB)
+    s, f = findings("1. PTB/cheussure/FF0.0_0.5_1.0.bbl", session=1)
+    assert f["Notch dynamique : Q trop haut pour les raies à suivre"].actions[0].startswith("dyn_notch_q 500 → 350")
 
 
 def test_dterm_lift_from_noise():

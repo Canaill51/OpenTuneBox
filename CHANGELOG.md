@@ -6,6 +6,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Notch statique conseillé (« Raie fixe », « Raie à X Hz encore visible ») : la coupure `gyro_notch1_cutoff`
+  est calculée d'après la largeur et la hauteur de la raie, comme le Q du notch dynamique (0,62 à 0,89 × sa
+  fréquence), au lieu de 0,7 × la fréquence dans tous les cas : notch plus étroit, donc moins de retard, pour
+  une raie fine. 0,7 reste le repli quand la raie ne se mesure pas (W-003).
+- Réponse indicielle : avec moins de 200 fenêtres (environ 20 s de wobbles), les constats de dépassement, de
+  réponse molle et la ligne « ok » ajoutent « mesure moins sûre » : sur le corpus, le pic mesuré sur 20
+  fenêtres s'écarte jusqu'à 0,20 de celui du vol entier, 0,07 sur 200. « Réponse molle » se déclenche sous
+  un pic de 1,01 (10e percentile du corpus) au lieu de 0,98 (W-003).
+- Une raie moteur n'est plus dite « visible » après filtrage qu'au-delà de 4 dB au-dessus du bruit voisin
+  (3 dB avant) : mesuré sur le corpus là où il n'y a aucune raie, 3 dB donnait 1,4 à 2,8 % de fausses alertes,
+  4 dB moins de 1 %. Moins de conseils sur le filtre RPM et les raies restantes (« Raie moteur encore visible
+  après le filtre RPM » 9 → 6 % des sessions), Q du notch dynamique calculé pour laisser 4 dB (W-003).
 - Le vol chirp de Betaflight n'est plus conseillé (guide utilisateur) : il faut le compiler à part dans le
   firmware, ses données changent encore d'une version à l'autre et aucune méthode publiée n'en tire un
   réglage. OpenTuneBox suit la méthode de Brian White : quand le pic de sensibilité tombe au bord des

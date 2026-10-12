@@ -26,17 +26,30 @@ def _titles(*a, **kw):
 
 
 def test_step_peak_thresholds_without_feedforward():
-    """Paliers 1,15 (conseil) et 1,25 (attention) sans feedforward ; réponse molle sous 0,98 et lente."""
+    """Paliers 1,15 (conseil) et 1,25 (attention) sans feedforward ; réponse molle sous 1,01 et lente."""
     assert _titles(1.15, 15) == [("Réponse indicielle roll", OK)]
     assert _titles(1.16, 15) == [("Léger dépassement en roll", CONSEIL)]
     assert _titles(1.25, 15) == [("Léger dépassement en roll", CONSEIL)]
     assert _titles(1.26, 15) == [("Fort dépassement en roll", ATTENTION)]
     f = _step_findings(1.26, 15)[0]
     assert "> 1,25 sans feedforward" in f.detail and "Damping" in f.actions[0]
-    assert _titles(0.97, 22.1) == [("Réponse molle en roll", CONSEIL)]  # latence > 22 ms (5")
-    assert _titles(0.97, 22.0) == [("Réponse indicielle roll", OK)]
-    assert _titles(0.97, 22.1, profile="large") == [("Réponse indicielle roll", OK)]  # 8"+ : jusqu'à 30 ms
+    assert _titles(1.00, 22.1) == [("Réponse molle en roll", CONSEIL)]  # latence > 22 ms (5")
+    assert _titles(1.01, 22.1) == [("Réponse indicielle roll", OK)]  # pic au p10 du corpus : pas molle
+    assert _titles(1.00, 22.0) == [("Réponse indicielle roll", OK)]
+    assert _titles(1.00, 22.1, profile="large") == [("Réponse indicielle roll", OK)]  # 8"+ : jusqu'à 30 ms
     assert _titles(1.5, 15, n=19) == []  # pas assez de fenêtres
+
+
+def test_step_windows_warning():
+    """Sous 200 fenêtres [S35], les constats du pic disent « mesure moins sûre » ; pas les marges (boucle ouverte)."""
+    f = _step_findings(1.26, 15, n=199)[0]
+    assert f.detail.endswith("Mesure moins sûre : 199 fenêtres (200 conseillées, soit environ 20 s de wobbles roll "
+                             "et pitch mêlés).")
+    assert "moins sûre" in _step_findings(1.0, 15, n=20)[0].detail  # ligne « ok » aussi
+    assert "moins sûre" not in _step_findings(1.26, 15, n=200)[0].detail
+    edge = dict(sensitivity_peak_db=7.1, sensitivity_peak_hz=20.0)
+    margin = [x for x in _step_findings(1.0, 15, n=50, **edge) if x.title.startswith("Marge")][0]
+    assert "moins sûre" not in margin.detail
 
 
 def test_step_peak_thresholds_with_feedforward():
