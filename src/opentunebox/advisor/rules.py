@@ -4,8 +4,8 @@ Principes :
 - chaque constat cite la mesure qui le justifie (valeur, seuil, axe) ;
 - les suggestions passent de préférence par les curseurs du réglage simplifié de Betaflight
   (une seule chose à la fois, par petits pas de 0,1), puis par des réglages précis si besoin ;
-- les seuils dépendent de la taille du drone (profiles.py) et sont calibrés sur 708 sessions réelles
-  (90e percentile de chaque taille, voir docs/assistant.md).
+- les seuils dépendent de la taille du drone (profiles.py) et sont calibrés sur 681 sessions réelles
+  (90e percentile de chaque taille, voir docs/assistant.md « Calibration »).
 """
 
 from __future__ import annotations

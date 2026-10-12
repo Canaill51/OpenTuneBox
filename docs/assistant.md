@@ -442,7 +442,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Règle | Seuil | Origine | Remarque |
 |---|---|---|---|
 | Taille par l'eRPM et les cellules | 345 / 290 / 160 / 115 Hz ; 1S → whoop ; 2–4S entre 200 et 290 Hz → 2–3,5" | Corpus + estimation | Vérifié sur 41 drones de taille connue, 38 justes (voir « Taille du drone ») ; la limite 8"+ (115 Hz) n'est vérifiée que sur 6 drones. Le tableau de fréquences par taille de `spec-methodes.md` est une estimation qui ne correspond pas aux logs |
-| Taille par le nom | « whoop », « 65 », « 75 », « Meteor » ; 3,8 / 5,8 / 7,8 pouces | Estimation | |
+| Taille par le nom | « whoop », « Meteor », 65 ou 75 (nombre entier) ; taille en pouces à un ou deux chiffres, bornes 3,8 / 5,8 / 7,8 | Estimation | |
 | Profil par défaut | 5" | Corpus | Taille la plus fréquente (366 sessions sur 707) |
 | Fréquence du log trop basse | gyro 8 kHz : 2 kHz ; gyro 3,2 kHz : 1,6 kHz (plus petite fraction de la boucle PID ≥ 1,6 kHz) | Pilote expérimenté (Cédric, 2026-10-05) + firmware | Le blackbox sous-échantillonne sans filtre (`blackbox_sample_rate` 1/1 à 1/16 de la boucle PID, `cli/settings.c`) : tout bruit au-delà de la moitié de la fréquence du log se replie. 178 sessions sur 681 (26 %) en dessous, surtout des gyros à 8 kHz logués à 1 kHz |
 | Fréquence du log pour les PID | 1 kHz (bloquant pour une série sous 500 Hz) | Pilote expérimenté (Cédric, 2026-10-12) + théorie | Réponse indicielle et latence à la milliseconde près ; la bande analysée s'arrête à 0,4 × la fréquence du log (200 Hz à 500 Hz). Les mouvements du manche restent sous quelques dizaines de hertz : le repliement du bruit moteur pèse peu sur la réponse |
@@ -470,7 +470,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Dépassement | sans feedforward : pic > 1,15 (conseil), > 1,25 (attention) ; avec feedforward : > 1,40, > 1,55 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon F (« Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode de Brian White [S24, S25]) |
 | Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
 | Réponse molle | pic < 0,98 et latence > p90 de la taille | Estimation (0,98) + corpus (latence) | |
-| Roll et pitch différents | écart de pic > 0,07 à 0,12 selon la taille | Corpus | Seuils mécaniques |
+| Roll et pitch différents | écart de pic > 0,08 (7") à 0,12 (commun) selon la taille | Corpus | Seuils mécaniques (`profiles.py`, voir « Calibration ») |
 | Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
 | Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Estimation | Choisit le conseil (Master −0,1 plutôt que plus de D). Appuyé sur la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) : au-delà, plus de D monte le croisement sans gagner de marge, et le pic de sensibilité augmente |
@@ -488,7 +488,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
 | Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 10 et 8 drones seulement |
 | Seuils du profil 8"+ | voir « Calibration » | Estimation | 6 drones, 20 sessions |
-| Résonance | raie > 7,3 à 7,9 dB selon la taille ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil) + estimation (méthode) | | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage
+| Résonance | raie > 6,8 (5") à 8,2 dB (7") selon la taille, 7,9 dB commun ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil) + estimation (méthode) | | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage
 | Pic suivi par le notch dynamique | > 2 × la puissance moyenne de la plage (+3 dB), cases de 18,5 Hz | Firmware | `flight/dyn_notch_filter.c` (`sdftNoiseThreshold *= 2`, bruit au-dessus de 60 Hz) ; bandes des harmoniques traitées par le filtre RPM retirées (± 5 % : estimation) |
 | Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
 | Relèvement de `dyn_notch_min_hz` | jusqu'à 200 Hz (7" et plus : 125 Hz), sous le pic le plus bas − 20 Hz, si le gain atteint 30 Hz | Firmware (doc) + communauté + estimation (30 Hz) | « as high as practical (eg 200hz) » [S19] ; presets officiels 7–10" entre 80 et 125 Hz [S16] ; seulement dans le conseil « filtrage gyro trop prudent » (2 % des sessions) |
@@ -509,16 +509,17 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | LPF1 du D dynamique proposé | min = coupure statique, max = 2 × min | Firmware (défauts 75–150 Hz) + estimation | Mode statique « not recommended » [S29] |
 | Coupure du LPF1 du gyro | si filtre RPM actif, vol avec mouvements, bruit actuel et prévu sous les repères | Firmware (doc) + corpus (repères) | [S29, S30] ; 4 % des sessions |
 | Prévision du curseur « filtre D » | +0,1 = multiplicateur +10 (×1,1 sans curseur) | Firmware | `simplified_tuning.c` ; relèvement proposé seulement si le D prévu reste sous les repères |
-| Déséquilibre des moteurs | > 11 à 14,1 % selon la taille | Corpus | L'interprétation (côté ou diagonale au-delà de 12 %) reste estimée |
-| Terme I décentré | moyenne > 29 à 33 (unités PID) selon la taille | Corpus | |
+| Déséquilibre des moteurs | > 11,2 (7") à 14 % (5") selon la taille, 13,5 % commun | Corpus | L'interprétation (côté ou diagonale au-delà de 12 %) reste estimée |
+| Terme I décentré | moyenne > 31 (7") à 33 (commun, unités PID) selon la taille | Corpus | |
 | Saturation des moteurs | ≥ 98 % pendant > 1,5 % du temps | Corpus | La notion de « moteur à 98 % » est estimée : le firmware ne journalise pas de saturation (il renormalise le mixage quand l'écart entre moteurs dépasse 100 %) |
 | Pas des curseurs conseillés | 0,1 (0,1 à 0,2 pour les filtres) | Estimation | Le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
 | `rpm_filter_q` conseillé | −100 par pas (500 → 400) | Firmware (500) + décision (pas) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre selon Brian White [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où des pas de 100 (décision de Cédric, 2026-10-10). Monter Q : voir la ligne « pour gagner du retard ». Avec un poids < 100, la règle « poids trop bas » propose d'abord de le remonter |
 | `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
 | Notch statique conseillé | coupure = 0,7 × fréquence de la raie | Estimation | |
 
-Les champs `hover_hz` et `resonance_hz` des profils (`advisor/profiles.py`) sont renseignés mais
-**aucune règle ne les utilise**.
+Le champ `resonance_hz` des profils (`advisor/profiles.py`) est renseigné mais **aucune règle ne
+l'utilise** ; `hover_hz` ne sert qu'à la fiche drone du guide (`advisor/drone_card.py:log_rate`,
+fréquence d'enregistrement conseillée d'après le milieu de la plage).
 
 ### Sources vérifiées
 
