@@ -12,14 +12,32 @@ les commandes qui demandent `sudo` : préparer la commande ou un script, ne pas 
 
 ## Décisions fixées (ne pas remettre en cause sans lui demander)
 
-- Multiplateforme : Python + **PySide6** + **pyqtgraph** ; décodeur Python accéléré par **numba** (aucun binaire externe).
-- Assistant **100 % hors ligne**, à règles : aucune API, aucune donnée envoyée.
-- Projet **privé, tous droits réservés** (pas de licence libre).
+Résumé ; contexte, options écartées et preuves dans `docs/decisions.md`.
+
+- Multiplateforme : Python + **PySide6** + **pyqtgraph** ; décodeur Python accéléré par **numba** (aucun binaire externe). D-001, D-002
+- Assistant **100 % hors ligne**, à règles : aucune API, aucune donnée envoyée. D-003
+- Projet **privé, tous droits réservés** (pas de licence libre). D-001
 - **Aucune copie de code PIDtoolbox** (binaire chiffré) ni d'autres projets : tout est réimplémenté à partir
   des formules du firmware Betaflight et de méthodes publiées (voir `docs/spec-*.md`).
   Seule exception, validée par Cédric : les icônes [Lucide](https://lucide.dev) (licence ISC) dans
-  `gui/assets/icons/`, à garder avec leur fichier de licence.
-- Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français.
+  `gui/assets/icons/`, à garder avec leur fichier de licence. D-004, D-005
+- Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français. D-001
+
+## Suivi du projet
+
+Trois registres numérotés, un maître par sujet (D-018) ; `tests/test_docs.py` vérifie que chaque numéro
+est unique et que chaque numéro cité existe.
+
+- `docs/decisions.md` (`D-xxx`) : choix en vigueur, options écartées, preuves. Un choix qui écarte une
+  option, tranché par Cédric ou qui fixe un contrat entre deux parties du code y entre ; le remplacer =
+  nouvelle décision, avec son accord.
+- `docs/lecons.md` (`L-xxx`) : histoire complète des pièges. **En début de session**, lire son index rapide
+  et la section du domaine touché ; **en fin de session**, y ajouter tout piège qui a coûté du temps. Ici,
+  « Pièges connus » ne garde que la règle courte et son numéro.
+- `docs/travaux-reportes.md` (`W-xxx`) : ce qui est vu et laissé de côté, avec la condition de reprise.
+  Y noter tout défaut repéré hors du sujet de la branche, plutôt que de l'oublier ou de le corriger en douce.
+- Renvoi dans le code : `# ⚠️ <ce qui casse si on l'ignore> (L-xxx)` ; la demande de fusion liste les
+  numéros créés ou modifiés. Pas de numéro dans le sujet des commits.
 
 ## Organisation
 
@@ -76,75 +94,76 @@ aussi `corpus.csv`, les étiquettes des drones remplies par Cédric, à ne jamai
 
 Tests d'interface et captures sans écran : `QT_QPA_PLATFORM=offscreen`, puis `widget.grab().save(...)` et
 regarder l'image produite. **Terminer tout script Qt par `opentunebox.gui.app.hard_exit(code)`** :
-PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de fin de Python.
+PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de fin de Python (L-019).
 
 ## Pièges connus
+
+Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md` sous le numéro indiqué.
 
 - `blackbox_decode` (référence de PIDtoolbox) compte mal `loopIteration` avec les en-têtes `P interval:N`
   (Betaflight récents) et jette les trames P qui suivent la 1re trame I d'un bloc : comparer en alignant sur
   `time`. Il accepte aussi des trames corrompues (tronquées avant un trou de carte SD, trames S parasites)
-  et se bloque sur certains fichiers ; notre décodeur suit le firmware (itération = boucle PID).
+  et se bloque sur certains fichiers ; notre décodeur suit le firmware (itération = boucle PID). L-001
 - `log/flightlog.py:_drop_implausible` écarte les trames impossibles (gyro ou consigne > 4000 °/s, terme PID > ±65535) ;
-  une session corrompue à plus de 50 % est ignorée.
-- Numéros de `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12) → `log/debug_tables.py`.
-- 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max` → normalisé dans `log/settings.py`.
+  une session corrompue à plus de 50 % est ignorée. L-002
+- Numéros de `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12) → `log/debug_tables.py`. L-003
+- 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max` → normalisé dans `log/settings.py`. L-004
 - Retards de filtres : méthode de **phase** (10–100 Hz, pondérée par la cohérence), pas l'intercorrélation
   (dominée par le bruit haute fréquence). PIDtoolbox affiche un retard D 0,3 à 0,9 ms trop court (le gyro
-  concorde) : ses objectifs de retard D ne s'appliquent pas tels quels.
+  concorde) : ses objectifs de retard D ne s'appliquent pas tels quels. D-007, L-006
 - Retard des filtres : représentatif seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne
-  > 50 °/s au moins 5 % du temps) ; en vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime.
+  > 50 °/s au moins 5 % du temps) ; en vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime. D-010, L-007
 - Fréquence du log : deux minimums à ne pas mélanger. **Filtres** : au moins 2 kHz pour un gyro à 8 kHz,
   1,6 kHz à 3,2 kHz, plus pour les petits drones (`rules.log_rate_needed`) ; le blackbox sous-échantillonne
   sans filtre, tout ce qui dépasse fs/2 se replie. **Séries PID** : 1 kHz (`rules.pid_log_rate_needed`). Le
   guide range les logs par rôle (`log_check.FILTERS` / `PID`) : chaque case ne lit que ceux de sa phase.
-  Vol stationnaire = identifier le bruit ; vol avec mouvements = juger le retard.
+  Vol stationnaire = identifier le bruit ; vol avec mouvements = juger le retard. D-017, L-008
 - Feedforward : forcé à 0 par le firmware en mode **Angle** seulement (pas en Horizon) → masque
-  `flightlog.ANGLE_MODE_MASK`, distinct de `ANGLE_HORIZON_MASK` (instrument de la boucle ouverte).
+  `flightlog.ANGLE_MODE_MASK`, distinct de `ANGLE_HORIZON_MASK` (instrument de la boucle ouverte). D-014, L-005
 - Réponse indicielle par séries (`advisor/step_tuning.py`) : seuils tirés de 10 séries Master du corpus,
   choix des pilotes relus dans les vols suivants ; la cassure varie d'environ 0,01 entre deux vols
-  identiques (incertitude jackknife plus faible : elle ne couvre que le bruit d'un vol).
+  identiques (incertitude jackknife plus faible : elle ne couvre que le bruit d'un vol). L-012
 - Échelle des DSP : `analysis/` calcule la densité physique (= `scipy.signal.welch`), 6,5 dB au-dessus de PIDtoolbox
   (`spectral.PTB_PSD_OFFSET_DB`) ; l'interface affiche l'échelle de PTB (`spectral.to_ptb_db`, dans `compute` des
-  outils), l'assistant convertit lui-même (`rules.band_peak_ptb_db`) : ne jamais appliquer la conversion deux fois.
+  outils), l'assistant convertit lui-même (`rules.band_peak_ptb_db`) : ne jamais appliquer la conversion deux fois. D-016, L-009
 - Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic
   cherché dans max(150 ms, 3 × latence). Bande passante calculée à partir de 2 Hz, lissage `uniform_filter1d(mode="nearest")`.
 - Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²
   à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
-  `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log.
+  `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log. D-008, L-011
 - Seuils de l'assistant = 90e percentile du corpus par taille de drone (`docs/assistant.md`) : les recalculer
   avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles ; scripts du corpus en parallèle sur
   tous les cœurs, compétence `calculs-corpus`), ne pas les inventer. Compter **une voix
   par drone** quand quelques drones dominent une taille (whoop, seuils mécaniques) ; moins de ~20 drones →
-  seuil commun ou profil provisoire. Chaque seuil a une origine notée (corpus, théorie, firmware…).
+  seuil commun ou profil provisoire. Chaque seuil a une origine notée (corpus, théorie, firmware…). D-011, L-013
 - Boucle ouverte (`analysis/loop.py`) : L = G·(Ce + Cd) **mesurée** à partir des termes P, I, D, F loggés ;
   G par estimateur instrumental (consigne, ou `rcCommand` en mode angle/horizon, plus l'excitation du debug
   CHIRP de Betaflight, ajoutée à la consigne avant le mode angle), jamais S(u, gyro)/S(u, u)
   (biaisé en boucle fermée). L = T/(1 − T) n'est qu'un repli « approché » (faux pour Betaflight : D sur le
   gyro, FF sur la consigne). La bande mesurable s'arrête vers 20–40 Hz (énergie du manche) : pic de
-  sensibilité souvent minorant. L'onglet Autotune du configurateur n'est pas une source.
+  sensibilité souvent minorant. L'onglet Autotune du configurateur n'est pas une source. D-012, L-010
 - Interface : style Qt **Fusion** imposé partout (`gui/theme.py`). Le style natif Windows 11 ignore la palette
   et grise les textes. Sous Fusion (Qt 6.11), les cases et boutons radio sont presque invisibles : ils sont
   redessinés par la feuille de style globale. Le délégué natif des `QComboBox` ignore cette feuille
-  (texte blanc sur blanc) : `theme._ComboDelegateFix` le remplace par `QStyledItemDelegate`.
+  (texte blanc sur blanc) : `theme._ComboDelegateFix` le remplace par `QStyledItemDelegate`. D-009, L-014, L-015
 - Couleurs : jamais de couleur de texte en dur (`#777`, `gray`…) ni de taille en pixels ; utiliser
-  `theme.accent_style`, `theme.muted_style` et les couleurs de `theme.current().ui`. Vérifier les deux thèmes.
+  `theme.accent_style`, `theme.muted_style` et les couleurs de `theme.current().ui`. Vérifier les deux thèmes. L-016
 - Linux : fenêtres d'ouverture / d'enregistrement par le portail XDG (`QT_QPA_PLATFORMTHEME=xdgdesktopportal`
-  dans `gui/app.py`), indépendant du bureau (choix validé par Cédric). Sous KDE, la fenêtre du portail porte
-  le logo de KDE et non celui d'OpenTuneBox : normal, le portail ne permet pas de le changer. Sans portail,
-  Qt reprend sa fenêtre à lui, dont les icônes viennent du thème du bureau → `theme._match_icon_theme`
-  choisit la variante claire / sombre. Textes de Qt en français : `qtbase_fr.qm`, seule traduction gardée
-  par la recette PyInstaller.
+  dans `gui/app.py`), indépendant du bureau. Logo de KDE sur la fenêtre du portail : normal. Sans portail,
+  `theme._match_icon_theme` choisit les icônes claires / sombres. Textes de Qt en français : `qtbase_fr.qm`,
+  seule traduction gardée par la recette PyInstaller. D-013, L-017
 - Une feuille de style Qt ne charge une image que depuis un fichier : icône recolorée écrite dans le dossier
-  temporaire (`theme._colored_svg`).
-- Pas de compilateur C sur le poste de développement : pas de dépendance à compiler.
-- Linux : PyInstaller a besoin de `binutils` (`objdump`). Windows/macOS : construire sur le système cible.
+  temporaire (`theme._colored_svg`). L-018
+- Pas de compilateur C sur le poste de développement : pas de dépendance à compiler. D-006
+- Linux : PyInstaller a besoin de `binutils` (`objdump`). Windows/macOS : construire sur le système cible. L-020
 - Exécutable Windows sans console (`console=False`) : `sys.stdout` et `sys.stderr` valent `None` ;
-  ne jamais les utiliser sans vérifier (voir `gui/app.py:hard_exit`).
+  ne jamais les utiliser sans vérifier (voir `gui/app.py:hard_exit`). L-021
 
 ## Méthode de travail
 
 1. Lire la doc liée à la tâche (`docs/spec-betaflight.md` pour toute formule firmware, `docs/spec-methodes.md`
-   pour les analyses, `docs/architecture.md`).
+   pour les analyses, `docs/architecture.md`) et l'index de `docs/lecons.md` ; vérifier qu'aucune décision
+   (`docs/decisions.md`) ni aucun travail reporté (`docs/travaux-reportes.md`) ne porte déjà sur le sujet.
 2. Valider sur **de vrais logs** en plus des tests synthétiques ; recouper avec les captures PIDtoolbox
    (`PTB_FIGS_*` du corpus) quand elles existent (résultats de référence dans `docs/validation.md`).
 3. **Documentation à jour à chaque modification**, dans le même commit que le code : suivre la compétence

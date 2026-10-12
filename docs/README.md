@@ -4,7 +4,10 @@
 |---|---|---|
 | [guide-utilisateur.md](guide-utilisateur.md) | Pilotes | Enregistrer, vols de test, lire chaque outil, méthode de réglage |
 | [assistant.md](assistant.md) | Pilotes, développeurs | Règles de l'assistant et calibration des seuils |
-| [architecture.md](architecture.md) | Développeurs, agents IA | Organisation du code, flux de données, décisions |
+| [architecture.md](architecture.md) | Développeurs, agents IA | Organisation du code, flux de données |
+| [decisions.md](decisions.md) | Développeurs, agents IA | Journal des décisions (`D-xxx`) : choix, options écartées, preuves |
+| [lecons.md](lecons.md) | Développeurs, agents IA | Pièges déjà rencontrés (`L-xxx`) : symptôme, cause, règle, preuve |
+| [travaux-reportes.md](travaux-reportes.md) | Développeurs, agents IA | Ce qui est vu et laissé de côté (`W-xxx`), et quand le reprendre |
 | [validation.md](validation.md) | Développeurs, agents IA | Preuves de justesse (décodeur, recoupement PIDtoolbox) |
 | [spec-betaflight.md](spec-betaflight.md) | Développeurs | Formules du firmware : filtres, debug, en-têtes, unités |
 | [spec-methodes.md](spec-methodes.md) | Développeurs | Méthodes d'analyse (FFT, Wiener, retards) et repères de réglage |

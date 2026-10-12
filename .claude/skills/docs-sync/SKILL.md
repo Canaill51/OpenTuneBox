@@ -17,7 +17,8 @@ tant que les documents concernés n'ont pas été relus et corrigés.
 Elle contrôle : liens et ancres entre documents, chemins et fonctions cités (`gui/app.py:hard_exit`),
 chaque bouton d'outil dans le README et le guide, chaque module dans `AGENTS.md` / `docs/architecture.md`,
 l'index `docs/README.md`, les fichiers publiés (`construire.yml`) dans le README et le guide, les commandes
-de `cli.py` dans le README, la langue (français). Elle tourne aussi avec `pytest`, à chaque commit (crochet
+de `cli.py` dans le README, la langue (français), les numéros des registres (`D-`, `L-`, `W-` : uniques,
+et chaque numéro cité existe). Elle tourne aussi avec `pytest`, à chaque commit (crochet
 de Claude Code) et sur chaque demande de fusion (GitHub). Un échec = documentation à corriger, **pas** test
 à affaiblir. Si un nouveau type d'incohérence apparaît, ajouter le contrôle dans `tests/test_docs.py`.
 
@@ -39,7 +40,9 @@ et les comparer au code :
 | Construction, installateurs, workflow | `README.md` (Installation, Développement), guide (1. Installer), `CONTRIBUTING.md` (Publier une version), `docs/architecture.md` (Distribution), compétence `opentunebox-dev` (Fabriquer les exécutables) |
 | Commande, script, variable d'environnement | `AGENTS.md` (Commandes), `README.md`, `CONTRIBUTING.md` |
 | Procédure (branches, commits, publication) | `CONTRIBUTING.md`, `AGENTS.md` (Méthode de travail), `.github/PULL_REQUEST_TEMPLATE.md` |
-| Décision de Cédric | `AGENTS.md` (Décisions fixées ou Pièges connus) |
+| Décision de Cédric, choix qui écarte une option, contrat entre deux parties du code | `docs/decisions.md` (nouvelle entrée, ou marque REMPLACÉE / AMENDÉE sur l'ancienne), résumé dans `AGENTS.md` (Décisions fixées) s'il est structurant |
+| Piège qui a coûté du temps (échec silencieux, cause contre-intuitive, récidive) | `docs/lecons.md` (entrée complète + index rapide), règle courte avec son numéro dans `AGENTS.md` (Pièges connus) |
+| Défaut vu hors du sujet de la branche, limite assumée, idée repoussée ; travail repris ou abandonné | `docs/travaux-reportes.md` (nouvelle entrée ou changement de statut, jamais de suppression) |
 | Tout changement visible | `CHANGELOG.md`, section *Non publié* (Ajouté / Modifié / Corrigé) |
 
 Pour une relecture large (avant une version, ou si beaucoup de choses ont changé) : relire **tous** les `.md`

@@ -212,3 +212,47 @@ def test_documentation_in_french(md):
     text = re.sub(r"```.*?```|`[^`\n]+`|\([^)]*\)|https?://\S+", " ", md.read_text(encoding="utf-8"), flags=re.S)
     en, fr = len(_ENGLISH.findall(text)), len(_FRENCH.findall(text))
     assert en <= max(5, fr // 3), f"{_rel(md)} semble rédigé en anglais ({en} mots anglais courants, {fr} français)"
+
+
+# Registres numérotés (décision D-018) : décisions, leçons, travaux reportés.
+REGISTERS = {
+    "D": (ROOT / "docs" / "decisions.md", r"^### D-(\d{3}) "),
+    "L": (ROOT / "docs" / "lecons.md", r"^### L-(\d{3}) "),
+    "W": (ROOT / "docs" / "travaux-reportes.md", r"^- (?:~~)?\*\*W-(\d{3})\*\*"),
+}
+
+
+def _register_entries(prefix: str) -> list[str]:
+    path, pattern = REGISTERS[prefix]
+    text = re.sub(r"```.*?```", "", path.read_text(encoding="utf-8"), flags=re.S)
+    return [f"{prefix}-{n}" for n in re.findall(pattern, text, re.M)]
+
+
+@pytest.mark.parametrize("prefix", sorted(REGISTERS))
+def test_register_ids_unique(prefix):
+    """Chaque numéro n'est attribué qu'une fois, et l'index du registre liste exactement les entrées."""
+    entries = _register_entries(prefix)
+    assert entries, f"aucune entrée {prefix}- dans {_rel(REGISTERS[prefix][0])}"
+    doubles = sorted({e for e in entries if entries.count(e) > 1})
+    assert not doubles, f"numéros attribués deux fois : {doubles}"
+    text = REGISTERS[prefix][0].read_text(encoding="utf-8")
+    index = re.findall(rf"^\| ({prefix}-\d{{3}}) \|", text, re.M)
+    assert sorted(index) == sorted(entries), (
+        f"{_rel(REGISTERS[prefix][0])} : index ≠ entrées "
+        f"(absents de l'index : {sorted(set(entries) - set(index))}, en trop : {sorted(set(index) - set(entries))})")
+
+
+def test_register_ids_cited_exist():
+    """Chaque D-xxx, L-xxx ou W-xxx cité dans la documentation, le code ou les tests existe dans son registre."""
+    known = {e for p in REGISTERS for e in _register_entries(p)}
+    tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    files = {ROOT / f for f in tracked if f.endswith((".md", ".py", ".yml"))} | set(MD_FILES)
+    files |= {p for p, _ in REGISTERS.values()}
+    unknown = []
+    for f in sorted(files):
+        if not f.exists():
+            continue
+        for ref in sorted(set(re.findall(r"\b[DLW]-\d{3}\b", f.read_text(encoding="utf-8")))):
+            if ref not in known:
+                unknown.append(f"{_rel(f)} : {ref}")
+    assert not unknown, f"numéros cités qui n'existent pas : {unknown}"

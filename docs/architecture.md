@@ -12,14 +12,9 @@ et 638 captures PIDtoolbox (`PTB_FIGS_*`) servant de référence visuelle.
 
 ## Décisions
 
-| Sujet | Choix | Raison |
-|---|---|---|
-| Interface | PySide6 (Qt) + pyqtgraph | Un seul code pour Windows/macOS/Linux ; courbes fluides sur 100 000+ points |
-| Décodeur | Python accéléré par numba | `blackbox_decode` n'existe pas sur toutes les plateformes ; il ne sert qu'à valider |
-| Assistant | Règles intégrées, hors ligne | Aucune donnée envoyée, résultat explicable mesure par mesure |
-| Code PIDtoolbox | Aucune copie | Réimplémentation depuis le firmware Betaflight et les méthodes publiées |
-| Langue | Français (interface, docs, commentaires) ; anglais (code) | Utilisateur francophone |
-| Licence | Privé, tous droits réservés | Choix du propriétaire |
+Les choix structurants (Qt et pyqtgraph, décodeur numba, assistant hors ligne, aucune copie de
+PIDtoolbox, langue, licence, méthodes de mesure…) sont dans le [journal des décisions](decisions.md), avec
+leur contexte, les options écartées et ce qui les prouve.
 
 ## Flux de données
 
@@ -121,4 +116,5 @@ fichier .bbl/.bfl
 
 ## Hors périmètre (pour l'instant)
 
-Logs KISS (`.TXT`) et INAV.
+Logs KISS (`.TXT`) et INAV : W-001. Le reste de ce qui est vu et laissé de côté est dans les
+[travaux reportés](travaux-reportes.md).
