@@ -3,7 +3,7 @@
 # (tests/test_docs.py). En cas d'échec, le commit est bloqué (code 2) et le message est renvoyé à Claude.
 cmd=$(jq -r '.tool_input.command // empty')
 case "$cmd" in
-    *"git commit"*) ;;
+    *"git commit"* | *git\ -c\ *commit*) ;;
     *) exit 0 ;;
 esac
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
