@@ -19,13 +19,13 @@ import math
 from dataclasses import dataclass, field
 
 from ..analysis.step_series import FF_KEY, FlightStep, Series, find_series
-from .rules import ATTENTION, CONSEIL, INFO, OK, Finding
+from .rules import ATTENTION, CONSEIL, INFO, OK, STEP_MIN_WINDOWS, STEP_SURE_WINDOWS, Finding
 
 SERIES_STEP = 0.2  # pas conseillé entre deux vols [S32]
 STEP_TOO_FINE = 0.15  # pas plus fin : écarts trop faibles pour se lire sur la réponse [S32]
 I_SLIDER_RANGE = (0.15, 0.35)  # curseur I conseillé 0,2–0,3 [S32], à 0,05 près
-MIN_WINDOWS = 20  # fenêtres exploitables par axe (comme rules.py) : en dessous, le vol n'est pas lu
-SURE_WINDOWS = 200  # en dessous, mesure moins sûre (avertissement) : consigne de Brian White [S35]
+MIN_WINDOWS = STEP_MIN_WINDOWS  # fenêtres exploitables par axe : en dessous, le vol n'est pas lu
+SURE_WINDOWS = STEP_SURE_WINDOWS  # en dessous, mesure moins sûre (avertissement) : consigne de Brian White [S35]
 # équilibre P/D : séries Damping du corpus (8 drones dont le choix final est connu)
 PEAK_FLAT_MAX = 1.05  # pic « sans dépassement » (repère 1,03 de rules.STEP_PEAK_FLAT, plus le bruit d'un vol)
 PEAK_PLATEAU = 0.02  # le cran suivant ne baisse plus le pic que de moins de 0,02 : D suffisant

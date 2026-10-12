@@ -299,6 +299,18 @@ et pitch, une voix par drone (médiane de ses axes) :
   la série « Master multi » faite ensuite avec ce Damping donne 1,02 à 1,03. « Sans dépassement visible »
   ≈ **1,03** sur notre échelle (`rules.STEP_PEAK_FLAT`), un seul drone : repère indicatif, affiché dans les
   textes, sans seuil.
+- **Réponse molle** (2026-10-12, 705 sessions) : pic sous le p10 des axes (1,008 sans feedforward, 1,012 avec ;
+  par drone 1,015 et 1,028) **et** latence au-delà du p90 de la taille. Palier 1,01 (`rules.STEP_PEAK_SOFT`,
+  choix de Cédric) au lieu de 0,98, une estimation qui tombait vers le 3e percentile : 9 sessions signalées
+  (1,3 %) au lieu de 3 ; 1,03 (`STEP_PEAK_FLAT`) en aurait signalé 15. C'est la latence qui limite le constat.
+- **Nombre de fenêtres** (2026-10-12, 646 axes d'au moins 400 fenêtres) : tranches de n fenêtres consécutives
+  comparées au vol entier. Écart du pic médiane / p90 : 0,04 / 0,20 à 20 fenêtres, 0,03 / 0,14 à 50,
+  0,02 / 0,11 à 100, 0,015 / 0,07 à 200 ; latence p90 3,6 / 2,7 / 2,0 / 1,4 ms. L'écart compte aussi les
+  changements de pilotage au cours du vol : c'est un majorant. À 20 fenêtres, le pic peut se tromper de plus
+  que l'écart entre les paliers conseil et attention (0,10) : le vol reste lu dès 20 fenêtres
+  (`rules.STEP_MIN_WINDOWS`), mais sous 200 (`rules.STEP_SURE_WINDOWS`, consigne de Brian White [S35]) les
+  constats du pic et de la latence disent « mesure moins sûre » (choix de Cédric). Dans le corpus, 46 sessions
+  ont moins de 20 fenêtres sur les deux axes, 61 (9 %) entre 20 et 199, 598 au moins 200.
 
 ### Diagnostic du réglage par séries (2026-10-10)
 
@@ -366,13 +378,14 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   proposé (spectre replié). 3e harmonique moteur au-delà de la
   moitié de la fréquence du log (conseil, `blackbox_sample_rate` pour 6 × la fréquence moteur) ; gyro non filtré absent ; pas de télémétrie RPM ; plus de 20 trames corrompues (info).
 - **Vol** : crash détecté, la période d'analyse s'arrête avant (info).
-- **Réponse** (au moins 20 fenêtres par axe, sinon « Pas assez de mouvements de manche ») :
+- **Réponse** (au moins 20 fenêtres par axe, sinon « Pas assez de mouvements de manche » ; sous 200, les
+  constats du pic et de la latence ajoutent « mesure moins sûre ») :
   - retard consigne → gyro roll / pitch (intercorrélation, info), avec la valeur du feedforward et le mode de
     vol : la mesure de la série Feedforward des finitions, comparée d'un vol à l'autre ;
   - dépassement : sans feedforward, pic > 1,25 (attention), > 1,15 (conseil) ; avec feedforward (F > 0),
     > 1,55 et > 1,40 ; attribué au feedforward si F > 0 et si la
     latence est plus courte que le repère bas de la taille ;
-  - réponse molle : pic < 0,98 et latence au-delà du repère haut de la taille ;
+  - réponse molle : pic < 1,01 et latence au-delà du repère haut de la taille ;
   - roll et pitch différents : écart de pic > seuil de la taille (curseur « D pitch ») ;
   - stabilité (boucle ouverte, voir « Boucle ouverte mesurée ») : pic de sensibilité > 7 dB (conseil ;
     « au moins » quand le pic est au bord de la bande mesurable ; précision ajoutée si la boucle n'est
@@ -484,11 +497,11 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Harmoniques hors de la plage visible | 3 × f moteur > Fs / 2 | Théorie | Fréquence de Nyquist |
 | Gyro non filtré absent, pas d'eRPM | présence des champs | Firmware | |
 | Trames corrompues | > 20 | Estimation | Constat informatif ; p90 du corpus ≈ 1 trame, un seuil calibré signalerait la moindre trame |
-| Mouvements de manche suffisants | ≥ 20 fenêtres | Estimation | |
+| Mouvements de manche suffisants | ≥ 20 fenêtres ; « mesure moins sûre » sous 200 | Corpus + communauté [S35] | Écart du pic p90 0,20 à 20 fenêtres, 0,07 à 200 (« Pic de réponse indicielle », 2026-10-12) ; mêmes valeurs que le Diagnostic du réglage |
 | Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Code de PID-Analyzer (2018) et de PIDtoolbox v0.55 (2022) [S5, S2] |
 | Dépassement | sans feedforward : pic > 1,15 (conseil), > 1,25 (attention) ; avec feedforward : > 1,40, > 1,55 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon F (« Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode de Brian White [S24, S25]) |
 | Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
-| Réponse molle | pic < 0,98 et latence > p90 de la taille | Estimation (0,98) + corpus (latence) | |
+| Réponse molle | pic < 1,01 et latence > p90 de la taille | Corpus | Pic : p10 des axes (« Pic de réponse indicielle », 2026-10-12) ; 1,3 % des sessions |
 | Roll et pitch différents | écart de pic > 0,08 (7") à 0,12 (commun) selon la taille | Corpus | Seuils mécaniques (`profiles.py`, voir « Calibration ») |
 | Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
 | Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |

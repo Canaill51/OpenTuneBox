@@ -36,6 +36,13 @@ SENSITIVITY_HIGH_DB = 7.0
 STEP_PEAK_HIGH = (1.15, 1.25)
 STEP_PEAK_HIGH_FF = (1.40, 1.55)
 STEP_PEAK_FLAT = 1.03
+# Réponse molle : pic sous le p10 des axes du corpus (1,008 sans feedforward, 1,012 avec, 2026-10-12) et latence
+# au-dessus du p90 de la taille
+STEP_PEAK_SOFT = 1.01
+# Fenêtres de la réponse indicielle : lue dès 20 par axe, « mesure moins sûre » sous 200 [S35]. Corpus du
+# 2026-10-12 (tranches de n fenêtres de 646 axes, comparées au vol entier) : écart du pic p90 0,20 à 20
+# fenêtres, 0,07 à 200 (docs/assistant.md, « Pic de réponse indicielle »)
+STEP_MIN_WINDOWS, STEP_SURE_WINDOWS = 20, 200
 PHASE_MARGIN_LOW_DEG = 35.0
 # Repères de Brian White sur l'échelle des spectres de PIDtoolbox (docs/spec-methodes.md, [S20]–[S22]) :
 # terme D au plus −10 dB (déclenche le constat, avec le p90 du corpus), gyro filtré sous −30 dB (affiché)
@@ -213,13 +220,13 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     meas["steps"] = {st.axis: st.result.metrics for st in steps}
     for ax, st in enumerate(steps[:2]):
         _step_rules(F, st, profile, s.pids[ax].F)
-    if steps[0].result.n < 20 and steps[1].result.n < 20:
+    if steps[0].result.n < STEP_MIN_WINDOWS and steps[1].result.n < STEP_MIN_WINDOWS:
         F.append(Finding("Réponse", ATTENTION, "Pas assez de mouvements de manche",
                          f"Seulement {steps[0].result.n} fenêtres exploitables en roll et {steps[1].result.n} en pitch "
                          "(il faut des mouvements de plus de 20 °/s).",
                          ["Volez 20 à 30 s avec des mouvements francs et des flips/rolls rapides sur chaque axe."]))
     r0, r1 = steps[0].result, steps[1].result
-    if r0.n >= 20 and r1.n >= 20 and np.isfinite(r0.metrics.peak) and np.isfinite(r1.metrics.peak):
+    if r0.n >= STEP_MIN_WINDOWS and r1.n >= STEP_MIN_WINDOWS and np.isfinite(r0.metrics.peak) and np.isfinite(r1.metrics.peak):
         d = r1.metrics.peak - r0.metrics.peak
         if abs(d) > profile.roll_pitch_gap_high:
             more = "pitch" if d > 0 else "roll"
@@ -434,9 +441,21 @@ def _fr(x: float) -> str:
 
 def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int = 0) -> None:
     r = st.result
-    ax = st.axis
-    if r.n < 20:
+    if r.n < STEP_MIN_WINDOWS:
         return
+    first = len(F)
+    _step_findings(F, st, profile, ff_gain)
+    if r.n < STEP_SURE_WINDOWS:
+        for f in F[first:]:
+            if f.title.startswith("Marge"):
+                continue  # boucle ouverte : précision non mesurée ici, elle a sa propre réserve (_loop_caveat)
+            f.detail += (f" Mesure moins sûre : {r.n} fenêtres ({STEP_SURE_WINDOWS} conseillées, soit environ 20 s de "
+                         "wobbles roll et pitch mêlés).")
+
+
+def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int) -> None:
+    r = st.result
+    ax = st.axis
     m = r.metrics
     lp = r.loop
     pk, lat = m.peak, m.latency_ms
@@ -465,7 +484,7 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
                          f"Pic {pk:.2f} (> {_fr(advice)}{with_ff}, plus que 90 % des drones du corpus). Sans "
                          f"feedforward, une réponse sans dépassement visible donne environ {_fr(STEP_PEAK_FLAT)} ; "
                          "le feedforward fait monter le pic.", ["Curseur Damping (D) : +0,1."], ax))
-    elif pk < 0.98 and np.isfinite(lat) and lat > profile.latency_ms[1]:
+    elif pk < STEP_PEAK_SOFT and np.isfinite(lat) and lat > profile.latency_ms[1]:
         F.append(Finding("Réponse", CONSEIL, f"Réponse molle en {ax.lower()}",
                          f"Pic {pk:.2f} et latence {lat:.1f} ms (repère {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms "
                          f"pour {profile.label}) : trop amorti.",
