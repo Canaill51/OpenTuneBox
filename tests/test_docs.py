@@ -256,3 +256,42 @@ def test_register_ids_cited_exist():
             if ref not in known:
                 unknown.append(f"{_rel(f)} : {ref}")
     assert not unknown, f"numéros cités qui n'existent pas : {unknown}"
+
+
+# ---------------------------------------------------------------- seuils de l'assistant ↔ docs/assistant.md
+
+
+def _fr(x: float, digits: int = 1) -> str:
+    return f"{x:.{digits}f}".replace(".", ",").replace("-", "−")
+
+
+def test_assistant_doc_matches_profiles():
+    """`docs/assistant.md` est la référence des seuils (compétence `assistant-seuils`) : chaque valeur de
+    `advisor/profiles.py` y figure, dans « Seuils retenus » (bruit, latence, retards) et dans le tableau des
+    seuils mécaniques (colonne commune pour whoop, 2–3,5" et 8"+)."""
+    from opentunebox.advisor.profiles import PROFILES
+
+    text = (ROOT / "docs" / "assistant.md").read_text(encoding="utf-8")
+    kept = text[text.index("Seuils retenus dans `advisor/profiles.py`"):text.index("Pour un profil provisoire")]
+    for key, p in PROFILES.items():
+        for value in (p.gyro_noise_high_db, p.dterm_noise_high_db, p.low_band_high_db, p.motor_left_high_db):
+            assert _fr(value) in kept or _fr(value, 0) in kept, f"{key} : {value} dB absent de « Seuils retenus »"
+        assert f"{p.latency_ms[0]}–{p.latency_ms[1]} ms" in kept, f"{key} : latence {p.latency_ms} absente"
+        assert f"{_fr(p.gyro_delay_max_ms)} / {_fr(p.dterm_delay_max_ms)}" in kept, f"{key} : retards absents"
+    table = text[text.index("| Seuil mécanique |"):]
+    rows = {}
+    for line in table.splitlines()[2:]:
+        if not line.startswith("|"):
+            break
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        rows[cells[0]] = [float(c.replace(",", ".")) for c in cells[1:]]
+    fields = {"Déséquilibre des moteurs (%)": "imbalance_high_pct", "Terme I moyen (valeur absolue)": "iterm_offset_high",
+              "Saturation (% du temps ≥ 98 %)": "saturation_high_pct", "Écart de pic roll / pitch": "roll_pitch_gap_high",
+              "Résonance (dB au-dessus du bruit voisin)": "resonance_high_db"}
+    assert set(rows) == set(fields)
+    for label, attr in fields.items():
+        common, five, seven = rows[label]
+        for key in ("whoop", "micro", "large"):
+            assert getattr(PROFILES[key], attr) == pytest.approx(common), f"{label} : {key} ≠ colonne commune"
+        assert getattr(PROFILES["five"], attr) == pytest.approx(five), f"{label} : 5\""
+        assert getattr(PROFILES["seven"], attr) == pytest.approx(seven), f"{label} : 7\""

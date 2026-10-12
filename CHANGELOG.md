@@ -6,6 +6,16 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Tests sans corpus des analyses de vol (`tests/test_analysis_flight.py` : fréquence moteur mesurée ou
+  estimée par KV ou multiplicateur, médiane en stationnaire, bruit aux harmoniques, statistiques de vol,
+  erreur PID robuste, détection de crash et période automatique), du diagnostic du bruit
+  (`tests/test_noise_report.py` : rangement des constats, verdict de chaque bloc selon l'eRPM, le gyro
+  non filtré, les filtres coupés et la cadence de la boucle), des cas limites du diagnostic du réglage
+  (séries incomplètes, « déjà sans dépassement », cassure forte ou incertaine, axe non lu), des textes du
+  parcours du guide qui doivent suivre les constantes du code, des scripts du corpus (passage parallèle avec
+  reprise des fichiers en erreur, tableaux récapitulatifs) et de la recette PyInstaller (chemins cités,
+  filtres Qt et pyqtgraph, lanceur). `tests/test_docs.py` vérifie que `docs/assistant.md` porte chaque
+  seuil de `advisor/profiles.py` (bruit, latence, retards, tableau des seuils mécaniques).
 - Tests des encodages groupés du décodeur par aller-retour avec des encodeurs de la fabrique
   (`TAG2_3SVARIABLE`, `TAG2_3S32`, `TAG8_4S16` v1 et v2 avec quartets décalés, `TAG8_8SVB`, `NEG_14BIT`),
   trame mêlant tous les encodages, groupe plus long que la définition, encodage inconnu ; lecture de

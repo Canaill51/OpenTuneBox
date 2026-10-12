@@ -95,3 +95,47 @@ def test_auto_status_on_real_log():
     assert auto_status(steps["log_rates"], [pid])[0] == AUTO_BAD
     state, txt = auto_status(steps["filter_targets"], [c], filter_targets(lg, c.parts, 5))
     assert state == AUTO_BAD and "Terme D" in txt
+
+
+def test_step_texts_follow_the_constants():
+    """Les valeurs écrites dans les textes du parcours viennent des constantes du code, pas d'un chiffre recopié :
+    changer une constante change le texte (sinon le guide contredit l'assistant)."""
+    from opentunebox.advisor.drone_card import DRONE_FILTER_DEFAULTS, FF_SERIES, MASTER_SERIES
+    from opentunebox.advisor.log_check import LOG_ANGLE_LIMIT, LOG_RATE_DPS
+    from opentunebox.advisor.rules import DTERM_PTB_MAX_DB, GYRO_PTB_MAX_DB
+    from opentunebox.advisor.step_tuning import (I_SLIDER_RANGE, LATENCY_GAP_MAX_MS, LATENCY_GAP_OK_MS, SERIES_STEP,
+                                                 SURE_WINDOWS)
+
+    fr = lambda x: f"{x:.1f}".replace(".", ",")  # noqa: E731
+    for card in (DroneCard("a", bf="4.4", size="five", pid_khz=8.0), DroneCard("b", bf="2025.12", size="seven", pid_khz=3.2)):
+        steps = {s.key: s for ph in phases(card) for s in ph.steps}
+        hz, frac = card.log_rate()
+        pid_hz, pid_frac = card.pid_log_rate()
+        rec = steps["recording"].text(card) + steps["recording"].help_text(card)
+        assert fr(hz / 1000) in rec and frac in rec and fr(pid_hz / 1000) in rec and pid_frac in rec
+        assert card.debug_mode() in rec and f"{card.pid_khz:.1f}".replace(".", ",") in rec
+        assert fr(pid_hz / 1000) in steps["pid_recording"].text(card)
+        rates = steps["log_rates"].text(card) + steps["log_rates"].help_text(card)
+        assert f"{LOG_RATE_DPS} / {LOG_RATE_DPS} / 0" in rates and f"{LOG_ANGLE_LIMIT}°" in rates
+        assert f"set {card.angle_limit_setting()} = {LOG_ANGLE_LIMIT}" in rates and f"roll_rc_rate = {LOG_RATE_DPS // 10}" in rates
+        defaults = steps["defaults"].help_text(card)
+        rpm, dn = DRONE_FILTER_DEFAULTS["rpm"], DRONE_FILTER_DEFAULTS["dyn_notch"]
+        assert f"harmoniques {rpm['harmonics']}, Q {rpm['q']}, fréquence min {rpm['min_hz']} Hz" in defaults
+        assert f"{dn['count']} coupures, Q {dn['q']}, {dn['min_hz']} à {dn['max_hz']} Hz" in defaults
+        assert ("poids 100 / 100 / 100" in defaults) == (card.bf != "4.4")
+        targets = steps["filter_targets"].text(card)
+        assert f"sous −{-GYRO_PTB_MAX_DB:.0f} dB" in targets and f"au plus −{-DTERM_PTB_MAX_DB:.0f} dB" in targets
+        lo, hi = card.i_range()
+        assert f"{fr(lo)} à {fr(hi)}" in steps["i_gain"].text(card) and f"**{fr(lo)} à {fr(hi)}**" in steps["i_gain"].help_text(card)
+        # séries : une case par valeur, dans l'ordre, titrée avec la valeur
+        for cat, values in (("Damping", card.damping_series()), ("Master", MASTER_SERIES), ("Stick Resp.", FF_SERIES)):
+            keys = [f"{cat}_{v:.1f}" for v in values]
+            assert all(k in steps for k in keys) and [steps[k].flight for k in keys] == [(cat, v) for v in values]
+            assert all(fr(v) in steps[f"{cat}_{v:.1f}"].text(card) for v in values)
+        assert all(abs(b - a - SERIES_STEP) < 1e-9 for a, b in zip(MASTER_SERIES, MASTER_SERIES[1:]))
+        cond = steps["series_conditions"].text(card)
+        i_mid = (I_SLIDER_RANGE[0] + I_SLIDER_RANGE[1]) / 2
+        assert f"curseur I à {i_mid:.2f}".replace(".", ",") in cond
+        assert f"{SURE_WINDOWS} fenêtres" in steps["Damping_" + f"{card.damping_series()[0]:.1f}"].help_text(card)
+        pt = steps["pitch_tracking"].help_text(card)
+        assert f"sous {LATENCY_GAP_OK_MS:.0f} ms" in pt and f"jusqu'à {LATENCY_GAP_MAX_MS:.0f} ms" in pt

@@ -118,3 +118,81 @@ def test_feedforward_series_not_judged_on_step_response():
     assert "Feedforward actif" not in [c.title for c in rep.conditions]
     fl[2].conditions.angle_share = 1.0  # vol en mode Angle : le feedforward n'y agit pas
     assert "Série Feedforward en mode Angle" in [c.title for c in step_tuning(fl).conditions]
+
+
+# ---------------------------------------------------------------- compléments : cas limites de chaque bloc
+
+
+def test_pick_keeps_the_best_measured_flight_per_value():
+    from opentunebox.advisor.step_tuning import _pick
+
+    fl = [flight("a", Damping=1.0), flight("b", Damping=1.0), flight("c", Damping=1.2)]
+    fl[1].n = [500, 500]  # même valeur, plus de fenêtres : c'est lui qu'on garde
+    vals, idx = _pick(fl, find_series(fl)[0])
+    assert vals == [1.0, 1.2] and idx == [1, 2]
+
+
+def test_conditions_windows():
+    fl = [flight("peu", Master=1.0), flight("moyen", Master=1.2), flight("bien", Master=1.4)]
+    fl[0].n = [10, 10]  # aucun axe lu : vol sans mouvements suffisants
+    fl[1].n = [150, 300]  # lu, mais moins sûr
+    titles = {c.title: c for c in step_tuning(fl).conditions}
+    assert "peu" in titles["Pas assez de mouvements"].detail and titles["Pas assez de mouvements"].severity == "attention"
+    assert titles["Mesure moins sûre"].detail.startswith("moyen (N = 150)") and "bien" not in titles["Mesure moins sûre"].detail
+    assert "peu (" not in titles["Mesure moins sûre"].detail  # déjà signalé comme non lu
+
+
+def test_damping_incomplete_and_already_flat():
+    fl = [flight("seul", Damping=1.0, peak=1.1), flight("vide", Damping=1.2, peak=1.02)]
+    fl[1].n = [5, 5]  # pas exploitable
+    b = block(step_tuning(fl), "Équilibre P/D")
+    assert b.finding.title == "Série Damping incomplète" and b.best is None and len(b.lines) == 2
+    # dès la plus petite valeur, pas de dépassement : essayer plus bas
+    fl = [flight("a", Damping=0.8, peak=1.02), flight("b", Damping=1.0, peak=1.01)]
+    b = block(step_tuning(fl), "Équilibre P/D")
+    assert b.best == 0 and b.finding.severity == CONSEIL and "déjà sans dépassement" in b.finding.title
+    assert b.finding.actions == ["Volez avec Damping 0,6 pour trouver la limite."]
+
+
+def test_master_without_signs_asks_for_the_next_step():
+    fl = [flight("a", Master=1.0, lat=(18.0, 18.5)), flight("b", Master=1.2, lat=(16.0, 16.5))]
+    b = block(step_tuning(fl), "Niveau des gains")
+    assert b.best == 1 and "sans signe" in b.finding.title and b.finding.actions[0] == "Volez avec Master 1,4, puis comparez."
+    assert b.lines[0].endswith("propre (a)") and "gain 11,0 %" in b.lines[1]
+
+
+def test_master_strong_ripple_no_refinement_and_uncertainty():
+    fl = [flight("a", Master=1.0, lat=(18.0, 18.5)), flight("b", Master=1.2, lat=(16.0, 16.5), ripple=(0.12, 0.05))]
+    fl[1].metrics[0].ripple_std = 0.05  # cassure mal mesurée
+    b = block(step_tuning(fl), "Niveau des gains")
+    assert b.best == 0 and b.finding.actions[0] == "Gardez Master 1,0."
+    assert not any("Affinage" in a for a in b.finding.actions)  # cassure ≥ 0,10 : pas d'affinage
+    assert any("grande incertitude" in a for a in b.finding.actions)
+    # cassure sur un axe non lu : elle ne compte pas
+    fl = [flight("a", Master=1.0, lat=(18.0, 18.5)), flight("b", Master=1.2, lat=(16.0, 16.5), ripple=(0.0, 0.09))]
+    fl[1].n = [300, 10]  # pitch non lu
+    assert block(step_tuning(fl), "Niveau des gains").best == 1
+
+
+def test_roll_pitch_series_incomplete_and_single_flight_cases():
+    fl = [flight("p10", Pitch_T=1.0, lat=(14.0, 17.0), ripple=(0.0, 0.09)),
+          flight("p12", Pitch_T=1.2, lat=(14.0, 15.5), ripple=(0.0, 0.08))]
+    b = block(step_tuning(fl), "Équilibre roll / pitch")
+    assert b.finding.title == "Série incomplète ou cassure sur le pitch" and b.best is None
+    # vol unique : presque équilibré (1 à 2 ms) → information, action facultative
+    b = block(step_tuning([flight("a", lat=(14.0, 15.5))]), "Équilibre roll / pitch")
+    assert b.finding.severity == "info" and b.finding.actions[0].endswith("(facultatif)")
+    # roll plus lent que le pitch : Pitch Tracking vers le bas
+    b = block(step_tuning([flight("a", lat=(17.0, 14.0))]), "Équilibre roll / pitch")
+    assert b.finding.title == "Le roll répond plus lentement" and "−0,2" in b.finding.actions[0]
+    # un seul axe mesuré : pas de bloc roll / pitch
+    one = flight("a")
+    one.n = [300, 5]
+    assert not any(b.title.startswith("Équilibre roll / pitch") for b in step_tuning([one]).blocks)
+
+
+def test_number_formats():
+    from opentunebox.advisor.step_tuning import _fmt, _n
+
+    assert [_fmt(v) for v in (1.2, 1.15, 0.065, 1.0, 2.0)] == ["1,2", "1,15", "0,065", "1,0", "2,0"]
+    assert _n(1.234) == "1,23" and _n(-0.5, 1, True) == "-0,5" and _n(float("nan")) == "–"
