@@ -322,6 +322,7 @@ class FreqThrottleWindow(sc.OptionsSnapshot, ToolWindow):
         p.setYRange(0, f_top, padding=0)
         lo, hi = (self.flo.value(), self.fhi.value()) if sub100 else (100.0, 1000.0)
         mean, peak = ft.band_stats(lo, hi)
-        sc.CornerText(p, sc.html_lines([(f"moy.={sc.fmt3(mean)}", "#ffffff"), (f"pic={sc.fmt3(peak)}", "#ffffff")]),
-                      fill=pg.mkBrush(0, 0, 0, 110))
+        white = theme.PLOT_COLORS["overlay"]
+        sc.CornerText(p, sc.html_lines([(f"moy.={sc.fmt3(mean)}", white), (f"pic={sc.fmt3(peak)}", white)]),
+                      fill=pg.mkBrush(theme.OVERLAY_FILL))
         return img

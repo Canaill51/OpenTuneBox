@@ -135,7 +135,7 @@ def draw_slider_plot(p: pg.PlotItem, files: list[tuple[str, SliderView]],
         xs = [view.values[c] for c in cats]
         ys = [n - 1 - i + off for i in range(n)]
         if view.from_header:
-            sc = pg.ScatterPlotItem(xs, ys, size=12, brush=pg.mkBrush(color), pen=pg.mkPen("#000", width=0.8))
+            sc = pg.ScatterPlotItem(xs, ys, size=12, brush=pg.mkBrush(color), pen=pg.mkPen(theme.current().fg, width=0.8))
         else:
             sc = pg.ScatterPlotItem(xs, ys, size=12, brush=pg.mkBrush(None), pen=pg.mkPen(color, width=2.5),
                                     symbol="o")

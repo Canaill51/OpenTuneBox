@@ -368,8 +368,8 @@ class StepWindow(ToolWindow):
         ys, err = vals[:, 0], vals[:, 1]
         ok = np.isfinite(ys)
         if key == "sens_peak":
-            p.addItem(pg.InfiniteLine(4.0, angle=0, pen=pg.mkPen("#e6c619", width=2)))
-            p.addItem(pg.InfiniteLine(6.0, angle=0, pen=pg.mkPen("#e6194b", width=2)))
+            p.addItem(pg.InfiniteLine(4.0, angle=0, pen=pg.mkPen(theme.PLOT_COLORS["limit_warn"], width=2)))
+            p.addItem(pg.InfiniteLine(6.0, angle=0, pen=pg.mkPen(theme.PLOT_COLORS["limit_alert"], width=2)))
         if key == "peak":
             p.addItem(pg.InfiniteLine(1.0, angle=0, pen=pg.mkPen(th.fg, style=Qt.DashLine)))
         for i, f in enumerate(result):

@@ -204,7 +204,7 @@ class MainWindow(QMainWindow):
 
     def _apply_icons(self) -> None:
         for act, name, primary, color in self._icon_actions:
-            act.setIcon(icons.icon(name, "#ffffff" if primary else self._icon_color(color)))
+            act.setIcon(icons.icon(name, theme.ON_ACCENT if primary else self._icon_color(color)))
         for b, name in self._player_buttons:
             if b is self.play_btn and self._play_timer.isActive():
                 name = "pause"

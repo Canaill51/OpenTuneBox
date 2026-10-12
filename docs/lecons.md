@@ -241,7 +241,11 @@ est celle du commit qui les a introduites.
 - **Cause** — mesurée : `#777` ou `gray` contraste dans un thème et pas dans l'autre ; une taille en pixels
   ne suit pas l'échelle du système.
 - **Règle** — `theme.accent_style`, `theme.muted_style` et `theme.current().ui` ; vérifier les deux thèmes.
-- **Preuve** — commit `861660d`.
+  Toute couleur fixe (courbe, repère, badge, texte sur image) vit dans `gui/theme.py` (`PLOT_COLORS`,
+  `SEVERITY_COLORS`, `ON_ACCENT`…), jamais dans un outil.
+- **Preuve** — commit `861660d` ; depuis le 2026-10-12 (W-008),
+  `tests/test_gui_contracts.py:test_every_color_lives_in_theme` échoue sur tout code `#rrggbb`, nom CSS ou
+  couleur numérique hors de `theme.py` (28 occurrences avant la correction).
 
 ### L-017 : sous Linux, la fenêtre de fichiers dépend du portail et du thème d'icônes du bureau
 - **Symptôme** — 2026-10-05 : sans portail, icônes invisibles en thème clair sur un bureau sombre ; avec le
