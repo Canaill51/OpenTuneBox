@@ -98,6 +98,20 @@ def test_noise_report_classifies_every_title():
     assert noise.section_of(Finding("Enregistrement", CONSEIL, "Gyro non filtré absent", "")) == "conditions"
 
 
+def test_static_notch_cutoff():
+    """Coupure de gyro_notch1 tirée du Q nécessaire (bornes du notch dynamique), Q = f·c / (f² − c²) du firmware."""
+    from opentunebox.advisor.rules import dyn_notch_q_need, static_notch_cutoff
+
+    assert dyn_notch_q_need([200.0], [20.0], [15.0]) == pytest.approx(294, abs=1)  # arrondi à 250 : Q = 2,5
+    c, measured = static_notch_cutoff(200.0, 20.0, 15.0)
+    assert measured and c == 163  # 200 × (√26 − 1) / 5 = 163,96, arrondi vers le bas
+    assert 200 * c / (200 ** 2 - c ** 2) == pytest.approx(2.5, abs=0.1)  # filterGetNotchQ (common/filter.c)
+    assert static_notch_cutoff(200.0, 2.0, 30.0) == (179, True)  # raie fine : Q plafonné à 4,5 (0,89 × f)
+    assert static_notch_cutoff(200.0, 200.0, 30.0) == (123, True)  # raie large : Q 1 au moins (0,62 × f)
+    assert static_notch_cutoff(200.0, float("nan"), 15.0) == (140, False)  # largeur non mesurée : 0,7
+    assert static_notch_cutoff(200.0, 20.0, 3.0) == (140, False)  # raie sous 4 dB dans le spectre moyen
+
+
 def test_dyn_notch_q_need():
     """Q du notch qui ramène la raie à 4 dB du bruit voisin sur sa demi-largeur (notch SVF, Q × 100)."""
     import math

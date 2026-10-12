@@ -102,6 +102,7 @@ Règles d'écriture :
   gardée à 6 dB, origine vérifiée par simulation.
   Réponse molle : pic < 1,01 (p10 du corpus) au lieu de 0,98 ; minimum de 20 fenêtres gardé, « mesure
   moins sûre » sous 200 sur les constats du pic (précision mesurée sur le corpus).
+  Notch statique : coupure calculée d'après la raie (même méthode que le Q du notch dynamique), repli 0,7.
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.

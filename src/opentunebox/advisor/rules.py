@@ -87,6 +87,12 @@ DYN_NOTCH_Q_LOW = 100
 # raie simulé sur les vols stationnaires du corpus ne dépasse jamais 3 dB ; 6 dB fixe le nombre de conseils,
 # choix de Cédric) ; sous 100 Hz, prudence avant de les filtrer (bande de travail du PID, propwash ~20–100 Hz [S1])
 HOVER_LINE_MIN_DB = 6.0
+# Notch statique conseillé (gyro_notch1) : coupure tirée du Q nécessaire pour la raie, même calcul et mêmes bornes
+# que le Q du notch dynamique (dyn_notch_q_need, DYN_NOTCH_Q_LOW à DYN_NOTCH_Q_RPM[1], soit 0,62 à 0,89 × la
+# fréquence) ; firmware : Q = f·c / (f² − c²) (`filterGetNotchQ`, common/filter.c). Sans mesure de la raie (pas de
+# gyro non filtré ou d'eRPM, raie sous 4 dB dans le spectre moyen) : 0,7, entre les anciens défauts de Betaflight 3.2.0 (gyro 400 / 300 et
+# 200 / 100 Hz, D 260 / 160 Hz : 0,5 à 0,75) ; choix de Cédric, 2026-10-12
+STATIC_NOTCH_FALLBACK = 0.7
 HOVER_LOW_LINE_HZ = 100.0
 DYN_NOTCH_MIN_STEP_HZ = 30
 
@@ -379,7 +385,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          ["Si cela arrive en descente/gaz coupés : propwash → plus de D (Damping +0,1) ou D max.",
                           "Si cela arrive en vol stable : oscillation → baisser le Master ou P (Tracking −0,1).",
                           "Regardez l'outil Fréquence × gaz pour voir à quel gaz le phénomène apparaît."]))
-    res = _frame_resonance(log, fr, profile)
+    res = _frame_resonance(log, fr, profile, sel)
     if res is not None:
         F.append(res)
     if not delays.moving and log.motor_hz is not None and log.gyro_unfilt is not None:
@@ -790,11 +796,40 @@ def _hover_noise(log, sel, profile, g_ptb, d_ptb, fixed_hz, meas, aliased: bool 
             continue
         if fixed_hz is not None and abs(ln.freq_hz - fixed_hz) <= 0.1 * fixed_hz:
             continue  # déjà traitée par le constat « Raie fixe »
-        out.append(_residual_line(s, ln))
+        out.append(_residual_line(s, ln, static_notch_cutoff(ln.freq_hz, *_line_shape(log, sel, ln.freq_hz))))
     return out
 
 
-def _residual_line(s, ln) -> Finding:
+def static_notch_cutoff(f0: float, width: float, height: float) -> tuple[int, bool]:
+    """Coupure (Hz) de gyro_notch1 pour une raie de largeur à mi-puissance `width` et de hauteur `height` (dB) :
+    Q nécessaire (dyn_notch_q_need, arrondi et borné comme le notch dynamique), puis coupure c telle que
+    Q = f0·c / (f0² − c²), soit c = f0·(√(1 + 4Q²) − 1) / (2Q). Arrondie vers le bas (notch un peu plus large).
+    Renvoie aussi si la raie a été mesurée (sinon STATIC_NOTCH_FALLBACK)."""
+    q = dyn_notch_q_need([f0], [width], [height])
+    if q is None or not np.isfinite(q):
+        return int(f0 * STATIC_NOTCH_FALLBACK), False
+    Q = min(_q_round(q), DYN_NOTCH_Q_RPM[1]) / 100
+    return int(f0 * (np.sqrt(1 + 4 * Q * Q) - 1) / (2 * Q)), True
+
+
+def _line_shape(log: FlightLog, sel: slice, f0: float) -> tuple[float, float]:
+    """Largeur et hauteur d'une raie dans le gyro non filtré, la plus large et la plus haute du roll et du pitch
+    (comme le Q du notch dynamique) ; NaN sans gyro non filtré ou sans eRPM."""
+    if log.gyro_unfilt is None or log.motor_hz is None:
+        return float("nan"), float("nan")
+    sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, [f0], log.settings.rpm_harmonics)[0]
+          for a in range(2)]
+    def worst(vals):
+        return float(np.nanmax(vals)) if np.any(np.isfinite(vals)) else float("nan")
+    return worst([x[0] for x in sh]), worst([x[1] for x in sh])
+
+
+def _static_notch_text(f0: float, cutoff: tuple[int, bool]) -> str:
+    how = "calculée d'après la largeur de la raie" if cutoff[1] else "0,7 × la fréquence : raie trop faible ou absente dans le spectre moyen du gyro non filtré"
+    return f"gyro_notch1_hz = {f0:.0f}, gyro_notch1_cutoff = {cutoff[0]} (coupure {how})"
+
+
+def _residual_line(s, ln, cutoff: tuple[int, bool] | None = None) -> Finding:
     """Raie hors moteurs encore visible après filtrage : où la traiter."""
     f0 = ln.freq_hz
     actions = ["Cherchez d'abord une cause mécanique : vis, antennes, câbles, caméra, pile de cartes, hélices."]
@@ -809,7 +844,9 @@ def _residual_line(s, ln) -> Finding:
             actions.append(f"La raie est dans la plage du notch dynamique mais passe quand même : dyn_notch_count "
                            f"{s.dyn_notch_count} → {min(s.dyn_notch_count + 1, 7)} (si le Q est trop haut pour elle, le "
                            "constat « Notch dynamique : Q trop haut » le dit).")
-    actions.append(f"Ou notch statique : gyro_notch1_hz = {f0:.0f}, gyro_notch1_cutoff = {0.7 * f0:.0f}.")
+    if cutoff is None:
+        cutoff = (int(f0 * STATIC_NOTCH_FALLBACK), False)
+    actions.append(f"Ou notch statique : {_static_notch_text(f0, cutoff)}.")
     caveat = ""
     if f0 < HOVER_LOW_LINE_HZ:
         caveat = (f" Sous {HOVER_LOW_LINE_HZ:.0f} Hz, un notch ajoute du retard là où le PID travaille, et la raie peut venir "
@@ -1093,7 +1130,7 @@ def frame_resonance(log: FlightLog, sel: slice, lo_hz: float = 20.0) -> tuple[fl
     return f0, float(excess[k]), near_motor
 
 
-def _frame_resonance(log: FlightLog, res, profile: CraftProfile) -> Finding | None:
+def _frame_resonance(log: FlightLog, res, profile: CraftProfile, sel: slice | None = None) -> Finding | None:
     """Raie de fréquence fixe quel que soit le gaz (résonance du châssis ou pièce desserrée) ; `res` vient
     de frame_resonance."""
     if res is None:
@@ -1113,8 +1150,8 @@ def _frame_resonance(log: FlightLog, res, profile: CraftProfile) -> Finding | No
         else:
             actions.append(f"Elle est dans la plage du notch dynamique ({s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz), qui "
                            "peut la suivre si un notch est libre.")
-    actions.append(f"Si elle persiste : notch statique gyro à {f0:.0f} Hz (gyro_notch1_hz = {f0:.0f}, "
-                   f"gyro_notch1_cutoff = {0.7 * f0:.0f}).")
+    cutoff = static_notch_cutoff(f0, *_line_shape(log, sel if sel is not None else slice(0, log.n), f0))
+    actions.append(f"Si elle persiste : notch statique gyro à {f0:.0f} Hz, {_static_notch_text(f0, cutoff)}.")
     return Finding("Mécanique", CONSEIL, f"Raie fixe vers {f0:.0f} Hz",
                    f"Une vibration à ~{f0:.0f} Hz reste présente quel que soit le gaz (+{excess:.0f} dB au-dessus du "
                    "bruit voisin) : résonance du châssis, d'une antenne, d'une caméra ou pièce desserrée.", actions)

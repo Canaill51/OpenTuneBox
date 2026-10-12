@@ -452,6 +452,16 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
 - **Résonance** : raie au-dessus de la moyenne glissante voisine de plus que le seuil de la taille
   (20 Hz à min(900 Hz ; 0,9 × Nyquist), sans les 5 premiers Hz), présente dans la médiane de toutes les tranches de gaz (au moins
   8 tranches), à plus de ±8 % des harmoniques 1 à 3 du moteur.
+- **Notch statique conseillé** (« Raie fixe », « Raie à X Hz encore visible après filtrage » ;
+  `rules.static_notch_cutoff`, choix de Cédric du 2026-10-12) : `gyro_notch1_cutoff` tiré de la forme de la
+  raie dans le gyro non filtré (largeur à mi-puissance et hauteur, la plus large et la plus haute du roll et
+  du pitch), par le même calcul que le Q du notch dynamique : Q nécessaire pour ramener la raie à 4 dB du
+  bruit voisin, arrondi et borné de 1 à 4,5 (100 à 450), puis coupure c telle que Q = f·c / (f² − c²)
+  (`filterGetNotchQ`, `spec-betaflight.md`) : 0,62 à 0,89 × la fréquence. Repli sur 0,7 × la fréquence
+  quand la raie ne se mesure pas (pas de gyro non filtré ou d'eRPM, ou raie sous 4 dB dans le spectre moyen :
+  « Raie fixe » la repère par tranche de gaz) ; 0,7 est dans la plage des anciens défauts de Betaflight
+  3.2.0 (gyro 400 / 300 et 200 / 100 Hz, D 260 / 160 Hz : 0,5 à 0,75). Sur 44 conseils tirés du corpus,
+  20 calculés (souvent au plafond 0,89 : raies fines), 24 en repli.
 - **Mécanique** : déséquilibre des moteurs > seuil (lu avant/arrière, gauche/droite ou diagonale, côté ou
   diagonale retenus au-delà de 12 %) ; terme I moyen décentré (roll ou pitch, valeur absolue > seuil) ;
   saturation moteur (≥ 98 %) plus longtemps que le seuil.
@@ -547,7 +557,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Pas des curseurs conseillés | 0,1 (0,1 à 0,2 pour les filtres) | Estimation | Le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
 | `rpm_filter_q` conseillé | −100 par pas (500 → 400) | Firmware (500) + décision (pas) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre selon Brian White [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où des pas de 100 (décision de Cédric, 2026-10-10). Monter Q : voir la ligne « pour gagner du retard ». Avec un poids < 100, la règle « poids trop bas » propose d'abord de le remonter |
 | `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
-| Notch statique conseillé | coupure = 0,7 × fréquence de la raie | Estimation | |
+| Notch statique conseillé | coupure tirée du Q nécessaire pour la raie, 0,62 à 0,89 × sa fréquence ; 0,7 sans mesure | Théorie + firmware | Même calcul que le Q du notch dynamique [S31], `filterGetNotchQ` ; repli 0,7 dans la plage des défauts de Betaflight 3.2.0 (0,5 à 0,75), voir « Règles » (2026-10-12) |
 
 Le champ `resonance_hz` des profils (`advisor/profiles.py`) est renseigné mais **aucune règle ne
 l'utilise** ; `hover_hz` ne sert qu'à la fiche drone du guide (`advisor/drone_card.py:log_rate`,
@@ -565,6 +575,9 @@ fréquence d'enregistrement conseillée d'après le milieu de la plage).
   curseurs (`PidSubTab.vue`, `FilterSubTab.vue`, `useTuningSliders.js`).
 - Firmware Betaflight (commit cc1bb9d28) : `rpm_filter_harmonics` = 3 (`pg/rpm_filter.c`) ; réglages
   `blackbox_disable_rpm` et `blackbox_disable_gyrounfilt` (`cli/settings.c`).
+- Firmware Betaflight 3.2.0 (étiquette `v3.2.0`) : défauts des notchs statiques `gyro_soft_notch_hz_1` /
+  `cutoff_1` = 400 / 300, `_2` = 200 / 100 (`sensors/gyro.c`), `dterm_notch_hz` / `cutoff` = 260 / 160
+  (`flight/pid.c`) ; à 0 (désactivés) depuis la 4.0.
 
 ### Boucle ouverte mesurée
 
