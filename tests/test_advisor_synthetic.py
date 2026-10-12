@@ -134,7 +134,7 @@ def test_log_check_roles_and_usages():
     assert {it.key for it in moving.items} >= {"pid_log_rate", "windows", "axes_mixed"}
     assert moving.item("flight_mode").status != "ok" or moving.usage("series").ok is not None
     assert all(it.key in {k for keys in ROLE_ITEMS.values() for k in keys} or it.key in
-               {"version", "duration", "parts", "rates", "angle_limit", "flight_mode", "simplified", "crash", "corrupt"}
+               {"version", "duration", "parts", "rates", "angle_limit", "flight_mode", "simplified", "crash", "gaps"}
                for it in moving.items), [it.key for it in moving.items]
 
 
@@ -147,3 +147,21 @@ def test_log_check_flight_mode(flags, title):
     assert c.item("i_slider") is None and c.usage("series").ok
     c = check_log(make_flightlog(seconds=25.0, mode_flags=flags, ff_weight="0,0,0"))  # curseur I à 1,0 : hors plage
     assert c.item("i_slider") is not None and not c.usage("series").ok and "Curseur I" in c.usage("series").reason
+
+
+def test_recording_gaps_finding():
+    """Un trou dans la période analysée (pause d'écriture) : constat dans l'assistant et dans la vérification
+    des logs, puisque les analyses recollent le vol de part et d'autre (W-010)."""
+    from opentunebox.advisor.log_check import WARN, check_log
+    from opentunebox.advisor.rules import CONSEIL, analyze
+
+    log = make_flightlog(seconds=25.0)
+    assert log.recording_gaps() == (0, 0.0)
+    assert "Trous dans l'enregistrement" not in {f.title for f in analyze(log).findings}
+    assert check_log(log).item("gaps") is None
+    log.t[log.n // 2:] += 0.2  # 0,2 s perdues au milieu du vol
+    n, lost = log.recording_gaps()
+    assert n == 1 and lost == pytest.approx(0.2, abs=1e-6)
+    f = next(f for f in analyze(log).findings if f.title == "Trous dans l'enregistrement")
+    assert f.severity == CONSEIL and "1 trou dans la période analysée (0,2 s perdues" in f.detail
+    assert check_log(log).item("gaps").status == WARN

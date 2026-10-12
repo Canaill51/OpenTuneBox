@@ -6,6 +6,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- « Trames corrompues » devient « Trous dans l'enregistrement » (conseil au lieu d'info), dans l'Assistant et
+  dans la vérification des logs du guide : il compte les trous de la période analysée et le temps perdu, au
+  lieu des tentatives de resynchronisation du décodeur. Le texte ne dit plus « sans conséquence » : chaque
+  trou ajoute un faux bruit au spectre (jusqu'à +18 dB mesurés sur un vol de wobbles), la correction des
+  analyses viendra ensuite (W-003, W-010).
 - Diagnostic du réglage, série Master : les vagues ne sont plus lues sur un axe de moins de 200 fenêtres
   (« vagues non lues ») ; le bruit seul y donne déjà environ 2 fois le bruit attendu, et une vraie vague de
   10 % passe inaperçue. Le seuil de 2,5 est gardé, désormais mesuré sur le corpus : il ne signale que 0,6 % des

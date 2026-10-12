@@ -37,7 +37,7 @@ from ..analysis.step_series import FF_KEY, FlightStep, filter_signature, find_se
 from ..log.flightlog import FlightLog
 from .profiles import filter_delay_target_ms
 from .rules import (DTERM_PTB_MAX_DB, GYRO_PTB_MAX_DB, PID_LOG_RATE_FLOOR_HZ, PID_LOG_RATE_MIN_HZ, band_peak_ptb_db,
-                    log_rate_needed, pid_log_rate_needed, sample_rate_cli)
+                    gaps_text, log_rate_needed, pid_log_rate_needed, sample_rate_cli)
 from .step_tuning import I_SLIDER_RANGE, MIN_WINDOWS, SURE_WINDOWS
 
 OK, WARN, BLOCK, INFO = "ok", "à revoir", "bloquant", "info"
@@ -373,9 +373,11 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
     crash = crash_time(log)
     if crash is not None:
         add("crash", "Crash", INFO, f"Crash vers {_n(crash)} s : la période d'analyse s'arrête avant.")
-    if log.stats.get("corrupt_frames", 0) > 20:
-        add("corrupt", "Trames corrompues", INFO,
-            f"{log.stats['corrupt_frames']} trames (pauses d'écriture de la mémoire) : sans conséquence pour l'analyse.")
+    n_gaps, lost_s = log.recording_gaps(sel)
+    if n_gaps:  # ⚠️ faux bruit à chaque raccord (W-010)
+        add("gaps", "Trous dans l'enregistrement", WARN,
+            f"{gaps_text(n_gaps, lost_s, dur)} : bruit surestimé, réponse moins sûre. Préférez un vol sans trou.",
+            [Fix("Carte SD plus rapide, ou fréquence d'enregistrement plus basse.")])
 
     # ------------------------------------------------------------ verdict par usage
     base_ok = version_ok and rate_ok and unfilt
