@@ -12,6 +12,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `pytest`.
 
 ### Corrigé
+- Simulateur de filtres : sur les fréquences exactement au creux d'un notch (RPM ou dynamique), le spectre
+  simulé s'effondrait d'environ 90 dB, même sans aucun changement de réglage (plancher numérique appliqué
+  au seul dénominateur du rapport |H_modifié|² / |H_actuel|²).
 - Documentation de l'assistant : tableau « Origine des seuils » réaligné sur `profiles.py` (écart roll /
   pitch, déséquilibre, terme I, résonance, règle du nom) ; `hover_hz` sert à la fiche drone du guide.
 - Assistant de réglage : la taille de drone choisie était lue dans le widget depuis le thread de calcul ;

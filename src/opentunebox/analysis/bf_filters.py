@@ -549,7 +549,10 @@ def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel
         if key not in cache:
             cache[key] = _ratio(f, base, mod, t, m, c, target)
         r_cur, r_mod = cache[key]
-        ratio = np.minimum(r_mod / np.maximum(r_cur, 1e-12), 1e3)
+        # quotient direct : au creux d'un notch les deux |H|² valent ~1e-30 et un plancher sur le seul
+        # dénominateur effondrerait le spectre (−90 dB) même à réglages inchangés (L-024)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.where(r_cur > 0, np.minimum(r_mod / r_cur, 1e3), 1.0)
         est = P[k] * ratio
         if Ppf is not None:
             # là où les filtres actuels écrasaient le signal (le log n'y montre que le plancher de

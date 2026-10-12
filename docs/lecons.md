@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-024 : un plancher numérique sur le seul dénominateur d'un rapport effondre le spectre simulé au creux des notchs
+- **Symptôme** — 2026-10-12 : test synthétique d'identité de `whatif_spectrum` (mêmes réglages des deux
+  côtés) : spectre « modifié » 90 dB sous le spectre enregistré sur les cases tombant exactement sur un
+  centre de notch (raie à 200 Hz, pas de fréquence 3,33 Hz). Sur les vrais logs, l'identité tenait à
+  0,009 dB (L-011) : les centres des notchs y tombent rarement pile sur une case.
+- **Cause** — mesurée : au creux d'un notch, |H_actuel|² et |H_modifié|² valent tous deux ~1e-30 ;
+  `r_mod / max(r_cur, 1e-12)` donnait ~1e-18 au lieu de ~1. Le plancher, posé contre une division par zéro,
+  ne s'appliquait qu'à un côté du rapport.
+- **Règle** — un rapport de deux grandeurs qui peuvent être minuscules ensemble se calcule sans plancher
+  (`np.where(den > 0, num / den, 1.0)`) ; vérifier toute méthode « relative » par un test d'identité
+  synthétique qui place une raie exactement sur une case et sur un centre de notch.
+- **Preuve** — `tests/test_bf_filters.py:test_whatif_spectrum_identity_when_nothing_changes` (rouge avant,
+  vert après) et `test_whatif_spectrum_follows_filter_change` (écart analytique à 0,1 dB).
+
 ### L-023 : un log supprimé du corpus fait ignorer des tests sans bruit, ou les fait échouer
 - **Symptôme** — 2026-10-12 : après la suppression de logs par Cédric, 6 tests en `FileNotFoundError` et
   6 autres simplement ignorés (`s` dans la sortie de `pytest`), dont le Spectre, le simulateur de filtres et
@@ -260,6 +274,7 @@ est celle du commit qui les a introduites.
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-024 | Plancher sur un seul côté d'un rapport : spectre simulé effondré au creux des notchs. Diviser sans plancher, test d'identité | Analyses |
 | L-023 | Log du corpus supprimé : tests en échec ou ignorés sans bruit. `corpus_log`, `pytest -rs` | Outillage |
 | L-022 | Commit passé malgré un test en échec. Crochet élargi, pas de `&&` après `pytest \| tail` | Outillage |
 | L-021 | Exécutable Windows : `sys.stdout` vaut `None`. Vérifier avant d'écrire | Construction |

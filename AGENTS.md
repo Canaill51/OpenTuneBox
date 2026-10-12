@@ -131,7 +131,7 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
   cherché dans max(150 ms, 3 × latence). Bande passante calculée à partir de 2 Hz, lissage `uniform_filter1d(mode="nearest")`.
 - Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²
   à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
-  `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log. D-008, L-011
+  `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log. D-008, L-011, L-024
 - Seuils de l'assistant = 90e percentile du corpus par taille de drone (`docs/assistant.md`) : les recalculer
   avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles ; scripts du corpus en parallèle sur
   tous les cœurs, compétence `calculs-corpus`), ne pas les inventer. Compter **une voix
