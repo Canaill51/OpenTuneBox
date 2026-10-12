@@ -42,7 +42,9 @@ Objectif : ne pas faire baisser la proportion de sessions `ok` (95 %).
 3. L'enregistrer dans `gui/tools/__init__.py:REGISTRY` et ajouter une ligne à `main_window.py:TOOLS`
    (libellé court, icône Lucide copiée telle quelle dans `gui/assets/icons/`, couleur de `theme.ACCENTS`, info-bulle) ;
    le bouton affiche l'outil dans une page de la fenêtre principale.
-4. Test hors écran (modèle : `tests/test_gui_step.py`), capture et vérification visuelle.
+4. Test hors écran : l'outil est déjà couvert par `tests/test_gui_tools.py` (chaque clé du registre, logs
+   synthétiques du `conftest`) ; ajouter ses assertions propres sur le corpus (modèle : `tests/test_gui_step.py`,
+   `compute_sync` puis `render`), capture et vérification visuelle.
 5. Section dans `docs/guide-utilisateur.md`, ligne dans `CHANGELOG.md`.
 
 ## Captures hors écran

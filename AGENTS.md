@@ -54,7 +54,9 @@ src/opentunebox/
   gui/        app.py, main_window.py (visualiseur), guide.py (guide intégré : fiches drone, cases ; accueil dans assets/guide/),
               state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
-tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
+tests/        pytest ; conftest.py (Qt hors écran, réglages isolés, fixtures `app`, `synthetic_log`, `synthetic_state`),
+              synthetic.py (`make_flightlog`, `make_session` : vol et session fabriqués, sans corpus) ;
+              les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
               test_docs.py vérifie la documentation
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
               advisor_rates.py (taux de déclenchement des constats), corpus_labels.py (tableau d'étiquettes
@@ -163,6 +165,9 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
   (`.claude/hooks/check-docs.sh`) ne voit que `git commit` et `git -c … commit`. L-022
 - Tests du corpus : ouvrir un log par `tests/corpus_paths.py:corpus_log` (ignoré en le nommant s'il manque) ;
   après un changement du corpus, `pytest -rs` liste les logs à remplacer. L-023
+- Couverture : la CI n'a pas le corpus et `coverage` ne voit pas le code numba (`NUMBA_DISABLE_JIT=1`) ;
+  tout outil ou analyse a d'abord un test sur les logs synthétiques (`tests/synthetic.py`), et un fichier
+  marqué `corpus` en bloc ne contient aucun test pur. L-025
 
 ## Méthode de travail
 

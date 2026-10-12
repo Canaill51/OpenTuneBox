@@ -2,30 +2,9 @@
 
 from pathlib import Path
 
-import numpy as np
-
-from opentunebox.decoder.header import LogHeader
-from opentunebox.decoder.reader import DecodedSession
 from opentunebox.log.flightlog import from_session
 
-
-def make_session(columns: dict[str, list], header: dict[str, str] | None = None,
-                 slow: dict[str, list] | None = None) -> DecodedSession:
-    """Session décodée fabriquée à la main : `columns` = colonnes principales (loopIteration et time ajoutés
-    s'ils manquent), `header` = lignes H brutes, `slow` = colonnes lentes (flightModeFlags…)."""
-    cols = dict(columns)
-    n = len(next(iter(cols.values())))
-    cols.setdefault("loopIteration", list(range(n)))
-    cols.setdefault("time", [1_000_000 + 500 * i for i in range(n)])  # 2 kHz
-    names = ["loopIteration", "time"] + [k for k in cols if k not in ("loopIteration", "time")]
-    main = np.array([cols[k] for k in names], dtype=np.int64).T
-    slow = slow or {}
-    slow_arr = np.array([slow[k] for k in slow], dtype=np.int64).T if slow else np.zeros((n, 0), dtype=np.int64)
-    return DecodedSession(
-        index=1, header=LogHeader(dict(header or {}), {}, 0, 0), main_names=names, main=main,
-        main_kind=np.zeros(n, dtype=np.int64), slow_names=list(slow), slow=slow_arr,
-        gps_names=[], gps=np.zeros((0, 0)), gps_at=np.zeros(0, dtype=np.int64), events=np.zeros((0, 4), dtype=np.int64),
-    )
+from synthetic import make_session
 
 
 def test_high_resolution_scales_axes_and_rc_but_not_mixer_throttle():

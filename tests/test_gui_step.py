@@ -7,7 +7,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from opentunebox.gui.tools import filter_sim  # noqa: E402
 from opentunebox.gui.tools._step_common import segment_metrics  # noqa: E402
@@ -18,10 +17,6 @@ D08 = LOGS / "1. PTB/BlackSummer/Damping 0.8.BFL"
 D12 = LOGS / "1. PTB/BlackSummer/Damping 1.2.BFL"
 FINAL = LOGS / "Cedric/JeNo 5/FINAL.bbl"
 
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def _close(app, win):

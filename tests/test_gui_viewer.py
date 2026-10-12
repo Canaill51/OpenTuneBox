@@ -6,15 +6,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 import pytest  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from corpus_paths import LOGS  # noqa: E402
 FINAL = LOGS / "Cedric/JeNo 5/FINAL.bbl"
 
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 @pytest.mark.corpus

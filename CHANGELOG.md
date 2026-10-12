@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Tests sans corpus : logs synthétiques (`tests/synthetic.py`) et fixtures communes (`tests/conftest.py`,
+  réglages de l'application isolés pendant les tests) ; chaque page d'outil et la fenêtre principale sont
+  exercées en intégration continue ; les tests des fonctions pures de l'assistant ne dépendent plus des
+  vrais logs ; passe du décodeur en Python pur (numba désactivé) dans le workflow de tests.
 - Documentation de développement : journal des décisions (`docs/decisions.md`), leçons tirées des pièges
   (`docs/lecons.md`) et travaux reportés (`docs/travaux-reportes.md`), numérotés `D-`, `L-`, `W-` ; repris de
   `AGENTS.md` et `docs/architecture.md` avec contexte, options écartées et preuves. Numéros vérifiés à chaque
