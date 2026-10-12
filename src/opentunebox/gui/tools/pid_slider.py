@@ -294,7 +294,7 @@ class PidSliderWindow(ToolWindow):
                 d = v - v0
                 it = QTableWidgetItem(f"{v}" + (f"  ({d:+d})" if d else ""))
                 it.setTextAlignment(Qt.AlignCenter)
-                it.setForeground(QColor("#1a9a3a") if d > 0 else QColor("#d62728") if d < 0 else fg)
+                it.setForeground(QColor(theme.accent("green")) if d > 0 else QColor(theme.accent("red")) if d < 0 else fg)
                 self.table.setItem(ax, col, it)
         self.filters_label.setText(self._filters_html(sl))
         self.cli.setPlainText("\n".join(self._cli_lines(sl)))

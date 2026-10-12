@@ -162,3 +162,38 @@ def test_every_tool_renders_in_both_themes(app, synthetic_state, name):
         win.deleteLater()
         app.processEvents()
     theme.apply("clair")
+
+
+def test_every_color_lives_in_theme():
+    """Toute couleur de l'interface vit dans `gui/theme.py` (L-016) : ailleurs dans `gui/`, aucun code
+    `#rrggbb` ni nom de couleur CSS dans une chaîne, aucune couleur numérique, nommée ou en tuple passée à
+    QColor / mkPen / mkBrush. Les clés de `theme.ACCENTS` (« green »…) restent permises."""
+    import io
+    import re
+    import tokenize
+
+    hex_code = re.compile(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?(?![0-9a-zA-Z])")
+    css_name = re.compile(r"\b(?:color|background)\s*:\s*(?!\{)[a-zA-Z]", re.I)  # « color:white », pas « color:{…} »
+    string_types = {tokenize.STRING, getattr(tokenize, "FSTRING_MIDDLE", -1)}
+    color_calls = {"QColor", "mkPen", "mkBrush", "setColor", "setBrush", "setPen", "setForeground", "setBackground"}
+
+    def literal(node) -> bool:
+        if isinstance(node, ast.Constant):
+            return isinstance(node.value, (str, int)) and not isinstance(node.value, bool)
+        return isinstance(node, ast.Tuple) and bool(node.elts) and all(literal(e) for e in node.elts)
+
+    bad = []
+    for p in sorted((SRC / "gui").rglob("*.py")):
+        if p.name == "theme.py":
+            continue
+        src, rel = p.read_text(encoding="utf-8"), p.relative_to(SRC)
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type in string_types and (hex_code.search(tok.string) or css_name.search(tok.string)):
+                bad.append(f"{rel}:{tok.start[0]} {tok.string.strip()[:70]}")
+        for node in ast.walk(ast.parse(src)):
+            if not isinstance(node, ast.Call) or not node.args:
+                continue
+            name = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", "")
+            if name in color_calls and literal(node.args[0]):
+                bad.append(f"{rel}:{node.lineno} {name}({ast.unparse(node.args[0])[:40]}…)")
+    assert not bad, "couleur en dur hors de gui/theme.py (L-016) :\n" + "\n".join(bad)

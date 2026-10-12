@@ -56,9 +56,9 @@ from .base import ToolWindow
 
 LPF_TYPES = ("PT1", "BIQUAD", "PT2", "PT3")
 LPF_MODES = ("désactivé", "statique", "dynamique")
-COL_MOD = "#2f6fd6"
-COL_PF = "#9a9a9a"
-COL_SIM_CUR = "#f58231"
+COL_MOD = theme.PLOT_COLORS["modified"]
+COL_PF = theme.PLOT_COLORS["neutral"]
+COL_SIM_CUR = theme.PLOT_COLORS["sim_current"]
 DELAY_FREQS = (20.0, 50.0, 100.0)
 
 
@@ -530,7 +530,7 @@ class FilterSimWindow(ToolWindow):
             p.setYRange(top - 70, top + 5, padding=0)
         p.setXRange(0, res.fs / 2, padding=0)
         if name == "gyro" and not res.has_unfilt:
-            p.setTitle("Spectre gyro — pas de gyro non filtré dans ce log : pas de simulation", color="#d62728")
+            p.setTitle("Spectre gyro — pas de gyro non filtré dans ce log : pas de simulation", color=theme.accent("red"))
 
     def _chains(self, s: Settings):
         thr = self.throttle.value() / 100.0
@@ -574,14 +574,14 @@ class FilterSimWindow(ToolWindow):
         fg = theme.current().fg
         head = "".join(f"<th align='right'>&nbsp;&nbsp;{int(fz)} Hz</th>" for fz in DELAY_FREQS)
         rows = [f"<b>Retard des filtres (ms)</b> à {thr} % de gaz, moteur {self.motor_hz.value()} Hz "
-                f"— actuel → <span style='color:{COL_MOD}'>modifié</span>",
+                f"— actuel → <span style='color:{theme.accent('blue')}'>modifié</span>",
                 f"<table cellspacing='0' cellpadding='1'><tr><th></th>{head}</tr>"]
         lines = (("Gyro", lambda c: c[0]), ("D seul", lambda c: c[1]), ("Gyro + D", lambda c: c[0] + c[1]))
         for name, pick in lines:
             cells = []
             for fz in DELAY_FREQS:
                 a, b = d(pick(chains["cur"]), fz), d(pick(chains["mod"]), fz)
-                col = "#1a9a3a" if b < a - 0.005 else "#d62728" if b > a + 0.005 else fg
+                col = theme.accent("green") if b < a - 0.005 else theme.accent("red") if b > a + 0.005 else fg
                 cells.append(f"<td align='right'>&nbsp;&nbsp;{a:.2f} → <span style='color:{col}'>{b:.2f}</span></td>")
             rows.append(f"<tr><td>{name}</td>{''.join(cells)}</tr>")
         rows[-1] += "</table>"

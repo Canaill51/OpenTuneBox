@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...log.settings import RATES_TYPES, Settings
+from .. import theme
 from ..state import AppState
 from .base import FileSelector
 
@@ -173,7 +174,7 @@ class SetupInfoWindow(QWidget):
             skip = ("Field ", "H ")
             rows = [(k, [e.log.settings.raw.get(k, "—") for e in entries]) for k in keys if not k.startswith(skip)]
             groups.append(("Tous les paramètres (en-tête brut)", rows))
-        hl = QBrush(QColor(255, 200, 0, 90))
+        hl = QBrush(QColor(*theme.ROW_HIGHLIGHT))
         for title, rows in groups:
             top = QTreeWidgetItem([title])
             f = top.font(0)

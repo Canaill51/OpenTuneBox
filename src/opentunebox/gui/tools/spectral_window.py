@@ -255,8 +255,7 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
                 pl.setTitle("Spectre complet")
                 pr.setTitle("Sous 100 Hz" if right == "sub100" else "Bruit moteur")
                 legend = pl.addLegend(offset=(-10, 10), labelTextSize="8pt")
-                legend.setBrush(pg.mkBrush(255, 255, 255, 190) if theme.current().name == "clair"
-                                else pg.mkBrush(30, 31, 34, 190))
+                legend.setBrush(pg.mkBrush(theme.current().legend_fill))
             self._draw_spectra(pl, res, ax, smooth, legend=row == 0)
             self._draw_overlays(pl, res, ymin, ymax if not psd else min(0.0, ymax), nyq)
             pl.setXRange(0, nyq, padding=0)
@@ -318,7 +317,7 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
             if self.notch_box.isChecked():
                 for vals in fsp.notch_sorted:
                     y = y0 + span * _cdf(vals, f)
-                    p.plot(f, y, pen=pg.mkPen("#808080", width=1.5, style=Qt.DashDotLine))
+                    p.plot(f, y, pen=pg.mkPen(theme.PLOT_COLORS["neutral"], width=1.5, style=Qt.DashDotLine))
 
     def _draw_rpm_range(self, p: pg.PlotItem, fsp: FileSpectra) -> None:
         """Plage couverte par les notchs du filtre RPM (5e → 95e centile de chaque harmonique active)."""

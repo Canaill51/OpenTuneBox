@@ -164,8 +164,8 @@ class FreqTimeWindow(sc.OptionsSnapshot, ToolWindow):
             bar.setImageItem(img)
             self.canvas.addItem(bar, row=1 + r, col=1)
             line = pg.InfiniteLine(angle=90, movable=True,
-                                   pen=pg.mkPen("#ffffff", width=1.5, style=Qt.DashLine),
-                                   hoverPen=pg.mkPen("#00e0ff", width=2))
+                                   pen=pg.mkPen(theme.PLOT_COLORS["overlay"], width=1.5, style=Qt.DashLine),
+                                   hoverPen=pg.mkPen(theme.PLOT_COLORS["overlay_hover"], width=2))
             line.setZValue(30)
             line.sigPositionChanged.connect(self._on_line_dragged)
             p.addItem(line, ignoreBounds=True)
@@ -203,7 +203,7 @@ class FreqTimeWindow(sc.OptionsSnapshot, ToolWindow):
                     p.plot(res.motor_t, hz * h, pen=pen, connect="finite")
         if self.notch_box.isChecked():
             for t, hz in res.notches:
-                p.plot(t, hz, pen=pg.mkPen(255, 32, 32, 210, width=1), connect="finite")
+                p.plot(t, hz, pen=pg.mkPen(theme.NOTCH_TRACE, width=1), connect="finite")
 
     # ------------------------------------------------------------ curseur du lecteur
     def _on_cursor_changed(self, tc: float) -> None:

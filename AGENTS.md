@@ -150,8 +150,9 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
   et grise les textes. Sous Fusion (Qt 6.11), les cases et boutons radio sont presque invisibles : ils sont
   redessinés par la feuille de style globale. Le délégué natif des `QComboBox` ignore cette feuille
   (texte blanc sur blanc) : `theme._ComboDelegateFix` le remplace par `QStyledItemDelegate`. D-009, L-014, L-015
-- Couleurs : jamais de couleur de texte en dur (`#777`, `gray`…) ni de taille en pixels ; utiliser
-  `theme.accent_style`, `theme.muted_style` et les couleurs de `theme.current().ui`. Vérifier les deux thèmes. L-016
+- Couleurs : jamais de couleur en dur (`#777`, `gray`…) ni de taille en pixels hors de `gui/theme.py` ; textes
+  par `theme.accent_style`, `theme.muted_style` et `theme.current().ui`, courbes et repères par `theme.PLOT_COLORS`
+  (`tests/test_gui_contracts.py` refuse tout code couleur ailleurs). Vérifier les deux thèmes. L-016
 - Linux : fenêtres d'ouverture / d'enregistrement par le portail XDG (`QT_QPA_PLATFORMTHEME=xdgdesktopportal`
   dans `gui/app.py`), indépendant du bureau. Logo de KDE sur la fenêtre du portail : normal. Sans portail,
   `theme._match_icon_theme` choisit les icônes claires / sombres. Textes de Qt en français : `qtbase_fr.qm`,
