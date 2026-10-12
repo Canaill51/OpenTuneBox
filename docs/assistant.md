@@ -233,6 +233,14 @@ meilleur log pour identifier le bruit.
   « Raie à X Hz encore visible après filtrage » (plus de 3 dB après filtres, 4 dB depuis le 2026-10-12 : 48
   vols stationnaires sur 115) : 53 vols stationnaires sur 107, raies surtout entre 85 et 510 Hz (médiane 233 Hz), 11 sur 75 sous 100 Hz (mise en garde : un notch y
   retarde le PID, la raie peut venir du réglage).
+- **Seuil de 6 dB** (`rules.HOVER_LINE_MIN_DB`, vérifié le 2026-10-12, 115 vols stationnaires) : du bruit sans
+  raie, blanc ou coloré, simulé avec la durée (17 à 56 s) et la fréquence de log de chaque vol, ne donne jamais
+  de pic de 3 dB : le spectre moyen est trop lisse. Le seuil ne sert donc pas à écarter de fausses raies, il
+  fixe la hauteur qui mérite un conseil. Estimation de l'effet : 4 dB → 3,6 raies listées par vol, 71 vols
+  avec conseil, 41 raies conseillées sous 100 Hz ; 6 dB → 2,0, 56, 17 ; 8 dB → 1,1, 42, 10. 6 dB gardé
+  (choix de Cédric) : plus bas, on ajoute surtout des raies sous 100 Hz, où filtrer retarde le PID. Couper le
+  vol en deux ne départage pas les seuils : même à 10 dB, 18 % des raies d'une moitié manquent dans
+  l'autre, car le spectre change pendant le vol (régime, batterie).
 - **Filtre RPM** : harmonique visible hors du filtre RPM → `rpm_filter_harmonics` (4 sessions, souvent un
   whoop réglé sur 1 harmonique) ; harmonique visible malgré un poids de 100 → `motor_poles`, Q −30 % (60).
 - **Log trop lent** : sous le minimum, aucun allègement (poids RPM, LPF1 du gyro, nombre de notchs, raies
@@ -504,7 +512,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
 | Relèvement de `dyn_notch_min_hz` | jusqu'à 200 Hz (7" et plus : 125 Hz), sous le pic le plus bas − 20 Hz, si le gain atteint 30 Hz | Firmware (doc) + communauté + estimation (30 Hz) | « as high as practical (eg 200hz) » [S19] ; presets officiels 7–10" entre 80 et 125 Hz [S16] ; seulement dans le conseil « filtrage gyro trop prudent » (2 % des sessions) |
 | Nombre de notchs | autant que de pics à suivre, 1 au moins | Firmware (doc) | « Usually no more than two or three are needed […] and often only one » ; « only using the minimum number of notches » [S19] ; constat **info** : 27 % des sessions (16 % des drones)
-| Raie hors moteurs listée (vol stationnaire) | ≥ 6 dB au-dessus du bruit voisin (10 à 20 % de part et d'autre) | Estimation | Visible après filtrage au-delà de 4 dB (`HARMONIC_VISIBLE_DB`) |
+| Raie hors moteurs listée (vol stationnaire) | ≥ 6 dB au-dessus du bruit voisin (10 à 20 % de part et d'autre) | Théorie (simulation) + choix de Cédric | Du bruit sans raie, simulé avec les durées et fréquences des 115 vols stationnaires du corpus, ne dépasse jamais 3 dB : toute raie listée est réelle, le seuil règle le nombre de conseils (voir « Stratégie de filtrage et vol stationnaire », 2026-10-12). Visible après filtrage au-delà de 4 dB (`HARMONIC_VISIBLE_DB`) |
 | Raie basse fréquence | < 100 Hz : mise en garde avant de la filtrer | Communauté | Propwash et oscillations « ~20Hz to ~100Hz » [S1] |
 | Baisse de `rpm_filter_q` (raie moteur visible) | −100 par pas, borne 250 | Firmware (borne) + décision | Pas de 100 : décision de Cédric (2026-10-10), à la place de −30 % ; aussi dans « Bruit moteur mal éliminé » |
 | Hausse de `rpm_filter_q` (harmoniques effacées) | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | [S27] ; condition « harmoniques effacées, bruit sous les repères, tout type de vol » : décision de Cédric (2026-10-10) |

@@ -76,8 +76,9 @@ DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_ma
 DYN_NOTCH_Q_RPM = (300, 450)
 DYN_NOTCH_Q_STEP = 50
 DYN_NOTCH_Q_LOW = 100
-# Vol stationnaire : raies hors moteurs listées dès 6 dB au-dessus du bruit voisin ; sous 100 Hz, prudence
-# avant de les filtrer (bande de travail du PID, propwash ~20–100 Hz [S1])
+# Vol stationnaire : raies hors moteurs listées dès 6 dB au-dessus du bruit voisin (2026-10-12 : du bruit sans
+# raie simulé sur les vols stationnaires du corpus ne dépasse jamais 3 dB ; 6 dB fixe le nombre de conseils,
+# choix de Cédric) ; sous 100 Hz, prudence avant de les filtrer (bande de travail du PID, propwash ~20–100 Hz [S1])
 HOVER_LINE_MIN_DB = 6.0
 HOVER_LOW_LINE_HZ = 100.0
 DYN_NOTCH_MIN_STEP_HZ = 30
