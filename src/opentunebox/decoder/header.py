@@ -173,7 +173,7 @@ def parse_header(data: bytes, start: int, end: int) -> LogHeader:
     # Paires de coordonnées GPS : le second prédicteur HOME_COORD vise la longitude
     fg = frames.get("G")
     if fg is not None:
-        for i in range(1, fg.count):
+        for i in range(1, min(fg.count, len(fg.predictor))):  # en-tête tronqué : moins de prédicteurs que de noms
             if fg.predictor[i - 1] == PRED_HOME_COORD and fg.predictor[i] == PRED_HOME_COORD:
                 fg.predictor[i] = PRED_HOME_COORD_1
 

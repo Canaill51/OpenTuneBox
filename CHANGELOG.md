@@ -12,6 +12,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `pytest`.
 
 ### Corrigé
+- Décodeur : un en-tête tronqué dont la trame GPS a moins de prédicteurs que de noms faisait planter la
+  lecture (`IndexError`) au lieu d'ignorer la session.
 - Assistant, taille d'après le nom du drone (sans télémétrie moteur ni tension) : « 10in » donnait 0 pouce
   (profil 2–3,5") et un nombre contenant 65 ou 75 (« 1750 ») passait pour un whoop.
 - Logs en haute résolution (`blackbox_high_resolution = ON`) : le gaz était dix fois trop faible (le gaz du
