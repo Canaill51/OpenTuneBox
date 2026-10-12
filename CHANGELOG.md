@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Un vrai extrait de log Blackbox (`tests/data/jeno5_5s.bbl`, 5 s d'un vol du JeNo 5 de Cédric, Betaflight
+  2026.6.0-rc3) versionné et décodé par les tests sans corpus (`tests/test_real_log.py`), y compris en Python
+  pur sur GitHub : en-tête, encodages et prédicteurs réels, unités physiques, commandes `info` et `report`
+  (W-009 clos).
 - Tests sans corpus des analyses de vol (`tests/test_analysis_flight.py` : fréquence moteur mesurée ou
   estimée par KV ou multiplicateur, médiane en stationnaire, bruit aux harmoniques, statistiques de vol,
   erreur PID robuste, détection de crash et période automatique), du diagnostic du bruit

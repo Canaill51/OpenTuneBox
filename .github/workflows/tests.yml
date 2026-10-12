@@ -26,4 +26,4 @@ jobs:
         run: python -m pytest -q
       - name: Décodeur en Python pur (numba désactivé)
         # le code compilé par numba échappe aux mesures de couverture et masque des erreurs Python
-        run: NUMBA_DISABLE_JIT=1 python -m pytest -q tests/test_decoder.py tests/test_flightlog.py
+        run: NUMBA_DISABLE_JIT=1 python -m pytest -q tests/test_decoder.py tests/test_flightlog.py tests/test_real_log.py

@@ -69,7 +69,8 @@ est celle du commit qui les a introduites.
 - **Règle** — mesurer le décodeur avec `NUMBA_DISABLE_JIT=1` (le workflow de tests le fait sur
   `test_decoder.py` et `test_flightlog.py`) ; ne jamais marquer `corpus` un fichier entier qui contient des
   tests purs ; tout outil ou analyse doit avoir un test sur les logs synthétiques (`tests/synthetic.py`),
-  le corpus ne sert qu'à vérifier des valeurs réelles.
+  le corpus ne sert qu'à vérifier des valeurs réelles. Un vrai extrait versionné (`tests/data/jeno5_5s.bbl`,
+  `tests/test_real_log.py`) fait passer l'en-tête et les encodages réels en CI, numba désactivé compris.
 - **Preuve** — mesure du 2026-10-12 (`pytest-cov`, installé dans `.venv` seulement) ; `tests/test_gui_tools.py`
   exerce les 8 pages d'outils sans corpus.
 

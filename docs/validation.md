@@ -13,6 +13,10 @@ analyses (`scripts/validate_corpus.py`, tests `-m corpus`).
   > 4000 °/s, terme PID > ±65535). OpenTuneBox les rejette.
 - La référence se bloque sur 3 fichiers (`refhang`) qu'OpenTuneBox lit.
 - Démarrage à froid du décodeur ≈ 0,6 s (cache numba).
+- Un vrai extrait est versionné pour la CI : `tests/data/jeno5_5s.bbl` (5,1 s du début de la 1re session de
+  `Cedric/JeNo 5/FINAL.bbl`, Betaflight 2026.6.0-rc3, 8 262 trames, coupé sur une trame I). Statut `ok` face à
+  `blackbox_decode` le 2026-10-12 ; `tests/test_real_log.py` fige l'en-tête, la première et la dernière trame,
+  les statistiques et les unités physiques.
 
 ## Recoupement avec PIDtoolbox Pro V0.94 (mêmes logs)
 

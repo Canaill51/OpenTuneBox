@@ -56,7 +56,8 @@ src/opentunebox/
   cli.py      commandes `opentunebox info` et `opentunebox report`
 tests/        pytest ; conftest.py (Qt hors écran, réglages isolés, fixtures `app`, `synthetic_log`, `synthetic_state`),
               synthetic.py (`make_flightlog`, `make_session` : vol et session fabriqués, sans corpus),
-              bbl_factory.py (fichiers Blackbox binaires fabriqués : en-tête, trames I/P/S/E) ;
+              bbl_factory.py (fichiers Blackbox binaires fabriqués : en-tête, trames I/P/S/E),
+              data/jeno5_5s.bbl (5 s d'un vrai log de Cédric, décodé en CI par test_real_log.py) ;
               les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
               test_docs.py vérifie la documentation
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
