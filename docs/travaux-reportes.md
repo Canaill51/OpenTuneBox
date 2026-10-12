@@ -60,7 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
-| W-009 | Extrait de vrai log Blackbox versionné pour la CI | bloqué |
+| W-009 | Extrait de vrai log Blackbox versionné pour la CI | clos |
 | W-008 | Couleurs en dur dans `gui/` : liste d'exceptions à valider | bloqué |
 | W-007 | Tests du corpus en échec quand un log a été déplacé | clos |
 | W-006 | Écart de 2 dB sous 100 Hz avec PIDtoolbox sur un vol | sans suite |
@@ -158,8 +158,13 @@ Règles d'écriture :
   thème si besoin), et faire échouer le test sur tout code `#rrggbb` ou nom de couleur ailleurs.
   [`src/opentunebox/gui/theme.py:accent_style`, `tests/test_gui_contracts.py`]
 
-- **W-009** — La CI ne décode jamais un vrai fichier Blackbox.
-  ⏸ **BLOQUÉ — accord de Cédric**. Tous les tests sur de vrais logs sont marqués `corpus` et ignorés sur GitHub (L-025) ; seuls des fichiers fabriqués
+- ~~**W-009** — La CI ne décode jamais un vrai fichier Blackbox.~~
+  ✅ **CLOS (2026-10-12)** — `tests/data/jeno5_5s.bbl` : 365 702 octets, les 5,1 premières secondes de la 1re
+  session de `Cedric/JeNo 5/FINAL.bbl` (sans GPS), coupées sur une trame I avec un événement de fin de log
+  ajouté ; décodage identique au début de la session complète et à `blackbox_decode` (statut `ok`).
+  `tests/test_real_log.py` fige l'empreinte du fichier, l'en-tête, la première et la dernière trame, les
+  statistiques, les unités physiques et la ligne de commande ; la CI le passe aussi avec `NUMBA_DISABLE_JIT=1`.
+  Branche test/real-log-excerpt. Tous les tests sur de vrais logs sont marqués `corpus` et ignorés sur GitHub (L-025) ; seuls des fichiers fabriqués
   (`tests/bbl_factory.py`) y passent, avec les seuls encodages que la fabrique écrit.
   **Pourquoi reporté** : versionner un extrait d'un log de Cédric (quelques secondes d'un vol, de l'ordre de
   quelques centaines de kilooctets, par exemple tiré de `Cedric/JeNo 5/FINAL.bbl`) ajoute un fichier binaire
