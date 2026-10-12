@@ -12,6 +12,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `pytest`.
 
 ### Corrigé
+- Assistant, taille d'après le nom du drone (sans télémétrie moteur ni tension) : « 10in » donnait 0 pouce
+  (profil 2–3,5") et un nombre contenant 65 ou 75 (« 1750 ») passait pour un whoop.
 - Logs en haute résolution (`blackbox_high_resolution = ON`) : le gaz était dix fois trop faible (le gaz du
   mixeur `setpoint[3]` n'est pas mis à l'échelle par le firmware, contrairement aux quatre voies
   `rcCommand`, qui le sont) ; vérifié dans `blackbox.c` 4.4 → 2026.12, spécification corrigée.

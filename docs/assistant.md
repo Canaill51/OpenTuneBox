@@ -13,9 +13,10 @@ moteurs > 10 Hz) et par le nombre de cellules de la batterie (`FlightLog.cells`,
 - ≥ 345 Hz whoop · 290–345 Hz 2–3,5" · 160–290 Hz 4–5" · 115–160 Hz 6–7" · < 115 Hz 8"+ ;
 - entre 200 et 290 Hz, une batterie de 2 à 4S → 2–3,5" (un 5" en 4S tourne plus lentement).
 
-Sans eRPM : 1S → whoop ; sinon par le nom du drone : « whoop », « 65 », « 75 », « Meteor » → whoop ; une
-taille en pouces (« 5" », « 7 pouces ») : < 3,8 → 2–3,5", < 5,8 → 5", < 7,8 → 7", au-delà 8"+. À défaut :
-profil 5". Le profil peut être forcé dans la fenêtre de l'assistant ou avec `opentunebox report --profil`.
+Sans eRPM : 1S → whoop ; sinon par le nom du drone : « whoop », « Meteor », ou le nombre entier 65 ou 75
+(« Air65 », pas « 1750 ») → whoop ; une taille en pouces, à un ou deux chiffres (« 5" », « 3.5in », « 7 pouces »,
+« 10in ») : < 3,8 → 2–3,5", < 5,8 → 5", < 7,8 → 7", au-delà 8"+. À défaut : profil 5"
+(`tests/test_advisor_rules.py`). Le profil peut être forcé dans la fenêtre de l'assistant ou avec `opentunebox report --profil`.
 
 Vérification (2026-10-05) sur 41 drones de taille connue : les 20 tailles notées par Cédric dans
 `corpus.csv` et 21 drones dont le nom donne la taille (Bee35, Whisper25, Pavo20, SevenInch, Mario8, M5…).
