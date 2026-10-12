@@ -103,6 +103,10 @@ Règles d'écriture :
   Réponse molle : pic < 1,01 (p10 du corpus) au lieu de 0,98 ; minimum de 20 fenêtres gardé, « mesure
   moins sûre » sous 200 sur les constats du pic (précision mesurée sur le corpus).
   Notch statique : coupure calculée d'après la raie (même méthode que le Q du notch dynamique), repli 0,7.
+  Vagues du Diagnostic du réglage : 2,5 gardé, mesuré à vide sur le corpus et par injection ; pas lues sous
+  200 fenêtres (branche feat/calibrate-step-waves). Restent, dans l'ordre choisi avec Cédric : « D dominant »
+  au croisement, taille par le nom, trames corrompues, taille pour l'objectif de retard, pas des curseurs,
+  petites marges.
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.

@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Diagnostic du réglage, série Master : les vagues ne sont plus lues sur un axe de moins de 200 fenêtres
+  (« vagues non lues ») ; le bruit seul y donne déjà environ 2 fois le bruit attendu, et une vraie vague de
+  10 % passe inaperçue. Le seuil de 2,5 est gardé, désormais mesuré sur le corpus : il ne signale que 0,6 % des
+  vols ordinaires sans feedforward et détecte une vague d'environ 3 % sur un vol bien fourni (W-003).
 - Notch statique conseillé (« Raie fixe », « Raie à X Hz encore visible ») : la coupure `gyro_notch1_cutoff`
   est calculée d'après la largeur et la hauteur de la raie, comme le Q du notch dynamique (0,62 à 0,89 × sa
   fréquence), au lieu de 0,7 × la fréquence dans tous les cas : notch plus étroit, donc moins de retard, pour

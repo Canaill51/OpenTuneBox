@@ -334,8 +334,24 @@ des pilotes est relu dans les vols faits ensuite (« FINAL », « FF », « tune
 
 Le choix du pilote ou la valeur d'à côté (un cran de 0,2) dans 9 cas sur 10. La cassure sépare mal les cas
 limites : gardés jusqu'à 0,067, rejetés dès 0,064 ; d'où trois états (propre, premiers signes, trop haut)
-plutôt qu'un seul seuil. Les vagues ne dépassent jamais 1,7 fois le bruit dans ces séries : aucun pilote
-n'est allé jusqu'à l'oscillation, le seuil des vagues vient des essais synthétiques.
+plutôt qu'un seul seuil.
+
+**Vagues** (2026-10-12, `step_tuning.WAVES_RATIO_HIGH` = 2,5 fois le bruit de mesure). Aucun pilote du corpus
+n'est allé jusqu'à l'oscillation : le seuil vient d'une mesure à vide et d'essais par injection.
+- Mesure à vide, vols sans feedforward (516 axes, 48 drones) : rapport médian 1,20, p90 1,69, p99 2,35,
+  maximum 3,12 ; 2,5 signale 0,6 % des axes, 2,0 en signalerait 4,3 % (un drone sur quatre au moins une fois).
+  Avec feedforward, le dépassement gonfle les vagues (p99 5,4) : le diagnostic demande des vols sans.
+- Les 34 séries Master du corpus : vagues au plus 2,4 (VX35 à 1,6, Seeker 3 à 1,4) ; 2,5 ou 3,0 ne changent
+  aucun conseil, 2,0 en changerait un (Seeker 3 : 1,2 au lieu de 1,4, sans autre signe).
+- Injection d'une vague d'amplitude connue (mode à 30, 45 ou 60 Hz, consigne réelle, bruit réel du vol) sur
+  8 vols : au-delà de 250 fenêtres, une vague d'environ 3 % de la consigne au début du palier atteint 2,5
+  (3 à 5 % à 60 Hz) ; entre 75 et 150 fenêtres, même 10 % donne 1,6 à 2,6 ; à 25 fenêtres, rien.
+- Sous 200 fenêtres (`STEP_SURE_WINDOWS`), le bruit seul donne déjà environ 2 (médiane 2,1 sous 40
+  fenêtres) : les vagues d'un axe ne sont pas lues (« vagues non lues »), choix de Cédric. Dans les séries
+  Master du corpus, seuls 2 vols de Davy sont concernés (178 et 191 fenêtres, vagues 1,3) : aucun conseil
+  ne change.
+- Limite : l'incertitude ne couvre que le bruit d'un vol ; deux vols du VX35 à Master 1,4 donnent 2,0 et 3,1
+  pour une ondulation de 0,35 % (comme la cassure, L-012).
 
 Séries Damping (choix connu pour 9 drones), jugées sur le **roll** (pic arrondi à 0,01, la valeur lue à
 l'écran) : Damping règle le D des deux axes, et un pitch qui dépasse encore se corrige par Pitch Damping
@@ -502,7 +518,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Diagnostic du réglage : Damping | pic roll ≤ 1,05 ; ou le cran suivant baisse le pic de moins de 0,02 (pic ≤ 1,10) ; pitch au-dessus de 1,05 et de 0,02 de plus que le roll → Pitch Damping +0,2 | Communauté [S24, S25, S32] + corpus | Repère 1,03 (`rules.STEP_PEAK_FLAT`) plus le bruit d'un vol ; 9 séries de choix connu. Série Pitch Damping : même règle sur le pitch |
 | Diagnostic du réglage : Master, cassure | début 0,03 ; nette 0,065 ; forte 0,10 (pas d'affinage) | Corpus (10 séries) | Gardés ≤ 0,067, rejetés ≥ 0,064 : cas limites possibles |
 | Diagnostic du réglage : Master, plateau | gain de latence < 4 % par cran ; arrêt si cassure ≥ 0,05 et qui grandit de 0,02 | Corpus (10 séries) + communauté [S32] | Un drone qui progresse gagne 6 à 10 % par cran de 0,2 |
-| Diagnostic du réglage : vagues | 2,5 fois le bruit de mesure | Estimation | Bruit 1 à 1,7 dans le corpus ; mode peu amorti synthétique × 8 à 9 |
+| Diagnostic du réglage : vagues | 2,5 fois le bruit de mesure ; pas lues sous 200 fenêtres | Corpus + essais | Mesure à vide p99 2,35 sans feedforward ; vague d'environ 3 % détectée au-delà de 250 fenêtres (« Vagues », 2026-10-12) |
 | Diagnostic du réglage : roll / pitch | écart de latence ≤ 1 ms équilibré, ≤ 2 ms acceptable | Communauté [S32] | Pilote expérimenté (Cédric, d'après Brian White) : 1 à 2 ms selon l'inertie et les moteurs |
 | Harmoniques hors de la plage visible | 3 × f moteur > Fs / 2 | Théorie | Fréquence de Nyquist |
 | Gyro non filtré absent, pas d'eRPM | présence des champs | Firmware | |
