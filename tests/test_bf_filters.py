@@ -205,3 +205,145 @@ def test_whatif_spectrum_follows_filter_change():
     expected = 20 * np.log10(np.abs(h250) / np.abs(h500))
     band = (f > 50) & (f < 400) & (np.abs(f - 200) > 10) & (np.abs(f - 400) > 10)  # loin des notchs RPM
     assert np.allclose((w.modified_db - w.current_db)[band], expected[band], atol=0.1)
+
+
+# ---------------------------------------------------------------- simulation temporelle (sans corpus)
+
+
+@pytest.mark.parametrize("kind", ["pt1", "pt3", "biquad_lpf"])
+def test_simulation_every_lowpass_kind_matches_lfilter(kind):
+    """PT1, PT3 et biquad : la forme directe I à coefficients constants reproduit `lfilter` sur les mêmes (b, a)."""
+    from scipy.signal import lfilter
+
+    fs = 4000.0
+    x = np.random.default_rng(2).normal(size=(2, 3000))
+    x[:, 0] = 0.0
+    b, a = bf.coefficients(bf.FilterSpec(kind, 120.0), fs)
+    assert np.allclose(bf._apply(x.copy(), kind, 120.0, fs), lfilter(b, a, x, axis=1), atol=1e-9)
+
+
+def test_simulation_filter_beyond_log_rate_is_transparent():
+    """Coupure ≥ 0,48 × cadence du log (composante repliée de toute façon) ou nulle : le signal passe tel quel."""
+    fs = 2000.0
+    x = np.random.default_rng(0).normal(size=(1, 500))
+    assert np.array_equal(bf._apply(x.copy(), "pt1", 0.49 * fs, fs), x)
+    assert np.array_equal(bf._apply(x.copy(), "notch", 0.0, fs, 5.0), x)
+    assert not np.array_equal(bf._apply(x.copy(), "pt1", 0.47 * fs, fs), x)
+
+
+def test_simulation_initial_state_is_steady():
+    """État initial = régime permanent de la première valeur : une constante ressort inchangée dès le 1er point."""
+    x = np.full((1, 200), 37.0)
+    for kind in ("pt1", "pt2", "biquad_lpf"):
+        assert np.allclose(bf._apply(x.copy(), kind, 50.0, 2000.0), 37.0, atol=1e-9)
+    assert np.allclose(bf._apply(x.copy(), "notch", 200.0, 2000.0, 3.0), 37.0, atol=1e-9)
+
+
+def _band_power(x, fs, lo, hi):
+    f = np.fft.rfftfreq(x.size, 1 / fs)
+    p = np.abs(np.fft.rfft(x * np.hanning(x.size))) ** 2
+    return float(p[(f >= lo) & (f <= hi)].sum())
+
+
+def test_simulation_variable_notch_tracks_a_moving_line():
+    """Notch dont la fréquence change à chaque échantillon (filtre RPM) : il efface une raie qui glisse de 150 à
+    350 Hz, qu'un notch fixe à 250 Hz laisse presque intacte."""
+    fs, n = 2000.0, 20000
+    f_inst = np.linspace(150.0, 350.0, n)
+    line = np.sin(2 * np.pi * np.cumsum(f_inst) / fs)
+    x = (line + 0.05 * np.random.default_rng(4).normal(size=n))[None, :]
+    before = _band_power(x[0], fs, 140, 360)
+    tracked = bf._apply(x.copy(), "notch", f_inst, fs, 5.0, 1.0)
+    fixed = bf._apply(x.copy(), "notch", 250.0, fs, 5.0, 1.0)
+    assert 10 * np.log10(before / _band_power(tracked[0], fs, 140, 360)) > 25
+    assert 10 * np.log10(before / _band_power(fixed[0], fs, 140, 360)) < 6  # mesuré : 3,7 dB
+    # poids 0 : notch transparent même s'il suit la raie
+    assert np.allclose(bf._apply(x.copy(), "notch", f_inst, fs, 5.0, 0.0), x)
+    assert np.allclose(bf._apply(x.copy(), "notch", f_inst, fs, 5.0, np.zeros(n)), x)
+
+
+def test_pt1_track_matches_lfilter():
+    from scipy.signal import lfilter
+
+    k = bf.pt1_gain(150.0, 2000.0)
+    x = np.concatenate([np.zeros(10), np.full(200, 100.0)])
+    y = bf._pt1_track(x, k)
+    assert np.allclose(y, lfilter([k], [1.0, -(1.0 - k)], x), atol=1e-9)
+    assert y[-1] == pytest.approx(100.0, rel=1e-6) and 0 < y[11] < 100
+
+
+def test_static_notch_clamped_under_nyquist():
+    """Centre au-dessus de Nyquist : ramené à Nyquist si la coupure y reste sous, sinon le notch disparaît
+    (gyro_init.c) ; coupure nulle ou ≥ centre : pas de notch."""
+    assert bf._static_notch(300, 200, 1000.0) == bf.FilterSpec("notch", 300.0, bf.notch_q(300, 200))
+    assert bf._static_notch(1500, 200, 1000.0).f_hz == 1000.0
+    assert bf._static_notch(1500, 1200, 1000.0) is None
+    assert bf._static_notch(300, 0, 1000.0) is None and bf._static_notch(300, 300, 1000.0) is None
+
+
+def test_dyn_notch_centres_and_chain_options():
+    s = _settings(dyn_notch_count="3", dyn_notch_min_hz="100", dyn_notch_max_hz="400", dyn_notch_q="300")
+    assert bf.dyn_notch_initial_centres(s) == [150.0, 250.0, 350.0]
+    with_dyn = bf.gyro_chain(s, dyn_notch_hz=None)
+    assert [sp.f_hz for sp, _ in with_dyn if sp.kind == "notch"] == [150.0, 250.0, 350.0]
+    assert [sp.f_hz for sp, _ in bf.gyro_chain(s, dyn_notch_hz=[220.0]) if sp.kind == "notch"] == [220.0]
+    assert not any(sp.kind == "notch" for sp, _ in bf.gyro_chain(s, dyn_notch_hz=[]))
+    slow = _settings(dyn_notch_count="3", pid_process_denom="8")  # boucle PID 1 kHz : notch dynamique inactif
+    assert not bf.dyn_notch_enabled(slow) and not any(sp.kind == "notch" for sp, _ in bf.gyro_chain(slow))
+
+
+def _debug_log(version: str, debug_index: int, rows: int, count: int = 3):
+    """Vol synthétique avec `rows` lignes de debug (valeur = 100 × numéro de ligne) et le mode de debug donné."""
+    import dataclasses
+
+    from synthetic import make_flightlog
+
+    lg = make_flightlog(seconds=1.0, **{"Firmware revision": f"Betaflight {version} (abcd1234) STM32F7X2",
+                                       "debug_mode": str(debug_index), "dyn_notch_count": str(count)})
+    debug = np.vstack([np.full(lg.n, 100.0 * (k + 1)) for k in range(rows)]) if rows else np.zeros((0, lg.n))
+    return dataclasses.replace(lg, debug=debug)
+
+
+def test_fft_freq_centres_by_version():
+    """FFT_FREQ = 17 en 4.x (debug[0..2], debug[3] = gyro perdu), 16 depuis 2025.12 (debug[1..count]) ; le même
+    numéro 17 n'est plus FFT_FREQ en 2025.12 (L-003)."""
+    from opentunebox.analysis.motors import dyn_notch_centres
+
+    old = _debug_log("4.5.1", 17, rows=4, count=4)
+    assert old.settings.debug_mode == "FFT_FREQ"
+    c = bf.fft_freq_centres(old)
+    assert c.shape == (4, old.n) and c[:, 0].tolist() == [100.0, 200.0, 300.0, 0.0]  # 4e centre perdu → 0
+    assert dyn_notch_centres(old)[:, 0].tolist() == [100.0, 200.0, 300.0]  # ligne 3 écartée
+    new = _debug_log("2025.12.0", 16, rows=4, count=3)
+    assert new.settings.debug_mode == "FFT_FREQ"
+    assert bf.fft_freq_centres(new)[:, 0].tolist() == [200.0, 300.0, 400.0]
+    assert dyn_notch_centres(new)[:, 0].tolist() == [200.0, 300.0, 400.0]
+    # moins de lignes de debug que de notchs : lignes manquantes à 0 (pas d'erreur d'indice)
+    assert bf.fft_freq_centres(_debug_log("2025.12.0", 16, rows=2, count=3))[:, 0].tolist() == [200.0, 0.0, 0.0]
+    assert bf.fft_freq_centres(_debug_log("2025.12.0", 17, rows=4)) is None  # 17 = RX_FRSKY_SPI en 2025.12
+    assert bf.fft_freq_centres(_debug_log("4.5.1", 17, rows=4, count=0)) is None
+    assert dyn_notch_centres(_debug_log("4.5.1", 0, rows=0)) is None
+
+
+def test_simulate_gyro_on_synthetic_log_removes_motor_harmonic():
+    """Le vol synthétique a, dans le gyro non filtré, une raie à 2 × fréquence moteur (≈ 440 Hz) : la chaîne du
+    log (LPF2 500 Hz, filtre RPM 3 harmoniques) l'efface ; sans filtre RPM, elle reste."""
+    import dataclasses
+
+    from synthetic import make_flightlog
+
+    lg = make_flightlog(seconds=6.0)
+    sim = bf.simulate_gyro(lg)
+    assert sim.shape == lg.gyro.shape and np.all(np.isfinite(sim))
+    m = lg.motor_hz.mean()
+    lo, hi = 2 * m * 0.8, 2 * m * 1.2
+    drop = 10 * np.log10(_band_power(lg.gyro_unfilt[0], lg.fs, lo, hi) / _band_power(sim[0], lg.fs, lo, hi))
+    assert drop > 10
+    no_rpm = dataclasses.replace(lg.settings, rpm_harmonics=0)
+    sim2 = bf.simulate_gyro(lg, no_rpm)
+    drop2 = 10 * np.log10(_band_power(lg.gyro_unfilt[0], lg.fs, lo, hi) / _band_power(sim2[0], lg.fs, lo, hi))
+    assert drop2 < drop - 5
+    d = bf.simulate_dterm(lg, gyro=sim)
+    assert d.shape == lg.gyro.shape and np.all(np.isfinite(d))
+    with pytest.raises(ValueError):
+        bf.simulate_gyro(make_flightlog(seconds=1.0, unfilt=False))

@@ -6,6 +6,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Tests des encodages groupés du décodeur par aller-retour avec des encodeurs de la fabrique
+  (`TAG2_3SVARIABLE`, `TAG2_3S32`, `TAG8_4S16` v1 et v2 avec quartets décalés, `TAG8_8SVB`, `NEG_14BIT`),
+  trame mêlant tous les encodages, groupe plus long que la définition, encodage inconnu ; lecture de
+  l'en-tête (fin de ligne Windows, ligne sans deux-points, octets parasites, trames P héritant de I,
+  replis numériques). Simulation des filtres : chaque passe-bas égal à `lfilter`, filtre au-delà de la
+  cadence du log transparent, état initial stationnaire, notch à fréquence variable qui suit une raie
+  mobile, centres `FFT_FREQ` selon la version, `simulate_gyro` sur le vol synthétique.
 - Tests du décodeur sur des fichiers Blackbox fabriqués (`tests/bbl_factory.py`) : `P interval` (N et a/b),
   trames corrompues et resynchronisation, trame trop longue, saut d'itération refusé, `LOGGING_RESUME`,
   événements, trames S, sessions multiples, prédicteurs (dont la troncature vers zéro de `AVERAGE_2`).
