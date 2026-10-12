@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-021 | Pas des curseurs conseillés, choisis par Cédric | 2026-10-12 |
 | D-020 | Aucune fenêtre d'analyse ne chevauche un trou du log | 2026-10-12 |
 | D-019 | Le vol chirp de Betaflight n'est pas conseillé : méthode de Brian White | 2026-10-12 |
 | D-018 | Décisions, leçons et travaux reportés ont chacun leur registre numéroté | 2026-10-12 |
@@ -94,6 +95,30 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-12 — Trous d'enregistrement
+
+### D-021 : pas des curseurs conseillés, choisis par Cédric
+
+**Contexte.** Les conseils à un seul vol de l'assistant proposaient presque toujours ±0,1 (« Estimation »,
+W-003), alors que le Diagnostic du réglage suit Brian White [S32] : un pas de 0,1 ne se lit pas sur la
+réponse indicielle, les séries avancent par 0,2. Règle de Cédric, pilote (2026-10-12).
+
+**Décision.**
+- Filtres : curseur « filtre gyro » par pas de 0,2 ; curseur « filtre D » par 0,1 à 0,2 (relèvement prévu
+  par le simulateur, 0,1 par vol d'essai).
+- Damping par 0,2 pour dégrossir (fort dépassement), 0,1 en réglage fin (léger dépassement, réponse molle,
+  marge faible, propwash) ; écart roll / pitch par 0,2 (Pitch Damping, Pitch Tracking) ; Master par 0,2
+  pour trouver la limite, puis retour de 0,1 à 0,2 (oscillations, marge faible).
+- Feedforward : aucun pas chiffré dans un conseil à un seul vol, renvoi à la série du guide (curseur
+  « Réponse des sticks » 0, 0,5, 1… en Acro, `rules.FF_SERIES_ADVICE`).
+- Tracking (P et I) n'est plus conseillé seul.
+
+**Options écartées.** Garder 0,1 partout (illisible sur la réponse, contraire aux séries) ; pas fonction de
+l'écart au seuil (pas de mesure qui le justifie) ; ±0,5 de feedforward dans un conseil isolé (la série
+compare le retard consigne → gyro, un vol seul ne dit pas où s'arrêter) ; Tracking −0,1 / +0,1 (correction
+secondaire, absente de la méthode de Cédric).
+
+**Témoins.** `tests/test_advisor_synthetic.py:test_slider_steps` ;
+[assistant.md](assistant.md#pas-des-curseurs-2026-10-12).
 
 ### D-020 : aucune fenêtre d'analyse ne chevauche un trou du log
 

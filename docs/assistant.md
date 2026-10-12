@@ -2,7 +2,8 @@
 
 L'assistant (`src/opentunebox/advisor/`) transforme les mesures d'un log en constats argumentés.
 Chaque constat cite la mesure et le seuil qui le déclenchent ; les actions passent d'abord par les
-curseurs du réglage simplifié de Betaflight, par petits pas (0,1), une chose à la fois.
+curseurs du réglage simplifié de Betaflight, une chose à la fois, par pas de 0,2 pour dégrossir et de 0,1
+pour le réglage fin (voir « Pas des curseurs »).
 
 ## Taille du drone
 
@@ -391,6 +392,24 @@ corpus en ont au moins un (53 sur 710), presque toutes des `.BFL`.
   notch dynamique, 5 « Gyro filtré bruité », 3 dépassements) ; 4 vols très hachés (un trou par seconde
   environ) n'ont plus assez de fenêtres de 2 s pour la réponse indicielle.
 
+### Pas des curseurs (2026-10-12)
+
+Pas conseillés d'un vol au suivant, choisis par Cédric d'après la méthode de Brian White [S32] (un pas de
+0,1 ne se lit pas sur la réponse indicielle) ; décision D-021. Ils remplacent les ±0,1 d'origine
+« Estimation » (W-003).
+
+| Curseur | Pas | Constats de l'assistant |
+|---|---|---|
+| Filtre gyro | 0,2 | « Gyro filtré bruité » −0,2 ; retard du gyro au-dessus du repère +0,2 |
+| Filtre D | 0,1 à 0,2 | « Terme D bruité » −0,1 à −0,2 ; relèvement prévu par le simulateur +0,1 par vol d'essai |
+| Damping | 0,2 pour dégrossir, 0,1 en réglage fin | « Fort dépassement » +0,2 ; « Léger dépassement » +0,1 ; « Réponse molle » −0,1 ; marge faible et propwash +0,1 |
+| Écart roll / pitch | 0,2 | Diagnostic du réglage : Pitch Damping, Pitch Tracking |
+| Master | 0,2 pour trouver la limite, puis retour de 0,1 à 0,2 | Séries Master ; marge faible et oscillations −0,1 à −0,2 |
+| Feedforward | série de 0,5 depuis 0, en Acro | Dépassement dû au feedforward, réactivité : renvoi à la série du guide, aucun pas chiffré |
+
+Le curseur Tracking (P et I) n'est plus conseillé seul (choix de Cédric). Le Diagnostic du réglage par
+séries garde ses pas de 0,2 et signale un pas plus fin que 0,15.
+
 ## Règles
 
 Le diagnostic du bruit de la fenêtre Spectre (`advisor/noise.py`) reprend ces mêmes constats, rangés par
@@ -432,8 +451,8 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   - roll et pitch différents : écart de pic > seuil de la taille (curseur « D pitch ») ;
   - stabilité (boucle ouverte, voir « Boucle ouverte mesurée ») : pic de sensibilité > 7 dB (conseil ;
     « au moins » quand le pic est au bord de la bande mesurable ; précision ajoutée si la boucle n'est
-    qu'approchée) ; sinon marge de phase < 35° (conseil). Conseil : Damping +0,1 ou Master −0,1 ; seulement
-    Master −0,1 quand le D domine déjà au croisement (|Ĉd/Ĉe| > 1) ; pour un whoop, explication de la
+    qu'approchée) ; sinon marge de phase < 35° (conseil). Conseil : Damping +0,1 ou Master −0,1 à −0,2 ; seulement
+    Master −0,1 à −0,2 quand le D domine déjà au croisement (|Ĉd/Ĉe| > 1) ; pour un whoop, explication de la
     cause habituelle (boucle rapide, D dominant, filtres du D) ; pic au bord de la bande : action de plus,
     des wobbles plus rapides et plus secs pour que la mesure aille plus loin (W-004 ; pas de vol chirp,
     D-019) ;
@@ -597,7 +616,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Déséquilibre des moteurs | > 11,2 (7") à 14 % (5") selon la taille, 13,5 % commun | Corpus | L'interprétation (côté ou diagonale au-delà de 12 %) reste estimée |
 | Terme I décentré | moyenne > 31 (7") à 33 (commun, unités PID) selon la taille | Corpus | |
 | Saturation des moteurs | ≥ 98 % pendant > 1,5 % du temps | Corpus | La notion de « moteur à 98 % » est estimée : le firmware ne journalise pas de saturation (il renormalise le mixage quand l'écart entre moteurs dépasse 100 %) |
-| Pas des curseurs conseillés | 0,1 (0,1 à 0,2 pour les filtres) | Estimation | Le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
+| Pas des curseurs conseillés | filtre gyro 0,2 ; filtre D 0,1–0,2 ; Damping 0,2 (dégrossir) ou 0,1 (fin) ; roll / pitch 0,2 ; Master 0,2 puis retour de 0,1–0,2 ; feedforward : série de 0,5 depuis 0 | Communauté [S32] + choix de Cédric | D-021, voir « Pas des curseurs » ; le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
 | `rpm_filter_q` conseillé | −100 par pas (500 → 400) | Firmware (500) + décision (pas) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre selon Brian White [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où des pas de 100 (décision de Cédric, 2026-10-10). Monter Q : voir la ligne « pour gagner du retard ». Avec un poids < 100, la règle « poids trop bas » propose d'abord de le remonter |
 | `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
 | Notch statique conseillé | coupure tirée du Q nécessaire pour la raie, 0,62 à 0,89 × sa fréquence ; 0,7 sans mesure | Théorie + firmware | Même calcul que le Q du notch dynamique [S31], `filterGetNotchQ` ; repli 0,7 dans la plage des défauts de Betaflight 3.2.0 (0,5 à 0,75), voir « Règles » (2026-10-12) |

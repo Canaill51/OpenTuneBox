@@ -108,8 +108,8 @@ Règles d'écriture :
   200 fenêtres (branche feat/calibrate-step-waves). « D dominant » au croisement : 1,0 gardé, mesuré sur
   les séries Damping du corpus (branche feat/calibrate-d-dominant). « Taille par le nom » mis de côté par
   Cédric (2026-10-12), repris à sa demande. Trames corrompues : compteur remplacé par le constat « Trous dans
-  l'enregistrement » (branche feat/calibrate-corrupt-frames), défaut des analyses ouvert en W-010. Restent,
-  dans l'ordre choisi avec Cédric : pas des curseurs, petites marges. Taille pour l'objectif de retard :
+  l'enregistrement » (branche feat/calibrate-corrupt-frames), défaut des analyses ouvert en W-010.
+  Pas des curseurs : choisis par Cédric (D-021, branche feat/calibrate-slider-steps). Reste : petites marges. Taille pour l'objectif de retard :
   3" et 8" confirmés par la médiane des drones de taille connue du corpus (branche feat/calibrate-delay-size).
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de

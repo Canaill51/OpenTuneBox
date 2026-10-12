@@ -3,7 +3,8 @@
 Principes :
 - chaque constat cite la mesure qui le justifie (valeur, seuil, axe) ;
 - les suggestions passent de préférence par les curseurs du réglage simplifié de Betaflight
-  (une seule chose à la fois, par petits pas de 0,1), puis par des réglages précis si besoin ;
+  (une seule chose à la fois ; pas choisis par Cédric : 0,2 pour dégrossir, 0,1 pour le réglage fin,
+  séries de 0,5 pour le feedforward ; docs/assistant.md « Pas des curseurs »), puis par des réglages précis ;
 - les seuils dépendent de la taille du drone (profiles.py) et sont calibrés sur 681 sessions réelles
   (90e percentile de chaque taille, voir docs/assistant.md « Calibration »).
 """
@@ -43,6 +44,10 @@ STEP_PEAK_SOFT = 1.01
 # 2026-10-12 (tranches de n fenêtres de 646 axes, comparées au vol entier) : écart du pic p90 0,20 à 20
 # fenêtres, 0,07 à 200 (docs/assistant.md, « Pic de réponse indicielle »)
 STEP_MIN_WINDOWS, STEP_SURE_WINDOWS = 20, 200
+# Feedforward : pas de pas chiffré dans un conseil à un seul vol, renvoi à la série du guide, par pas de 0,5
+# depuis 0 (choix de Cédric, 2026-10-12 ; docs/assistant.md « Pas des curseurs »)
+FF_SERIES_ADVICE = ("série Feedforward du guide (curseur « Réponse des sticks » : 0, 0,5, 1… en Acro), en comparant "
+                    "le retard consigne → gyro d'un vol à l'autre")
 PHASE_MARGIN_LOW_DEG = 35.0
 # D dominant au croisement (|Ĉd/Ĉe|) : au-delà, la marge faible ne se corrige plus par du D. Séries Damping du
 # corpus (2026-10-12, 130 crans de +0,2, 25 drones, une voix par drone) : dès 1,0, un cran de D fait monter le
@@ -292,7 +297,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          f"Bruit du gyro filtré {max(g_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille (seuil {profile.gyro_noise_high_db:.1f} dB). "
                          f"Sommet du spectre à {g_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : sous {GYRO_PTB_MAX_DB:.0f} dB).",
                          ["Contrôlez hélices et moteurs (vibrations), la fixation du contrôleur de vol (silentblocs).",
-                          "Curseur « filtre gyro » : −0,1 à −0,2."]))
+                          "Curseur « filtre gyro » : −0,2."]))
     elif np.isfinite(g_ptb):
         F.append(Finding("Bruit", OK if g_ptb <= GYRO_PTB_MAX_DB else INFO, "Bruit du gyro filtré",
                          f"Sommet du spectre à {g_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : sous "
@@ -323,7 +328,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                           "pas seulement du vol stationnaire."]))
     if delays.moving and np.isfinite(delays.gyro_ms):
         if delays.gyro_ms > profile.gyro_delay_max_ms and not gyro_noisy and not dterm_noisy:
-            actions = ["Curseur « filtre gyro » : +0,1 à +0,2 (moins de retard → meilleure réactivité, moins de propwash)."]
+            actions = ["Curseur « filtre gyro » : +0,2 (moins de retard → meilleure réactivité, moins de propwash)."]
             if s.rpm_harmonics > 0 and s.rpm_q < RPM_Q_MAX:
                 actions.append(f"Filtre RPM : rpm_filter_q {s.rpm_q} → {min(s.rpm_q + RPM_Q_STEP, RPM_Q_MAX)} (notchs "
                                f"plus étroits, moins de retard), puis par pas de {RPM_Q_STEP} jusqu'à {RPM_Q_MAX} au plus, "
@@ -398,7 +403,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          "90 % des drones de cette taille font mieux). C'est la zone du propwash "
                          "et des oscillations de réglage.",
                          ["Si cela arrive en descente/gaz coupés : propwash → plus de D (Damping +0,1) ou D max.",
-                          "Si cela arrive en vol stable : oscillation → baisser le Master ou P (Tracking −0,1).",
+                          "Si cela arrive en vol stable : oscillation → Master −0,1 à −0,2.",
                           "Regardez l'outil Fréquence × gaz pour voir à quel gaz le phénomène apparaît."]))
     res = _frame_resonance(log, fr, profile, sel)
     if res is not None:
@@ -490,7 +495,7 @@ def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gai
                          f"Pic {pk:.2f} atteint après une montée très rapide (latence {lat:.1f} ms, plus courte que "
                          f"les {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms habituels pour {profile.label}). "
                          f"Le feedforward (F = {ff_gain}) anticipe le mouvement et le drone dépasse la consigne.",
-                         ["Curseur Stick response (FF) : −0,1 ; ou feedforward_boost plus bas.",
+                         [f"Refaites la {FF_SERIES_ADVICE} ; ou feedforward_boost plus bas.",
                           "Si vous aimez cette vivacité (freestyle, course), ce n'est pas un défaut : "
                           "vérifiez seulement qu'il n'y a pas de rebond à la fin des flips.",
                           "Le D n'est pas en cause tant que les vols calmes ne dépassent pas."], ax))
@@ -499,7 +504,7 @@ def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gai
         F.append(Finding("Réponse", ATTENTION, f"Fort dépassement en {ax.lower()}",
                          f"Pic {pk:.2f} (> {_fr(strong)}{with_ff}, plus que 95 % des axes du corpus) : le drone "
                          "dépasse la consigne puis revient, signe d'un manque d'amortissement.",
-                         ["Curseur Damping (D) : +0,1 à +0,2.", "Ou Tracking (P et I) : −0,1."], ax))
+                         ["Curseur Damping (D) : +0,2."], ax))
     elif pk > advice:
         F.append(Finding("Réponse", CONSEIL, f"Léger dépassement en {ax.lower()}",
                          f"Pic {pk:.2f} (> {_fr(advice)}{with_ff}, plus que 90 % des drones du corpus). Sans "
@@ -509,7 +514,8 @@ def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gai
         F.append(Finding("Réponse", CONSEIL, f"Réponse molle en {ax.lower()}",
                          f"Pic {pk:.2f} et latence {lat:.1f} ms (repère {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms "
                          f"pour {profile.label}) : trop amorti.",
-                         ["Curseur Damping : −0,1, ou Tracking : +0,1.", "Pour la réactivité au manche : Stick response (FF) +0,1."], ax))
+                         ["Curseur Damping (D) : −0,1.",
+                          f"Pour la réactivité au manche : {FF_SERIES_ADVICE}."], ax))
     else:
         F.append(Finding("Réponse", OK, f"Réponse indicielle {ax.lower()}",
                          f"Pic {pk:.2f}, latence {lat:.1f} ms, {r.n} fenêtres analysées.", [], ax))
@@ -1081,11 +1087,11 @@ def _margin_actions(lp) -> list[str]:
     plus de D fait surtout monter le croisement là où les filtres retardent : il apporte peu de marge
     et peut augmenter le pic de sensibilité (docs/assistant.md, « Boucle ouverte mesurée »)."""
     if not lp.measured:
-        return ["Master −0,1.", "Pour une mesure exacte, enregistrez les termes P, I, D et F (champs PID du blackbox)."]
+        return ["Master −0,1 à −0,2.", "Pour une mesure exacte, enregistrez les termes P, I, D et F (champs PID du blackbox)."]
     if np.isfinite(lp.d_ratio) and lp.d_ratio > D_DOMINANT_RATIO:
-        return [f"Master −0,1. Le D domine déjà au croisement ({lp.d_ratio:.1f} × P et I) : "
+        return [f"Master −0,1 à −0,2. Le D domine déjà au croisement ({lp.d_ratio:.1f} × P et I) : "
                 "plus de D apporterait peu de marge et peut augmenter le pic de sensibilité."]
-    return ["Damping (D) +0,1, ou Master −0,1."]
+    return ["Damping (D) +0,1, ou Master −0,1 à −0,2."]
 
 
 def _imbalance_finding(m: list[float], imbalance: float) -> Finding:

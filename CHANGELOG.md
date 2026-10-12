@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Assistant : les curseurs conseillés suivent la méthode des séries de vols. Filtre gyro par 0,2 ; Damping
+  +0,2 sur un fort dépassement, 0,1 en réglage fin ; Master −0,1 à −0,2 ; le feedforward renvoie à la série
+  du guide (0, 0,5, 1… en Acro) au lieu d'un pas de 0,1 ; le curseur Tracking n'est plus conseillé seul
+  (D-021, W-003).
 - « Trames corrompues » devient « Trous dans l'enregistrement », dans l'Assistant et dans la vérification
   des logs du guide : il compte les trous de la période analysée et le temps perdu, au lieu des tentatives
   de resynchronisation du décodeur, qui manquaient des vols vraiment troués (W-003).
