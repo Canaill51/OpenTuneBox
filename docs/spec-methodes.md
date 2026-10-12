@@ -333,7 +333,7 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S32] Brian White, consignes de réglage par séries de vols (discussions et vidéos), transmises par
   Cédric le 2026-10-10 : pas de 0,2, feedforward à 0 ou mode Angle, curseur I à 0,2–0,3, ordre des séries,
   cassure (« ripple ») dans la montée, vagues et plateau de la latence comme signes de gains trop hauts.
-  Exemple : capture PIDtoolbox de l'Air65 de Cédric (`Cedric/Air65/MM.bbl`, Master 1,0 puis 1,2 ; cassure
+  Exemple : capture PIDtoolbox de l'Air65 de Cédric (`Cedric/Air65/MM.bbl`, retiré du corpus le 2026-10-12 ; Master 1,0 puis 1,2 ; cassure
   roll visible à 1,2, Master 1,0 gardé).
 - [S33] Brian White, [*Optimize Angle Mode For Wobble Test*](https://www.youtube.com/watch?v=AUTkbv8wYdk),
   2024-08-08 (Betaflight 4.5) : rates ACTUAL linéaires pour le wobble, « `set angle_limit = 30` »

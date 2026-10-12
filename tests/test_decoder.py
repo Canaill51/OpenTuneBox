@@ -8,7 +8,7 @@ from opentunebox.decoder import core
 from opentunebox.log.debug_tables import TABLES, debug_mode_name
 from opentunebox.log.settings import parse_settings
 
-from corpus_paths import LOGS  # noqa: E402
+from corpus_paths import LOGS, corpus_log  # noqa: E402
 
 
 # ---------------------------------------------------------------- encodeurs de test
@@ -113,7 +113,7 @@ def test_settings_d_max_conventions():
 def test_real_log_loads():
     from opentunebox.log.flightlog import load
 
-    logs = load(LOGS / "1. PTB/Allykill/hover.bbl")
+    logs = load(corpus_log("1. PTB/Apri/btfl_008.bbl"))
     assert len(logs) == 1
     lg = logs[0]
     assert 1900 < lg.fs < 2100

@@ -160,6 +160,8 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
   ne jamais les utiliser sans vérifier (voir `gui/app.py:hard_exit`). L-021
 - Vérifier avant un commit : lancer `pytest` sans tube (`| tail` masque son échec) ; le crochet de Claude Code
   (`.claude/hooks/check-docs.sh`) ne voit que `git commit` et `git -c … commit`. L-022
+- Tests du corpus : ouvrir un log par `tests/corpus_paths.py:corpus_log` (ignoré en le nommant s'il manque) ;
+  après un changement du corpus, `pytest -rs` liste les logs à remplacer. L-023
 
 ## Méthode de travail
 

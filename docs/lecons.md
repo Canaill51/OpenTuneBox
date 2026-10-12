@@ -60,6 +60,17 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-023 : un log supprimé du corpus fait ignorer des tests sans bruit, ou les fait échouer
+- **Symptôme** — 2026-10-12 : après la suppression de logs par Cédric, 6 tests en `FileNotFoundError` et
+  6 autres simplement ignorés (`s` dans la sortie de `pytest`), dont le Spectre, le simulateur de filtres et
+  le retard consigne → gyro : une perte de couverture invisible sans `pytest -rs`.
+- **Cause** — mesurée : certains tests ne vérifiaient que l'existence du dossier du corpus, d'autres
+  ignoraient le test dès qu'un fichier manquait (dossier `1. PTB/Allykill` supprimé).
+- **Règle** — ouvrir un log du corpus par `tests/corpus_paths.py:corpus_log` (test ignoré en nommant le log) ;
+  après un changement du corpus, lancer `pytest -rs` et remplacer chaque log nommé par un log aux mêmes
+  propriétés, cherché par un passage sur tout le corpus (compétence `calculs-corpus`).
+- **Preuve** — avant : 233 réussis, 6 en échec, 6 ignorés ; après : 246 réussis, aucun ignoré.
+
 ### L-022 : un commit est passé avec la documentation en échec : crochet contourné et code de sortie masqué
 - **Symptôme** — 2026-10-12, branche docs/project-registers : commit enregistré alors que
   `tests/test_docs.py` affichait « 1 failed » ; aucun blocage.
@@ -249,6 +260,7 @@ est celle du commit qui les a introduites.
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-023 | Log du corpus supprimé : tests en échec ou ignorés sans bruit. `corpus_log`, `pytest -rs` | Outillage |
 | L-022 | Commit passé malgré un test en échec. Crochet élargi, pas de `&&` après `pytest \| tail` | Outillage |
 | L-021 | Exécutable Windows : `sys.stdout` vaut `None`. Vérifier avant d'écrire | Construction |
 | L-020 | PyInstaller Linux sans `objdump`. Installer `binutils` | Construction |

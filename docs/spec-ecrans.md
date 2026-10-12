@@ -29,7 +29,7 @@ Freq x Time, Ymax de la réponse indicielle 1,5, thème, police…).
   de trait, police, lissage, épaisseur de trait, thème, boutons Spectral Analyzer, Step Resp Tool,
   PID slider tool, Filter Sim, Setup Info, Save Fig, Save Settings, site web, Quick Guide.
 - Lecteur : << < - > >>, « time: x sec », deux manches (T/Y à gauche, P/R à droite), % moteurs et gyro au curseur.
-- Réf. : `1. PTB/Allykill/PTB_FIGS_2026-09-28/PTB_FIGS_2026-09-28-1.png`, `Cedric/BF Chirp/PTB_FIGS_2026-08-09/PTB_FIGS_2026-08-09-12.png`.
+- Réf. : `1. PTB/Allykill/PTB_FIGS_2026-09-28/PTB_FIGS_2026-09-28-1.png` (dossier retiré du corpus le 2026-10-12), `Cedric/BF Chirp/PTB_FIGS_2026-08-09/PTB_FIGS_2026-08-09-12.png`.
 
 ## 2. Analyse spectrale (Spectral Analyzer)
 - Grille 3×2, lignes R/P/Y. À gauche « Full Spectrum » 0–Nyquist, DSP en dB −50..20 ; légende « <donnée> | <fichier> ».
@@ -44,7 +44,7 @@ Freq x Time, Ymax de la réponse indicielle 1,5, thème, police…).
   retard des filtres et lissage ; R/P/Y ; PSD ; Y min/max ; cases moteurs ; liste des harmoniques
   (1st, 2nd, 3rd / RPM notch) ; liste Dyn notch ; épaisseur de trait ; mode du volet droit ;
   estimation RPM + multiplicateur 2,1.
-- Réf. : `1. PTB/Allykill/PTB_FIGS_2026-09-28/PTB_FIGS_2026-09-28-3.png` (sub100), `-6.png` (bruit moteur).
+- Réf. : `1. PTB/Allykill/PTB_FIGS_2026-09-28/PTB_FIGS_2026-09-28-3.png` (sub100), `-6.png` (bruit moteur) ; dossier retiré du corpus le 2026-10-12.
 
 ## 3. Freq x Throttle
 - Jusqu'à 4 colonnes, chacune avec ses listes donnée + fichier et une case « <100Hz » ; lignes R/P/Y.

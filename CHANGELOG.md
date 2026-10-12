@@ -11,6 +11,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `AGENTS.md` et `docs/architecture.md` avec contexte, options écartées et preuves. Numéros vérifiés à chaque
   `pytest`.
 
+### Corrigé
+- Tests sur les vrais logs : logs supprimés du corpus remplacés par des logs aux mêmes propriétés ; un log
+  absent fait ignorer le test en le nommant au lieu de le faire échouer.
+
 ## [0.6.0] — 2026-10-12
 
 ### Ajouté

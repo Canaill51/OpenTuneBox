@@ -4,21 +4,28 @@ import time
 
 import numpy as np
 import pytest
-from corpus_paths import LOGS
+from corpus_paths import LOGS, corpus_log
 
-from opentunebox.advisor.log_check import (AXES_MIXED_MIN, BLOCK, CONFIGURATOR_SLIDERS, INFO, OK, WARN, check_log,
+from opentunebox.advisor.log_check import (AXES_MIXED_MIN, BLOCK, CONFIGURATOR_SLIDERS, INFO, OK, PID, WARN, check_log,
                                            check_logs)
 from opentunebox.analysis.sliders import PTB_CATEGORIES
 from opentunebox.analysis.step import input_windows, step_response
 
 corpus = pytest.mark.skipif(not LOGS.exists(), reason="corpus absent")
+FF_SERIES = "1. PTB/cheussure/FF0.0_0.5_1.0.bbl"  # série Feedforward 0 → 0,5 → 1,0 en Acro, un vol par valeur
+
+
+def load_all(rel):
+    from opentunebox.log.flightlog import load
+
+    return load(corpus_log(rel))
 
 
 def _load(rel):
     from opentunebox.analysis.period import auto_period
     from opentunebox.log.flightlog import load
 
-    lg = load(LOGS / rel)[0]
+    lg = load(corpus_log(rel))[0]
     return lg, lg.slice_time(*auto_period(lg))
 
 
@@ -85,7 +92,7 @@ def test_feedforward_flight_refused_for_series():
 @corpus
 @pytest.mark.corpus
 def test_acro_without_feedforward_accepted():
-    lg, sel = _load("Cedric/Air65/MM.bbl")  # Acro, feedforward à 0, 1 kHz : vol de série PID
+    lg, sel = _load("Cedric/Air65/m1.bbl")  # Acro, feedforward à 0, 1 kHz : vol de série PID
     c = check_log(lg, sel)
     assert c.role == "pid" and c.item("flight_mode").status == OK and "Acro" in c.item("flight_mode").detail
     assert c.item("angle_limit") is None  # sans effet en Acro
@@ -99,7 +106,7 @@ def test_feedforward_series_flight_in_acro():
     from opentunebox.analysis.period import auto_period
     from opentunebox.log.flightlog import load
 
-    lg = load(LOGS / "Cedric/Air65/FF.bbl")[1]  # 2e vol du fichier : feedforward 1,0, en Acro
+    lg = load(corpus_log(FF_SERIES))[1]  # 2e vol du fichier : feedforward 0,5, en Acro
     c = check_log(lg, lg.slice_time(*auto_period(lg)))
     mode = c.item("flight_mode")
     assert mode.status == INFO and mode.detail.startswith("Acro, feedforward actif")
@@ -136,19 +143,27 @@ def test_exact_windows_and_series_groups():
 @pytest.mark.corpus
 def test_several_series_of_one_drone():
     """Logs PID d'un drone qui forment plusieurs séries : chacune reconnue, pas de « plusieurs curseurs »."""
-    from opentunebox.analysis.period import auto_period
-    from opentunebox.log.flightlog import load
+    logs = [(lg.name, lg) for f in ("d", "m1", "m2") for lg in load_all(f"Cedric/Air65/{f}.bbl")]
+    details = [g.detail for g in check_logs(logs) if g.status == OK]
+    assert len(details) == 2
+    assert any(d.startswith("Série « Atténuation (Damping) » : 0,60 → 0,80 → 1,00 → 1,10 → 1,20 → 1,40 (d, d.02, d.03, m1, d.04, d.05)")
+               for d in details)
+    assert any(d.startswith("Série « Multiplicateur Maître (Master Multiplier) » : 1,00 → 1,20 → 1,40 → 1,60") for d in details)
 
-    logs = [(lg.name, lg) for f in ("D", "MM", "FF") for lg in load(LOGS / f"Cedric/Air65/{f}.bbl")]
-    details = [g.detail for g in check_logs(logs)]
-    assert len(details) == 3 and all(g.status == OK for g in check_logs(logs))
-    assert any(d.startswith("Série « Atténuation (Damping) » : 1,00 → 1,20 (D, D.02)") for d in details)
-    assert any("Réponse des sticks" in d and "(FF, FF.02)" in d for d in details)
+
+@corpus
+@pytest.mark.corpus
+def test_feedforward_series_delays():
+    """Série Feedforward : retard consigne → gyro de chaque vol, rappel seulement quand le feedforward est actif."""
+    from opentunebox.analysis.period import auto_period
+
+    logs = [(lg.name, lg) for lg in load_all(FF_SERIES)]
     checks = {n: check_log(lg, lg.slice_time(*auto_period(lg)), n) for n, lg in logs}
-    ff = next(g.detail for g in check_logs(logs, {n: c.sp_delay_ms for n, c in checks.items()})
-              if "Réponse des sticks" in g.detail)
-    d0, d1 = checks["FF"].sp_delay_ms, checks["FF.02"].sp_delay_ms
-    assert d1[0] < d0[0] - 5 and "retard consigne → gyro roll / pitch : 0,00 → " in ff and "Assistant" in ff
-    ff0, ff1 = (check_log(lg, lg.slice_time(*auto_period(lg))) for _n, lg in logs[-2:])
-    assert "ff_series" not in [u.key for u in ff0.usages_for()]  # feedforward à 0 : pas redit
-    assert "ff_series" in [u.key for u in ff1.usages_for()]
+    groups = check_logs(logs, {n: c.sp_delay_ms for n, c in checks.items()})
+    assert len(groups) == 1 and groups[0].status == OK and "Réponse des sticks" in groups[0].detail
+    ff = groups[0].detail
+    (n0, c0), (_n1, c1) = list(checks.items())[:2]
+    assert c1.sp_delay_ms[0] < c0.sp_delay_ms[0] - 5  # le feedforward avance le gyro
+    assert "retard consigne → gyro roll / pitch : 0,00 → " in ff and "Assistant" in ff
+    assert "ff_series" not in [u.key for u in c0.usages_for(PID)]  # feedforward à 0 : pas redit
+    assert "ff_series" in [u.key for u in c1.usages_for(PID)]

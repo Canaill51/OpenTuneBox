@@ -18,7 +18,7 @@ analyses (`scripts/validate_corpus.py`, tests `-m corpus`).
 
 | Mesure | Log | PIDtoolbox | OpenTuneBox |
 |---|---|---|---|
-| Retard des filtres gyro | Allykill `btfl_002` | 1,25 ms | 1,2 ms (modèle de filtres : 1,32 ms) |
+| Retard des filtres gyro | Allykill `btfl_002` (log retiré du corpus le 2026-10-12) | 1,25 ms | 1,2 ms (modèle de filtres : 1,32 ms) |
 | Pic de réponse indicielle roll | BlackSummer *Damping* 0.8 / 1.0 / 1.2 / 1.4 | 1,23 / 1,11 / 1,00 / 0,98 | 1,24 / 1,13 / 1,03 / 1,04 |
 | Retard consigne → gyro | même série | 12,7 / 14,7 / 16,8 / 18,3 ms | 12,5 / 14,5 / 16,6 / 18,2 ms |
 | Pic / montée | JeNo 5 `LAST` | 1,02 / 15,6 ms | 1,05 / 15,9 ms |
