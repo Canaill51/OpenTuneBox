@@ -3,7 +3,8 @@
 Principes :
 - chaque constat cite la mesure qui le justifie (valeur, seuil, axe) ;
 - les suggestions passent de préférence par les curseurs du réglage simplifié de Betaflight
-  (une seule chose à la fois, par petits pas de 0,1), puis par des réglages précis si besoin ;
+  (une seule chose à la fois ; pas choisis par Cédric : 0,2 pour dégrossir, 0,1 pour le réglage fin,
+  séries de 0,5 pour le feedforward ; docs/assistant.md « Pas des curseurs »), puis par des réglages précis ;
 - les seuils dépendent de la taille du drone (profiles.py) et sont calibrés sur 681 sessions réelles
   (90e percentile de chaque taille, voir docs/assistant.md « Calibration »).
 """
@@ -43,6 +44,10 @@ STEP_PEAK_SOFT = 1.01
 # 2026-10-12 (tranches de n fenêtres de 646 axes, comparées au vol entier) : écart du pic p90 0,20 à 20
 # fenêtres, 0,07 à 200 (docs/assistant.md, « Pic de réponse indicielle »)
 STEP_MIN_WINDOWS, STEP_SURE_WINDOWS = 20, 200
+# Feedforward : pas de pas chiffré dans un conseil à un seul vol, renvoi à la série du guide, par pas de 0,5
+# depuis 0 (choix de Cédric, 2026-10-12 ; docs/assistant.md « Pas des curseurs »)
+FF_SERIES_ADVICE = ("série Feedforward du guide (curseur « Réponse des sticks » : 0, 0,5, 1… en Acro), en comparant "
+                    "le retard consigne → gyro d'un vol à l'autre")
 PHASE_MARGIN_LOW_DEG = 35.0
 # D dominant au croisement (|Ĉd/Ĉe|) : au-delà, la marge faible ne se corrige plus par du D. Séries Damping du
 # corpus (2026-10-12, 130 crans de +0,2, 25 drones, une voix par drone) : dès 1,0, un cran de D fait monter le
@@ -71,12 +76,12 @@ RPM_WEIGHT_GAIN_MIN = 0.5
 # la fréquence moteur, gyro filtré, maximum du roll et du pitch) dépasse 3 dB dans 1,4 à 2,8 % des sessions,
 # 4 dB dans 0,3 à 0,9 % : 4 dB garde les fausses alertes sous 1 % (docs/assistant.md, « Filtre RPM : poids et Q »)
 HARMONIC_VISIBLE_DB = 4.0
-# Notch dynamique (notes de réglage Betaflight 4.3, [S19]) : plage qui englobe la résonance à 20 Hz près,
-# le moins de notchs possible, minimum « as high as practical (eg 200hz) », mais 80–125 Hz dans les presets
-# officiels des 7–10" ([S16]) ; relevé proposé dès 30 Hz
+# Notch dynamique (notes de réglage Betaflight 4.3, [S19]) : plage qui englobe la résonance à 20 Hz près, le moins
+# de notchs possible. Pas de relèvement de dyn_notch_min_hz : en vol, les notchs ne sont presque jamais près de leur
+# minimum (debug FFT_FREQ, 598 sessions, 2026-10-13) ; +30 Hz ne fait gagner que 0,002 ms de retard en médiane
+# (choix de Cédric ; docs/assistant.md, « Notch dynamique »)
 DYN_NOTCH_MARGIN_HZ = 20
-DYN_NOTCH_MIN_TARGET_HZ = {"seven": 125, "large": 125}  # 200 Hz pour les autres tailles
-DYN_NOTCH_MIN_HZ, DYN_NOTCH_MIN_MAX_HZ = 20, 250  # bornes de dyn_notch_min_hz dans le firmware (cli/settings.c)
+DYN_NOTCH_MIN_HZ = 20  # borne basse de dyn_notch_min_hz dans le firmware (cli/settings.c)
 DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_max_hz
 # Q du notch dynamique avec filtre RPM : 300–450 [S19] ; pas de 50 (décision de Cédric, 2026-10-10).
 # Q calculé d'après la forme des raies à suivre (notch SVF de Betaflight, `common/filter.c`, largeur à −3 dB
@@ -98,7 +103,6 @@ HOVER_LINE_MIN_DB = 6.0
 # 200 / 100 Hz, D 260 / 160 Hz : 0,5 à 0,75) ; choix de Cédric, 2026-10-12
 STATIC_NOTCH_FALLBACK = 0.7
 HOVER_LOW_LINE_HZ = 100.0
-DYN_NOTCH_MIN_STEP_HZ = 30
 
 # Niveaux de gravité
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
@@ -292,7 +296,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          f"Bruit du gyro filtré {max(g_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille (seuil {profile.gyro_noise_high_db:.1f} dB). "
                          f"Sommet du spectre à {g_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : sous {GYRO_PTB_MAX_DB:.0f} dB).",
                          ["Contrôlez hélices et moteurs (vibrations), la fixation du contrôleur de vol (silentblocs).",
-                          "Curseur « filtre gyro » : −0,1 à −0,2."]))
+                          "Curseur « filtre gyro » : −0,2."]))
     elif np.isfinite(g_ptb):
         F.append(Finding("Bruit", OK if g_ptb <= GYRO_PTB_MAX_DB else INFO, "Bruit du gyro filtré",
                          f"Sommet du spectre à {g_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : sous "
@@ -323,19 +327,11 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                           "pas seulement du vol stationnaire."]))
     if delays.moving and np.isfinite(delays.gyro_ms):
         if delays.gyro_ms > profile.gyro_delay_max_ms and not gyro_noisy and not dterm_noisy:
-            actions = ["Curseur « filtre gyro » : +0,1 à +0,2 (moins de retard → meilleure réactivité, moins de propwash)."]
+            actions = ["Curseur « filtre gyro » : +0,2 (moins de retard → meilleure réactivité, moins de propwash)."]
             if s.rpm_harmonics > 0 and s.rpm_q < RPM_Q_MAX:
                 actions.append(f"Filtre RPM : rpm_filter_q {s.rpm_q} → {min(s.rpm_q + RPM_Q_STEP, RPM_Q_MAX)} (notchs "
                                f"plus étroits, moins de retard), puis par pas de {RPM_Q_STEP} jusqu'à {RPM_Q_MAX} au plus, "
                                "en vérifiant à chaque pas que les raies moteur ne réapparaissent pas.")
-            if dn is not None:
-                low = dn["lowest"]
-                cap = min(DYN_NOTCH_MIN_TARGET_HZ.get(profile.key, 200), DYN_NOTCH_MIN_MAX_HZ)
-                new_min = min(cap, low - DYN_NOTCH_MARGIN_HZ) if low else cap
-                new_min = int(new_min // 10 * 10)
-                if new_min - dn["min_hz"] >= DYN_NOTCH_MIN_STEP_HZ:
-                    actions.append(f"Notch dynamique : dyn_notch_min_hz {dn['min_hz']} → {new_min} (le plus haut possible "
-                                   "sous le pic le plus bas à suivre : moins de retard).")
             actions.append("Contrôlez la température des moteurs après chaque changement.")
             F.append(Finding("Filtres", CONSEIL, "Filtrage gyro peut-être trop prudent",
                              f"Retard des filtres gyro {delays.gyro_ms:.2f} ms (repère {profile.gyro_delay_max_ms:.1f} ms pour "
@@ -398,7 +394,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          "90 % des drones de cette taille font mieux). C'est la zone du propwash "
                          "et des oscillations de réglage.",
                          ["Si cela arrive en descente/gaz coupés : propwash → plus de D (Damping +0,1) ou D max.",
-                          "Si cela arrive en vol stable : oscillation → baisser le Master ou P (Tracking −0,1).",
+                          "Si cela arrive en vol stable : oscillation → Master −0,1 à −0,2.",
                           "Regardez l'outil Fréquence × gaz pour voir à quel gaz le phénomène apparaît."]))
     res = _frame_resonance(log, fr, profile, sel)
     if res is not None:
@@ -490,7 +486,7 @@ def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gai
                          f"Pic {pk:.2f} atteint après une montée très rapide (latence {lat:.1f} ms, plus courte que "
                          f"les {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms habituels pour {profile.label}). "
                          f"Le feedforward (F = {ff_gain}) anticipe le mouvement et le drone dépasse la consigne.",
-                         ["Curseur Stick response (FF) : −0,1 ; ou feedforward_boost plus bas.",
+                         [f"Refaites la {FF_SERIES_ADVICE} ; ou feedforward_boost plus bas.",
                           "Si vous aimez cette vivacité (freestyle, course), ce n'est pas un défaut : "
                           "vérifiez seulement qu'il n'y a pas de rebond à la fin des flips.",
                           "Le D n'est pas en cause tant que les vols calmes ne dépassent pas."], ax))
@@ -499,7 +495,7 @@ def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gai
         F.append(Finding("Réponse", ATTENTION, f"Fort dépassement en {ax.lower()}",
                          f"Pic {pk:.2f} (> {_fr(strong)}{with_ff}, plus que 95 % des axes du corpus) : le drone "
                          "dépasse la consigne puis revient, signe d'un manque d'amortissement.",
-                         ["Curseur Damping (D) : +0,1 à +0,2.", "Ou Tracking (P et I) : −0,1."], ax))
+                         ["Curseur Damping (D) : +0,2."], ax))
     elif pk > advice:
         F.append(Finding("Réponse", CONSEIL, f"Léger dépassement en {ax.lower()}",
                          f"Pic {pk:.2f} (> {_fr(advice)}{with_ff}, plus que 90 % des drones du corpus). Sans "
@@ -509,7 +505,8 @@ def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gai
         F.append(Finding("Réponse", CONSEIL, f"Réponse molle en {ax.lower()}",
                          f"Pic {pk:.2f} et latence {lat:.1f} ms (repère {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms "
                          f"pour {profile.label}) : trop amorti.",
-                         ["Curseur Damping : −0,1, ou Tracking : +0,1.", "Pour la réactivité au manche : Stick response (FF) +0,1."], ax))
+                         ["Curseur Damping (D) : −0,1.",
+                          f"Pour la réactivité au manche : {FF_SERIES_ADVICE}."], ax))
     else:
         F.append(Finding("Réponse", OK, f"Réponse indicielle {ax.lower()}",
                          f"Pic {pk:.2f}, latence {lat:.1f} ms, {r.n} fenêtres analysées.", [], ax))
@@ -1081,11 +1078,11 @@ def _margin_actions(lp) -> list[str]:
     plus de D fait surtout monter le croisement là où les filtres retardent : il apporte peu de marge
     et peut augmenter le pic de sensibilité (docs/assistant.md, « Boucle ouverte mesurée »)."""
     if not lp.measured:
-        return ["Master −0,1.", "Pour une mesure exacte, enregistrez les termes P, I, D et F (champs PID du blackbox)."]
+        return ["Master −0,1 à −0,2.", "Pour une mesure exacte, enregistrez les termes P, I, D et F (champs PID du blackbox)."]
     if np.isfinite(lp.d_ratio) and lp.d_ratio > D_DOMINANT_RATIO:
-        return [f"Master −0,1. Le D domine déjà au croisement ({lp.d_ratio:.1f} × P et I) : "
+        return [f"Master −0,1 à −0,2. Le D domine déjà au croisement ({lp.d_ratio:.1f} × P et I) : "
                 "plus de D apporterait peu de marge et peut augmenter le pic de sensibilité."]
-    return ["Damping (D) +0,1, ou Master −0,1."]
+    return ["Damping (D) +0,1, ou Master −0,1 à −0,2."]
 
 
 def _imbalance_finding(m: list[float], imbalance: float) -> Finding:
@@ -1188,12 +1185,11 @@ def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) ->
     if not dyn_notch_active(s) or log.gyro_unfilt is None or log.motor_hz is None or s.rpm_harmonics == 0:
         return None
     band = (max(s.dyn_notch_min_hz - 37, DYN_NOTCH_MIN_HZ), s.dyn_notch_max_hz + 37)
-    t = [dyn_notch_targets(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, band, s.rpm_harmonics,
+    t = [dyn_notch_targets(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, band, s,
                            breaks=log.breaks(sel)) for a in range(2)]
     peaks = [float(f) for f in max(t, key=lambda x: x.freqs.size).freqs]
     if fixed_hz is not None and all(abs(f - fixed_hz) > 37 for f in peaks):
         peaks.append(float(fixed_hz))
-    every = [float(f) for x in t for f in x.freqs] + ([float(fixed_hz)] if fixed_hz is not None else [])
     peaks = sorted(peaks)
     # forme de chaque raie : la plus large et la plus haute du roll et du pitch (côté prudent)
     sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, peaks, s.rpm_harmonics,
@@ -1203,7 +1199,7 @@ def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) ->
     widths = [worst([x[i][0] for x in sh]) for i in range(len(peaks))]
     heights = [worst([x[i][1] for x in sh]) for i in range(len(peaks))]
     return {"count": s.dyn_notch_count, "min_hz": s.dyn_notch_min_hz, "max_hz": s.dyn_notch_max_hz,
-            "peaks": peaks, "widths": widths, "heights": heights, "lowest": min(every, default=None),
+            "peaks": peaks, "widths": widths, "heights": heights,
             "q_need": dyn_notch_q_need(peaks, widths, heights)}
 
 

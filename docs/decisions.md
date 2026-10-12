@@ -70,6 +70,8 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-022 | Notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé | 2026-10-13 |
+| D-021 | Pas des curseurs conseillés, choisis par Cédric | 2026-10-12 |
 | D-020 | Aucune fenêtre d'analyse ne chevauche un trou du log | 2026-10-12 |
 | D-019 | Le vol chirp de Betaflight n'est pas conseillé : méthode de Brian White | 2026-10-12 |
 | D-018 | Décisions, leçons et travaux reportés ont chacun leur registre numéroté | 2026-10-12 |
@@ -94,6 +96,51 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-12 — Trous d'enregistrement
+
+### D-022 : notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé
+
+**Contexte.** Deux « petites marges » d'origine « Estimation » (W-003) : les bandes des harmoniques retirées
+± 5 % avant de chercher ce que le notch dynamique suit, et un gain minimal de 30 Hz pour conseiller de relever
+`dyn_notch_min_hz`. Le debug FFT_FREQ de 598 sessions du corpus donne les fréquences que le firmware a
+vraiment suivies ([assistant.md](assistant.md#notch-dynamique-2026-10-05)). Validé par Cédric (2026-10-13).
+
+**Décision.**
+- `motors.dyn_notch_targets` reçoit les réglages du log et multiplie chaque fenêtre par |H|² des notchs RPM du
+  firmware (`motors.rpm_attenuation` : Q, poids, fondu, cadence PID) ; aucune bande retirée, sauf les images
+  repliées des harmoniques quand le log est plus lent que la boucle.
+- L'assistant ne propose plus de relever `dyn_notch_min_hz` pour le retard (gain mesuré ≈ 0).
+
+**Options écartées.** Bandes ± 5 % (cachent ce que le filtre RPM laisse passer : 0,48 des fréquences du
+firmware retrouvées) ; bandes sans marge (0,58, choix A de Cédric avant la mesure suivante) ; marge égale au
+débordement de la fenêtre (0,50) ; filtre RPM rejoué dans le temps, avec ou sans notch statique et LPF1 (0,60 ;
+W-011) ; seuil en retard gagné au lieu des 30 Hz (ne se déclencherait presque jamais).
+
+**Témoins.** `tests/test_analysis.py:test_dyn_notch_targets_follow_rpm_weights`,
+`tests/test_advisor_rules.py:test_rule_constants_snapshot` ; L-028.
+
+### D-021 : pas des curseurs conseillés, choisis par Cédric
+
+**Contexte.** Les conseils à un seul vol de l'assistant proposaient presque toujours ±0,1 (« Estimation »,
+W-003), alors que le Diagnostic du réglage suit Brian White [S32] : un pas de 0,1 ne se lit pas sur la
+réponse indicielle, les séries avancent par 0,2. Règle de Cédric, pilote (2026-10-12).
+
+**Décision.**
+- Filtres : curseur « filtre gyro » par pas de 0,2 ; curseur « filtre D » par 0,1 à 0,2 (relèvement prévu
+  par le simulateur, 0,1 par vol d'essai).
+- Damping par 0,2 pour dégrossir (fort dépassement), 0,1 en réglage fin (léger dépassement, réponse molle,
+  marge faible, propwash) ; écart roll / pitch par 0,2 (Pitch Damping, Pitch Tracking) ; Master par 0,2
+  pour trouver la limite, puis retour de 0,1 à 0,2 (oscillations, marge faible).
+- Feedforward : aucun pas chiffré dans un conseil à un seul vol, renvoi à la série du guide (curseur
+  « Réponse des sticks » 0, 0,5, 1… en Acro, `rules.FF_SERIES_ADVICE`).
+- Tracking (P et I) n'est plus conseillé seul.
+
+**Options écartées.** Garder 0,1 partout (illisible sur la réponse, contraire aux séries) ; pas fonction de
+l'écart au seuil (pas de mesure qui le justifie) ; ±0,5 de feedforward dans un conseil isolé (la série
+compare le retard consigne → gyro, un vol seul ne dit pas où s'arrêter) ; Tracking −0,1 / +0,1 (correction
+secondaire, absente de la méthode de Cédric).
+
+**Témoins.** `tests/test_advisor_synthetic.py:test_slider_steps` ;
+[assistant.md](assistant.md#pas-des-curseurs-2026-10-12).
 
 ### D-020 : aucune fenêtre d'analyse ne chevauche un trou du log
 

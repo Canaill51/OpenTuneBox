@@ -60,6 +60,17 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-028 : le filtre RPM n'efface pas toute l'harmonique ; la retirer du spectre cache ce que le notch dynamique suit
+- **Symptôme** — 2026-10-13 : les pics prévus pour le notch dynamique ne retrouvaient que 48 % des fréquences
+  que le firmware suit vraiment (debug FFT_FREQ, 598 sessions) ; moins qu'en ne retirant rien (50 %).
+- **Cause** — mesurée : 417 sessions sur 598 ont une harmonique à poids réduit (« 100, 50, 80 »…), le filtre
+  RPM en laisse passer (1 − poids), et ses flancs restent même à poids 100 ; le firmware suit ce reste.
+  Retirer les bandes h × [moteur le plus lent ; le plus rapide] ± 5 % le cachait.
+- **Règle** — pour prévoir ce qui passe après un filtre du firmware, appliquer sa réponse (|H|², avec poids
+  et Q), jamais un masque ; vérifier contre le debug FFT_FREQ quand le log l'a (`bf_filters.fft_freq_centres`).
+- **Preuve** — D-022 ; `tests/test_analysis.py:test_dyn_notch_targets_follow_rpm_weights` ;
+  [assistant.md](assistant.md#notch-dynamique-2026-10-05).
+
 ### L-027 : `corrupt_frames` compte des tentatives de resynchronisation, pas du temps perdu
 - **Symptôme** — 2026-10-12 : le constat « Trames corrompues » (> 20) manquait des vols qui perdent 3,7 % de
   leur durée (9 tentatives) et signalait un vol qui en perd 1,2 % (4 842 tentatives).
@@ -315,6 +326,7 @@ est celle du commit qui les a introduites.
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-028 | Filtre RPM ≠ masque : appliquer sa réponse (poids, Q) ; vérifier sur le debug FFT_FREQ | Analyses |
 | L-027 | `corrupt_frames` ≠ temps perdu. Trous de temps (`recording_gaps`) | Décodeur et logs |
 | L-026 | Oscillation injectée par le gyro : invisible dans la réponse. Injecter par la consigne | Analyses |
 | L-025 | Couverture aveugle : numba (`NUMBA_DISABLE_JIT=1`) et tests `corpus` ignorés en CI. Logs synthétiques | Outillage |

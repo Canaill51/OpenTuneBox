@@ -134,8 +134,9 @@ ils viennent du bruit (`validation.md`).
   bandes des harmoniques 1 à 8 retirées (± 5 % de l'harmonique pour les trois premières, de la fréquence
   moteur ensuite, images repliées comprises), hauteur d'un maximum local au-dessus du bruit voisin (10 à
   20 % de part et d'autre), avant et après filtres ; une raie par groupe de ± 10 %.
-- **Pics du notch dynamique** (`motors.dyn_notch_targets`) : gyro non filtré, bandes des harmoniques
-  traitées par le filtre RPM retirées (± 5 %, image repliée comprise), DSP moyenne regroupée en cases de
+- **Pics du notch dynamique** (`motors.dyn_notch_targets`) : gyro non filtré multiplié par |H|² des notchs RPM
+  du firmware (fréquence moyenne de chaque moteur sur la fenêtre, Q, poids, fondu ; images repliées retirées),
+  DSP moyenne regroupée en cases de
   18,5 Hz ; pic suivi s'il dépasse 2 fois la puissance moyenne hors pics (au-dessus de 60 Hz), comme le
   firmware.
 - **Estimation RPM** sans télémétrie : fréquence moteur ≈ multiplicateur (2,1) × % moteur (« RPM est. » de PTB),

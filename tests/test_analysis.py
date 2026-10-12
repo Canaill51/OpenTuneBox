@@ -1,6 +1,8 @@
 """Tests des analyses sur signaux synthétiques (réponses connues) et recoupements PIDtoolbox."""
 
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 from scipy import signal
@@ -70,6 +72,11 @@ def test_harmonic_prominence_and_rpm_weight():
     assert rpm_weight_needed(-1.0) == 0.0
 
 
+def _rpm_settings(weights=(100, 100, 100)):
+    return SimpleNamespace(rpm_q=500, rpm_harmonics=3, rpm_weights=list(weights), rpm_min_hz=100, rpm_fade_hz=50,
+                           pid_rate_hz=8000.0)
+
+
 def test_dyn_notch_targets_skip_motor_lines():
     from opentunebox.analysis.motors import dyn_notch_targets
 
@@ -81,10 +88,29 @@ def test_dyn_notch_targets_skip_motor_lines():
     x = np.random.default_rng(0).normal(0, 1, n) + 1.0 * np.sin(2 * np.pi * 330 * t)
     for m in mhz:
         x += 2.0 * np.sin(2 * np.pi * np.cumsum(m) / FS)
-    r = dyn_notch_targets(x, mhz, FS, (100, 600), rpm_harmonics=3)
-    assert r.freqs.size == 1 and abs(r.freqs[0] - 330) < 15 and r.ratios_db[0] > 3
+    r = dyn_notch_targets(x, mhz, FS, (100, 600), _rpm_settings())
+    assert abs(r.freqs[0] - 330) < 15 and r.ratios_db[0] > 10  # résonance = pic le plus fort
+    assert not any(160 < f < 240 for f in r.freqs)  # raies moteur effacées
+    # (sur un bruit blanc, les creux des notchs RPM abaissent la moyenne de la plage, comme dans le firmware,
+    # dyn_notch_filter.c : quelques cases de bruit passent le seuil)
     # sans filtre RPM, le notch dynamique doit aussi suivre la raie moteur
     assert dyn_notch_targets(x, mhz, FS, (100, 600)).freqs.size >= 2
+
+
+def test_dyn_notch_targets_follow_rpm_weights():
+    """Le notch dynamique suit ce que le filtre RPM laisse passer : fondamentale à poids 0 → raie moteur à suivre
+    (le firmware la suit, debug FFT_FREQ du corpus) ; poids 100 → effacée."""
+    from opentunebox.analysis.motors import dyn_notch_targets
+
+    n = int(20 * FS)
+    t = np.arange(n) / FS
+    mhz = np.vstack([np.full(n, 250.0 * (1 + d)) for d in (-0.01, 0.0, 0.01)])
+    x = np.random.default_rng(1).normal(0, 1, n)
+    for m in mhz:
+        x += 2.0 * np.sin(2 * np.pi * m * t)
+    near = lambda r: any(abs(f - 250) < 15 for f in r.freqs)  # noqa: E731
+    assert near(dyn_notch_targets(x, mhz, FS, (100, 600), _rpm_settings((0, 100, 100))))
+    assert not near(dyn_notch_targets(x, mhz, FS, (100, 600), _rpm_settings()))
 
 
 def test_stick_movement_criterion():

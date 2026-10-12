@@ -251,8 +251,7 @@ def _notch_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Fi
                             detail + f" dyn_notch_q {s.dyn_notch_q} : l'assistant calcule le Q d'après la largeur et "
                             "la hauteur des raies à suivre ; il le baisse si une raie l'exige et le monte (jusqu'à "
                             f"{DYN_NOTCH_Q_RPM[1]}) quand rien ne passe et que le bruit du gyro et du D est sous les "
-                            "repères. Il propose de relever dyn_notch_min_hz (moins de retard) sur un vol avec "
-                            "mouvements, quand le retard des filtres gyro dépasse le repère alors que le bruit est faible.")
+                            "repères.")
     return b
 
 

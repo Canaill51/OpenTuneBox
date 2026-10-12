@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..log.flightlog import FlightLog
+from .bf_filters import FilterSpec, coefficients, rpm_notch_freq_weight
 from .spectral import _seg_spectra, _segments, to_db
 
 
@@ -147,16 +148,35 @@ class NotchTargets:
     band: tuple[float, float]  # plage examinée (Hz)
 
 
+def rpm_attenuation(f: np.ndarray, motor_hz: np.ndarray, settings) -> np.ndarray:
+    """|H| des notchs RPM du firmware aux fréquences f, forme (fenêtres, len(f)) ; motor_hz (moteurs, fenêtres)."""
+    q, rate = settings.rpm_q / 100.0, settings.pid_rate_hz
+    z1 = np.exp(-2j * np.pi * np.asarray(f, dtype=np.float64) / rate)
+    out = np.ones((motor_hz.shape[1], len(f)))
+    for k in range(motor_hz.shape[1]):
+        for m in motor_hz[:, k]:
+            for h in range(settings.rpm_harmonics):
+                fr, w = rpm_notch_freq_weight(m, h, settings, rate)
+                if w > 0:
+                    b, a = coefficients(FilterSpec("notch", float(fr), q, float(w)), rate)
+                    out[k] *= np.abs(np.polyval(b[::-1], z1) / np.polyval(a[::-1], z1))
+    return out
+
+
 def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tuple[float, float],
-                      rpm_harmonics: int = 0, seg_ms: float = 300.0, bin_hz: float = 18.5,
+                      rpm_settings=None, seg_ms: float = 300.0, bin_hz: float = 18.5,
                       breaks: np.ndarray | None = None) -> NotchTargets:
     """Pics que le notch dynamique de Betaflight suivrait dans `band`, d'après le gyro non filtré.
 
     Comme le firmware (`flight/dyn_notch_filter.c`) : spectre de puissance à la résolution de sa SDFT
     (≈ 18,5 Hz), bruit = puissance moyenne de la plage hors pics, pic suivi s'il dépasse 2 fois ce bruit
-    (+3 dB). Le notch dynamique est placé après le filtre RPM : les bandes des harmoniques traitées par
-    celui-ci (h × [moteur le plus lent ; le plus rapide] pendant la fenêtre ± 5 %, et leur image repliée quand le log est plus
-    lent que la boucle) sont retirées fenêtre par fenêtre.
+    (+3 dB). Le notch dynamique est placé après le filtre RPM : avec `rpm_settings` (réglages du log, filtre RPM
+    actif), chaque fenêtre est multipliée par |H|² des notchs RPM du firmware (fréquence moyenne de chaque moteur
+    sur la fenêtre, Q, poids et fondu de chaque harmonique, à la cadence PID). Ce qu'ils laissent passer (poids
+    réduit, flancs d'une raie) reste à suivre : sur 598 sessions du corpus en debug FFT_FREQ (2026-10-13), ce
+    modèle retrouve 69 % des fréquences suivies par le firmware, contre 48 % en retirant les bandes des
+    harmoniques ± 5 % (docs/assistant.md, « Notch dynamique »). Les images repliées des harmoniques (log plus
+    lent que la boucle) sont retirées, faute de savoir de quelle fréquence réelle elles viennent.
     """
     L = max(16, int(round(fs * seg_ms / 1000.0)))
     hop = L // 2
@@ -166,14 +186,16 @@ def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tu
     if segs.shape[0] == 0 or hi <= lo:
         return empty
     f, P = _seg_spectra(segs, fs, "psd")
-    if mhz is not None and rpm_harmonics > 0:
+    if mhz is not None and rpm_settings is not None and rpm_settings.rpm_harmonics > 0:
+        mean_m = np.vstack([_segments(np.asarray(m, dtype=np.float64), L, hop, breaks)[0].mean(axis=1) for m in mhz])
+        # ⚠️ réponse du filtre RPM, pas un masque : un poids réduit laisse un reste que le firmware suit (L-028)
+        P = P * rpm_attenuation(f, mean_m, rpm_settings) ** 2
         lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].min(axis=1)  # étendue parcourue pendant la fenêtre
         hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].max(axis=1)
-        P = P.copy()
+        lobe = 2 * fs / L  # demi-largeur du lobe principal de la fenêtre de Hann
         for k in range(P.shape[0]):
-            for h in range(1, rpm_harmonics + 1):
-                a, b = 0.95 * h * lo_m[k], 1.05 * h * hi_m[k]
-                P[k, (f >= a) & (f <= b)] = np.nan
+            for h in range(1, rpm_settings.rpm_harmonics + 1):
+                a, b = h * lo_m[k] - lobe, h * hi_m[k] + lobe
                 P[k, (f >= fs - b) & (f <= fs - a)] = np.nan  # image repliée si le log est trop lent
     with np.errstate(all="ignore"), warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)

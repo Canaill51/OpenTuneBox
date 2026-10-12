@@ -40,6 +40,18 @@ def test_step_peak_thresholds_without_feedforward():
     assert _titles(1.5, 15, n=19) == []  # pas assez de fenêtres
 
 
+def test_slider_steps():
+    """Pas des curseurs choisis par Cédric : Damping +0,2 pour dégrossir (fort dépassement), 0,1 en réglage fin ;
+    plus de Tracking ; feedforward renvoyé à la série du guide (pas de 0,5 depuis 0)."""
+    assert _step_findings(1.26, 15)[0].actions == ["Curseur Damping (D) : +0,2."]
+    assert _step_findings(1.16, 15)[0].actions == ["Curseur Damping (D) : +0,1."]
+    soft = _step_findings(1.00, 22.1)[0].actions
+    assert soft[0] == "Curseur Damping (D) : −0,1." and "0, 0,5, 1" in soft[1]
+    ff = _step_findings(1.41, 9.9, ff=100)[0].actions
+    assert "0, 0,5, 1" in ff[0] and "Acro" in ff[0]
+    for peak, lat, ff_gain in ((1.26, 15, 0), (1.16, 15, 0), (1.00, 22.1, 0), (1.41, 9.9, 100)):
+        assert not any("Tracking" in a for f in _step_findings(peak, lat, ff=ff_gain) for a in f.actions)
+
 def test_step_windows_warning():
     """Sous 200 fenêtres [S35], les constats du pic disent « mesure moins sûre » ; pas les marges (boucle ouverte)."""
     f = _step_findings(1.26, 15, n=199)[0]
@@ -62,7 +74,7 @@ def test_step_peak_thresholds_with_feedforward():
     assert _titles(1.56, 9.9, ff=100) == [("Dépassement dû au feedforward en roll", ATTENTION)]
     assert _titles(1.41, 10.0, ff=100) == [("Léger dépassement en roll", CONSEIL)]
     f = _step_findings(1.41, 9.9, ff=100)[0]
-    assert "F = 100" in f.detail and "Stick response" in f.actions[0]
+    assert "F = 100" in f.detail and "série Feedforward" in f.actions[0]
 
 
 def test_stability_margin_rules():
@@ -70,14 +82,14 @@ def test_stability_margin_rules():
     assert ("Marge de stabilité faible en roll", CONSEIL) in _titles(1.0, 15, **edge)
     assert ("Marge de stabilité faible en roll", CONSEIL) not in _titles(1.0, 15, sensitivity_peak_db=7.0)
     f = [x for x in _step_findings(1.0, 15, sensitivity_peak_at_edge=True, **edge) if x.title.startswith("Marge")][0]
-    assert "au moins 7.1 dB" in f.detail and "Valeur approchée" in f.detail and f.actions[0] == "Master −0,1."
+    assert "au moins 7.1 dB" in f.detail and "Valeur approchée" in f.detail and f.actions[0] == "Master −0,1 à −0,2."
     assert "Mesure arrêtée à 20 Hz" in f.actions[-1] and "wobbles" in f.actions[-1]  # W-004
     assert not any("chirp" in a.lower() for a in f.actions)  # D-019
     f = [x for x in _step_findings(1.0, 15, method=MEASURED, d_ratio=1.5, **edge) if x.title.startswith("Marge")][0]
     assert "Valeur approchée" not in f.detail and "Le D domine déjà" in f.actions[0]
     assert not any(a.startswith("Mesure arrêtée") for a in f.actions)  # pic dans la bande
     f = [x for x in _step_findings(1.0, 15, method=MEASURED, **edge) if x.title.startswith("Marge")][0]
-    assert f.actions[0] == "Damping (D) +0,1, ou Master −0,1."
+    assert f.actions[0] == "Damping (D) +0,1, ou Master −0,1 à −0,2."
     f = [x for x in _step_findings(1.0, 15, profile="whoop", **edge) if x.title.startswith("Marge")][0]
     assert "Fréquent sur un whoop" in f.detail
     assert ("Marge de phase réduite en roll", CONSEIL) in _titles(1.0, 15, phase_margin_deg=34.9, crossover_hz=25.0)
