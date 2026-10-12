@@ -96,6 +96,9 @@ Règles d'écriture :
   `scripts/advisor_rates.py` pour son taux de déclenchement.
   **Piste** : calibrer sur le corpus, ou trouver une source (compétence `assistant-seuils`).
   [[assistant.md](assistant.md#origine-des-seuils), lignes « Estimation »]
+  **Avancement** : 2026-10-12, raie moteur « visible » calibrée sur le corpus (mesure là où il n'y a aucune
+  raie) et passée de 3 à 4 dB avec l'accord de Cédric (`rules.HARMONIC_VISIBLE_DB`, branche
+  feat/calibrate-harmonic-visible).
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.

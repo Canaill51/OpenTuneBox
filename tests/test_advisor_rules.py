@@ -99,17 +99,17 @@ def test_noise_report_classifies_every_title():
 
 
 def test_dyn_notch_q_need():
-    """Q du notch qui ramène la raie à 3 dB du bruit voisin sur sa demi-largeur (notch SVF, Q × 100)."""
+    """Q du notch qui ramène la raie à 4 dB du bruit voisin sur sa demi-largeur (notch SVF, Q × 100)."""
     import math
 
     from opentunebox.advisor.rules import _q_round, dyn_notch_q_need
 
-    # raie à 200 Hz, 20 Hz de large, 15 dB : atténuation de 12 dB à ±10 Hz
-    h = 10 ** (-12 / 20)
+    # raie à 200 Hz, 20 Hz de large, 15 dB : atténuation de 11 dB à ±10 Hz
+    h = 10 ** (-11 / 20)
     q = dyn_notch_q_need([200.0], [20.0], [15.0])
     assert q == pytest.approx(100 * 200 * h / (20 * math.sqrt(1 - h * h)))
     assert _q_round(q) == 250
-    assert dyn_notch_q_need([200.0], [20.0], [2.0]) == float("inf")  # déjà sous 3 dB : aucun besoin
+    assert dyn_notch_q_need([200.0], [20.0], [3.0]) == float("inf")  # déjà sous 4 dB : aucun besoin
     assert dyn_notch_q_need([200.0], [float("nan")], [15.0]) is None
     assert _q_round(40.0) == 100  # borne basse
 
@@ -176,7 +176,7 @@ def test_rule_constants_snapshot():
     assert (rules.STEP_PEAK_HIGH, rules.STEP_PEAK_HIGH_FF, rules.STEP_PEAK_FLAT) == ((1.15, 1.25), (1.4, 1.55), 1.03)
     assert (rules.DTERM_PTB_MAX_DB, rules.DTERM_PTB_IDEAL_DB, rules.GYRO_PTB_MAX_DB) == (-10.0, -20.0, -30.0)
     assert (rules.RPM_Q_STEP, rules.RPM_Q_MAX, rules.RPM_Q_MIN) == (100, 1000, 250)
-    assert (rules.RPM_WEIGHT_MARGIN_DB, rules.RPM_WEIGHT_GAIN_MIN, rules.HARMONIC_VISIBLE_DB) == (6.0, 0.5, 3.0)
+    assert (rules.RPM_WEIGHT_MARGIN_DB, rules.RPM_WEIGHT_GAIN_MIN, rules.HARMONIC_VISIBLE_DB) == (6.0, 0.5, 4.0)
     assert (rules.DYN_NOTCH_Q_RPM, rules.DYN_NOTCH_Q_STEP, rules.DYN_NOTCH_Q_LOW) == ((300, 450), 50, 100)
     assert (rules.DYN_NOTCH_MIN_HZ, rules.DYN_NOTCH_MIN_MAX_HZ, rules.DYN_NOTCH_MARGIN_HZ) == (20, 250, 20)
     assert (rules.LOG_RATE_MIN_HZ, rules.PID_LOG_RATE_MIN_HZ, rules.PID_LOG_RATE_FLOOR_HZ) == (1600.0, 1000.0, 500.0)
@@ -327,11 +327,11 @@ def test_rpm_weight_rules_and_version_gate(monkeypatch):
     assert f.actions[0].startswith("rpm_filter_weights = 100, 50, 50")
     assert "Filtre RPM plus fort que nécessaire" not in titles("4.4.3")
     assert "Filtre RPM plus fort que nécessaire" not in titles(lighten=False)
-    levels["left"] = np.array([0.0, 4.0, 0.0])
+    levels["left"] = np.array([0.0, 5.0, 0.0])
     assert "Poids du filtre RPM trop bas" in titles(weights="100,80,100")
     f = titles()["Raie moteur encore visible après le filtre RPM"]
     assert "rpm_filter_q 500 → 400" in f.actions[1]
-    levels["left"] = np.array([4.0, 0.0, 0.0])
+    levels["left"] = np.array([5.0, 0.0, 0.0])
     assert "Raie moteur encore visible après le filtre RPM" in titles(h1_flagged=False)
     assert "Raie moteur encore visible après le filtre RPM" not in titles(h1_flagged=True)  # déjà « Bruit moteur mal éliminé »
 

@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Une raie moteur n'est plus dite « visible » après filtrage qu'au-delà de 4 dB au-dessus du bruit voisin
+  (3 dB avant) : mesuré sur le corpus là où il n'y a aucune raie, 3 dB donnait 1,4 à 2,8 % de fausses alertes,
+  4 dB moins de 1 %. Moins de conseils sur le filtre RPM et les raies restantes (« Raie moteur encore visible
+  après le filtre RPM » 9 → 6 % des sessions), Q du notch dynamique calculé pour laisser 4 dB (W-003).
 - Le vol chirp de Betaflight n'est plus conseillé (guide utilisateur) : il faut le compiler à part dans le
   firmware, ses données changent encore d'une version à l'autre et aucune méthode publiée n'en tire un
   réglage. OpenTuneBox suit la méthode de Brian White : quand le pic de sensibilité tombe au bord des

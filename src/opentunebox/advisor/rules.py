@@ -51,12 +51,15 @@ GYRO_PTB_MAX_DB = -30.0
 # Filtre RPM (doc Betaflight 4.5, [S27]) : monter Q par pas jusqu'à 1000 au plus pour gagner du retard,
 # pas de 100 dans les deux sens (décision de Cédric, 2026-10-10) ;
 # poids (4.5 et plus) juste suffisant pour que la raie ne se voie plus, avec une marge de 6 dB, proposé
-# s'il fait gagner au moins 0,5 (8 % des sessions du corpus) ; raie « visible » à plus de 3 dB du bruit voisin
+# s'il fait gagner au moins 0,5 (8 % des sessions du corpus) ; raie « visible » à plus de 4 dB du bruit voisin
 RPM_Q_STEP, RPM_Q_MAX = 100, 1000
 RPM_Q_MIN = 250  # borne basse de rpm_filter_q dans le firmware (cli/settings.c)
 RPM_WEIGHT_MARGIN_DB = 6.0
 RPM_WEIGHT_GAIN_MIN = 0.5
-HARMONIC_VISIBLE_DB = 3.0
+# Calibration du 2026-10-12 (704 sessions) : la même mesure prise là où il n'y a aucune raie (0,45 et 0,6 ×
+# la fréquence moteur, gyro filtré, maximum du roll et du pitch) dépasse 3 dB dans 1,4 à 2,8 % des sessions,
+# 4 dB dans 0,3 à 0,9 % : 4 dB garde les fausses alertes sous 1 % (docs/assistant.md, « Filtre RPM : poids et Q »)
+HARMONIC_VISIBLE_DB = 4.0
 # Notch dynamique (notes de réglage Betaflight 4.3, [S19]) : plage qui englobe la résonance à 20 Hz près,
 # le moins de notchs possible, minimum « as high as practical (eg 200hz) », mais 80–125 Hz dans les presets
 # officiels des 7–10" ([S16]) ; relevé proposé dès 30 Hz
@@ -66,7 +69,7 @@ DYN_NOTCH_MIN_HZ, DYN_NOTCH_MIN_MAX_HZ = 20, 250  # bornes de dyn_notch_min_hz d
 DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_max_hz
 # Q du notch dynamique avec filtre RPM : 300–450 [S19] ; pas de 50 (décision de Cédric, 2026-10-10).
 # Q calculé d'après la forme des raies à suivre (notch SVF de Betaflight, `common/filter.c`, largeur à −3 dB
-# = fréquence / Q [S31], Q × 100) : le plus haut Q qui atténue chaque raie de sa hauteur moins 3 dB
+# = fréquence / Q [S31], Q × 100) : le plus haut Q qui atténue chaque raie de sa hauteur moins 4 dB
 # (HARMONIC_VISIBLE_DB) sur sa demi-largeur à mi-puissance ; le firmware vise le pic par interpolation
 # parabolique (`flight/dyn_notch_filter.c`). Arrondi à 50 vers le bas, 100 au moins (estimation : les
 # sources descendent à 120 sans filtre RPM [S19]) ; hausse jusqu'à 450 au plus [S19]
@@ -1130,8 +1133,8 @@ def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) ->
 
 
 def dyn_notch_q_need(peaks: list[float], widths: list[float], heights: list[float]) -> float | None:
-    """Plus haut Q du notch dynamique (× 100, comme Betaflight) qui ramène chaque raie à 3 dB au plus du bruit
-    voisin sur sa demi-largeur. Notch centré en f0, à l'écart d : |H| ≈ 2d / √((2d)² + (f0/Q)²), d'où
+    """Plus haut Q du notch dynamique (× 100, comme Betaflight) qui ramène chaque raie à HARMONIC_VISIBLE_DB au plus du
+    bruit voisin sur sa demi-largeur. Notch centré en f0, à l'écart d : |H| ≈ 2d / √((2d)² + (f0/Q)²), d'où
     Q = f0·h / (2d·√(1 − h²)) pour une atténuation h. None sans raie mesurable ; inf si aucune n'en a besoin."""
     qs = []
     for f0, w, ht in zip(peaks, widths, heights):
