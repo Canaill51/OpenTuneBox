@@ -105,9 +105,9 @@ Règles d'écriture :
   Notch statique : coupure calculée d'après la raie (même méthode que le Q du notch dynamique), repli 0,7.
   Vagues du Diagnostic du réglage : 2,5 gardé, mesuré à vide sur le corpus et par injection ; pas lues sous
   200 fenêtres (branche feat/calibrate-step-waves). « D dominant » au croisement : 1,0 gardé, mesuré sur
-  les séries Damping du corpus (branche feat/calibrate-d-dominant). Restent, dans l'ordre choisi avec
-  Cédric : taille par le nom, trames corrompues, taille pour l'objectif de retard, pas des curseurs,
-  petites marges.
+  les séries Damping du corpus (branche feat/calibrate-d-dominant). « Taille par le nom » mis de côté par
+  Cédric (2026-10-12), repris à sa demande. Restent, dans l'ordre choisi avec Cédric : trames corrompues,
+  taille pour l'objectif de retard, pas des curseurs, petites marges.
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.
