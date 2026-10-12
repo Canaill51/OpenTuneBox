@@ -113,6 +113,22 @@ def test_dyn_notch_targets_follow_rpm_weights():
     assert not near(dyn_notch_targets(x, mhz, FS, (100, 600), _rpm_settings()))
 
 
+def test_line_shapes_measure_rpm_leftovers():
+    """Forme d'une raie que le masque des harmoniques cache : fondamentale à poids RPM 0 (non traitée, suivie par
+    le notch dynamique) → largeur inconnue avec le masque seul, mesurée sur le spectre après filtre RPM."""
+    from opentunebox.analysis.motors import line_shapes
+
+    n = int(20 * FS)
+    t = np.arange(n) / FS
+    mhz = np.vstack([np.full(n, 250.0 * (1 + d)) for d in (-0.01, 0.0, 0.01)])
+    x = np.random.default_rng(2).normal(0, 1, n)
+    for m in mhz:
+        x += 2.0 * np.sin(2 * np.pi * m * t)
+    assert not np.isfinite(line_shapes(x, mhz, FS, [250.0], 3)[0][0])
+    w, h = line_shapes(x, mhz, FS, [250.0], 3, rpm_settings=_rpm_settings((0, 100, 100)))[0]
+    assert 0 < w < 30 and h > 10
+
+
 def test_stick_movement_criterion():
     from types import SimpleNamespace
 

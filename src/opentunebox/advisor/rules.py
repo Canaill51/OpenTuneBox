@@ -18,7 +18,7 @@ import numpy as np
 
 from ..analysis import bf_filters, spectral
 from ..analysis.delay import MOVING_SETPOINT_DPS, compute_delays
-from ..analysis.motors import (dyn_notch_targets, harmonic_prominence, hover_motor_hz, line_shapes, motor_noise,
+from ..analysis.motors import (dyn_notch_targets, harmonic_prominence, hover_motor_hz, line_heights, line_shapes, motor_noise,
                                rpm_weight_needed, spectrum_lines)
 from ..analysis.period import crash_time
 from ..analysis.sliders import slider_view
@@ -830,7 +830,7 @@ def _line_shape(log: FlightLog, sel: slice, f0: float) -> tuple[float, float]:
     if log.gyro_unfilt is None or log.motor_hz is None:
         return float("nan"), float("nan")
     sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, [f0], log.settings.rpm_harmonics,
-                      breaks=log.breaks(sel))[0] for a in range(2)]
+                      breaks=log.breaks(sel), rpm_settings=log.settings)[0] for a in range(2)]
     def worst(vals):
         return float(np.nanmax(vals)) if np.any(np.isfinite(vals)) else float("nan")
     return worst([x[0] for x in sh]), worst([x[1] for x in sh])
@@ -1000,20 +1000,25 @@ def _rpm_q_raise(log: FlightLog, sel: slice, s, F: list[Finding], hover: bool) -
 def _dyn_notch_q_n_rules(s, dn: dict, lines_pass: bool, gyro_noisy: bool, dterm_noisy: bool, F: list[Finding],
                          hover: bool) -> list[Finding]:
     """Q et nombre de notchs du notch dynamique (avec filtre RPM) d'après les raies à suivre (décision de
-    Cédric, 2026-10-10) : Q baissé si une raie est trop large ou trop haute pour le Q actuel, monté (450 au
+    Cédric, 2026-10-10) : Q baissé si une raie est trop large ou trop haute pour le Q actuel et qu'une raie à
+    suivre dépasse encore HARMONIC_VISIBLE_DB dans le gyro filtré (choix de Cédric, 2026-10-13 : sans ce
+    contrôle, la règle se trompait une fois sur deux, docs/assistant.md « Notch dynamique »), monté (450 au
     plus) si rien ne passe et que le bruit est faible ; un notch de plus par pic à suivre quand une raie passe
     ou que le gyro est bruité."""
     out = []
     q, need = s.dyn_notch_q, dn["q_need"]
     shapes = ", ".join(f"{f0:.0f} Hz ({w:.0f} Hz de large, {h:+.0f} dB)" for f0, w, h
                        in zip(dn["peaks"], dn["widths"], dn["heights"]) if np.isfinite(w) and np.isfinite(h))
-    if need is not None and np.isfinite(need) and _q_round(need) < q:
+    passing = [(f0, h) for f0, h in zip(dn["peaks"], dn.get("left", [])) if h > HARMONIC_VISIBLE_DB]
+    if need is not None and np.isfinite(need) and _q_round(need) < q and passing:
         new = _q_round(need)
+        seen = ", ".join(f"{f0:.0f} Hz ({h:+.0f} dB)" for f0, h in passing)
         out.append(Finding("Filtres", CONSEIL, "Notch dynamique : Q trop haut pour les raies à suivre",
                            f"Raies à suivre après le filtre RPM (largeur à mi-puissance, hauteur au-dessus du bruit "
-                           f"voisin) : {shapes}. Avec dyn_notch_q {q}, le notch est trop étroit pour ramener la plus "
-                           f"exigeante à {HARMONIC_VISIBLE_DB:.0f} dB du bruit voisin sur toute sa largeur ; il faut "
-                           f"un Q de {new} au plus (calculé d'après la forme du notch de Betaflight).",
+                           f"voisin) : {shapes}. Encore visible dans le gyro filtré : {seen}. Avec dyn_notch_q {q}, le "
+                           f"notch est trop étroit pour ramener la plus exigeante à {HARMONIC_VISIBLE_DB:.0f} dB du "
+                           f"bruit voisin sur toute sa largeur ; il faut un Q de {new} au plus (calculé d'après la "
+                           "forme du notch de Betaflight).",
                            [f"dyn_notch_q {q} → {new} (notchs plus larges, un peu plus de retard)."]))
     elif not (lines_pass or gyro_noisy or dterm_noisy) and q < DYN_NOTCH_Q_RPM[1]:
         if need is None:  # aucune raie mesurable : pas de calcul, petit pas
@@ -1193,13 +1198,16 @@ def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) ->
     peaks = sorted(peaks)
     # forme de chaque raie : la plus large et la plus haute du roll et du pitch (côté prudent)
     sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, peaks, s.rpm_harmonics,
-                      breaks=log.breaks(sel)) for a in range(2)]
+                      breaks=log.breaks(sel), rpm_settings=s) for a in range(2)]
     def worst(vals):
         return float(np.nanmax(vals)) if np.any(np.isfinite(vals)) else float("nan")
     widths = [worst([x[i][0] for x in sh]) for i in range(len(peaks))]
     heights = [worst([x[i][1] for x in sh]) for i in range(len(peaks))]
+    # hauteur de chaque raie dans le gyro filtré (après tous les filtres, notch dynamique compris)
+    left = [worst(v) for v in zip(*(line_heights(log.gyro[a, sel], log.fs, peaks, breaks=log.breaks(sel))
+                                    for a in range(2)))] if peaks else []
     return {"count": s.dyn_notch_count, "min_hz": s.dyn_notch_min_hz, "max_hz": s.dyn_notch_max_hz,
-            "peaks": peaks, "widths": widths, "heights": heights,
+            "peaks": peaks, "widths": widths, "heights": heights, "left": left,
             "q_need": dyn_notch_q_need(peaks, widths, heights)}
 
 

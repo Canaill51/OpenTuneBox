@@ -60,7 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
-| W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | ouvert |
+| W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | clos |
 | W-011 | LPF1 et notch statique absents du modèle du notch dynamique | sans suite |
 | W-010 | Analyses recollées de part et d'autre des trous du log | clos |
 | W-009 | Extrait de vrai log Blackbox versionné pour la CI | clos |
@@ -236,9 +236,12 @@ Règles d'écriture :
   0,82) ; le modèle retenu (D-022) fait mieux sans eux.
   [`analysis/motors.py:dyn_notch_targets`, [assistant.md](assistant.md#notch-dynamique-2026-10-05)]
 
-- **W-012** — La recherche des raies hors moteurs (`motors.spectrum_lines`) et la forme des pics du notch
+- ~~**W-012** — La recherche des raies hors moteurs (`motors.spectrum_lines`) et la forme des pics du notch
   dynamique (`motors.line_shapes`, pour le Q conseillé) retirent encore les bandes des harmoniques ± 5 %
-  (`motors._masked_spectrum`), alors que D-022 montre que le filtre RPM en laisse passer une partie (L-028).
+  (`motors._masked_spectrum`), alors que D-022 montre que le filtre RPM en laisse passer une partie (L-028).~~
+  ✅ **CLOS (2026-10-13)** — D-023 : forme des pics mesurée sur le spectre après filtre RPM quand le masque la
+  rend inconnue, « Q trop haut » seulement si une raie passe encore les filtres ; marge de 5 % de la fréquence
+  moteur pour toutes les harmoniques, mesurée sur 119 vols stationnaires. Branche feat/calibrate-line-margins.
   **Pourquoi reporté** : autre usage que les pics du notch dynamique ; sa marge n'a pas été mesurée.
   **Risque si on n'y touche pas** : un pic résiduel près d'une harmonique a une largeur inconnue (NaN) et
   n'entre pas dans le Q calculé ; une raie hors moteurs à moins de 5 % d'une harmonique n'est pas listée.

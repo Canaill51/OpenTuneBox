@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-023 | « Q trop haut » seulement si une raie passe ; marge de 5 % de la fréquence moteur autour des harmoniques | 2026-10-13 |
 | D-022 | Notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé | 2026-10-13 |
 | D-021 | Pas des curseurs conseillés, choisis par Cédric | 2026-10-12 |
 | D-020 | Aucune fenêtre d'analyse ne chevauche un trou du log | 2026-10-12 |
@@ -96,6 +97,29 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-12 — Trous d'enregistrement
+
+### D-023 : « Q trop haut » seulement si une raie passe ; marge de 5 % de la fréquence moteur autour des harmoniques
+
+**Contexte.** W-012 : la forme des pics du notch dynamique (Q conseillé, coupure du notch statique) et les raies
+hors moteurs du vol stationnaire retiraient encore les harmoniques ± 5 % de l'harmonique (estimation). Mesures
+sur le corpus dans [assistant.md](assistant.md#notch-dynamique-2026-10-05) et « Stratégie de filtrage et vol
+stationnaire ». Choix de Cédric (2026-10-13 : C1 et D1).
+
+**Décision.**
+- Forme des pics : mesure actuelle (harmoniques retirées) quand elle existe ; sinon, spectre après filtre RPM
+  (`motors.line_shapes`, `rpm_settings`).
+- « Notch dynamique : Q trop haut pour les raies à suivre » seulement si une raie à suivre dépasse encore
+  `HARMONIC_VISIBLE_DB` dans le gyro filtré enregistré (`dyn_notch_view` : `left`). Amende la règle du
+  2026-10-10 (Q calculé d'après la forme des raies), qui reste.
+- Harmoniques retirées ± 5 % de la fréquence moteur, pour toutes (`motors.MOTOR_LINE_MARGIN`).
+
+**Options écartées.** Spectre après filtre RPM pour tous les pics (hauteur +1,7 dB en médiane loin des
+moteurs : Q trop bas) ; mesure hybride sans contrôle (« Q trop haut » 19 → 54 sessions, une raie ne passait
+que dans 6 des 35 ajoutées) ; garder 5 % de l'harmonique (cache des raies 5 à 15 % autour des harmoniques 2
+et 3, sans flanc mesuré).
+
+**Témoins.** `tests/test_analysis.py:test_line_shapes_measure_rpm_leftovers`,
+`tests/test_advisor_rules.py:test_dyn_notch_q_too_high_needs_a_passing_line`.
 
 ### D-022 : notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé
 

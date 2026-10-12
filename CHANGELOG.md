@@ -6,6 +6,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Notch dynamique : « Q trop haut pour les raies à suivre » ne s'affiche plus que si une raie à suivre se voit
+  encore dans le gyro filtré ; avant, il se trompait une fois sur deux. Les restes d'harmoniques laissés par
+  le filtre RPM entrent maintenant dans le Q calculé (106 vols du corpus de plus en ont un).
+- Vol stationnaire : les raies hors moteurs proches des harmoniques 2 et 3 ne sont plus cachées (marge de 5 %
+  de la fréquence moteur, au lieu de 10 et 15 %), mesurée sur 119 vols stationnaires (D-023, W-012).
 - Notch dynamique (Assistant, étape « notch dynamique ») : les pics à suivre sont prévus d'après la réponse
   réelle du filtre RPM (Q, poids de chaque harmonique), au lieu de retirer les harmoniques ± 5 %. Comparé aux
   fréquences que Betaflight suit vraiment (debug FFT_FREQ, 598 vols), le modèle en retrouve 69 % au lieu de
