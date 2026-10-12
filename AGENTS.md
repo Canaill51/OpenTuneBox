@@ -55,7 +55,8 @@ src/opentunebox/
               state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
 tests/        pytest ; conftest.py (Qt hors écran, réglages isolés, fixtures `app`, `synthetic_log`, `synthetic_state`),
-              synthetic.py (`make_flightlog`, `make_session` : vol et session fabriqués, sans corpus) ;
+              synthetic.py (`make_flightlog`, `make_session` : vol et session fabriqués, sans corpus),
+              bbl_factory.py (fichiers Blackbox binaires fabriqués : en-tête, trames I/P/S/E) ;
               les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
               test_docs.py vérifie la documentation
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),

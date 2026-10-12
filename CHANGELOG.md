@@ -6,6 +6,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- Tests du décodeur sur des fichiers Blackbox fabriqués (`tests/bbl_factory.py`) : `P interval` (N et a/b),
+  trames corrompues et resynchronisation, trame trop longue, saut d'itération refusé, `LOGGING_RESUME`,
+  événements, trames S, sessions multiples, prédicteurs (dont la troncature vers zéro de `AVERAGE_2`).
 - Tests sans corpus : logs synthétiques (`tests/synthetic.py`) et fixtures communes (`tests/conftest.py`,
   réglages de l'application isolés pendant les tests) ; chaque page d'outil et la fenêtre principale sont
   exercées en intégration continue ; les tests des fonctions pures de l'assistant ne dépendent plus des
