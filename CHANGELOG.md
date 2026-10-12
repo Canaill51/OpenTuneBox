@@ -17,6 +17,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   mêmes filtres). Bouton « Copier les commandes CLI » pour le log affiché.
 
 ### Modifié
+- Réponse indicielle, Diagnostic du réglage : un vol de série avec moins de 200 fenêtres en roll ou en pitch
+  est signalé « mesure moins sûre » (consigne de Brian White) ; sous 20, il n'est toujours pas lu.
 - Spectre, Fréq. × gaz, Fréq. × temps et Filtres : les niveaux en dB sont affichés sur l'échelle de
   PIDtoolbox (6,5 dB plus bas qu'avant), pour lire directement les repères habituels (gyro sous −30 dB,
   terme D sous −10 dB) et comparer aux captures de PIDtoolbox.

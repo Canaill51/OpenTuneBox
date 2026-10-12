@@ -21,7 +21,8 @@ from .rules import ATTENTION, CONSEIL, INFO, OK, Finding
 SERIES_STEP = 0.2  # pas conseillé entre deux vols [S32]
 STEP_TOO_FINE = 0.15  # pas plus fin : écarts trop faibles pour se lire sur la réponse [S32]
 I_SLIDER_RANGE = (0.15, 0.35)  # curseur I conseillé 0,2–0,3 [S32], à 0,05 près
-MIN_WINDOWS = 20  # fenêtres exploitables par axe (comme rules.py)
+MIN_WINDOWS = 20  # fenêtres exploitables par axe (comme rules.py) : en dessous, le vol n'est pas lu
+SURE_WINDOWS = 200  # en dessous, mesure moins sûre (avertissement) : consigne de Brian White [S35]
 # équilibre P/D : séries Damping du corpus (8 drones dont le choix final est connu)
 PEAK_FLAT_MAX = 1.05  # pic « sans dépassement » (repère 1,03 de rules.STEP_PEAK_FLAT, plus le bruit d'un vol)
 PEAK_PLATEAU = 0.02  # le cran suivant ne baisse plus le pic que de moins de 0,02 : D suffisant
@@ -107,6 +108,14 @@ def _conditions(flights: list[FlightStep]) -> list[Finding]:
         out.append(Finding("Réglage", ATTENTION, "Pas assez de mouvements",
                            f"{', '.join(few)} : moins de {MIN_WINDOWS} fenêtres exploitables en roll et en pitch.",
                            ["Volez 20 à 30 s avec des flips et rolls francs sur chaque axe."]))
+    thin = [f"{f.label} (N = {min(f.n[:2])})" for f in flights
+            if _axes(f) and len(f.n) >= 2 and min(f.n[:2]) < SURE_WINDOWS]
+    if thin:
+        out.append(Finding("Réglage", CONSEIL, "Mesure moins sûre",
+                           f"{', '.join(thin)} : moins de {SURE_WINDOWS} fenêtres en roll ou en pitch. La réponse "
+                           "moyenne bouge encore d'un vol à l'autre ; le choix peut se jouer à un cran près.",
+                           ["Wobbles roll et pitch mêlés, au moins 20 s (environ 12 fenêtres par seconde de "
+                            "mouvement)."]))
     return out
 
 

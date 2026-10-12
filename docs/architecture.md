@@ -36,8 +36,11 @@ fichier .bbl/.bfl
                  │                        par partie : conditions, gyro, terme D, stratégie ; niveaux avant/après)
                  ├─ advisor/step_tuning.py  diagnostic du réglage de la Réponse indicielle (séries de vols :
                  │                        équilibre P/D, Master, roll / pitch ; analysis/step_series.py)
-                 ├─ advisor/log_check.py  vérification rapide des logs ouverts (à quoi sert chaque log, quoi
-                 │                        corriger : configurateur d'abord, CLI en repli) pour le guide intégré
+                 ├─ advisor/log_check.py  vérification des logs ouverts pour le guide intégré : parties du vol
+                 │                        (analysis/period.py:flight_parts), protocole des mouvements, usages,
+                 │                        corrections (configurateur d'abord, CLI en repli), repères des filtres
+                 ├─ advisor/drone_card.py fiche drone (version, taille, boucle PID, ESC) et valeurs qui en découlent
+                 ├─ advisor/tuning_path.py parcours du guide : 4 phases de cases, état automatique d'après les logs
                  ├─ cli.py                opentunebox info / report
                  └─ gui/tools/*           une page par outil (calcul en arrière-plan, affichage pyqtgraph)
 ```

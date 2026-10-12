@@ -335,3 +335,21 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   cassure (« ripple ») dans la montée, vagues et plateau de la latence comme signes de gains trop hauts.
   Exemple : capture PIDtoolbox de l'Air65 de Cédric (`Cedric/Air65/MM.bbl`, Master 1,0 puis 1,2 ; cassure
   roll visible à 1,2, Master 1,0 gardé).
+- [S33] Brian White, [*Optimize Angle Mode For Wobble Test*](https://www.youtube.com/watch?v=AUTkbv8wYdk),
+  2024-08-08 (Betaflight 4.5) : rates ACTUAL linéaires pour le wobble, « `set angle_limit = 30` »
+  ([4:00](https://www.youtube.com/watch?v=AUTkbv8wYdk&t=240s)), 20° pour un gros drone ou un pilote peu sûr
+  ([7:30](https://www.youtube.com/watch?v=AUTkbv8wYdk&t=450s)) ; 40–45° seulement pour retrouver la sensation
+  de l'angle mode d'avant 4.5.
+- [S34] Brian White, [*Betaflight 4.5 Tuning Workflow using PIDtoolbox*](https://www.youtube.com/watch?v=4lZ8BY_9KBs),
+  2024-04-13 : tests PID en mode Angle, Dynamic Damping à 0, I bas, feedforward inactif en Angle (qui a son
+  propre feedforward) ; feedforward 0,5–1,0 pour les porteurs. Avec [S25] (Damping de départ 0,6 sur un
+  5", Master 1,0, Dynamic Damping à 0 « pour que le D ne soit pas une cible mobile ») : séries Damping 0,6 →
+  1,6 (1,0 → 1,6 pour un 7–8"), Master 1,0 → 2,0 par pas de 0,2 (synthèse des vidéos, dépôt
+  PTB-Videos-Analyse).
+- [S35] Brian White, consigne transmise par Cédric le 2026-10-12 : au moins 20 s de wobbles roll et pitch
+  mêlés, et N ≥ 200 fenêtres par axe pour une réponse indicielle représentative.
+- [S36] Brian White, [*PTB Q&A #22 : PID fundamentals 2*](https://www.youtube.com/watch?v=Ylb8mYi91DI)
+  (2025-05-11) : Drift-Wobble (I) entre 0,5 et 1,0, 1,0 pour 5" et moins, plus bas pour les gros drones
+  (porteurs ~0,5–0,6, qu'il trouve désormais un peu justes) ; à régler après le Master. [*Tuning Feed
+  Forward*](https://www.youtube.com/watch?v=8z_glqhw4pE) (2022-01-17) : feedforward essayé à 0,5, 1,0, 2,0 ;
+  trop haut, le gyro dépasse la consigne et la croise sans cesse.

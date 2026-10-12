@@ -32,6 +32,44 @@ def auto_period(log: FlightLog, takeoff_throttle: float = 8.0, margin_s: float =
     return float(t0), float(t1)
 
 
+MIN_PART_S = 5.0  # partie stationnaire ou avec mouvements retenue : au moins 5 s
+
+
+def flight_parts(log: FlightLog, t0: float, t1: float, block_s: float = 1.0,
+                 moving_dps: float = 50.0) -> dict[str, tuple[float, float] | None]:
+    """Découpe un vol « stationnaire puis mouvements » (vol des filtres du guide) : la plus longue partie
+    stationnaire et la plus longue partie avec mouvements entre t0 et t1, chacune d'au moins `MIN_PART_S`.
+
+    Blocs de `block_s` ; un bloc est « en mouvement » si le 95e centile de |consigne| roll / pitch y atteint
+    `moving_dps` (même critère que `delay.MOVING_SETPOINT_DPS` sur toute une période), puis lissage par
+    majorité sur 3 blocs (un coup de manche isolé ne coupe pas le stationnaire)."""
+    sel = log.slice_time(t0, t1)
+    i0 = sel.start or 0
+    sp = np.max(np.abs(log.setpoint[:2, sel]), axis=0)
+    L = max(1, int(round(block_s * log.fs)))
+    nb = sp.size // L
+    out: dict[str, tuple[float, float] | None] = {"hover": None, "moving": None}
+    if nb < 3:
+        return out
+    moving = np.percentile(sp[: nb * L].reshape(nb, L), 95, axis=1) >= moving_dps
+    pad = np.concatenate([moving[:1], moving, moving[-1:]]).astype(int)
+    moving = (pad[:-2] + pad[1:-1] + pad[2:]) >= 2
+    for key, flag in (("hover", False), ("moving", True)):
+        best, start = (0, 0), None
+        for k in range(nb + 1):
+            inside = k < nb and moving[k] == flag
+            if inside and start is None:
+                start = k
+            elif not inside and start is not None:
+                if k - start > best[1] - best[0]:
+                    best = (start, k)
+                start = None
+        a, b = best
+        if (b - a) * block_s >= MIN_PART_S:
+            out[key] = (float(log.t[i0 + a * L]), float(log.t[min(i0 + b * L, log.n) - 1]))
+    return out
+
+
 def crash_time(log: FlightLog, err_dps: float = 300.0, min_ms: float = 60.0) -> float | None:
     """Instant du premier crash détecté, ou None."""
     err = np.max(np.abs(log.pid_error), axis=0)

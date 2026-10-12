@@ -31,7 +31,8 @@ src/opentunebox/
               stabilité), delay, bf_filters, sliders, motors, stats, period, datasets (jeux de données analysables)
   advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py),
               diagnostic du réglage de la Réponse indicielle (step_tuning.py),
-              vérification rapide des logs pour le guide intégré (log_check.py)
+              guide intégré : vérification des logs (log_check.py), fiche drone (drone_card.py), parcours
+              à cocher (tuning_path.py)
   gui/        app.py, main_window.py (visualiseur), guide.py (guide intégré, textes dans assets/guide/),
               state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
