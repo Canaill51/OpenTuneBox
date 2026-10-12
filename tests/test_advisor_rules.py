@@ -186,7 +186,7 @@ def test_rule_constants_snapshot():
     """Seuils communs des règles et du diagnostic des séries (docs/assistant.md, « Origine des seuils »)."""
     from opentunebox.advisor import log_check, rules, step_tuning
 
-    assert (rules.SENSITIVITY_HIGH_DB, rules.PHASE_MARGIN_LOW_DEG) == (7.0, 35.0)
+    assert (rules.SENSITIVITY_HIGH_DB, rules.PHASE_MARGIN_LOW_DEG, rules.D_DOMINANT_RATIO) == (7.0, 35.0, 1.0)
     assert (rules.STEP_PEAK_HIGH, rules.STEP_PEAK_HIGH_FF, rules.STEP_PEAK_FLAT) == ((1.15, 1.25), (1.4, 1.55), 1.03)
     assert (rules.STEP_PEAK_SOFT, rules.STEP_MIN_WINDOWS, rules.STEP_SURE_WINDOWS) == (1.01, 20, 200)
     assert (rules.DTERM_PTB_MAX_DB, rules.DTERM_PTB_IDEAL_DB, rules.GYRO_PTB_MAX_DB) == (-10.0, -20.0, -30.0)
