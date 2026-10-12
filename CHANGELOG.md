@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Filtre RPM : les poids conseillés (« Filtre RPM plus fort que nécessaire ») visent la raie 3 dB sous le
+  bruit voisin au lieu de 6 dB, d'après 1 186 harmoniques dont les pilotes du corpus ont déjà baissé le
+  poids : elles restent invisibles après filtres jusqu'à 0 dB. Poids proposés plus bas, conseil plus
+  fréquent (6 → 18 % des vols) ; chaque baisse de 0,5 retire environ 0,1 à 0,2 ms de retard (W-003).
 - Notch dynamique : « Q trop haut pour les raies à suivre » ne s'affiche plus que si une raie à suivre se voit
   encore dans le gyro filtré ; avant, il se trompait une fois sur deux. Les restes d'harmoniques laissés par
   le filtre RPM entrent maintenant dans le Q calculé (106 vols du corpus de plus en ont un).

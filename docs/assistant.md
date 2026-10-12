@@ -184,6 +184,16 @@ retranche poids × passe-bande : au centre du notch il reste (1 − poids) de la
   gain ≥ 0,3 → 26 % ; marge 3 dB, gain ≥ 0,3 → 45 %. Monter Q comme constat à part (aucune raie visible
   après filtres) : 49 à 66 % des sessions, donc seulement en action du conseil sur le retard. Raie encore
   visible avec un poids < 100 : 3 % des sessions.
+- **Marge et gain minimal** (2026-10-13, W-003, 709 sessions ; choix de Cédric) : expérience naturelle sur les
+  1 186 harmoniques (2e et 3e, roll et pitch) dont le pilote a baissé le poids. Niveau prévu à la sortie du
+  filtre RPM = hauteur avant filtres + 20·log10(1 − poids) ; part encore visible après tous les filtres
+  (> 4 dB) : sous −6 dB 0 à 0,7 %, de −6 à −3 dB 0,7 %, de −3 à 0 dB 0,5 %, de 0 à +3 dB 1,0 %, de +3 à
+  +6 dB 4,4 %, de +6 à +9 dB 18,5 % (poids 100 : 2 %). Marge passée de 6 à 3 dB (la raie visée 3 dB sous le
+  bruit voisin à la sortie du filtre RPM) : coussin pour les écarts d'un vol à l'autre, que cette mesure sur
+  un vol ne voit pas. Retard gagné (modèle des filtres du firmware, 4 moteurs, Q et fréquences du corpus) :
+  environ 0,33 ms par point de poids sur la 2e harmonique, 0,22 ms sur la 3e ; le gain minimal de 0,5
+  (0,17 et 0,11 ms) est gardé. Taux estimés sur les vols en 4.5 ou plus : 9 % (6 dB), 24 % (3 dB), 42 %
+  (0 dB). Effet réel (`advisor_rates.py`, 705 sessions) : « Filtre RPM plus fort que nécessaire » 43 → 128.
 - **Raie « visible »** (`rules.HARMONIC_VISIBLE_DB`, calibration du 2026-10-12, 704 sessions) : même mesure
   prise là où il n'y a aucune raie, à 0,45 et 0,6 × la fréquence moteur (gyro filtré, maximum du roll et
   du pitch). Médiane −0,2 dB, 99e percentile 3,4 à 4,0 dB ; elle dépasse 3 dB dans 1,4 à 2,8 % des
@@ -635,8 +645,8 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Retards des filtres gyro et D | p90 de la taille (vols avec mouvements), arrondi vers le haut | Corpus | Déclenche le conseil. Objectif affiché : graphique de Brian White [S26], 1 ms à 2" puis 0,25 ms (gyro) et 0,17 ms (D) par pouce (5" : 1,75 / 1,5 ms) ; dans la vidéo [S20] il citait de mémoire 1,5 ms pour un 5" et ≈ 5 ms pour un 10". Objectif D en valeurs PIDtoolbox, environ 0,5 ms sous notre mesure |
 | Taille pour l'objectif de retard | 2–3,5" → 3" ; 8"+ → 8" | Corpus | Médiane des drones de taille connue rangés dans le profil (étiquettes de `corpus.csv` et noms, 2026-10-12). 2–3,5" : 9 drones, 2" (Pavo20), 2,5" (Whisper25 ×2, FoxWhoop 25, Gerrykiki « Test Hélices 2.5 »), 3" (04Pro3, T3, Seeker 3), 3,5" (JeNo 3,5 ×2) → 3" ; un 5" mal classé écarté. 8"+ : 8" (demonsgalore, Mario8), 9" (Pulsar) → 8". Peu de drones : à revoir avec W-002. Le graphique [S26] commence à 2" : pas d'objectif pour les whoops |
 | `rpm_filter_q` pour gagner du retard | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | « stepwise increasing the Q from the default of 500 up to a max of 1000 » [S27] ; Brian White : 750 [S20, 34:12]. Pas de 100 : décision de Cédric (2026-10-10), à la place de 250. Proposé seulement dans le conseil « filtrage gyro trop prudent » (bruit faible) |
-| Poids RPM juste suffisant | 1 − 10^(−(hauteur + 6 dB)/20), arrondi au dixième supérieur | Firmware + estimation (marge) | Profondeur du notch tirée du code (`rpmNotchUpdate`) ; marge de 6 dB choisie pour un taux de 6 % (voir « Filtre RPM : poids et Q ») ; seulement 2e et 3e harmoniques, comme [S27] ; presets officiels en tripale : 100, 0, 80 (AOS), 100, 20, 100 (Karatebrot), 90, 30, 90 (SupaflyFPV) [S28] |
-| Gain minimal pour proposer un poids | 0,5 | Estimation | Choisi avec Cédric sur le taux de déclenchement |
+| Poids RPM juste suffisant | 1 − 10^(−(hauteur + 3 dB)/20), arrondi au dixième supérieur | Firmware + corpus (marge) | Profondeur du notch tirée du code (`rpmNotchUpdate`) ; marge de 3 dB (2026-10-13, choix de Cédric) : raies invisibles après filtres dans plus de 99 % des cas jusqu'à 0 dB prévu, sur 1 186 harmoniques à poids réduit (voir « Filtre RPM : poids et Q ») ; avant : 6 dB, estimation ; seulement 2e et 3e harmoniques, comme [S27] ; presets officiels en tripale : 100, 0, 80 (AOS), 100, 20, 100 (Karatebrot), 90, 30, 90 (SupaflyFPV) [S28] |
+| Gain minimal pour proposer un poids | 0,5 | Firmware (retard calculé) | Baisse de 0,5 = environ 0,17 ms de retard en moins sur la 2e harmonique, 0,11 ms sur la 3e (4 moteurs, modèle des filtres du firmware, 2026-10-13) : l'unité d'arrondi des repères de retard (0,1 ms) ; choisi d'abord avec Cédric sur le taux de déclenchement |
 | Marge autour des harmoniques retirées | ± 5 % de la fréquence moteur, harmoniques 1 à 8 | Corpus | Raies du vol stationnaire comparées au hasard (« Stratégie de filtrage et vol stationnaire », 2026-10-13) : flancs jusqu'à 3 % (fondamentale), 1 % (2e), aucun (3e) ; avant : 5 % de l'harmonique pour les trois premières (estimation) |
 | Raie moteur « visible » | > 4 dB au-dessus du bruit voisin | Corpus | Même mesure là où il n'y a aucune raie (0,45 et 0,6 × la fréquence moteur) : au-dessus de 4 dB dans moins de 1 % des sessions (3 dB : 1,4 à 2,8 %), voir « Filtre RPM : poids et Q » (2026-10-12). Repris tel quel pour les raies hors moteurs après filtrage, sans calibration propre |
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
