@@ -119,3 +119,171 @@ def test_parse_header_gps_predictors_shorter_than_names():
     data = (b"H Field G name:GPS_home[0],GPS_home[1],GPS_numSat\n"
             b"H Field G predictor:%d,%d,0\n" % (PRED_HOME_COORD, PRED_HOME_COORD) + b"I")
     assert parse_header(data, 0, len(data)).frames["G"].predictor == [PRED_HOME_COORD, PRED_HOME_COORD_1, 0]
+
+
+# ---------------------------------------------------------------- encodages groupés (aller-retour avec la fabrique)
+
+
+@pytest.mark.parametrize("values, size", [
+    ([1, -2, 0], 1),  # 2/2/2 bits
+    ([-16, 15, -8], 2),  # 5/5/4 bits
+    ([-128, 63, -64], 3),  # 8/7/7 bits
+    ([200, -300, 70000], 1 + 2 + 2 + 3),  # largeurs par valeur : 16, 16, 24 bits
+    ([2**31 - 1, -(2**31), 0], 1 + 4 + 4 + 1),
+])
+def test_tag2_3svariable_roundtrip(values, size):
+    from bbl_factory import enc_tag2_3svariable
+
+    data = enc_tag2_3svariable(values)
+    assert len(data) == size
+    buf, st = stream(data)
+    out = np.zeros(8, dtype=np.int64)
+    core._read_tag2_3svariable(buf, st, out)
+    assert out[:3].tolist() == values and st[core.ST_POS] == size
+
+
+@pytest.mark.parametrize("values", [[1, -2, 0], [7, -8, 3], [-32, 31, 0], [100, -1000, 70000], [2**31 - 1, -(2**31), 1]])
+def test_tag2_3s32_roundtrip(values):
+    from bbl_factory import enc_tag2_3s32
+
+    buf, st = stream(enc_tag2_3s32(values))
+    out = np.zeros(8, dtype=np.int64)
+    core._read_tag2_3s32(buf, st, out)
+    assert out[:3].tolist() == values
+
+
+def test_tag8_4s16_v2_roundtrip_random():
+    """Quartets décalés après un champ de 4 bits : 200 quadruplets au hasard, toutes largeurs mélangées."""
+    from bbl_factory import enc_tag8_4s16_v2
+
+    rng = np.random.default_rng(3)
+    out = np.zeros(8, dtype=np.int64)
+    for _ in range(200):
+        bits = rng.integers(0, 4, 4)
+        values = [0 if b == 0 else int(rng.integers(-(1 << (w - 1)), 1 << (w - 1))) for b, w in zip(bits, (1, 4, 8, 16))]
+        data = enc_tag8_4s16_v2(values)
+        buf, st = stream(data)
+        core._read_tag8_4s16_v2(buf, st, out)
+        assert out[:4].tolist() == values, values
+        assert st[core.ST_POS] == len(data)
+
+
+def test_tag8_4s16_v1_pairs_nibbles_and_widths():
+    from bbl_factory import enc_tag8_4s16_v1
+
+    out = np.zeros(8, dtype=np.int64)
+    for values in ([3, -4, 100, -2000], [0, -100, 7, 2], [1000, 0, 0, -1], [0, 0, 0, 0]):
+        data = enc_tag8_4s16_v1(values)
+        buf, st = stream(data)
+        core._read_tag8_4s16_v1(buf, st, out)
+        assert out[:4].tolist() == values, values
+        assert st[core.ST_POS] == len(data)
+
+
+def test_tag8_8svb_single_value_is_plain_svb():
+    from bbl_factory import enc_tag8_8svb
+
+    buf, st = stream(enc_tag8_8svb([-77]))
+    out = np.zeros(8, dtype=np.int64)
+    core._read_tag8_8svb(buf, st, out, 1)
+    assert out[0] == -77 and st[core.ST_POS] == 2
+
+
+def _frame(pred, enc, data: bytes, n=None, data_version=2):
+    """Décode une trame I (sans historique) de `n` champs avec `_parse_frame` ; renvoie les valeurs et la position."""
+    n = n or len(pred)
+    buf, st = stream(data)
+    cur = np.zeros(n, dtype=np.int64)
+    ctx = np.zeros(core.CTX_SIZE, dtype=np.int64)
+    ctx[core.CTX_DATA_VERSION] = data_version
+    values = np.zeros(8, dtype=np.int64)
+    core._parse_frame(buf, st, np.array(pred, dtype=np.int64), np.array(enc, dtype=np.int64), n, cur, cur.copy(),
+                      cur.copy(), False, 0, ctx, np.zeros(2, dtype=np.int64), values)
+    return cur.tolist(), int(st[core.ST_POS])
+
+
+def test_parse_frame_mixed_encodings():
+    """Une trame qui mêle tous les encodages : chaque groupe consomme ses champs, les prédicteurs s'appliquent."""
+    from bbl_factory import enc_neg_14bit, enc_tag2_3svariable, enc_tag8_4s16_v2, enc_tag8_8svb
+    from opentunebox.decoder.header import (ENC_NEG_14BIT, ENC_SIGNED_VB, ENC_TAG2_3SVARIABLE, ENC_TAG8_4S16,
+                                            ENC_TAG8_8SVB, ENC_UNSIGNED_VB, PRED_1500, PRED_ZERO)
+
+    pred = [PRED_ZERO] * 12 + [PRED_1500] * 3
+    enc = ([ENC_UNSIGNED_VB, ENC_SIGNED_VB] + [ENC_TAG2_3SVARIABLE] * 3 + [ENC_TAG8_4S16] * 4
+           + [ENC_TAG8_8SVB] * 3 + [ENC_NEG_14BIT] + [ENC_SIGNED_VB] * 2)
+    data = (enc_uvb(300) + enc_svb(-5) + enc_tag2_3svariable([10, -20, 7]) + enc_tag8_4s16_v2([0, 3, -100, 2000])
+            + enc_tag8_8svb([0, -1, 6]) + enc_neg_14bit(-1234) + enc_svb(-9) + enc_svb(4))
+    got, pos = _frame(pred, enc, data)
+    assert got == [300, -5, 10, -20, 7, 0, 3, -100, 2000, 0, -1, 6, 1500 - 1234, 1500 - 9, 1500 + 4]
+    assert pos == len(data)
+
+
+def test_parse_frame_group_longer_than_definition_is_truncated():
+    """Un groupe TAG8_4S16 qui dépasse le nombre de champs (en-tête bancal) ne déborde pas du tableau."""
+    from bbl_factory import enc_tag8_4s16_v2
+    from opentunebox.decoder.header import ENC_TAG8_4S16, PRED_ZERO
+
+    got, pos = _frame([PRED_ZERO] * 2, [ENC_TAG8_4S16] * 2, enc_tag8_4s16_v2([5, -6, 7, 8]))
+    assert got == [5, -6] and pos == 4  # tout le groupe est lu, deux valeurs gardées
+
+
+def test_parse_frame_data_version_1_uses_v1_tag8():
+    from bbl_factory import enc_tag8_4s16_v1
+    from opentunebox.decoder.header import ENC_TAG8_4S16, PRED_ZERO
+
+    data = enc_tag8_4s16_v1([3, -4, 100, -2000])
+    assert _frame([PRED_ZERO] * 4, [ENC_TAG8_4S16] * 4, data, data_version=1) == ([3, -4, 100, -2000], len(data))
+
+
+def test_parse_frame_unknown_encoding_reads_nothing():
+    from opentunebox.decoder.header import ENC_SIGNED_VB, PRED_ZERO
+
+    got, pos = _frame([PRED_ZERO] * 2, [42, ENC_SIGNED_VB], enc_svb(-3))
+    assert got == [0, -3] and pos == 1
+
+
+# ---------------------------------------------------------------- en-tête
+
+
+def test_parse_header_lines_and_data_start():
+    from opentunebox.decoder.header import ENC_SIGNED_VB, PRED_PREVIOUS, find_log_starts, parse_header
+
+    head = (b"H Product:Blackbox flight data recorder by Nicholas Sherlock\r\n"  # fin de ligne Windows
+            b"H Data version:2\n"
+            b"H Field I name:loopIteration,time,gyroADC[0]\n"
+            b"H Field I signed:0,0,1\n"
+            b"H Field I predictor:0,0,0\n"
+            b"H Field I encoding:1,1,0\n"
+            b"H Field P predictor:6,2,1\n"
+            b"H Field P encoding:9,0,0\n"
+            b"H ligne sans deux-points\n"
+            b"H Firmware revision:Betaflight 4.5.1 (abc) STM32F7X2\n"
+            b"H rollPID:45,80,40\n"
+            b"\x00\x00")  # octets parasites avant la première trame
+    data = head + b"I" + b"\x01\x02"
+    h = parse_header(data, 0, len(data))
+    assert h.raw["Firmware revision"] == "Betaflight 4.5.1 (abc) STM32F7X2" and h.raw["rollPID"] == "45,80,40"
+    assert h.raw["Product"] == "Blackbox flight data recorder by Nicholas Sherlock"  # sans le \r
+    assert "ligne sans deux-points" not in h.raw and data[h.data_start:h.data_start + 1] == b"I"
+    fi, fp = h.frames["I"], h.frames["P"]
+    assert fi.complete() and fp.complete() and fi.count == 3 and fi.index("time") == 1 and fi.index("x") == -1
+    assert fp.names == fi.names and fp.signed == [0, 0, 1]  # P reprend noms et signes de I
+    assert fp.predictor[2] == PRED_PREVIOUS and fp.encoding[2] == ENC_SIGNED_VB
+    assert h.data_version == 2 and h.i_interval == 1 and h.p_interval == (1, 1)
+    assert find_log_starts(data + data) == [0, len(data)]
+
+
+def test_log_header_numeric_properties():
+    from opentunebox.decoder.header import FrameDef, LogHeader, _int, _ints, as_array
+
+    assert (_int("0x10"), _int(" 12.0 "), _int("abc", 7), _int(None, 3)) == (16, 12, 7, 3)
+    assert _ints("1,2.0,x,4") == [1, 2, 4] and _ints(None) == []
+    mk = lambda **raw: LogHeader(raw, {}, 0, 0)  # noqa: E731
+    assert mk(**{"P interval": "2"}).p_interval == (1, 2) and mk(**{"P interval": "3/8"}).p_interval == (3, 8)
+    assert mk(**{"P interval": "0/0"}).p_interval == (1, 1) and mk(**{"I interval": "0"}).i_interval == 1
+    assert mk(motorOutput="48,2047").motor_output == (48, 2047) and mk(motorOutput="100").motor_output == (100, 2047)
+    assert mk(minthrottle="1070", maxthrottle="2000").motor_output == (1070, 2000) and mk().motor_output == (0, 2047)
+    assert mk(vbatref="1680").vbatref == 1680 and mk().data_version == 2
+    assert as_array([1, 2, 3], 2).tolist() == [1, 2] and as_array([1], 3).tolist() == [1, 0, 0]
+    assert as_array([], 0).tolist() == [0]  # jamais vide : numba veut un tableau
+    assert not FrameDef(names=["a"], predictor=[0]).complete() and not FrameDef().complete()

@@ -190,3 +190,108 @@ def write(tmp_path: Path, data: bytes, name: str = "synth.bbl") -> Path:
     p = tmp_path / name
     p.write_bytes(data)
     return p
+
+
+# ---------------------------------------------------------------- encodeurs groupés (trames I/P de Betaflight)
+
+
+def _widths_tag2(values: list[int]) -> bytes:
+    """Sélecteur 3 des TAG2_3S32 / TAG2_3SVARIABLE : largeur 8, 16, 24 ou 32 bits par valeur (2 bits chacune,
+    la première valeur dans les bits de poids faible), puis les octets petit-boutiste."""
+    lead, payload = 0xC0, bytearray()
+    for k, v in enumerate(values):
+        nbytes = next(b for b in (1, 2, 3, 4) if -(1 << (8 * b - 1)) <= v < (1 << (8 * b - 1)))
+        lead |= (nbytes - 1) << (2 * k)
+        payload += (v & ((1 << (8 * nbytes)) - 1)).to_bytes(nbytes, "little")
+    return bytes([lead]) + bytes(payload)
+
+
+def _fits(v: int, bits: int) -> bool:
+    return -(1 << (bits - 1)) <= v < (1 << (bits - 1))
+
+
+def enc_tag2_3svariable(values: list[int]) -> bytes:
+    """TAG2_3SVARIABLE (blackbox_encoding.c, `blackboxWriteTag2_3SVariable`) : 2/2/2, 5/5/4, 8/7/7 bits ou
+    largeurs par valeur."""
+    v0, v1, v2 = values
+    if all(_fits(v, 2) for v in values):
+        return bytes([((v0 & 3) << 4) | ((v1 & 3) << 2) | (v2 & 3)])
+    if _fits(v0, 5) and _fits(v1, 5) and _fits(v2, 4):
+        return bytes([0x40 | ((v0 & 0x1F) << 1) | ((v1 >> 4) & 1), ((v1 & 0x0F) << 4) | (v2 & 0x0F)])
+    if _fits(v0, 8) and _fits(v1, 7) and _fits(v2, 7):
+        return bytes([0x80 | ((v0 >> 2) & 0x3F), ((v0 & 3) << 6) | ((v1 >> 1) & 0x3F), ((v1 & 1) << 7) | (v2 & 0x7F)])
+    return _widths_tag2(values)
+
+
+def enc_tag2_3s32(values: list[int]) -> bytes:
+    """TAG2_3S32 : 2, 4 ou 6 bits par valeur, sinon largeurs par valeur."""
+    v0, v1, v2 = values
+    if all(_fits(v, 2) for v in values):
+        return bytes([((v0 & 3) << 4) | ((v1 & 3) << 2) | (v2 & 3)])
+    if all(_fits(v, 4) for v in values):
+        return bytes([0x40 | (v0 & 0x0F), ((v1 & 0x0F) << 4) | (v2 & 0x0F)])
+    if all(_fits(v, 6) for v in values):
+        return bytes([0x80 | (v0 & 0x3F), v1 & 0x3F, v2 & 0x3F])
+    return _widths_tag2(values)
+
+
+def enc_tag8_4s16_v2(values: list[int]) -> bytes:
+    """TAG8_4S16 (Data version 2) : sélecteur 2 bits par valeur (0 = zéro, 1 = 4 bits, 2 = 8 bits, 3 = 16 bits),
+    puis les quartets à la suite, poids fort d'abord (`blackboxWriteTag8_4S16`)."""
+    selector, nibbles = 0, []
+    for k, v in enumerate(values):
+        if v == 0:
+            s = 0
+        elif _fits(v, 4):
+            s, nibbles = 1, nibbles + [v & 0xF]
+        elif _fits(v, 8):
+            s, nibbles = 2, nibbles + [(v >> 4) & 0xF, v & 0xF]
+        else:
+            s, nibbles = 3, nibbles + [(v >> 12) & 0xF, (v >> 8) & 0xF, (v >> 4) & 0xF, v & 0xF]
+        selector |= s << (2 * k)
+    if len(nibbles) % 2:
+        nibbles.append(0)
+    return bytes([selector] + [(nibbles[i] << 4) | nibbles[i + 1] for i in range(0, len(nibbles), 2)])
+
+
+def enc_tag8_4s16_v1(values: list[int]) -> bytes:
+    """TAG8_4S16 (Data version 1, Cleanflight 2014) : même sélecteur ; un champ de 4 bits emporte le suivant dans
+    le quartet haut du même octet (quel que soit son sélecteur), comme le lit `blackbox_decode`."""
+    selector, out, k = 0, bytearray(), 0
+    while k < 4:
+        v = values[k]
+        if v == 0:
+            s = 0
+        elif _fits(v, 4):
+            s = 1
+            nxt = values[k + 1] if k + 1 < 4 else 0
+            assert _fits(nxt, 4), "après un champ de 4 bits, le suivant tient aussi sur 4 bits"
+            out.append((v & 0xF) | ((nxt & 0xF) << 4))
+            selector |= 1 << (2 * k)
+            if k + 1 < 4:
+                selector |= 1 << (2 * (k + 1))
+            k += 2
+            continue
+        elif _fits(v, 8):
+            s = 2
+            out.append(v & 0xFF)
+        else:
+            s = 3
+            out += (v & 0xFFFF).to_bytes(2, "little")
+        selector |= s << (2 * k)
+        k += 1
+    return bytes([selector]) + bytes(out)
+
+
+def enc_tag8_8svb(values: list[int]) -> bytes:
+    """TAG8_8SVB : un octet de présence (bit k = valeur k non nulle), puis les valeurs non nulles en svb ; une
+    seule valeur : svb direct."""
+    if len(values) == 1:
+        return enc_svb(values[0])
+    header = sum(1 << k for k, v in enumerate(values) if v)
+    return bytes([header]) + b"".join(enc_svb(v) for v in values if v)
+
+
+def enc_neg_14bit(v: int) -> bytes:
+    """NEG_14BIT : −v sur 14 bits en uvb (champ `vbatLatest` des anciens firmwares)."""
+    return enc_uvb((-v) & 0x3FFF)

@@ -60,6 +60,8 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-009 | Extrait de vrai log Blackbox versionné pour la CI | bloqué |
+| W-008 | Couleurs en dur dans `gui/` : liste d'exceptions à valider | bloqué |
 | W-007 | Tests du corpus en échec quand un log a été déplacé | clos |
 | W-006 | Écart de 2 dB sous 100 Hz avec PIDtoolbox sur un vol | sans suite |
 | W-005 | Référence de l'erreur aléatoire non vérifiée à la page | ouvert |
@@ -133,3 +135,38 @@ Règles d'écriture :
   (`pytest.skip`) plutôt que d'échouer.
   [`tests/test_log_check.py`, `tests/test_advisor.py:test_profiles_detected_by_motor_speed`,
   `tests/test_advisor.py:test_rpm_and_dyn_notch_q_steps`, `tests/test_decoder.py:test_real_log_loads`]
+
+## Origine : chantier des tests anti-régression, branche test/foundations (2026-10-12)
+
+- **W-008** — Dix endroits de `gui/` écrivent une couleur en dur alors que L-016 demande celles du thème.
+  ⏸ **BLOQUÉ — avis de Cédric sur la liste**. Badges de gravité de l'assistant (`gui/tools/advisor_panel.py:SEV_STYLE`, fond coloré
+  et texte blanc), couleurs des courbes du simulateur (`gui/tools/filter_sim.py:COL_MOD`, `COL_PF`, `COL_SIM_CUR`,
+  titre rouge et cellules vertes / rouges du tableau), écarts verts / rouges du tableau des curseurs
+  (`gui/tools/pid_slider.py`), lignes de repère de la réponse indicielle (`gui/tools/step_window.py`), traits
+  blancs et cyan du Fréquence × temps (`gui/tools/freq_time.py`), texte blanc du coin du Fréquence × gaz
+  (`gui/tools/freq_throttle.py`), trait noir des points de série (`gui/tools/_step_common.py`), courbe grise de
+  référence du Spectre (`gui/tools/spectral_window.py`), icône blanche du bouton principal (`gui/main_window.py`).
+  Vérifié par `grep` le 2026-10-12 ; la plupart sont des couleurs de courbes ou de badges sur fond coloré,
+  pas des textes sur le fond du panneau : elles ne cassent sans doute pas un thème, mais rien ne le garantit.
+  **Pourquoi reporté** : décider lesquelles sont légitimes relève de Cédric (effet visuel voulu) ; un test
+  qui interdirait tout code couleur hors de `theme.py` sans liste d'exceptions casserait l'interface actuelle.
+  **Risque si on n'y touche pas** : une couleur de texte en dur ajoutée plus tard passe inaperçue jusqu'à la
+  relecture visuelle des deux thèmes (L-016 déjà payé une fois).
+  **Reprise** : Cédric relit la liste ci-dessus dans les deux thèmes et dit ce qui reste ; ensuite, test dans
+  `tests/test_gui_contracts.py` qui balaye `gui/` et n'accepte que les exceptions listées.
+  **Piste** : déplacer les couleurs légitimes dans `theme.ACCENTS` ou un dictionnaire de `theme.py` (une par
+  thème si besoin), et faire échouer le test sur tout code `#rrggbb` ou nom de couleur ailleurs.
+  [`src/opentunebox/gui/theme.py:accent_style`, `tests/test_gui_contracts.py`]
+
+- **W-009** — La CI ne décode jamais un vrai fichier Blackbox.
+  ⏸ **BLOQUÉ — accord de Cédric**. Tous les tests sur de vrais logs sont marqués `corpus` et ignorés sur GitHub (L-025) ; seuls des fichiers fabriqués
+  (`tests/bbl_factory.py`) y passent, avec les seuls encodages que la fabrique écrit.
+  **Pourquoi reporté** : versionner un extrait d'un log de Cédric (quelques secondes d'un vol, de l'ordre de
+  quelques centaines de kilooctets, par exemple tiré de `Cedric/JeNo 5/FINAL.bbl`) ajoute un fichier binaire
+  au dépôt et publie une partie de ses données de vol : c'est son choix.
+  **Risque si on n'y touche pas** : une régression du décodeur sur un vrai en-tête (champs, encodages ou
+  prédicteurs que la fabrique n'écrit pas) n'est vue qu'en lançant `pytest` sur un poste qui a le corpus.
+  **Reprise** : accord de Cédric sur le log et la durée de l'extrait ; couper le fichier à une frontière de
+  trame I (le décodeur resynchronise de toute façon), le mettre dans un dossier de données des tests à créer, et y comparer quelques
+  valeurs connues (cadence, réglages, premier et dernier `time`, nombre de trames) sans marque `corpus`.
+  [`tests/corpus_paths.py:corpus_log`, `tests/test_bbl_decode.py`]
