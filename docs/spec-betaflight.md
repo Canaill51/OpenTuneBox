@@ -184,8 +184,9 @@ pitch seulement : pr = roll_pitch_ratio, pp = pitch_pi_gain (1 en roll / yaw). A
 - `hr = 10` si `blackbox_high_resolution`, sinon 1.
 - `gyroADC` = gyro entièrement filtré × hr (°/s) ; `gyroUnfilt` = dernier échantillon brut × hr (4.5+, repliement possible).
 - `accSmooth` en valeurs brutes, / `acc_1G` → g.
-- `rcCommand[0..2]` ±500 × hr (signe inversé en yaw) ; `rcCommand[3]` 1000..2000.
-- `setpoint[0..2]` °/s × hr ; `setpoint[3]` = gaz du mixeur × 1000.
+- `rcCommand[0..2]` ±500 × hr (signe inversé en yaw) ; `rcCommand[3]` 1000..2000 × hr (les quatre voies
+  sont mises à l'échelle, `blackbox.c` : `rcCommand[i] * blackboxHighResolutionScale` pour i = 0..3).
+- `setpoint[0..2]` °/s × hr ; `setpoint[3]` = gaz du mixeur × 1000, **sans** facteur hr.
 - `axisP/I/D/F` en unités de somme PID (1000 = toute l'autorité du mixeur) :
   `P = 0.032029·Kp·err·TPA` ; I croît de `0.244381·Ki·err` par seconde (yaw × 2,5) ;
   `D = 0.000529·Kd·(−dgyro/dt)·dMax·TPA`; `F = 0.013754·(F/100)·setpointSpeed`.

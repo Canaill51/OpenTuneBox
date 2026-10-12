@@ -285,10 +285,11 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
     if gyro_unfilt is None and st.debug_mode == "GYRO_SCALED" and debug.shape[0] >= 3:
         gyro_unfilt = debug[:3] / hr
 
-    setpoint = axes("setpoint", hr, 4)
+    setpoint = axes("setpoint", 1.0, 4)
     if setpoint is not None:
+        # seuls les axes sont en haute résolution ; setpoint[3] = gaz du mixeur × 1000, jamais × hr (spec §7)
         throttle = setpoint[3] / 10.0
-        setpoint = setpoint[:3]
+        setpoint = setpoint[:3] / hr
         if sess.column("setpoint[3]") is None:
             throttle = None
     else:
@@ -297,10 +298,10 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
     rc = axes("rcCommand", 1.0, 4)
     if rc is None:
         rc = np.zeros((4, n))
+    # les quatre voies rcCommand sont en haute résolution aussi, gaz compris (blackbox.c, spec §7)
+    rc /= hr
     if throttle is None:
         throttle = np.clip((rc[3] - 1000.0) / 10.0, 0, 100)
-    # le rcCommand des axes est en haute résolution aussi
-    rc[:3] /= hr
 
     # moteurs
     motor_cols = []
