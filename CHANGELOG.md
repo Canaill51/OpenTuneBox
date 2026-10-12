@@ -9,6 +9,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Tests du décodeur sur des fichiers Blackbox fabriqués (`tests/bbl_factory.py`) : `P interval` (N et a/b),
   trames corrompues et resynchronisation, trame trop longue, saut d'itération refusé, `LOGGING_RESUME`,
   événements, trames S, sessions multiples, prédicteurs (dont la troncature vers zéro de `AVERAGE_2`).
+- Tests d'invariants des analyses sans corpus : DSP égale à `scipy.signal.welch` (fenêtre paire ou impaire),
+  puissance d'un sinus et Parseval, échelle de PIDtoolbox appliquée une seule fois (contrôle statique des
+  appelants), valeurs par défaut de la réponse indicielle figées, compte exact des fenêtres, horizon du pic,
+  réponse identité et retard pur, bande passante dès 2 Hz, marges (gain × k, retard pur), retards par la
+  phase et par intercorrélation, `compute_delays`.
 - Tests de la couche log sans corpus : trames impossibles et session corrompue à plus de 50 %, unités de
   `from_session` (DShot / PWM, eRPM ou debug, debug `GYRO_SCALED` comme gyro brut), masques Angle / Horizon et
   instrument de la boucle ouverte, excitation chirp, conventions D / D max aux limites, cadences et
@@ -23,6 +28,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `pytest`.
 
 ### Corrigé
+- Spectres : avec une fenêtre d'un nombre impair d'échantillons (fréquence d'enregistrement non entière),
+  la dernière case n'était pas doublée comme chez scipy (3 dB sur une seule case au bord, sans effet visible).
 - Simulateur de filtres : sur les fréquences exactement au creux d'un notch (RPM ou dynamique), le spectre
   simulé s'effondrait d'environ 90 dB, même sans aucun changement de réglage (plancher numérique appliqué
   au seul dénominateur du rapport |H_modifié|² / |H_actuel|²).

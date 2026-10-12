@@ -57,7 +57,8 @@ def _seg_spectra(segs: np.ndarray, fs: float, mode: str) -> tuple[np.ndarray, np
         A = np.abs(X) * 2.0 / w.sum()
         return f, A
     P = (np.abs(X) ** 2) / (fs * np.sum(w**2))
-    P[:, 1:-1] *= 2.0
+    # spectre unilatéral : cases doublées sauf le continu et Nyquist (absent si L est impair), comme scipy
+    P[:, 1:(-1 if L % 2 == 0 else None)] *= 2.0
     return f, P
 
 
