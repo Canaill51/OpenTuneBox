@@ -176,6 +176,11 @@ class ToolWindow(QWidget):
             self._stale = False
             self.run()
 
+    def compute_sync(self, entries: list[LoadedLog]) -> Any:
+        """Calcul dans le thread de l'interface (tests, captures) : même préparation que `run`."""
+        self.run_options = self.snapshot_options()
+        return self.compute(entries)
+
     def run(self) -> None:
         entries = self.files.selected_entries()
         if not entries:

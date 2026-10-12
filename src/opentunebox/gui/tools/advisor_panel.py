@@ -59,9 +59,12 @@ class AdvisorWindow(ToolWindow):
         splitter.insertWidget(0, self.report)
         splitter.setSizes([780, 420, 280])
 
+    def snapshot_options(self) -> dict:
+        return {"profile": self.profile_combo.currentData()}
+
     def compute(self, entries):
         e = entries[0]
-        key = self.profile_combo.currentData()
+        key = self.run_options.get("profile")  # lu par snapshot_options : pas de widget depuis ce thread
         prof = PROFILES[key] if key else None
         return e, analyze(e.log, e.sel, prof)
 

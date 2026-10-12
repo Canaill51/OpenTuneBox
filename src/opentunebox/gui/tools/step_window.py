@@ -220,16 +220,12 @@ class StepWindow(ToolWindow):
         if self.files.selected_entries():
             self.run()
 
-    def run(self) -> None:
-        if self._busy:
-            self._pending = True
-            return
-        self._run_opts = dict(self._opts)
-        super().run()
+    def snapshot_options(self) -> dict:
+        return dict(self._opts)
 
     # ------------------------------------------------------------ calcul (thread de travail)
     def compute(self, entries) -> list[FileStep]:
-        opts = dict(getattr(self, "_run_opts", self._opts))
+        opts = dict(self.run_options)
         key = ("step", tuple(sorted(opts.items())))
         out = []
         for e in entries:

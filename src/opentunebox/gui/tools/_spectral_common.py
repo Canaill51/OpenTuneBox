@@ -220,32 +220,18 @@ class MotorToggles(QWidget):
 
 class OptionsSnapshot:
     """À combiner avec `ToolWindow` : les réglages sont relevés dans le thread de l'interface au
-    lancement du calcul (`collect_options`), puis relus par `compute` via `take_options` ; une
-    demande arrivée pendant un calcul relance le calcul à la fin au lieu d'être perdue."""
-
-    _opts: dict | None = None
-    _rerun = False
+    lancement du calcul (`collect_options`, appelé par `snapshot_options`), puis relus par `compute`
+    via `take_options`, jamais depuis les widgets (autre thread). Une demande arrivée pendant un
+    calcul est rejouée à la fin par `ToolWindow` (`_pending`)."""
 
     def collect_options(self) -> dict:
         raise NotImplementedError
 
+    def snapshot_options(self) -> dict:
+        return self.collect_options()
+
     def take_options(self) -> dict:
-        opts, self._opts = self._opts, None
-        return opts if opts is not None else self.collect_options()
+        return self.run_options
 
-    def run(self, *_a) -> None:
-        if self._busy:
-            self._rerun = True
-            return
-        self._opts = self.collect_options()
+    def run(self, *_a) -> None:  # accepte l'argument d'un signal Qt
         super().run()
-
-    def _done(self, result) -> None:
-        super()._done(result)
-        if self._rerun:
-            self._rerun = False
-            self.run()
-
-    def _failed(self, err: str) -> None:
-        self._rerun = False
-        super()._failed(err)

@@ -51,7 +51,7 @@ def _open(state, cls, files=(0,)):
 
 
 def _run(win):
-    res = win.compute(win.files.selected_entries())
+    res = win.compute_sync(win.files.selected_entries())
     win._last_result = res
     win.render(res)
     return res
