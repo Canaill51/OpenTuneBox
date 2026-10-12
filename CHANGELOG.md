@@ -9,6 +9,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Tests du décodeur sur des fichiers Blackbox fabriqués (`tests/bbl_factory.py`) : `P interval` (N et a/b),
   trames corrompues et resynchronisation, trame trop longue, saut d'itération refusé, `LOGGING_RESUME`,
   événements, trames S, sessions multiples, prédicteurs (dont la troncature vers zéro de `AVERAGE_2`).
+- Tests des contrats de l'interface sans corpus : `analysis/`, `advisor/`, `log/`, `decoder/` et la CLI
+  n'importent jamais Qt (contrôle du code et à l'exécution), icônes citées présentes avec la licence Lucide,
+  deux thèmes sur la fenêtre principale et sur chaque outil, demande rejouée après un calcul, erreur de
+  calcul affichée sans plantage.
 - Tests de l'assistant sans corpus : chaque seuil de profil encadré (constat présent juste sous le seuil,
   absent juste au-dessus, seuil cité dans le texte), deux branches du « Terme D bruité », repères de retard,
   bornes de la taille par la fréquence moteur, instantané des profils et des constantes (toute modification
@@ -34,6 +38,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `pytest`.
 
 ### Corrigé
+- Changer de thème (clair / sombre) repeint aussi les outils déjà ouverts : leur fond de graphique gardait
+  les couleurs de l'ancien thème jusqu'à un nouveau calcul.
 - Spectres : avec une fenêtre d'un nombre impair d'échantillons (fréquence d'enregistrement non entière),
   la dernière case n'était pas doublée comme chez scipy (3 dB sur une seule case au bord, sans effet visible).
 - Simulateur de filtres : sur les fréquences exactement au creux d'un notch (RPM ou dynamique), le spectre
