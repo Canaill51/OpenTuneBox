@@ -35,6 +35,7 @@ from ..log.flightlog import load
 from ..log.modes import mode_changes
 from . import icons, theme
 from .geometry import restore_geometry, save_geometry
+from .guide import HOME, GuidePage
 from .state import MAX_LOGS, AppState
 from .widgets.axis import major_axes
 from .widgets.section import Section
@@ -118,6 +119,7 @@ class MainWindow(QMainWindow):
         self.tool_windows: dict[str, QWidget] = {}  # outils déjà ouverts, une page chacun
         self._tool_actions: dict[str, QAction] = {}
         self._loading = 0
+        self._had_logs = bool(self.state.logs)
         self._measure: list[float] = []  # temps des points de mesure (0, 1 ou 2)
         self._play_timer = QTimer(self)
         self._play_timer.setInterval(40)
@@ -146,11 +148,17 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget()
         self.pages.addWidget(split)
         self.viewer_page = split
+        # guide intégré : affiché au démarrage, tant qu'aucun log n'est ouvert
+        self.guide_page = GuidePage(self.state, self)
+        self.pages.addWidget(self.guide_page)
+        if not self.state.logs:
+            self.pages.setCurrentWidget(self.guide_page)
         self.setCentralWidget(self.pages)
         self._sync_tool_actions()
         self._apply_icons()
         self._build_plots()
-        self.statusBar().showMessage("Ouvrez un log Blackbox (.bbl, .bfl) — ou glissez-le dans la fenêtre.")
+        self.statusBar().showMessage("Ouvrez un log Blackbox (.bbl, .bfl) — ou glissez-le dans la fenêtre. "
+                                     "Première fois ? Suivez le Guide.")
 
     def _build_toolbar(self) -> None:
         tb = self.addToolBar("Outils")
@@ -178,6 +186,10 @@ class MainWindow(QMainWindow):
         add("Tout fermer", "trash-2", self.state.clear, "Fermer tous les logs", icon_only=True)
         tb.addSeparator()
         # boutons-onglets : un seul coché, celui de la page affichée
+        act = add("Guide", "book-open", lambda: self.show_guide(),
+                  "Guide : préparer le drone, enregistrer les bons logs, régler pas à pas")
+        act.setCheckable(True)
+        self._tool_actions["guide"] = act
         act = add("Visualiseur", "activity", self.show_viewer, "Visualiseur de log (courbes du vol)")
         act.setCheckable(True)
         self._tool_actions["viewer"] = act
@@ -499,6 +511,11 @@ class MainWindow(QMainWindow):
 
     # ================================================================ état → affichage
     def _on_logs_changed(self) -> None:
+        # premier log ouvert depuis l'accueil du guide : on passe aux courbes ; depuis une phase, on y reste
+        if self.state.logs and not self._had_logs and self.current_page() == "guide" \
+                and self.guide_page.current_key() == HOME:
+            self.show_viewer()
+        self._had_logs = bool(self.state.logs)
         self.file_combo.blockSignals(True)
         self.file_combo.clear()
         for ll in self.state.logs:
@@ -623,6 +640,7 @@ class MainWindow(QMainWindow):
         for lbl in (self.info_label, self.debug_label):
             lbl.setStyleSheet(theme.muted_style())
         self._apply_icons()
+        self.guide_page.refresh()
         self._redraw()
 
     # ================================================================ période
@@ -825,9 +843,17 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentWidget(self.viewer_page)
         self._sync_tool_actions()
 
+    def show_guide(self, phase: str | None = None) -> None:
+        if phase:
+            self.guide_page.show_phase(phase)
+        self.pages.setCurrentWidget(self.guide_page)
+        self._sync_tool_actions()
+
     def current_page(self) -> str:
-        """Clé de la page affichée : « viewer » ou celle de l'outil."""
+        """Clé de la page affichée : « viewer », « guide » ou celle de l'outil."""
         w = self.pages.currentWidget()
+        if w is self.guide_page:
+            return "guide"
         return next((k for k, v in self.tool_windows.items() if v is w), "viewer")
 
     def _sync_tool_actions(self) -> None:

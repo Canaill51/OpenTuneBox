@@ -99,15 +99,11 @@ def step_response(
                        StepMetrics(), LoopMetrics(), np.zeros(0))
     if n < L:
         return empty
-    hop = max(1, int(round(hop_ms * fs / 1000.0)))
-    starts = np.arange(0, n - L + 1, hop)
+    starts = _window_starts(sp[:n], fs, L, hop_ms, min_input, max_input)
     w = signal.windows.hann(L)
     nfft = L + 2 * PAD
 
     # toutes les fenêtres d'un coup (par paquets) : FFT vectorisées
-    starts = starts[[_seg_max(sp, s0, L) >= min_input for s0 in starts]] if starts.size else starts
-    if max_input is not None and starts.size:
-        starts = starts[[_seg_max(sp, s0, L) < max_input for s0 in starts]]
     resp, maxin = [], []
     sum_gh = np.zeros(nfft // 2 + 1, dtype=complex)
     sum_hh = np.zeros(nfft // 2 + 1)
@@ -161,8 +157,26 @@ def step_response(
     return StepResult(t_ms, R, mean, std, R.shape[0], metrics, loop, maxin)
 
 
-def _seg_max(x: np.ndarray, s0: int, L: int) -> float:
-    return float(np.max(np.abs(x[s0 : s0 + L])))
+def _window_starts(sp: np.ndarray, fs: float, L: int, hop_ms: float, min_input: float,
+                   max_input: float | None = None) -> np.ndarray:
+    """Débuts des fenêtres de L échantillons (pas `hop_ms`) où |consigne| atteint `min_input` (et reste
+    sous `max_input`)."""
+    if sp.size < L:
+        return np.zeros(0, dtype=int)
+    hop = max(1, int(round(hop_ms * fs / 1000.0)))
+    starts = np.arange(0, sp.size - L + 1, hop)
+    peak = np.lib.stride_tricks.sliding_window_view(np.abs(sp), L)[starts].max(axis=1)
+    keep = peak >= min_input
+    if max_input is not None:
+        keep &= peak < max_input
+    return starts[keep]
+
+
+def input_windows(sp: np.ndarray, fs: float, seg_s: float = 2.0, min_input: float = 20.0,
+                  hop_ms: float = 62.5) -> int:
+    """Nombre de fenêtres où la réponse indicielle a assez de consigne : calcul rapide, sans la déconvolution
+    (le contrôle qualité de `step_response` en écarte ensuite quelques-unes)."""
+    return int(_window_starts(np.asarray(sp, dtype=np.float64), fs, int(round(seg_s * fs)), hop_ms, min_input).size)
 
 
 def step_metrics(t_ms: np.ndarray, r: np.ndarray) -> StepMetrics:

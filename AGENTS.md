@@ -30,9 +30,11 @@ src/opentunebox/
   analysis/   calculs purs numpy/scipy : spectral, step (Wiener), step_series (séries de vols), loop (marges de
               stabilité), delay, bf_filters, sliders, motors, stats, period, datasets (jeux de données analysables)
   advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py),
-              diagnostic du réglage de la Réponse indicielle (step_tuning.py)
-  gui/        app.py, main_window.py (visualiseur), state.py, worker.py, theme.py, icons.py, geometry.py,
-              tools/ (une page par outil), widgets/, assets/
+              diagnostic du réglage de la Réponse indicielle (step_tuning.py),
+              guide intégré : vérification des logs (log_check.py), fiche drone (drone_card.py), parcours
+              à cocher (tuning_path.py)
+  gui/        app.py, main_window.py (visualiseur), guide.py (guide intégré : fiches drone, cases ; accueil dans assets/guide/),
+              state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
 tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
               test_docs.py vérifie la documentation
@@ -91,8 +93,10 @@ PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de
   concorde) : ses objectifs de retard D ne s'appliquent pas tels quels.
 - Retard des filtres : représentatif seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne
   > 50 °/s au moins 5 % du temps) ; en vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime.
-- Fréquence du log : au moins 2 kHz pour un gyro à 8 kHz, 1,6 kHz à 3,2 kHz, plus pour les petits drones
-  (`rules.log_rate_needed`) ; le blackbox sous-échantillonne sans filtre, tout ce qui dépasse fs/2 se replie.
+- Fréquence du log : deux minimums à ne pas mélanger. **Filtres** : au moins 2 kHz pour un gyro à 8 kHz,
+  1,6 kHz à 3,2 kHz, plus pour les petits drones (`rules.log_rate_needed`) ; le blackbox sous-échantillonne
+  sans filtre, tout ce qui dépasse fs/2 se replie. **Séries PID** : 1 kHz (`rules.pid_log_rate_needed`). Le
+  guide range les logs par rôle (`log_check.FILTERS` / `PID`) : chaque case ne lit que ceux de sa phase.
   Vol stationnaire = identifier le bruit ; vol avec mouvements = juger le retard.
 - Feedforward : forcé à 0 par le firmware en mode **Angle** seulement (pas en Horizon) → masque
   `flightlog.ANGLE_MODE_MASK`, distinct de `ANGLE_HORIZON_MASK` (instrument de la boucle ouverte).

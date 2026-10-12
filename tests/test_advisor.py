@@ -201,16 +201,20 @@ def test_hover_noise_and_filter_strategy():
 
 
 def test_log_rate_rule():
-    from opentunebox.advisor.rules import ATTENTION, analyze, log_rate_needed
+    from opentunebox.advisor.rules import CONSEIL, analyze, log_rate_needed, pid_log_rate_needed
 
-    # 8 kHz de gyro (PID 4 ou 8 kHz) → 2 kHz ; 3,2 kHz → 1,6 kHz ; whoop à 480 Hz → 3e harmonique visible
+    # filtres : 8 kHz de gyro (PID 4 ou 8 kHz) → 2 kHz ; 3,2 kHz → 1,6 kHz ; whoop à 480 Hz → 3e harmonique visible
     assert log_rate_needed(4000) == 2000 and log_rate_needed(8000) == 2000 and log_rate_needed(3200) == 1600
     assert log_rate_needed(4000, 480) == 4000 and log_rate_needed(3200, 210) == 1600
-    # Kris : 993 Hz pour une boucle PID à 4 kHz → attention, 1/2 ; aucun allègement tiré d'un spectre replié
+    # séries PID : 1 kHz suffit (1,6 kHz pour une boucle à 3,2 kHz, faute de fraction plus proche)
+    assert pid_log_rate_needed(8000) == 1000 and pid_log_rate_needed(4000) == 1000 and pid_log_rate_needed(3200) == 1600
+    # Kris : 993 Hz pour une boucle PID à 4 kHz → assez pour les PID, conseil pour les filtres (1/2) ; aucun
+    # allègement tiré d'un spectre replié
     lg = _load("1. PTB/Kris/BTFL_BLACKBOX_LOG_TP_20260914_181415_F722_AIO.bbl")
     f = {x.title: x for x in analyze(lg).findings}
-    assert f["Fréquence d'enregistrement trop basse"].severity == ATTENTION
-    assert f["Fréquence d'enregistrement trop basse"].actions[0].startswith("blackbox_sample_rate = 1/2")
+    assert "Fréquence d'enregistrement trop basse" not in f
+    slow = f["Fréquence d'enregistrement trop basse pour les filtres"]
+    assert slow.severity == CONSEIL and "blackbox_sample_rate = 1/2" in slow.actions[0]
     assert not {"Filtre RPM plus fort que nécessaire", "Le LPF1 du gyro peut être coupé",
                 "Notch dynamique : moins de notchs suffiraient"} & set(f)
     assert f["Stratégie de filtrage"].actions[0].startswith("1. Enregistrement")
@@ -357,3 +361,16 @@ def test_dterm_lift_from_noise():
     f = next(x for x in rep.findings if x.title == "Terme D propre : ses filtres peuvent être relevés")
     assert f.actions[0] == "Curseur « filtre D » : 1,0 → 1,2, en passant par 1,1 avec un vol d'essai à chaque pas."
     assert not any(x.title == "Filtrage du D peut-être trop fort" and x.actions for x in rep.findings)
+
+
+def test_setpoint_delay_given_by_assistant():
+    """Série Feedforward : l'Assistant donne le retard consigne → gyro roll / pitch de chaque vol."""
+    from opentunebox.advisor.rules import analyze
+    from opentunebox.log.flightlog import load
+
+    path = LOGS / "Cedric/Air65/FF.bbl"
+    if not path.exists():
+        pytest.skip("log absent")
+    found = [next(f for f in analyze(lg).findings if f.title == "Retard consigne → gyro") for lg in load(path)]
+    assert found[0].detail.startswith("Roll ") and "(feedforward 0,0, Acro)" in found[0].detail
+    assert "(feedforward 1,0, Acro)" in found[1].detail

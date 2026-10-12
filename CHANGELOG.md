@@ -5,7 +5,39 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- **Guide** intégré (bouton de la barre d'outils, affiché au démarrage sans log) : parcours de réglage à
+  cocher, par drone, en quatre phases (préparer le drone, filtres, PID par séries, finitions). **Fiche
+  drone** (version de Betaflight, taille, boucle PID, ESC ; préremplie d'après le log ouvert) : fréquence
+  d'enregistrement, listes des séries et plages de finitions s'y adaptent, et chaque drone garde son
+  avancement. Changements donnés en positions de curseurs du configurateur, le CLI en repli ; boutons qui
+  ouvrent l'outil utile sur la bonne partie du vol.
+- Guide : les logs du drone (reconnus par le nom dans Betaflight) **cochent ce qu'ils prouvent** ou signalent
+  ce qui est à revoir. Le vol de réglage (stationnaire puis wobbles) est découpé automatiquement ; protocole
+  de Brian White vérifié (mode Angle, rates ACTUAL 200 / 200 / 0, limite d'angle 30°, roll et pitch mêlés,
+  Dynamic Damping à 0, curseur I, au moins 200 fenêtres) ; repères de fin des filtres mesurés ; copie des
+  commandes CLI équivalentes.
+- Guide : logs des **filtres** et logs des **séries PID** demandés et jugés à part (bouton d'ouverture dans
+  chaque phase, panneau des logs en deux parties, lien pour changer le rôle d'un log) ; chaque case ne lit
+  que les logs de sa phase. Le panneau donne la raison de chaque usage impossible et reconnaît chaque série
+  parmi les logs PID d'un drone (au lieu de signaler « plusieurs curseurs changent »).
+- Guide : les mouvements des vols de réglage (filtres et séries PID) se font en **mode Angle** ou en **Acro
+  avec le feedforward à 0** ; un seul point « Mode Angle ou feedforward à 0 » les vérifie, et la limite d'angle
+  n'est demandée qu'en mode Angle.
+- **Série Feedforward** (curseur « Réponse des sticks », pas de 0,5 : 0, 0,5, 1…, en Acro uniquement) :
+  l'Assistant donne le retard consigne → gyro en roll et en pitch de chaque vol, et le guide le résume sous
+  les logs des séries. Le guide (Finitions) propose cette série à la place d'une plage de départ et vérifie
+  chaque vol. La Réponse indicielle la reconnaît sans la juger (le feedforward fausse la réponse).
+- Guide : bouton **Recommencer**, qui décoche toutes les cases d'un drone, et bouton **Supprimer**, qui
+  retire sa fiche.
+
 ### Modifié
+- Fréquence d'enregistrement : minimum propre aux **PID** (1 kHz), distinct de celui des **filtres** (2 kHz
+  ou 1,6 kHz, plus pour les petits drones). Un vol de série PID à 1 kHz n'est plus signalé « trop lent » par
+  l'Assistant (simple conseil pour les filtres) ni bloqué par la vérification des logs du guide, qui indique
+  les deux fréquences.
+- Réponse indicielle, Diagnostic du réglage : un vol de série avec moins de 200 fenêtres en roll ou en pitch
+  est signalé « mesure moins sûre » (consigne de Brian White) ; sous 20, il n'est toujours pas lu.
 - Spectre, Fréq. × gaz, Fréq. × temps et Filtres : les niveaux en dB sont affichés sur l'échelle de
   PIDtoolbox (6,5 dB plus bas qu'avant), pour lire directement les repères habituels (gyro sous −30 dB,
   terme D sous −10 dB) et comparer aux captures de PIDtoolbox.

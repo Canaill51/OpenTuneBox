@@ -1,12 +1,15 @@
 """Diagnostic du réglage par la réponse indicielle, pour la fenêtre Réponse indicielle.
 
 Méthode de Brian White (docs/spec-methodes.md, [S32]) : séries de vols où un seul curseur change par pas
-de 0,2, feedforward à 0 (ou mode Angle), curseur I à 0,2–0,3. Trois blocs :
+de 0,2, feedforward à 0 (ou mode Angle), curseur I à 0,2–0,3. Trois blocs, plus un quatrième en finitions :
 1. équilibre P/D (série Damping) : première valeur sans dépassement, ou au-delà de laquelle le pic ne
    baisse plus ;
 2. niveau des gains (série Master) : on monte tant que la latence baisse sans cassure (« ripple ») ni
    vagues ; au premier signe, on garde la valeur d'avant ;
 3. équilibre roll / pitch : latences des deux axes rapprochées.
+4. série Feedforward (Réponse des sticks, en Acro, pas de 0,5 : 0, 0,5, 1…) : reconnue mais pas jugée, la
+   réponse indicielle étant faussée par le feedforward ; ses retards consigne → gyro sont dans l'Assistant
+   (choix de Cédric, 2026-10-12).
 Seuils et origine : docs/assistant.md (« Diagnostic du réglage »).
 """
 
@@ -15,13 +18,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from ..analysis.step_series import FlightStep, Series, find_series
+from ..analysis.step_series import FF_KEY, FlightStep, Series, find_series
 from .rules import ATTENTION, CONSEIL, INFO, OK, Finding
 
 SERIES_STEP = 0.2  # pas conseillé entre deux vols [S32]
 STEP_TOO_FINE = 0.15  # pas plus fin : écarts trop faibles pour se lire sur la réponse [S32]
 I_SLIDER_RANGE = (0.15, 0.35)  # curseur I conseillé 0,2–0,3 [S32], à 0,05 près
-MIN_WINDOWS = 20  # fenêtres exploitables par axe (comme rules.py)
+MIN_WINDOWS = 20  # fenêtres exploitables par axe (comme rules.py) : en dessous, le vol n'est pas lu
+SURE_WINDOWS = 200  # en dessous, mesure moins sûre (avertissement) : consigne de Brian White [S35]
 # équilibre P/D : séries Damping du corpus (8 drones dont le choix final est connu)
 PEAK_FLAT_MAX = 1.05  # pic « sans dépassement » (repère 1,03 de rules.STEP_PEAK_FLAT, plus le bruit d'un vol)
 PEAK_PLATEAU = 0.02  # le cran suivant ne baisse plus le pic que de moins de 0,02 : D suffisant
@@ -41,7 +45,8 @@ WAVES_RATIO_HIGH = 2.5  # vagues nettement au-dessus du bruit (Estimation : brui
 
 AXES2 = ("Roll", "Pitch")
 # noms des curseurs dans le configurateur Betaflight (les séries gardent les clés de PIDtoolbox)
-SLIDER_NAMES = {"Damping": "Damping", "Master": "Master", "Pitch T.": "Pitch Tracking", "Pitch D.": "Pitch Damping"}
+SLIDER_NAMES = {"Damping": "Damping", "Master": "Master", "Pitch T.": "Pitch Tracking", "Pitch D.": "Pitch Damping",
+                FF_KEY: "Feedforward"}
 
 
 @dataclass
@@ -86,15 +91,21 @@ def _pick(flights: list[FlightStep], s: Series) -> tuple[list[float], list[int]]
     return vals, [best[v] for v in vals]
 
 
-def _conditions(flights: list[FlightStep]) -> list[Finding]:
+def _conditions(flights: list[FlightStep], ff_series: set[int] = frozenset()) -> list[Finding]:
+    """Conditions du protocole ; les vols d'une série Feedforward (`ff_series`) ont le feedforward voulu."""
     out = []
-    ff = [f.label for f in flights if f.conditions.ff_active]
+    ff = [f.label for i, f in enumerate(flights) if f.conditions.ff_active and i not in ff_series]
     if ff:
         out.append(Finding("Réglage", CONSEIL, "Feedforward actif",
                            f"{', '.join(ff)} : feedforward > 0 hors mode Angle. Il gonfle le pic et raccourcit la "
                            "latence : la réponse ne montre plus seulement le P et le D.",
                            ["Pour les séries : feedforward à 0 en Acro, ou vols en mode Angle (le firmware y coupe "
                             "le feedforward de la boucle de vitesse)."]))
+    angle = [flights[i].label for i in sorted(ff_series) if flights[i].conditions.angle]
+    if angle:
+        out.append(Finding("Réglage", ATTENTION, "Série Feedforward en mode Angle",
+                           f"{', '.join(angle)} : le firmware coupe le feedforward en mode Angle, ces vols ne "
+                           "mesurent pas son effet.", ["Série Feedforward : vols en Acro uniquement."]))
     lo, hi = I_SLIDER_RANGE
     bad_i = [f"{f.label} ({_fmt(f.conditions.i_slider)})" for f in flights if not lo <= f.conditions.i_slider <= hi]
     if bad_i:
@@ -107,6 +118,14 @@ def _conditions(flights: list[FlightStep]) -> list[Finding]:
         out.append(Finding("Réglage", ATTENTION, "Pas assez de mouvements",
                            f"{', '.join(few)} : moins de {MIN_WINDOWS} fenêtres exploitables en roll et en pitch.",
                            ["Volez 20 à 30 s avec des flips et rolls francs sur chaque axe."]))
+    thin = [f"{f.label} (N = {min(f.n[:2])})" for f in flights
+            if _axes(f) and len(f.n) >= 2 and min(f.n[:2]) < SURE_WINDOWS]
+    if thin:
+        out.append(Finding("Réglage", CONSEIL, "Mesure moins sûre",
+                           f"{', '.join(thin)} : moins de {SURE_WINDOWS} fenêtres en roll ou en pitch. La réponse "
+                           "moyenne bouge encore d'un vol à l'autre ; le choix peut se jouer à un cran près.",
+                           ["Wobbles roll et pitch mêlés, au moins 20 s (environ 12 fenêtres par seconde de "
+                            "mouvement)."]))
     return out
 
 
@@ -318,12 +337,27 @@ def _gap_action(g: float) -> str:
             "qu'aucune cassure n'apparaît sur le pitch.")
 
 
+def ff_block(flights: list[FlightStep], s: Series) -> TuningBlock:
+    """Série Feedforward (Acro) reconnue : la réponse indicielle, faussée par le feedforward, ne la juge pas ; les
+    retards consigne → gyro se lisent dans l'Assistant (`rules._setpoint_delay`) et sous les logs du guide."""
+    vals, idx = _pick(flights, s)
+    b = TuningBlock("Feedforward (série Réponse des sticks)", s,
+                    [f"Feedforward {_fmt(v)} : {flights[i].label}" for v, i in zip(vals, idx)])
+    b.finding = Finding("Réponse", INFO, "Série Feedforward : lisez les retards dans l'Assistant",
+                        "Le feedforward fausse la réponse indicielle : elle ne sert pas à choisir sa valeur. "
+                        "L'Assistant donne, pour chaque vol, le retard consigne → gyro en roll et en pitch.", [])
+    return b
+
+
 def step_tuning(flights: list[FlightStep]) -> TuningReport:
-    rep = TuningReport(_conditions(flights))
     series = find_series(flights)
+    ff_series = {i for s in series if s.key == FF_KEY for i in s.flights}
+    rep = TuningReport(_conditions(flights, ff_series))
     master_best = None
     for s in series:
-        if s.key in ("Damping", "Pitch D."):
+        if s.key == FF_KEY:
+            rep.blocks.append(ff_block(flights, s))
+        elif s.key in ("Damping", "Pitch D."):
             rep.blocks.append(damping_block(flights, s))
         elif s.key == "Master":
             b = master_block(flights, s)

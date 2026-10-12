@@ -36,6 +36,11 @@ fichier .bbl/.bfl
                  │                        par partie : conditions, gyro, terme D, stratégie ; niveaux avant/après)
                  ├─ advisor/step_tuning.py  diagnostic du réglage de la Réponse indicielle (séries de vols :
                  │                        équilibre P/D, Master, roll / pitch ; analysis/step_series.py)
+                 ├─ advisor/log_check.py  vérification des logs ouverts pour le guide intégré : parties du vol
+                 │                        (analysis/period.py:flight_parts), protocole des mouvements, usages,
+                 │                        corrections (configurateur d'abord, CLI en repli), repères des filtres
+                 ├─ advisor/drone_card.py fiche drone (version, taille, boucle PID, ESC) et valeurs qui en découlent
+                 ├─ advisor/tuning_path.py parcours du guide : 4 phases de cases, état automatique d'après les logs
                  ├─ cli.py                opentunebox info / report
                  └─ gui/tools/*           une page par outil (calcul en arrière-plan, affichage pyqtgraph)
 ```
@@ -77,11 +82,20 @@ fichier .bbl/.bfl
   plantage) ; `FileOpenFilter` charge les logs ouverts depuis le Finder de macOS (`QFileOpenEvent`) ;
   sous Linux, fenêtres d'ouverture du bureau par le portail XDG.
 - `gui/main_window.py` : fenêtre principale. Barre d'outils (`TOOLS` : clé, libellé, icône, couleur, info-bulle)
-  dont les boutons servent d'onglets : `QStackedWidget` (`pages`), une page pour le visualiseur et une par outil
+  dont les boutons servent d'onglets : `QStackedWidget` (`pages`), une page pour le visualiseur, une pour le guide et une par outil
   ouvert (`open_tool`, `show_viewer`), bouton coché = page affichée (`OTHER_TOOLS` : bouton d'origine de
   Fréq. × gaz, Fréq. × temps, Configuration) ; un outil caché ne recalcule qu'à son affichage
   (`ToolWindow._stale`). Visualiseur : traces
   groupées (`TRACE_GROUPS`, traces absentes du log masquées), sections repliables Affichage et Lecteur.
+- `gui/guide.py` : page **Guide** (`GuidePage`), affichée au démarrage sans log et par le bouton Guide
+  (`MainWindow.show_guide`). Fiche drone (`CardDialog`, fiches en JSON dans le dossier de données de
+  l'utilisateur), frise et liste des phases, cases (`StepWidget`) décrites par `advisor/tuning_path.py`,
+  logs du drone (reconnus par `craft_name`) rangés en logs des filtres et logs des séries PID (rôle donné par
+  le bouton d'ouverture d'une case, retenu par fichier, sinon deviné par `LogCheck.role`), vérifiés par
+  `advisor/log_check.py` : rapide d'abord, complet en
+  arrière-plan (vrai nombre de fenêtres, repères des filtres), résultats gardés dans `LoadedLog.extras` par
+  période. Accueil : `gui/assets/guide/accueil.md` ; liens `otb:phase/<clé>` et `otb:tool/<clé>` vérifiés
+  par `tests/test_docs.py`.
 - `gui/theme.py` : thèmes clair et sombre. Style Qt **Fusion** sur tous les systèmes, palette complète,
   feuille de style globale (boutons, champs, listes, cases), couleurs d'accent par thème (`accent`, `accent_style` ; aussi celles des icônes d'outils),
   textes d'aide (`muted_style`), police de l'application × 1,15. Textes de Qt en français

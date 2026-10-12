@@ -1,7 +1,8 @@
 """Séries de vols pour le réglage par la réponse indicielle (méthode de Brian White, docs/spec-methodes.md).
 
 Une série = des vols du même drone (mêmes filtres) où un seul curseur change : Damping (équilibre P/D),
-Master (niveau des gains), Pitch T. / Pitch D. (équilibre roll / pitch). Ce module reconnaît les séries
+Master (niveau des gains), Pitch T. / Pitch D. (équilibre roll / pitch), Stick Resp. (feedforward, en Acro
+seulement : le firmware le coupe en mode Angle ; pas de 0,5, choix de Cédric du 2026-10-12). Ce module reconnaît les séries
 parmi les vols chargés et relève, pour chaque vol, les conditions du protocole : feedforward à 0 en Acro
 ou vol en mode Angle, curseur I bas. Les conseils sont dans `advisor/step_tuning.py`.
 """
@@ -20,7 +21,8 @@ from .sliders import PTB_CATEGORIES, slider_view
 from .delay import xcorr_delay_ms
 from .step import StepMetrics, step_response
 
-SERIES_KEYS = ("Damping", "Master", "Pitch T.", "Pitch D.")  # curseurs dont on lit les séries
+FF_KEY = "Stick Resp."  # curseur du feedforward
+SERIES_KEYS = ("Damping", "Master", "Pitch T.", "Pitch D.", FF_KEY)  # curseurs dont on lit les séries
 ANGLE_SHARE_MIN = 0.9  # vol « en mode Angle » : au moins 90 % de la période analysée
 
 
