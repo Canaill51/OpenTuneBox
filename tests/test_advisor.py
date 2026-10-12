@@ -278,10 +278,13 @@ def test_rpm_and_dyn_notch_q_steps():
     # banc d'hélices 5" : raies étroites, aucune qui passe → Q calculé, plafonné à 450 avec filtre RPM
     s, f = findings("Cedric/Benchmark Props 5inch/HQ J37.bbl")
     assert f["Notch dynamique : Q peut monter"].actions[0].startswith(f"dyn_notch_q {s.dyn_notch_q} → 450")
-    # 2e vol de cheussure : raie trop large ou trop haute pour Q 500 → Q calculé plus bas (l'Apex 5
-    # filter1.bbl, 500 → 400 avec une raie « visible » à 3 dB, n'en a plus besoin à 4 dB)
+    # InertiaFPV : raie à 239 Hz trop haute pour Q 500 et encore à +6 dB dans le gyro filtré → Q calculé plus bas
+    s, f = findings("1. PTB/InertiaFPV/LOG00001.bfl")
+    q = f["Notch dynamique : Q trop haut pour les raies à suivre"]
+    assert q.actions[0].startswith("dyn_notch_q 500 → 450") and "Encore visible dans le gyro filtré : 239 Hz" in q.detail
+    # 2e vol de cheussure : le calcul demande Q 350, mais aucune raie ne passe les filtres → rien (D-023)
     s, f = findings("1. PTB/cheussure/FF0.0_0.5_1.0.bbl", session=1)
-    assert f["Notch dynamique : Q trop haut pour les raies à suivre"].actions[0].startswith("dyn_notch_q 500 → 350")
+    assert "Notch dynamique : Q trop haut pour les raies à suivre" not in f
 
 
 def test_dterm_lift_from_noise():

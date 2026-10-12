@@ -163,6 +163,34 @@ def rpm_attenuation(f: np.ndarray, motor_hz: np.ndarray, settings) -> np.ndarray
     return out
 
 
+def rpm_filtered_spectrum(x: np.ndarray, mhz: np.ndarray | None, fs: float, rpm_settings=None, seg_ms: float = 300.0,
+                          breaks: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """DSP moyenne (linéaire) des fenêtres de `seg_ms` de x, après le filtre RPM du firmware : chaque fenêtre est
+    multipliée par |H|² de ses notchs (fréquence moyenne de chaque moteur sur la fenêtre, Q, poids et fondu de
+    chaque harmonique, à la cadence PID) ; images repliées des harmoniques retirées (log plus lent que la
+    boucle). Sans `rpm_settings` ou sans filtre RPM : DSP moyenne de x."""
+    L = max(16, int(round(fs * seg_ms / 1000.0)))
+    hop = L // 2
+    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop, breaks)
+    if segs.shape[0] == 0:
+        return np.zeros(0), np.zeros(0)
+    f, P = _seg_spectra(segs, fs, "psd")
+    if mhz is not None and rpm_settings is not None and rpm_settings.rpm_harmonics > 0:
+        mean_m = np.vstack([_segments(np.asarray(m, dtype=np.float64), L, hop, breaks)[0].mean(axis=1) for m in mhz])
+        # ⚠️ réponse du filtre RPM, pas un masque : un poids réduit laisse un reste que le firmware suit (L-028)
+        P = P * rpm_attenuation(f, mean_m, rpm_settings) ** 2
+        lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].min(axis=1)  # étendue parcourue pendant la fenêtre
+        hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].max(axis=1)
+        lobe = 2 * fs / L  # demi-largeur du lobe principal de la fenêtre de Hann
+        for k in range(P.shape[0]):
+            for h in range(1, rpm_settings.rpm_harmonics + 1):
+                a, b = h * lo_m[k] - lobe, h * hi_m[k] + lobe
+                P[k, (f >= fs - b) & (f <= fs - a)] = np.nan  # image repliée si le log est trop lent
+    with np.errstate(all="ignore"), warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return f, np.nanmean(P, axis=0)
+
+
 def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tuple[float, float],
                       rpm_settings=None, seg_ms: float = 300.0, bin_hz: float = 18.5,
                       breaks: np.ndarray | None = None) -> NotchTargets:
@@ -178,28 +206,11 @@ def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tu
     harmoniques ± 5 % (docs/assistant.md, « Notch dynamique »). Les images repliées des harmoniques (log plus
     lent que la boucle) sont retirées, faute de savoir de quelle fréquence réelle elles viennent.
     """
-    L = max(16, int(round(fs * seg_ms / 1000.0)))
-    hop = L // 2
-    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop, breaks)
     lo, hi = band[0], min(band[1], 0.95 * fs / 2)
     empty = NotchTargets(np.zeros(0), np.zeros(0), (lo, hi))
-    if segs.shape[0] == 0 or hi <= lo:
+    f, S = rpm_filtered_spectrum(x, mhz, fs, rpm_settings, seg_ms, breaks)
+    if f.size == 0 or hi <= lo:
         return empty
-    f, P = _seg_spectra(segs, fs, "psd")
-    if mhz is not None and rpm_settings is not None and rpm_settings.rpm_harmonics > 0:
-        mean_m = np.vstack([_segments(np.asarray(m, dtype=np.float64), L, hop, breaks)[0].mean(axis=1) for m in mhz])
-        # ⚠️ réponse du filtre RPM, pas un masque : un poids réduit laisse un reste que le firmware suit (L-028)
-        P = P * rpm_attenuation(f, mean_m, rpm_settings) ** 2
-        lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].min(axis=1)  # étendue parcourue pendant la fenêtre
-        hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].max(axis=1)
-        lobe = 2 * fs / L  # demi-largeur du lobe principal de la fenêtre de Hann
-        for k in range(P.shape[0]):
-            for h in range(1, rpm_settings.rpm_harmonics + 1):
-                a, b = h * lo_m[k] - lobe, h * hi_m[k] + lobe
-                P[k, (f >= fs - b) & (f <= fs - a)] = np.nan  # image repliée si le log est trop lent
-    with np.errstate(all="ignore"), warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        S = np.nanmean(P, axis=0)
     # regroupement en cases de la largeur de celles de la SDFT
     edges = np.arange(lo, hi + bin_hz, bin_hz)
     centres, power = [], []
@@ -236,11 +247,13 @@ class SpectrumLine:
     left_db: float  # même chose après filtres (NaN si non mesurable)
 
 
+MOTOR_LINE_MARGIN = 0.05  # marge autour des harmoniques retirées, en part de la fréquence moteur
+
+
 def _masked_spectrum(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int, seg_ms: float,
                      breaks: np.ndarray | None = None):
     """DSP moyenne (linéaire) des fenêtres de 300 ms, bandes des harmoniques moteur 1…n retirées
-    (h × [moteur le plus lent ; le plus rapide] pendant la fenêtre, ± 5 % de l'harmonique pour les trois
-    premières et de la fréquence moteur ensuite, et leur
+    (h × [moteur le plus lent ; le plus rapide] pendant la fenêtre, ± 5 % de la fréquence moteur, et leur
     image repliée : sur un whoop loggé à 4 kHz, la 8e harmonique retombe vers 200 Hz)."""
     L = max(16, int(round(fs * seg_ms / 1000.0)))
     hop = L // 2
@@ -253,10 +266,11 @@ def _masked_spectrum(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int, seg
     P = P.copy()
     for k in range(P.shape[0]):
         for h in range(1, n_harm + 1):
-            # marge : 5 % de l'harmonique pour les trois premières (raies fortes, flancs larges), 5 % de la
-            # fréquence moteur ensuite (raies faibles ; 5 % de la 8e, ±80 Hz, masquerait tout le spectre)
-            m = 0.05 * (h if h <= 3 else 1)
-            a, b = h * lo_m[k] - m * lo_m[k], h * hi_m[k] + m * hi_m[k]
+            # marge : 5 % de la fréquence moteur pour toutes les harmoniques. Raies ≥ 6 dB de 119 vols stationnaires
+            # du corpus comparées au hasard (2026-10-13) : flancs de la fondamentale jusqu'à 3 % au moins, de la 2e
+            # jusqu'à 1 %, aucun pour la 3e ; l'ancienne marge (5 % de l'harmonique : 10 et 15 % pour la 2e et
+            # la 3e) cachait des raies hors moteurs (docs/assistant.md, « Stratégie de filtrage et vol stationnaire »)
+            a, b = h * lo_m[k] - MOTOR_LINE_MARGIN * lo_m[k], h * hi_m[k] + MOTOR_LINE_MARGIN * hi_m[k]
             P[k, (f >= a) & (f <= b)] = np.nan
             for j in range(1, int(b // fs) + 2):  # images repliées |h·f − j·fs| (log plus lent que la boucle)
                 P[k, (f >= j * fs - b) & (f <= j * fs - a)] = np.nan
@@ -302,14 +316,34 @@ def _half_power_width(f: np.ndarray, S: np.ndarray, f0: float) -> float:
 
 
 def line_shapes(x_raw: np.ndarray, mhz: np.ndarray, fs: float, freqs, n_harm: int,
-                seg_ms: float = 300.0, breaks: np.ndarray | None = None) -> list[tuple[float, float]]:
+                seg_ms: float = 300.0, breaks: np.ndarray | None = None,
+                rpm_settings=None) -> list[tuple[float, float]]:
     """(largeur à mi-puissance en Hz, hauteur au-dessus du bruit voisin en dB) des raies `freqs` du gyro non
     filtré, bandes des harmoniques moteur traitées par le filtre RPM retirées (comme pour le notch
-    dynamique, placé après lui)."""
+    dynamique, placé après lui). Avec `rpm_settings`, une raie que ce masque rend non mesurable (reste
+    d'harmonique laissé par le filtre RPM, que le notch dynamique suit, L-028) est mesurée sur le spectre après
+    filtre RPM (`rpm_filtered_spectrum`). Seulement elle : ailleurs, les creux des notchs RPM abaissent le bruit
+    voisin (hauteur +1,7 dB en médiane sur 1 539 raies du corpus, 2026-10-13 ; docs/assistant.md, « Notch
+    dynamique »)."""
     f, S = _masked_spectrum(x_raw, mhz, fs, max(n_harm, 1), seg_ms, breaks)
     if f.size < 8:
         return [(float("nan"), float("nan"))] * len(freqs)
-    return [(_half_power_width(f, S, float(f0)), _line_height(f, S, float(f0))) for f0 in freqs]
+    out = [(_half_power_width(f, S, float(f0)), _line_height(f, S, float(f0))) for f0 in freqs]
+    if rpm_settings is not None and any(not np.isfinite(w) for w, _ in out):
+        fr, Sr = rpm_filtered_spectrum(x_raw, mhz, fs, rpm_settings, seg_ms, breaks)
+        out = [(w, h) if np.isfinite(w) else (_half_power_width(fr, Sr, float(f0)), _line_height(fr, Sr, float(f0)))
+               for (w, h), f0 in zip(out, freqs)]
+    return out
+
+
+def line_heights(x: np.ndarray, fs: float, freqs, seg_ms: float = 300.0,
+                 breaks: np.ndarray | None = None) -> list[float]:
+    """Hauteur (dB) au-dessus du bruit voisin des raies `freqs` dans la DSP moyenne de x, sans rien retirer
+    (gyro filtré : ce qui passe vraiment tous les filtres)."""
+    f, S = rpm_filtered_spectrum(x, None, fs, None, seg_ms, breaks)
+    if f.size < 8:
+        return [float("nan")] * len(freqs)
+    return [_line_height(f, S, float(f0)) for f0 in freqs]
 
 
 def spectrum_lines(x_raw: np.ndarray, x_filt: np.ndarray, mhz: np.ndarray, fs: float, band: tuple[float, float],

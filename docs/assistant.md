@@ -231,6 +231,17 @@ filtre toujours ; désactivé sous 2 kHz de boucle PID.
 - **Effet sur les constats** (705 sessions, `advisor_rates.py` avant / après) : « moins de notchs
   suffiraient » 97 → 64, « plus de notchs » 45 → 56, « Q trop haut pour les raies à suivre » 22 → 19,
   « Q peut monter » 116 → 117 ; 101 sessions changent.
+- **Forme des pics et Q** (2026-10-13, W-012, D-023 ; 689 sessions, 1 979 pics) : avec les harmoniques
+  retirées ± 5 %, 20 % des pics à suivre avaient une largeur inconnue (38 % près d'une harmonique) et
+  n'entraient pas dans le Q ; mesurés sur le spectre après filtre RPM, 3 %. Mais ce spectre fausse les raies
+  éloignées des moteurs (creux des notchs RPM dans le bruit voisin : hauteur +1,7 dB en médiane, +9,5 dB au
+  p90, largeur × 1,14 sur 1 539 raies) : il ne sert qu'aux pics que le masque rend non mesurables
+  (`motors.line_shapes`, `rpm_settings`). Le Q devient calculable dans 106 sessions de plus. Contrôle dans le
+  gyro filtré enregistré (après tous les filtres) : sur les 19 sessions où « Q trop haut » se déclenchait,
+  une raie à suivre dépassait encore 4 dB dans 10 seulement ; sur les 35 que la mesure hybride ajoutait, dans
+  6. D'où la condition (choix de Cédric) : « Q trop haut » seulement si une raie à suivre dépasse encore
+  `HARMONIC_VISIBLE_DB` dans le gyro filtré (`dyn_notch_view` : `left`). Effet : « Q trop haut » 19 → 30
+  (12 gardées, 7 retirées, 18 ajoutées, une raie qui passe dans toutes), « Q peut monter » 117 → 113.
 - **Corpus** (681 sessions) : toutes à 2 kHz de boucle PID ou plus, une seule sans filtre RPM ; 1 à 3
   notchs (2 le plus souvent), Q 300–500, plage 100–600 Hz le plus souvent (minimum de 60 à 240 Hz).
 - **Taux** : « moins de notchs suffiraient » 27 % des sessions (16 % des drones) — d'où le niveau info ;
@@ -257,9 +268,16 @@ meilleur log pour identifier le bruit.
   à partir de deux, dans 37 % (34 % avec mouvements, 50 % en stationnaire), repères de retard recalculés
   compris ; 25 % sans compter l'enregistrement, option écartée (`scripts/advisor_rates.py`).
 - **Vol stationnaire** (`motors.spectrum_lines`) : raies moteur repérées par l'eRPM et retirées jusqu'à la
-  8e harmonique (± 5 % de l'harmonique pour les trois premières, ± 5 % de la fréquence moteur ensuite,
-  images repliées comprises : sur un whoop logué à 4 kHz, la 8e harmonique retombe vers 200 Hz) ; toute
-  autre raie dépassant le bruit voisin de 6 dB est listée, avec sa hauteur avant et après filtres.
+  8e harmonique (± 5 % de la fréquence moteur, `motors.MOTOR_LINE_MARGIN`, images repliées comprises : sur un
+  whoop logué à 4 kHz, la 8e harmonique retombe vers 200 Hz) ; toute autre raie dépassant le bruit voisin de
+  6 dB est listée, avec sa hauteur avant et après filtres.
+- **Marge autour des harmoniques** (2026-10-13, W-012, D-023) : 119 vols stationnaires, raies ≥ 6 dB trouvées
+  sans marge et comparées à des fréquences au hasard, selon leur écart à la bande de l'harmonique (en part de
+  la fréquence moteur). Excès de raies (flancs) : fondamentale ×7 jusqu'à 2 %, ×3,6 de 2 à 3 % ; 2e
+  harmonique seulement de 0 à 1 % ; 3e aucun (122, 35 et 47 raies). L'ancienne marge (5 % de l'harmonique :
+  10 et 15 % de la fréquence moteur pour la 2e et la 3e) cachait des raies hors moteurs ; 5 % de la fréquence
+  moteur pour toutes (choix de Cédric). Effet : « Raie à … encore visible » 47 → 44 sessions, surtout des
+  fréquences déplacées (bruit voisin moins masqué).
   « Raie à X Hz encore visible après filtrage » (plus de 3 dB après filtres, 4 dB depuis le 2026-10-12 : 48
   vols stationnaires sur 115) : 53 vols stationnaires sur 107, raies surtout entre 85 et 510 Hz (médiane 233 Hz), 11 sur 75 sous 100 Hz (mise en garde : un notch y
   retarde le PID, la raie peut venir du réglage).
@@ -510,7 +528,9 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   mi-puissance et hauteur au-dessus du bruit voisin sur le gyro non filtré (harmoniques traitées retirées,
   le plus large et le plus haut du roll et du pitch) ; Q nécessaire = le plus haut Q qui ramène chaque raie
   à 4 dB du bruit voisin sur sa demi-largeur (forme du notch de Betaflight [S31]), arrondi à 50 vers le bas,
-  100 au moins. Q actuel plus haut → « Q trop haut pour les raies à suivre » (`dyn_notch_q` = Q nécessaire) ;
+  100 au moins (pic que le masque rend non mesurable : mesuré sur le spectre après filtre RPM). Q actuel plus
+  haut **et** une raie à suivre encore à plus de 4 dB dans le gyro filtré → « Q trop haut pour les raies à
+  suivre » (`dyn_notch_q` = Q nécessaire) ;
   sinon, sans raie qui passe et avec gyro et D sous leurs repères, « Q peut monter » jusqu'au Q nécessaire,
   450 au plus (+50 si aucune raie n'est mesurable). Plus de pics que de notchs avec une raie qui passe ou un
   gyro bruité → « plus de notchs » (`dyn_notch_count` = nombre de pics, 7 au plus) ; une raie qui passe
@@ -617,6 +637,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | `rpm_filter_q` pour gagner du retard | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | « stepwise increasing the Q from the default of 500 up to a max of 1000 » [S27] ; Brian White : 750 [S20, 34:12]. Pas de 100 : décision de Cédric (2026-10-10), à la place de 250. Proposé seulement dans le conseil « filtrage gyro trop prudent » (bruit faible) |
 | Poids RPM juste suffisant | 1 − 10^(−(hauteur + 6 dB)/20), arrondi au dixième supérieur | Firmware + estimation (marge) | Profondeur du notch tirée du code (`rpmNotchUpdate`) ; marge de 6 dB choisie pour un taux de 6 % (voir « Filtre RPM : poids et Q ») ; seulement 2e et 3e harmoniques, comme [S27] ; presets officiels en tripale : 100, 0, 80 (AOS), 100, 20, 100 (Karatebrot), 90, 30, 90 (SupaflyFPV) [S28] |
 | Gain minimal pour proposer un poids | 0,5 | Estimation | Choisi avec Cédric sur le taux de déclenchement |
+| Marge autour des harmoniques retirées | ± 5 % de la fréquence moteur, harmoniques 1 à 8 | Corpus | Raies du vol stationnaire comparées au hasard (« Stratégie de filtrage et vol stationnaire », 2026-10-13) : flancs jusqu'à 3 % (fondamentale), 1 % (2e), aucun (3e) ; avant : 5 % de l'harmonique pour les trois premières (estimation) |
 | Raie moteur « visible » | > 4 dB au-dessus du bruit voisin | Corpus | Même mesure là où il n'y a aucune raie (0,45 et 0,6 × la fréquence moteur) : au-dessus de 4 dB dans moins de 1 % des sessions (3 dB : 1,4 à 2,8 %), voir « Filtre RPM : poids et Q » (2026-10-12). Repris tel quel pour les raies hors moteurs après filtrage, sans calibration propre |
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
 | Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 10 et 8 drones seulement |
@@ -630,7 +651,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Raie basse fréquence | < 100 Hz : mise en garde avant de la filtrer | Communauté | Propwash et oscillations « ~20Hz to ~100Hz » [S1] |
 | Baisse de `rpm_filter_q` (raie moteur visible) | −100 par pas, borne 250 | Firmware (borne) + décision | Pas de 100 : décision de Cédric (2026-10-10), à la place de −30 % ; aussi dans « Bruit moteur mal éliminé » |
 | Hausse de `rpm_filter_q` (harmoniques effacées) | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | [S27] ; condition « harmoniques effacées, bruit sous les repères, tout type de vol » : décision de Cédric (2026-10-10) |
-| `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 100 à 450 | Théorie + communauté + estimation | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 450 au plus avec filtre RPM [S19] ; 100 au moins : estimation (sources : 120–150 sans filtre RPM [S19]) ; +50 si aucune raie n'est mesurable ; raie ramenée à 4 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) |
+| `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 100 à 450 | Théorie + communauté + estimation | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 450 au plus avec filtre RPM [S19] ; 100 au moins : estimation (sources : 120–150 sans filtre RPM [S19]) ; +50 si aucune raie n'est mesurable ; raie ramenée à 4 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) ; « Q trop haut » seulement si une raie passe encore les filtres (2026-10-13, D-023 : sans ce contrôle, juste une fois sur deux) |
 | `dyn_notch_count` en hausse | un notch par pic à suivre, 7 au plus, si une raie passe ou si le gyro est bruité | Firmware (borne) + décision | `cli/settings.c` (0 à 7) ; décision de Cédric (2026-10-10) |
 | Terme D propre : relèvement des filtres | D sous −20 dB PIDtoolbox ; jusqu'à 1,2 (ou +0,2 au-delà), D prévu sous −10 dB et sous le p90 | Communauté + configurateur + estimation | « ideally below about minus 20 dB » [S20] ; 0,8–1,2 hors mode expert (`useTuningSliders.ts`) ; +0,2 et deux pas × 1,1 sans curseur : estimations ; décision de Cédric (2026-10-10) |
 | `rpm_filter_harmonics` | jusqu'à 3 | Firmware | `cli/settings.c` (0 à 3) |

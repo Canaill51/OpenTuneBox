@@ -362,3 +362,17 @@ def test_filter_targets_checks():
     assert FilterTargets(float("nan"), -10.0, 1.75, 2.0, (1.75, 1.5)).reached() is None
     assert len(FilterTargets(-30.0, -10.0, 1.75, 2.0, None).checks()) == 2  # whoop : pas d'objectif de retard
     assert FilterTargets(-30.0, float("nan"), 1.75, 2.0, None).reached() is None
+
+
+def test_dyn_notch_q_too_high_needs_a_passing_line():
+    """« Q trop haut » seulement si une raie à suivre dépasse encore HARMONIC_VISIBLE_DB dans le gyro filtré
+    (choix de Cédric, 2026-10-13) : sinon le Q actuel suffit déjà, quoi qu'en dise le calcul."""
+    from opentunebox.advisor import rules
+    s = SimpleNamespace(dyn_notch_q=500)
+    dn = {"q_need": 360.0, "peaks": [240.0], "widths": [14.0], "heights": [16.0], "left": [2.0], "count": 2}
+    title = "Notch dynamique : Q trop haut pour les raies à suivre"
+    assert not any(f.title == title for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False))
+    dn["left"] = [6.2]
+    f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if f.title == title)
+    assert f.actions[0].startswith("dyn_notch_q 500 → 350")
+    assert "240 Hz (+6 dB)" in f.detail
