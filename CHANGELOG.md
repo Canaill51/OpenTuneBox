@@ -5,31 +5,27 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+## [0.6.0] — 2026-10-12
+
 ### Ajouté
 - **Guide** intégré (bouton de la barre d'outils, affiché au démarrage sans log) : parcours de réglage à
   cocher, par drone, en quatre phases (préparer le drone, filtres, PID par séries, finitions). **Fiche
-  drone** (version de Betaflight, taille, boucle PID, ESC ; préremplie d'après le log ouvert) : fréquence
-  d'enregistrement, listes des séries et plages de finitions s'y adaptent, et chaque drone garde son
-  avancement. Changements donnés en positions de curseurs du configurateur, le CLI en repli ; boutons qui
-  ouvrent l'outil utile sur la bonne partie du vol.
+  drone** (version de Betaflight, taille, boucle PID, ESC ; préremplie d'après le log ouvert ; boutons
+  Nouveau drone, Modifier, Recommencer, Supprimer) : fréquences d'enregistrement, listes des séries et plage
+  du terme I s'y adaptent, et chaque drone garde son avancement. Changements donnés en positions de curseurs
+  du configurateur, le CLI en repli ; boutons qui ouvrent l'outil utile sur la bonne partie du vol.
 - Guide : les logs du drone (reconnus par le nom dans Betaflight) **cochent ce qu'ils prouvent** ou signalent
-  ce qui est à revoir. Le vol de réglage (stationnaire puis wobbles) est découpé automatiquement ; protocole
-  de Brian White vérifié (mode Angle, rates ACTUAL 200 / 200 / 0, limite d'angle 30°, roll et pitch mêlés,
-  Dynamic Damping à 0, curseur I, au moins 200 fenêtres) ; repères de fin des filtres mesurés ; copie des
-  commandes CLI équivalentes.
-- Guide : logs des **filtres** et logs des **séries PID** demandés et jugés à part (bouton d'ouverture dans
-  chaque phase, panneau des logs en deux parties, lien pour changer le rôle d'un log) ; chaque case ne lit
-  que les logs de sa phase. Le panneau donne la raison de chaque usage impossible et reconnaît chaque série
-  parmi les logs PID d'un drone (au lieu de signaler « plusieurs curseurs changent »).
-- Guide : les mouvements des vols de réglage (filtres et séries PID) se font en **mode Angle** ou en **Acro
-  avec le feedforward à 0** ; un seul point « Mode Angle ou feedforward à 0 » les vérifie, et la limite d'angle
-  n'est demandée qu'en mode Angle.
+  ce qui est à revoir, avec la raison. Logs des **filtres** et logs des **séries PID** demandés et jugés à
+  part : bouton d'ouverture dans chaque phase, panneau des logs en deux parties, lien pour changer le rôle
+  d'un log. Le vol de réglage des filtres (stationnaire puis wobbles) est découpé automatiquement ; protocole
+  de Brian White vérifié (mode Angle, ou Acro avec le feedforward à 0 ; rates ACTUAL 200 / 200 / 0 ; limite
+  d'angle 30° en mode Angle ; roll et pitch mêlés ; Dynamic Damping à 0 ; curseur I ; au moins 200
+  fenêtres) ; chaque série d'un drone reconnue ; repères de fin des filtres mesurés ; copie des commandes
+  CLI équivalentes.
 - **Série Feedforward** (curseur « Réponse des sticks », pas de 0,5 : 0, 0,5, 1…, en Acro uniquement) :
-  l'Assistant donne le retard consigne → gyro en roll et en pitch de chaque vol, et le guide le résume sous
-  les logs des séries. Le guide (Finitions) propose cette série à la place d'une plage de départ et vérifie
-  chaque vol. La Réponse indicielle la reconnaît sans la juger (le feedforward fausse la réponse).
-- Guide : bouton **Recommencer**, qui décoche toutes les cases d'un drone, et bouton **Supprimer**, qui
-  retire sa fiche.
+  l'Assistant donne le **retard consigne → gyro** en roll et en pitch de chaque vol, et le guide le résume
+  sous les logs des séries. La Réponse indicielle reconnaît la série sans la juger (le feedforward fausse la
+  réponse).
 
 ### Modifié
 - Fréquence d'enregistrement : minimum propre aux **PID** (1 kHz), distinct de celui des **filtres** (2 kHz
@@ -330,7 +326,8 @@ Première version complète.
 - Lanceur Linux (menu des applications) et recette PyInstaller.
 - Guide d'utilisation en français.
 
-[Non publié]: ../../compare/v0.5.0...HEAD
+[Non publié]: ../../compare/v0.6.0...HEAD
+[0.6.0]: ../../releases/tag/v0.6.0
 [0.5.0]: ../../releases/tag/v0.5.0
 [0.4.0]: ../../releases/tag/v0.4.0
 [0.3.0]: ../../releases/tag/v0.3.0
