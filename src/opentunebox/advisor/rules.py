@@ -140,16 +140,17 @@ def gaps_text(n_gaps: int, lost_s: float, span_s: float) -> str:
             f"({lost_s:.1f} s perdues, {pct:.1f} %)").replace(".", ",")
 
 
-def _band_db(x: np.ndarray, fs: float, lo: float, hi: float) -> float:
-    s = spectral.spectrum(x, fs, resolution_hz=2.0)
+def _band_db(x: np.ndarray, fs: float, lo: float, hi: float, breaks: np.ndarray | None = None) -> float:
+    s = spectral.spectrum(x, fs, resolution_hz=2.0, breaks=breaks)
     hi = min(hi, 0.95 * fs / 2)
     m = (s.freqs >= lo) & (s.freqs <= hi)
     return float(np.mean(s.values[m])) if m.any() else float("nan")
 
 
-def band_peak_ptb(x: np.ndarray, fs: float, lo: float, hi: float) -> tuple[float, float]:
+def band_peak_ptb(x: np.ndarray, fs: float, lo: float, hi: float,
+                  breaks: np.ndarray | None = None) -> tuple[float, float]:
     """Sommet du spectre lissé dans la bande : (fréquence en Hz, niveau sur l'échelle de PIDtoolbox)."""
-    s = spectral.spectrum(x, fs, resolution_hz=2.0, smoothing=2)
+    s = spectral.spectrum(x, fs, resolution_hz=2.0, smoothing=2, breaks=breaks)
     hi = min(hi, 0.95 * fs / 2)
     m = (s.freqs >= lo) & (s.freqs <= hi)
     if not m.any():
@@ -158,9 +159,9 @@ def band_peak_ptb(x: np.ndarray, fs: float, lo: float, hi: float) -> tuple[float
     return float(s.freqs[m][k]), float(s.values[m][k]) - spectral.PTB_PSD_OFFSET_DB
 
 
-def band_peak_ptb_db(x: np.ndarray, fs: float, lo: float, hi: float) -> float:
+def band_peak_ptb_db(x: np.ndarray, fs: float, lo: float, hi: float, breaks: np.ndarray | None = None) -> float:
     """Sommet du spectre lissé dans la bande, sur l'échelle de PIDtoolbox (ce que l'œil lit sur sa courbe)."""
-    return band_peak_ptb(x, fs, lo, hi)[1]
+    return band_peak_ptb(x, fs, lo, hi, breaks)[1]
 
 
 def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | None = None) -> Report:
@@ -177,6 +178,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     fs = log.fs
     s = log.settings
     t0, t1 = float(log.t[sel.start]), float(log.t[min(sel.stop, log.n) - 1])
+    br = log.breaks(sel)  # raccords : aucune fenêtre d'analyse ne les chevauche (D-020)
 
     # ------------------------------------------------------------ 1. qualité de l'enregistrement
     hz = hover_motor_hz(log)
@@ -220,13 +222,12 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          "Sans eRPM, le filtre RPM est inactif et les harmoniques moteur ne peuvent qu'être estimées.",
                          ["Activez dshot_bidir si vos ESC le permettent (BLHeli_32, Bluejay, AM32)."]))
     n_gaps, lost_s = log.recording_gaps(sel)
-    if n_gaps:  # ⚠️ les analyses recollent le vol de part et d'autre d'un trou : faux bruit (W-010)
-        F.append(Finding("Enregistrement", CONSEIL, "Trous dans l'enregistrement",
+    if n_gaps:  # les fenêtres d'analyse qui chevauchent un trou sont écartées (D-020)
+        F.append(Finding("Enregistrement", INFO, "Trous dans l'enregistrement",
                          f"{gaps_text(n_gaps, lost_s, t1 - t0)}, dus à des pauses d'écriture de la carte SD ou de la "
-                         "mémoire flash. Chaque raccord ajoute un faux bruit au spectre, surtout quand le drone bouge "
-                         "(jusqu'à +18 dB sur un vol de wobbles du corpus) ; la réponse indicielle est moins sûre.",
-                         ["Pour juger le bruit, préférez un vol sans trou.",
-                          "Carte SD plus rapide, ou fréquence d'enregistrement plus basse."]))
+                         "mémoire flash. Les fenêtres d'analyse qui chevauchent un trou sont écartées : il reste "
+                         "moins de données à analyser.",
+                         ["Si c'est fréquent : carte SD plus rapide, ou fréquence d'enregistrement plus basse."]))
     ct = crash_time(log)
     if ct is not None:
         F.append(Finding("Vol", INFO, "Crash détecté",
@@ -235,7 +236,7 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     # ------------------------------------------------------------ 2. réponse indicielle
     steps = []
     for ax in range(3):
-        r = step_response(log.setpoint[ax, sel], log.gyro[ax, sel], fs, terms=log.pid_terms(ax, sel))
+        r = step_response(log.setpoint[ax, sel], log.gyro[ax, sel], fs, terms=log.pid_terms(ax, sel), breaks=br)
         steps.append(AxisStep(AXES[ax], r))
     meas["steps"] = {st.axis: st.result.metrics for st in steps}
     for ax, st in enumerate(steps[:2]):
@@ -261,11 +262,11 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     F.extend(_setpoint_delay(log, sel, delays.sp_gyro_ms))
     nyq = fs / 2
     hi = min(500.0, 0.95 * nyq)
-    g_db = [_band_db(log.gyro[a, sel], fs, 80, hi) for a in range(2)]
-    d_db = [_band_db(log.d_term[a, sel], fs, 80, hi) for a in range(2) if np.any(log.d_term[a])]
-    low_db = [_band_db(log.gyro[a, sel], fs, 20, 80) for a in range(2)]
-    g_ptb = max(band_peak_ptb_db(log.gyro[a, sel], fs, 80, hi) for a in range(2))
-    d_ptb = max((band_peak_ptb_db(log.d_term[a, sel], fs, 80, hi) for a in range(2) if np.any(log.d_term[a])),
+    g_db = [_band_db(log.gyro[a, sel], fs, 80, hi, br) for a in range(2)]
+    d_db = [_band_db(log.d_term[a, sel], fs, 80, hi, br) for a in range(2) if np.any(log.d_term[a])]
+    low_db = [_band_db(log.gyro[a, sel], fs, 20, 80, br) for a in range(2)]
+    g_ptb = max(band_peak_ptb_db(log.gyro[a, sel], fs, 80, hi, br) for a in range(2))
+    d_ptb = max((band_peak_ptb_db(log.d_term[a, sel], fs, 80, hi, br) for a in range(2) if np.any(log.d_term[a])),
                 default=float("nan"))
     meas.update(gyro_noise_db=g_db, dterm_noise_db=d_db, low_band_db=low_db, gyro_peak_ptb_db=g_ptb,
                 dterm_peak_ptb_db=d_ptb)
@@ -372,8 +373,8 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         if f is not None:
             F.append(f)
     if log.motor_hz is not None and log.gyro_unfilt is not None and s.rpm_harmonics > 0:
-        mn = [motor_noise(log.gyro[a, sel], log.motor_hz[:, sel], fs) for a in range(2)]
-        mp = [motor_noise(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], fs) for a in range(2)]
+        mn = [motor_noise(log.gyro[a, sel], log.motor_hz[:, sel], fs, breaks=br) for a in range(2)]
+        mp = [motor_noise(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], fs, breaks=br) for a in range(2)]
         left = [float(np.nanmax([m.mean_db[0] for m in mn]))]
         meas["motor_harmonic_left_db"] = left[0]
         meas["motor_harmonic_raw_db"] = float(np.nanmax([m.mean_db[0] for m in mp]))
@@ -779,7 +780,7 @@ def _hover_noise(log, sel, profile, g_ptb, d_ptb, fixed_hz, meas, aliased: bool 
     lines = []
     for a in range(2):
         for ln in spectrum_lines(log.gyro_unfilt[a, sel], log.gyro[a, sel], log.motor_hz[:, sel], log.fs,
-                                 (20.0, 900.0), min_db=HOVER_LINE_MIN_DB):
+                                 (20.0, 900.0), min_db=HOVER_LINE_MIN_DB, breaks=log.breaks(sel)):
             near = [o for o in lines if abs(o.freq_hz - ln.freq_hz) <= 0.1 * o.freq_hz]
             if not near:
                 lines.append(ln)
@@ -831,8 +832,8 @@ def _line_shape(log: FlightLog, sel: slice, f0: float) -> tuple[float, float]:
     (comme le Q du notch dynamique) ; NaN sans gyro non filtré ou sans eRPM."""
     if log.gyro_unfilt is None or log.motor_hz is None:
         return float("nan"), float("nan")
-    sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, [f0], log.settings.rpm_harmonics)[0]
-          for a in range(2)]
+    sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, [f0], log.settings.rpm_harmonics,
+                      breaks=log.breaks(sel))[0] for a in range(2)]
     def worst(vals):
         return float(np.nanmax(vals)) if np.any(np.isfinite(vals)) else float("nan")
     return worst([x[0] for x in sh]), worst([x[1] for x in sh])
@@ -910,8 +911,10 @@ def _lowpass_setup_rules(s) -> list[Finding]:
 def rpm_harmonic_levels(log: FlightLog, sel: slice) -> tuple[np.ndarray, np.ndarray]:
     """Hauteur de chaque harmonique moteur au-dessus du bruit voisin (dB, maximum du roll et du pitch),
     avant filtres (gyro non filtré) et après (gyro filtré)."""
-    raw = [harmonic_prominence(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs) for a in range(2)]
-    left = [harmonic_prominence(log.gyro[a, sel], log.motor_hz[:, sel], log.fs) for a in range(2)]
+    raw = [harmonic_prominence(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, breaks=log.breaks(sel))
+           for a in range(2)]
+    left = [harmonic_prominence(log.gyro[a, sel], log.motor_hz[:, sel], log.fs, breaks=log.breaks(sel))
+            for a in range(2)]
     with np.errstate(all="ignore"):
         return np.fmax(*raw), np.fmax(*left)
 
@@ -1119,7 +1122,7 @@ def frame_resonance(log: FlightLog, sel: slice, lo_hz: float = 20.0) -> tuple[fl
     lo, hi = lo_hz, min(0.9 * log.fs / 2, 900.0)
     prof = []
     for a in range(2):
-        ft = spectral.freq_throttle(x[a, sel], log.throttle[sel], log.fs, mode="amp")
+        ft = spectral.freq_throttle(x[a, sel], log.throttle[sel], log.fs, mode="amp", breaks=log.breaks(sel))
         ok = ft.counts > 3
         if ok.sum() < 8:
             return None
@@ -1185,15 +1188,16 @@ def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) ->
     if not dyn_notch_active(s) or log.gyro_unfilt is None or log.motor_hz is None or s.rpm_harmonics == 0:
         return None
     band = (max(s.dyn_notch_min_hz - 37, DYN_NOTCH_MIN_HZ), s.dyn_notch_max_hz + 37)
-    t = [dyn_notch_targets(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, band, s.rpm_harmonics)
-         for a in range(2)]
+    t = [dyn_notch_targets(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, band, s.rpm_harmonics,
+                           breaks=log.breaks(sel)) for a in range(2)]
     peaks = [float(f) for f in max(t, key=lambda x: x.freqs.size).freqs]
     if fixed_hz is not None and all(abs(f - fixed_hz) > 37 for f in peaks):
         peaks.append(float(fixed_hz))
     every = [float(f) for x in t for f in x.freqs] + ([float(fixed_hz)] if fixed_hz is not None else [])
     peaks = sorted(peaks)
     # forme de chaque raie : la plus large et la plus haute du roll et du pitch (côté prudent)
-    sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, peaks, s.rpm_harmonics) for a in range(2)]
+    sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, peaks, s.rpm_harmonics,
+                      breaks=log.breaks(sel)) for a in range(2)]
     def worst(vals):
         return float(np.nanmax(vals)) if np.any(np.isfinite(vals)) else float("nan")
     widths = [worst([x[i][0] for x in sh]) for i in range(len(peaks))]

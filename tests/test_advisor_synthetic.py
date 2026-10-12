@@ -150,10 +150,10 @@ def test_log_check_flight_mode(flags, title):
 
 
 def test_recording_gaps_finding():
-    """Un trou dans la période analysée (pause d'écriture) : constat dans l'assistant et dans la vérification
-    des logs, puisque les analyses recollent le vol de part et d'autre (W-010)."""
-    from opentunebox.advisor.log_check import WARN, check_log
-    from opentunebox.advisor.rules import CONSEIL, analyze
+    """Un trou dans la période analysée (pause d'écriture) : constat informatif dans l'assistant et dans la
+    vérification des logs ; les analyses écartent les fenêtres qui le chevauchent (D-020)."""
+    from opentunebox.advisor.log_check import INFO, check_log
+    from opentunebox.advisor.rules import analyze
 
     log = make_flightlog(seconds=25.0)
     assert log.recording_gaps() == (0, 0.0)
@@ -163,5 +163,5 @@ def test_recording_gaps_finding():
     n, lost = log.recording_gaps()
     assert n == 1 and lost == pytest.approx(0.2, abs=1e-6)
     f = next(f for f in analyze(log).findings if f.title == "Trous dans l'enregistrement")
-    assert f.severity == CONSEIL and "1 trou dans la période analysée (0,2 s perdues" in f.detail
-    assert check_log(log).item("gaps").status == WARN
+    assert f.severity == rules.INFO and "1 trou dans la période analysée (0,2 s perdues" in f.detail
+    assert check_log(log).item("gaps").status == INFO

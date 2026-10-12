@@ -66,7 +66,7 @@ class MotorNoise:
 
 
 def motor_noise(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int = 3, seg_ms: float = 300.0,
-                min_hz: float = 20.0) -> MotorNoise:
+                min_hz: float = 20.0, breaks: np.ndarray | None = None) -> MotorNoise:
     """Niveau de bruit (PSD, dB) aux fréquences des harmoniques moteur, fenêtre par fenêtre.
 
     Pour chaque fenêtre de 300 ms, on lit la PSD à h × fréquence moyenne des moteurs, h = 1…n.
@@ -75,14 +75,14 @@ def motor_noise(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int = 3, seg_
     """
     L = max(16, int(round(fs * seg_ms / 1000.0)))
     hop = L // 2
-    segs, starts = _segments(np.asarray(x, dtype=np.float64), L, hop)
+    segs, starts = _segments(np.asarray(x, dtype=np.float64), L, hop, breaks)
     harm = np.arange(1, n_harm + 1)
     if segs.shape[0] == 0:
         return MotorNoise(harm, np.full(n_harm, np.nan), np.full(n_harm, np.nan))
     f, P = _seg_spectra(segs, fs, "psd")
     P = to_db(P)
     mean_motor = mhz.mean(axis=0)
-    mseg, _ = _segments(mean_motor, L, hop)
+    mseg, _ = _segments(mean_motor, L, hop, breaks)
     fm = mseg.mean(axis=1)
     df = f[1] - f[0]
     means, stds = [], []
@@ -97,7 +97,7 @@ def motor_noise(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int = 3, seg_
 
 
 def harmonic_prominence(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int = 3, seg_ms: float = 300.0,
-                        min_hz: float = 20.0) -> np.ndarray:
+                        min_hz: float = 20.0, breaks: np.ndarray | None = None) -> np.ndarray:
     """Hauteur (dB) de chaque harmonique moteur au-dessus du bruit voisin, médiane des fenêtres de 300 ms.
 
     Raie = DSP moyenne entre h × (moteur le plus lent) et h × (moteur le plus rapide), ± une case ;
@@ -106,14 +106,14 @@ def harmonic_prominence(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int =
     """
     L = max(16, int(round(fs * seg_ms / 1000.0)))
     hop = L // 2
-    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop)
+    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop, breaks)
     if segs.shape[0] == 0:
         return np.full(n_harm, np.nan)
     f, P = _seg_spectra(segs, fs, "psd")
     df = f[1] - f[0]
-    lo_m = _segments(mhz.min(axis=0), L, hop)[0].mean(axis=1)
-    hi_m = _segments(mhz.max(axis=0), L, hop)[0].mean(axis=1)
-    mean_m = _segments(mhz.mean(axis=0), L, hop)[0].mean(axis=1)
+    lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].mean(axis=1)
+    hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].mean(axis=1)
+    mean_m = _segments(mhz.mean(axis=0), L, hop, breaks)[0].mean(axis=1)
     out = []
     for h in range(1, n_harm + 1):
         vals = []
@@ -148,7 +148,8 @@ class NotchTargets:
 
 
 def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tuple[float, float],
-                      rpm_harmonics: int = 0, seg_ms: float = 300.0, bin_hz: float = 18.5) -> NotchTargets:
+                      rpm_harmonics: int = 0, seg_ms: float = 300.0, bin_hz: float = 18.5,
+                      breaks: np.ndarray | None = None) -> NotchTargets:
     """Pics que le notch dynamique de Betaflight suivrait dans `band`, d'après le gyro non filtré.
 
     Comme le firmware (`flight/dyn_notch_filter.c`) : spectre de puissance à la résolution de sa SDFT
@@ -159,15 +160,15 @@ def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tu
     """
     L = max(16, int(round(fs * seg_ms / 1000.0)))
     hop = L // 2
-    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop)
+    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop, breaks)
     lo, hi = band[0], min(band[1], 0.95 * fs / 2)
     empty = NotchTargets(np.zeros(0), np.zeros(0), (lo, hi))
     if segs.shape[0] == 0 or hi <= lo:
         return empty
     f, P = _seg_spectra(segs, fs, "psd")
     if mhz is not None and rpm_harmonics > 0:
-        lo_m = _segments(mhz.min(axis=0), L, hop)[0].min(axis=1)  # étendue parcourue pendant la fenêtre
-        hi_m = _segments(mhz.max(axis=0), L, hop)[0].max(axis=1)
+        lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].min(axis=1)  # étendue parcourue pendant la fenêtre
+        hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].max(axis=1)
         P = P.copy()
         for k in range(P.shape[0]):
             for h in range(1, rpm_harmonics + 1):
@@ -213,19 +214,20 @@ class SpectrumLine:
     left_db: float  # même chose après filtres (NaN si non mesurable)
 
 
-def _masked_spectrum(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int, seg_ms: float):
+def _masked_spectrum(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int, seg_ms: float,
+                     breaks: np.ndarray | None = None):
     """DSP moyenne (linéaire) des fenêtres de 300 ms, bandes des harmoniques moteur 1…n retirées
     (h × [moteur le plus lent ; le plus rapide] pendant la fenêtre, ± 5 % de l'harmonique pour les trois
     premières et de la fréquence moteur ensuite, et leur
     image repliée : sur un whoop loggé à 4 kHz, la 8e harmonique retombe vers 200 Hz)."""
     L = max(16, int(round(fs * seg_ms / 1000.0)))
     hop = L // 2
-    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop)
+    segs, _ = _segments(np.asarray(x, dtype=np.float64), L, hop, breaks)
     if segs.shape[0] == 0:
         return np.zeros(0), np.zeros(0)
     f, P = _seg_spectra(segs, fs, "psd")
-    lo_m = _segments(mhz.min(axis=0), L, hop)[0].min(axis=1)
-    hi_m = _segments(mhz.max(axis=0), L, hop)[0].max(axis=1)
+    lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].min(axis=1)
+    hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].max(axis=1)
     P = P.copy()
     for k in range(P.shape[0]):
         for h in range(1, n_harm + 1):
@@ -278,27 +280,28 @@ def _half_power_width(f: np.ndarray, S: np.ndarray, f0: float) -> float:
 
 
 def line_shapes(x_raw: np.ndarray, mhz: np.ndarray, fs: float, freqs, n_harm: int,
-                seg_ms: float = 300.0) -> list[tuple[float, float]]:
+                seg_ms: float = 300.0, breaks: np.ndarray | None = None) -> list[tuple[float, float]]:
     """(largeur à mi-puissance en Hz, hauteur au-dessus du bruit voisin en dB) des raies `freqs` du gyro non
     filtré, bandes des harmoniques moteur traitées par le filtre RPM retirées (comme pour le notch
     dynamique, placé après lui)."""
-    f, S = _masked_spectrum(x_raw, mhz, fs, max(n_harm, 1), seg_ms)
+    f, S = _masked_spectrum(x_raw, mhz, fs, max(n_harm, 1), seg_ms, breaks)
     if f.size < 8:
         return [(float("nan"), float("nan"))] * len(freqs)
     return [(_half_power_width(f, S, float(f0)), _line_height(f, S, float(f0))) for f0 in freqs]
 
 
 def spectrum_lines(x_raw: np.ndarray, x_filt: np.ndarray, mhz: np.ndarray, fs: float, band: tuple[float, float],
-                   min_db: float = 6.0, n_harm: int = 8, seg_ms: float = 300.0) -> list[SpectrumLine]:
+                   min_db: float = 6.0, n_harm: int = 8, seg_ms: float = 300.0,
+                   breaks: np.ndarray | None = None) -> list[SpectrumLine]:
     """Raies qui ne viennent pas des moteurs (résonances, bruit résiduel), avant et après filtres.
 
     Pensé pour le vol stationnaire : régime stable, raies moteur connues par l'eRPM et retirées jusqu'à
     la 8e harmonique ; toute raie restante dépassant de `min_db` le bruit voisin est listée, la plus haute
     d'abord (une seule par groupe de ±10 %)."""
-    f, S = _masked_spectrum(x_raw, mhz, fs, n_harm, seg_ms)
+    f, S = _masked_spectrum(x_raw, mhz, fs, n_harm, seg_ms, breaks)
     if f.size < 8:
         return []
-    _, Sf = _masked_spectrum(x_filt, mhz, fs, n_harm, seg_ms)
+    _, Sf = _masked_spectrum(x_filt, mhz, fs, n_harm, seg_ms, breaks)
     lo, hi = band[0], min(band[1], 0.9 * fs / 2 / 1.2)
     cands = []
     for i in range(1, f.size - 1):

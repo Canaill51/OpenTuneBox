@@ -375,17 +375,21 @@ corpus en ont au moins un (53 sur 710), presque toutes des `.BFL`.
   tentatives de resynchronisation du décodeur, pas le temps perdu. Il manquait des vols troués (Tes : 3,7 %
   perdus pour 9 tentatives ; InertiaFPV : 2,7 % pour 0) et en exagérait d'autres (st7ven3241 : 4 842 pour
   1,2 %).
-- Les analyses recollent le vol de part et d'autre d'un trou (W-010) : chaque raccord est un saut du signal,
-  donc un faux bruit. Sur les vrais vols troués, bruit du gyro mesuré normalement moins bruit mesuré en
+- Jusqu'à D-020, les analyses recollaient le vol de part et d'autre d'un trou (W-010) : chaque raccord est un
+  saut du signal, donc un faux bruit. Sur les vrais vols troués, bruit du gyro mesuré normalement moins bruit mesuré en
   écartant les fenêtres qui chevauchent un trou : BlackSummer Wobble (7,9 % perdus) +18 dB entre 80 et
   500 Hz, +26 dB entre 20 et 80 Hz ; st7ven3241 D16 (1,2 %) +8 / +13 dB ; Tes mm 1.4 (3,5 %) +6 / +10 dB ;
   Zox WOBBLE (0,9 %) +4 / +12 dB ; vols stationnaires troués : moins de 1 dB / 1 à 2 dB. L'erreur dépend des
   mouvements plus que du temps perdu.
 - Réponse indicielle (8 vols propres, morceaux de 50 ms retirés, p90 des écarts) : 1 % perdu, pic ±0,04 et
   latence ±2,7 ms ; 4 %, ±0,12 et ±13 ms.
-- D'où le constat « Trous dans l'enregistrement » (conseil) dès un trou dans la période analysée, avec le
-  nombre de trous et le temps perdu : 7 % des sessions du corpus (6 % des vols avec mouvements, 10 % des
-  vols stationnaires). Dans la vérification des logs du guide, ligne « à revoir ».
+- Le constat « Trous dans l'enregistrement » s'affiche dès un trou dans la période analysée, avec le nombre
+  de trous et le temps perdu : 7 % des sessions du corpus (6 % des vols avec mouvements, 10 % des vols
+  stationnaires). D'abord en conseil (« bruit surestimé »), il est redevenu informatif avec D-020 : les
+  fenêtres qui chevauchent un trou sont écartées. Effet sur le corpus : aucune session sans trou ne change ;
+  31 des 47 sessions trouées perdent de faux constats (13 « Oscillations basses fréquences », 7 conseils du
+  notch dynamique, 5 « Gyro filtré bruité », 3 dépassements) ; 4 vols très hachés (un trou par seconde
+  environ) n'ont plus assez de fenêtres de 2 s pour la réponse indicielle.
 
 ## Règles
 
@@ -415,7 +419,7 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   vol de série PID n'a pas besoin de plus). Sous le minimum des filtres, aucun allègement de filtre n'est
   proposé (spectre replié). 3e harmonique moteur au-delà de la
   moitié de la fréquence du log (conseil, `blackbox_sample_rate` pour 6 × la fréquence moteur) ; gyro non filtré absent ; pas de télémétrie RPM ; trous dans l'enregistrement dans la période analysée
-  (conseil, voir « Trous dans l'enregistrement »).
+  (info, voir « Trous dans l'enregistrement »).
 - **Vol** : crash détecté, la période d'analyse s'arrête avant (info).
 - **Réponse** (au moins 20 fenêtres par axe, sinon « Pas assez de mouvements de manche » ; sous 200, les
   constats du pic et de la latence ajoutent « mesure moins sûre ») :
@@ -545,7 +549,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Diagnostic du réglage : roll / pitch | écart de latence ≤ 1 ms équilibré, ≤ 2 ms acceptable | Communauté [S32] | Pilote expérimenté (Cédric, d'après Brian White) : 1 à 2 ms selon l'inertie et les moteurs |
 | Harmoniques hors de la plage visible | 3 × f moteur > Fs / 2 | Théorie | Fréquence de Nyquist |
 | Gyro non filtré absent, pas d'eRPM | présence des champs | Firmware | |
-| Trous dans l'enregistrement | au moins un trou (pas de temps > 4 périodes du log) dans la période analysée | Corpus | Faux bruit jusqu'à +18 dB sur un vol de wobbles troué ; 7 % des sessions signalées (« Trous dans l'enregistrement », 2026-10-12). Remplace le compteur de trames corrompues (> 20), qui comptait des tentatives de resynchronisation et non du temps perdu |
+| Trous dans l'enregistrement | au moins un trou (pas de temps > 4 périodes du log) dans la période analysée | Corpus | Constat informatif (fenêtres touchées écartées, D-020) ; 7 % des sessions signalées (« Trous dans l'enregistrement », 2026-10-12). Remplace le compteur de trames corrompues (> 20), qui comptait des tentatives de resynchronisation et non du temps perdu |
 | Mouvements de manche suffisants | ≥ 20 fenêtres ; « mesure moins sûre » sous 200 | Corpus + communauté [S35] | Écart du pic p90 0,20 à 20 fenêtres, 0,07 à 200 (« Pic de réponse indicielle », 2026-10-12) ; mêmes valeurs que le Diagnostic du réglage |
 | Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Code de PID-Analyzer (2018) et de PIDtoolbox v0.55 (2022) [S5, S2] |
 | Dépassement | sans feedforward : pic > 1,15 (conseil), > 1,25 (attention) ; avec feedforward : > 1,40, > 1,55 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon F (« Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode de Brian White [S24, S25]) |

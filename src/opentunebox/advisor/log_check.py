@@ -278,10 +278,11 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
         cond = flight_conditions(log, msel)
         sp_delay = [xcorr_delay_ms(log.setpoint[a, msel], log.gyro[a, msel], fs, 100.0)
                     if np.std(log.setpoint[a, msel]) >= 5.0 else float("nan") for a in range(2)]
+        mbr = log.breaks(msel)
         if exact:
-            windows = [step_response(log.setpoint[a, msel], log.gyro[a, msel], fs).n for a in range(2)]
+            windows = [step_response(log.setpoint[a, msel], log.gyro[a, msel], fs, breaks=mbr).n for a in range(2)]
         else:
-            windows = [input_windows(log.setpoint[a, msel], fs) for a in range(2)]
+            windows = [input_windows(log.setpoint[a, msel], fs, breaks=mbr) for a in range(2)]
         n = min(windows)
         enough = n >= MIN_WINDOWS
         approx = "" if exact else " (estimation rapide ; le vrai nombre est un peu plus faible)"
@@ -374,10 +375,11 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
     if crash is not None:
         add("crash", "Crash", INFO, f"Crash vers {_n(crash)} s : la période d'analyse s'arrête avant.")
     n_gaps, lost_s = log.recording_gaps(sel)
-    if n_gaps:  # ⚠️ faux bruit à chaque raccord (W-010)
-        add("gaps", "Trous dans l'enregistrement", WARN,
-            f"{gaps_text(n_gaps, lost_s, dur)} : bruit surestimé, réponse moins sûre. Préférez un vol sans trou.",
-            [Fix("Carte SD plus rapide, ou fréquence d'enregistrement plus basse.")])
+    if n_gaps:  # fenêtres qui chevauchent un trou écartées par les analyses (D-020)
+        add("gaps", "Trous dans l'enregistrement", INFO,
+            f"{gaps_text(n_gaps, lost_s, dur)} : les fenêtres qui chevauchent un trou sont écartées, il reste moins "
+            "de données à analyser.",
+            [Fix("Si c'est fréquent : carte SD plus rapide, ou fréquence d'enregistrement plus basse.")])
 
     # ------------------------------------------------------------ verdict par usage
     base_ok = version_ok and rate_ok and unfilt
@@ -464,8 +466,9 @@ def filter_targets(log: FlightLog, parts: dict, inch: float | None) -> FilterTar
     hsel = log.slice_time(*parts["hover"])
     fs = log.fs
     hi = min(500.0, 0.95 * fs / 2)
-    g = max(band_peak_ptb_db(log.gyro[a, hsel], fs, 80, hi) for a in range(2))
-    d = max((band_peak_ptb_db(log.d_term[a, hsel], fs, 80, hi) for a in range(2) if np.any(log.d_term[a])),
+    hbr = log.breaks(hsel)
+    g = max(band_peak_ptb_db(log.gyro[a, hsel], fs, 80, hi, hbr) for a in range(2))
+    d = max((band_peak_ptb_db(log.d_term[a, hsel], fs, 80, hi, hbr) for a in range(2) if np.any(log.d_term[a])),
             default=float("nan"))
     gd = dd = float("nan")
     if parts.get("moving") is not None and log.gyro_unfilt is not None:

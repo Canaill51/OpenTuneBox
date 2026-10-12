@@ -175,7 +175,7 @@ def _fake_log(n=20000, fs=2000.0, motor_hz=200.0, **extra):
     """Log minimal pour `whatif_spectrum` : gaz constant, moteurs à `motor_hz`, pas de debug FFT_FREQ."""
     from types import SimpleNamespace
 
-    return SimpleNamespace(fs=fs, n=n, throttle=np.full(n, 50.0), motor_hz=np.full((4, n), motor_hz),
+    return SimpleNamespace(fs=fs, n=n, breaks=lambda sel: np.zeros(0, dtype=int), throttle=np.full(n, 50.0), motor_hz=np.full((4, n), motor_hz),
                            debug=np.zeros((0, n)), settings=_settings(rpm_filter_weights="100,100,100", **extra))
 
 

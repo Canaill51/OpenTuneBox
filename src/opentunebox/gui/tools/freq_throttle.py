@@ -257,7 +257,7 @@ class FreqThrottleWindow(sc.OptionsSnapshot, ToolWindow):
                 if not datasets.has_axis(ll.log, key, ax):
                     continue
                 x = datasets.get(ll.log, key)[ax, sel]
-                m = freq_throttle(x, xaxis[sel], ll.log.fs, opts["mode"], x_range=x_range)
+                m = freq_throttle(x, xaxis[sel], ll.log.fs, opts["mode"], x_range=x_range, breaks=ll.log.breaks(sel))
                 if m.mode == "psd":
                     m.z = to_ptb_db(m.z)
                 maps[ax] = m

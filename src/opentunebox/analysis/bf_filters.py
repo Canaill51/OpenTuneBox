@@ -526,13 +526,14 @@ def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel
     L = max(32, int(round(seg_ms * fs / 1000.0)))
     hop = L // 2
     x = np.asarray(x_logged[sel], dtype=np.float64)
-    segs, starts = _segments(x, L, hop)
+    br = log.breaks(sel)  # aucune fenêtre sur un trou du log (D-020)
+    segs, starts = _segments(x, L, hop, br)
     if segs.shape[0] == 0:
         return WhatIfSpectrum(np.zeros(0), np.zeros(0), np.zeros(0))
     f, P = _seg_spectra(segs, fs, "psd")
     Ppf = None
     if x_prefilt is not None:
-        Ppf = _seg_spectra(_segments(np.asarray(x_prefilt[sel], dtype=np.float64), L, hop)[0], fs, "psd")[1]
+        Ppf = _seg_spectra(_segments(np.asarray(x_prefilt[sel], dtype=np.float64), L, hop, br)[0], fs, "psd")[1]
     thr = np.asarray(log.throttle[sel], dtype=np.float64) / 100.0
     mhz = None if log.motor_hz is None else np.asarray(log.motor_hz[:, sel], dtype=np.float64)
     centres = fft_freq_centres(log)

@@ -216,15 +216,16 @@ class SpectralWindow(sc.OptionsSnapshot, ToolWindow):
             notches = dyn_notch_centres(log)
             if notches is not None:
                 fsp.notch_sorted = [np.sort(c[sel][c[sel] > 0]) for c in notches]
+            br = log.breaks(sel)  # aucune fenêtre sur un trou du log (D-020)
             for key in keys:
                 for ax in range(3):
                     if not datasets.has_axis(log, key, ax):
                         continue
                     x = datasets.get(log, key)[ax, sel]
-                    s = spectrum(x, log.fs, mode, opts["resolution"], 0)
+                    s = spectrum(x, log.fs, mode, opts["resolution"], 0, breaks=br)
                     fsp.spectra[(key, ax)] = (s.freqs, to_ptb_db(s.values) if mode == "psd" else s.values)
                     if mhz is not None:
-                        mn = motor_noise(x, mhz, log.fs)
+                        mn = motor_noise(x, mhz, log.fs, breaks=br)
                         fsp.noise[(key, ax)] = (to_ptb_db(mn.mean_db), mn.std_db)
             d = compute_delays(log, sel)
             fsp.gyro_ms, fsp.dterm_ms, fsp.delays_moving = d.gyro_ms, d.dterm_ms, d.moving
