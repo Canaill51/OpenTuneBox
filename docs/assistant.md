@@ -361,7 +361,9 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
     « au moins » quand le pic est au bord de la bande mesurable ; précision ajoutée si la boucle n'est
     qu'approchée) ; sinon marge de phase < 35° (conseil). Conseil : Damping +0,1 ou Master −0,1 ; seulement
     Master −0,1 quand le D domine déjà au croisement (|Ĉd/Ĉe| > 1) ; pour un whoop, explication de la
-    cause habituelle (boucle rapide, D dominant, filtres du D) ;
+    cause habituelle (boucle rapide, D dominant, filtres du D) ; pic au bord de la bande : action de plus,
+    des wobbles plus rapides et plus secs pour que la mesure aille plus loin (W-004 ; pas de vol chirp,
+    D-019) ;
   - oscillations basses fréquences : gyro filtré 20–80 Hz > p90 de la taille.
 - **Bruit** (80 Hz à min(500 Hz ; 0,95 × Nyquist), valeur maximale du roll et du pitch) : gyro filtré
   > p90 de la taille ; terme D > p90 de la taille **ou** sommet de son spectre au-dessus de −10 dB sur

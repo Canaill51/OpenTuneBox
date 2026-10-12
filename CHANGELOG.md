@@ -5,6 +5,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Modifié
+- Le vol chirp de Betaflight n'est plus conseillé (guide utilisateur) : il faut le compiler à part dans le
+  firmware, ses données changent encore d'une version à l'autre et aucune méthode publiée n'en tire un
+  réglage. OpenTuneBox suit la méthode de Brian White : quand le pic de sensibilité tombe au bord des
+  fréquences mesurables, le constat « Marge de stabilité faible » conseille des wobbles plus rapides et plus
+  secs. Un log chirp reste lu et mesuré comme avant (D-019, W-004).
+
 ### Ajouté
 - Un vrai extrait de log Blackbox (`tests/data/jeno5_5s.bbl`, 5 s d'un vol du JeNo 5 de Cédric, Betaflight
   2026.6.0-rc3) versionné et décodé par les tests sans corpus (`tests/test_real_log.py`), y compris en Python

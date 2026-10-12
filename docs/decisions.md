@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-019 | Le vol chirp de Betaflight n'est pas conseillé : méthode de Brian White | 2026-10-12 |
 | D-018 | Décisions, leçons et travaux reportés ont chacun leur registre numéroté | 2026-10-12 |
 | D-017 | Deux fréquences minimales du log : filtres et séries PID | 2026-10-12 |
 | D-016 | Les spectres s'affichent sur l'échelle de PIDtoolbox, les calculs restent en densité physique | 2026-10-11 |
@@ -90,6 +91,34 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-10-12 — Vol chirp mis de côté
+
+### D-019 : le vol chirp de Betaflight n'est pas conseillé, OpenTuneBox suit la méthode de Brian White
+
+**Contexte.** W-004 proposait de conseiller un vol chirp quand le pic de sensibilité tombe au bord de la
+bande mesurée. Le constat essayé se déclenchait sur 44 % des sessions du corpus (310 sur 705), avec des
+conseils de réglage du chirp peu sûrs. Cédric : « mettre de côté la fonction CHIRP […] encore en mode
+expérimental » et « se concentrer sur la méthode de Brian White ». Vérifié le 2026-10-12 sur le dépôt de
+Betaflight : le chirp n'y est pas étiqueté expérimental (PR #13105, « MAJOR FEATURE », fusionnée le
+2025-01-21), mais il n'est pas dans le firmware de base (option de compilation `chirp` / `USE_CHIRP`) ; ses
+canaux de debug ont changé en avril 2026 (PR #15113) et son point d'injection en mode angle en
+septembre 2026 (PR #15196) ; l'outil d'analyse qui en tire un réglage est encore en préparation (PR #15196) ;
+un mainteneur le juge « not a basic user option » (ticket #15012).
+
+**Décision.**
+- Ni l'assistant, ni le guide intégré, ni le guide utilisateur ne conseillent de vol chirp ni ne disent
+  comment le régler. Pour faire aller la mesure plus loin, ils conseillent des wobbles plus rapides et plus
+  secs (protocole de Brian White, [S33] de `docs/spec-methodes.md`).
+- La mesure reste capable de lire un log chirp (`log/flightlog.py:FlightLog.chirp_excitation`, D-012) :
+  la retirer dégraderait la mesure des vols chirp déjà enregistrés, sans rien gagner.
+- Pas de constat séparé « marge mesurée en partie » : 44 % des sessions, il deviendrait du bruit ; l'action
+  s'ajoute au seul constat « Marge de stabilité faible » quand son pic est au bord.
+
+**Témoins.** `tests/test_advisor_synthetic.py:test_stability_margin_rules` (action des wobbles, aucun mot
+« chirp ») ; taux du constat essayé mesuré par `scripts/advisor_rates.py` le 2026-10-12.
+
+**Ouvert.** W-004.
 
 ## 2026-10-12 — Organisation de la documentation
 

@@ -21,7 +21,7 @@ Revérifier après une nouvelle version du configurateur (libellés : `grep` de 
 | Choix du profil de rates en vol | onglet « Ajustements » : « Sélection des profils de Rate » | — |
 | Valeurs par défaut | onglet « Réglages de PID » : « Réinitialiser ce profil » (PID, curseurs, filtres du D seulement) | filtres généraux par défaut (4.4 → 2026.6) : RPM 3 harmoniques, Q 500, 100 Hz, fondu 50 ; notch 3 coupures, Q 300, 100–600 Hz (`pg/rpm_filter.c`, `pg/dyn_notch.c`) |
 | Récupérer les logs | onglet « Blackbox » : « Activer le Mode de périphérique de stockage de masse », « Effacer la mémoire interne » | — |
-| Chirp (2025.12+) | onglet « Modes » : mode CHIRP sur un interrupteur ; le reste seulement en CLI | `chirp_frequency_end_deci_hz`, `chirp_amplitude_*`, `chirp_time_seconds` |
+| Chirp (2025.12+, firmware compilé avec `chirp` ; pas conseillé, D-019) | onglet « Modes » : mode CHIRP sur un interrupteur ; le reste seulement en CLI | `chirp_frequency_end_deci_hz`, `chirp_amplitude_*`, `chirp_time_seconds` |
 
 Mode Expert (fenêtre « Options ») : sans lui, curseurs principaux limités à 0,7–1,4 (filtre gyro 0,5–1,5,
 filtre D 0,8–1,2) et curseurs avancés (Atténuation dynamique, Dérive - Oscillations, Atténuation du Pitch,

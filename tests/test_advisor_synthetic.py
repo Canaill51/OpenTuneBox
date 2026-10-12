@@ -58,8 +58,11 @@ def test_stability_margin_rules():
     assert ("Marge de stabilité faible en roll", CONSEIL) not in _titles(1.0, 15, sensitivity_peak_db=7.0)
     f = [x for x in _step_findings(1.0, 15, sensitivity_peak_at_edge=True, **edge) if x.title.startswith("Marge")][0]
     assert "au moins 7.1 dB" in f.detail and "Valeur approchée" in f.detail and f.actions[0] == "Master −0,1."
+    assert "Mesure arrêtée à 20 Hz" in f.actions[-1] and "wobbles" in f.actions[-1]  # W-004
+    assert not any("chirp" in a.lower() for a in f.actions)  # D-019
     f = [x for x in _step_findings(1.0, 15, method=MEASURED, d_ratio=1.5, **edge) if x.title.startswith("Marge")][0]
     assert "Valeur approchée" not in f.detail and "Le D domine déjà" in f.actions[0]
+    assert not any(a.startswith("Mesure arrêtée") for a in f.actions)  # pic dans la bande
     f = [x for x in _step_findings(1.0, 15, method=MEASURED, **edge) if x.title.startswith("Marge")][0]
     assert f.actions[0] == "Damping (D) +0,1, ou Master −0,1."
     f = [x for x in _step_findings(1.0, 15, profile="whoop", **edge) if x.title.startswith("Marge")][0]
