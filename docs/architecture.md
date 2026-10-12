@@ -93,7 +93,10 @@ fichier .bbl/.bfl
   par `tests/test_docs.py`.
 - `gui/theme.py` : thèmes clair et sombre. Style Qt **Fusion** sur tous les systèmes, palette complète,
   feuille de style globale (boutons, champs, listes, cases), couleurs d'accent par thème (`accent`, `accent_style` ; aussi celles des icônes d'outils),
-  textes d'aide (`muted_style`), police de l'application × 1,15. Textes de Qt en français
+  textes d'aide (`muted_style`), police de l'application × 1,15. Seul fichier de `gui/` à écrire une couleur :
+  courbes et repères des graphiques (`PLOT_COLORS`), badges de l'assistant (`SEVERITY_COLORS`), texte sur fond
+  coloré (`ON_ACCENT`), fond de légende par thème (`Theme.legend_fill`) ; `tests/test_gui_contracts.py` refuse
+  tout code couleur ailleurs (L-016). Textes de Qt en français
   (`install_qt_translations`) ; thème d'icônes du bureau accordé au thème clair / sombre (`_match_icon_theme`).
 - `gui/icons.py` : icônes Lucide (`gui/assets/icons/`, licence ISC) colorées selon le thème.
 - `gui/geometry.py` : taille de la fenêtre principale (95 % de l'écran au premier lancement), puis taille et

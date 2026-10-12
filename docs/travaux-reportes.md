@@ -61,7 +61,7 @@ Règles d'écriture :
 | ID | Sujet | Statut |
 |---|---|---|
 | W-009 | Extrait de vrai log Blackbox versionné pour la CI | clos |
-| W-008 | Couleurs en dur dans `gui/` : liste d'exceptions à valider | bloqué |
+| W-008 | Couleurs en dur dans `gui/` : liste d'exceptions à valider | clos |
 | W-007 | Tests du corpus en échec quand un log a été déplacé | clos |
 | W-006 | Écart de 2 dB sous 100 Hz avec PIDtoolbox sur un vol | sans suite |
 | W-005 | Référence de l'erreur aléatoire non vérifiée à la page | ouvert |
@@ -138,8 +138,16 @@ Règles d'écriture :
 
 ## Origine : chantier des tests anti-régression, branche test/foundations (2026-10-12)
 
-- **W-008** — Dix endroits de `gui/` écrivent une couleur en dur alors que L-016 demande celles du thème.
-  ⏸ **BLOQUÉ — avis de Cédric sur la liste**. Badges de gravité de l'assistant (`gui/tools/advisor_panel.py:SEV_STYLE`, fond coloré
+- ~~**W-008** — Dix endroits de `gui/` écrivent une couleur en dur alors que L-016 demande celles du thème.~~
+  ✅ **CLOS (2026-10-12)** — plus aucune exception : toutes les couleurs fixes vivent dans `gui/theme.py`
+  (`PLOT_COLORS` courbes et repères, `SEVERITY_COLORS` badges, `ON_ACCENT`, `OVERLAY_FILL`, `NOTCH_TRACE`,
+  `ROW_HIGHLIGHT`, fond de légende par thème) ; les textes verts / rouges des tableaux (curseurs PID, retards du
+  simulateur) et le titre d'alerte du simulateur passent par `theme.accent`, le contour des points de série
+  prend la couleur du texte du thème. `tests/test_gui_contracts.py:test_every_color_lives_in_theme` refuse
+  désormais tout code couleur, nom CSS ou couleur numérique hors de `theme.py` (28 occurrences trouvées
+  avant la correction, 0 après). Vérifié par captures des sept pages dans les deux thèmes sur
+  `Cedric/JeNo 5/FINAL.bbl`. Branche fix/gui-theme-colors.
+  Badges de gravité de l'assistant (`SEV_STYLE` de `gui/tools/advisor_panel.py`, aujourd'hui `gui/theme.py:SEVERITY_COLORS` ; fond coloré
   et texte blanc), couleurs des courbes du simulateur (`gui/tools/filter_sim.py:COL_MOD`, `COL_PF`, `COL_SIM_CUR`,
   titre rouge et cellules vertes / rouges du tableau), écarts verts / rouges du tableau des curseurs
   (`gui/tools/pid_slider.py`), lignes de repère de la réponse indicielle (`gui/tools/step_window.py`), traits

@@ -58,6 +58,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `AGENTS.md` et `docs/architecture.md` avec contexte, options écartées et preuves. Numéros vérifiés à chaque
   `pytest`.
 
+### Modifié
+- Toutes les couleurs fixes de l'interface (courbes et repères des graphiques, badges de l'assistant, curseur et
+  textes posés sur les spectrogrammes, surlignage de la page Configuration) sont regroupées dans `gui/theme.py` ;
+  les écarts verts / rouges du tableau des curseurs PID et des retards du simulateur, le titre d'alerte du
+  simulateur et le contour des points de série suivent désormais les couleurs du thème (lisibles en clair comme
+  en sombre). Un test refuse toute couleur en dur hors de `theme.py` (W-008 clos).
+
 ### Corrigé
 - Changer de thème (clair / sombre) repeint aussi les outils déjà ouverts : leur fond de graphique gardait
   les couleurs de l'ancien thème jusqu'à un nouveau calcul.

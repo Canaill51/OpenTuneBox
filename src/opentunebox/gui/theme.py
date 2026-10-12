@@ -48,24 +48,26 @@ def motor_color(i: int) -> str:
 
 
 class Theme:
-    def __init__(self, name: str, bg: str, fg: str, grid: float, shade: tuple, ui: dict[str, str]):
+    def __init__(self, name: str, bg: str, fg: str, grid: float, shade: tuple, legend_fill: tuple,
+                 ui: dict[str, str]):
         self.name = name
         self.bg = bg  # fond des graphiques
         self.fg = fg  # texte et axes
         self.grid = grid
         self.shade = shade  # zones hors période
+        self.legend_fill = legend_fill  # fond translucide des légendes posées sur un graphique
         self.ui = ui  # couleurs des panneaux Qt
         self.panel = ui["window"]
         self.muted = ui["muted"]  # textes d'aide, secondaires
 
 
 THEMES = {
-    "clair": Theme("clair", "#ffffff", "#1b1b1b", 0.22, (128, 128, 128, 90), {
+    "clair": Theme("clair", "#ffffff", "#1b1b1b", 0.22, (128, 128, 128, 90), (255, 255, 255, 190), {
         "window": "#f3f3f3", "base": "#ffffff", "alt": "#f5f7fa", "button": "#fbfbfb",
         "text": "#1b1b1b", "muted": "#5c5c5c", "disabled": "#9a9a9a", "highlight": "#1f57c3",
         "tooltip": "#ffffe8", "link": "#2b6be0", "hover": "#e4e7ec", "light": "#ffffff", "mid": "#c4c4c4", "dark": "#a0a0a0",
     }),
-    "sombre": Theme("sombre", "#1e1f22", "#e2e2e2", 0.18, (0, 0, 0, 110), {
+    "sombre": Theme("sombre", "#1e1f22", "#e2e2e2", 0.18, (0, 0, 0, 110), (30, 31, 34, 190), {
         "window": "#2b2d31", "base": "#1e1f22", "alt": "#26282c", "button": "#3a3d43",
         "text": "#e8e8e8", "muted": "#a8a8a8", "disabled": "#6e7177", "highlight": "#3d7be0",
         "tooltip": "#3a3d43", "link": "#5a92f0", "hover": "#3a3d43", "light": "#4a4d54", "mid": "#55585f", "dark": "#18191c",
@@ -83,6 +85,27 @@ ACCENTS = {
     "teal": ("#00756f", "#4fd1c5"),
     "pink": ("#b0306a", "#ff8cc6"),
 }
+
+# Couleurs fixes des graphiques : courbes, repères et éléments posés sur une image ou un fond coloré,
+# lisibles sur les deux fonds de tracé (blanc et #1e1f22). Jamais pour un texte sur le fond du panneau :
+# là, accent() ou current().ui. ⚠️ Une couleur en dur hors de ce fichier casse l'un des deux thèmes (L-016) ;
+# tests/test_gui_contracts.py refuse tout code couleur ailleurs dans gui/.
+PLOT_COLORS = {
+    "neutral": "#9a9a9a",  # courbe de référence : gyro avant filtres, notchs
+    "modified": "#2f6fd6",  # simulateur de filtres : réglages modifiés
+    "sim_current": "#f58231",  # simulateur de filtres : réglages actuels simulés
+    "limit_warn": "#e6c619",  # seuil d'avertissement (pic de sensibilité 4 dB)
+    "limit_alert": "#e6194b",  # seuil d'alerte (6 dB)
+    "overlay": "#ffffff",  # traits et textes posés sur un spectrogramme
+    "overlay_hover": "#00e0ff",  # curseur du Fréquence × temps survolé
+}
+NOTCH_TRACE = (255, 32, 32, 210)  # fréquence des notchs suivie sur le Fréquence × temps (rouge translucide)
+OVERLAY_FILL = (0, 0, 0, 110)  # fond translucide d'un texte posé sur un spectrogramme
+ROW_HIGHLIGHT = (255, 200, 0, 90)  # surlignage d'une ligne (Configuration : réglage qui diffère)
+ON_ACCENT = "#ffffff"  # texte ou icône sur un fond coloré (bouton principal, badges)
+# Badges de gravité de l'assistant (clés = advisor.rules) : fond coloré, texte ON_ACCENT, mêmes couleurs
+# dans les deux thèmes
+SEVERITY_COLORS = {"alerte": "#c0392b", "attention": "#d35400", "conseil": "#2f6fd6", "info": "#7f8c8d", "ok": "#1a9a3a"}
 
 _current = THEMES["clair"]
 
@@ -268,7 +291,7 @@ QToolBar QToolButton {{ border: none; border-radius: 6px; padding: 4px 8px; }}
 QToolBar QToolButton:hover {{ background: {u['hover']}; }}
 QToolBar QToolButton:pressed {{ background: {u['mid']}; }}
 QToolBar QToolButton:checked {{ background: {u['hover']}; border-bottom: 2px solid {u['highlight']}; font-weight: 600; }}
-QToolBar QToolButton#primary {{ background: {u['highlight']}; color: #ffffff; font-weight: 600; }}
+QToolBar QToolButton#primary {{ background: {u['highlight']}; color: {ON_ACCENT}; font-weight: 600; }}
 QToolBar QToolButton#primary:hover {{ background: {u['link']}; }}
 
 QToolButton#sectionHeader {{

@@ -9,23 +9,17 @@ import pyqtgraph as pg
 from PySide6.QtWidgets import QComboBox, QLabel, QTextBrowser
 
 from ...advisor.profiles import PROFILES
-from ...advisor.rules import ALERTE, ATTENTION, CONSEIL, INFO, OK, Finding, analyze
+from ...advisor.rules import Finding, analyze
 from .. import theme
 from .base import ToolWindow
 
-SEV_STYLE = {
-    ALERTE: ("#c0392b", "ALERTE"),
-    ATTENTION: ("#d35400", "ATTENTION"),
-    CONSEIL: ("#2f6fd6", "CONSEIL"),
-    INFO: ("#7f8c8d", "INFO"),
-    OK: ("#1a9a3a", "OK"),
-}
-
 
 def finding_html(f: Finding) -> str:
-    """Un constat : étiquette de gravité, titre, détail, puis les actions en liste."""
-    color, tag = SEV_STYLE.get(f.severity, ("#444", f.severity))
-    out = (f"<p><span style='background:{color}; color:white; padding:1px 5px'>&nbsp;{tag}&nbsp;</span> "
+    """Un constat : étiquette de gravité (badge coloré de theme.SEVERITY_COLORS), titre, détail, puis les
+    actions en liste."""
+    color = theme.SEVERITY_COLORS.get(f.severity, theme.current().muted)
+    out = (f"<p><span style='background:{color}; color:{theme.ON_ACCENT}; padding:1px 5px'>"
+           f"&nbsp;{html.escape(f.severity.upper())}&nbsp;</span> "
            f"<b>{html.escape(f.title)}</b><br>{html.escape(f.detail)}</p>")
     if f.actions:
         out += "<ul>" + "".join(f"<li>{html.escape(a)}</li>" for a in f.actions) + "</ul>"
