@@ -158,6 +158,8 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
 - Linux : PyInstaller a besoin de `binutils` (`objdump`). Windows/macOS : construire sur le système cible. L-020
 - Exécutable Windows sans console (`console=False`) : `sys.stdout` et `sys.stderr` valent `None` ;
   ne jamais les utiliser sans vérifier (voir `gui/app.py:hard_exit`). L-021
+- Vérifier avant un commit : lancer `pytest` sans tube (`| tail` masque son échec) ; le crochet de Claude Code
+  (`.claude/hooks/check-docs.sh`) ne voit que `git commit` et `git -c … commit`. L-022
 
 ## Méthode de travail
 

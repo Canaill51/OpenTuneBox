@@ -60,7 +60,16 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
-*(aucune)*
+### L-022 : un commit est passé avec la documentation en échec : crochet contourné et code de sortie masqué
+- **Symptôme** — 2026-10-12, branche docs/project-registers : commit enregistré alors que
+  `tests/test_docs.py` affichait « 1 failed » ; aucun blocage.
+- **Cause** — mesurée : le crochet `.claude/hooks/check-docs.sh` ne réagissait qu'au texte `git commit`, et
+  la commande s'écrivait `git -c user.name=… commit` ; la vérification lancée à la main finissait par
+  `| tail -1`, dont le code de sortie (0) remplace celui de `pytest`.
+- **Règle** — le crochet reconnaît aussi `git -c … commit` ; ne jamais enchaîner `&&` après un `pytest` passé
+  dans un tube (`| tail`, `| grep`) : lancer `pytest` seul, ou vérifier « failed » dans sa sortie.
+- **Preuve** — avant correction, crochet à 0 sur `git -c user.name=X commit` avec un numéro inexistant
+  dans `docs/lecons.md` ; après, code 2.
 
 ## 1. Décodeur et logs
 
@@ -240,6 +249,7 @@ est celle du commit qui les a introduites.
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-022 | Commit passé malgré un test en échec. Crochet élargi, pas de `&&` après `pytest \| tail` | Outillage |
 | L-021 | Exécutable Windows : `sys.stdout` vaut `None`. Vérifier avant d'écrire | Construction |
 | L-020 | PyInstaller Linux sans `objdump`. Installer `binutils` | Construction |
 | L-019 | Segfault à la fin de Python. Terminer par `hard_exit` | Interface |
