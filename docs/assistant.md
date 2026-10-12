@@ -500,7 +500,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Règle | Seuil | Origine | Remarque |
 |---|---|---|---|
 | Taille par l'eRPM et les cellules | 345 / 290 / 160 / 115 Hz ; 1S → whoop ; 2–4S entre 200 et 290 Hz → 2–3,5" | Corpus + estimation | Vérifié sur 41 drones de taille connue, 38 justes (voir « Taille du drone ») ; la limite 8"+ (115 Hz) n'est vérifiée que sur 6 drones. Le tableau de fréquences par taille de `spec-methodes.md` est une estimation qui ne correspond pas aux logs |
-| Taille par le nom | « whoop », « Meteor », 65 ou 75 (nombre entier) ; taille en pouces à un ou deux chiffres, bornes 3,8 / 5,8 / 7,8 | Estimation | |
+| Taille par le nom | « whoop », « Meteor », 65 ou 75 (nombre entier) ; taille en pouces à un ou deux chiffres, bornes 3,8 / 5,8 / 7,8 | Estimation | Mis de côté par Cédric le 2026-10-12 (W-003) |
 | Profil par défaut | 5" | Corpus | Taille la plus fréquente (366 sessions sur 707) |
 | Fréquence du log trop basse | gyro 8 kHz : 2 kHz ; gyro 3,2 kHz : 1,6 kHz (plus petite fraction de la boucle PID ≥ 1,6 kHz) | Pilote expérimenté (Cédric, 2026-10-05) + firmware | Le blackbox sous-échantillonne sans filtre (`blackbox_sample_rate` 1/1 à 1/16 de la boucle PID, `cli/settings.c`) : tout bruit au-delà de la moitié de la fréquence du log se replie. 178 sessions sur 681 (26 %) en dessous, surtout des gyros à 8 kHz logués à 1 kHz |
 | Fréquence du log pour les PID | 1 kHz (bloquant pour une série sous 500 Hz) | Pilote expérimenté (Cédric, 2026-10-12) + théorie | Réponse indicielle et latence à la milliseconde près ; la bande analysée s'arrête à 0,4 × la fréquence du log (200 Hz à 500 Hz). Les mouvements du manche restent sous quelques dizaines de hertz : le repliement du bruit moteur pèse peu sur la réponse |
@@ -531,7 +531,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Roll et pitch différents | écart de pic > 0,08 (7") à 0,12 (commun) selon la taille | Corpus | Seuils mécaniques (`profiles.py`, voir « Calibration ») |
 | Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
 | Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |
-| D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Estimation | Choisit le conseil (Master −0,1 plutôt que plus de D). Appuyé sur la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) : au-delà, plus de D monte le croisement sans gagner de marge, et le pic de sensibilité augmente |
+| D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Corpus | Choisit le conseil (Master −0,1 plutôt que plus de D). 55 séries Damping et Pitch Damping (« D dominant », 2026-10-12) : dès 1,0, un cran de D fait monter le pic de sensibilité ; aussi la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) |
 | Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes exactes choisies |
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
 | Terme D, échelle de PIDtoolbox | sommet > −10 dB (attention, avec le p90) ; idéal < −20 dB (texte) | Communauté | Brian White [S20] (« maybe minus 10 would be the highest ») ; 18 % des sessions (voir « Repères de PIDtoolbox ») |
@@ -615,6 +615,15 @@ et les vrais logs (`validation.md`) :
   la mesure manque de points : le constat le précise ;
 - seuils de stabilité recalibrés le 2026-10-05 avec la mesure : pic > 7 dB ou marge < 35°, en conseil
   (20 % des sessions du corpus ; avec 6 dB / 40°, 33 %) ;
+- **D dominant** (2026-10-12, `rules.D_DOMINANT_RATIO` = 1,0) : effet d'un cran de +0,2 sur la stabilité,
+  dans les 55 séries Damping et Pitch Damping du corpus (130 crans mesurés, au moins 200 fenêtres, 25
+  drones, une voix par drone, intervalle à 90 % par rééchantillonnage). Selon |Ĉd/Ĉe| au départ : à 0,6, pic
+  de sensibilité −0,25 dB et marge +3,7° (le pic baisse chez 73 % des drones) ; à 0,8, pic −0,03 dB, marge
+  +3,9° ; à 1,0, pic **+0,14 dB [+0,03 ; +0,26]**, marge +2,7° (le pic baisse chez 27 % des drones) ; à 1,2,
+  pic +0,14 dB, marge +1,3° ; à 1,4, pic +0,24 dB, marge +0,7°. Le pic, qui déclenche 89 des 101 axes
+  mesurés signalés, monte dès 1,0 : seuil gardé à 1,0 (choix de Cédric). La marge seule gagne encore 1 à
+  3° jusqu'à 1,3 (5 axes signalés par la marge seule entre 1,0 et 1,3) : un seuil propre à la marge a été
+  écarté, gain trop faible. Aucun axe signalé entre 0,8 et 1,0 : 0,8 donnerait les mêmes conseils ;
 - whoops (diagnostic du 2026-10-06, `validation.md`) : 32 % des sessions whoop signalées, 16 % hors des
   drones de Cédric (45 sessions). La mesure est vérifiée (simulation, vols chirp de l'AIR65) : la marge
   est réellement faible (croisement vers 20 Hz, D dominant 1,4 fois, filtres du D qui retardent au

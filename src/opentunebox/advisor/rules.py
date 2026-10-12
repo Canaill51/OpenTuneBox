@@ -44,6 +44,10 @@ STEP_PEAK_SOFT = 1.01
 # fenêtres, 0,07 à 200 (docs/assistant.md, « Pic de réponse indicielle »)
 STEP_MIN_WINDOWS, STEP_SURE_WINDOWS = 20, 200
 PHASE_MARGIN_LOW_DEG = 35.0
+# D dominant au croisement (|Ĉd/Ĉe|) : au-delà, la marge faible ne se corrige plus par du D. Séries Damping du
+# corpus (2026-10-12, 130 crans de +0,2, 25 drones, une voix par drone) : dès 1,0, un cran de D fait monter le
+# pic de sensibilité (+0,14 dB, intervalle à 90 % +0,03 ; +0,26) ; la marge de phase ne gagne plus que 1 à 3°
+D_DOMINANT_RATIO = 1.0
 # Repères de Brian White sur l'échelle des spectres de PIDtoolbox (docs/spec-methodes.md, [S20]–[S22]) :
 # terme D au plus −10 dB (déclenche le constat, avec le p90 du corpus), gyro filtré sous −30 dB (affiché)
 DTERM_PTB_MAX_DB = -10.0
@@ -1065,7 +1069,7 @@ def _margin_actions(lp) -> list[str]:
     et peut augmenter le pic de sensibilité (docs/assistant.md, « Boucle ouverte mesurée »)."""
     if not lp.measured:
         return ["Master −0,1.", "Pour une mesure exacte, enregistrez les termes P, I, D et F (champs PID du blackbox)."]
-    if np.isfinite(lp.d_ratio) and lp.d_ratio > 1.0:
+    if np.isfinite(lp.d_ratio) and lp.d_ratio > D_DOMINANT_RATIO:
         return [f"Master −0,1. Le D domine déjà au croisement ({lp.d_ratio:.1f} × P et I) : "
                 "plus de D apporterait peu de marge et peut augmenter le pic de sensibilité."]
     return ["Damping (D) +0,1, ou Master −0,1."]
