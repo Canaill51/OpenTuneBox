@@ -119,9 +119,11 @@ def detect_profile(log: FlightLog) -> tuple[CraftProfile, str]:
     if cells == 1:
         return PROFILES["whoop"], "batterie 1S"
     name = (log.settings.craft_name or "").lower()
-    if re.search(r"whoop|65|75|air ?65|meteor", name):
+    # 65 / 75 (mm) seulement comme nombre entier : « 1750 » (une capacité) n'est pas un whoop
+    if re.search(r"whoop|meteor|(?<!\d)(65|75)(?!\d)", name):
         return PROFILES["whoop"], f"nom du drone « {log.settings.craft_name} »"
-    m = re.search(r"(\d(?:[.,]\d)?)\s*(?:\"|in|pouces?|inch)", name)
+    # taille en pouces : 1 ou 2 chiffres (« 10in »), décimale facultative (« 3.5" »)
+    m = re.search(r"(?<!\d)(\d{1,2}(?:[.,]\d)?)\s*(?:\"|in(?:ch(?:es)?)?\b|pouces?\b)", name)
     if m:
         size = float(m.group(1).replace(",", "."))
         key = "micro" if size < 3.8 else "five" if size < 5.8 else "seven" if size < 7.8 else "large"

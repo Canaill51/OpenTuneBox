@@ -95,7 +95,7 @@ def test_step_window(app):
     win.files.selectAll()
     entries = win.files.selected_entries()
     assert len(entries) == 2
-    res = win.compute(entries)
+    res = win.compute_sync(entries)
     win.render(res)
     # Damping 0.8 (moins de D) dépasse plus que Damping 1.2 en roulis
     p08, p12 = res[0].axes[0].res.metrics.peak, res[1].axes[0].res.metrics.peak
@@ -136,7 +136,7 @@ def test_pid_slider_window(app):
     win = PidSliderWindow(st)
     win.auto_run = False
     win.files.selectAll()
-    res = win.compute(win.files.selected_entries())
+    res = win.compute_sync(win.files.selected_entries())
     win.render(res)
     text = win.cli.toPlainText()
     assert "simplified_tuning apply" in text
@@ -159,7 +159,7 @@ def test_filter_sim_window(app):
     win.auto_run = False
     entries = win.files.selected_entries()
     assert len(entries) == 1
-    res = win.compute(entries)
+    res = win.compute_sync(entries)
     win.render(res)
     assert "aucun changement" in win.cli.toPlainText()
     g = res.spectra["gyro"][0]
@@ -170,8 +170,7 @@ def test_filter_sim_window(app):
     # filtre gyro LPF2 abaissé → moins de bruit au-dessus de 300 Hz dans la simulation
     win.ed["g2_hz"].setValue(250)
     assert "set gyro_lpf2_static_hz = 250" in win.cli.toPlainText()
-    win._run_settings = win.modified_settings()
-    res2 = win.compute(entries)
+    res2 = win.compute_sync(entries)
     win.render(res2)
     hf = res.freqs > 300
     assert np.mean(res2.spectra["gyro_sim"][0][hf]) < np.mean(res.spectra["gyro_sim"][0][hf])

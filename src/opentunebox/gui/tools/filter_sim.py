@@ -458,25 +458,18 @@ class FilterSimWindow(ToolWindow):
             self._editor_changed()
 
     # ------------------------------------------------------------ calcul
-    def run(self) -> None:
+    def snapshot_options(self) -> dict:
+        """Réglages de l'éditeur relevés dans le thread de l'interface, pour le log sélectionné."""
         entries = self.files.selected_entries()
         if entries:
             self._ensure_base(entries[0])
-        self._run_settings = self.modified_settings()
-        super().run()
+        return {"settings": self.modified_settings()}
 
     def compute(self, entries) -> FilterSimResult:
-        entry = entries[0]
-        mod = getattr(self, "_run_settings", None)
-        if mod is None or self._base is not entry.log.settings:
-            # appel direct (tests) depuis le thread de l'interface
-            self._ensure_base(entry)
-            mod = self.modified_settings()
-        return simulate_filters(entry, mod)
+        return simulate_filters(entries[0], self.run_options["settings"])
 
     # ------------------------------------------------------------ affichage
     def render(self, result: FilterSimResult) -> None:
-        self._run_settings = None
         c = self.canvas
         c.clear()
         c.setBackground(theme.current().bg)

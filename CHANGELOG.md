@@ -12,6 +12,23 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `pytest`.
 
 ### Corrigé
+- Simulateur de filtres : sur les fréquences exactement au creux d'un notch (RPM ou dynamique), le spectre
+  simulé s'effondrait d'environ 90 dB, même sans aucun changement de réglage (plancher numérique appliqué
+  au seul dénominateur du rapport |H_modifié|² / |H_actuel|²).
+- Documentation de l'assistant : tableau « Origine des seuils » réaligné sur `profiles.py` (écart roll /
+  pitch, déséquilibre, terme I, résonance, règle du nom) ; `hover_hz` sert à la fiche drone du guide.
+- Assistant de réglage : la taille de drone choisie était lue dans le widget depuis le thread de calcul ;
+  tous les outils passent maintenant leurs réglages par `snapshot_options` (sans repli lisant les
+  widgets), ce qu'un test vérifie sur chaque page du registre.
+- `opentunebox report` : un fichier illisible ou sans session est signalé en une ligne, comme avec `info`,
+  au lieu d'interrompre la commande avec une trace d'erreur.
+- Décodeur : un en-tête tronqué dont la trame GPS a moins de prédicteurs que de noms faisait planter la
+  lecture (`IndexError`) au lieu d'ignorer la session.
+- Assistant, taille d'après le nom du drone (sans télémétrie moteur ni tension) : « 10in » donnait 0 pouce
+  (profil 2–3,5") et un nombre contenant 65 ou 75 (« 1750 ») passait pour un whoop.
+- Logs en haute résolution (`blackbox_high_resolution = ON`) : le gaz était dix fois trop faible (le gaz du
+  mixeur `setpoint[3]` n'est pas mis à l'échelle par le firmware, contrairement aux quatre voies
+  `rcCommand`, qui le sont) ; vérifié dans `blackbox.c` 4.4 → 2026.12, spécification corrigée.
 - Tests sur les vrais logs : logs supprimés du corpus remplacés par des logs aux mêmes propriétés ; un log
   absent fait ignorer le test en le nommant au lieu de le faire échouer.
 

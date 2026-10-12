@@ -244,7 +244,7 @@ def test_tool_windows_render():
     for cls in (AdvisorWindow,):
         w = cls(st)
         w.files.selectAll() if w.multi_file else None
-        w.render(w.compute(w.files.selected_entries()))
+        w.render(w.compute_sync(w.files.selected_entries()))
         wins.append(w)
     s = SetupInfoWindow(st)
     s.files.selectAll()

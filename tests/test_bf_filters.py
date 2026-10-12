@@ -169,3 +169,39 @@ def test_scale_and_disable_lowpass():
     assert scale_lowpass(LowpassSetting("PT1", 900), 1.5).static_hz == 1000
     assert not scale_lowpass(LowpassSetting("PT1"), 2).enabled
     assert not lowpass_off(lp).enabled
+
+
+def _fake_log(n=20000, fs=2000.0, motor_hz=200.0, **extra):
+    """Log minimal pour `whatif_spectrum` : gaz constant, moteurs à `motor_hz`, pas de debug FFT_FREQ."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(fs=fs, n=n, throttle=np.full(n, 50.0), motor_hz=np.full((4, n), motor_hz),
+                           debug=np.zeros((0, n)), settings=_settings(rpm_filter_weights="100,100,100", **extra))
+
+
+def test_whatif_spectrum_identity_when_nothing_changes():
+    """Méthode relative (D-008) : avec les mêmes réglages, le spectre « modifié » est exactement le spectre
+    enregistré, même sur les cases qui tombent pile sur un notch (|H|² ≈ 0 des deux côtés)."""
+    rng = np.random.default_rng(0)
+    log = _fake_log()
+    t = np.arange(log.n) / log.fs
+    # raie à 200 Hz = centre d'un notch RPM et multiple exact du pas de fréquence (fs / 600 = 3,33 Hz)
+    x = rng.normal(0, 1, log.n) + 0.5 * np.sin(2 * np.pi * 200.0 * t)
+    w = bf.whatif_spectrum(x, None, log, slice(None), log.settings, log.settings)
+    assert w.freqs.size and np.all(np.isfinite(w.current_db))
+    assert np.allclose(w.modified_db, w.current_db, atol=1e-9)
+
+
+def test_whatif_spectrum_follows_filter_change():
+    """LPF2 du gyro abaissé de 500 à 250 Hz : l'écart de spectre suit |H250|² / |H500|² à 0,1 dB près."""
+    rng = np.random.default_rng(1)
+    log = _fake_log()
+    mod = _settings(rpm_filter_weights="100,100,100", gyro_lpf2_static_hz="250")
+    x = rng.normal(0, 1, log.n)
+    w = bf.whatif_spectrum(x, None, log, slice(None), log.settings, mod)
+    f = w.freqs
+    h250 = bf.chain_response([(bf.FilterSpec("pt1", 250.0), 8000.0)], f)
+    h500 = bf.chain_response([(bf.FilterSpec("pt1", 500.0), 8000.0)], f)
+    expected = 20 * np.log10(np.abs(h250) / np.abs(h500))
+    band = (f > 50) & (f < 400) & (np.abs(f - 200) > 10) & (np.abs(f - 400) > 10)  # loin des notchs RPM
+    assert np.allclose((w.modified_db - w.current_db)[band], expected[band], atol=0.1)

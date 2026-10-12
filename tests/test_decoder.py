@@ -121,3 +121,17 @@ def test_real_log_loads():
     assert lg.gyro_unfilt is not None and lg.motor_hz is not None
     assert np.all(np.diff(lg.t) > 0)
     assert 0 <= np.median(lg.throttle) <= 100
+
+
+def test_parse_header_gps_predictors_shorter_than_names():
+    """En-tête tronqué : la trame G a des noms mais moins de prédicteurs ; pas d'IndexError, le second
+    HOME_COORD n'est renommé que s'il existe."""
+    from opentunebox.decoder.header import PRED_HOME_COORD, PRED_HOME_COORD_1, parse_header
+
+    data = (b"H Field G name:GPS_home[0],GPS_home[1],GPS_numSat\n"
+            b"H Field G predictor:%d\n" % PRED_HOME_COORD + b"I")
+    hdr = parse_header(data, 0, len(data))
+    assert hdr.frames["G"].predictor == [PRED_HOME_COORD]
+    data = (b"H Field G name:GPS_home[0],GPS_home[1],GPS_numSat\n"
+            b"H Field G predictor:%d,%d,0\n" % (PRED_HOME_COORD, PRED_HOME_COORD) + b"I")
+    assert parse_header(data, 0, len(data)).frames["G"].predictor == [PRED_HOME_COORD, PRED_HOME_COORD_1, 0]
