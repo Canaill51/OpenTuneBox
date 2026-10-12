@@ -36,7 +36,9 @@ class CraftProfile:
     roll_pitch_gap_high: float = 0.12  # écart de pic de réponse entre roll et pitch
     resonance_high_db: float = 7.9  # raie fixe au-dessus du bruit voisin
     provisional: bool = False  # trop peu de drones dans le corpus : seuils peu fiables
-    nominal_inch: float | None = None  # taille d'hélice représentative, pour les objectifs de retard des filtres
+    # taille d'hélice représentative, pour les objectifs de retard des filtres : médiane des drones de taille connue
+    # du corpus (2–3,5" : 3, sur 9 drones ; 8"+ : 8, sur 3 drones ; docs/assistant.md, 2026-10-12)
+    nominal_inch: float | None = None
 
 
 # Recalibration du 2026-10-05 sur 681 sessions, 94 drones, tout le corpus (docs/assistant.md, « Calibration »),
