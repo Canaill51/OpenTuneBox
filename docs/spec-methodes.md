@@ -9,6 +9,9 @@ fait OpenTuneBox ; les conventions de PIDtoolbox (PTB) sont indiquées quand ell
 ## Conventions de chargement
 
 - Fréquence du log `Fs = 1e6 / médiane(diff(time_us))` ; toutes les fenêtres sont données en ms × Fs.
+- Trous d'enregistrement (pas de temps de plus de 4 / Fs, `FlightLog.breaks`) : aucune fenêtre d'analyse
+  (spectres, réponse indicielle, boucle ouverte, retards, moteurs) ne chevauche un raccord ; Fréquence ×
+  temps laisse la colonne vide (D-020).
 - Gaz % = `setpoint[3] / 10`. Moteurs % = `(moteur − 48) / 1999 · 100` (DShot).
 - Erreur PID = `gyroADC − setpoint` (signe de PTB).
 - **D préfiltre** (reconstruit, `log/flightlog.py`) : `−d(gyroADC)/dt × k`, le gain `k` étant ajusté par

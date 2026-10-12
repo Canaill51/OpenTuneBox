@@ -60,7 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
-| W-010 | Analyses recollées de part et d'autre des trous du log | ouvert |
+| W-010 | Analyses recollées de part et d'autre des trous du log | clos |
 | W-009 | Extrait de vrai log Blackbox versionné pour la CI | clos |
 | W-008 | Couleurs en dur dans `gui/` : liste d'exceptions à valider | clos |
 | W-007 | Tests du corpus en échec quand un log a été déplacé | clos |
@@ -206,9 +206,11 @@ Règles d'écriture :
 
 ## Origine : calibration des trames corrompues, branche feat/calibrate-corrupt-frames (2026-10-12)
 
-- **W-010** — Les analyses (spectres, réponse indicielle, boucle ouverte, moteurs, retards) recollent le vol
+- ~~**W-010** — Les analyses (spectres, réponse indicielle, boucle ouverte, moteurs, retards) recollent le vol
   de part et d'autre d'un trou d'enregistrement : chaque raccord ajoute un faux bruit, jusqu'à +18 dB entre
-  80 et 500 Hz sur un vol de wobbles du corpus (mesures dans [assistant.md](assistant.md#trous-dans-lenregistrement-2026-10-12)).
+  80 et 500 Hz sur un vol de wobbles du corpus (mesures dans [assistant.md](assistant.md#trous-dans-lenregistrement-2026-10-12)).~~
+  ✅ **CLOS (2026-10-12)** — D-020 : aucune fenêtre d'analyse ne chevauche plus un trou (`FlightLog.breaks`) ;
+  constat « Trous dans l'enregistrement » redevenu informatif. Branche fix/gap-aware-windows.
   **Pourquoi reporté** : correctif distinct du seuil ; Cédric a choisi de prévenir d'abord le pilote (constat
   « Trous dans l'enregistrement »), puis de corriger les analyses sur une branche à part (2026-10-12).
   **Risque si on n'y touche pas** : 7 % des sessions du corpus ont un bruit surestimé, parfois assez pour

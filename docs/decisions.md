@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-020 | Aucune fenêtre d'analyse ne chevauche un trou du log | 2026-10-12 |
 | D-019 | Le vol chirp de Betaflight n'est pas conseillé : méthode de Brian White | 2026-10-12 |
 | D-018 | Décisions, leçons et travaux reportés ont chacun leur registre numéroté | 2026-10-12 |
 | D-017 | Deux fréquences minimales du log : filtres et séries PID | 2026-10-12 |
@@ -91,6 +92,41 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-10-12 — Trous d'enregistrement
+
+### D-020 : aucune fenêtre d'analyse ne chevauche un trou du log
+
+**Contexte.** Une pause d'écriture de la carte SD ou de la mémoire flash laisse un trou dans le log (7,5 %
+des sessions du corpus). Les analyses recollaient le vol de part et d'autre : chaque raccord est un saut du
+signal, donc un faux bruit, jusqu'à +18 dB entre 80 et 500 Hz sur un vol de wobbles (W-010, L-027,
+`docs/assistant.md`, « Trous dans l'enregistrement »). Choix C de Cédric (2026-10-12) : prévenir d'abord le
+pilote, puis corriger les analyses.
+
+**Décision.**
+- `FlightLog.breaks(sel)` donne les raccords de la période (indices comptés depuis son début ; trou = pas de
+  temps de plus de 4 périodes, comme `FlightLog.segments` et `FlightLog.recording_gaps`).
+- Toute fonction de `analysis/` qui découpe des fenêtres prend un argument `breaks` (défaut `None` : aucun
+  raccord, résultat inchangé) et écarte les fenêtres qui en chevauchent un (`spectral.clear_of_breaks`) :
+  spectres, fréquence × gaz, raies et bruit moteur, notch dynamique, réponse indicielle et boucle ouverte,
+  retards des filtres, simulateur de filtres. Les appelants (assistant, guide, outils, scripts) passent
+  `log.breaks(sel)` ; `whatif_spectrum` et `compute_delays`, qui reçoivent le log, le font eux-mêmes.
+- Fréquence × temps garde ses colonnes à leur place et laisse vides celles qui chevauchent un trou.
+- Le retard des filtres (`phase_delay_ms`) calcule lui-même ses spectres croisés, avec les fenêtres de
+  `scipy.signal.csd` (résultat identique sans raccord, test à 1e-9 près).
+
+**Options écartées.** Découper le log en morceaux et moyenner les résultats : chaque analyse aurait sa
+propre règle de fusion. Remplir les trous (interpolation) : invente des données. Passer les raccords
+dans les tableaux eux-mêmes (sous-classe de `ndarray`) : perdus au premier calcul.
+
+**Limite.** L'intercorrélation consigne → gyro (`xcorr_delay_ms`) porte sur tout le signal : un trou n'y
+décale qu'un petit morceau, effet négligeable. Un vol très haché (un trou par seconde) n'a presque plus de
+fenêtre de 2 s : la réponse indicielle le dit (« Pas assez de mouvements de manche »).
+
+**Témoins.** `tests/test_gaps.py` (spectre et réponse indicielle d'un signal troué égaux à ceux du signal
+entier, faux bruit de plus de 5 dB sans les raccords) ; passage de l'assistant sur le corpus
+(`scripts/advisor_rates.py`) : aucune session sans trou ne change, 31 des 47 sessions trouées perdent de faux
+constats (13 « Oscillations basses fréquences », 5 « Gyro filtré bruité »…).
 
 ## 2026-10-12 — Vol chirp mis de côté
 

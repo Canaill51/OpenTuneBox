@@ -95,7 +95,7 @@ def simulate_filters(entry, mod: Settings, with_current: bool = True) -> FilterS
     res.spectra = {k: [None, None, None] for k in keys}
 
     def psd(x):
-        sp = spectrum(np.asarray(x[sel], dtype=float), fs, "psd", resolution_hz=1000.0 / 300.0)
+        sp = spectrum(np.asarray(x[sel], dtype=float), fs, "psd", resolution_hz=1000.0 / 300.0, breaks=log.breaks(sel))
         return to_ptb_db(sp.values)
 
     for ax in range(3):

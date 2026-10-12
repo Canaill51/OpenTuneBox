@@ -38,6 +38,7 @@ from scipy import signal
 from scipy.ndimage import uniform_filter1d
 
 from .bf_filters import chain_response, dterm_chain
+from .spectral import clear_of_breaks
 
 MEASURED, APPROX = "mesurée", "approchée"
 F_MIN, F_MAX = 2.0, 200.0  # bande de la mesure (Hz), plafonnée à 0,4 × fréquence du log
@@ -208,7 +209,8 @@ class LoopSpectra:
 
 
 def loop_spectra(r: np.ndarray, y: np.ndarray, terms: PidTerms, fs: float, seg_s: float = 2.0,
-                 min_input: float = 20.0, max_input: float | None = None, blocks: int = BLOCKS) -> LoopSpectra | None:
+                 min_input: float = 20.0, max_input: float | None = None, blocks: int = BLOCKS,
+                 breaks: np.ndarray | None = None) -> LoopSpectra | None:
     """Spectres croisés sur les fenêtres où la consigne dépasse `min_input` (et reste sous `max_input`)."""
     r = np.asarray(r, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
@@ -221,6 +223,9 @@ def loop_spectra(r: np.ndarray, y: np.ndarray, terms: PidTerms, fs: float, seg_s
     if n < L or L < 8:
         return None
     starts = np.arange(0, n - L + 1, L // 2)
+    starts = starts[clear_of_breaks(starts, L, breaks)]  # aucune fenêtre sur un trou du log (D-020)
+    if starts.size < 2:
+        return None
     idx = np.arange(L)
     peak = np.max(np.abs(r[starts[:, None] + idx]), axis=1)
     ok = peak >= min_input
@@ -323,10 +328,11 @@ _STD_KEYS = ("sensitivity_peak_db", "crossover_hz", "phase_margin_deg", "gain_ma
 
 
 def loop_from_terms(r: np.ndarray, y: np.ndarray, terms: PidTerms, fs: float, approx: LoopMetrics,
-                    seg_s: float = 2.0, min_input: float = 20.0, max_input: float | None = None) -> LoopMetrics:
+                    seg_s: float = 2.0, min_input: float = 20.0, max_input: float | None = None,
+                    breaks: np.ndarray | None = None) -> LoopMetrics:
     """Boucle ouverte mesurée. `approx` (méthode approchée, même période) fournit la bande passante et le
     pic de suivi, et sert de repli, avec une note, si la mesure est impossible."""
-    spec = loop_spectra(r, y, terms, fs, seg_s, min_input, max_input)
+    spec = loop_spectra(r, y, terms, fs, seg_s, min_input, max_input, breaks=breaks)
     if spec is None:
         approx.notes.append("pas assez de fenêtres pour mesurer la boucle ouverte")
         return approx

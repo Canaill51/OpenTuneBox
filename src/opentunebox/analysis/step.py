@@ -28,6 +28,7 @@ from scipy import signal
 from scipy.ndimage import uniform_filter1d
 
 from .loop import LoopMetrics, PidTerms, loop_from_T, loop_from_terms
+from .spectral import clear_of_breaks
 
 
 PAD = 100
@@ -82,10 +83,12 @@ def step_response(
     smooth: int = 0,
     y_correction: bool = False,
     terms: PidTerms | None = None,
+    breaks: np.ndarray | None = None,
 ) -> StepResult:
     """Réponse indicielle d'un axe. `max_input` permet de séparer petits / grands mouvements
     (ex. < 500 °/s et ≥ 500 °/s comme PIDtoolbox et PID-Analyzer). `terms` (P, I, D, F loggés sur la
-    même période) : boucle ouverte mesurée ; sans eux, méthode approchée."""
+    même période) : boucle ouverte mesurée ; sans eux, méthode approchée. `breaks` : raccords du log
+    (`FlightLog.breaks`), aucune fenêtre ne les chevauche (D-020)."""
     sp = np.asarray(sp, dtype=np.float64)
     gy = np.asarray(gy, dtype=np.float64)
     sp_raw, gy_raw = sp, gy
@@ -99,7 +102,7 @@ def step_response(
                        StepMetrics(), LoopMetrics(), np.zeros(0))
     if n < L:
         return empty
-    starts = _window_starts(sp[:n], fs, L, hop_ms, min_input, max_input)
+    starts = _window_starts(sp[:n], fs, L, hop_ms, min_input, max_input, breaks)
     w = signal.windows.hann(L)
     nfft = L + 2 * PAD
 
@@ -151,20 +154,23 @@ def step_response(
     elif terms.note:
         loop.notes.append(terms.note)
     else:
-        loop = loop_from_terms(sp_raw, gy_raw, terms, fs, loop, seg_s, min_input, max_input)
+        loop = loop_from_terms(sp_raw, gy_raw, terms, fs, loop, seg_s, min_input, max_input, breaks)
     metrics = step_metrics(t_ms, mean)
     shape_metrics(t_ms, R, metrics)
     return StepResult(t_ms, R, mean, std, R.shape[0], metrics, loop, maxin)
 
 
 def _window_starts(sp: np.ndarray, fs: float, L: int, hop_ms: float, min_input: float,
-                   max_input: float | None = None) -> np.ndarray:
+                   max_input: float | None = None, breaks: np.ndarray | None = None) -> np.ndarray:
     """Débuts des fenêtres de L échantillons (pas `hop_ms`) où |consigne| atteint `min_input` (et reste
     sous `max_input`)."""
     if sp.size < L:
         return np.zeros(0, dtype=int)
     hop = max(1, int(round(hop_ms * fs / 1000.0)))
     starts = np.arange(0, sp.size - L + 1, hop)
+    starts = starts[clear_of_breaks(starts, L, breaks)]
+    if starts.size == 0:
+        return starts
     peak = np.lib.stride_tricks.sliding_window_view(np.abs(sp), L)[starts].max(axis=1)
     keep = peak >= min_input
     if max_input is not None:
@@ -173,10 +179,11 @@ def _window_starts(sp: np.ndarray, fs: float, L: int, hop_ms: float, min_input: 
 
 
 def input_windows(sp: np.ndarray, fs: float, seg_s: float = 2.0, min_input: float = 20.0,
-                  hop_ms: float = 62.5) -> int:
+                  hop_ms: float = 62.5, breaks: np.ndarray | None = None) -> int:
     """Nombre de fenêtres où la réponse indicielle a assez de consigne : calcul rapide, sans la déconvolution
     (le contrôle qualité de `step_response` en écarte ensuite quelques-unes)."""
-    return int(_window_starts(np.asarray(sp, dtype=np.float64), fs, int(round(seg_s * fs)), hop_ms, min_input).size)
+    return int(_window_starts(np.asarray(sp, dtype=np.float64), fs, int(round(seg_s * fs)), hop_ms, min_input,
+                                  breaks=breaks).size)
 
 
 def step_metrics(t_ms: np.ndarray, r: np.ndarray) -> StepMetrics:

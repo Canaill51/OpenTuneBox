@@ -110,7 +110,7 @@ def flight_step(log: FlightLog, sel: slice = slice(None), label: str = "") -> Fl
     f = FlightStep(label or log.name, slider_view(s).values, filter_signature(s), flight_conditions(log, sel))
     for ax in range(2):
         sp, gy = log.setpoint[ax, sel], log.gyro[ax, sel]
-        r = step_response(sp, gy, log.fs, terms=log.pid_terms(ax, sel))
+        r = step_response(sp, gy, log.fs, terms=log.pid_terms(ax, sel), breaks=log.breaks(sel))
         f.metrics.append(r.metrics)
         f.n.append(r.n)
         f.sp_delay_ms.append(xcorr_delay_ms(sp, gy, log.fs, 100.0) if np.std(sp) >= 5.0 else float("nan"))

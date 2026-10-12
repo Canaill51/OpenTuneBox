@@ -6,11 +6,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
-- « Trames corrompues » devient « Trous dans l'enregistrement » (conseil au lieu d'info), dans l'Assistant et
-  dans la vérification des logs du guide : il compte les trous de la période analysée et le temps perdu, au
-  lieu des tentatives de resynchronisation du décodeur. Le texte ne dit plus « sans conséquence » : chaque
-  trou ajoute un faux bruit au spectre (jusqu'à +18 dB mesurés sur un vol de wobbles), la correction des
-  analyses viendra ensuite (W-003, W-010).
+- « Trames corrompues » devient « Trous dans l'enregistrement », dans l'Assistant et dans la vérification
+  des logs du guide : il compte les trous de la période analysée et le temps perdu, au lieu des tentatives
+  de resynchronisation du décodeur, qui manquaient des vols vraiment troués (W-003).
 - Diagnostic du réglage, série Master : les vagues ne sont plus lues sur un axe de moins de 200 fenêtres
   (« vagues non lues ») ; le bruit seul y donne déjà environ 2 fois le bruit attendu, et une vraie vague de
   10 % passe inaperçue. Le seuil de 2,5 est gardé, désormais mesuré sur le corpus : il ne signale que 0,6 % des
@@ -94,6 +92,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   en sombre). Un test refuse toute couleur en dur hors de `theme.py` (W-008 clos).
 
 ### Corrigé
+- Logs avec des trous d'enregistrement (pauses d'écriture de la carte SD ou de la mémoire flash, 7,5 % des
+  sessions du corpus) : les analyses recollaient le vol de part et d'autre de chaque trou, ce qui ajoutait un
+  faux bruit (jusqu'à +18 dB sur un vol de wobbles) et faussait spectres, réponse indicielle, retards des
+  filtres et conseils de filtrage. Les fenêtres qui chevauchent un trou sont désormais écartées dans tous
+  les outils ; Fréquence × temps laisse ces colonnes vides (en gris) et s'étend sur la vraie durée du vol :
+  il finissait trop tôt, décalé des courbes des moteurs (D-020, W-010).
 - Changer de thème (clair / sombre) repeint aussi les outils déjà ouverts : leur fond de graphique gardait
   les couleurs de l'ancien thème jusqu'à un nouveau calcul.
 - Spectres : avec une fenêtre d'un nombre impair d'échantillons (fréquence d'enregistrement non entière),

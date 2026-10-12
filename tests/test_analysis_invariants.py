@@ -204,7 +204,8 @@ def test_compute_delays_on_fake_log():
     d = np.vstack([_pt1(pre[a], 75.0, fs)[0] for a in range(3)])
     sp = np.vstack([200 * np.sin(2 * np.pi * 2 * np.arange(n) / fs), 200 * np.cos(2 * np.pi * 2 * np.arange(n) / fs),
                     np.zeros(n)])
-    log = SimpleNamespace(fs=fs, gyro_unfilt=raw, gyro=gyro, d_term=d, d_term_prefilter=pre, setpoint=sp)
+    log = SimpleNamespace(fs=fs, gyro_unfilt=raw, gyro=gyro, d_term=d, d_term_prefilter=pre, setpoint=sp,
+                          breaks=lambda sel: np.zeros(0, dtype=int))  # aucun trou
     dl = delay.compute_delays(log)
     assert dl.gyro_ms == pytest.approx(delay.phase_delay_ms(raw[0], gyro[0], fs), abs=0.05)
     assert dl.dterm_ms > dl.gyro_ms  # 75 Hz retarde plus que 100 Hz

@@ -116,7 +116,8 @@ class FreqTimeWindow(sc.OptionsSnapshot, ToolWindow):
         if data is not None:
             for ax in range(3):
                 if datasets.has_axis(log, key, ax):
-                    m = freq_time(data[ax, sel], log.t[sel], log.fs, 300.0, opts["hop_div"], opts["freq_smoothing"])
+                    m = freq_time(data[ax, sel], log.t[sel], log.fs, 300.0, opts["hop_div"], opts["freq_smoothing"],
+                                  breaks=log.breaks(sel))
                     m.z = to_ptb_db(m.z)
                     res.maps[ax] = m
         t = log.t[sel]
@@ -188,7 +189,9 @@ class FreqTimeWindow(sc.OptionsSnapshot, ToolWindow):
         img = pg.ImageItem(sg.z, axisOrder="row-major")
         img.setColorMap(cmap)
         img.setLevels(levels)
-        img.setRect(QRectF(t[0] - dt / 2, f[0] - df / 2, dt * t.size, df * f.size))
+        # étendue réelle des colonnes : avec des trous dans le log, le temps n'avance pas d'un pas fixe (D-020)
+        span = float(t[-1] - t[0]) + dt if t.size > 1 else dt
+        img.setRect(QRectF(t[0] - dt / 2, f[0] - df / 2, span, df * f.size))
         p.addItem(img)
         return img
 

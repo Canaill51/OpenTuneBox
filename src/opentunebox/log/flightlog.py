@@ -163,6 +163,12 @@ class FlightLog:
         bounds = [0, *(gaps + 1).tolist(), self.n]
         return [slice(a, b) for a, b in zip(bounds[:-1], bounds[1:]) if b - a > 1]
 
+    def breaks(self, sel: slice = slice(None), max_gap_factor: float = 4.0) -> np.ndarray:
+        """Raccords de `sel` : indices (comptés depuis le début de `sel`) des échantillons qui suivent un trou.
+        Les analyses n'y posent aucune fenêtre (D-020) : sans cela, chaque raccord ajoute un faux bruit (L-027)."""
+        dt = np.diff(self.t[sel])
+        return np.flatnonzero(dt > max_gap_factor / self.fs) + 1
+
     def recording_gaps(self, sel: slice = slice(None), max_gap_factor: float = 4.0) -> tuple[int, float]:
         """(nombre de trous, secondes perdues) dans `sel` : mêmes trous que `segments`."""
         dt = np.diff(self.t[sel])

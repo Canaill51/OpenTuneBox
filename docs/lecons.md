@@ -68,6 +68,7 @@ est celle du commit qui les a introduites.
   recollent le vol de part et d'autre du trou : faux bruit jusqu'à +18 dB (W-010).
 - **Règle** — juger un log abîmé par ses trous de temps (`FlightLog.recording_gaps`), jamais par
   `corrupt_frames` ; mesurer l'effet d'un défaut d'enregistrement en recalculant sans les fenêtres touchées.
+  Toute nouvelle analyse à fenêtres prend `breaks` (`FlightLog.breaks`, D-020).
 - **Preuve** — branche feat/calibrate-corrupt-frames ([assistant.md](assistant.md#trous-dans-lenregistrement-2026-10-12)).
 
 ### L-026 : injecter une oscillation en filtrant le gyro ne l'ajoute presque pas à la réponse indicielle

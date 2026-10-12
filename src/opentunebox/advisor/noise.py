@@ -115,15 +115,16 @@ def section_of(f: Finding) -> str | None:
     return None
 
 
-def _axis_noise(raw: np.ndarray | None, filt: np.ndarray, fs: float, band, axes) -> list[AxisNoise]:
+def _axis_noise(raw: np.ndarray | None, filt: np.ndarray, fs: float, band, axes,
+                breaks: np.ndarray | None = None) -> list[AxisNoise]:
     out = []
     for a in axes:
         if not np.any(filt[a]):
             continue
         nan = float("nan")
-        hz, before = band_peak_ptb(raw[a], fs, *band) if raw is not None else (nan, nan)
-        drop = _band_db(raw[a], fs, *band) - _band_db(filt[a], fs, *band) if raw is not None else nan
-        out.append(AxisNoise(AXES[a], before, band_peak_ptb(filt[a], fs, *band)[1], hz, drop))
+        hz, before = band_peak_ptb(raw[a], fs, *band, breaks) if raw is not None else (nan, nan)
+        drop = _band_db(raw[a], fs, *band, breaks) - _band_db(filt[a], fs, *band, breaks) if raw is not None else nan
+        out.append(AxisNoise(AXES[a], before, band_peak_ptb(filt[a], fs, *band, breaks)[1], hz, drop))
     return out
 
 
@@ -289,8 +290,9 @@ def noise_report(log: FlightLog, sel: slice | None = None, profile: CraftProfile
     moving = bool(meas["delays"].moving)
     raw_gyro = log.gyro_unfilt[:, sel] if log.gyro_unfilt is not None else None
     nr = NoiseReport(rep, band, moving, log.gyro_unfilt is not None)
-    nr.gyro = _axis_noise(raw_gyro, log.gyro[:, sel], log.fs, band, range(3))
-    nr.dterm = _axis_noise(log.d_term_prefilter[:, sel], log.d_term[:, sel], log.fs, band, range(2))
+    br = log.breaks(sel)  # aucune fenêtre sur un trou du log (D-020)
+    nr.gyro = _axis_noise(raw_gyro, log.gyro[:, sel], log.fs, band, range(3), br)
+    nr.dterm = _axis_noise(log.d_term_prefilter[:, sel], log.d_term[:, sel], log.fs, band, range(2), br)
     if log.gyro_unfilt is not None and log.motor_hz is not None:
         nr.harmonics = rpm_harmonic_levels(log, sel)
     parts = {"conditions": nr.conditions, "gyro": nr.gyro_findings, "dterm": nr.dterm_findings,

@@ -112,8 +112,8 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
 - `log/flightlog.py:_drop_implausible` écarte les trames impossibles (gyro ou consigne > 4000 °/s, terme PID > ±65535) ;
   une session corrompue à plus de 50 % est ignorée. L-002
 - `stats["corrupt_frames"]` compte des tentatives de resynchronisation, pas du temps perdu : juger un log
-  abîmé par ses trous (`FlightLog.recording_gaps`). Les analyses recollent encore le vol aux trous (faux
-  bruit, W-010). L-027
+  abîmé par ses trous (`FlightLog.recording_gaps`). Toute analyse à fenêtres prend `breaks=log.breaks(sel)` :
+  sans lui, chaque trou ajoute un faux bruit (jusqu'à +18 dB). D-020, L-027
 - Numéros de `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12) → `log/debug_tables.py`. L-003
 - 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max` → normalisé dans `log/settings.py`. L-004
 - Retards de filtres : méthode de **phase** (10–100 Hz, pondérée par la cohérence), pas l'intercorrélation

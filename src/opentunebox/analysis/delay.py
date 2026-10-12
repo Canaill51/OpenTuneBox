@@ -12,6 +12,7 @@ import numpy as np
 from scipy import signal
 
 from ..log.flightlog import FlightLog
+from .spectral import _segments
 
 
 def xcorr_delay_ms(x: np.ndarray, y: np.ndarray, fs: float, max_ms: float = 30.0,
@@ -47,12 +48,14 @@ def xcorr_delay_ms(x: np.ndarray, y: np.ndarray, fs: float, max_ms: float = 30.0
 
 
 def phase_delay_ms(x: np.ndarray, y: np.ndarray, fs: float, band: tuple[float, float] = (10.0, 100.0),
-                   min_coherence: float = 0.6) -> float:
+                   min_coherence: float = 0.6, breaks: np.ndarray | None = None) -> float:
     """Retard de `y` par rapport à `x` déduit de la phase de la fonction de transfert.
 
     H(f) = Sxy/Sxx (Welch, fenêtres de 0,5 s) ; retard(f) = −phase/(2πf) ; moyenne pondérée par la
     cohérence dans la bande utile au pilotage. Contrairement à l'intercorrélation, le résultat ne
     dépend pas du bruit haute fréquence qui domine souvent les signaux en vol stationnaire.
+    Mêmes fenêtres que `scipy.signal.csd` (Hann, recouvrement de moitié, moyenne retirée), sans celles
+    qui chevauchent un raccord `breaks` du log (D-020).
     """
     x = np.asarray(x, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
@@ -60,9 +63,19 @@ def phase_delay_ms(x: np.ndarray, y: np.ndarray, fs: float, band: tuple[float, f
     nper = int(min(n, 2 ** int(np.ceil(np.log2(fs * 0.5)))))
     if nper < 64:
         return float("nan")
-    f, sxy = signal.csd(x[:n], y[:n], fs=fs, nperseg=nper)
-    _, sxx = signal.welch(x[:n], fs=fs, nperseg=nper)
-    _, coh = signal.coherence(x[:n], y[:n], fs=fs, nperseg=nper)
+    sx, _ = _segments(x[:n], nper, nper // 2, breaks)
+    sy, _ = _segments(y[:n], nper, nper // 2, breaks)
+    if sx.shape[0] == 0:
+        return float("nan")
+    w = signal.get_window("hann", nper)
+    X = np.fft.rfft((sx - sx.mean(axis=1, keepdims=True)) * w, axis=1)
+    Y = np.fft.rfft((sy - sy.mean(axis=1, keepdims=True)) * w, axis=1)
+    f = np.fft.rfftfreq(nper, 1.0 / fs)
+    sxy = np.mean(np.conj(X) * Y, axis=0)  # échelle commune sans effet : seuls des rapports servent
+    sxx = np.mean(np.abs(X) ** 2, axis=0)
+    syy = np.mean(np.abs(Y) ** 2, axis=0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        coh = np.where(sxx * syy > 0, np.abs(sxy) ** 2 / (sxx * syy), 0.0)
     m = (f >= band[0]) & (f <= band[1]) & (coh >= min_coherence) & (sxx > 0)
     if m.sum() < 3:
         return float("nan")
@@ -103,12 +116,13 @@ def compute_delays(log: FlightLog, sel: slice | None = None) -> Delays:
     sel = sel or slice(None)
     fs = log.fs
     gyro_ms = float("nan")
+    br = log.breaks(sel)
     if log.gyro_unfilt is not None:
-        vals = [phase_delay_ms(log.gyro_unfilt[a, sel], log.gyro[a, sel], fs) for a in range(2)]
+        vals = [phase_delay_ms(log.gyro_unfilt[a, sel], log.gyro[a, sel], fs, breaks=br) for a in range(2)]
         gyro_ms = float(np.nanmean(vals)) if np.any(np.isfinite(vals)) else float("nan")
     dterm_ms = float("nan")
     if np.any(log.d_term[0]):
-        vals = [phase_delay_ms(log.d_term_prefilter[a, sel], log.d_term[a, sel], fs) for a in range(2)]
+        vals = [phase_delay_ms(log.d_term_prefilter[a, sel], log.d_term[a, sel], fs, breaks=br) for a in range(2)]
         dterm_ms = float(np.nanmean(vals)) if np.any(np.isfinite(vals)) else float("nan")
     sp = []
     for a in range(3):

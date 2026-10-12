@@ -78,23 +78,23 @@ def measure_file(f, root):
         r={"file":os.path.relpath(f,root),"sess":lg.session,"profile":prof.key,"fs":lg.fs,
            "craft":lg.settings.craft_name,"hover_hz":hover_motor_hz(lg),"cells":lg.cells,
            "corrupt":lg.stats.get("corrupt_frames",0),"sliders":lg.settings.sliders()}
-        nyq=lg.fs/2
+        nyq=lg.fs/2; br=lg.breaks(sel)  # aucune fenêtre sur un trou du log (D-020)
         def band(x,lo,hi):
-            s=spectrum(x,lg.fs,resolution_hz=2); m=(s.freqs>=lo)&(s.freqs<=min(hi,nyq*0.95)); return float(np.mean(s.values[m]))
+            s=spectrum(x,lg.fs,resolution_hz=2,breaks=br); m=(s.freqs>=lo)&(s.freqs<=min(hi,nyq*0.95)); return float(np.mean(s.values[m]))
         r["rpmq"]=lg.settings.rpm_q; r["rpmh"]=lg.settings.rpm_harmonics; r["rpmw"]=lg.settings.rpm_weights
         for a in range(2):
             r[f"gyro_{a}"]=band(lg.gyro[a,sel],80,500)
-            r[f"gptb_{a}"]=band_peak_ptb_db(lg.gyro[a,sel],lg.fs,80,500)  # échelle PIDtoolbox
-            if np.any(lg.d_term[a]): r[f"dptb_{a}"]=band_peak_ptb_db(lg.d_term[a,sel],lg.fs,80,500)
+            r[f"gptb_{a}"]=band_peak_ptb_db(lg.gyro[a,sel],lg.fs,80,500,br)  # échelle PIDtoolbox
+            if np.any(lg.d_term[a]): r[f"dptb_{a}"]=band_peak_ptb_db(lg.d_term[a,sel],lg.fs,80,500,br)
             if lg.gyro_unfilt is not None:
                 r[f"gdelayx_{a}"]=xcorr_delay_ms(lg.gyro_unfilt[a,sel],lg.gyro[a,sel],lg.fs,30.0)
                 if lg.motor_hz is not None:  # hauteur des harmoniques au-dessus du bruit voisin, avant / après filtres
-                    r[f"hprom_{a}"]=harmonic_prominence(lg.gyro_unfilt[a,sel],lg.motor_hz[:,sel],lg.fs).tolist()
-                    r[f"hleft_{a}"]=harmonic_prominence(lg.gyro[a,sel],lg.motor_hz[:,sel],lg.fs).tolist()
+                    r[f"hprom_{a}"]=harmonic_prominence(lg.gyro_unfilt[a,sel],lg.motor_hz[:,sel],lg.fs,breaks=br).tolist()
+                    r[f"hleft_{a}"]=harmonic_prominence(lg.gyro[a,sel],lg.motor_hz[:,sel],lg.fs,breaks=br).tolist()
             if lg.gyro_unfilt is not None: r[f"gyrou_{a}"]=band(lg.gyro_unfilt[a,sel],80,500)
             if np.any(lg.d_term[a]): r[f"dterm_{a}"]=band(lg.d_term[a,sel],80,500)
             r[f"lowband_{a}"]=band(lg.gyro[a,sel],20,80)
-            st=step_response(lg.setpoint[a,sel],lg.gyro[a,sel],lg.fs,terms=lg.pid_terms(a,sel))
+            st=step_response(lg.setpoint[a,sel],lg.gyro[a,sel],lg.fs,terms=lg.pid_terms(a,sel),breaks=br)
             if st.n>=20:
                 lp=st.loop
                 r[f"peak_{a}"]=st.metrics.peak; r[f"lat_{a}"]=st.metrics.latency_ms
@@ -106,11 +106,11 @@ def measure_file(f, root):
                 r[f"fc_{a}"]=lp.crossover_hz; r[f"gm_{a}"]=lp.gain_margin_db; r[f"dratio_{a}"]=lp.d_ratio
                 r[f"bandtop_{a}"]=lp.band_hz[1]; r[f"track_{a}"]=lp.tracking_peak_db
                 if lp.measured:  # mêmes mesures par l'ancienne formule T/(1 − T), pour comparaison
-                    old=step_response(lg.setpoint[a,sel],lg.gyro[a,sel],lg.fs).loop
+                    old=step_response(lg.setpoint[a,sel],lg.gyro[a,sel],lg.fs,breaks=br).loop
                     r[f"smaxold_{a}"]=old.sensitivity_peak_db; r[f"pmold_{a}"]=old.phase_margin_deg
                     r[f"fcold_{a}"]=old.crossover_hz
             if lg.motor_hz is not None:
-                mn=motor_noise(lg.gyro[a,sel],lg.motor_hz[:,sel],lg.fs); r[f"mnoise_{a}"]=mn.mean_db.tolist()
+                mn=motor_noise(lg.gyro[a,sel],lg.motor_hz[:,sel],lg.fs,breaks=br); r[f"mnoise_{a}"]=mn.mean_db.tolist()
         d=compute_delays(lg,sel); r["gdelay"]=d.gyro_ms; r["ddelay"]=d.dterm_ms; r["sp95"]=stick_p95_dps(lg,sel)
         fst=flight_stats(lg,sel); r["sat"]=fst.motor_saturation_pct; r["imb"]=fst.motor_imbalance_pct
         for a in range(2): r[f"imean_{a}"]=float(np.mean(lg.i_term[a,sel]))

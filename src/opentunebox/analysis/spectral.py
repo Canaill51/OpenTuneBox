@@ -26,14 +26,31 @@ PTB_PSD_OFFSET_DB = 6.5
 # ---------------------------------------------------------------- outils
 
 
-def _segments(x: np.ndarray, length: int, hop: int) -> tuple[np.ndarray, np.ndarray]:
-    """Vue (n_seg, length) sans copie des fenêtres successives, et indices de début."""
+def clear_of_breaks(starts: np.ndarray, length: int, breaks: np.ndarray | None) -> np.ndarray:
+    """Masque des fenêtres [début, début + length) qui ne chevauchent aucun raccord (trou du log, D-020)."""
+    starts = np.asarray(starts)
+    if breaks is None or len(breaks) == 0 or starts.size == 0:
+        return np.ones(starts.size, dtype=bool)
+    b = np.asarray(breaks)
+    # premier raccord strictement après le début : la fenêtre le contient s'il tombe avant sa fin
+    k = np.searchsorted(b, starts, side="right")
+    nxt = np.where(k < b.size, b[np.minimum(k, b.size - 1)], np.iinfo(np.int64).max)
+    return nxt >= starts + length
+
+
+def _segments(x: np.ndarray, length: int, hop: int,
+              breaks: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Vue (n_seg, length) des fenêtres successives, et indices de début ; `breaks` (raccords du log,
+    `FlightLog.breaks`) : les fenêtres qui en chevauchent un sont écartées."""
     n = x.shape[-1]
     if n < length:
         return np.zeros((0, length)), np.zeros(0, dtype=int)
     starts = np.arange(0, n - length + 1, hop)
-    view = np.lib.stride_tricks.sliding_window_view(x, length)[::hop]
-    return view[: len(starts)], starts
+    view = np.lib.stride_tricks.sliding_window_view(x, length)[::hop][: len(starts)]
+    keep = clear_of_breaks(starts, length, breaks)
+    if keep.all():
+        return view, starts
+    return view[keep], starts[keep]
 
 
 def ptb_subsample(duration_s: float, short: int, mid: int, long: int) -> int:
@@ -91,7 +108,7 @@ class Spectrum:
 
 
 def spectrum(x: np.ndarray, fs: float, mode: str = "psd", resolution_hz: float = 0.5,
-             smoothing: int = 0) -> Spectrum:
+             smoothing: int = 0, breaks: np.ndarray | None = None) -> Spectrum:
     """Spectre d'un signal 1D par la méthode de Welch.
 
     `resolution_hz` fixe la longueur des fenêtres (0,5 Hz → 2 s), ce qui permet de lire le détail
@@ -101,7 +118,7 @@ def spectrum(x: np.ndarray, fs: float, mode: str = "psd", resolution_hz: float =
     n = x.shape[0]
     L = int(min(n, max(64, round(fs / resolution_hz))))
     hop = max(1, L // 2)
-    segs, _ = _segments(x, L, hop)
+    segs, _ = _segments(x, L, hop, breaks)
     if segs.shape[0] == 0:
         return Spectrum(np.zeros(0), np.zeros(0), mode, resolution_hz)
     f, S = _seg_spectra(segs, fs, mode)
@@ -133,7 +150,8 @@ class FreqThrottle:
 
 
 def freq_throttle(x: np.ndarray, xaxis: np.ndarray, fs: float, mode: str = "amp", seg_ms: float = 300.0,
-                  nbins: int = 100, x_range: tuple[float, float] = (0.0, 100.0)) -> FreqThrottle:
+                  nbins: int = 100, x_range: tuple[float, float] = (0.0, 100.0),
+                  breaks: np.ndarray | None = None) -> FreqThrottle:
     """Carte fréquence × gaz (ou × % moteur, × Hz moteur… selon `xaxis`).
 
     Chaque fenêtre de 300 ms est rangée selon la valeur moyenne de `xaxis` ; une fenêtre compte
@@ -143,7 +161,7 @@ def freq_throttle(x: np.ndarray, xaxis: np.ndarray, fs: float, mode: str = "amp"
     L = max(16, int(round(fs * seg_ms / 1000.0)))
     duration = x.shape[0] / fs
     hop = max(1, L // ptb_subsample(duration, 5, 3, 1))
-    segs, starts = _segments(x, L, hop)
+    segs, starts = _segments(x, L, hop, breaks)
     lo, hi = x_range
     edges = np.linspace(lo, hi, nbins + 1)
     centers = 0.5 * (edges[:-1] + edges[1:])
@@ -151,7 +169,7 @@ def freq_throttle(x: np.ndarray, xaxis: np.ndarray, fs: float, mode: str = "amp"
         f = np.fft.rfftfreq(L, 1.0 / fs)
         return FreqThrottle(f, centers, np.full((f.size, nbins), np.nan), np.zeros(nbins, int), mode)
     f, S = _seg_spectra(segs, fs, mode)
-    xs, _ = _segments(np.asarray(xaxis, dtype=np.float64), L, hop)
+    xs, _ = _segments(np.asarray(xaxis, dtype=np.float64), L, hop, breaks)
     xm = xs.mean(axis=1)
     k = np.clip(np.floor((xm - lo) / (hi - lo) * nbins).astype(int), 0, nbins - 1)
     z = np.zeros((f.size, nbins))
@@ -197,7 +215,7 @@ class Spectrogram:
 
 
 def freq_time(x: np.ndarray, t: np.ndarray, fs: float, win_ms: float = 300.0, hop_div: int = 2,
-              freq_smoothing: int = 0) -> Spectrogram:
+              freq_smoothing: int = 0, breaks: np.ndarray | None = None) -> Spectrogram:
     x = np.asarray(x, dtype=np.float64)
     L = max(16, int(round(fs * win_ms / 1000.0)))
     hop = max(1, L // max(1, hop_div))
@@ -206,5 +224,7 @@ def freq_time(x: np.ndarray, t: np.ndarray, fs: float, win_ms: float = 300.0, ho
         return Spectrogram(np.zeros(0), np.zeros(0), np.zeros((0, 0)))
     f, P = _seg_spectra(segs, fs, "psd")
     z = smooth_freq(to_db(P), freq_smoothing).T
+    # colonnes gardées pour rester à leur place dans le temps ; vides sur un trou du log (D-020)
+    z[:, ~clear_of_breaks(starts, L, breaks)] = np.nan
     times = t[np.minimum(starts + L // 2, t.shape[0] - 1)]
     return Spectrogram(times, f, z)
