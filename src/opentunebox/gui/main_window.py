@@ -35,7 +35,7 @@ from ..log.flightlog import load
 from ..log.modes import mode_changes
 from . import icons, theme
 from .geometry import restore_geometry, save_geometry
-from .guide import CHECK_STEP, GuidePage
+from .guide import HOME, GuidePage
 from .state import MAX_LOGS, AppState
 from .widgets.axis import major_axes
 from .widgets.section import Section
@@ -186,8 +186,8 @@ class MainWindow(QMainWindow):
         add("Tout fermer", "trash-2", self.state.clear, "Fermer tous les logs", icon_only=True)
         tb.addSeparator()
         # boutons-onglets : un seul coché, celui de la page affichée
-        act = add("Guide", "book-open", self.show_guide, "Guide : préparer le drone, enregistrer les bons logs, "
-                  "régler pas à pas")
+        act = add("Guide", "book-open", lambda: self.show_guide(),
+                  "Guide : préparer le drone, enregistrer les bons logs, régler pas à pas")
         act.setCheckable(True)
         self._tool_actions["guide"] = act
         act = add("Visualiseur", "activity", self.show_viewer, "Visualiseur de log (courbes du vol)")
@@ -511,9 +511,9 @@ class MainWindow(QMainWindow):
 
     # ================================================================ état → affichage
     def _on_logs_changed(self) -> None:
-        # premier log ouvert depuis le guide : on passe aux courbes, sauf si le guide vérifie les logs
+        # premier log ouvert depuis l'accueil du guide : on passe aux courbes ; depuis une phase, on y reste
         if self.state.logs and not self._had_logs and self.current_page() == "guide" \
-                and self.guide_page.current_key() != CHECK_STEP:
+                and self.guide_page.current_key() == HOME:
             self.show_viewer()
         self._had_logs = bool(self.state.logs)
         self.file_combo.blockSignals(True)
@@ -843,9 +843,9 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentWidget(self.viewer_page)
         self._sync_tool_actions()
 
-    def show_guide(self, step: str | None = None) -> None:
-        if step:
-            self.guide_page.show_step(step)
+    def show_guide(self, phase: str | None = None) -> None:
+        if phase:
+            self.guide_page.show_phase(phase)
         self.pages.setCurrentWidget(self.guide_page)
         self._sync_tool_actions()
 

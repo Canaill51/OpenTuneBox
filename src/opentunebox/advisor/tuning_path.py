@@ -3,7 +3,8 @@
 Sans Qt. Chaque case (`Step`) a un titre et une aide adaptés à la fiche drone (`DroneCard`), et peut être
 vérifiée automatiquement par les logs ouverts du drone (`LogCheck` de `log_check.py`) :
 - `checks` : points de `log_check` qui doivent être bons ;
-- `usage` : usage de `log_check` qui doit être possible (bruit, retard, série) ;
+- `usages` : usages de `log_check` qui doivent être possibles (bruit, retard, série) ;
+- `any_log` : un log du drone est ouvert ;
 - `flight` : vol d'une série (curseur, valeur) présent parmi les logs, et lisible comme vol de série.
 Choix de Cédric (2026-10-12) : configurateur d'abord, CLI en repli ; protocole de Brian White pour les
 mouvements ; listes des séries et plages de finitions dans `drone_card.py`.
@@ -31,7 +32,8 @@ class Step:
     title: Callable[[DroneCard], str] | str
     help: Callable[[DroneCard], str] | str = ""  # Markdown
     checks: tuple[str, ...] = ()
-    usage: str | None = None
+    usages: tuple[str, ...] = ()
+    any_log: bool = False  # vérifiée dès qu'un log du drone est ouvert
     flight: tuple[str, float] | None = None  # (catégorie PTB du curseur, valeur)
     tool: str | None = None  # outil à ouvrir (clé de gui/tools REGISTRY)
     part: str | None = None  # partie du vol à analyser avec l'outil : "hover" ou "moving"
@@ -150,12 +152,12 @@ def _finish_help(kind: str):
 # ------------------------------------------------------------------ parcours
 def phases(card: DroneCard) -> list[Phase]:
     prep = Phase("prep", "Préparer le drone",
-                 "À faire une fois, avant le premier vol de réglage. Les cases marquées d'un logo se cochent toutes "
-                 "seules dès qu'un log du drone le prouve.", [
+                 "À faire une fois, avant le premier vol de réglage. Dès qu'un log du drone est ouvert, certaines "
+                 "cases se vérifient toutes seules : « ✔ Vérifié » ou « ▲ À revoir ».", [
                      Step("expert", "Configurateur : activer le Mode Expert",
                           "Fenêtre **Options** du configurateur. Sans lui, les curseurs sont limités à 0,7–1,4 et "
                           "Master, I, Pitch Damping, Pitch Tracking et Dynamic Damping restent bloqués."),
-                     Step("backup", "Sauvegarder le réglage actuel (`diff all`)",
+                     Step("backup", "Sauvegarder le réglage actuel (diff all)",
                           "Onglet **Ligne de commande (CLI)** : tapez `diff all`, puis **Enregistrer sous**. C'est "
                           "le point de retour si un réglage tourne mal."),
                      Step("defaults", "Repartir des valeurs par défaut", _defaults_help),
@@ -186,13 +188,13 @@ def phases(card: DroneCard) -> list[Phase]:
                     "Un vol de réglage, puis un changement à la fois, dans l'ordre. Chaque changement : Sauvegarder, "
                     "refaire le même vol, comparer les deux logs.", [
                         Step("filter_flight", "Vol de réglage : stationnaire, puis wobbles", _flight_help,
-                             usage="delay", checks=("log_rate", "gyro_unfilt")),
+                             usages=("noise", "delay"), checks=("log_rate", "gyro_unfilt")),
                         Step("retrieve", "Récupérer le log et l'ouvrir",
                              "Onglet **Blackbox** : **Activer le Mode de périphérique de stockage de masse** (le "
                              "contrôleur apparaît comme une clé USB), ou retirez la carte SD et lisez-la sur "
                              "l'ordinateur. Copiez les `.bbl` dans un dossier par drone, nommez-les "
                              "(`filtres-1.bbl`, `damping-0.8.bbl`…), puis videz la mémoire (**Effacer la mémoire "
-                             "interne**). Ouvrez le log ici (bouton **Ouvrir** ou glisser-déposer).", usage="noise"),
+                             "interne**). Ouvrez le log ici (bouton **Ouvrir** ou glisser-déposer).", any_log=True),
                         Step("mechanics_read", "Mécanique : lire Fréquence × gaz (partie stationnaire)",
                              "Une **diagonale** qui monte avec les gaz = moteurs (normal, le filtre RPM s'en charge). "
                              "Une **ligne horizontale** = résonance du châssis ou pièce qui vibre : à corriger "
@@ -256,7 +258,7 @@ def phases(card: DroneCard) -> list[Phase]:
                             "Plus de D dans les mouvements rapides et le propwash ; trop haut, moteurs chauds."),
                        Step("rates_back", "Revenir à vos rates habituelles",
                             "Sélectionnez votre profil de rates habituel (interrupteur ou onglet Réglages de PID)."),
-                       Step("final_check", "Vol libre, puis Assistant ; garder un `diff all` du réglage final",
+                       Step("final_check", "Vol libre, puis Assistant ; garder un diff all du réglage final",
                             "Un vol comme d'habitude et un vol dans le propwash (descentes, split-S). L'Assistant ne "
                             "doit plus signaler de bruit, d'oscillation ni de moteurs saturés. Moteurs tièdes.",
                             tool="advisor"),
@@ -281,17 +283,19 @@ def auto_status(step: Step, checks: list[LogCheck], targets: FilterTargets | Non
             return None, ""
         u = hits[-1].usage("series")
         return (AUTO_OK if u.ok else AUTO_BAD), f"{hits[-1].label} : {u.reason}"
-    if not checks or not (step.checks or step.usage):
+    if not checks or not (step.checks or step.usages or step.any_log):
         return None, ""
     last = checks[-1]
+    if step.any_log:
+        return AUTO_OK, f"{last.label} ouvert."
     bad = [it for it in (last.item(k) for k in step.checks) if it and it.status in (WARN, BLOCK)]
-    if step.usage:
-        u = last.usage(step.usage)
+    for key in step.usages:
+        u = last.usage(key)
         if u and not u.ok:
             return AUTO_BAD, f"{last.label} : {u.label.lower()} — {u.reason}"
     if bad:
-        return AUTO_BAD, f"{last.label} : " + " ; ".join(f"{it.title} — {it.detail}" for it in bad)
+        return AUTO_BAD, f"{last.label} :\n" + "\n".join(f"{it.title} — {it.detail}" for it in bad)
     seen = [it for it in (last.item(k) for k in step.checks) if it]
-    if step.usage or (seen and all(it.status == OK for it in seen)) or (step.checks == ("simplified",)):
+    if step.usages or (seen and all(it.status == OK for it in seen)) or (step.checks == ("simplified",)):
         return AUTO_OK, f"{last.label} : vérifié dans le log."
     return None, ""

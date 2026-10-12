@@ -33,7 +33,7 @@ src/opentunebox/
               diagnostic du réglage de la Réponse indicielle (step_tuning.py),
               guide intégré : vérification des logs (log_check.py), fiche drone (drone_card.py), parcours
               à cocher (tuning_path.py)
-  gui/        app.py, main_window.py (visualiseur), guide.py (guide intégré, textes dans assets/guide/),
+  gui/        app.py, main_window.py (visualiseur), guide.py (guide intégré : fiches drone, cases ; accueil dans assets/guide/),
               state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
 tests/        pytest ; les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;

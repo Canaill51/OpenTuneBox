@@ -8,9 +8,10 @@ calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux, Window
 
 ## Outils
 
-Au premier lancement, la page **Guide** explique pas à pas comment préparer le drone, enregistrer les bons
-logs, régler les filtres puis les PID, et appliquer chaque changement dans le configurateur Betaflight ; son
-étape « Vérifier mes logs » dit à quoi sert chaque log ouvert et quoi corriger avant le prochain vol.
+Au premier lancement, la page **Guide** propose un parcours de réglage à cocher, par drone : préparer le
+drone, régler les filtres, puis les PID par séries (méthode de Brian White), puis les finitions. Les valeurs
+s'adaptent à la fiche du drone ; les logs ouverts cochent ce qu'ils prouvent et disent quoi corriger avant
+le prochain vol, curseur par curseur.
 
 La fenêtre principale est le **visualiseur de log** : gyro, consigne, termes P/I/D/F, moteurs, gaz, debug ;
 période d'analyse (crash exclu automatiquement), mesure de temps et de fréquence entre deux points, lecteur,
@@ -19,7 +20,7 @@ l'outil Spectre, Configuration depuis le panneau de droite du visualiseur).
 
 | Bouton | Outil | Ce qu'il montre |
 |---|---|---|
-| Guide | Guide intégré | Procédure de réglage pas à pas (prérequis, enregistrement, filtres, séries PID, finitions) ; vérification des logs ouverts avec les corrections à faire dans le configurateur |
+| Guide | Guide intégré | Parcours de réglage à cocher par drone (préparer, filtres, séries PID, finitions), adapté à la fiche du drone ; logs vérifiés automatiquement (protocole, usages, corrections dans le configurateur) |
 | Spectre | Analyse spectrale | Spectres avant/après filtres, retards des filtres, bruit moteur par harmonique ; diagnostic du bruit gyro et D avec stratégie de filtrage (case à cocher) |
 | Fréq. × gaz | Fréquence × gaz | Cartes de bruit en fonction des gaz (4 colonnes, préréglages type PIDtoolbox) |
 | Fréq. × temps | Fréquence × temps | Spectrogrammes avec harmoniques moteur et notchs dynamiques |

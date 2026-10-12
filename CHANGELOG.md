@@ -6,15 +6,17 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
-- **Guide** intégré (bouton de la barre d'outils, affiché au démarrage sans log) : la procédure de réglage
-  pas à pas, des prérequis aux finitions (enregistrement, récupération des logs, filtres, séries PID de
-  Brian White, application des changements). Les modifications passent d'abord par les curseurs et les
-  onglets du configurateur Betaflight, le CLI seulement en repli. Liens directs vers les outils cités.
-- Guide, étape **Vérifier mes logs** : pour chaque log ouvert, à quoi il peut servir (identifier le bruit,
-  juger le retard des filtres, vol d'une série PID) et quoi corriger avant le prochain vol (fréquence
-  d'enregistrement, gyro non filtré, mode de débogage, DShot bidirectionnel, feedforward, curseur I…), avec
-  l'endroit du configurateur et la commande CLI équivalente ; repère les séries (un seul curseur changé,
-  mêmes filtres). Bouton « Copier les commandes CLI » pour le log affiché.
+- **Guide** intégré (bouton de la barre d'outils, affiché au démarrage sans log) : parcours de réglage à
+  cocher, par drone, en quatre phases (préparer le drone, filtres, PID par séries, finitions). **Fiche
+  drone** (version de Betaflight, taille, boucle PID, ESC ; préremplie d'après le log ouvert) : fréquence
+  d'enregistrement, listes des séries et plages de finitions s'y adaptent, et chaque drone garde son
+  avancement. Changements donnés en positions de curseurs du configurateur, le CLI en repli ; boutons qui
+  ouvrent l'outil utile sur la bonne partie du vol.
+- Guide : les logs du drone (reconnus par le nom dans Betaflight) **cochent ce qu'ils prouvent** ou signalent
+  ce qui est à revoir. Le vol de réglage (stationnaire puis wobbles) est découpé automatiquement ; protocole
+  de Brian White vérifié (mode Angle, rates ACTUAL 200 / 200 / 0, limite d'angle 30°, roll et pitch mêlés,
+  Dynamic Damping à 0, curseur I, au moins 200 fenêtres) ; repères de fin des filtres mesurés ; copie des
+  commandes CLI équivalentes.
 
 ### Modifié
 - Réponse indicielle, Diagnostic du réglage : un vol de série avec moins de 200 fenêtres en roll ou en pitch

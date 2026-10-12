@@ -88,10 +88,12 @@ fichier .bbl/.bfl
   (`ToolWindow._stale`). Visualiseur : traces
   groupées (`TRACE_GROUPS`, traces absentes du log masquées), sections repliables Affichage et Lecteur.
 - `gui/guide.py` : page **Guide** (`GuidePage`), affichée au démarrage sans log et par le bouton Guide
-  (`MainWindow.show_guide`). Étapes dans `STEPS`, texte de chacune dans `gui/assets/guide/*.md` (Markdown
-  affiché par `QTextBrowser`, livré avec l'application) ; liens `otb:step/<clé>` et `otb:tool/<clé>`
-  vérifiés par `tests/test_docs.py`. L'étape « Vérifier mes logs » est calculée par `advisor/log_check.py`
-  (résultat gardé dans `LoadedLog.extras` par période).
+  (`MainWindow.show_guide`). Fiche drone (`CardDialog`, fiches en JSON dans le dossier de données de
+  l'utilisateur), frise et liste des phases, cases (`StepWidget`) décrites par `advisor/tuning_path.py`,
+  logs du drone (reconnus par `craft_name`) vérifiés par `advisor/log_check.py` : rapide d'abord, complet en
+  arrière-plan (vrai nombre de fenêtres, repères des filtres), résultats gardés dans `LoadedLog.extras` par
+  période. Accueil : `gui/assets/guide/accueil.md` ; liens `otb:phase/<clé>` et `otb:tool/<clé>` vérifiés
+  par `tests/test_docs.py`.
 - `gui/theme.py` : thèmes clair et sombre. Style Qt **Fusion** sur tous les systèmes, palette complète,
   feuille de style globale (boutons, champs, listes, cases), couleurs d'accent par thème (`accent`, `accent_style` ; aussi celles des icônes d'outils),
   textes d'aide (`muted_style`), police de l'application × 1,15. Textes de Qt en français

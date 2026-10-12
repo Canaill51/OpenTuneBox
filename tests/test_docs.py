@@ -127,19 +127,39 @@ def test_every_tool_documented():
 
 
 def test_guide_links():
-    """Guide intégré : chaque étape a son fichier, chaque lien `otb:step/…` / `otb:tool/…` mène quelque part."""
-    from opentunebox.gui.guide import GUIDE_DIR, STEP_KEYS, STEPS
+    """Guide intégré : seul l'accueil est en Markdown ; chaque lien `otb:phase/…` / `otb:tool/…` mène quelque part."""
+    from opentunebox.gui.guide import GUIDE_DIR, HOME_FILE, PHASE_KEYS
     from opentunebox.gui.tools import REGISTRY
 
-    files = {f for _k, _t, f in STEPS if f}
-    assert files == {p.name for p in GUIDE_DIR.glob("*.md")}, "fichiers du guide et étapes de gui/guide.py:STEPS"
+    assert {p.name for p in GUIDE_DIR.glob("*.md")} == {HOME_FILE}
     broken = []
-    for name in sorted(files):
-        for kind, key in re.findall(r"\]\(otb:(\w+)/(\w+)\)", (GUIDE_DIR / name).read_text(encoding="utf-8")):
-            ok = key in STEP_KEYS if kind == "step" else kind == "tool" and (key in REGISTRY or key == "viewer")
-            if not ok:
-                broken.append(f"{name} : otb:{kind}/{key}")
+    for kind, key in re.findall(r"\]\(otb:(\w+)/(\w+)\)", (GUIDE_DIR / HOME_FILE).read_text(encoding="utf-8")):
+        ok = key in PHASE_KEYS if kind == "phase" else kind == "tool" and (key in REGISTRY or key == "viewer")
+        if not ok:
+            broken.append(f"otb:{kind}/{key}")
     assert not broken, broken
+
+
+def test_guide_steps_reference_real_tools_and_checks():
+    """Parcours du guide : outils, parties du vol et points de contrôle cités existent."""
+    import inspect
+
+    from opentunebox.advisor import log_check
+    from opentunebox.advisor.drone_card import DroneCard
+    from opentunebox.advisor.tuning_path import phases
+    from opentunebox.gui.tools import REGISTRY
+
+    src = inspect.getsource(log_check)
+    keys = set(re.findall(r'add\("(\w+)"', src)) | set(re.findall(r'Usage\("(\w+)"', src))
+    bad = []
+    for ph in phases(DroneCard("x")):
+        for s in ph.steps:
+            if s.tool and s.tool not in REGISTRY and s.tool != "viewer":
+                bad.append(f"{s.key} : outil {s.tool}")
+            if s.part not in (None, "hover", "moving"):
+                bad.append(f"{s.key} : partie {s.part}")
+            bad += [f"{s.key} : contrôle {k}" for k in (*s.checks, *s.usages) if k not in keys]
+    assert not bad, bad
 
 
 def test_every_module_documented():

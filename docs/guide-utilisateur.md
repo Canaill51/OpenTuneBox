@@ -29,8 +29,8 @@ Lancer OpenTuneBox depuis ses sources ou fabriquer l'exécutable soi-même : voi
 
 ## 2. Ouvrir des logs
 
-Au premier lancement, OpenTuneBox s'ouvre sur la page **Guide** : la procédure de réglage pas à pas, à
-suivre dans l'ordre (voir [6. Méthode de réglage](#6-méthode-de-réglage)). Le bouton **Guide** de la barre
+Au premier lancement, OpenTuneBox s'ouvre sur la page **Guide** : le parcours de réglage à cocher, par
+drone (voir [6. Méthode de réglage](#6-méthode-de-réglage)). Le bouton **Guide** de la barre
 d'outils y ramène à tout moment.
 
 Bouton bleu **Ouvrir** de la barre d'outils (ou Ctrl+O), glisser-déposer dans la fenêtre, ou double-clic
@@ -40,18 +40,17 @@ séparé ; 10 logs au maximum, chacun avec sa couleur, que l'on retrouve dans to
 
 ## 3. Bien enregistrer
 
-La préparation détaillée est dans le guide intégré, étape
-[Préparer l'enregistrement](../src/opentunebox/gui/assets/guide/03-enregistrement.md). En bref :
+Le guide intégré (page **Guide**, phase « Préparer le drone ») donne les réglages d'enregistrement adaptés à
+la fiche de votre drone et les vérifie dans chaque log. En bref :
 
 - onglet **Blackbox** du configurateur : fréquence d'enregistrement d'**au moins 2 kHz** avec un gyro à
   8 kHz, **1,6 kHz** avec un gyro à 3,2 kHz (BMI270), plus pour les petits drones ; mode débug **FFT_FREQ**
   (4.5 et plus) ou **GYRO_SCALED** (4.4) ;
 - **DShot bidirectionnel** activé (onglet **Moteurs**) ;
-- vols de test de 20 à 40 s : un vol **stationnaire** avec montées de gaz pour identifier le bruit, un vol
-  avec des **mouvements francs** pour juger le retard des filtres et la réponse des PID.
-
-L'étape **Vérifier mes logs** du guide contrôle tout cela sur les logs ouverts et donne, pour chacun, les
-corrections à faire avant le prochain vol (où dans le configurateur, puis la commande CLI équivalente).
+- **un vol de réglage en deux parties** : 20 à 30 s de stationnaire avec des montées de gaz (bruit), puis 20
+  à 30 s de wobbles en **mode Angle** avec le profil de rates « LOG » (ACTUAL 200 / 200 / 0, limite d'angle
+  30°), roll et pitch mêlés (retard des filtres, réponse des PID). OpenTuneBox découpe les deux parties tout
+  seul.
 
 ## 4. Le visualiseur (fenêtre principale)
 
@@ -194,20 +193,33 @@ température des moteurs.
 
 ## 6. Méthode de réglage
 
-La méthode complète est dans le guide intégré (page **Guide**), une étape par fichier :
-[prérequis](../src/opentunebox/gui/assets/guide/02-prerequis.md), [enregistrement](../src/opentunebox/gui/assets/guide/03-enregistrement.md),
-[récupérer les logs](../src/opentunebox/gui/assets/guide/04-recuperer-logs.md), [appliquer une modification](../src/opentunebox/gui/assets/guide/05-appliquer.md),
-[filtres](../src/opentunebox/gui/assets/guide/06-filtres.md), [PID par séries](../src/opentunebox/gui/assets/guide/07-pid-series.md), [finitions](../src/opentunebox/gui/assets/guide/08-finitions.md),
-[dépannage](../src/opentunebox/gui/assets/guide/09-depannage.md). En résumé :
+La méthode est le **parcours du guide intégré** (bouton **Guide**) : des cases à cocher, par drone.
 
-1. **Mécanique d'abord** : hélices neuves, vis serrées, moteurs sains ; vérifiez Fréquence × gaz et
-   l'assistant (résonances, déséquilibre).
-2. **Filtres**, un réglage à la fois : filtre RPM, notch dynamique, passe-bas du gyro puis du D. Le moins de
-   retard possible tant que le terme D reste peu bruité et les moteurs tièdes.
-3. **PID** par séries de vols (méthode de Brian White), un curseur à la fois, par pas de 0,2 ; feedforward à
-   0 (ou vols en mode Angle) et curseur I à 0,2–0,3 pendant les séries : **Damping**, puis **Master**, puis
-   l'équilibre roll / pitch. Le « Diagnostic du réglage » de la Réponse indicielle lit chaque série.
-4. **Finitions** : terme I et feedforward à votre goût.
-5. Les changements passent d'abord par les **curseurs et les onglets** du configurateur Betaflight, le CLI
-   seulement en repli. Revenez en arrière dès qu'un changement dégrade le ressenti, le bruit ou la
-   température des moteurs.
+- **Fiche drone** (en haut de la page) : nom (le même que dans Betaflight : les logs sont reconnus grâce à
+  lui), version de Betaflight, taille, boucle PID, ESC ; préremplie d'après le log ouvert. Les valeurs du
+  guide s'y adaptent et chaque drone garde son avancement.
+- **Frise et liste des phases** : où vous en êtes (cases faites / total).
+- **Cases** : un clic coche ; **?** affiche l'aide ; **Ouvrir …** ouvre l'outil utile, avec la période
+  d'analyse réglée sur la bonne partie du vol. Dès qu'un log du drone est ouvert, certaines cases se
+  vérifient toutes seules (« ✔ Vérifié », ou « ▲ À revoir » avec la raison).
+- **Logs du drone** (sous les cases) : à quoi sert chaque log (identifier le bruit, juger le retard des
+  filtres, vol d'une série PID), ce qu'il faut corriger avant le prochain vol (où dans le configurateur), et
+  un bouton qui copie les commandes CLI équivalentes.
+
+Les quatre phases :
+
+1. **Préparer le drone** : Mode Expert, sauvegarde `diff all`, retour aux valeurs par défaut, mécanique,
+   enregistrement, DShot bidirectionnel, profil de rates « LOG », interrupteurs (mode Angle, profil de rates).
+2. **Filtres** : le vol de réglage, puis un changement à la fois : filtre RPM, notch dynamique, passe-bas du
+   gyro puis du D. Fin quand les repères sont atteints (gyro filtré sous −30 dB, terme D au plus −10 dB,
+   retard sous l'objectif de la taille).
+3. **PID par séries** (méthode de Brian White) : mode Angle, curseur I à 0,25, Dynamic Damping à 0 ; série
+   **Damping** (0,6 → 1,6, ou 1,0 → 1,6 pour un 7" et plus), **Master** (1,0 → 2,0), puis Pitch Damping et
+   Pitch Tracking selon le diagnostic ; au moins 200 fenêtres par vol. Le « Diagnostic du réglage » de la
+   Réponse indicielle lit chaque série.
+4. **Finitions** : feedforward et terme I dans une plage selon la taille, Dynamic Damping à votre goût,
+   retour à vos rates.
+
+Les changements passent d'abord par les **curseurs et les onglets** du configurateur Betaflight, le CLI
+seulement en repli. Revenez en arrière dès qu'un changement dégrade le ressenti, le bruit ou la température
+des moteurs.

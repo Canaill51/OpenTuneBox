@@ -16,6 +16,10 @@ Revérifier après une nouvelle version du configurateur (libellés : `grep` de 
 | Mode de débogage | onglet « Blackbox », « Mode débug de la Blackbox » | `debug_mode` |
 | Gyro non filtré (4.5+) | onglet « Blackbox », « Champs de débogage inclus » : Gyro (Unfiltered) | `blackbox_disable_gyrounfilt = OFF` |
 | DShot bidirectionnel, pôles | onglet « Moteurs » : « DShot bi-directionnel », « Pôles moteur » | `dshot_bidir`, `motor_poles` |
+| Rates (profil « LOG ») | onglet « Réglages de PID », profil de rates : « Type de rates » ACTUAL, « Sensibilité au centre », « Max Vel », Expo ; « Nom du profil Rate » | `rates_type`, `roll_rc_rate` (centre ÷ 10), `roll_srate` (max ÷ 10), `roll_expo` (idem pitch, yaw) ; en-tête du log : `rates_type` (3 = ACTUAL), `rc_rates`, `rates`, `rc_expo` |
+| Limite d'angle | onglet « Réglages de PID » : « Limite de l'Angle » (profil PID) | `angle_limit` (4.5+, dans l'en-tête du log) ; `level_limit` en 4.4 (absent de l'en-tête) |
+| Choix du profil de rates en vol | onglet « Ajustements » : « Sélection des profils de Rate » | — |
+| Valeurs par défaut | onglet « Réglages de PID » : « Réinitialiser ce profil » (PID, curseurs, filtres du D seulement) | filtres généraux par défaut (4.4 → 2026.6) : RPM 3 harmoniques, Q 500, 100 Hz, fondu 50 ; notch 3 coupures, Q 300, 100–600 Hz (`pg/rpm_filter.c`, `pg/dyn_notch.c`) |
 | Récupérer les logs | onglet « Blackbox » : « Activer le Mode de périphérique de stockage de masse », « Effacer la mémoire interne » | — |
 | Chirp (2025.12+) | onglet « Modes » : mode CHIRP sur un interrupteur ; le reste seulement en CLI | `chirp_frequency_end_deci_hz`, `chirp_amplitude_*`, `chirp_time_seconds` |
 
