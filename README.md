@@ -11,7 +11,10 @@ calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux, Window
 Au premier lancement, la page **Guide** propose un parcours de réglage à cocher, par drone : préparer le
 drone, régler les filtres, puis les PID par séries (méthode de Brian White), puis les finitions. Les valeurs
 s'adaptent à la fiche du drone ; les logs ouverts cochent ce qu'ils prouvent et disent quoi corriger avant
-le prochain vol, curseur par curseur.
+le prochain vol, curseur par curseur. Les logs des filtres et ceux des séries PID sont demandés et jugés à
+part (fréquence d'enregistrement, protocole), et chaque série d'un drone est reconnue.
+
+![Guide intégré](docs/images/guide.png)
 
 La fenêtre principale est le **visualiseur de log** : gyro, consigne, termes P/I/D/F, moteurs, gaz, debug ;
 période d'analyse (crash exclu automatiquement), mesure de temps et de fréquence entre deux points, lecteur,
@@ -20,7 +23,7 @@ l'outil Spectre, Configuration depuis le panneau de droite du visualiseur).
 
 | Bouton | Outil | Ce qu'il montre |
 |---|---|---|
-| Guide | Guide intégré | Parcours de réglage à cocher par drone (préparer, filtres, séries PID, finitions), adapté à la fiche du drone ; logs vérifiés automatiquement (protocole, usages, corrections dans le configurateur) |
+| Guide | Guide intégré | Parcours de réglage à cocher par drone (préparer, filtres, séries PID, finitions), adapté à la fiche du drone ; logs des filtres et des séries PID vérifiés à part (protocole, usages, séries, corrections dans le configurateur) |
 | Spectre | Analyse spectrale | Spectres avant/après filtres, retards des filtres, bruit moteur par harmonique ; diagnostic du bruit gyro et D avec stratégie de filtrage (case à cocher) |
 | Fréq. × gaz | Fréquence × gaz | Cartes de bruit en fonction des gaz (4 colonnes, préréglages type PIDtoolbox) |
 | Fréq. × temps | Fréquence × temps | Spectrogrammes avec harmoniques moteur et notchs dynamiques |
@@ -28,7 +31,7 @@ l'outil Spectre, Configuration depuis le panneau de droite du visualiseur).
 | Curseurs PID | Curseurs PID | Position des curseurs simplifiés retrouvée depuis les PID, simulation « et si » + commandes CLI |
 | Filtres | Simulateur de filtres | Chaînes gyro et D exactes de la version Betaflight, Bode, retards, spectre filtré recalculé sur le vrai vol |
 | Configuration | Infos de configuration | Réglages des logs côte à côte, différences surlignées |
-| Assistant | Assistant de réglage | Diagnostic à règles, seuils calibrés par taille de drone, chaque conseil justifié par sa mesure |
+| Assistant | Assistant de réglage | Diagnostic à règles, seuils calibrés par taille de drone, chaque conseil justifié par sa mesure ; retard consigne → gyro (série feedforward) |
 
 Jusqu'à 10 logs comparés à la fois. Formats `.bbl`, `.bfl` (Betaflight 4.4 → 2026.x).
 
