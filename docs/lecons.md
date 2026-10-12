@@ -60,6 +60,16 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-027 : `corrupt_frames` compte des tentatives de resynchronisation, pas du temps perdu
+- **Symptôme** — 2026-10-12 : le constat « Trames corrompues » (> 20) manquait des vols qui perdent 3,7 % de
+  leur durée (9 tentatives) et signalait un vol qui en perd 1,2 % (4 842 tentatives).
+- **Cause** — lue dans `decoder/core.py` : le compteur augmente à chaque reprise de lecture un octet plus loin ;
+  une zone abîmée en ajoute beaucoup, un trou net (pause d'écriture) parfois aucun. Les analyses, elles,
+  recollent le vol de part et d'autre du trou : faux bruit jusqu'à +18 dB (W-010).
+- **Règle** — juger un log abîmé par ses trous de temps (`FlightLog.recording_gaps`), jamais par
+  `corrupt_frames` ; mesurer l'effet d'un défaut d'enregistrement en recalculant sans les fenêtres touchées.
+- **Preuve** — branche feat/calibrate-corrupt-frames ([assistant.md](assistant.md#trous-dans-lenregistrement-2026-10-12)).
+
 ### L-026 : injecter une oscillation en filtrant le gyro ne l'ajoute presque pas à la réponse indicielle
 - **Symptôme** — 2026-10-12 : pour mesurer la sensibilité des vagues, un mode peu amorti à 45 ou 60 Hz
   ajouté au gyro réel (gyro + c × (mode(gyro) − gyro)) ne change presque rien, même à c = 0,2 ; parfois le
@@ -304,6 +314,7 @@ est celle du commit qui les a introduites.
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-027 | `corrupt_frames` ≠ temps perdu. Trous de temps (`recording_gaps`) | Décodeur et logs |
 | L-026 | Oscillation injectée par le gyro : invisible dans la réponse. Injecter par la consigne | Analyses |
 | L-025 | Couverture aveugle : numba (`NUMBA_DISABLE_JIT=1`) et tests `corpus` ignorés en CI. Logs synthétiques | Outillage |
 | L-024 | Plancher sur un seul côté d'un rapport : spectre simulé effondré au creux des notchs. Diviser sans plancher, test d'identité | Analyses |

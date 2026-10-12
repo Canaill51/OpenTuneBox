@@ -133,6 +133,13 @@ class Report:
         return sorted(self.findings, key=lambda f: SEVERITY_ORDER.get(f.severity, 9))
 
 
+def gaps_text(n_gaps: int, lost_s: float, span_s: float) -> str:
+    """« 3 trous dans la période analysée (0,4 s perdues, 1,2 %) »."""
+    pct = 100 * lost_s / (span_s + lost_s) if span_s + lost_s > 0 else 0.0
+    return (f"{n_gaps} trou{'s' if n_gaps > 1 else ''} dans la période analysée "
+            f"({lost_s:.1f} s perdues, {pct:.1f} %)").replace(".", ",")
+
+
 def _band_db(x: np.ndarray, fs: float, lo: float, hi: float) -> float:
     s = spectral.spectrum(x, fs, resolution_hz=2.0)
     hi = min(hi, 0.95 * fs / 2)
@@ -212,11 +219,14 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         F.append(Finding("Enregistrement", CONSEIL, "Pas de télémétrie RPM",
                          "Sans eRPM, le filtre RPM est inactif et les harmoniques moteur ne peuvent qu'être estimées.",
                          ["Activez dshot_bidir si vos ESC le permettent (BLHeli_32, Bluejay, AM32)."]))
-    if log.stats.get("corrupt_frames", 0) > 20:
-        F.append(Finding("Enregistrement", INFO, "Trames corrompues",
-                         f"{log.stats['corrupt_frames']} trames corrompues (pauses d'écriture de la carte SD ou de la "
-                         "mémoire flash) : quelques trous dans le log, sans conséquence pour l'analyse.",
-                         ["Si c'est fréquent : carte SD plus rapide, ou fréquence d'enregistrement plus basse."]))
+    n_gaps, lost_s = log.recording_gaps(sel)
+    if n_gaps:  # ⚠️ les analyses recollent le vol de part et d'autre d'un trou : faux bruit (W-010)
+        F.append(Finding("Enregistrement", CONSEIL, "Trous dans l'enregistrement",
+                         f"{gaps_text(n_gaps, lost_s, t1 - t0)}, dus à des pauses d'écriture de la carte SD ou de la "
+                         "mémoire flash. Chaque raccord ajoute un faux bruit au spectre, surtout quand le drone bouge "
+                         "(jusqu'à +18 dB sur un vol de wobbles du corpus) ; la réponse indicielle est moins sûre.",
+                         ["Pour juger le bruit, préférez un vol sans trou.",
+                          "Carte SD plus rapide, ou fréquence d'enregistrement plus basse."]))
     ct = crash_time(log)
     if ct is not None:
         F.append(Finding("Vol", INFO, "Crash détecté",

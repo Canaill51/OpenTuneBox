@@ -163,6 +163,12 @@ class FlightLog:
         bounds = [0, *(gaps + 1).tolist(), self.n]
         return [slice(a, b) for a, b in zip(bounds[:-1], bounds[1:]) if b - a > 1]
 
+    def recording_gaps(self, sel: slice = slice(None), max_gap_factor: float = 4.0) -> tuple[int, float]:
+        """(nombre de trous, secondes perdues) dans `sel` : mêmes trous que `segments`."""
+        dt = np.diff(self.t[sel])
+        gaps = dt[dt > max_gap_factor / self.fs]
+        return int(gaps.size), float(np.sum(gaps - 1.0 / self.fs))
+
     def index_of(self, time_s: float) -> int:
         return int(np.clip(np.searchsorted(self.t, time_s), 0, max(0, self.n - 1)))
 

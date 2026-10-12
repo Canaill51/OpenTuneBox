@@ -60,6 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-010 | Analyses recollées de part et d'autre des trous du log | ouvert |
 | W-009 | Extrait de vrai log Blackbox versionné pour la CI | clos |
 | W-008 | Couleurs en dur dans `gui/` : liste d'exceptions à valider | clos |
 | W-007 | Tests du corpus en échec quand un log a été déplacé | clos |
@@ -106,8 +107,9 @@ Règles d'écriture :
   Vagues du Diagnostic du réglage : 2,5 gardé, mesuré à vide sur le corpus et par injection ; pas lues sous
   200 fenêtres (branche feat/calibrate-step-waves). « D dominant » au croisement : 1,0 gardé, mesuré sur
   les séries Damping du corpus (branche feat/calibrate-d-dominant). « Taille par le nom » mis de côté par
-  Cédric (2026-10-12), repris à sa demande. Restent, dans l'ordre choisi avec Cédric : trames corrompues,
-  taille pour l'objectif de retard, pas des curseurs, petites marges.
+  Cédric (2026-10-12), repris à sa demande. Trames corrompues : compteur remplacé par le constat « Trous dans
+  l'enregistrement » (branche feat/calibrate-corrupt-frames), défaut des analyses ouvert en W-010. Restent,
+  dans l'ordre choisi avec Cédric : taille pour l'objectif de retard, pas des curseurs, petites marges.
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.
@@ -201,3 +203,18 @@ Règles d'écriture :
   trame I (le décodeur resynchronise de toute façon), le mettre dans un dossier de données des tests à créer, et y comparer quelques
   valeurs connues (cadence, réglages, premier et dernier `time`, nombre de trames) sans marque `corpus`.
   [`tests/corpus_paths.py:corpus_log`, `tests/test_bbl_decode.py`]
+
+## Origine : calibration des trames corrompues, branche feat/calibrate-corrupt-frames (2026-10-12)
+
+- **W-010** — Les analyses (spectres, réponse indicielle, boucle ouverte, moteurs, retards) recollent le vol
+  de part et d'autre d'un trou d'enregistrement : chaque raccord ajoute un faux bruit, jusqu'à +18 dB entre
+  80 et 500 Hz sur un vol de wobbles du corpus (mesures dans [assistant.md](assistant.md#trous-dans-lenregistrement-2026-10-12)).
+  **Pourquoi reporté** : correctif distinct du seuil ; Cédric a choisi de prévenir d'abord le pilote (constat
+  « Trous dans l'enregistrement »), puis de corriger les analyses sur une branche à part (2026-10-12).
+  **Risque si on n'y touche pas** : 7 % des sessions du corpus ont un bruit surestimé, parfois assez pour
+  déclencher à tort un constat de bruit ou de filtrage.
+  **Reprise** : branche suivante (`fix/…`), dès la fusion de feat/calibrate-corrupt-frames.
+  **Piste** : découper les fenêtres de calcul aux trous (`FlightLog.segments`, aujourd'hui inutilisé) dans
+  `analysis/spectral.py:_segments` et les fenêtres de la réponse indicielle ; puis revoir le constat, qui
+  pourra redevenir informatif.
+  [`src/opentunebox/log/flightlog.py:FlightLog.segments`, `src/opentunebox/analysis/spectral.py:_segments`]
