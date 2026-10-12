@@ -475,7 +475,8 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
                          f"Pic de sensibilité {at_least}{lp.sensitivity_peak_db:.1f} dB à {lp.sensitivity_peak_hz:.0f} Hz "
                          f"(> {SENSITIVITY_HIGH_DB:.0f} dB) : le drone amplifie les perturbations à cette fréquence et risque d'osciller."
                          + _loop_caveat(lp) + _whoop_margin_note(profile),
-                         [*_margin_actions(lp), "Réduire le retard des filtres si le bruit le permet."], ax))
+                         [*_margin_actions(lp), "Réduire le retard des filtres si le bruit le permet.",
+                          *_edge_actions(lp)], ax))
     elif np.isfinite(lp.phase_margin_deg) and lp.phase_margin_deg < PHASE_MARGIN_LOW_DEG:
         F.append(Finding("Réponse", CONSEIL, f"Marge de phase réduite en {ax.lower()}",
                          f"Marge de phase {lp.phase_margin_deg:.0f}° (< {PHASE_MARGIN_LOW_DEG:.0f}°) au croisement de {lp.crossover_hz:.0f} Hz."
@@ -986,6 +987,16 @@ def _whoop_margin_note(profile: CraftProfile) -> str:
     return (" Fréquent sur un whoop : la boucle est plus rapide (croisement vers 20 Hz) et le D y domine, "
             "si bien que les filtres du D retardent beaucoup la boucle au croisement. Le seuil vient de la "
             "théorie (pas d'une comparaison avec les autres whoops) : la marge est vraiment faible.")
+
+
+def _edge_actions(lp) -> list[str]:
+    """Pic au bord haut de la bande mesurée : la mesure s'arrête où s'arrête l'énergie des mouvements (W-004).
+    Des wobbles plus vifs (protocole de Brian White [S33]) la font aller plus loin ; pas de vol chirp (D-019)."""
+    if not lp.sensitivity_peak_at_edge:
+        return []
+    return [f"Mesure arrêtée à {lp.sensitivity_peak_hz:.0f} Hz, au bord de ce que vos mouvements excitent : le vrai "
+            "pic peut être plus haut. Des wobbles plus rapides et plus secs, au hasard sur le roll et le pitch en "
+            "même temps, la font aller plus loin."]
 
 
 def _margin_actions(lp) -> list[str]:
