@@ -12,6 +12,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `pytest`.
 
 ### Corrigé
+- `opentunebox report` : un fichier illisible ou sans session est signalé en une ligne, comme avec `info`,
+  au lieu d'interrompre la commande avec une trace d'erreur.
 - Décodeur : un en-tête tronqué dont la trame GPS a moins de prédicteurs que de noms faisait planter la
   lecture (`IndexError`) au lieu d'ignorer la session.
 - Assistant, taille d'après le nom du drone (sans télémétrie moteur ni tension) : « 10in » donnait 0 pouce

@@ -19,13 +19,24 @@ def main(argv: list[str] | None = None) -> int:
                        help="taille du drone (détectée automatiquement sinon)")
     args = ap.parse_args(argv)
 
+    def load_or_say(f: str) -> list:
+        """Sessions du fichier ; un fichier illisible ou vide est signalé en une ligne, sans trace d'erreur."""
+        try:
+            logs = load(f)
+        except Exception as e:  # noqa: BLE001
+            print(f"{f} : illisible ({e})")
+            return []
+        if not logs:
+            print(f"{f} : aucune session exploitable")
+        return logs
+
     if args.cmd == "report":
         from .advisor.profiles import PROFILES
         from .advisor.rules import analyze
         from .analysis.period import auto_period
 
         for f in args.files:
-            for lg in load(f):
+            for lg in load_or_say(f):
                 t0, t1 = auto_period(lg)
                 rep = analyze(lg, lg.slice_time(t0, t1), PROFILES.get(args.profil) if args.profil else None)
                 print(f"=== {lg.name} — {lg.settings.firmware}")
@@ -39,14 +50,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "info":
         for f in args.files:
-            try:
-                logs = load(f)
-            except Exception as e:  # noqa: BLE001
-                print(f"{f} : illisible ({e})")
-                continue
-            if not logs:
-                print(f"{f} : aucune session exploitable")
-            for lg in logs:
+            for lg in load_or_say(f):
                 print(lg.summary())
                 print()
     return 0
