@@ -97,5 +97,8 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 1. Valeurs dans `advisor/profiles.py` (arguments nommés, commentaire de calibration daté).
 2. `docs/assistant.md` : sections « Taille du drone », « Calibration » (tableaux), « Règles » et
    « Origine des seuils » ; `CHANGELOG.md` (*Non publié*). Puis la compétence `docs-sync`.
-3. Test dans `tests/test_advisor.py` si une règle ou une limite de taille change.
+3. Tests : mettre à jour l'instantané des seuils (`tests/test_advisor_rules.py:test_profiles_snapshot`,
+   `test_rule_constants_snapshot`), qui échoue à chaque changement de valeur ; les règles pures et les seuils
+   encadrés sont dans `test_advisor_rules.py` / `test_advisor_synthetic.py` (sans corpus), les vérifications sur
+   vrais logs dans `tests/test_advisor.py`.
 4. `pytest` et `pyflakes` propres.

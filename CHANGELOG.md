@@ -9,6 +9,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Tests du décodeur sur des fichiers Blackbox fabriqués (`tests/bbl_factory.py`) : `P interval` (N et a/b),
   trames corrompues et resynchronisation, trame trop longue, saut d'itération refusé, `LOGGING_RESUME`,
   événements, trames S, sessions multiples, prédicteurs (dont la troncature vers zéro de `AVERAGE_2`).
+- Tests de l'assistant sans corpus : chaque seuil de profil encadré (constat présent juste sous le seuil,
+  absent juste au-dessus, seuil cité dans le texte), deux branches du « Terme D bruité », repères de retard,
+  bornes de la taille par la fréquence moteur, instantané des profils et des constantes (toute modification
+  volontaire passe par la compétence `assistant-seuils`), paliers de pic avec et sans feedforward, marges de
+  stabilité et de phase, règles de passe-bas, poids RPM et garde de version 4.5, repères de fin des filtres,
+  vérification des logs du guide (cadences, version, champs, rôles, usages, mode de vol, curseur I).
 - Tests d'invariants des analyses sans corpus : DSP égale à `scipy.signal.welch` (fenêtre paire ou impaire),
   puissance d'un sinus et Parseval, échelle de PIDtoolbox appliquée une seule fois (contrôle statique des
   appelants), valeurs par défaut de la réponse indicielle figées, compte exact des fenêtres, horizon du pic,
