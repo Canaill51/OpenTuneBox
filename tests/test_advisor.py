@@ -6,20 +6,20 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from corpus_paths import LOGS  # noqa: E402
+from corpus_paths import LOGS, corpus_log  # noqa: E402
 pytestmark = [pytest.mark.corpus, pytest.mark.skipif(not LOGS.exists(), reason="corpus absent")]
 
 
 def _load(rel):
     from opentunebox.log.flightlog import load
 
-    return load(LOGS / rel)[0]
+    return load(corpus_log(rel))[0]
 
 
 def test_profiles_detected_by_motor_speed():
     from opentunebox.advisor.profiles import detect_profile
 
-    assert detect_profile(_load("Cedric/Air65/1.Stock.bbl"))[0].key == "whoop"
+    assert detect_profile(_load("Cedric/Air65/stock.bbl"))[0].key == "whoop"
     assert detect_profile(_load("Cedric/JeNo 5/FINAL.bbl"))[0].key == "five"
     # Meteor 75 (≈ 355 Hz en vol) : whoop depuis la limite à 345 Hz
     assert detect_profile(_load("Cedric/Meteor 75 Pro O4 HD/03112025/D.bbl"))[0].key == "whoop"
@@ -325,7 +325,7 @@ def test_rpm_and_dyn_notch_q_steps():
         return lg.settings, {f.title: f for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings}
 
     # Air65 d'origine : harmoniques effacées, bruit sous les repères → Q du filtre RPM + 100
-    s, f = findings("Cedric/Air65/1.Stock.bbl")
+    s, f = findings("Cedric/Air65/stock.bbl")
     assert f["Filtre RPM : Q peut monter"].actions[0].startswith(f"rpm_filter_q {s.rpm_q} → {s.rpm_q + 100}")
     # banc d'hélices 5" : raies étroites, aucune qui passe → Q calculé, plafonné à 450 avec filtre RPM
     s, f = findings("Cedric/Benchmark Props 5inch/HQ J37.bbl")
@@ -368,9 +368,7 @@ def test_setpoint_delay_given_by_assistant():
     from opentunebox.advisor.rules import analyze
     from opentunebox.log.flightlog import load
 
-    path = LOGS / "Cedric/Air65/FF.bbl"
-    if not path.exists():
-        pytest.skip("log absent")
+    path = corpus_log("1. PTB/cheussure/FF0.0_0.5_1.0.bbl")  # série 0 → 0,5 → 1,0 en Acro, un vol par valeur
     found = [next(f for f in analyze(lg).findings if f.title == "Retard consigne → gyro") for lg in load(path)]
     assert found[0].detail.startswith("Roll ") and "(feedforward 0,0, Acro)" in found[0].detail
-    assert "(feedforward 1,0, Acro)" in found[1].detail
+    assert "(feedforward 0,5, Acro)" in found[1].detail and "(feedforward 1,0, Acro)" in found[2].detail

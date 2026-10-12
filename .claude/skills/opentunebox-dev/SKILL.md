@@ -30,7 +30,7 @@ Objectif : ne pas faire baisser la proportion de sessions `ok` (95 %).
 
 ## Recouper une analyse avec PIDtoolbox
 
-1. Prendre un log du corpus dont le dossier contient des captures `PTB_FIGS_*` (ex. `1. PTB/Allykill`,
+1. Prendre un log du corpus dont le dossier contient des captures `PTB_FIGS_*` (ex. `Cedric/BF Chirp`,
    `1. PTB/BlackSummer`, `Cedric/JeNo 5`).
 2. Lire la valeur sur la capture (ouvrir l'image), calculer la même avec `analysis/` sur la même période.
 3. Ajouter la mesure à `docs/validation.md` si elle est nouvelle.

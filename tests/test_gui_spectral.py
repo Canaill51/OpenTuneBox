@@ -19,7 +19,7 @@ from opentunebox.analysis.spectral import PTB_PSD_OFFSET_DB, spectrum  # noqa: E
 from opentunebox.gui.tools import _spectral_common as sc  # noqa: E402
 
 from corpus_paths import LOGS  # noqa: E402
-BTFL = LOGS / "1. PTB/Allykill/btfl_002.bbl"
+BTFL = LOGS / "1. PTB/Apri/btfl_008.bbl"
 FINAL = LOGS / "Cedric/JeNo 5/FINAL.bbl"
 
 needs_logs = pytest.mark.skipif(not (BTFL.exists() and FINAL.exists()), reason="logs du corpus absents")
@@ -95,7 +95,7 @@ def test_spectral_window(app, state):
     try:
         assert win.selected_keys() == ["gyro", "gyro_prefilt"]
         res = _run(win)
-        assert [f.entry.label for f in res.files] == ["btfl_002", "FINAL"]
+        assert [f.entry.label for f in res.files] == ["btfl_008", "FINAL"]
         for fsp in res.files:
             assert len(fsp.spectra) == 6  # 2 jeux × 3 axes
             f, v = fsp.spectra[("gyro", 0)]

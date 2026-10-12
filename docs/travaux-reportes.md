@@ -60,7 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
-| W-007 | Tests du corpus en échec quand un log a été déplacé | ouvert |
+| W-007 | Tests du corpus en échec quand un log a été déplacé | clos |
 | W-006 | Écart de 2 dB sous 100 Hz avec PIDtoolbox sur un vol | sans suite |
 | W-005 | Référence de l'erreur aléatoire non vérifiée à la page | ouvert |
 | W-004 | Boucle ouverte mesurable seulement jusqu'à 20–40 Hz | ouvert |
@@ -119,9 +119,13 @@ Règles d'écriture :
 
 ## Origine : relecture de la branche docs/project-registers (2026-10-12)
 
-- **W-007** — 6 tests marqués `corpus` échouent (`FileNotFoundError`) au lieu d'être ignorés : ils ne
+- ~~**W-007** — 6 tests marqués `corpus` échouent (`FileNotFoundError`) au lieu d'être ignorés : ils ne
   vérifient que l'existence du dossier des logs, pas celle de chaque fichier ; des logs ont été déplacés
-  (`Cedric/Air65/1.Stock.bbl`, `MM.bbl`, `FF.bbl`, `D.bbl` ; dossier `1. PTB/Allykill` absent).
+  (`Cedric/Air65/1.Stock.bbl`, `MM.bbl`, `FF.bbl`, `D.bbl` ; dossier `1. PTB/Allykill` absent).~~
+  ✅ **CLOS (2026-10-12)** — logs supprimés par Cédric, remplacés par des logs du corpus aux mêmes
+  propriétés (vérifiées sur tout le corpus) : `Cedric/Air65/stock.bbl`, `d.bbl`, `m1.bbl`, `m2.bbl`,
+  `1. PTB/Apri/btfl_008.bbl`, `1. PTB/cheussure/FF0.0_0.5_1.0.bbl` ; un log absent fait désormais ignorer
+  le test en le nommant (`tests/corpus_paths.py:corpus_log`). Branche fix/corpus-tests-missing-logs, L-023.
   **Pourquoi reporté** : hors du sujet de la branche ; échec identique sur `main` (`54d6cb8`).
   **Risque si on n'y touche pas** : `pytest` rouge à chaque commit, ce qui masque un vrai échec.
   **Reprise** : avant le prochain commit de code ; demander à Cédric où sont passés ces logs.

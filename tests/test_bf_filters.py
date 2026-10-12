@@ -8,7 +8,7 @@ from opentunebox.analysis import bf_filters as bf
 from opentunebox.log.settings import parse_settings
 
 from corpus_paths import LOGS  # noqa: E402
-HOVER = LOGS / "1. PTB/Allykill/hover.bbl"
+HOVER = LOGS / "1. PTB/Apri/btfl_008.bbl"  # stationnaire puis wobbles, 2 kHz, gyro non filtré
 
 
 def _db(h):
@@ -144,7 +144,7 @@ def test_simulation_static_matches_lfilter():
 
 
 @pytest.mark.corpus
-@pytest.mark.skipif(not HOVER.exists(), reason="log Allykill/hover absent")
+@pytest.mark.skipif(not HOVER.exists(), reason="log Apri/btfl_008 absent")
 def test_simulate_gyro_matches_log():
     from opentunebox.log.flightlog import load
 
@@ -153,7 +153,7 @@ def test_simulate_gyro_matches_log():
     assert sim.shape == lg.gyro.shape
     corr = [np.corrcoef(sim[ax], lg.gyro[ax])[0, 1] for ax in range(3)]
     raw = [np.corrcoef(lg.gyro_unfilt[ax], lg.gyro[ax])[0, 1] for ax in range(3)]
-    assert corr[0] > 0.9  # mesuré : 0,997 roulis, 0,986 tangage, 0,988 lacet
+    assert corr[0] > 0.9  # mesuré : 0,962 roulis, 0,898 tangage, 0,818 lacet (D : 0,956)
     assert all(c > r for c, r in zip(corr, raw))
     dsim = bf.simulate_dterm(lg)
     assert np.corrcoef(dsim[0], lg.d_term[0])[0, 1] > 0.9
