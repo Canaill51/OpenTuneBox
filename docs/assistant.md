@@ -204,13 +204,42 @@ fixe forte se traite mieux par un notch statique. Code (`flight/dyn_notch_filter
 puissance moyenne (bruit estimé au-dessus de 60 Hz) ; un notch sans pic garde sa dernière fréquence et
 filtre toujours ; désactivé sous 2 kHz de boucle PID.
 
-- **Mesure** (`motors.dyn_notch_targets`, `rules.dyn_notch_view`) : spectre du gyro non filtré, bandes des
-  harmoniques traitées par le filtre RPM retirées fenêtre par fenêtre (et leur image repliée si le log est
-  lent), cases de 18,5 Hz, plage réglée élargie de deux cases de chaque côté, plus la raie fixe signalée.
+- **Mesure** (`motors.dyn_notch_targets`, `rules.dyn_notch_view`) : spectre du gyro non filtré, multiplié
+  fenêtre par fenêtre par |H|² des notchs RPM du firmware (fréquence moyenne de chaque moteur sur la fenêtre,
+  `rpm_filter_q`, poids de chaque harmonique, fondu près de `rpm_filter_min_hz` ; `motors.rpm_attenuation`) ;
+  images repliées des harmoniques retirées si le log est lent ; cases de 18,5 Hz, plage réglée élargie de
+  deux cases de chaque côté, plus la raie fixe signalée.
+- **Comparé au firmware** (2026-10-13, D-022) : 598 sessions de 83 drones enregistrées en debug FFT_FREQ, qui
+  donne les fréquences que le notch dynamique a vraiment suivies (axe `gyro_debug_axis`). Pour chaque modèle,
+  part des fréquences où le firmware s'attarde (au moins 10 % du temps) retrouvées à ± 1,5 case, et part des
+  pics prévus où il passe au moins 5 % du temps :
+
+  | Modèle | Fréquences du firmware retrouvées | Pics prévus suivis |
+  |---|---|---|
+  | Bandes des harmoniques retirées ± 5 % (ancien) | 0,48 | 0,76 |
+  | Bandes retirées sans marge | 0,58 | 0,80 |
+  | Aucune bande retirée | 0,50 | 0,79 |
+  | **Réponse des notchs RPM du firmware (retenu)** | **0,69** | **0,80** |
+  | Réponse RPM rejouée dans le temps, + notch statique et LPF1 | 0,60 | 0,82 |
+  | Pics au hasard (même nombre) | 0,20 à 0,26 | 0,61 à 0,63 |
+
+  417 sessions sur 598 ont au moins une harmonique à poids réduit (« 100, 50, 80 »…) : le filtre RPM en
+  laisse passer une partie, que le firmware suit ; retirer toute la bande la cachait (L-028). Avec un poids
+  sous 50 : 0,73 retrouvées contre 0,47 ; poids tous ≥ 50 : 0,68 contre 0,49. Sur un bruit blanc, les creux
+  des notchs RPM abaissent la moyenne de la plage et font passer quelques cases de bruit, comme dans le
+  firmware (`dyn_notch_filter.c`, moyenne de toute la plage moins les pics).
+- **Effet sur les constats** (705 sessions, `advisor_rates.py` avant / après) : « moins de notchs
+  suffiraient » 97 → 64, « plus de notchs » 45 → 56, « Q trop haut pour les raies à suivre » 22 → 19,
+  « Q peut monter » 116 → 117 ; 101 sessions changent.
 - **Corpus** (681 sessions) : toutes à 2 kHz de boucle PID ou plus, une seule sans filtre RPM ; 1 à 3
   notchs (2 le plus souvent), Q 300–500, plage 100–600 Hz le plus souvent (minimum de 60 à 240 Hz).
 - **Taux** : « moins de notchs suffiraient » 27 % des sessions (16 % des drones) — d'où le niveau info ;
-  raie fixe hors de la plage 1 % ; relèvement de `dyn_notch_min_hz` dans le conseil sur le retard 2 %.
+  raie fixe hors de la plage 1 % (taux du 2026-10-05, avant le modèle par la réponse RPM).
+- **`dyn_notch_min_hz` n'est plus relevé** (2026-10-13, choix de Cédric, D-022) : en vol, les notchs ne sont
+  presque jamais près de leur minimum (part du temps à moins d'une case : médiane 0 %, p90 2 %). Retard
+  gagné, d'après les positions du debug FFT_FREQ et le retard basse fréquence d'un notch 1 / (2π·Q·f₀) :
+  +30 Hz → 0,002 ms en médiane (p90 0,008 ms), +80 Hz → 0,025 ms ; 0,16 ms seulement si les notchs restaient
+  au minimum. Les notes de Betaflight 4.3 [S19] ne donnent que le retard comme raison de le garder haut.
   La règle « sans filtre RPM » n'a pas été retenue (une session).
 
 ### Stratégie de filtrage et vol stationnaire (2026-10-05)
@@ -418,8 +447,8 @@ Quand l'assistant n'écrit pas de stratégie (moins de deux étapes), il indique
 faire, ou qu'aucun n'est conseillé. Les constats du gyro sont répartis en blocs (filtre RPM, notch
 dynamique, passe-bas ; étapes de `rules.FILTER_STAGES`) ; un bloc sans constat à appliquer reçoit un
 verdict qui reprend les repères existants (harmonique effacée à 4 dB au plus, gain de poids 0,5, marge
-6 dB) et dit quand l'assistant proposerait un changement (Q du filtre RPM, `dyn_notch_min_hz` : vol avec
-mouvements, retard au-dessus du repère, bruit faible). Seules valeurs ajoutées, toutes du firmware :
+6 dB) et dit quand l'assistant proposerait un changement (Q du filtre RPM : vol avec mouvements, retard
+au-dessus du repère, bruit faible). Seules valeurs ajoutées, toutes du firmware :
 `rpm_filter_harmonics = 3` proposé si le filtre RPM est coupé malgré l'eRPM (défaut de Betaflight,
 `pg/rpm_filter.c`), `blackbox_disable_rpm = OFF` si `dshot_bidir` est actif sans eRPM enregistré. Un nouveau constat de bruit ou de filtre doit avoir sa place dans
 `noise.GYRO_TITLES` ou `noise.DTERM_TITLES` (vérifié par `tests/test_advisor.py`).
@@ -509,8 +538,8 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   info (sans conseil) si le D dépasserait les repères.
 - **Notch dynamique** (actif : au moins un notch, boucle PID ≥ 2 kHz ; filtre RPM actif et gyro non
   filtré) : plus de notchs que de pics à suivre → « moins de notchs suffiraient » (info) ; raie fixe hors de
-  la plage à 20 Hz près → plage proposée dans le constat « Raie fixe » ; `dyn_notch_min_hz` relevé dans le
-  conseil « filtrage gyro trop prudent » (voir « Notch dynamique »).
+  la plage à 20 Hz près → plage proposée dans le constat « Raie fixe » ; `dyn_notch_min_hz` n'est jamais
+  relevé pour le retard (voir « Notch dynamique »).
 - **Résonance** : raie au-dessus de la moyenne glissante voisine de plus que le seuil de la taille
   (20 Hz à min(900 Hz ; 0,9 × Nyquist), sans les 5 premiers Hz), présente dans la médiane de toutes les tranches de gaz (au moins
   8 tranches), à plus de ±8 % des harmoniques 1 à 3 du moteur.
@@ -593,9 +622,9 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 10 et 8 drones seulement |
 | Seuils du profil 8"+ | voir « Calibration » | Estimation | 6 drones, 20 sessions |
 | Résonance | raie > 6,8 (5") à 8,2 dB (7") selon la taille, 7,9 dB commun ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil) + estimation (méthode) | | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage
-| Pic suivi par le notch dynamique | > 2 × la puissance moyenne de la plage (+3 dB), cases de 18,5 Hz | Firmware | `flight/dyn_notch_filter.c` (`sdftNoiseThreshold *= 2`, bruit au-dessus de 60 Hz) ; bandes des harmoniques traitées par le filtre RPM retirées (± 5 % : estimation) |
+| Pic suivi par le notch dynamique | > 2 × la puissance moyenne de la plage (+3 dB), cases de 18,5 Hz | Firmware | `flight/dyn_notch_filter.c` (`sdftNoiseThreshold *= 2`, bruit au-dessus de 60 Hz) ; ce que le filtre RPM laisse passer d'après sa réponse (Q, poids, fondu), comparé au firmware sur 598 sessions (« Notch dynamique ») |
 | Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
-| Relèvement de `dyn_notch_min_hz` | jusqu'à 200 Hz (7" et plus : 125 Hz), sous le pic le plus bas − 20 Hz, si le gain atteint 30 Hz | Firmware (doc) + communauté + estimation (30 Hz) | « as high as practical (eg 200hz) » [S19] ; presets officiels 7–10" entre 80 et 125 Hz [S16] ; seulement dans le conseil « filtrage gyro trop prudent » (2 % des sessions) |
+| Relèvement de `dyn_notch_min_hz` | retiré (2026-10-13) | Corpus | Gain de retard mesuré ≈ 0 (+30 Hz : 0,002 ms en médiane), les notchs n'étant presque jamais à leur minimum (« Notch dynamique », D-022) ; avant : jusqu'à 200 Hz (7" et plus : 125 Hz) si le gain atteignait 30 Hz (estimation) |
 | Nombre de notchs | autant que de pics à suivre, 1 au moins | Firmware (doc) | « Usually no more than two or three are needed […] and often only one » ; « only using the minimum number of notches » [S19] ; constat **info** : 27 % des sessions (16 % des drones)
 | Raie hors moteurs listée (vol stationnaire) | ≥ 6 dB au-dessus du bruit voisin (10 à 20 % de part et d'autre) | Théorie (simulation) + choix de Cédric | Du bruit sans raie, simulé avec les durées et fréquences des 115 vols stationnaires du corpus, ne dépasse jamais 3 dB : toute raie listée est réelle, le seuil règle le nombre de conseils (voir « Stratégie de filtrage et vol stationnaire », 2026-10-12). Visible après filtrage au-delà de 4 dB (`HARMONIC_VISIBLE_DB`) |
 | Raie basse fréquence | < 100 Hz : mise en garde avant de la filtrer | Communauté | Propwash et oscillations « ~20Hz to ~100Hz » [S1] |

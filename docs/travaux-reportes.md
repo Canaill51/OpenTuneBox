@@ -60,6 +60,8 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | ouvert |
+| W-011 | LPF1 et notch statique absents du modèle du notch dynamique | sans suite |
 | W-010 | Analyses recollées de part et d'autre des trous du log | clos |
 | W-009 | Extrait de vrai log Blackbox versionné pour la CI | clos |
 | W-008 | Couleurs en dur dans `gui/` : liste d'exceptions à valider | clos |
@@ -109,7 +111,10 @@ Règles d'écriture :
   les séries Damping du corpus (branche feat/calibrate-d-dominant). « Taille par le nom » mis de côté par
   Cédric (2026-10-12), repris à sa demande. Trames corrompues : compteur remplacé par le constat « Trous dans
   l'enregistrement » (branche feat/calibrate-corrupt-frames), défaut des analyses ouvert en W-010.
-  Pas des curseurs : choisis par Cédric (D-021, branche feat/calibrate-slider-steps). Reste : petites marges. Taille pour l'objectif de retard :
+  Pas des curseurs : choisis par Cédric (D-021, branche feat/calibrate-slider-steps). Petites marges (2026-10-13,
+  D-022) : bandes ± 5 % du notch dynamique remplacées par la réponse des notchs RPM, mesurée contre le debug
+  FFT_FREQ ; relèvement de `dyn_notch_min_hz` (30 Hz) retiré, gain de retard mesuré ≈ 0. La liste choisie avec
+  Cédric est faite ; les autres lignes « Estimation » restent. Taille pour l'objectif de retard :
   3" et 8" confirmés par la médiane des drones de taille connue du corpus (branche feat/calibrate-delay-size).
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
@@ -221,3 +226,22 @@ Règles d'écriture :
   `analysis/spectral.py:_segments` et les fenêtres de la réponse indicielle ; puis revoir le constat, qui
   pourra redevenir informatif.
   [`src/opentunebox/log/flightlog.py:FlightLog.segments`, `src/opentunebox/analysis/spectral.py:_segments`]
+
+## Origine : petites marges du notch dynamique, branche feat/calibrate-slider-steps (2026-10-13)
+
+- ~~**W-011** — Le modèle du notch dynamique part du gyro non filtré moins le filtre RPM ; le firmware analyse le
+  gyro après le filtre RPM, le notch statique **et** le passe-bas LPF1 (`sensors/gyro_filter_impl.c`).~~
+  🚫 **SANS SUITE (2026-10-13)** — mesuré sur 598 sessions en debug FFT_FREQ : ajouter le notch statique et LPF1
+  ne change presque rien (fréquences du firmware retrouvées 0,60 dans les deux cas, pics prévus suivis 0,80 →
+  0,82) ; le modèle retenu (D-022) fait mieux sans eux.
+  [`analysis/motors.py:dyn_notch_targets`, [assistant.md](assistant.md#notch-dynamique-2026-10-05)]
+
+- **W-012** — La recherche des raies hors moteurs (`motors.spectrum_lines`) et la forme des pics du notch
+  dynamique (`motors.line_shapes`, pour le Q conseillé) retirent encore les bandes des harmoniques ± 5 %
+  (`motors._masked_spectrum`), alors que D-022 montre que le filtre RPM en laisse passer une partie (L-028).
+  **Pourquoi reporté** : autre usage que les pics du notch dynamique ; sa marge n'a pas été mesurée.
+  **Risque si on n'y touche pas** : un pic résiduel près d'une harmonique a une largeur inconnue (NaN) et
+  n'entre pas dans le Q calculé ; une raie hors moteurs à moins de 5 % d'une harmonique n'est pas listée.
+  **Reprise** : prochaine calibration d'un seuil de raies ou du Q du notch dynamique.
+  **Piste** : même méthode que D-022 (réponse RPM au lieu du masque, comparée au debug FFT_FREQ).
+  [`src/opentunebox/analysis/motors.py:line_shapes`]

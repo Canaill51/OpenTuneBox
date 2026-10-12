@@ -108,7 +108,7 @@ def test_dyn_notch_rules():
         return analyze(lg, lg.slice_time(*auto_period(lg)))
 
     # Kris : raie fixe à 97 Hz sous la plage du notch dynamique (80–350 Hz, marge de 20 Hz) → plage élargie,
-    # et pas de relèvement de dyn_notch_min_hz proposé en même temps
+    # et aucun relèvement de dyn_notch_min_hz (conseil retiré : gain de retard mesuré ≈ 0)
     rep = report("1. PTB/Kris/13. Hover.bbl")
     f = next(f for f in rep.findings if f.title.startswith("Raie fixe"))
     assert any("dyn_notch_min_hz = 70" in a for a in f.actions)
@@ -119,10 +119,14 @@ def test_dyn_notch_rules():
     found = [f for lg in load(LOGS / "1. PTB/Thalhammer/Hover Test 48kHz.bbl")
              for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings if f.title == "Raie fixe vers 37 Hz"]
     assert found and any("dyn_notch_min_hz = 20," in a for a in found[0].actions)
-    # KL (log à 2 kHz) : moins de pics à suivre que de notchs réglés → nombre réduit (info)
-    rep = report("Cedric/KL/f3.bbl")
+    # dcodemonster : deux pics à suivre (≈ 196 et 289 Hz) pour 3 notchs → nombre réduit (info) ; le firmware
+    # s'attarde bien sur ces deux groupes (debug FFT_FREQ, D-022)
+    rep = report("1. PTB/dcodemonster/Hover Test 2.BBL")
     f = next(f for f in rep.findings if f.title == "Notch dynamique : moins de notchs suffiraient")
     assert f.actions[0].startswith("dyn_notch_count = 2 (actuellement 3)")
+    # KL (log à 2 kHz) : le filtre RPM (poids 40 sur la 2e harmonique) laisse des restes que les 3 notchs du
+    # firmware suivent de 100 à 420 Hz → pas d'allègement (le masque ± 5 % en proposait un, L-028)
+    assert not any(f.title == "Notch dynamique : moins de notchs suffiraient" for f in report("Cedric/KL/f3.bbl").findings)
     # JeNo 5 « PD » enregistré à 1 kHz : spectre replié, pas d'allègement proposé
     assert not any(f.title.startswith("Notch dynamique") for f in report("Cedric/JeNo 5/PD.bbl").findings)
 

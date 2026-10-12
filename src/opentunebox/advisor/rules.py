@@ -76,12 +76,12 @@ RPM_WEIGHT_GAIN_MIN = 0.5
 # la fréquence moteur, gyro filtré, maximum du roll et du pitch) dépasse 3 dB dans 1,4 à 2,8 % des sessions,
 # 4 dB dans 0,3 à 0,9 % : 4 dB garde les fausses alertes sous 1 % (docs/assistant.md, « Filtre RPM : poids et Q »)
 HARMONIC_VISIBLE_DB = 4.0
-# Notch dynamique (notes de réglage Betaflight 4.3, [S19]) : plage qui englobe la résonance à 20 Hz près,
-# le moins de notchs possible, minimum « as high as practical (eg 200hz) », mais 80–125 Hz dans les presets
-# officiels des 7–10" ([S16]) ; relevé proposé dès 30 Hz
+# Notch dynamique (notes de réglage Betaflight 4.3, [S19]) : plage qui englobe la résonance à 20 Hz près, le moins
+# de notchs possible. Pas de relèvement de dyn_notch_min_hz : en vol, les notchs ne sont presque jamais près de leur
+# minimum (debug FFT_FREQ, 598 sessions, 2026-10-13) ; +30 Hz ne fait gagner que 0,002 ms de retard en médiane
+# (choix de Cédric ; docs/assistant.md, « Notch dynamique »)
 DYN_NOTCH_MARGIN_HZ = 20
-DYN_NOTCH_MIN_TARGET_HZ = {"seven": 125, "large": 125}  # 200 Hz pour les autres tailles
-DYN_NOTCH_MIN_HZ, DYN_NOTCH_MIN_MAX_HZ = 20, 250  # bornes de dyn_notch_min_hz dans le firmware (cli/settings.c)
+DYN_NOTCH_MIN_HZ = 20  # borne basse de dyn_notch_min_hz dans le firmware (cli/settings.c)
 DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_max_hz
 # Q du notch dynamique avec filtre RPM : 300–450 [S19] ; pas de 50 (décision de Cédric, 2026-10-10).
 # Q calculé d'après la forme des raies à suivre (notch SVF de Betaflight, `common/filter.c`, largeur à −3 dB
@@ -103,7 +103,6 @@ HOVER_LINE_MIN_DB = 6.0
 # 200 / 100 Hz, D 260 / 160 Hz : 0,5 à 0,75) ; choix de Cédric, 2026-10-12
 STATIC_NOTCH_FALLBACK = 0.7
 HOVER_LOW_LINE_HZ = 100.0
-DYN_NOTCH_MIN_STEP_HZ = 30
 
 # Niveaux de gravité
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
@@ -333,14 +332,6 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                 actions.append(f"Filtre RPM : rpm_filter_q {s.rpm_q} → {min(s.rpm_q + RPM_Q_STEP, RPM_Q_MAX)} (notchs "
                                f"plus étroits, moins de retard), puis par pas de {RPM_Q_STEP} jusqu'à {RPM_Q_MAX} au plus, "
                                "en vérifiant à chaque pas que les raies moteur ne réapparaissent pas.")
-            if dn is not None:
-                low = dn["lowest"]
-                cap = min(DYN_NOTCH_MIN_TARGET_HZ.get(profile.key, 200), DYN_NOTCH_MIN_MAX_HZ)
-                new_min = min(cap, low - DYN_NOTCH_MARGIN_HZ) if low else cap
-                new_min = int(new_min // 10 * 10)
-                if new_min - dn["min_hz"] >= DYN_NOTCH_MIN_STEP_HZ:
-                    actions.append(f"Notch dynamique : dyn_notch_min_hz {dn['min_hz']} → {new_min} (le plus haut possible "
-                                   "sous le pic le plus bas à suivre : moins de retard).")
             actions.append("Contrôlez la température des moteurs après chaque changement.")
             F.append(Finding("Filtres", CONSEIL, "Filtrage gyro peut-être trop prudent",
                              f"Retard des filtres gyro {delays.gyro_ms:.2f} ms (repère {profile.gyro_delay_max_ms:.1f} ms pour "
@@ -1194,12 +1185,11 @@ def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) ->
     if not dyn_notch_active(s) or log.gyro_unfilt is None or log.motor_hz is None or s.rpm_harmonics == 0:
         return None
     band = (max(s.dyn_notch_min_hz - 37, DYN_NOTCH_MIN_HZ), s.dyn_notch_max_hz + 37)
-    t = [dyn_notch_targets(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, band, s.rpm_harmonics,
+    t = [dyn_notch_targets(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, band, s,
                            breaks=log.breaks(sel)) for a in range(2)]
     peaks = [float(f) for f in max(t, key=lambda x: x.freqs.size).freqs]
     if fixed_hz is not None and all(abs(f - fixed_hz) > 37 for f in peaks):
         peaks.append(float(fixed_hz))
-    every = [float(f) for x in t for f in x.freqs] + ([float(fixed_hz)] if fixed_hz is not None else [])
     peaks = sorted(peaks)
     # forme de chaque raie : la plus large et la plus haute du roll et du pitch (côté prudent)
     sh = [line_shapes(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], log.fs, peaks, s.rpm_harmonics,
@@ -1209,7 +1199,7 @@ def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) ->
     widths = [worst([x[i][0] for x in sh]) for i in range(len(peaks))]
     heights = [worst([x[i][1] for x in sh]) for i in range(len(peaks))]
     return {"count": s.dyn_notch_count, "min_hz": s.dyn_notch_min_hz, "max_hz": s.dyn_notch_max_hz,
-            "peaks": peaks, "widths": widths, "heights": heights, "lowest": min(every, default=None),
+            "peaks": peaks, "widths": widths, "heights": heights,
             "q_need": dyn_notch_q_need(peaks, widths, heights)}
 
 

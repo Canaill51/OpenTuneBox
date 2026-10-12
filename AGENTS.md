@@ -136,6 +136,9 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
   outils), l'assistant convertit lui-même (`rules.band_peak_ptb_db`) : ne jamais appliquer la conversion deux fois. D-016, L-009
 - Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic
   cherché dans max(150 ms, 3 × latence). Bande passante calculée à partir de 2 Hz, lissage `uniform_filter1d(mode="nearest")`.
+- Notch dynamique : prévoir ses pics avec la **réponse** des notchs RPM du firmware (poids, Q), jamais en
+  retirant les bandes des harmoniques : une harmonique à poids réduit laisse un reste qu'il suit. Le debug
+  FFT_FREQ (`bf_filters.fft_freq_centres`) donne ce qu'il a vraiment suivi : y vérifier tout modèle. D-022, L-028
 - Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²
   à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
   `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log. D-008, L-011, L-024

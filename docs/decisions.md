@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-022 | Notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé | 2026-10-13 |
 | D-021 | Pas des curseurs conseillés, choisis par Cédric | 2026-10-12 |
 | D-020 | Aucune fenêtre d'analyse ne chevauche un trou du log | 2026-10-12 |
 | D-019 | Le vol chirp de Betaflight n'est pas conseillé : méthode de Brian White | 2026-10-12 |
@@ -95,6 +96,27 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-12 — Trous d'enregistrement
+
+### D-022 : notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé
+
+**Contexte.** Deux « petites marges » d'origine « Estimation » (W-003) : les bandes des harmoniques retirées
+± 5 % avant de chercher ce que le notch dynamique suit, et un gain minimal de 30 Hz pour conseiller de relever
+`dyn_notch_min_hz`. Le debug FFT_FREQ de 598 sessions du corpus donne les fréquences que le firmware a
+vraiment suivies ([assistant.md](assistant.md#notch-dynamique-2026-10-05)). Validé par Cédric (2026-10-13).
+
+**Décision.**
+- `motors.dyn_notch_targets` reçoit les réglages du log et multiplie chaque fenêtre par |H|² des notchs RPM du
+  firmware (`motors.rpm_attenuation` : Q, poids, fondu, cadence PID) ; aucune bande retirée, sauf les images
+  repliées des harmoniques quand le log est plus lent que la boucle.
+- L'assistant ne propose plus de relever `dyn_notch_min_hz` pour le retard (gain mesuré ≈ 0).
+
+**Options écartées.** Bandes ± 5 % (cachent ce que le filtre RPM laisse passer : 0,48 des fréquences du
+firmware retrouvées) ; bandes sans marge (0,58, choix A de Cédric avant la mesure suivante) ; marge égale au
+débordement de la fenêtre (0,50) ; filtre RPM rejoué dans le temps, avec ou sans notch statique et LPF1 (0,60 ;
+W-011) ; seuil en retard gagné au lieu des 30 Hz (ne se déclencherait presque jamais).
+
+**Témoins.** `tests/test_analysis.py:test_dyn_notch_targets_follow_rpm_weights`,
+`tests/test_advisor_rules.py:test_rule_constants_snapshot` ; L-028.
 
 ### D-021 : pas des curseurs conseillés, choisis par Cédric
 

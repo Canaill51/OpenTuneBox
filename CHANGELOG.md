@@ -6,6 +6,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Notch dynamique (Assistant, étape « notch dynamique ») : les pics à suivre sont prévus d'après la réponse
+  réelle du filtre RPM (Q, poids de chaque harmonique), au lieu de retirer les harmoniques ± 5 %. Comparé aux
+  fréquences que Betaflight suit vraiment (debug FFT_FREQ, 598 vols), le modèle en retrouve 69 % au lieu de
+  48 % : une harmonique à poids réduit laisse un reste que le notch dynamique doit suivre. « Moins de notchs
+  suffiraient » devient plus rare (97 → 64 vols du corpus), « plus de notchs » un peu plus fréquent (45 → 56).
+  L'Assistant ne propose plus de relever `dyn_notch_min_hz` : en vol, les notchs n'approchent presque jamais
+  leur minimum, le retard gagné serait d'environ 0,002 ms (D-022, W-003).
 - Assistant : les curseurs conseillés suivent la méthode des séries de vols. Filtre gyro par 0,2 ; Damping
   +0,2 sur un fort dépassement, 0,1 en réglage fin ; Master −0,1 à −0,2 ; le feedforward renvoie à la série
   du guide (0, 0,5, 1… en Acro) au lieu d'un pas de 0,1 ; le curseur Tracking n'est plus conseillé seul
