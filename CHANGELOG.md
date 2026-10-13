@@ -5,6 +5,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+## [0.7.0] — 2026-10-13
+
 ### Ajouté
 - Un vrai extrait de log Blackbox (`tests/data/jeno5_5s.bbl`, 5 s d'un vol du JeNo 5 de Cédric, Betaflight
   2026.6.0-rc3) versionné et décodé par les tests sans corpus (`tests/test_real_log.py`), y compris en Python
@@ -491,7 +493,8 @@ Première version complète.
 - Lanceur Linux (menu des applications) et recette PyInstaller.
 - Guide d'utilisation en français.
 
-[Non publié]: ../../compare/v0.6.0...HEAD
+[Non publié]: ../../compare/v0.7.0...HEAD
+[0.7.0]: ../../releases/tag/v0.7.0
 [0.6.0]: ../../releases/tag/v0.6.0
 [0.5.0]: ../../releases/tag/v0.5.0
 [0.4.0]: ../../releases/tag/v0.4.0
