@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-026 | Retard des filtres jugé dès 30 °/s de consigne (amende D-010) | 2026-10-13 |
 | D-025 | Paliers du pic de réponse selon le feedforward en service (0 en mode Angle) | 2026-10-13 |
 | D-024 | Notch statique conseillé seulement si le notch dynamique ne peut pas traiter la raie | 2026-10-13 |
 | D-023 | « Q trop haut » seulement si une raie passe ; marge de 5 % de la fréquence moteur autour des harmoniques | 2026-10-13 |
@@ -99,6 +100,30 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-13 — Derniers seuils estimés (W-003)
+
+### D-026 : retard des filtres jugé dès 30 °/s de consigne
+
+**Contexte.** W-003 : le seuil de 50 °/s (D-010) était une estimation. Mesure du 2026-10-13 (705 sessions) : 22
+sessions entre 40 et 50 °/s, dont 15 en mode Angle, avec 422 fenêtres de réponse indicielle en médiane : des
+vols de wobbles, souvent ceux du protocole du guide (mode Angle limité à 30°, consigne plafonnée vers 47 °/s ;
+`Cedric/JeNo 5/MM`, `PD`, `Cedric/2026.6 RC2`). L'assistant les prenait pour des vols stationnaires et ne
+jugeait pas leurs retards.
+
+**Décision.**
+- Amende D-010 : seuil de `delay.MOVING_SETPOINT_DPS` 50 → 30 °/s (95e centile de |consigne|, roll ou pitch),
+  partagé par la découpe des parties du vol du guide (`period.flight_parts`). Choix de Cédric.
+- Juste au-dessus des vrais vols stationnaires : 83 sessions sous 25 °/s, une seule avec 200 fenêtres de
+  réponse indicielle ; 2 sessions entre 25 et 30 °/s.
+- Pas de rupture physique à 50 °/s : par tranches de 8 s d'un même vol, l'écart du retard gyro à celui des
+  tranches à plus de 150 °/s diminue progressivement (médiane 0,09–0,13 ms sous 50 °/s, 0,08–0,10 ms de 50 à
+  100 °/s, 0,05 ms de 100 à 150 °/s) ; vol stationnaire contre vol avec mouvements du même drone (mêmes
+  filtres, 18 drones) : +0,015 ms en médiane.
+
+**Options écartées.** 40 °/s (93 sessions sous le seuil, sans gain mesuré) ; garder 50 °/s (les vols du
+protocole restent sans jugement du retard).
+
+**Témoins.** `tests/test_analysis.py` (wobble plafonné à 49 °/s compté avec mouvements) ;
+[validation.md](validation.md) (« Retard des filtres et mouvements »).
 
 ### D-025 : paliers du pic de réponse selon le feedforward en service (0 en mode Angle)
 
@@ -396,6 +421,8 @@ chaque valeur doit pouvoir être justifiée à Cédric.
 **Ouvert.** W-002 (profils provisoires), W-003 (seuils « Estimation »).
 
 ### D-010 : retard des filtres jugé seulement sur un vol avec des mouvements
+
+✏️ AMENDÉE par D-026 (seuil 30 °/s).
 
 **Contexte.** En vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime : le retard mesuré
 ne représente pas le vol réel.

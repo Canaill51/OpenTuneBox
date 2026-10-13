@@ -72,7 +72,11 @@ Unités : densité spectrale de puissance en dB de (°/s)²/Hz pour le gyro, d'u
 de sensibilité et marge de phase : boucle ouverte mesurée (voir « Boucle ouverte mesurée ») ; un pic négatif
 vient d'une bande mesurable trop courte (minorant). Retards : 573 vols avec mouvements sur 681 (consigne
 au-delà de 50 °/s au moins 5 % du temps, voir « Vol avec mouvements » dans « Origine des seuils ») ; 101,
-95, 246, 117 et 14 sessions de la gauche vers la droite (243 et 115 pour le D en 5" et 7").
+95, 246, 117 et 14 sessions de la gauche vers la droite (243 et 115 pour le D en 5" et 7"). Seuil des
+mouvements passé à 30 °/s le 2026-10-13 (D-026) : repères de retard gardés (choix de Cédric). Le p90 du retard
+gyro par session y monterait de 1,84 à 1,95 ms en 5" et de 1,71 à 1,83 ms en 2–3,5" (soit 2,0 et 1,9 ms
+arrondis), à cause de 2 à 7 vols de quelques drones (`VLC X4`, `TriPro 6`, `GERRYKIKI`…) ; une voix par drone :
+1,62 ms inchangé en 2–3,5", 2,06 → 2,12 ms en 5". Retard du D : à 0,01 ms près, aucune taille ne change.
 
 Seuils retenus dans `advisor/profiles.py` :
 
@@ -625,8 +629,8 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   coupures × 1,1, deux pas au plus), du plus grand pas au plus petit, et retient le premier qui garde le D
   sous −10 dB PIDtoolbox et sous le p90 de la taille. Remplace alors le conseil « filtrage du D trop
   fort » fondé sur le retard (+0,1 seulement).
-- **Retards des filtres** : seulement si le vol contient des mouvements (consigne au-delà de 50 °/s au
-  moins 5 % du temps) ; sinon « Retard des filtres peu représentatif » (info), sans conseil fondé sur le
+- **Retards des filtres** : seulement si le vol contient des mouvements (consigne au-delà de 30 °/s au
+  moins 5 % du temps, D-026) ; sinon « Retard des filtres peu représentatif » (info), sans conseil fondé sur le
   retard mesuré (« filtrage gyro trop prudent », « filtrage du D trop fort »). « Le LPF1 du gyro peut être
   coupé » reste proposé : il repose sur le bruit, et son retard vient du modèle des filtres.
 - **Vol stationnaire** (voir « Stratégie de filtrage et vol stationnaire ») : « Vol stationnaire : bruit
@@ -754,7 +758,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | `rpm_filter_harmonics` | jusqu'à 3 | Firmware | `cli/settings.c` (0 à 3) |
 | Ordre de la stratégie de filtrage | enregistrement, corrections, mécanique, RPM, notch dynamique, LPF gyro, LPF D | Firmware (doc) + estimation | Un filtre à la fois [S30] ; ordre RPM → notch → passe-bas comme le guide RPM |
 | Stratégie de filtrage affichée | à partir de 2 étapes (`rules.STRATEGY_MIN_STAGES`) | Corpus + décision de Cédric | 37 % des sessions contre 79 % dès une étape (2026-10-05) |
-| Vol avec mouvements (retards représentatifs) | 95e centile de \|consigne\| ≥ 50 °/s (roll ou pitch) | Corpus + estimation | Remarque de Cédric (2026-10-05) ; vols stationnaires du corpus ≤ 24 °/s, avec wobble ≥ 92 °/s ; l'intercorrélation s'y trompe une fois sur deux (`validation.md`). 108 sessions (16 %) en dessous ; `calibrate_advisor.py` en écarte les retards ; seuils de retard calibrés sur les vols restants |
+| Vol avec mouvements (retards représentatifs) | 95e centile de \|consigne\| ≥ 30 °/s (roll ou pitch) | Corpus | Remarque de Cédric (2026-10-05) ; seuil 50 → 30 °/s le 2026-10-13 (D-026, choix de Cédric) : vrais vols stationnaires tous sous 25 °/s (83 sessions), wobbles en mode Angle limité à 30° vers 47 °/s (22 sessions entre 40 et 50 °/s, 422 fenêtres de réponse indicielle en médiane) ; dispersion du retard progressive, sans rupture à 50 °/s (`validation.md`, « Retard des filtres et mouvements »). 85 sessions (12 %) en dessous ; `calibrate_advisor.py` en écarte les retards ; seuils de retard calibrés sur les vols restants |
 | LPF2 du gyro anti-repliement | PID < gyro : PT1 500 Hz (attention sous 3 kHz), 500–1000 Hz (conseil à 4 kHz) | Firmware (doc) | [S12, S19, S29] |
 | Ordre minimal du filtrage du D | 2 (deux PT1 ou un filtre d'ordre 2) | Firmware (doc) | [S29] ; PT2 et biquad comptent pour 2, PT3 pour 3 |
 | LPF1 du D dynamique proposé | min = coupure statique, max = 2 × min | Firmware + corpus | Mode statique « not recommended » [S29] ; le curseur « filtre D » donne statique = min = 75 × multiplicateur, max = 150 × multiplicateur (`config/simplified_tuning.c`) ; rapport 2 chez 91 drones sur 94 en mode dynamique (2026-10-13, « Passe-bas du gyro et du D ») |

@@ -6,6 +6,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Retard des filtres : jugé dès que la consigne dépasse 30 °/s au moins 5 % du temps (au lieu de 50 °/s). Les
+  wobbles du protocole en mode Angle limité à 30° (consigne vers 47 °/s) n'étaient pas jugés, comme un vol
+  stationnaire. Même seuil pour la découpe « stationnaire / mouvements » du guide (D-026).
 - Réponse indicielle : un vol en mode Angle est jugé comme un vol sans feedforward (le firmware l'y coupe),
   même si F > 0 dans les réglages ; il ne reçoit plus « Dépassement dû au feedforward ». Paliers du dépassement
   recalculés sur le corpus : sans feedforward 1,20 (conseil) / 1,25 (attention), avec feedforward 1,60 / 1,70

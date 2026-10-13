@@ -85,12 +85,12 @@ def phase_delay_ms(x: np.ndarray, y: np.ndarray, fs: float, band: tuple[float, f
     return float(np.average(d, weights=coh[m]) * 1000.0)
 
 
-# Le retard des filtres n'est représentatif que si le vol contient des mouvements : en vol stationnaire, les
-# filtres dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne travaillent qu'à un régime, et il y a peu de
-# signal entre 10 et 100 Hz (l'intercorrélation de PIDtoolbox s'y trompe une fois sur deux). Critère : la
-# consigne dépasse 50 °/s au moins 5 % du temps en roll ou en pitch ; les vols stationnaires du corpus
-# restent sous 25 °/s, ceux avec wobble au-dessus de 90 °/s (docs/validation.md).
-MOVING_SETPOINT_DPS = 50.0
+# Le retard des filtres n'est jugé que si le vol contient des mouvements : en vol stationnaire, les filtres
+# dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne travaillent qu'à un régime. Critère : la consigne
+# dépasse 30 °/s au moins 5 % du temps en roll ou en pitch (D-026) ; les vols stationnaires du corpus restent
+# sous 25 °/s. ⚠️ Pas 50 °/s : les wobbles en mode Angle limité à 30° (protocole du guide) plafonnent vers
+# 47 °/s et seraient pris pour des vols stationnaires (L-007).
+MOVING_SETPOINT_DPS = 30.0
 
 
 def stick_p95_dps(log, sel: slice) -> float:

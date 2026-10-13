@@ -119,8 +119,9 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
 - Retards de filtres : méthode de **phase** (10–100 Hz, pondérée par la cohérence), pas l'intercorrélation
   (dominée par le bruit haute fréquence). PIDtoolbox affiche un retard D 0,3 à 0,9 ms trop court (le gyro
   concorde) : ses objectifs de retard D ne s'appliquent pas tels quels. D-007, L-006
-- Retard des filtres : représentatif seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne
-  > 50 °/s au moins 5 % du temps) ; en vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime. D-010, L-007
+- Retard des filtres : jugé seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne
+  > 30 °/s au moins 5 % du temps) ; en vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime.
+  Pas 50 °/s : les wobbles en mode Angle limité à 30° plafonnent vers 47 °/s. D-010, D-026, L-007
 - Fréquence du log : deux minimums à ne pas mélanger. **Filtres** : au moins 2 kHz pour un gyro à 8 kHz,
   1,6 kHz à 3,2 kHz, plus pour les petits drones (`rules.log_rate_needed`) ; le blackbox sous-échantillonne
   sans filtre, tout ce qui dépasse fs/2 se replie. **Séries PID** : 1 kHz (`rules.pid_log_rate_needed`). Le

@@ -130,6 +130,8 @@ Règles d'écriture :
   Dépassement dû au feedforward (2026-10-13, branche feat/calibrate-last-estimates) : repère de latence
   vérifié sur les séries où seul F change ; paliers du pic recalculés avec le feedforward coupé en mode
   Angle (D-025).
+  Vol avec mouvements : seuil 50 → 30 °/s (D-026), les wobbles du protocole en mode Angle plafonnant vers
+  47 °/s ; repères de retard gardés.
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.

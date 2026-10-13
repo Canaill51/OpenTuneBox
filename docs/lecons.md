@@ -206,11 +206,16 @@ automatique : `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_th
 
 ### L-007 : en vol stationnaire, le retard des filtres mesuré n'est pas celui du vol réel
 - **Symptôme** — 2026-10-05 : conseils de filtres fondés sur un retard trop optimiste.
-- **Cause** — mesurée : les filtres dynamiques ne travaillent qu'à un régime ; les vols stationnaires du
-  corpus restent sous 25 °/s de consigne.
-- **Règle** — juger le retard seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne > 50 °/s
-  au moins 5 % du temps). Décision D-010.
-- **Preuve** — commit `14010b4`.
+- **Cause** — supposée le 2026-10-05 : les filtres dynamiques ne travaillent qu'à un régime ; les vols
+  stationnaires du corpus restent sous 25 °/s de consigne. Mesurée le 2026-10-13 : l'écart moyen est faible
+  (+0,015 ms entre vol stationnaire et vol avec mouvements du même drone, 18 drones), mais la dispersion d'un
+  vol peu animé est 2 à 4 fois plus grande (tranches de 8 s : 0,09–0,13 ms sous 50 °/s, 0,03 ms au-delà de
+  150 °/s).
+- **Règle** — juger le retard seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne > 30 °/s
+  au moins 5 % du temps). Décisions D-010, D-026. ⚠️ Un seuil plus haut (50 °/s) prend les wobbles du
+  protocole en mode Angle limité à 30° (consigne plafonnée vers 47 °/s) pour des vols stationnaires.
+- **Preuve** — commit `14010b4` ; [validation.md](validation.md) (« Retard des filtres et mouvements »,
+  2026-10-13).
 
 ### L-008 : tout ce qui dépasse la moitié de la fréquence du log se replie dans le spectre
 - **Symptôme** — raies de bruit à de fausses fréquences sur des logs lents ; à l'inverse, un vol de série

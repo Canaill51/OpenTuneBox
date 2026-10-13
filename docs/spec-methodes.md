@@ -147,10 +147,10 @@ ils viennent du bruit (`validation.md`).
   H = Sxy/Sxx (Welch, fenêtres d'environ 0,5 s), entre 10 et 100 Hz, points de cohérence ≥ 0,6, moyenne
   pondérée par la cohérence, roll et pitch moyennés. L'intercorrélation est écartée : elle est dominée par
   le bruit haute fréquence.
-- **Représentativité** : retard des filtres retenu seulement si la consigne dépasse 50 °/s au moins 5 % du
-  temps (95e centile de |consigne|, roll ou pitch, `delay.stick_p95_dps`). En vol stationnaire, les filtres
-  dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne travaillent qu'au régime du stationnaire et il
-  y a peu de signal entre 10 et 100 Hz (`validation.md`).
+- **Représentativité** : retard des filtres retenu seulement si la consigne dépasse 30 °/s au moins 5 % du
+  temps (95e centile de |consigne|, roll ou pitch, `delay.stick_p95_dps` ; D-026). En vol stationnaire, les
+  filtres dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne travaillent qu'au régime du stationnaire
+  et il y a peu de signal entre 10 et 100 Hz : la mesure y est 2 à 4 fois plus dispersée (`validation.md`).
 - **Consigne → gyro**, par axe : maximum de l'intercorrélation dans ±100 ms, interpolation parabolique sous
   l'échantillon ; axe ignoré si l'écart-type de la consigne est < 5 °/s.
 

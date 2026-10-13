@@ -215,4 +215,4 @@ def test_compute_delays_on_fake_log():
     log.d_term = np.zeros((3, n))
     dl = delay.compute_delays(log)
     assert np.isnan(dl.gyro_ms) and np.isnan(dl.dterm_ms)
-    assert delay.Delays(0, 0, [], 49.9).moving is False and delay.Delays(0, 0, [], 50.0).moving is True
+    assert delay.Delays(0, 0, [], 29.9).moving is False and delay.Delays(0, 0, [], 30.0).moving is True  # D-026
