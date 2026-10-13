@@ -12,6 +12,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   Sur tout le corpus, l'assistant passe de 3743 s à 2339 s de calcul cumulé (session la plus lente : 84 s → 28 s ;
   `opentunebox report` sur le plus gros log : 28 s → 13,5 s),
   avec les mêmes constats sur les 705 sessions.
+- Moins de mémoire : les courbes d'un log sont gardées en simple précision (float32, D-029), le décodeur rend
+  ses tableaux à la taille exacte et l'écart des trames impossibles ne recopie plus tout le log. Plus gros
+  log du corpus (39 Mo) : 458 Mo une fois chargé au lieu de 708 Mo, pic du chargement 1347 Mo au lieu de
+  2047 Mo. Mêmes constats de l'assistant sur tout le corpus (9 chiffres affichés décalés d'une unité).
 - Assistant : chaque constat porte une clé stable (`Finding.key`) ; les règles, la stratégie de filtrage, le
   diagnostic du bruit et les tests s'y réfèrent au lieu de relire les titres et les actions, et un constat
   qui conseille `rpm_filter_q` ou `dyn_notch_count` le déclare (`Finding.settings`). `analyze` et la

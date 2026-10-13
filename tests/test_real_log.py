@@ -70,7 +70,7 @@ def test_flightlog_physical_units_and_settings():
     assert float(np.abs(lg.gyro).max()) == 79.0 and float(np.abs(lg.setpoint).max()) == 78.0
     assert lg.n_motors == 4 and lg.motor_hz is not None and float(np.nanmedian(lg.motor_hz)) == pytest.approx(97.4, abs=0.1)
     assert (float(lg.throttle.min()), float(lg.throttle.max())) == (0.0, pytest.approx(50.9, abs=0.1))
-    assert lg.vbat is not None and (float(lg.vbat.min()), float(lg.vbat.max())) == (21.98, 25.05)
+    assert lg.vbat is not None and (float(lg.vbat.min()), float(lg.vbat.max())) == pytest.approx((21.98, 25.05), abs=1e-5)
     assert lg.debug.shape == (8, 8262)
 
 

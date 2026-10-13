@@ -23,6 +23,10 @@ AXES = ("Roll", "Pitch", "Yaw")
 ANGLE_HORIZON_MASK = 0b110  # boîtes ANGLE (bit 1) et HORIZON (bit 2), mêmes rangs dans toutes les versions
 ANGLE_MODE_MASK = 0b010  # ANGLE seul : le feedforward de la boucle de vitesse y est à 0 (pas en HORIZON)
 MAX_LEVEL_SHARE = 0.2  # au-delà, consigne calculée par l'autolevel : instrument = commande radio
+# Courbes en simple précision (7 chiffres significatifs, bien plus que la résolution des capteurs loggés) :
+# moitié moins de mémoire qu'en float64. Le temps `t` reste en float64 (microseconde sur des vols longs).
+# ⚠️ Une somme cumulée sur tout un log en float32 perd des chiffres : la faire en float64 (D-029)
+SAMPLE_DTYPE = np.float32
 
 
 @dataclass
@@ -240,16 +244,18 @@ def _drop_implausible(sess: DecodedSession, hr: float) -> int:
     if main.shape[0] == 0:
         return 0
     names = sess.main_names
-    signed_cols = [i for i, n in enumerate(names) if n not in ("loopIteration", "time")]
-    if signed_cols:
-        sub = main[:, signed_cols]
-        main[:, signed_cols] = ((sub + 2**31) % 2**32) - 2**31
     bad = np.zeros(main.shape[0], dtype=bool)
     for i, n in enumerate(names):
+        if n in ("loopIteration", "time"):
+            continue
+        c = main[:, i]
+        # colonne par colonne et seulement si besoin : ramener tout le tableau d'un coup en ferait quatre copies
+        if c.min() < -2**31 or c.max() >= 2**31:
+            c[:] = ((c + 2**31) % 2**32) - 2**31
         if n.startswith(("gyroADC[", "gyroUnfilt[")) or (n.startswith("setpoint[") and n != "setpoint[3]"):
-            bad |= np.abs(main[:, i]) > 4000 * hr
+            bad |= np.abs(c) > 4000 * hr
         elif n.startswith(("axisP[", "axisI[", "axisD[", "axisF[")):
-            bad |= np.abs(main[:, i]) > 65535
+            bad |= np.abs(c) > 65535
     if bad.any():
         keep = ~bad
         sess.main = main[keep]
@@ -269,14 +275,19 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
 
     def col(name: str) -> np.ndarray | None:
         c = sess.column(name)
-        return None if c is None else c.astype(np.float64)
+        return None if c is None else c.astype(SAMPLE_DTYPE)
 
     def axes(prefix: str, scale: float = 1.0, count: int = 3) -> np.ndarray | None:
-        cols = [col(f"{prefix}[{i}]") for i in range(count)]
+        cols = [sess.column(f"{prefix}[{i}]") for i in range(count)]
         if all(c is None for c in cols):
             return None
-        n = sess.main.shape[0]
-        return np.vstack([c / scale if c is not None else np.zeros(n) for c in cols])
+        out = np.zeros((count, sess.main.shape[0]), dtype=SAMPLE_DTYPE)  # rempli ligne par ligne : une seule copie des données
+        for i, c in enumerate(cols):
+            if c is not None:
+                out[i] = c
+                if scale != 1.0:
+                    out[i] /= scale
+        return out
 
     time_us = sess.main[:, 1].astype(np.float64)
     t = (time_us - time_us[0]) * 1e-6
@@ -284,13 +295,13 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
     dt = dt[dt > 0]
     fs = 1e6 / float(np.median(dt)) if dt.size else st.log_rate_hz
     n = t.shape[0]
-    zeros3 = np.zeros((3, n))
+    zeros3 = np.zeros((3, n), dtype=SAMPLE_DTYPE)
 
     gyro = axes("gyroADC", hr)
     gyro_unfilt = axes("gyroUnfilt", hr)
     debug = axes("debug", 1.0, 8)
     if debug is None:
-        debug = np.zeros((0, n))
+        debug = np.zeros((0, n), dtype=SAMPLE_DTYPE)
     else:
         present = [i for i in range(8) if sess.column(f"debug[{i}]") is not None]
         debug = debug[: (max(present) + 1 if present else 0)]
@@ -309,7 +320,7 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
         throttle = None
     rc = axes("rcCommand", 1.0, 4)
     if rc is None:
-        rc = np.zeros((4, n))
+        rc = np.zeros((4, n), dtype=SAMPLE_DTYPE)
     # les quatre voies rcCommand sont en haute résolution aussi, gaz compris (blackbox.c, spec §7)
     rc /= hr
     if throttle is None:
@@ -329,7 +340,7 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
             lo, hi = float(st.motor_output[0]), float(st.motor_output[1])
         motors = np.clip((raw_m - lo) / max(1.0, hi - lo) * 100.0, -5, 105)
     else:
-        motors = np.zeros((0, n))
+        motors = np.zeros((0, n), dtype=SAMPLE_DTYPE)
 
     erpm = []
     for k in range(len(motor_cols)):
@@ -375,7 +386,7 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
         vbat=vbat / 100.0 if vbat is not None else None,
         current=cur / 100.0 if cur is not None else None,
         acc=acc,
-        mode_flags=flags.astype(np.int64) if flags is not None else None,
+        mode_flags=flags.astype(np.int32) if flags is not None else None,  # masque de boîtes, 32 bits dans le firmware
         events=sess.events,
         stats=sess.stats,
         pid_columns=frozenset(n for n in sess.main_names if n.startswith(("axisP[", "axisI[", "axisD[", "axisF["))),
