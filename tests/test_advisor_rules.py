@@ -191,7 +191,7 @@ def test_rule_constants_snapshot():
     assert (rules.STEP_PEAK_SOFT, rules.STEP_MIN_WINDOWS, rules.STEP_SURE_WINDOWS) == (1.01, 20, 200)
     assert (rules.DTERM_PTB_MAX_DB, rules.DTERM_PTB_IDEAL_DB, rules.GYRO_PTB_MAX_DB) == (-10.0, -20.0, -30.0)
     assert (rules.RPM_Q_STEP, rules.RPM_Q_MAX, rules.RPM_Q_MIN) == (100, 1000, 250)
-    assert (rules.RPM_WEIGHT_MARGIN_DB, rules.RPM_WEIGHT_GAIN_MIN, rules.HARMONIC_VISIBLE_DB) == (6.0, 0.5, 4.0)
+    assert (rules.RPM_WEIGHT_MARGIN_DB, rules.RPM_WEIGHT_GAIN_MIN, rules.HARMONIC_VISIBLE_DB) == (3.0, 0.5, 4.0)
     assert (rules.DYN_NOTCH_Q_RPM, rules.DYN_NOTCH_Q_STEP, rules.DYN_NOTCH_Q_LOW) == ((300, 450), 50, 100)
     assert (rules.DYN_NOTCH_MIN_HZ, rules.DYN_NOTCH_MARGIN_HZ) == (20, 20)
     assert not hasattr(rules, "DYN_NOTCH_MIN_STEP_HZ")  # relèvement de dyn_notch_min_hz retiré (gain mesuré ≈ 0)
@@ -340,7 +340,7 @@ def test_rpm_weight_rules_and_version_gate(monkeypatch):
         return {f.title: f for f in rules._rpm_weight_rules(None, slice(None), s, **kw)}
 
     f = titles()["Filtre RPM plus fort que nécessaire"]
-    assert f.actions[0].startswith("rpm_filter_weights = 100, 50, 50")
+    assert f.actions[0].startswith("rpm_filter_weights = 100, 30, 30")  # −1 dB + 3 dB de marge → 0,21 → 0,3
     assert "Filtre RPM plus fort que nécessaire" not in titles("4.4.3")
     assert "Filtre RPM plus fort que nécessaire" not in titles(lighten=False)
     levels["left"] = np.array([0.0, 5.0, 0.0])

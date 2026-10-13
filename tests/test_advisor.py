@@ -96,7 +96,7 @@ def test_rpm_weights_rule():
     rep = analyze(lg, lg.slice_time(*auto_period(lg)))
     f = next(f for f in rep.findings if f.title == "Filtre RPM plus fort que nécessaire")
     assert "3e harmonique" in f.detail
-    assert f.actions[0].startswith("rpm_filter_weights = 100, 100, 50")
+    assert f.actions[0].startswith("rpm_filter_weights = 100, 100, 30")  # marge de 3 dB (2026-10-13)
 
 
 def test_dyn_notch_rules():

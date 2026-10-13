@@ -114,7 +114,9 @@ Règles d'écriture :
   Pas des curseurs : choisis par Cédric (D-021, branche feat/calibrate-slider-steps). Petites marges (2026-10-13,
   D-022) : bandes ± 5 % du notch dynamique remplacées par la réponse des notchs RPM, mesurée contre le debug
   FFT_FREQ ; relèvement de `dyn_notch_min_hz` (30 Hz) retiré, gain de retard mesuré ≈ 0. La liste choisie avec
-  Cédric est faite ; les autres lignes « Estimation » restent. Taille pour l'objectif de retard :
+  Cédric est faite ; les autres lignes « Estimation » restent.
+  Poids RPM (2026-10-13, branche feat/calibrate-rpm-weights) : marge 6 → 3 dB et gain minimal 0,5 gardé, mesurés
+  sur les harmoniques à poids déjà réduit du corpus et par le retard calculé. Taille pour l'objectif de retard :
   3" et 8" confirmés par la médiane des drones de taille connue du corpus (branche feat/calibrate-delay-size).
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de

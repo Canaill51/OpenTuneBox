@@ -66,11 +66,15 @@ DTERM_LIFT_MAX_STEPS = 2
 GYRO_PTB_MAX_DB = -30.0
 # Filtre RPM (doc Betaflight 4.5, [S27]) : monter Q par pas jusqu'à 1000 au plus pour gagner du retard,
 # pas de 100 dans les deux sens (décision de Cédric, 2026-10-10) ;
-# poids (4.5 et plus) juste suffisant pour que la raie ne se voie plus, avec une marge de 6 dB, proposé
-# s'il fait gagner au moins 0,5 (8 % des sessions du corpus) ; raie « visible » à plus de 4 dB du bruit voisin
+# poids (4.5 et plus) juste suffisant pour que la raie finisse 3 dB sous le bruit voisin à la sortie du filtre RPM,
+# proposé s'il baisse d'au moins 0,5 ; raie « visible » à plus de 4 dB du bruit voisin. Calibration du 2026-10-13
+# (choix de Cédric) : sur 1 186 harmoniques dont le pilote a baissé le poids, la raie reste invisible après tous
+# les filtres dans plus de 99 % des cas jusqu'à 0 dB prévu (4,4 % de +3 à +6 dB) ; 3 dB garde un coussin pour les
+# écarts d'un vol à l'autre. Baisse de 0,5 = environ 0,17 ms de retard en moins sur la 2e harmonique, 0,11 ms sur
+# la 3e (4 moteurs, modèle des filtres du firmware) (docs/assistant.md, « Filtre RPM : poids et Q »)
 RPM_Q_STEP, RPM_Q_MAX = 100, 1000
 RPM_Q_MIN = 250  # borne basse de rpm_filter_q dans le firmware (cli/settings.c)
-RPM_WEIGHT_MARGIN_DB = 6.0
+RPM_WEIGHT_MARGIN_DB = 3.0
 RPM_WEIGHT_GAIN_MIN = 0.5
 # Calibration du 2026-10-12 (704 sessions) : la même mesure prise là où il n'y a aucune raie (0,45 et 0,6 ×
 # la fréquence moteur, gyro filtré, maximum du roll et du pitch) dépasse 3 dB dans 1,4 à 2,8 % des sessions,
