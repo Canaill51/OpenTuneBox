@@ -93,8 +93,13 @@ def test_auto_status_on_real_log():
     assert c.role == FILTERS and auto_status(steps["log_rates"], [c])[0] is None  # vol avec stationnaire
     pid = dataclasses.replace(c, role=PID)  # lu comme vol de série : rates du pilote, pas le profil « LOG »
     assert auto_status(steps["log_rates"], [pid])[0] == AUTO_BAD
+    # vol freestyle : la partie « stationnaire » est un moment calme de 5 s (166–171 s, gaz 32–36 %) ; celui de
+    # 186–192 s, pris pendant une descente (gaz 19–25 %), a le terme D au-dessus du repère
     state, txt = auto_status(steps["filter_targets"], [c], filter_targets(lg, c.parts, 5))
-    assert state == AUTO_BAD and "Terme D" in txt
+    assert state == AUTO_OK and "Terme D −15 dB" in txt
+    descent = dict(c.parts, hover=(185.8, 191.8))
+    state, txt = auto_status(steps["filter_targets"], [c], filter_targets(lg, descent, 5))
+    assert state == AUTO_BAD and "Terme D −9 dB" in txt
 
 
 def test_step_texts_follow_the_constants():

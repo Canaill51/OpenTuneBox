@@ -42,6 +42,11 @@ class FlightConditions:
         """Feedforward présent dans la réponse : F > 0 hors mode Angle (le firmware l'y met à 0)."""
         return max(self.ff) > 0 and not self.angle
 
+    def ff_gain(self, axis: int) -> int:
+        """Gain F en service sur l'axe (0 = roll, 1 = pitch) : 0 en mode Angle, quel que soit l'en-tête.
+        ⚠️ Lire `ff` seul range les vols en Angle avec le feedforward et fausse les paliers du pic (L-005)."""
+        return 0 if self.angle else self.ff[axis]
+
 
 @dataclass
 class FlightStep:

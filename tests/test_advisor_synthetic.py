@@ -14,10 +14,10 @@ from opentunebox.analysis.step import StepMetrics
 from synthetic import make_flightlog
 
 
-def _step_findings(peak, lat, ff=0, profile="five", n=50, **loop):
+def _step_findings(peak, lat, ff=0, profile="five", n=50, ff_cut=False, **loop):
     r = SimpleNamespace(n=n, metrics=StepMetrics(peak=peak, latency_ms=lat), loop=LoopMetrics(**loop))
     F = []
-    rules._step_rules(F, AxisStep("Roll", r), PROFILES[profile], ff)
+    rules._step_rules(F, AxisStep("Roll", r), PROFILES[profile], ff, ff_cut)
     return F
 
 
@@ -26,9 +26,9 @@ def _titles(*a, **kw):
 
 
 def test_step_peak_thresholds_without_feedforward():
-    """Paliers 1,15 (conseil) et 1,25 (attention) sans feedforward ; réponse molle sous 1,01 et lente."""
-    assert _titles(1.15, 15) == [("Réponse indicielle roll", OK)]
-    assert _titles(1.16, 15) == [("Léger dépassement en roll", CONSEIL)]
+    """Paliers 1,20 (conseil) et 1,25 (attention) sans feedforward ; réponse molle sous 1,01 et lente."""
+    assert _titles(1.20, 15) == [("Réponse indicielle roll", OK)]
+    assert _titles(1.21, 15) == [("Léger dépassement en roll", CONSEIL)]
     assert _titles(1.25, 15) == [("Léger dépassement en roll", CONSEIL)]
     assert _titles(1.26, 15) == [("Fort dépassement en roll", ATTENTION)]
     f = _step_findings(1.26, 15)[0]
@@ -44,12 +44,12 @@ def test_slider_steps():
     """Pas des curseurs choisis par Cédric : Damping +0,2 pour dégrossir (fort dépassement), 0,1 en réglage fin ;
     plus de Tracking ; feedforward renvoyé à la série du guide (pas de 0,5 depuis 0)."""
     assert _step_findings(1.26, 15)[0].actions == ["Curseur Damping (D) : +0,2."]
-    assert _step_findings(1.16, 15)[0].actions == ["Curseur Damping (D) : +0,1."]
+    assert _step_findings(1.21, 15)[0].actions == ["Curseur Damping (D) : +0,1."]
     soft = _step_findings(1.00, 22.1)[0].actions
     assert soft[0] == "Curseur Damping (D) : −0,1." and "0, 0,5, 1" in soft[1]
-    ff = _step_findings(1.41, 9.9, ff=100)[0].actions
+    ff = _step_findings(1.61, 9.9, ff=100)[0].actions
     assert "0, 0,5, 1" in ff[0] and "Acro" in ff[0]
-    for peak, lat, ff_gain in ((1.26, 15, 0), (1.16, 15, 0), (1.00, 22.1, 0), (1.41, 9.9, 100)):
+    for peak, lat, ff_gain in ((1.26, 15, 0), (1.21, 15, 0), (1.00, 22.1, 0), (1.61, 9.9, 100)):
         assert not any("Tracking" in a for f in _step_findings(peak, lat, ff=ff_gain) for a in f.actions)
 
 def test_step_windows_warning():
@@ -65,16 +65,26 @@ def test_step_windows_warning():
 
 
 def test_step_peak_thresholds_with_feedforward():
-    """Avec feedforward : paliers 1,40 / 1,55 ; montée plus rapide que la latence basse du profil → le
+    """Avec feedforward : paliers 1,60 / 1,70 ; montée plus rapide que la latence basse du profil → le
     feedforward est en cause, pas le D."""
-    assert _titles(1.40, 15, ff=100) == [("Réponse indicielle roll", OK)]
-    assert _titles(1.41, 15, ff=100) == [("Léger dépassement en roll", CONSEIL)]
-    assert _titles(1.56, 15, ff=100) == [("Fort dépassement en roll", ATTENTION)]
-    assert _titles(1.41, 9.9, ff=100) == [("Dépassement dû au feedforward en roll", CONSEIL)]  # latence < 10 ms (5")
-    assert _titles(1.56, 9.9, ff=100) == [("Dépassement dû au feedforward en roll", ATTENTION)]
-    assert _titles(1.41, 10.0, ff=100) == [("Léger dépassement en roll", CONSEIL)]
-    f = _step_findings(1.41, 9.9, ff=100)[0]
+    assert _titles(1.60, 15, ff=100) == [("Réponse indicielle roll", OK)]
+    assert _titles(1.61, 15, ff=100) == [("Léger dépassement en roll", CONSEIL)]
+    assert _titles(1.71, 15, ff=100) == [("Fort dépassement en roll", ATTENTION)]
+    assert _titles(1.61, 9.9, ff=100) == [("Dépassement dû au feedforward en roll", CONSEIL)]  # latence < 10 ms (5")
+    assert _titles(1.71, 9.9, ff=100) == [("Dépassement dû au feedforward en roll", ATTENTION)]
+    assert _titles(1.61, 10.0, ff=100) == [("Léger dépassement en roll", CONSEIL)]
+    f = _step_findings(1.61, 9.9, ff=100)[0]
     assert "F = 100" in f.detail and "série Feedforward" in f.actions[0]
+
+
+def test_step_peak_angle_mode_uses_thresholds_without_feedforward():
+    """Mode Angle : le firmware coupe le feedforward (L-005) ; F > 0 dans l'en-tête ne change pas les paliers et
+    le dépassement n'est jamais attribué au feedforward."""
+    from opentunebox.analysis.step_series import FlightConditions
+    angle, acro = FlightConditions((100, 120), 0.95, 1.0), FlightConditions((100, 120), 0.5, 1.0)
+    assert (angle.ff_gain(0), angle.ff_gain(1), acro.ff_gain(1)) == (0, 0, 120)
+    assert _titles(1.30, 9.9, ff=angle.ff_gain(0), ff_cut=True) == [("Fort dépassement en roll", ATTENTION)]
+    assert "sans feedforward (coupé par le mode Angle)" in _step_findings(1.21, 15, ff_cut=True)[0].detail
 
 
 def test_stability_margin_rules():

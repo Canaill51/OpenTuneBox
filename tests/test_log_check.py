@@ -122,7 +122,8 @@ def test_one_axis_at_a_time_is_flagged():
     c = check_log(lg, sel)
     mixed = c.item("axes_mixed")
     assert mixed.status == WARN and f"{AXES_MIXED_MIN:.0%}" in mixed.detail
-    assert c.parts["hover"] is not None and c.parts["hover"][1] - c.parts["hover"][0] > 100
+    # partie stationnaire de 56 s : depuis D-026 (30 °/s), les petits mouvements de 30 à 50 °/s la coupent
+    assert c.parts["hover"] is not None and c.parts["hover"][1] - c.parts["hover"][0] > 50
 
 
 @corpus

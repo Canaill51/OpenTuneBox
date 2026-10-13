@@ -70,6 +70,9 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-027 | Raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre | 2026-10-13 |
+| D-026 | Retard des filtres jugé dès 30 °/s de consigne (amende D-010) | 2026-10-13 |
+| D-025 | Paliers du pic de réponse selon le feedforward en service (0 en mode Angle) | 2026-10-13 |
 | D-024 | Notch statique conseillé seulement si le notch dynamique ne peut pas traiter la raie | 2026-10-13 |
 | D-023 | « Q trop haut » seulement si une raie passe ; marge de 5 % de la fréquence moteur autour des harmoniques | 2026-10-13 |
 | D-022 | Notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé | 2026-10-13 |
@@ -96,6 +99,84 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-10-13 — Derniers seuils estimés (W-003)
+
+### D-027 : raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre
+
+**Contexte.** W-013 : « Raie fixe » écartait toute raie à ± 8 % d'une harmonique de la vitesse moyenne en
+stationnaire ; les raies écartées mêlaient raies fixes et raies moteur. Une mesure de pente (fréquence de la
+raie face à la vitesse des moteurs) s'est révélée fragile quand la fondamentale est faible : témoin moteur à
+0,57 en médiane, 43 % sous 0,5 (2026-10-13).
+
+**Décision.**
+- Fondamentale (± 15 % de la vitesse en stationnaire) : test des deux trajets (`rules.line_follows_motors`).
+  Dans chaque tranche de gaz, hauteur de la raie au-dessus du bruit voisin à la vitesse des moteurs de la
+  tranche, moins sa hauteur à f0 ; moyenne sur les tranches où les deux trajets se séparent (4 % de f0 et
+  3 cases au moins). Raie fixe si la moyenne est au plus −2 dB (`RESONANCE_MOTOR_SCORE_DB`) ; raie moteur
+  au-dessus, ou si moins de 3 tranches les séparent (prudence). Choix de Cédric (seuil −2 dB plutôt que 0).
+- Harmoniques 2 et 3 : exclusion de ± 8 % gardée (`RESONANCE_HARMONIC_MARGIN`) : ni la pente ni les trajets
+  n'y sont fiables.
+- Pas « trajet moteur = f0 × vitesse / vitesse en stationnaire » : une raie moteur trouvée à quelques % de la
+  vitesse en stationnaire (spectre médian étalé) est à la vitesse de chaque tranche, pas à un multiple fixe.
+
+**Options écartées.** Seuil 0 dB (95–96 % des raies fixes reconnues, mais 11–15 % des raies moteur prises
+pour fixes) ; garder l'exclusion ± 8 % sur la fondamentale.
+
+**Témoins.** Corpus du 2026-10-13 (705 sessions) : fondamentales visibles (≥ 3 dB, 281 sessions) jugées
+depuis f0 décalé de 3–8 % / 8–15 % : 93 % / 94 % reconnues raies moteur ; raies fixes de 8 dB ajoutées aux
+spectres réels à la même distance : 90 % / 89 % reconnues fixes. « Raie fixe » : 45 → 59 sessions (+17, −3,
+`advisor_rates.py`). `tests/test_advisor_rules.py:test_resonance_near_fundamental_two_paths`. Clôt W-013.
+
+### D-026 : retard des filtres jugé dès 30 °/s de consigne
+
+**Contexte.** W-003 : le seuil de 50 °/s (D-010) était une estimation. Mesure du 2026-10-13 (705 sessions) : 22
+sessions entre 40 et 50 °/s, dont 15 en mode Angle, avec 422 fenêtres de réponse indicielle en médiane : des
+vols de wobbles, souvent ceux du protocole du guide (mode Angle limité à 30°, consigne plafonnée vers 47 °/s ;
+`Cedric/JeNo 5/MM`, `PD`, `Cedric/2026.6 RC2`). L'assistant les prenait pour des vols stationnaires et ne
+jugeait pas leurs retards.
+
+**Décision.**
+- Amende D-010 : seuil de `delay.MOVING_SETPOINT_DPS` 50 → 30 °/s (95e centile de |consigne|, roll ou pitch),
+  partagé par la découpe des parties du vol du guide (`period.flight_parts`). Choix de Cédric.
+- Juste au-dessus des vrais vols stationnaires : 83 sessions sous 25 °/s, une seule avec 200 fenêtres de
+  réponse indicielle ; 2 sessions entre 25 et 30 °/s.
+- Pas de rupture physique à 50 °/s : par tranches de 8 s d'un même vol, l'écart du retard gyro à celui des
+  tranches à plus de 150 °/s diminue progressivement (médiane 0,09–0,13 ms sous 50 °/s, 0,08–0,10 ms de 50 à
+  100 °/s, 0,05 ms de 100 à 150 °/s) ; vol stationnaire contre vol avec mouvements du même drone (mêmes
+  filtres, 18 drones) : +0,015 ms en médiane.
+
+**Options écartées.** 40 °/s (93 sessions sous le seuil, sans gain mesuré) ; garder 50 °/s (les vols du
+protocole restent sans jugement du retard).
+
+**Témoins.** `tests/test_analysis.py` (wobble plafonné à 49 °/s compté avec mouvements) ;
+[validation.md](validation.md) (« Retard des filtres et mouvements »).
+
+### D-025 : paliers du pic de réponse selon le feedforward en service (0 en mode Angle)
+
+**Contexte.** Les paliers du pic (2026-10-05) séparaient les vols selon le F de l'en-tête. Or le firmware coupe
+le feedforward en mode Angle (D-014) : 483 axes de vols en Angle avec F > 0 (50 drones) étaient comptés « avec
+feedforward », leur terme F enregistré étant nul dans 480 cas. Leurs pics ressemblent à ceux des vols sans
+feedforward (p90 par axe 1,19 contre 1,18 ; avec feedforward en Acro : 1,58). Ils étaient jugés avec les paliers
+du feedforward (1,40 au lieu de 1,15) et pouvaient recevoir « Dépassement dû au feedforward ».
+
+**Décision.**
+- Le feedforward en service vaut 0 en mode Angle (`FlightConditions.ff_gain`), pour les règles de dépassement et
+  pour `scripts/calibrate_advisor.py` ; le constat le dit (« sans feedforward (coupé par le mode Angle) »).
+- Paliers recalculés avec la même méthode (conseil = p90 une voix par drone, attention = p95 par axe, arrondis à
+  0,05) : sans feedforward 1,20 / 1,25 (p90 1,186, p95 1,235 ; 990 axes, 76 drones), avec feedforward
+  1,60 / 1,70 (p90 1,589, p95 1,710 ; 288 axes, 47 drones). Choix de Cédric (option A).
+- « Dépassement dû au feedforward » (F en service > 0 et latence sous le p10 de la taille) est gardé : sur les
+  séries du corpus où seul F change (16 axes, 8 drones), +100 de F monte le pic de 0,24 et baisse la latence de
+  3,6 ms (médianes), et le repère de latence reconnaît 7 des 8 dépassements que le vol à F plus bas n'a pas.
+
+**Options écartées.** Corriger le mode Angle en gardant 1,15 / 1,25 et 1,40 / 1,55 : 21 % des sessions
+signalées au lieu de 13 % (les vols en Angle passent sous des paliers calibrés sans eux) ; un troisième groupe
+pour le mode Angle : son p90 par drone (1,19) est celui des vols sans feedforward.
+
+**Témoins.** `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_thresholds_without_feedforward` ;
+sessions signalées pour un dépassement : 13 % → 11 % (dépouillement du 2026-10-13, `docs/assistant.md`, « Pic de
+réponse indicielle »).
 
 ## 2026-10-12 — Trous d'enregistrement
 
@@ -367,6 +448,8 @@ chaque valeur doit pouvoir être justifiée à Cédric.
 **Ouvert.** W-002 (profils provisoires), W-003 (seuils « Estimation »).
 
 ### D-010 : retard des filtres jugé seulement sur un vol avec des mouvements
+
+✏️ AMENDÉE par D-026 (seuil 30 °/s).
 
 **Contexte.** En vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime : le retard mesuré
 ne représente pas le vol réel.

@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..log.flightlog import FlightLog
+from .delay import MOVING_SETPOINT_DPS
 
 
 def auto_period(log: FlightLog, takeoff_throttle: float = 8.0, margin_s: float = 0.5) -> tuple[float, float]:
@@ -36,7 +37,7 @@ MIN_PART_S = 5.0  # partie stationnaire ou avec mouvements retenue : au moins 5 
 
 
 def flight_parts(log: FlightLog, t0: float, t1: float, block_s: float = 1.0,
-                 moving_dps: float = 50.0) -> dict[str, tuple[float, float] | None]:
+                 moving_dps: float = MOVING_SETPOINT_DPS) -> dict[str, tuple[float, float] | None]:
     """Découpe un vol « stationnaire puis mouvements » (vol des filtres du guide) : la plus longue partie
     stationnaire et la plus longue partie avec mouvements entre t0 et t1, chacune d'au moins `MIN_PART_S`.
 

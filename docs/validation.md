@@ -82,6 +82,33 @@ qu'à son régime : l'assistant ne conseille rien sur le retard sous 50 °/s. Sa
 gyro passe de 2,04 à 1,85 ms en 5" et de 1,94 à 1,71 ms en 2–3,5" : repères de retard recalculés
 sur ces seuls vols (`docs/assistant.md`, « Calibration »).
 
+**Seuil des mouvements, 50 → 30 °/s** (2026-10-13, 705 sessions, D-026) : l'intervalle vide entre vols
+stationnaires et vols avec wobble ne l'est plus. 67 sessions sont entre 24 et 92 °/s, dont 22 entre 40 et
+50 °/s : 15 en mode Angle, 422 fenêtres de réponse indicielle en médiane (16 au-delà de 200). Ce sont surtout des
+wobbles du protocole du guide, en mode Angle limité à 30° (`Cedric/JeNo 5/MM` et `PD`, `Cedric/2026.6 RC2`, 46 à
+49 °/s). Les 83 sessions sous 25 °/s sont des vols stationnaires (une seule a 200 fenêtres) ; 2 sessions
+sont entre 25 et 30 °/s.
+
+Retard par tranches de 8 s d'un même vol (335 sessions ayant au moins 3 tranches à plus de 150 °/s), écart à
+la médiane de ces tranches :
+
+| Consigne de la tranche (95e centile) | Tranches | Retard gyro : écart médian | > 0,2 ms | Retard D : écart médian |
+|---|---|---|---|---|
+| 0–30 °/s | 258 | 0,09–0,10 ms | 22–27 % | 0,06 ms |
+| 30–50 °/s | 57 | 0,09–0,13 ms | 24–29 % | 0,06–0,07 ms |
+| 50–100 °/s | 127 | 0,08–0,10 ms | 16–25 % | 0,04–0,08 ms |
+| 100–150 °/s | 122 | 0,05 ms | 7 % | 0,04 ms |
+| ≥ 150 °/s (référence) | 1 667 | 0,03 ms | 3 % | 0,02 ms |
+
+La dispersion diminue avec les mouvements, sans rupture à 50 °/s ; le biais reste sous 0,07 ms et la vitesse
+des moteurs ne change pas d'une tranche à l'autre (rapport 0,97 à 1,02). Vol stationnaire (< 25 °/s) contre vol
+avec mouvements (≥ 100 °/s) du même drone, mêmes filtres (18 drones) : +0,015 ms en médiane (p10 / p90 −0,12 /
++0,22 ms) pour le gyro, +0,03 ms pour le D.
+Découpe « stationnaire / mouvements » du guide (`period.flight_parts`, blocs de 1 s lissés sur 3) : dans les
+83 vols stationnaires, 1,6 % des blocs dépassent 30 °/s (0,3 % à 50 °/s) ; dans les vols au-delà de 100 °/s,
+79,7 % (74,6 %). Un vol freestyle n'a pas de vrai stationnaire : la plus longue partie calme peut changer
+d'endroit avec le seuil (`Cedric/JeNo 5/FINAL`, `tests/test_tuning_path.py`).
+
 Écart connu : la latence 50 % peut différer d'environ 1 ms (interpolation au passage exact à 50 % contre
 lecture échantillon par échantillon).
 

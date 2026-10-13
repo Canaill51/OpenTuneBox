@@ -49,7 +49,9 @@ class CraftProfile:
 #   un seul drone de plus y déplace le seuil de plusieurs dB) ;
 # - seuils mécaniques : une voix par drone ; communs (valeurs par défaut de CraftProfile) sauf 5" et 7".
 # Retards des filtres recalculés le 2026-10-05 (décision de Cédric) sur les seuls vols avec mouvements
-# (delay.MOVING_SETPOINT_DPS, 573 sessions sur 681), pour toutes les tailles, whoop et 8"+ compris.
+# (consigne > 50 °/s, 573 sessions sur 681), pour toutes les tailles, whoop et 8"+ compris. Gardés quand le
+# seuil est passé à 30 °/s (D-026, choix de Cédric du 2026-10-13) : le p90 par session y monte de 0,1 ms en 5"
+# et en 2–3,5" à cause de 2 à 7 vols de quelques drones ; une voix par drone, le 2–3,5" ne bouge pas.
 PROFILES: dict[str, CraftProfile] = {
     "whoop": CraftProfile(
         "whoop", "Tiny whoop / micro (≤ 75 mm, 1–2S)", hover_hz=(345, 900), resonance_hz=(250, 600),

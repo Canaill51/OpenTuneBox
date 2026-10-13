@@ -141,6 +141,10 @@ def test_stick_movement_criterion():
     flight[0, :400] = 300.0
     p = lambda sp: stick_p95_dps(SimpleNamespace(setpoint=sp), slice(None))  # noqa: E731
     assert p(hover) < MOVING_SETPOINT_DPS <= p(flight)
+    # wobbles du protocole en mode Angle limité à 30° : consigne plafonnée vers 47 °/s, vol avec mouvements (D-026)
+    wobble = hover.copy()
+    wobble[0] = 49.0 * np.sin(2 * np.pi * np.arange(4000) / 400)
+    assert 45 < p(wobble) < 50 and p(wobble) >= MOVING_SETPOINT_DPS
 
 
 def test_spectrum_lines_hover():
