@@ -123,6 +123,8 @@ Règles d'écriture :
   Q minimum du notch dynamique (2026-10-13) : 100 → 250, plus bas Q vu avec filtre RPM (presets, corpus).
   Filtre du D (2026-10-13) : LPF1 dynamique proposé (max = 2 × min) sourcé par le firmware et le corpus ;
   relèvement du D propre gardé à deux crans, limite de prudence choisie par Cédric sur simulation.
+  Q maximum du notch dynamique : 450 → 500 (guide RPM, configurateur, presets). Notch statique : seulement si
+  le notch dynamique ne peut pas traiter la raie (D-024).
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.

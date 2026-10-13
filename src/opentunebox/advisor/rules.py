@@ -94,22 +94,29 @@ DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_ma
 # (HARMONIC_VISIBLE_DB) sur sa demi-largeur à mi-puissance ; le firmware vise le pic par interpolation
 # parabolique (`flight/dyn_notch_filter.c`). Arrondi à 50 vers le bas, 250 au moins (2026-10-13, choix de Cédric :
 # plus bas Q vu avec filtre RPM, presets officiels 250 et corpus 285 ; le calcul ne descend jamais sous 112 dans
-# le corpus) ; hausse jusqu'à 450 au plus [S19]
-DYN_NOTCH_Q_RPM = (300, 450)
+# le corpus) ; hausse jusqu'à 500 au plus (2026-10-13, choix de Cédric : guide RPM [S9] « Q to 500 », valeur du
+# configurateur avec DShot bidirectionnel, la plus fréquente dans les presets [S28] et le corpus ; avant : 450 [S19])
+DYN_NOTCH_Q_RPM = (300, 500)
 DYN_NOTCH_Q_STEP = 50
 DYN_NOTCH_Q_LOW = 250
-# Notch statique : même calcul, Q de 1 au moins (anciens défauts de Betaflight 3.2.0 : Q 0,67 à 1,71)
-STATIC_NOTCH_Q_LOW = 100
+# Notch statique : même calcul, Q de 1 à 4,5 (anciens défauts de Betaflight 3.2.0 : Q 0,67 à 1,71)
+STATIC_NOTCH_Q_LOW, STATIC_NOTCH_Q_HIGH = 100, 450
 # Vol stationnaire : raies hors moteurs listées dès 6 dB au-dessus du bruit voisin (2026-10-12 : du bruit sans
 # raie simulé sur les vols stationnaires du corpus ne dépasse jamais 3 dB ; 6 dB fixe le nombre de conseils,
 # choix de Cédric) ; sous 100 Hz, prudence avant de les filtrer (bande de travail du PID, propwash ~20–100 Hz [S1])
 HOVER_LINE_MIN_DB = 6.0
 # Notch statique conseillé (gyro_notch1) : coupure tirée du Q nécessaire pour la raie, même calcul et mêmes bornes
-# que le Q du notch dynamique (dyn_notch_q_need, STATIC_NOTCH_Q_LOW à DYN_NOTCH_Q_RPM[1], soit 0,62 à 0,89 × la
+# que le Q du notch dynamique (dyn_notch_q_need, STATIC_NOTCH_Q_LOW à STATIC_NOTCH_Q_HIGH, soit 0,62 à 0,89 × la
 # fréquence) ; firmware : Q = f·c / (f² − c²) (`filterGetNotchQ`, common/filter.c). Sans mesure de la raie (pas de
 # gyro non filtré ou d'eRPM, raie sous 4 dB dans le spectre moyen) : 0,7, entre les anciens défauts de Betaflight 3.2.0 (gyro 400 / 300 et
 # 200 / 100 Hz, D 260 / 160 Hz : 0,5 à 0,75) ; choix de Cédric, 2026-10-12
 STATIC_NOTCH_FALLBACK = 0.7
+# Notch statique conseillé seulement en cas exceptionnel (choix de Cédric, 2026-10-13) : le notch dynamique ne peut
+# pas traiter la raie (boucle PID sous 2 kHz, raie au-delà de sa portée de 1000 Hz à 20 Hz près, 7 notchs déjà
+# en service) ; jamais sous HOVER_LOW_LINE_HZ (retard dans la bande du PID, raie souvent due au réglage) ; sinon
+# mécanique d'abord, puis notch dynamique (static_notch_case)
+DYN_NOTCH_PID_MIN_HZ = 2000  # boucle PID minimale du notch dynamique (`flight/dyn_notch_filter.c`)
+DYN_NOTCH_COUNT_MAX = 7  # borne de dyn_notch_count (cli/settings.c)
 HOVER_LOW_LINE_HZ = 100.0
 
 # Niveaux de gravité
@@ -818,7 +825,9 @@ def _hover_noise(log, sel, profile, g_ptb, d_ptb, fixed_hz, meas, aliased: bool 
             continue
         if fixed_hz is not None and abs(ln.freq_hz - fixed_hz) <= 0.1 * fixed_hz:
             continue  # déjà traitée par le constat « Raie fixe »
-        out.append(_residual_line(s, ln, static_notch_cutoff(ln.freq_hz, *_line_shape(log, sel, ln.freq_hz))))
+        cutoff = (static_notch_cutoff(ln.freq_hz, *_line_shape(log, sel, ln.freq_hz))
+                  if static_notch_case(s, ln.freq_hz) else None)  # notch statique : cas exceptionnel seulement
+        out.append(_residual_line(s, ln, cutoff))
     return out
 
 
@@ -830,7 +839,7 @@ def static_notch_cutoff(f0: float, width: float, height: float) -> tuple[int, bo
     q = dyn_notch_q_need([f0], [width], [height])
     if q is None or not np.isfinite(q):
         return int(f0 * STATIC_NOTCH_FALLBACK), False
-    Q = min(_q_round(q, STATIC_NOTCH_Q_LOW), DYN_NOTCH_Q_RPM[1]) / 100
+    Q = min(_q_round(q, STATIC_NOTCH_Q_LOW), STATIC_NOTCH_Q_HIGH) / 100
     return int(f0 * (np.sqrt(1 + 4 * Q * Q) - 1) / (2 * Q)), True
 
 
@@ -851,29 +860,24 @@ def _static_notch_text(f0: float, cutoff: tuple[int, bool]) -> str:
     return f"gyro_notch1_hz = {f0:.0f}, gyro_notch1_cutoff = {cutoff[0]} (coupure {how})"
 
 
+def _low_line_caveat(f0: float) -> str:
+    """Mise en garde pour une raie sous HOVER_LOW_LINE_HZ (bande de travail du PID)."""
+    if f0 >= HOVER_LOW_LINE_HZ:
+        return ""
+    return (f" Sous {HOVER_LOW_LINE_HZ:.0f} Hz, un notch ajoute du retard là où le PID travaille, et la raie peut venir "
+            "d'une oscillation de réglage (P ou D) plutôt que de la mécanique : vérifiez la réponse sur un vol avec "
+            "mouvements avant de filtrer.")
+
+
 def _residual_line(s, ln, cutoff: tuple[int, bool] | None = None) -> Finding:
     """Raie hors moteurs encore visible après filtrage : où la traiter."""
     f0 = ln.freq_hz
     actions = ["Cherchez d'abord une cause mécanique : vis, antennes, câbles, caméra, pile de cartes, hélices."]
-    if dyn_notch_active(s):
-        lo, hi = f0 - DYN_NOTCH_MARGIN_HZ, f0 + DYN_NOTCH_MARGIN_HZ
-        if lo < s.dyn_notch_min_hz or hi > s.dyn_notch_max_hz:
-            new_lo = max(DYN_NOTCH_MIN_HZ, min(s.dyn_notch_min_hz, int(lo // 10 * 10)))
-            new_hi = min(DYN_NOTCH_MAX_MAX_HZ, max(s.dyn_notch_max_hz, int(-(-hi // 10) * 10)))
-            actions.append(f"Notch dynamique : plage {s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz → dyn_notch_min_hz = "
-                           f"{new_lo}, dyn_notch_max_hz = {new_hi} (20 Hz de marge autour de la raie).")
-        else:
-            actions.append(f"La raie est dans la plage du notch dynamique mais passe quand même : dyn_notch_count "
-                           f"{s.dyn_notch_count} → {min(s.dyn_notch_count + 1, 7)} (si le Q est trop haut pour elle, le "
-                           "constat « Notch dynamique : Q trop haut » le dit).")
+    actions += _dyn_notch_line_actions(s, f0, fixed=False)
     if cutoff is None:
         cutoff = (int(f0 * STATIC_NOTCH_FALLBACK), False)
-    actions.append(f"Ou notch statique : {_static_notch_text(f0, cutoff)}.")
-    caveat = ""
-    if f0 < HOVER_LOW_LINE_HZ:
-        caveat = (f" Sous {HOVER_LOW_LINE_HZ:.0f} Hz, un notch ajoute du retard là où le PID travaille, et la raie peut venir "
-                  "d'une oscillation de réglage (P ou D) plutôt que de la mécanique : vérifiez la réponse sur un vol avec "
-                  "mouvements avant de filtrer.")
+    actions += _static_notch_action(s, f0, cutoff, "Cas exceptionnel,")
+    caveat = _low_line_caveat(f0)
     return Finding("Filtres", CONSEIL, f"Raie à {f0:.0f} Hz encore visible après filtrage",
                    f"En vol stationnaire, une raie qui ne vient pas des moteurs dépasse le bruit voisin de {ln.raw_db:.0f} dB "
                    f"avant filtres et de {ln.left_db:.0f} dB après : les filtres actuels ne la traitent pas." + caveat, actions)
@@ -1175,26 +1179,63 @@ def _frame_resonance(log: FlightLog, res, profile: CraftProfile, sel: slice | No
         return None
     actions = ["Resserrez les vis, fixez antennes et câbles, vérifiez la caméra et la pile de cartes."]
     s = log.settings
-    if dyn_notch_active(s):
-        lo, hi = f0 - DYN_NOTCH_MARGIN_HZ, f0 + DYN_NOTCH_MARGIN_HZ
-        if lo < s.dyn_notch_min_hz or hi > s.dyn_notch_max_hz:
-            new_lo = max(DYN_NOTCH_MIN_HZ, min(s.dyn_notch_min_hz, int(lo // 10 * 10)))
-            new_hi = min(DYN_NOTCH_MAX_MAX_HZ, max(s.dyn_notch_max_hz, int(-(-hi // 10) * 10)))
-            actions.append(f"Le notch dynamique ({s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz) ne couvre pas cette raie à "
-                           f"{DYN_NOTCH_MARGIN_HZ} Hz près : dyn_notch_min_hz = {new_lo}, dyn_notch_max_hz = {new_hi}.")
-        else:
-            actions.append(f"Elle est dans la plage du notch dynamique ({s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz), qui "
-                           "peut la suivre si un notch est libre.")
-    cutoff = static_notch_cutoff(f0, *_line_shape(log, sel if sel is not None else slice(0, log.n), f0))
-    actions.append(f"Si elle persiste : notch statique gyro à {f0:.0f} Hz, {_static_notch_text(f0, cutoff)}.")
+    actions += _dyn_notch_line_actions(s, f0, fixed=True)
+    if static_notch_case(s, f0):
+        cutoff = static_notch_cutoff(f0, *_line_shape(log, sel if sel is not None else slice(0, log.n), f0))
+        actions += _static_notch_action(s, f0, cutoff, "Si elle persiste, cas exceptionnel :")
     return Finding("Mécanique", CONSEIL, f"Raie fixe vers {f0:.0f} Hz",
                    f"Une vibration à ~{f0:.0f} Hz reste présente quel que soit le gaz (+{excess:.0f} dB au-dessus du "
-                   "bruit voisin) : résonance du châssis, d'une antenne, d'une caméra ou pièce desserrée.", actions)
+                   "bruit voisin) : résonance du châssis, d'une antenne, d'une caméra ou pièce desserrée."
+                   + _low_line_caveat(f0), actions)
 
 
 def dyn_notch_active(s) -> bool:
     """Notch dynamique en service : au moins un notch et boucle PID ≥ 2 kHz (`DYN_NOTCH_UPDATE_MIN_HZ`)."""
-    return s.dyn_notch_count > 0 and s.dyn_notch_max_hz > 0 and s.pid_rate_hz >= 2000
+    return s.dyn_notch_count > 0 and s.dyn_notch_max_hz > 0 and s.pid_rate_hz >= DYN_NOTCH_PID_MIN_HZ
+
+
+def static_notch_case(s, f0: float) -> str | None:
+    """Raison de conseiller un notch statique pour une raie fixe à f0 (cas exceptionnel : le notch dynamique ne
+    peut pas la traiter), ou None : mécanique d'abord, puis notch dynamique (choix de Cédric, 2026-10-13).
+    Jamais sous HOVER_LOW_LINE_HZ : un notch y retarde la bande où travaille le PID."""
+    if f0 < HOVER_LOW_LINE_HZ:
+        return None
+    if s.pid_rate_hz < DYN_NOTCH_PID_MIN_HZ:
+        return f"boucle PID sous {DYN_NOTCH_PID_MIN_HZ / 1000:.0f} kHz : le notch dynamique ne peut pas fonctionner"
+    if f0 + DYN_NOTCH_MARGIN_HZ > DYN_NOTCH_MAX_MAX_HZ:
+        return f"raie au-delà de la portée du notch dynamique ({DYN_NOTCH_MAX_MAX_HZ} Hz au plus, à {DYN_NOTCH_MARGIN_HZ} Hz près)"
+    if s.dyn_notch_count >= DYN_NOTCH_COUNT_MAX and dyn_notch_active(s):
+        return f"les {DYN_NOTCH_COUNT_MAX} notchs dynamiques sont déjà en service"
+    return None
+
+
+def _dyn_notch_line_actions(s, f0: float, fixed: bool) -> list[str]:
+    """Réglages du notch dynamique pour qu'il traite une raie à f0 (plage, nombre de notchs, mise en service)."""
+    if not dyn_notch_active(s):
+        if s.pid_rate_hz < DYN_NOTCH_PID_MIN_HZ:
+            return []
+        lo = max(DYN_NOTCH_MIN_HZ, int((f0 - DYN_NOTCH_MARGIN_HZ) // 10 * 10))
+        hi = min(DYN_NOTCH_MAX_MAX_HZ, max(DYN_NOTCH_MAX_MIN_HZ, int(-(-(f0 + DYN_NOTCH_MARGIN_HZ) // 10) * 10)))
+        return [f"Mettez en service le notch dynamique : dyn_notch_count = 1, dyn_notch_min_hz ≤ {lo}, "
+                f"dyn_notch_max_hz ≥ {hi}."]
+    lo, hi = f0 - DYN_NOTCH_MARGIN_HZ, f0 + DYN_NOTCH_MARGIN_HZ
+    if lo < s.dyn_notch_min_hz or hi > s.dyn_notch_max_hz:
+        new_lo = max(DYN_NOTCH_MIN_HZ, min(s.dyn_notch_min_hz, int(lo // 10 * 10)))
+        new_hi = min(DYN_NOTCH_MAX_MAX_HZ, max(s.dyn_notch_max_hz, int(-(-hi // 10) * 10)))
+        return [f"Notch dynamique : plage {s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz → dyn_notch_min_hz = "
+                f"{new_lo}, dyn_notch_max_hz = {new_hi} ({DYN_NOTCH_MARGIN_HZ} Hz de marge autour de la raie)."]
+    if fixed:
+        return [f"Elle est dans la plage du notch dynamique ({s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz), qui "
+                "peut la suivre si un notch est libre."]
+    return [f"La raie est dans la plage du notch dynamique mais passe quand même : dyn_notch_count "
+            f"{s.dyn_notch_count} → {min(s.dyn_notch_count + 1, DYN_NOTCH_COUNT_MAX)} (si le Q est trop haut pour elle, "
+            "le constat « Notch dynamique : Q trop haut » le dit)."]
+
+
+def _static_notch_action(s, f0: float, cutoff: tuple[int, bool], lead: str) -> list[str]:
+    """Notch statique, seulement dans un cas exceptionnel (static_notch_case)."""
+    why = static_notch_case(s, f0)
+    return [f"{lead} notch statique ({why}) : {_static_notch_text(f0, cutoff)}."] if why else []
 
 
 def dyn_notch_view(log: FlightLog, sel: slice, fixed_hz: float | None = None) -> dict | None:

@@ -275,9 +275,9 @@ def test_rpm_and_dyn_notch_q_steps():
     # Air65 d'origine : harmoniques effacées, bruit sous les repères → Q du filtre RPM + 100
     s, f = findings("Cedric/Air65/stock.bbl")
     assert f["Filtre RPM : Q peut monter"].actions[0].startswith(f"rpm_filter_q {s.rpm_q} → {s.rpm_q + 100}")
-    # banc d'hélices 5" : raies étroites, aucune qui passe → Q calculé, plafonné à 450 avec filtre RPM
+    # banc d'hélices 5" : raies étroites, aucune qui passe → Q calculé, plafonné à 500 avec filtre RPM
     s, f = findings("Cedric/Benchmark Props 5inch/HQ J37.bbl")
-    assert f["Notch dynamique : Q peut monter"].actions[0].startswith(f"dyn_notch_q {s.dyn_notch_q} → 450")
+    assert f["Notch dynamique : Q peut monter"].actions[0].startswith(f"dyn_notch_q {s.dyn_notch_q} → 500")
     # InertiaFPV : raie à 239 Hz trop haute pour Q 500 et encore à +6 dB dans le gyro filtré → Q calculé plus bas
     s, f = findings("1. PTB/InertiaFPV/LOG00001.bfl")
     q = f["Notch dynamique : Q trop haut pour les raies à suivre"]

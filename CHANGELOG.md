@@ -6,6 +6,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Raies fixes et raies encore visibles après filtrage : l'Assistant ne propose plus de notch statique, sauf si le
+  notch dynamique ne peut pas traiter la raie (boucle PID sous 2 kHz, 7 notchs en service, raie au-delà de
+  980 Hz), et jamais sous 100 Hz. Il conseille la mécanique, puis la plage ou le nombre de notchs du notch
+  dynamique (D-024).
+- Notch dynamique : « Q peut monter » propose jusqu'à 500 (au lieu de 450), la valeur du configurateur avec le
+  filtre RPM et la plus fréquente des presets officiels (W-003).
 - Notch dynamique : le Q conseillé ne descend plus sous 250 (au lieu de 100), le plus bas Q utilisé avec le
   filtre RPM dans les presets officiels et dans le corpus. Un notch plus large ajouterait beaucoup de retard :
   quand une raie demanderait moins, l'Assistant renvoie à sa cause mécanique. Concerne 8 vols du corpus (W-003).
