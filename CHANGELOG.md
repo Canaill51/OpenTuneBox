@@ -5,6 +5,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+## [0.8.0] — 2026-10-13
+
 ### Ajouté
 - `scripts/advisor_rates.py --compare AVANT.json APRÈS.json` : sessions du corpus dont un constat de l'assistant
   a changé, texte et chiffres compris, et temps de calcul gagné ; chaque passage garde le texte complet des
@@ -14,9 +16,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Assistant et Simulateur de filtres plus rapides : la réponse des filtres se calcule étage par étage dans un
   noyau numba (au lieu de polynômes reconstruits pour chaque fenêtre), les notchs RPM de tous les moteurs
   en une fois, et le simulateur partage les réponses de chaque fenêtre entre les axes, le gyro et le terme D.
-  Sur tout le corpus, l'assistant passe de 3743 s à 2339 s de calcul cumulé (session la plus lente : 84 s → 28 s ;
-  `opentunebox report` sur le plus gros log : 28 s → 13,5 s),
-  avec les mêmes constats sur les 705 sessions.
+  Sur tout le corpus, l'assistant passe de 3743 s à 2339 s de calcul cumulé (session la plus lente : 84 s →
+  28 s ; `opentunebox report` sur le plus gros log : 28 s → 13,5 s), avec les mêmes constats sur les 705
+  sessions.
 - Moins de mémoire : les courbes d'un log sont gardées en simple précision (float32, D-029), le décodeur rend
   ses tableaux à la taille exacte et l'écart des trames impossibles ne recopie plus tout le log. Plus gros
   log du corpus (39 Mo) : 458 Mo une fois chargé au lieu de 708 Mo, pic du chargement 1347 Mo au lieu de
@@ -520,7 +522,8 @@ Première version complète.
 - Lanceur Linux (menu des applications) et recette PyInstaller.
 - Guide d'utilisation en français.
 
-[Non publié]: ../../compare/v0.7.0...HEAD
+[Non publié]: ../../compare/v0.8.0...HEAD
+[0.8.0]: ../../releases/tag/v0.8.0
 [0.7.0]: ../../releases/tag/v0.7.0
 [0.6.0]: ../../releases/tag/v0.6.0
 [0.5.0]: ../../releases/tag/v0.5.0
