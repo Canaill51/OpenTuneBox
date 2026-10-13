@@ -60,89 +60,7 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
-### L-028 : le filtre RPM n'efface pas toute l'harmonique ; la retirer du spectre cache ce que le notch dynamique suit
-- **Symptôme** — 2026-10-13 : les pics prévus pour le notch dynamique ne retrouvaient que 48 % des fréquences
-  que le firmware suit vraiment (debug FFT_FREQ, 598 sessions) ; moins qu'en ne retirant rien (50 %).
-- **Cause** — mesurée : 417 sessions sur 598 ont une harmonique à poids réduit (« 100, 50, 80 »…), le filtre
-  RPM en laisse passer (1 − poids), et ses flancs restent même à poids 100 ; le firmware suit ce reste.
-  Retirer les bandes h × [moteur le plus lent ; le plus rapide] ± 5 % le cachait.
-- **Règle** — pour prévoir ce qui passe après un filtre du firmware, appliquer sa réponse (|H|², avec poids
-  et Q), jamais un masque ; vérifier contre le debug FFT_FREQ quand le log l'a (`bf_filters.fft_freq_centres`).
-- **Preuve** — D-022 ; `tests/test_analysis.py:test_dyn_notch_targets_follow_rpm_weights` ;
-  [assistant.md](assistant.md#notch-dynamique-2026-10-05).
-
-### L-027 : `corrupt_frames` compte des tentatives de resynchronisation, pas du temps perdu
-- **Symptôme** — 2026-10-12 : le constat « Trames corrompues » (> 20) manquait des vols qui perdent 3,7 % de
-  leur durée (9 tentatives) et signalait un vol qui en perd 1,2 % (4 842 tentatives).
-- **Cause** — lue dans `decoder/core.py` : le compteur augmente à chaque reprise de lecture un octet plus loin ;
-  une zone abîmée en ajoute beaucoup, un trou net (pause d'écriture) parfois aucun. Les analyses, elles,
-  recollent le vol de part et d'autre du trou : faux bruit jusqu'à +18 dB (W-010).
-- **Règle** — juger un log abîmé par ses trous de temps (`FlightLog.recording_gaps`), jamais par
-  `corrupt_frames` ; mesurer l'effet d'un défaut d'enregistrement en recalculant sans les fenêtres touchées.
-  Toute nouvelle analyse à fenêtres prend `breaks` (`FlightLog.breaks`, D-020).
-- **Preuve** — branche feat/calibrate-corrupt-frames ([assistant.md](assistant.md#trous-dans-lenregistrement-2026-10-12)).
-
-### L-026 : injecter une oscillation en filtrant le gyro ne l'ajoute presque pas à la réponse indicielle
-- **Symptôme** — 2026-10-12 : pour mesurer la sensibilité des vagues, un mode peu amorti à 45 ou 60 Hz
-  ajouté au gyro réel (gyro + c × (mode(gyro) − gyro)) ne change presque rien, même à c = 0,2 ; parfois le
-  rapport baisse.
-- **Cause** — mesurée : le gyro contient très peu de mouvement lié à la consigne à ces fréquences ; la
-  déconvolution ne voit que la part liée à la consigne, et l'oscillation ajoutée n'y pèse qu'environ 1 %.
-- **Règle** — injecter la vague par la consigne : gyro + A × (mode peu amorti − mode amorti)(consigne), qui
-  ajoute à la réponse une vague d'amplitude connue, avec le vrai bruit du vol. Choisir des vols au rapport
-  ordinaire (≈ 1,2), pas ceux qui déclenchent déjà. Un rapport au bruit grandit avec le nombre de fenêtres :
-  une ondulation de 0,35 % y dépasse 3 sur 1 000 fenêtres.
-- **Preuve** — branche feat/calibrate-step-waves (`docs/assistant.md`, « Vagues »).
-
-### L-025 : la couverture de tests ignore le code compilé par numba, et la CI ne voit pas le corpus
-- **Symptôme** — 2026-10-12 : `pytest --cov` donne 14 % pour `decoder/core.py` avec ou sans corpus, alors
-  que le décodeur tourne sur tout le corpus ; et 35 % au total sans corpus contre 86 % avec.
-- **Cause** — mesurée : les fonctions `@njit(cache=True)` s'exécutent en code machine, invisible pour
-  `coverage` ; et tous les tests marqués `corpus` sont ignorés sur GitHub (pas de vrais logs), y compris,
-  avant cette date, des tests de fonctions pures placés dans un fichier marqué `corpus` en bloc.
-- **Règle** — mesurer le décodeur avec `NUMBA_DISABLE_JIT=1` (le workflow de tests le fait sur
-  `test_decoder.py` et `test_flightlog.py`) ; ne jamais marquer `corpus` un fichier entier qui contient des
-  tests purs ; tout outil ou analyse doit avoir un test sur les logs synthétiques (`tests/synthetic.py`),
-  le corpus ne sert qu'à vérifier des valeurs réelles. Un vrai extrait versionné (`tests/data/jeno5_5s.bbl`,
-  `tests/test_real_log.py`) fait passer l'en-tête et les encodages réels en CI, numba désactivé compris.
-- **Preuve** — mesure du 2026-10-12 (`pytest-cov`, installé dans `.venv` seulement) ; `tests/test_gui_tools.py`
-  exerce les 8 pages d'outils sans corpus.
-
-### L-024 : un plancher numérique sur le seul dénominateur d'un rapport effondre le spectre simulé au creux des notchs
-- **Symptôme** — 2026-10-12 : test synthétique d'identité de `whatif_spectrum` (mêmes réglages des deux
-  côtés) : spectre « modifié » 90 dB sous le spectre enregistré sur les cases tombant exactement sur un
-  centre de notch (raie à 200 Hz, pas de fréquence 3,33 Hz). Sur les vrais logs, l'identité tenait à
-  0,009 dB (L-011) : les centres des notchs y tombent rarement pile sur une case.
-- **Cause** — mesurée : au creux d'un notch, |H_actuel|² et |H_modifié|² valent tous deux ~1e-30 ;
-  `r_mod / max(r_cur, 1e-12)` donnait ~1e-18 au lieu de ~1. Le plancher, posé contre une division par zéro,
-  ne s'appliquait qu'à un côté du rapport.
-- **Règle** — un rapport de deux grandeurs qui peuvent être minuscules ensemble se calcule sans plancher
-  (`np.where(den > 0, num / den, 1.0)`) ; vérifier toute méthode « relative » par un test d'identité
-  synthétique qui place une raie exactement sur une case et sur un centre de notch.
-- **Preuve** — `tests/test_bf_filters.py:test_whatif_spectrum_identity_when_nothing_changes` (rouge avant,
-  vert après) et `test_whatif_spectrum_follows_filter_change` (écart analytique à 0,1 dB).
-
-### L-023 : un log supprimé du corpus fait ignorer des tests sans bruit, ou les fait échouer
-- **Symptôme** — 2026-10-12 : après la suppression de logs par Cédric, 6 tests en `FileNotFoundError` et
-  6 autres simplement ignorés (`s` dans la sortie de `pytest`), dont le Spectre, le simulateur de filtres et
-  le retard consigne → gyro : une perte de couverture invisible sans `pytest -rs`.
-- **Cause** — mesurée : certains tests ne vérifiaient que l'existence du dossier du corpus, d'autres
-  ignoraient le test dès qu'un fichier manquait (dossier `1. PTB/Allykill` supprimé).
-- **Règle** — ouvrir un log du corpus par `tests/corpus_paths.py:corpus_log` (test ignoré en nommant le log) ;
-  après un changement du corpus, lancer `pytest -rs` et remplacer chaque log nommé par un log aux mêmes
-  propriétés, cherché par un passage sur tout le corpus (compétence `calculs-corpus`).
-- **Preuve** — avant : 233 réussis, 6 en échec, 6 ignorés ; après : 246 réussis, aucun ignoré.
-
-### L-022 : un commit est passé avec la documentation en échec : crochet contourné et code de sortie masqué
-- **Symptôme** — 2026-10-12, branche docs/project-registers : commit enregistré alors que
-  `tests/test_docs.py` affichait « 1 failed » ; aucun blocage.
-- **Cause** — mesurée : le crochet `.claude/hooks/check-docs.sh` ne réagissait qu'au texte `git commit`, et
-  la commande s'écrivait `git -c user.name=… commit` ; la vérification lancée à la main finissait par
-  `| tail -1`, dont le code de sortie (0) remplace celui de `pytest`.
-- **Règle** — le crochet reconnaît aussi `git -c … commit` ; ne jamais enchaîner `&&` après un `pytest` passé
-  dans un tube (`| tail`, `| grep`) : lancer `pytest` seul, ou vérifier « failed » dans sa sortie.
-- **Preuve** — avant correction, crochet à 0 sur `git -c user.name=X commit` avec un numéro inexistant
-  dans `docs/lecons.md` ; après, code 2.
+Aucune entrée en attente de tri (dernier tri : 2026-10-13, avant la version 0.7.0).
 
 ## 1. Décodeur et logs
 
@@ -191,6 +109,17 @@ trop indulgents et parfois « Dépassement dû au feedforward ». Règle précis
 selon le feedforward lit `FlightConditions.ff_gain(axe)` (0 en Angle), jamais `settings.pids[axe].F`. Contrôle
 automatique : `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_thresholds_without_feedforward`
 (D-025).
+
+### L-027 : `corrupt_frames` compte des tentatives de resynchronisation, pas du temps perdu
+- **Symptôme** — 2026-10-12 : le constat « Trames corrompues » (> 20) manquait des vols qui perdent 3,7 % de
+  leur durée (9 tentatives) et signalait un vol qui en perd 1,2 % (4 842 tentatives).
+- **Cause** — lue dans `decoder/core.py` : le compteur augmente à chaque reprise de lecture un octet plus loin ;
+  une zone abîmée en ajoute beaucoup, un trou net (pause d'écriture) parfois aucun. Les analyses, elles,
+  recollent le vol de part et d'autre du trou : faux bruit jusqu'à +18 dB (W-010).
+- **Règle** — juger un log abîmé par ses trous de temps (`FlightLog.recording_gaps`), jamais par
+  `corrupt_frames` ; mesurer l'effet d'un défaut d'enregistrement en recalculant sans les fenêtres touchées.
+  Toute nouvelle analyse à fenêtres prend `breaks` (`FlightLog.breaks`, D-020).
+- **Preuve** — branche feat/calibrate-corrupt-frames ([assistant.md](assistant.md#trous-dans-lenregistrement-2026-10-12)).
 
 ## 2. Analyses
 
@@ -266,6 +195,43 @@ automatique : `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_th
   profil provisoire (D-011, compétence `assistant-seuils`).
 - **Preuve** — commit `95e41d6` (limite whoop 420 → 345 Hz, seuils recalculés).
 
+### L-024 : un plancher numérique sur le seul dénominateur d'un rapport effondre le spectre simulé au creux des notchs
+- **Symptôme** — 2026-10-12 : test synthétique d'identité de `whatif_spectrum` (mêmes réglages des deux
+  côtés) : spectre « modifié » 90 dB sous le spectre enregistré sur les cases tombant exactement sur un
+  centre de notch (raie à 200 Hz, pas de fréquence 3,33 Hz). Sur les vrais logs, l'identité tenait à
+  0,009 dB (L-011) : les centres des notchs y tombent rarement pile sur une case.
+- **Cause** — mesurée : au creux d'un notch, |H_actuel|² et |H_modifié|² valent tous deux ~1e-30 ;
+  `r_mod / max(r_cur, 1e-12)` donnait ~1e-18 au lieu de ~1. Le plancher, posé contre une division par zéro,
+  ne s'appliquait qu'à un côté du rapport.
+- **Règle** — un rapport de deux grandeurs qui peuvent être minuscules ensemble se calcule sans plancher
+  (`np.where(den > 0, num / den, 1.0)`) ; vérifier toute méthode « relative » par un test d'identité
+  synthétique qui place une raie exactement sur une case et sur un centre de notch.
+- **Preuve** — `tests/test_bf_filters.py:test_whatif_spectrum_identity_when_nothing_changes` (rouge avant,
+  vert après) et `test_whatif_spectrum_follows_filter_change` (écart analytique à 0,1 dB).
+
+### L-026 : injecter une oscillation en filtrant le gyro ne l'ajoute presque pas à la réponse indicielle
+- **Symptôme** — 2026-10-12 : pour mesurer la sensibilité des vagues, un mode peu amorti à 45 ou 60 Hz
+  ajouté au gyro réel (gyro + c × (mode(gyro) − gyro)) ne change presque rien, même à c = 0,2 ; parfois le
+  rapport baisse.
+- **Cause** — mesurée : le gyro contient très peu de mouvement lié à la consigne à ces fréquences ; la
+  déconvolution ne voit que la part liée à la consigne, et l'oscillation ajoutée n'y pèse qu'environ 1 %.
+- **Règle** — injecter la vague par la consigne : gyro + A × (mode peu amorti − mode amorti)(consigne), qui
+  ajoute à la réponse une vague d'amplitude connue, avec le vrai bruit du vol. Choisir des vols au rapport
+  ordinaire (≈ 1,2), pas ceux qui déclenchent déjà. Un rapport au bruit grandit avec le nombre de fenêtres :
+  une ondulation de 0,35 % y dépasse 3 sur 1 000 fenêtres.
+- **Preuve** — branche feat/calibrate-step-waves (`docs/assistant.md`, « Vagues »).
+
+### L-028 : le filtre RPM n'efface pas toute l'harmonique ; la retirer du spectre cache ce que le notch dynamique suit
+- **Symptôme** — 2026-10-13 : les pics prévus pour le notch dynamique ne retrouvaient que 48 % des fréquences
+  que le firmware suit vraiment (debug FFT_FREQ, 598 sessions) ; moins qu'en ne retirant rien (50 %).
+- **Cause** — mesurée : 417 sessions sur 598 ont une harmonique à poids réduit (« 100, 50, 80 »…), le filtre
+  RPM en laisse passer (1 − poids), et ses flancs restent même à poids 100 ; le firmware suit ce reste.
+  Retirer les bandes h × [moteur le plus lent ; le plus rapide] ± 5 % le cachait.
+- **Règle** — pour prévoir ce qui passe après un filtre du firmware, appliquer sa réponse (|H|², avec poids
+  et Q), jamais un masque ; vérifier contre le debug FFT_FREQ quand le log l'a (`bf_filters.fft_freq_centres`).
+- **Preuve** — D-022 ; `tests/test_analysis.py:test_dyn_notch_targets_follow_rpm_weights` ;
+  [assistant.md](assistant.md#notch-dynamique-2026-10-05).
+
 ## 3. Interface Qt
 
 ### L-014 : le style natif Windows 11 ignore la palette et grise les textes
@@ -333,6 +299,44 @@ automatique : `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_th
 - **Cause** — mesurée : `console=False` ne crée pas de flux de sortie.
 - **Règle** — ne jamais utiliser `sys.stdout` / `sys.stderr` sans vérifier qu'ils existent.
 - **Preuve** — `gui/app.py:hard_exit` ; commit `6c63e6e`.
+
+## 5. Outillage
+
+### L-022 : un commit est passé avec la documentation en échec : crochet contourné et code de sortie masqué
+- **Symptôme** — 2026-10-12, branche docs/project-registers : commit enregistré alors que
+  `tests/test_docs.py` affichait « 1 failed » ; aucun blocage.
+- **Cause** — mesurée : le crochet `.claude/hooks/check-docs.sh` ne réagissait qu'au texte `git commit`, et
+  la commande s'écrivait `git -c user.name=… commit` ; la vérification lancée à la main finissait par
+  `| tail -1`, dont le code de sortie (0) remplace celui de `pytest`.
+- **Règle** — le crochet reconnaît aussi `git -c … commit` ; ne jamais enchaîner `&&` après un `pytest` passé
+  dans un tube (`| tail`, `| grep`) : lancer `pytest` seul, ou vérifier « failed » dans sa sortie.
+- **Preuve** — avant correction, crochet à 0 sur `git -c user.name=X commit` avec un numéro inexistant
+  dans `docs/lecons.md` ; après, code 2.
+
+### L-023 : un log supprimé du corpus fait ignorer des tests sans bruit, ou les fait échouer
+- **Symptôme** — 2026-10-12 : après la suppression de logs par Cédric, 6 tests en `FileNotFoundError` et
+  6 autres simplement ignorés (`s` dans la sortie de `pytest`), dont le Spectre, le simulateur de filtres et
+  le retard consigne → gyro : une perte de couverture invisible sans `pytest -rs`.
+- **Cause** — mesurée : certains tests ne vérifiaient que l'existence du dossier du corpus, d'autres
+  ignoraient le test dès qu'un fichier manquait (dossier `1. PTB/Allykill` supprimé).
+- **Règle** — ouvrir un log du corpus par `tests/corpus_paths.py:corpus_log` (test ignoré en nommant le log) ;
+  après un changement du corpus, lancer `pytest -rs` et remplacer chaque log nommé par un log aux mêmes
+  propriétés, cherché par un passage sur tout le corpus (compétence `calculs-corpus`).
+- **Preuve** — avant : 233 réussis, 6 en échec, 6 ignorés ; après : 246 réussis, aucun ignoré.
+
+### L-025 : la couverture de tests ignore le code compilé par numba, et la CI ne voit pas le corpus
+- **Symptôme** — 2026-10-12 : `pytest --cov` donne 14 % pour `decoder/core.py` avec ou sans corpus, alors
+  que le décodeur tourne sur tout le corpus ; et 35 % au total sans corpus contre 86 % avec.
+- **Cause** — mesurée : les fonctions `@njit(cache=True)` s'exécutent en code machine, invisible pour
+  `coverage` ; et tous les tests marqués `corpus` sont ignorés sur GitHub (pas de vrais logs), y compris,
+  avant cette date, des tests de fonctions pures placés dans un fichier marqué `corpus` en bloc.
+- **Règle** — mesurer le décodeur avec `NUMBA_DISABLE_JIT=1` (le workflow de tests le fait sur
+  `test_decoder.py`, `test_flightlog.py` et `test_real_log.py`) ; ne jamais marquer `corpus` un fichier entier qui contient des
+  tests purs ; tout outil ou analyse doit avoir un test sur les logs synthétiques (`tests/synthetic.py`),
+  le corpus ne sert qu'à vérifier des valeurs réelles. Un vrai extrait versionné (`tests/data/jeno5_5s.bbl`,
+  `tests/test_real_log.py`) fait passer l'en-tête et les encodages réels en CI, numba désactivé compris.
+- **Preuve** — mesure du 2026-10-12 (`pytest-cov`, installé dans `.venv` seulement) ; `tests/test_gui_tools.py`
+  exerce les 8 pages d'outils sans corpus.
 
 ## Index rapide
 

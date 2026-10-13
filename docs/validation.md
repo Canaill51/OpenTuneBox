@@ -78,7 +78,8 @@ stationnaire + wobble 92 à 409 °/s, vols ordinaires 174 °/s en médiane ; 108
 | Phase D (OpenTuneBox) | 2 % | 5 % |
 
 La méthode de phase résiste mieux au manque de mouvement, mais le retard d'un vol stationnaire ne vaut
-qu'à son régime : l'assistant ne conseille rien sur le retard sous 50 °/s. Sans ces vols, le p90 du retard
+qu'à son régime : l'assistant ne conseille rien sur le retard sous le seuil des mouvements (50 °/s à cette
+date, 30 °/s depuis D-026, ci-dessous). Sans ces vols, le p90 du retard
 gyro passe de 2,04 à 1,85 ms en 5" et de 1,94 à 1,71 ms en 2–3,5" : repères de retard recalculés
 sur ces seuls vols (`docs/assistant.md`, « Calibration »).
 
@@ -163,7 +164,7 @@ lecture échantillon par échantillon).
     le D domine au croisement (|Ĉd/Ĉe| > 1) pour 62 % des axes. Avec les seuils actuels, sessions signalées :
     pic > 6 dB 29 % (14 % avant), marge < 40° 3 % (1 % avant) ;
   - `test_matches_ptb_damping_sweep` inchangé (partie Wiener identique).
-- Interface : les 9 outils s'ouvrent et calculent sans erreur sur de vrais logs (`tests/test_gui_spectral.py`,
+- Interface : les 8 outils s'ouvrent et calculent sans erreur sur de vrais logs (`tests/test_gui_spectral.py`,
   `tests/test_gui_step.py`, `tests/test_advisor.py`).
 - Documentation : liens, chemins, outils, modules, fichiers publiés et langue vérifiés à chaque `pytest`
   (`tests/test_docs.py`).

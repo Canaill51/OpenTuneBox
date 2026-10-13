@@ -24,7 +24,8 @@ mettre la documentation à jour avec la compétence `docs-sync` (un crochet bloq
 .venv/bin/python scripts/validate_corpus.py "$OTB_LOGS" --start 300    # reprise après un blocage
 ```
 Statuts : `ok`, `gap` (trames tronquées avant un trou SD, tolérées), `slow` (trames S corrompues acceptées
-par la référence), `rows` / `values` (à examiner), `refhang` (référence bloquée, délai 180 s).
+par la référence), `rows` / `values` (à examiner), `refhang` (référence bloquée, délai 180 s), `noref`
+(référence introuvable ou sortie vide).
 Référence : `blackbox_decode` de PIDtoolbox (`OTB_REF_DECODER`, défaut `~/.local/share/PIDtoolboxProV094/`).
 Objectif : ne pas faire baisser la proportion de sessions `ok` (95 %).
 

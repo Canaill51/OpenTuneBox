@@ -50,9 +50,10 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 - Vérifier le **taux de déclenchement** d'un seuil sur le corpus (part des sessions signalées,
   `scripts/advisor_rates.py`, avant / après le changement) : très
   au-dessus de 10 % → seuil trop sévère ; proche de 0 % → règle inutile.
-- **Séparer selon le réglage qui fausse la mesure** : le feedforward gonfle le pic de réponse (p90 1,15
-  sans, 1,42 avec, une voix par drone) → deux jeux de paliers (`rules.STEP_PEAK_HIGH`, `STEP_PEAK_HIGH_FF`).
-  Vérifier ce cas pour toute mesure liée à un réglage (F, filtres, RPM…).
+- **Séparer selon le réglage qui fausse la mesure** : le feedforward gonfle le pic de réponse (p90 1,19
+  sans, 1,59 avec, une voix par drone, D-025) → deux jeux de paliers (`rules.STEP_PEAK_HIGH`, `STEP_PEAK_HIGH_FF`).
+  Vérifier ce cas pour toute mesure liée à un réglage (F, filtres, RPM…), et juger le réglage **en service**
+  (le feedforward est coupé en mode Angle), pas celui de l'en-tête (L-005).
 - Arrondis : bruit au 0,1 dB ; latence p10 vers le bas, p90 vers le haut (ms entière) ; retards de filtres
   au dixième supérieur (+0,1 ms).
 - **Ne changer aucun seuil sans montrer les chiffres à Cédric et avoir son accord.**

@@ -80,7 +80,7 @@ Règles :
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/pytest -q                                  # tous les tests (≈ 30 s avec le corpus, 1 s sans)
+.venv/bin/pytest -q                                  # tous les tests (≈ 4 min avec le corpus, 1 min sans)
 .venv/bin/pytest -q -m "not corpus"                  # tests rapides, sans vrais logs
 .venv/bin/python -m pyflakes src tests scripts packaging/make_icons.py   # lint (doit être vide)
 .venv/bin/pytest -q tests/test_docs.py               # cohérence de la documentation (< 1 s)

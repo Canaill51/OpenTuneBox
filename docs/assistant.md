@@ -320,7 +320,8 @@ meilleur log pour identifier le bruit.
   vol en deux ne départage pas les seuils : même à 10 dB, 18 % des raies d'une moitié manquent dans
   l'autre, car le spectre change pendant le vol (régime, batterie).
 - **Filtre RPM** : harmonique visible hors du filtre RPM → `rpm_filter_harmonics` (4 sessions, souvent un
-  whoop réglé sur 1 harmonique) ; harmonique visible malgré un poids de 100 → `motor_poles`, Q −30 % (60).
+  whoop réglé sur 1 harmonique) ; harmonique visible malgré un poids de 100 → `motor_poles`, `rpm_filter_q`
+  −100 (borne 250).
 - **Log trop lent** : sous le minimum, aucun allègement (poids RPM, LPF1 du gyro, nombre de notchs, raies
   résiduelles, relèvement du D) : le spectre est replié.
 
@@ -554,7 +555,7 @@ Quand l'assistant n'écrit pas de stratégie (moins de deux étapes), il indique
 faire, ou qu'aucun n'est conseillé. Les constats du gyro sont répartis en blocs (filtre RPM, notch
 dynamique, passe-bas ; étapes de `rules.FILTER_STAGES`) ; un bloc sans constat à appliquer reçoit un
 verdict qui reprend les repères existants (harmonique effacée à 4 dB au plus, gain de poids 0,5, marge
-6 dB) et dit quand l'assistant proposerait un changement (Q du filtre RPM : vol avec mouvements, retard
+3 dB) et dit quand l'assistant proposerait un changement (Q du filtre RPM : vol avec mouvements, retard
 au-dessus du repère, bruit faible). Seules valeurs ajoutées, toutes du firmware :
 `rpm_filter_harmonics = 3` proposé si le filtre RPM est coupé malgré l'eRPM (défaut de Betaflight,
 `pg/rpm_filter.c`), `blackbox_disable_rpm = OFF` si `dshot_bidir` est actif sans eRPM enregistré. Un nouveau constat de bruit ou de filtre doit avoir sa place dans
@@ -617,7 +618,8 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   mi-puissance et hauteur au-dessus du bruit voisin sur le gyro non filtré (harmoniques traitées retirées,
   le plus large et le plus haut du roll et du pitch) ; Q nécessaire = le plus haut Q qui ramène chaque raie
   à 4 dB du bruit voisin sur sa demi-largeur (forme du notch de Betaflight [S31]), arrondi à 50 vers le bas,
-  100 au moins (pic que le masque rend non mesurable : mesuré sur le spectre après filtre RPM). Q actuel plus
+  250 au moins (`DYN_NOTCH_Q_LOW`, voir « Notch dynamique » ; pic que le masque rend non mesurable : mesuré
+  sur le spectre après filtre RPM). Q actuel plus
   haut **et** une raie à suivre encore à plus de 4 dB dans le gyro filtré → « Q trop haut pour les raies à
   suivre » (`dyn_notch_q` = Q nécessaire) ;
   sinon, sans raie qui passe et avec gyro et D sous leurs repères, « Q peut monter » jusqu'au Q nécessaire,
@@ -706,8 +708,8 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 
 | Règle | Seuil | Origine | Remarque |
 |---|---|---|---|
-| Taille par l'eRPM et les cellules | 345 / 290 / 160 / 115 Hz ; 1S → whoop ; 2–4S entre 200 et 290 Hz → 2–3,5" | Corpus + estimation | Vérifié sur 41 drones de taille connue, 38 justes (voir « Taille du drone ») ; la limite 8"+ (115 Hz) n'est vérifiée que sur 6 drones. Le tableau de fréquences par taille de `spec-methodes.md` est une estimation qui ne correspond pas aux logs |
-| Taille par le nom | « whoop », « Meteor », 65 ou 75 (nombre entier) ; taille en pouces à un ou deux chiffres, bornes 3,8 / 5,8 / 7,8 | Estimation | Mis de côté par Cédric le 2026-10-12 (W-003) |
+| Taille par l'eRPM et les cellules | 345 / 290 / 160 / 115 Hz ; 1S → whoop ; 2–4S entre 200 et 290 Hz → 2–3,5" | Corpus + estimation | Vérifié sur 41 drones de taille connue, 38 justes (voir « Taille du drone ») ; la limite 8"+ (115 Hz) n'est vérifiée que sur 6 drones. `spec-methodes.md` reprend ces bornes (`hover_hz`) depuis le 2026-10-13, à la place d'un tableau estimé par la formule KV × tension |
+| Taille par le nom | « whoop », « Meteor », 65 ou 75 (nombre entier) ; taille en pouces à un ou deux chiffres, bornes 3,8 / 5,8 / 7,8 | Estimation | Repli quand ni l'eRPM ni la tension ne donnent la taille ; lecture corrigée le 2026-10-12 (« 10in », « 1750 »). Calibration des bornes mise de côté par Cédric le 2026-10-12, reprise à sa demande (W-003) |
 | Profil par défaut | 5" | Corpus | Taille la plus fréquente (366 sessions sur 707) |
 | Fréquence du log trop basse | gyro 8 kHz : 2 kHz ; gyro 3,2 kHz : 1,6 kHz (plus petite fraction de la boucle PID ≥ 1,6 kHz) | Pilote expérimenté (Cédric, 2026-10-05) + firmware | Le blackbox sous-échantillonne sans filtre (`blackbox_sample_rate` 1/1 à 1/16 de la boucle PID, `cli/settings.c`) : tout bruit au-delà de la moitié de la fréquence du log se replie. 178 sessions sur 681 (26 %) en dessous, surtout des gyros à 8 kHz logués à 1 kHz |
 | Fréquence du log pour les PID | 1 kHz (bloquant pour une série sous 500 Hz) | Pilote expérimenté (Cédric, 2026-10-12) + théorie | Réponse indicielle et latence à la milliseconde près ; la bande analysée s'arrête à 0,4 × la fréquence du log (200 Hz à 500 Hz). Les mouvements du manche restent sous quelques dizaines de hertz : le repliement du bruit moteur pèse peu sur la réponse |
@@ -752,7 +754,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Marge autour des harmoniques retirées | ± 5 % de la fréquence moteur, harmoniques 1 à 8 | Corpus | Raies du vol stationnaire comparées au hasard (« Stratégie de filtrage et vol stationnaire », 2026-10-13) : flancs jusqu'à 3 % (fondamentale), 1 % (2e), aucun (3e) ; avant : 5 % de l'harmonique pour les trois premières (estimation) |
 | Raie moteur « visible » | > 4 dB au-dessus du bruit voisin | Corpus | Même mesure là où il n'y a aucune raie (0,45 et 0,6 × la fréquence moteur) : au-dessus de 4 dB dans moins de 1 % des sessions (3 dB : 1,4 à 2,8 %), voir « Filtre RPM : poids et Q » (2026-10-12). Repris tel quel pour les raies hors moteurs après filtrage, sans calibration propre |
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
-| Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 10 et 8 drones seulement |
+| Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 11 et 20 drones seulement (W-002) |
 | Seuils du profil 8"+ | voir « Calibration » | Estimation | 6 drones, 20 sessions |
 | Résonance | raie > 6,8 (5") à 8,2 dB (7") selon la taille, 7,9 dB commun ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, pas une raie moteur (fondamentale ± 15 % : test des deux trajets, −2 dB ; harmoniques 2 et 3 : ± 8 %) | Corpus (seuil et méthode) | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage. Méthode vérifiée le 2026-10-13 (« Règles », Résonance) : 8 tranches au moins (en dessous, raies moteur), rien au-delà de 900 Hz ; exclusion ± 8 % imparfaite, remplacée sur la fondamentale par le test des deux trajets le 2026-10-13 (D-027 : 93–94 % des raies moteur et 89–90 % des raies fixes reconnues) |
 | Pic suivi par le notch dynamique | > 2 × la puissance moyenne de la plage (+3 dB), cases de 18,5 Hz | Firmware | `flight/dyn_notch_filter.c` (`sdftNoiseThreshold *= 2`, bruit au-dessus de 60 Hz) ; ce que le filtre RPM laisse passer d'après sa réponse (Q, poids, fondu), comparé au firmware sur 598 sessions (« Notch dynamique ») |

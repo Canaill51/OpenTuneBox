@@ -27,9 +27,9 @@ description: Modifier ou relire le guide intégré d'OpenTuneBox (page Guide : f
   français** (anglais entre parenthèses pour les curseurs PID, `log_check.CONFIGURATOR_SLIDERS`).
 - **Configurateur d'abord, CLI en repli** ; un changement = une position de curseur quand c'est possible.
   Correspondances vérifiées : [reference-configurateur.md](reference-configurateur.md).
-- Protocole et valeurs décidés par Cédric le 2026-10-12 (mémoire « guide-v2-decisions ») : ne pas les changer
-  sans lui demander. Chaque valeur a son origine dans `docs/assistant.md` (« Origine des seuils ») et ses
-  sources dans `docs/spec-methodes.md` ([S24], [S25], [S33]–[S36]).
+- Protocole et valeurs décidés par Cédric le 2026-10-12 : ne pas les changer sans lui demander. Chaque valeur
+  a son origine dans `docs/assistant.md` (« Origine des seuils », lignes « Guide : … » et « Série
+  Feedforward ») et ses sources dans `docs/spec-methodes.md` ([S24], [S25], [S33]–[S36]).
 - Nouveau point de contrôle : une clé stable dans `check_log`, citée par la case dans `checks` ; un seuil
   nouveau passe par la compétence `assistant-seuils` (chiffres du corpus montrés à Cédric).
 
