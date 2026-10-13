@@ -147,27 +147,56 @@ def coefficients(spec: FilterSpec, fs: float) -> tuple[np.ndarray, np.ndarray]:
 # ---------------------------------------------------------------- réponses en fréquence
 
 
-def _h(b: np.ndarray, a: np.ndarray, freqs: np.ndarray, fs: float) -> np.ndarray:
-    z1 = np.exp(-2j * np.pi * freqs / fs)  # z⁻¹
-    return np.polyval(b[::-1], z1) / np.polyval(a[::-1], z1)
+_MIN_STAGE_GAIN = 1e-15  # gain plancher d'un étage (|H|² ≥ 1e-30), ordre de grandeur des arrondis de l'ancien calcul
+
+
+@njit(cache=True)
+def _sections_response(kinds, fcs, qs, ws, rates, freqs):
+    """Réponse complexe du produit des étages biquad (kinds, fcs, qs, ws, rates : un élément par étage).
+
+    Chaque étage est évalué seul, H = (b0 + b1·z⁻¹ + b2·z⁻²)/(1 + a1·z⁻¹ + a2·z⁻²), puis multiplié :
+    même résultat que le produit des polynômes de `coefficients`, sans en construire aucun.
+    ⚠️ Gain d'un étage jamais sous `_MIN_STAGE_GAIN` : au centre exact d'un notch (harmonique moteur sur une
+    case FFT), un vrai zéro rendrait nul le rapport |H_mod|²/|H_actuel|² du simulateur (L-024).
+    """
+    n = freqs.shape[0]
+    h = np.ones(n, dtype=np.complex128)
+    z = np.empty(n, dtype=np.complex128)  # z⁻¹, recalculé seulement quand la cadence change
+    rate = -1.0
+    for s in range(kinds.shape[0]):
+        if rates[s] != rate:
+            rate = rates[s]
+            for i in range(n):
+                z[i] = np.exp(-2j * np.pi * freqs[i] / rate)
+        b0, b1, b2, a1, a2 = _biquad(kinds[s], fcs[s], qs[s], ws[s], rate)
+        for i in range(n):
+            g = (b0 + z[i] * (b1 + z[i] * b2)) / (1.0 + z[i] * (a1 + z[i] * a2))
+            if abs(g) < _MIN_STAGE_GAIN:
+                g = _MIN_STAGE_GAIN  # creux exact d'un notch : même plancher dans les deux chaînes comparées
+            h[i] *= g
+    return h
+
+
+def _chain_arrays(chain):
+    """Étages biquad d'une chaîne [(FilterSpec, cadence)] en tableaux pour `_sections_response`."""
+    rows = [(kind, f, q, w, fs) for spec, fs in chain for kind, f, q, w in _sections(spec)]
+    if not rows:
+        return (np.zeros(0, np.int64),) + (np.zeros(0),) * 4
+    k, f, q, w, r = zip(*rows)
+    return (np.array(k, np.int64), np.array(f, np.float64), np.array(q, np.float64), np.array(w, np.float64),
+            np.array(r, np.float64))
 
 
 def freq_response(specs: Sequence[FilterSpec], freqs, fs: float) -> np.ndarray:
     """Réponse complexe d'une suite de filtres tous à la cadence fs, aux fréquences `freqs` (Hz)."""
-    freqs = np.asarray(freqs, dtype=np.float64)
-    h = np.ones(freqs.shape, dtype=np.complex128)
-    for spec in specs:
-        h *= _h(*coefficients(spec, fs), freqs, fs)
-    return h
+    return chain_response([(spec, fs) for spec in specs], freqs)
 
 
 def chain_response(chain: Chain, freqs) -> np.ndarray:
     """Réponse complexe d'une chaîne à cadences mixtes : chaque étage évalué à sa propre cadence."""
     freqs = np.asarray(freqs, dtype=np.float64)
-    h = np.ones(freqs.shape, dtype=np.complex128)
-    for spec, fs in chain:
-        h *= _h(*coefficients(spec, fs), freqs, fs)
-    return h
+    h = _sections_response(*_chain_arrays(chain), np.ascontiguousarray(freqs.ravel()))
+    return h.reshape(freqs.shape)
 
 
 def chain_delay_ms(specs, fs: float | None = None, f_hz: float = 10.0) -> ChainDelay:
@@ -280,11 +309,12 @@ def gyro_chain(settings, throttle_frac: float = 0.5, motor_hz=None, dyn_notch_hz
         chain.append((lpf2, gyro_rate))
     if motor_hz is not None and s.rpm_harmonics > 0:
         q = s.rpm_q / 100.0
-        for mhz in np.atleast_1d(np.asarray(motor_hz, dtype=np.float64)):
-            for h in range(s.rpm_harmonics):
-                f, w = rpm_notch_freq_weight(mhz, h, s, pid_rate)
-                if w > 0:
-                    chain.append((FilterSpec("notch", float(f), q, float(w)), pid_rate))
+        mhz = np.atleast_1d(np.asarray(motor_hz, dtype=np.float64))
+        fw = [rpm_notch_freq_weight(mhz, h, s, pid_rate) for h in range(s.rpm_harmonics)]  # tous les moteurs à la fois
+        for m in range(mhz.shape[0]):
+            for f, w in fw:
+                if w[m] > 0:
+                    chain.append((FilterSpec("notch", float(f[m]), q, float(w[m])), pid_rate))
     nyq = 1e6 / 2 / s.looptime_us / s.pid_denom * 0.95
     for center, cutoff in s.gyro_notches[:2]:
         sp = _static_notch(center, cutoff, nyq)
@@ -508,7 +538,7 @@ class WhatIfSpectrum:
 
 
 def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel: slice, base, mod,
-                    target: str = "gyro", seg_ms: float = 300.0) -> WhatIfSpectrum:
+                    target: str = "gyro", seg_ms: float = 300.0, cache: dict | None = None) -> WhatIfSpectrum:
     """Spectre qu'aurait eu `x_logged` avec les filtres `mod` au lieu de `base`.
 
     Plutôt que de rejouer les filtres à la cadence du log (trop basse, repliement), on part du
@@ -519,6 +549,8 @@ def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel
     (|H_base|² < 1 %), on repart du signal avant filtres × |H_mod|².
 
     target = "gyro" (chaîne gyro) ou "dterm" (chaîne gyro puis chaîne D).
+    cache : dictionnaire partagé entre plusieurs appels sur le même log, la même période et les mêmes
+    `base` / `mod` (axes, gyro et D) : les réponses des filtres de chaque fenêtre n'y sont calculées qu'une fois.
     """
     from .spectral import _seg_spectra, _segments, to_db
 
@@ -539,17 +571,28 @@ def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel
     centres = fft_freq_centres(log)
     centres = None if centres is None else centres[:, sel]
 
-    cache: dict = {}
+    cache = {} if cache is None else cache
+    # moyennes de chaque fenêtre, calculées en une fois (gaz au centième, moteurs et centres à 5 Hz près)
+    idx = np.asarray(starts, dtype=np.int64)
+    win_mean = lambda v: np.lib.stride_tricks.sliding_window_view(v, L, axis=-1)[..., idx, :].mean(axis=-1)  # noqa: E731
+    thr_w = np.round(win_mean(thr), 2)
+    mhz_w = None if mhz is None else np.round(win_mean(mhz) / 5.0) * 5.0
+    cen_w = None if centres is None else np.round(win_mean(centres) / 5.0) * 5.0
     out_mod = np.zeros_like(P)
-    for k, s0 in enumerate(starts):
-        w = slice(s0, s0 + L)
-        t = round(float(np.mean(thr[w])), 2)
-        m = None if mhz is None else tuple(np.round(np.mean(mhz[:, w], axis=1) / 5.0) * 5.0)
-        c = None if centres is None else tuple(np.round(np.mean(centres[:, w], axis=1) / 5.0) * 5.0)
-        key = (t, m, c)
+    for k in range(len(starts)):
+        t = float(thr_w[k])
+        m = None if mhz_w is None else tuple(mhz_w[:, k].tolist())
+        c = None if cen_w is None else tuple(cen_w[:, k].tolist())
+        key = ("gyro", f.size, t, m, c)
         if key not in cache:
-            cache[key] = _ratio(f, base, mod, t, m, c, target)
+            cache[key] = _gyro_h2(f, base, mod, t, m, c)
         r_cur, r_mod = cache[key]
+        if target == "dterm":
+            dkey = ("dterm", f.size, t)
+            if dkey not in cache:
+                cache[dkey] = tuple(np.abs(chain_response(dterm_chain(x, t), f)) ** 2 for x in (base, mod))
+            d_cur, d_mod = cache[dkey]
+            r_cur, r_mod = r_cur * d_cur, r_mod * d_mod
         # quotient direct : au creux d'un notch les deux |H|² valent ~1e-30 et un plancher sur le seul
         # dénominateur effondrerait le spectre (−90 dB) même à réglages inchangés (L-024)
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -564,8 +607,8 @@ def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel
     return WhatIfSpectrum(f, to_db(P.mean(axis=0)), to_db(out_mod.mean(axis=0)))
 
 
-def _ratio(f, base, mod, thr, motors, centres, target):
-    """|H|² des chaînes actuelle et modifiée pour une fenêtre."""
+def _gyro_h2(f, base, mod, thr, motors, centres):
+    """|H|² des chaînes gyro actuelle et modifiée pour une fenêtre."""
     def h2(s):
         dyn = None
         if centres is not None:
@@ -576,9 +619,6 @@ def _ratio(f, base, mod, thr, motors, centres, target):
                 c = [min(max(v, s.dyn_notch_min_hz), s.dyn_notch_max_hz) for v in c][: s.dyn_notch_count]
                 c += dyn_notch_initial_centres(s)[len(c):]
             dyn = c
-        g = np.abs(chain_response(gyro_chain(s, thr, motor_hz=motors, dyn_notch_hz=dyn), f)) ** 2
-        if target == "dterm":
-            g = g * np.abs(chain_response(dterm_chain(s, thr), f)) ** 2
-        return g
+        return np.abs(chain_response(gyro_chain(s, thr, motor_hz=motors, dyn_notch_hz=dyn), f)) ** 2
 
     return h2(base), h2(mod)

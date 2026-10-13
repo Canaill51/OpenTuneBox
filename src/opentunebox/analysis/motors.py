@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..log.flightlog import FlightLog
-from .bf_filters import FilterSpec, coefficients, rpm_notch_freq_weight
+from .bf_filters import _K_NOTCH, _sections_response, rpm_notch_freq_weight
 from .spectral import _seg_spectra, _segments, to_db
 
 
@@ -151,15 +151,20 @@ class NotchTargets:
 def rpm_attenuation(f: np.ndarray, motor_hz: np.ndarray, settings) -> np.ndarray:
     """|H| des notchs RPM du firmware aux fréquences f, forme (fenêtres, len(f)) ; motor_hz (moteurs, fenêtres)."""
     q, rate = settings.rpm_q / 100.0, settings.pid_rate_hz
-    z1 = np.exp(-2j * np.pi * np.asarray(f, dtype=np.float64) / rate)
+    f = np.ascontiguousarray(f, dtype=np.float64)
     out = np.ones((motor_hz.shape[1], len(f)))
+    # fréquence et poids de chaque notch, (harmoniques, moteurs, fenêtres), calculés en une fois
+    fw = [rpm_notch_freq_weight(motor_hz, h, settings, rate) for h in range(settings.rpm_harmonics)]
+    fr = np.stack([x[0] for x in fw])
+    w = np.broadcast_to(np.stack([x[1] for x in fw]), fr.shape)
     for k in range(motor_hz.shape[1]):
-        for m in motor_hz[:, k]:
-            for h in range(settings.rpm_harmonics):
-                fr, w = rpm_notch_freq_weight(m, h, settings, rate)
-                if w > 0:
-                    b, a = coefficients(FilterSpec("notch", float(fr), q, float(w)), rate)
-                    out[k] *= np.abs(np.polyval(b[::-1], z1) / np.polyval(a[::-1], z1))
+        # même ordre d'étages que l'ancien produit (moteur puis harmonique) ; poids nul = étage omis
+        fk, wk = fr[:, :, k].T.ravel(), w[:, :, k].T.ravel()
+        on = wk > 0
+        n = int(on.sum())
+        if n:
+            out[k] = np.abs(_sections_response(np.full(n, _K_NOTCH, np.int64), fk[on], np.full(n, q), wk[on],
+                                               np.full(n, float(rate)), f))
     return out
 
 

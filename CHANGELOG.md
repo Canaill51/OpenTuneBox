@@ -6,6 +6,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Assistant et Simulateur de filtres plus rapides : la réponse des filtres se calcule étage par étage dans un
+  noyau numba (au lieu de polynômes reconstruits pour chaque fenêtre), les notchs RPM de tous les moteurs
+  en une fois, et le simulateur partage les réponses de chaque fenêtre entre les axes, le gyro et le terme D.
+  Sur tout le corpus, l'assistant passe de 3743 s à 2339 s de calcul cumulé (session la plus lente : 84 s → 28 s ;
+  `opentunebox report` sur le plus gros log : 28 s → 13,5 s),
+  avec les mêmes constats sur les 705 sessions.
 - Assistant : chaque constat porte une clé stable (`Finding.key`) ; les règles, la stratégie de filtrage, le
   diagnostic du bruit et les tests s'y réfèrent au lieu de relire les titres et les actions, et un constat
   qui conseille `rpm_filter_q` ou `dyn_notch_count` le déclare (`Finding.settings`). `analyze` et la
