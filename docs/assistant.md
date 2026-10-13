@@ -467,6 +467,39 @@ Pas conseillés d'un vol au suivant, choisis par Cédric d'après la méthode de
 Le curseur Tracking (P et I) n'est plus conseillé seul (choix de Cédric). Le Diagnostic du réglage par
 séries garde ses pas de 0,2 et signale un pas plus fin que 0,15.
 
+### Bandes de bruit (2026-10-13)
+
+Bornes des bandes de bruit : 80–500 Hz pour le gyro filtré et le terme D (« Gyro filtré bruité », « Terme D
+bruité », repères de PIDtoolbox), 20–80 Hz pour le gyro filtré (« Oscillations basses fréquences »). Avant, origine
+« Communauté + estimation » (W-003) ; vérifiées sur 705 sessions (98 drones) et gardées (choix de Cédric). Spectres
+des sessions par tranches de 5 Hz (roll et pitch, période analysée, fenêtres hors trous) ; pour chaque bande
+candidate, seuil p90 recalculé par taille, puis sessions signalées comparées à celles des bornes actuelles.
+
+| Bande | Variante | Sessions signalées identiques |
+|---|---|---|
+| 80–500 Hz, gyro | 100–500 / 60–500 | 100 % / 92 % |
+| 80–500 Hz, gyro | 80–400 / 80–700 / jusqu'à Nyquist | 80 % / 76 % / 66 % |
+| 80–500 Hz, terme D | 100–500 / 60–500 | 97 % / 92 % |
+| 80–500 Hz, terme D | 80–300 / 80–400 / 80–700 / jusqu'à Nyquist | 59 % / 76 % / 64 % / 54 % |
+| 20–80 Hz | 10–80 / 30–80 / 40–80 | 80 % / 78 % / 66 % |
+| 20–80 Hz | 20–60 / 20–100 / 20–120 | 70 % / 80 % / 66 % |
+
+(Recouvrement de Jaccard : sessions signalées par les deux bornes / sessions signalées par l'une ou l'autre.)
+
+- **80 Hz** : le choix exact compte peu (60 à 100 Hz donnent presque les mêmes sessions) ; la borne reste sous la
+  fréquence moteur du vol stationnaire de toutes les tailles (p10 : 8"+ 95 Hz, 7" 124 Hz, 5" 172 Hz).
+- **500 Hz** : sensible, mais c'est la plus haute borne commune aux logs à 1 kHz (26 % des sessions, bande
+  arrêtée à 0,95 × 500 = 475 Hz) et aux logs plus rapides : au-delà, deux logs du même drone à 1 et 2 kHz
+  seraient mesurés sur des bandes différentes. Le terme D filtré garde l'essentiel de son énergie sous 500 Hz
+  (part au-dessus de 500 Hz entre 80 Hz et Nyquist, médiane : 3 % whoop, 6 % 5", 14 % 7") ; au-delà, le gyro
+  filtré n'est plus qu'un fond plat vers −37 dB. Limite : le bruit moteur des whoops (fréquence moteur médiane
+  481 Hz) tombe en partie au-delà ; il est jugé par les harmoniques (`motor_left_high_db`), pas par cette bande.
+- **20–80 Hz** : le manche ne fausse pas le constat. Il touche 11 % des vols stationnaires et 10 % des vols
+  avec mouvements. Cohérence consigne → gyro des vols avec mouvements (médiane, p90) : 20–40 Hz 0,20 / 0,63 ;
+  40–60 Hz 0,03 / 0,31 ; au-dessus de 60 Hz ≤ 0,01 / 0,06. Monter la borne basse à 30 Hz ne signale pas moins
+  de vols stationnaires (13 % contre 10 % des vols avec mouvements) : elle est gardée à 20 Hz, comme la borne
+  basse de la source [S1] (« ~20Hz to ~100Hz »).
+
 ## Règles
 
 Le diagnostic du bruit de la fenêtre Spectre (`advisor/noise.py`) reprend ces mêmes constats, rangés par
@@ -637,7 +670,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
 | Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Corpus | Choisit le conseil (Master −0,1 plutôt que plus de D). 55 séries Damping et Pitch Damping (« D dominant », 2026-10-12) : dès 1,0, un cran de D fait monter le pic de sensibilité ; aussi la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) |
-| Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes exactes choisies |
+| Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + corpus | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes vérifiées sur le corpus (« Bandes de bruit », 2026-10-13) : 80 Hz peu sensible (60–100 Hz : 92 à 100 % des mêmes sessions), 500 Hz = plus haute borne commune aux logs à 1 kHz (26 % des sessions), 20–80 Hz signale autant les vols stationnaires (11 %) que les vols avec mouvements (10 %) |
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
 | Terme D, échelle de PIDtoolbox | sommet > −10 dB (attention, avec le p90) ; idéal < −20 dB (texte) | Communauté | Brian White [S20] (« maybe minus 10 would be the highest ») ; 18 % des sessions (voir « Repères de PIDtoolbox ») |
 | Gyro filtré, échelle de PIDtoolbox | sommet < −30 dB (affiché) | Communauté | « a good rule of thumb » [S21, S22] ; ne déclenche rien (35 % des sessions au-dessus) |

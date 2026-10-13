@@ -269,6 +269,8 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     meas["delays"] = delays
     F.extend(_setpoint_delay(log, sel, delays.sp_gyro_ms))
     nyq = fs / 2
+    # Bandes vérifiées sur le corpus (docs/assistant.md, « Bandes de bruit ») : 500 Hz = plus haute borne
+    # commune aux logs à 1 kHz ; changer une borne oblige à recalibrer les seuils p90 des profils
     hi = min(500.0, 0.95 * nyq)
     g_db = [_band_db(log.gyro[a, sel], fs, 80, hi, br) for a in range(2)]
     d_db = [_band_db(log.d_term[a, sel], fs, 80, hi, br) for a in range(2) if np.any(log.d_term[a])]

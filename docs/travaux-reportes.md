@@ -118,6 +118,8 @@ Règles d'écriture :
   Poids RPM (2026-10-13, branche feat/calibrate-rpm-weights) : marge 6 → 3 dB et gain minimal 0,5 gardé, mesurés
   sur les harmoniques à poids déjà réduit du corpus et par le retard calculé. Taille pour l'objectif de retard :
   3" et 8" confirmés par la médiane des drones de taille connue du corpus (branche feat/calibrate-delay-size).
+  Bandes de bruit (2026-10-13, branche feat/calibrate-remaining-estimates) : 80–500 Hz et 20–80 Hz gardés,
+  vérifiés sur le corpus (sensibilité des sessions signalées aux bornes, logs à 1 kHz, cohérence avec le manche).
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.
