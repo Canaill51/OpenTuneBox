@@ -60,7 +60,18 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
-Aucune entrée en attente de tri (dernier tri : 2026-10-13, avant la version 0.7.0).
+### L-030 : exclure `PySide6.QtOpenGL` de la recette passe la construction, puis l'application plante au premier graphique
+- **Symptôme** — 2026-10-13 : pour alléger l'exécutable, `PySide6.QtOpenGL`, `QtOpenGLWidgets`, `QtTest` et
+  `QtNetwork` ajoutés aux `excludes` de `packaging/opentunebox.spec` ; PyInstaller réussit sans avertissement,
+  `opentunebox report` marche, puis l'interface s'arrête : `ModuleNotFoundError: No module named 'PySide6.QtOpenGL'`.
+- **Cause** — mesurée : `pyqtgraph/Qt/OpenGLHelpers.py` importe `QtOpenGL` et `QtOpenGLWidgets` sans `try`,
+  et `PlotCurveItem` l'importe toujours, même avec `useOpenGL=False`. Seul `QtTest` est importé sous `try`.
+  La bibliothèque C++ `libQt6OpenGL` sert en plus au pilote Wayland (EGL). Gain restant possible (`QtTest`,
+  `QtNetwork`) : environ 4 Mo sur 463, pas le risque d'une construction non essayée sur Windows et macOS.
+- **Règle** — ne jamais exclure un module de Qt de la recette sans l'exécutable d'essai de la compétence
+  `opentunebox-dev` (rapport à cache numba vide, puis chaque outil ouvert hors écran) : la construction et
+  la ligne de commande ne chargent pas pyqtgraph.
+- **Preuve** — exécutable d'essai du 2026-10-13 (traceback ci-dessus) ; recette inchangée.
 
 ## 1. Décodeur et logs
 
@@ -363,6 +374,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-030 | Module Qt exclu de la recette : construction réussie, plantage au premier graphique. Exécutable d'essai | Construction |
 | L-029 | Script Qt hors pytest : réglages réels écrasés. `QStandardPaths.setTestModeEnabled(True)` d'abord | Outillage |
 | L-028 | Filtre RPM ≠ masque : appliquer sa réponse (poids, Q) ; vérifier sur le debug FFT_FREQ | Analyses |
 | L-027 | `corrupt_frames` ≠ temps perdu. Trous de temps (`recording_gaps`) | Décodeur et logs |
