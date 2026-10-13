@@ -16,6 +16,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   ses tableaux à la taille exacte et l'écart des trames impossibles ne recopie plus tout le log. Plus gros
   log du corpus (39 Mo) : 458 Mo une fois chargé au lieu de 708 Mo, pic du chargement 1347 Mo au lieu de
   2047 Mo. Mêmes constats de l'assistant sur tout le corpus (9 chiffres affichés décalés d'une unité).
+- Simulateur de filtres et Réponse indicielle plus rapides : le Simulateur partage les réponses des filtres
+  entre les trois axes et le terme D (plus gros log du corpus : 19,5 s → 2,5 s de calcul) ; la Réponse
+  indicielle passe par des FFT réelles et réutilise ses spectres (2,7 s → 1,7 s, résultats identiques).
 - Assistant : chaque constat porte une clé stable (`Finding.key`) ; les règles, la stratégie de filtrage, le
   diagnostic du bruit et les tests s'y réfèrent au lieu de relire les titres et les actions, et un constat
   qui conseille `rpm_filter_q` ou `dyn_notch_count` le déclare (`Finding.settings`). `analyze` et la

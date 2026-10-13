@@ -29,6 +29,7 @@ a = Analysis(
     pathex=[str(root / "src")],
     datas=[(str(root / "src" / "opentunebox" / "gui" / "assets"), "opentunebox/gui/assets")],
     hiddenimports=collect_submodules("opentunebox") + collect_submodules("pyqtgraph", filter=used_by_app),
+    # ⚠️ Pas PySide6.QtOpenGL ni QtOpenGLWidgets : pyqtgraph les importe pour toute courbe (L-030)
     excludes=["tkinter", "matplotlib", "IPython", "pytest", *PYQTGRAPH_UNUSED,
               "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtPdf", "PySide6.QtVirtualKeyboard"],
 )
