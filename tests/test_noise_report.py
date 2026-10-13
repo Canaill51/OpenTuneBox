@@ -13,18 +13,18 @@ from opentunebox.log.settings import LowpassSetting, parse_settings
 from synthetic import BASE_HEADER, make_flightlog
 
 
-def _f(title, category="Bruit", severity=INFO, actions=()):
-    return Finding(category, severity, title, "détail", list(actions))
+def _f(key, category="Bruit", severity=INFO, actions=(), title="titre"):
+    return Finding(key, category, severity, title, "détail", list(actions))
 
 
 def test_section_of_every_kind():
-    assert section_of(_f(noise.STRATEGY_TITLE, "Filtres")) == "strategy"
-    assert section_of(_f("Fréquence du log trop basse", "Enregistrement")) == "conditions"
-    assert section_of(_f("Retard des filtres peu représentatif", "Filtres")) == "conditions"
-    assert section_of(_f("Terme D bruité en roll")) == "dterm" and section_of(_f("Retard des filtres D")) == "dterm"
-    assert section_of(_f("Raie à 330 Hz")) == "gyro" and section_of(_f("Filtre RPM : Q trop bas", "Filtres")) == "gyro"
-    assert section_of(_f("Constat inconnu", "Bruit")) == "gyro"  # bruit non classé : partie gyro
-    assert section_of(_f("Dépassement en roll", "Réponse")) is None  # hors sujet
+    assert section_of(_f(noise.STRATEGY_KEY, "Filtres")) == "strategy"
+    assert section_of(_f("log_rate_low", "Enregistrement")) == "conditions"
+    assert section_of(_f("delay_not_representative", "Filtres")) == "conditions"
+    assert section_of(_f("dterm_noisy")) == "dterm" and section_of(_f("dterm_delay")) == "dterm"
+    assert section_of(_f("hover_line_residual")) == "gyro" and section_of(_f("rpm_q_raise", "Filtres")) == "gyro"
+    assert section_of(_f("unknown_noise", "Bruit")) == "gyro"  # bruit non classé : partie gyro
+    assert section_of(_f("step_overshoot_light", "Réponse")) is None  # hors sujet
 
 
 def test_lowpass_text_and_level_note():
@@ -44,8 +44,8 @@ def test_actionable_needs_actions_and_severity():
 def test_strategy_fallback_texts():
     f = noise._strategy_fallback([], moving=False)
     assert f.severity == OK and "mouvements francs" in f.actions[0]
-    f = noise._strategy_fallback([_f("LPF1 du D en mode statique", severity=CONSEIL, actions=["dterm_lpf1_dyn_hz = 0"])],
-                                 moving=True)
+    f = noise._strategy_fallback([_f("dterm_lpf1_static", severity=CONSEIL, actions=["dterm_lpf1_dyn_hz = 0"],
+                                     title="LPF1 du D en mode statique")], moving=True)
     assert f.severity == CONSEIL and "LPF1 du D en mode statique" in f.detail
     assert f.actions[0] == "dterm_lpf1_dyn_hz = 0" and "même type de vol" in f.actions[1]
 
@@ -97,7 +97,7 @@ def test_noise_report_structure(synth):
 def test_rpm_block_without_erpm(synth):
     no_rpm = dataclasses.replace(synth, motor_hz=None)
     v = _blocks(noise_report(no_rpm))["Filtre RPM"].verdict
-    assert v.title == "Filtre RPM : impossible à juger" and v.severity == CONSEIL
+    assert v.key == "rpm_block_no_rpm" and v.severity == CONSEIL
     assert v.actions[0].startswith("dshot_bidir = ON") and "rpm_filter_harmonics = 3" in v.actions[0]
     # DShot bidirectionnel déjà activé : c'est l'enregistrement qui manque
     bidir = dataclasses.replace(no_rpm, settings=_settings(dshot_bidir="1"))
@@ -109,23 +109,23 @@ def test_rpm_block_filter_off_or_unmeasurable(synth):
     off = dataclasses.replace(synth, settings=_settings(rpm_filter_harmonics="0"))
     b = _blocks(noise_report(off))["Filtre RPM"]
     assert b.settings == "coupé (rpm_filter_harmonics = 0)"
-    assert b.verdict.title == "Filtre RPM coupé" and b.verdict.severity == CONSEIL
+    assert b.verdict.key == "rpm_block_off" and b.verdict.severity == CONSEIL
     no_unfilt = dataclasses.replace(synth, gyro_unfilt=None)
     nr = noise_report(no_unfilt)
     assert not nr.has_unfiltered and nr.harmonics is None
     assert len(nr.gyro) == 3 and all(np.isnan(a.before_db) and np.isfinite(a.after_db) for a in nr.gyro)
     b = _blocks(nr)["Filtre RPM"]
-    assert b.verdict.title == "Filtre RPM : efficacité non mesurable" and b.observations == []
+    assert b.verdict.key == "rpm_block_unmeasurable" and b.observations == []
 
 
 def test_notch_block_off_and_slow_loop(synth):
     off = dataclasses.replace(synth, settings=_settings(dyn_notch_count="0"))
     b = _blocks(noise_report(off))["Notch dynamique"]
     assert b.settings == "coupé (dyn_notch_count = 0)"
-    assert b.verdict.title == "Notch dynamique : rien à changer" and b.verdict.severity == OK  # filtre RPM actif
+    assert b.verdict.key == "notch_block_ok" and b.verdict.severity == OK  # filtre RPM actif
     both_off = dataclasses.replace(synth, settings=_settings(dyn_notch_count="0", rpm_filter_harmonics="0"))
     b = _blocks(noise_report(both_off))["Notch dynamique"]
-    assert b.verdict.title == "Notch dynamique et filtre RPM coupés" and b.verdict.severity == INFO
+    assert b.verdict.key == "notch_block_both_off" and b.verdict.severity == INFO
     slow = dataclasses.replace(synth, settings=_settings(pid_process_denom="8"))  # boucle PID 1 kHz
     b = _blocks(noise_report(slow))["Notch dynamique"]
     assert "inactif : boucle PID sous 2 kHz" in b.settings
@@ -138,8 +138,8 @@ def test_lowpass_block_verdict_depends_on_movement():
     b = _blocks(nr)["Passe-bas du gyro"]
     if b.verdict is not None:
         assert "vol avec mouvements" in b.verdict.detail
-    assert nr.strategy and (nr.strategy[0].title != noise.STRATEGY_TITLE or len(nr.strategy) >= 1)
-    if nr.strategy[0].title == "Aucun changement de filtre conseillé":
+    assert nr.strategy and (nr.strategy[0].key != noise.STRATEGY_KEY or len(nr.strategy) >= 1)
+    if nr.strategy[0].key == "filter_no_change":
         assert "mouvements francs" in nr.strategy[0].actions[0]
 
 

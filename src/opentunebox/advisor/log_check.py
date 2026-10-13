@@ -179,24 +179,70 @@ def log_rates_fix() -> Fix:
                f"centre » {LOG_RATE_DPS}, « Max Vel » {LOG_RATE_DPS}, Expo 0, sur les trois axes.", "\n".join(cli))
 
 
+@dataclass
+class _Check:
+    """État partagé par les parties de `check_log` : le log et la période, les points vérifiés (`items`, dans
+    l'ordre d'affichage), puis ce qu'une partie établit pour les suivantes."""
+    log: FlightLog
+    sel: slice
+    t0: float
+    t1: float
+    items: list[CheckItem] = field(default_factory=list)
+    # enregistrement (_recording_items)
+    version_ok: bool = False
+    rate_ok: bool = False
+    harm_ok: bool = True
+    pid_rate_ok: bool = False
+    unfilt: bool = False
+    # parties du vol (_flight_parts) : "hover" / "moving" → (début, fin) en s, ou None
+    parts: dict = field(default_factory=dict)
+    # protocole de la partie avec mouvements (_protocol_items)
+    cond: object = None  # analysis.step_series.FlightConditions
+    sv: object = None  # analysis.sliders.SliderView
+    windows: list[int] = field(default_factory=list)
+    sp_delay: list[float] = field(default_factory=list)
+    i_ok: bool = True
+    ff_ok: bool = True
+    enough: bool = False
+
+    @property
+    def s(self):
+        return self.log.settings
+
+    @property
+    def dur(self) -> float:
+        return self.t1 - self.t0
+
+    def add(self, *a) -> None:
+        self.items.append(CheckItem(*a))
+
+
 def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: bool = False) -> LogCheck:
     sel = sel or slice(0, log.n)
-    s = log.settings
-    items: list[CheckItem] = []
-    fs = log.fs
-    add = lambda *a: items.append(CheckItem(*a))  # noqa: E731
-
-    # ------------------------------------------------------------ enregistrement
-    version_ok = s.firmware_name.lower().startswith("betaflight") and tuple(s.version[:2]) >= MIN_VERSION
-    vtxt = ".".join(str(v) for v in s.version) or "inconnue"
-    add("version", "Version du firmware", OK if version_ok else BLOCK,
-        f"{s.firmware_name} {vtxt}." + ("" if version_ok else " OpenTuneBox lit Betaflight 4.4 et plus récent."),
-        [] if version_ok else [Fix("Mettre à jour le firmware (onglet « Flasher le Firmware »), après une "
-                                   "sauvegarde `diff all`.")])
-
     i0, i1 = sel.start or 0, min(sel.stop or log.n, log.n)
     t0, t1 = (float(log.t[i0]), float(log.t[i1 - 1])) if i1 > i0 else (0.0, 0.0)
-    dur = t1 - t0
+    c = _Check(log, sel, t0, t1)
+    _recording_items(c)
+    _flight_parts(c)
+    _protocol_items(c, exact)
+    _general_items(c)
+    usages = _usages(c)
+    hover, moving = c.parts["hover"], c.parts["moving"]
+    return LogCheck(label, moving is not None, c.parts, c.items, usages, c.windows, exact, dict(c.sv.values),
+                    FILTERS if hover is not None else PID, c.sp_delay)
+
+
+def _recording_items(c: _Check) -> None:
+    """Enregistrement : version, durée, fréquence du log (filtres, PID), gyro non filtré, débogage, eRPM."""
+    log, s, fs, add = c.log, c.s, c.log.fs, c.add
+    c.version_ok = s.firmware_name.lower().startswith("betaflight") and tuple(s.version[:2]) >= MIN_VERSION
+    vtxt = ".".join(str(v) for v in s.version) or "inconnue"
+    add("version", "Version du firmware", OK if c.version_ok else BLOCK,
+        f"{s.firmware_name} {vtxt}." + ("" if c.version_ok else " OpenTuneBox lit Betaflight 4.4 et plus récent."),
+        [] if c.version_ok else [Fix("Mettre à jour le firmware (onglet « Flasher le Firmware »), après une "
+                                     "sauvegarde `diff all`.")])
+
+    dur = c.dur
     add("duration", "Durée analysée", OK if dur >= MIN_DURATION_S else WARN,
         f"{_n(dur)} s de vol dans la période d'analyse"
         + ("." if dur >= MIN_DURATION_S else " : trop court, visez 20 à 40 s pour chaque partie du vol."))
@@ -205,17 +251,17 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
     base_hz = log_rate_needed(s.pid_rate_hz)
     harm_hz = log_rate_needed(s.pid_rate_hz, hz)
     need = max(base_hz, harm_hz)
-    rate_ok = fs >= 0.95 * base_hz
-    harm_ok = hz is None or 3 * hz <= fs / 2 or harm_hz <= fs * 1.05
+    c.rate_ok = fs >= 0.95 * base_hz
+    c.harm_ok = hz is None or 3 * hz <= fs / 2 or harm_hz <= fs * 1.05
     loops = f"gyro {_n(s.gyro_rate_hz / 1000)} kHz, boucle PID {_n(s.pid_rate_hz / 1000)} kHz"
     frac = sample_rate_cli(s.pid_rate_hz, need)
     rate_fix = [Fix(f"Onglet « Blackbox » → « Fréquence d'enregistrement de la Blackbox » : {need:.0f} Hz ({frac}).",
                     f"set blackbox_sample_rate = {frac}")]
-    if not rate_ok:
+    if not c.rate_ok:
         add("log_rate", "Fréquence d'enregistrement (filtres)", BLOCK,
             f"{fs:.0f} Hz ({loops}) : il faut au moins {base_hz:.0f} Hz. Le bruit au-dessus de {fs / 2:.0f} Hz se "
             "replie dans le spectre (fausses raies) : les filtres ne peuvent pas être jugés.", rate_fix)
-    elif not harm_ok:
+    elif not c.harm_ok:
         add("log_rate", "Fréquence d'enregistrement (filtres)", WARN,
             f"{fs:.0f} Hz : les moteurs tournent à ~{hz:.0f} Hz, leur 3e harmonique ({3 * hz:.0f} Hz) se replie "
             "dans le spectre (petit drone, moteurs rapides).", rate_fix)
@@ -223,18 +269,18 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
         add("log_rate", "Fréquence d'enregistrement (filtres)", OK, f"{fs:.0f} Hz ({loops}).")
     pid_need = pid_log_rate_needed(s.pid_rate_hz)
     pid_frac = sample_rate_cli(s.pid_rate_hz, pid_need)
-    pid_rate_ok = fs >= 0.95 * PID_LOG_RATE_FLOOR_HZ
+    c.pid_rate_ok = fs >= 0.95 * PID_LOG_RATE_FLOOR_HZ
     pid_fix = [Fix(f"Onglet « Blackbox » → « Fréquence d'enregistrement de la Blackbox » : {pid_need:.0f} Hz "
                    f"({pid_frac}).", f"set blackbox_sample_rate = {pid_frac}")]
     if fs >= 0.95 * PID_LOG_RATE_MIN_HZ:
         add("pid_log_rate", "Fréquence d'enregistrement (PID)", OK, f"{fs:.0f} Hz ({loops}).")
     else:
-        add("pid_log_rate", "Fréquence d'enregistrement (PID)", WARN if pid_rate_ok else BLOCK,
+        add("pid_log_rate", "Fréquence d'enregistrement (PID)", WARN if c.pid_rate_ok else BLOCK,
             f"{fs:.0f} Hz : il faut au moins {PID_LOG_RATE_MIN_HZ:.0f} Hz pour mesurer la réponse à la milliseconde "
-            + ("près." if pid_rate_ok else f"près, et {PID_LOG_RATE_FLOOR_HZ:.0f} Hz pour la lire."), pid_fix)
+            + ("près." if c.pid_rate_ok else f"près, et {PID_LOG_RATE_FLOOR_HZ:.0f} Hz pour la lire."), pid_fix)
 
-    unfilt = log.gyro_unfilt is not None
-    if unfilt:
+    c.unfilt = log.gyro_unfilt is not None
+    if c.unfilt:
         add("gyro_unfilt", "Gyro non filtré", OK, "Présent : l'effet des filtres et leur retard se mesurent.")
     elif s.family == "4.4":
         add("gyro_unfilt", "Gyro non filtré", BLOCK, "Absent : en 4.4, seul le mode de débogage GYRO_SCALED l'enregistre.",
@@ -258,113 +304,124 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
     else:
         add("rpm", "Télémétrie RPM", OK, f"Présente ({s.motor_poles} pôles moteur dans les réglages).")
 
-    # ------------------------------------------------------------ parties du vol
-    parts = flight_parts(log, t0, t1) if dur > 0 else {"hover": None, "moving": None}
+
+def _flight_parts(c: _Check) -> None:
+    """Parties du vol : stationnaire et mouvements (un vol trop court pour être découpé est l'une ou l'autre)."""
+    log, dur = c.log, c.dur
+    parts = flight_parts(log, c.t0, c.t1) if dur > 0 else {"hover": None, "moving": None}
     if parts["hover"] is None and parts["moving"] is None and dur > 0:  # vol trop court pour être découpé
-        moving_all = stick_p95_dps(log, sel) >= MOVING_SETPOINT_DPS
-        parts["moving" if moving_all else "hover"] = (t0, t1)
+        moving_all = stick_p95_dps(log, c.sel) >= MOVING_SETPOINT_DPS
+        parts["moving" if moving_all else "hover"] = (c.t0, c.t1)
+    c.parts = parts
     desc = [f"stationnaire de {_span(parts['hover'])}" if parts["hover"] else "pas de partie stationnaire",
             f"mouvements de {_span(parts['moving'])}" if parts["moving"] else "pas de partie avec mouvements"]
-    add("parts", "Parties du vol", INFO, " ; ".join(desc).capitalize() + ".")
+    c.add("parts", "Parties du vol", INFO, " ; ".join(desc).capitalize() + ".")
 
-    # ------------------------------------------------------------ protocole de la partie avec mouvements
-    cond = flight_conditions(log, sel)
-    sv = slider_view(s)
-    windows: list[int] = []
-    sp_delay: list[float] = []
-    i_ok, ff_ok, enough = True, True, False
-    if parts["moving"]:
-        msel = log.slice_time(*parts["moving"])
-        cond = flight_conditions(log, msel)
-        sp_delay = [xcorr_delay_ms(log.setpoint[a, msel], log.gyro[a, msel], fs, 100.0)
-                    if np.std(log.setpoint[a, msel]) >= 5.0 else float("nan") for a in range(2)]
-        mbr = log.breaks(msel)
-        if exact:
-            windows = [step_response(log.setpoint[a, msel], log.gyro[a, msel], fs, breaks=mbr).n for a in range(2)]
-        else:
-            windows = [input_windows(log.setpoint[a, msel], fs, breaks=mbr) for a in range(2)]
-        n = min(windows)
-        enough = n >= MIN_WINDOWS
-        approx = "" if exact else " (estimation rapide ; le vrai nombre est un peu plus faible)"
-        if n >= SURE_WINDOWS:
-            add("windows", "Fenêtres de mesure", OK, f"N = {windows[0]} en roll, {windows[1]} en pitch{approx}.")
-        else:
-            add("windows", "Fenêtres de mesure", WARN if enough else BLOCK,
-                f"N = {windows[0]} en roll, {windows[1]} en pitch{approx} : il en faut au moins {SURE_WINDOWS} pour "
-                f"une mesure sûre" + ("." if enough else f", et {MIN_WINDOWS} pour être lu."),
-                [Fix("Au moins 20 s de wobbles roll et pitch mêlés (environ 12 fenêtres par seconde de mouvement).")])
 
-        rates = log_rates(s)
-        if rates is None:
-            add("rates", "Rates de log", WARN, "Le profil de rates n'est pas de type ACTUAL.", [log_rates_fix()])
-        else:
-            center, mx, expo = rates
-            good = all(c == LOG_RATE_DPS for c in center) and all(m == LOG_RATE_DPS for m in mx) and not any(expo)
-            txt = (f"ACTUAL, centre {'/'.join(map(str, center))}, maximum {'/'.join(map(str, mx))} °/s, expo "
-                   f"{'/'.join(map(str, expo))} (roll/pitch/yaw)")
-            add("rates", "Rates de log", OK if good else WARN,
-                txt + ("." if good else f" : le protocole demande {LOG_RATE_DPS} / {LOG_RATE_DPS} / 0 sur les trois axes."),
-                [] if good else [log_rates_fix()])
+def _protocol_items(c: _Check, exact: bool) -> None:
+    """Protocole de la partie avec mouvements : fenêtres de mesure, rates, limite d'angle, mode de vol, axes
+    mêlés, curseur I, atténuation dynamique."""
+    log, s, fs, add = c.log, c.s, c.log.fs, c.add
+    c.cond = flight_conditions(log, c.sel)
+    c.sv = sv = slider_view(s)
+    if not c.parts["moving"]:
+        return
+    msel = log.slice_time(*c.parts["moving"])
+    c.cond = cond = flight_conditions(log, msel)
+    c.sp_delay = [xcorr_delay_ms(log.setpoint[a, msel], log.gyro[a, msel], fs, 100.0)
+                  if np.std(log.setpoint[a, msel]) >= 5.0 else float("nan") for a in range(2)]
+    mbr = log.breaks(msel)
+    if exact:
+        windows = [step_response(log.setpoint[a, msel], log.gyro[a, msel], fs, breaks=mbr).n for a in range(2)]
+    else:
+        windows = [input_windows(log.setpoint[a, msel], fs, breaks=mbr) for a in range(2)]
+    c.windows = windows
+    n = min(windows)
+    c.enough = n >= MIN_WINDOWS
+    approx = "" if exact else " (estimation rapide ; le vrai nombre est un peu plus faible)"
+    if n >= SURE_WINDOWS:
+        add("windows", "Fenêtres de mesure", OK, f"N = {windows[0]} en roll, {windows[1]} en pitch{approx}.")
+    else:
+        add("windows", "Fenêtres de mesure", WARN if c.enough else BLOCK,
+            f"N = {windows[0]} en roll, {windows[1]} en pitch{approx} : il en faut au moins {SURE_WINDOWS} pour "
+            f"une mesure sûre" + ("." if c.enough else f", et {MIN_WINDOWS} pour être lu."),
+            [Fix("Au moins 20 s de wobbles roll et pitch mêlés (environ 12 fenêtres par seconde de mouvement).")])
 
-        # mode Angle (le firmware y coupe le feedforward) ou Acro avec le feedforward à 0 : même réponse lue
-        share = cond.angle_share
-        ff_zero = max(cond.ff) == 0
-        acro = share == share and not cond.angle  # modes enregistrés, pas en mode Angle : la limite d'angle ne joue pas
-        lim = s.get_int("angle_limit", -1)
-        lim_fix = [Fix(f"Onglet « Réglages de PID » → « Limite de l'Angle » : {LOG_ANGLE_LIMIT}.",
-                       f"set {'level_limit' if s.family == '4.4' else 'angle_limit'} = {LOG_ANGLE_LIMIT}")]
-        if acro:
-            pass
-        elif lim < 0:
-            add("angle_limit", "Limite d'angle", INFO,
-                f"Non enregistrée dans le log (Betaflight 4.4) : vérifiez qu'elle vaut {LOG_ANGLE_LIMIT}°.", lim_fix)
-        else:
-            add("angle_limit", "Limite d'angle", OK if lim == LOG_ANGLE_LIMIT else WARN,
-                f"{lim}°" + ("." if lim == LOG_ANGLE_LIMIT else f" : le protocole demande {LOG_ANGLE_LIMIT}°."),
-                [] if lim == LOG_ANGLE_LIMIT else lim_fix)
+    rates = log_rates(s)
+    if rates is None:
+        add("rates", "Rates de log", WARN, "Le profil de rates n'est pas de type ACTUAL.", [log_rates_fix()])
+    else:
+        center, mx, expo = rates
+        good = all(x == LOG_RATE_DPS for x in center) and all(m == LOG_RATE_DPS for m in mx) and not any(expo)
+        txt = (f"ACTUAL, centre {'/'.join(map(str, center))}, maximum {'/'.join(map(str, mx))} °/s, expo "
+               f"{'/'.join(map(str, expo))} (roll/pitch/yaw)")
+        add("rates", "Rates de log", OK if good else WARN,
+            txt + ("." if good else f" : le protocole demande {LOG_RATE_DPS} / {LOG_RATE_DPS} / 0 sur les trois axes."),
+            [] if good else [log_rates_fix()])
 
-        mode_title = "Mode Angle ou feedforward à 0"
-        if cond.angle:
-            add("flight_mode", mode_title, OK,
-                f"{share:.0%} de la partie avec mouvements en mode Angle (le feedforward y est coupé).")
-        elif ff_zero:
-            add("flight_mode", mode_title, OK, "Acro avec le feedforward à 0 en roll et en pitch.")
-        else:
-            # Acro avec le feedforward : vol d'une série Feedforward (finitions), pas d'une série PID ; simple info,
-            # l'usage « série PID » dit pourquoi il n'est pas lu comme tel
-            add("flight_mode", mode_title, WARN if share != share else INFO,
-                ("Modes de vol absents du log" if share != share else "Acro")
-                + f", feedforward actif (F roll {cond.ff[0]}, pitch {cond.ff[1]}) : vol d'une série Feedforward. "
-                "Pour une série PID, volez en mode Angle ou mettez le feedforward à 0 (il fausse la réponse).",
-                [Fix("Série PID : onglet « Modes », mode ANGLE sur un interrupteur, activé pendant les mouvements."),
-                 Fix(f"Ou en Acro : curseur « {CONFIGURATOR_SLIDERS['Stick Resp.']} » à 0.",
-                     "set simplified_feedforward_gain = 0")])
+    # mode Angle (le firmware y coupe le feedforward) ou Acro avec le feedforward à 0 : même réponse lue
+    share = cond.angle_share
+    ff_zero = max(cond.ff) == 0
+    acro = share == share and not cond.angle  # modes enregistrés, pas en mode Angle : la limite d'angle ne joue pas
+    lim = s.get_int("angle_limit", -1)
+    lim_fix = [Fix(f"Onglet « Réglages de PID » → « Limite de l'Angle » : {LOG_ANGLE_LIMIT}.",
+                   f"set {'level_limit' if s.family == '4.4' else 'angle_limit'} = {LOG_ANGLE_LIMIT}")]
+    if acro:
+        pass
+    elif lim < 0:
+        add("angle_limit", "Limite d'angle", INFO,
+            f"Non enregistrée dans le log (Betaflight 4.4) : vérifiez qu'elle vaut {LOG_ANGLE_LIMIT}°.", lim_fix)
+    else:
+        add("angle_limit", "Limite d'angle", OK if lim == LOG_ANGLE_LIMIT else WARN,
+            f"{lim}°" + ("." if lim == LOG_ANGLE_LIMIT else f" : le protocole demande {LOG_ANGLE_LIMIT}°."),
+            [] if lim == LOG_ANGLE_LIMIT else lim_fix)
 
-        mixed = axes_mixed_share(log, msel)
-        add("axes_mixed", "Roll et pitch mêlés", OK if mixed >= AXES_MIXED_MIN else WARN,
-            f"Les deux axes bougent ensemble {mixed:.0%} du temps en mouvement"
-            + ("." if mixed >= AXES_MIXED_MIN else
-               f" (repère {AXES_MIXED_MIN:.0%}) : bougez le roll et le pitch en même temps, au hasard, plutôt "
-               "qu'un axe puis l'autre."))
+    mode_title = "Mode Angle ou feedforward à 0"
+    if cond.angle:
+        add("flight_mode", mode_title, OK,
+            f"{share:.0%} de la partie avec mouvements en mode Angle (le feedforward y est coupé).")
+    elif ff_zero:
+        add("flight_mode", mode_title, OK, "Acro avec le feedforward à 0 en roll et en pitch.")
+    else:
+        # Acro avec le feedforward : vol d'une série Feedforward (finitions), pas d'une série PID ; simple info,
+        # l'usage « série PID » dit pourquoi il n'est pas lu comme tel
+        add("flight_mode", mode_title, WARN if share != share else INFO,
+            ("Modes de vol absents du log" if share != share else "Acro")
+            + f", feedforward actif (F roll {cond.ff[0]}, pitch {cond.ff[1]}) : vol d'une série Feedforward. "
+            "Pour une série PID, volez en mode Angle ou mettez le feedforward à 0 (il fausse la réponse).",
+            [Fix("Série PID : onglet « Modes », mode ANGLE sur un interrupteur, activé pendant les mouvements."),
+             Fix(f"Ou en Acro : curseur « {CONFIGURATOR_SLIDERS['Stick Resp.']} » à 0.",
+                 "set simplified_feedforward_gain = 0")])
 
-        ff_ok = not cond.ff_active
-        lo, hi = I_SLIDER_RANGE
-        i_ok = lo <= cond.i_slider <= hi
-        if not i_ok:
-            add("i_slider", "Curseur I", WARN,
-                f"{_n(cond.i_slider, 2)} : pendant les séries PID, le terme I change la forme de la réponse ; le garder "
-                "entre 0,2 et 0,3, puis le remonter en finitions.",
-                [Fix(f"Curseur « {CONFIGURATOR_SLIDERS['Drift-Wobble']} » : 0,25 (Mode Expert).",
-                     "set simplified_i_gain = 25")])
-        dd = sv.values["Dynamic D."]
-        if sv.from_header and dd > DYN_DAMPING_MAX:
-            dd_key = "simplified_d_max_gain" if "simplified_d_max_gain" in s.raw else "simplified_dmax_gain"
-            add("dyn_damping", "Atténuation dynamique", WARN,
-                f"{_n(dd, 2)} : pendant les séries, le D max change la réponse selon la vitesse du mouvement ; le "
-                "mettre à 0, puis le régler en finitions.",
-                [Fix(f"Curseur « {CONFIGURATOR_SLIDERS['Dynamic D.']} » : 0 (Mode Expert).", f"set {dd_key} = 0")])
+    mixed = axes_mixed_share(log, msel)
+    add("axes_mixed", "Roll et pitch mêlés", OK if mixed >= AXES_MIXED_MIN else WARN,
+        f"Les deux axes bougent ensemble {mixed:.0%} du temps en mouvement"
+        + ("." if mixed >= AXES_MIXED_MIN else
+           f" (repère {AXES_MIXED_MIN:.0%}) : bougez le roll et le pitch en même temps, au hasard, plutôt "
+           "qu'un axe puis l'autre."))
 
-    if not sv.from_header:
+    c.ff_ok = not cond.ff_active
+    lo, hi = I_SLIDER_RANGE
+    c.i_ok = lo <= cond.i_slider <= hi
+    if not c.i_ok:
+        add("i_slider", "Curseur I", WARN,
+            f"{_n(cond.i_slider, 2)} : pendant les séries PID, le terme I change la forme de la réponse ; le garder "
+            "entre 0,2 et 0,3, puis le remonter en finitions.",
+            [Fix(f"Curseur « {CONFIGURATOR_SLIDERS['Drift-Wobble']} » : 0,25 (Mode Expert).",
+                 "set simplified_i_gain = 25")])
+    dd = sv.values["Dynamic D."]
+    if sv.from_header and dd > DYN_DAMPING_MAX:
+        dd_key = "simplified_d_max_gain" if "simplified_d_max_gain" in s.raw else "simplified_dmax_gain"
+        add("dyn_damping", "Atténuation dynamique", WARN,
+            f"{_n(dd, 2)} : pendant les séries, le D max change la réponse selon la vitesse du mouvement ; le "
+            "mettre à 0, puis le régler en finitions.",
+            [Fix(f"Curseur « {CONFIGURATOR_SLIDERS['Dynamic D.']} » : 0 (Mode Expert).", f"set {dd_key} = 0")])
+
+
+def _general_items(c: _Check) -> None:
+    """Quel que soit le vol : réglage simplifié, crash, trous dans l'enregistrement."""
+    log, add = c.log, c.add
+    if not c.sv.from_header:
         add("simplified", "Réglage simplifié", WARN,
             "Désactivé : les curseurs du configurateur ne pilotent pas les PID ; OpenTuneBox estime leurs positions à "
             "partir des PID.",
@@ -374,18 +431,21 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
     crash = crash_time(log)
     if crash is not None:
         add("crash", "Crash", INFO, f"Crash vers {_n(crash)} s : la période d'analyse s'arrête avant.")
-    n_gaps, lost_s = log.recording_gaps(sel)
+    n_gaps, lost_s = log.recording_gaps(c.sel)
     if n_gaps:  # fenêtres qui chevauchent un trou écartées par les analyses (D-020)
         add("gaps", "Trous dans l'enregistrement", INFO,
-            f"{gaps_text(n_gaps, lost_s, dur)} : les fenêtres qui chevauchent un trou sont écartées, il reste moins "
+            f"{gaps_text(n_gaps, lost_s, c.dur)} : les fenêtres qui chevauchent un trou sont écartées, il reste moins "
             "de données à analyser.",
             [Fix("Si c'est fréquent : carte SD plus rapide, ou fréquence d'enregistrement plus basse.")])
 
-    # ------------------------------------------------------------ verdict par usage
-    base_ok = version_ok and rate_ok and unfilt
+
+def _usages(c: _Check) -> list[Usage]:
+    """Verdict par usage : identifier le bruit, juger le retard, vol d'une série PID, vol d'une série Feedforward."""
+    items, cond = c.items, c.cond
+    base_ok = c.version_ok and c.rate_ok and c.unfilt
     base_why = _first_problem(items, ("version", "log_rate", "gyro_unfilt"))
-    aliased = "" if harm_ok else " Attention : 3e harmonique moteur repliée (voir la fréquence d'enregistrement)."
-    hover, moving = parts["hover"], parts["moving"]
+    aliased = "" if c.harm_ok else " Attention : 3e harmonique moteur repliée (voir la fréquence d'enregistrement)."
+    hover, moving = c.parts["hover"], c.parts["moving"]
     usages = [
         Usage("noise", "Identifier le bruit (filtres)", base_ok and hover is not None,
               base_why if not base_ok else
@@ -396,7 +456,7 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
               (f"partie avec mouvements de {_span(moving)}." if moving else
                "pas de partie avec mouvements : terminez le vol par 20 s de wobbles en mode Angle.")),
     ]
-    series_ok = version_ok and pid_rate_ok and moving is not None and enough and ff_ok and i_ok
+    series_ok = c.version_ok and c.pid_rate_ok and moving is not None and c.enough and c.ff_ok and c.i_ok
     protocol = [it.title.lower() for it in items
                 if it.key in ("pid_log_rate", "windows", "rates", "angle_limit", "axes_mixed", "dyn_damping")
                 and it.status == WARN]
@@ -405,25 +465,24 @@ def check_log(log: FlightLog, sel: slice | None = None, label: str = "", exact: 
     elif moving is None:
         reason = "pas de partie avec mouvements."
     else:
-        blocking = [title for title, bad in (("Version du firmware", not version_ok),
-                                             ("Fréquence d'enregistrement (PID)", not pid_rate_ok),
-                                             ("Fenêtres de mesure", not enough),
-                                             ("Curseur I", not i_ok)) if bad]
+        blocking = [title for title, bad in (("Version du firmware", not c.version_ok),
+                                             ("Fréquence d'enregistrement (PID)", not c.pid_rate_ok),
+                                             ("Fenêtres de mesure", not c.enough),
+                                             ("Curseur I", not c.i_ok)) if bad]
         reason = f"à corriger : {', '.join(f'« {b} »' for b in blocking)} (voir ci-dessous)." if blocking else ""
-        if not ff_ok:
+        if not c.ff_ok:
             reason = ("feedforward actif en Acro (vol d'une série Feedforward) ; pour une série PID, mode Angle ou "
                       "feedforward à 0. " + reason).strip()
     usages.append(Usage("series", "Vol d'une série PID", series_ok, reason))
     # série Feedforward (finitions) : en Acro, feedforward voulu ; le retard consigne → gyro se lit sur la partie
     # avec mouvements
-    ffs_ok = version_ok and pid_rate_ok and moving is not None and enough and not cond.angle
+    ffs_ok = c.version_ok and c.pid_rate_ok and moving is not None and c.enough and not cond.angle
     ff_why = ("conditions respectées." if ffs_ok else "pas de partie avec mouvements." if moving is None else
               "en mode Angle : le firmware y coupe le feedforward, volez en Acro." if cond.angle else
               "pas assez de fenêtres de mesure ou fréquence d'enregistrement trop basse (voir ci-dessous).")
     # affiché seulement avec le feedforward actif : un vol à 0 sert aussi de 1er vol de la série, sans le redire
     usages.append(Usage("ff_series", "Vol d'une série Feedforward", ffs_ok, ff_why, shown=max(cond.ff) > 0))
-    return LogCheck(label, moving is not None, parts, items, usages, windows, exact, dict(sv.values),
-                    FILTERS if hover is not None else PID, sp_delay)
+    return usages
 
 
 @dataclass

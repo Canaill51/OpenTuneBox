@@ -21,23 +21,24 @@ def _step_findings(peak, lat, ff=0, profile="five", n=50, ff_cut=False, **loop):
     return F
 
 
-def _titles(*a, **kw):
-    return [(f.title, f.severity) for f in _step_findings(*a, **kw)]
+def _keys(*a, **kw):
+    return [(f.key, f.severity) for f in _step_findings(*a, **kw)]
 
 
 def test_step_peak_thresholds_without_feedforward():
     """Paliers 1,20 (conseil) et 1,25 (attention) sans feedforward ; réponse molle sous 1,01 et lente."""
-    assert _titles(1.20, 15) == [("Réponse indicielle roll", OK)]
-    assert _titles(1.21, 15) == [("Léger dépassement en roll", CONSEIL)]
-    assert _titles(1.25, 15) == [("Léger dépassement en roll", CONSEIL)]
-    assert _titles(1.26, 15) == [("Fort dépassement en roll", ATTENTION)]
+    assert _keys(1.20, 15) == [("step_ok", OK)]
+    assert _step_findings(1.21, 15)[0].title == "Léger dépassement en roll"  # le titre nomme l'axe
+    assert _keys(1.21, 15) == [("step_overshoot_light", CONSEIL)]
+    assert _keys(1.25, 15) == [("step_overshoot_light", CONSEIL)]
+    assert _keys(1.26, 15) == [("step_overshoot_strong", ATTENTION)]
     f = _step_findings(1.26, 15)[0]
     assert "> 1,25 sans feedforward" in f.detail and "Damping" in f.actions[0]
-    assert _titles(1.00, 22.1) == [("Réponse molle en roll", CONSEIL)]  # latence > 22 ms (5")
-    assert _titles(1.01, 22.1) == [("Réponse indicielle roll", OK)]  # pic au p10 du corpus : pas molle
-    assert _titles(1.00, 22.0) == [("Réponse indicielle roll", OK)]
-    assert _titles(1.00, 22.1, profile="large") == [("Réponse indicielle roll", OK)]  # 8"+ : jusqu'à 30 ms
-    assert _titles(1.5, 15, n=19) == []  # pas assez de fenêtres
+    assert _keys(1.00, 22.1) == [("step_soft", CONSEIL)]  # latence > 22 ms (5")
+    assert _keys(1.01, 22.1) == [("step_ok", OK)]  # pic au p10 du corpus : pas molle
+    assert _keys(1.00, 22.0) == [("step_ok", OK)]
+    assert _keys(1.00, 22.1, profile="large") == [("step_ok", OK)]  # 8"+ : jusqu'à 30 ms
+    assert _keys(1.5, 15, n=19) == []  # pas assez de fenêtres
 
 
 def test_slider_steps():
@@ -60,19 +61,19 @@ def test_step_windows_warning():
     assert "moins sûre" in _step_findings(1.0, 15, n=20)[0].detail  # ligne « ok » aussi
     assert "moins sûre" not in _step_findings(1.26, 15, n=200)[0].detail
     edge = dict(sensitivity_peak_db=7.1, sensitivity_peak_hz=20.0)
-    margin = [x for x in _step_findings(1.0, 15, n=50, **edge) if x.title.startswith("Marge")][0]
+    margin = [x for x in _step_findings(1.0, 15, n=50, **edge) if x.key in rules.LOOP_MARGIN_KEYS][0]
     assert "moins sûre" not in margin.detail
 
 
 def test_step_peak_thresholds_with_feedforward():
     """Avec feedforward : paliers 1,60 / 1,70 ; montée plus rapide que la latence basse du profil → le
     feedforward est en cause, pas le D."""
-    assert _titles(1.60, 15, ff=100) == [("Réponse indicielle roll", OK)]
-    assert _titles(1.61, 15, ff=100) == [("Léger dépassement en roll", CONSEIL)]
-    assert _titles(1.71, 15, ff=100) == [("Fort dépassement en roll", ATTENTION)]
-    assert _titles(1.61, 9.9, ff=100) == [("Dépassement dû au feedforward en roll", CONSEIL)]  # latence < 10 ms (5")
-    assert _titles(1.71, 9.9, ff=100) == [("Dépassement dû au feedforward en roll", ATTENTION)]
-    assert _titles(1.61, 10.0, ff=100) == [("Léger dépassement en roll", CONSEIL)]
+    assert _keys(1.60, 15, ff=100) == [("step_ok", OK)]
+    assert _keys(1.61, 15, ff=100) == [("step_overshoot_light", CONSEIL)]
+    assert _keys(1.71, 15, ff=100) == [("step_overshoot_strong", ATTENTION)]
+    assert _keys(1.61, 9.9, ff=100) == [("step_ff_overshoot", CONSEIL)]  # latence < 10 ms (5")
+    assert _keys(1.71, 9.9, ff=100) == [("step_ff_overshoot", ATTENTION)]
+    assert _keys(1.61, 10.0, ff=100) == [("step_overshoot_light", CONSEIL)]
     f = _step_findings(1.61, 9.9, ff=100)[0]
     assert "F = 100" in f.detail and "série Feedforward" in f.actions[0]
 
@@ -83,30 +84,30 @@ def test_step_peak_angle_mode_uses_thresholds_without_feedforward():
     from opentunebox.analysis.step_series import FlightConditions
     angle, acro = FlightConditions((100, 120), 0.95, 1.0), FlightConditions((100, 120), 0.5, 1.0)
     assert (angle.ff_gain(0), angle.ff_gain(1), acro.ff_gain(1)) == (0, 0, 120)
-    assert _titles(1.30, 9.9, ff=angle.ff_gain(0), ff_cut=True) == [("Fort dépassement en roll", ATTENTION)]
+    assert _keys(1.30, 9.9, ff=angle.ff_gain(0), ff_cut=True) == [("step_overshoot_strong", ATTENTION)]
     assert "sans feedforward (coupé par le mode Angle)" in _step_findings(1.21, 15, ff_cut=True)[0].detail
 
 
 def test_stability_margin_rules():
     edge = dict(sensitivity_peak_db=7.1, sensitivity_peak_hz=20.0)
-    assert ("Marge de stabilité faible en roll", CONSEIL) in _titles(1.0, 15, **edge)
-    assert ("Marge de stabilité faible en roll", CONSEIL) not in _titles(1.0, 15, sensitivity_peak_db=7.0)
-    f = [x for x in _step_findings(1.0, 15, sensitivity_peak_at_edge=True, **edge) if x.title.startswith("Marge")][0]
+    assert ("loop_sensitivity_high", CONSEIL) in _keys(1.0, 15, **edge)
+    assert ("loop_sensitivity_high", CONSEIL) not in _keys(1.0, 15, sensitivity_peak_db=7.0)
+    f = [x for x in _step_findings(1.0, 15, sensitivity_peak_at_edge=True, **edge) if x.key in rules.LOOP_MARGIN_KEYS][0]
     assert "au moins 7.1 dB" in f.detail and "Valeur approchée" in f.detail and f.actions[0] == "Master −0,1 à −0,2."
     assert "Mesure arrêtée à 20 Hz" in f.actions[-1] and "wobbles" in f.actions[-1]  # W-004
     assert not any("chirp" in a.lower() for a in f.actions)  # D-019
-    f = [x for x in _step_findings(1.0, 15, method=MEASURED, d_ratio=1.5, **edge) if x.title.startswith("Marge")][0]
+    f = [x for x in _step_findings(1.0, 15, method=MEASURED, d_ratio=1.5, **edge) if x.key in rules.LOOP_MARGIN_KEYS][0]
     assert "Valeur approchée" not in f.detail and "Le D domine déjà" in f.actions[0]
     assert not any(a.startswith("Mesure arrêtée") for a in f.actions)  # pic dans la bande
-    f = [x for x in _step_findings(1.0, 15, method=MEASURED, **edge) if x.title.startswith("Marge")][0]
+    f = [x for x in _step_findings(1.0, 15, method=MEASURED, **edge) if x.key in rules.LOOP_MARGIN_KEYS][0]
     assert f.actions[0] == "Damping (D) +0,1, ou Master −0,1 à −0,2."
-    f = [x for x in _step_findings(1.0, 15, profile="whoop", **edge) if x.title.startswith("Marge")][0]
+    f = [x for x in _step_findings(1.0, 15, profile="whoop", **edge) if x.key in rules.LOOP_MARGIN_KEYS][0]
     assert "Fréquent sur un whoop" in f.detail
-    assert ("Marge de phase réduite en roll", CONSEIL) in _titles(1.0, 15, phase_margin_deg=34.9, crossover_hz=25.0)
-    assert not any(t.startswith("Marge") for t, _s in _titles(1.0, 15, phase_margin_deg=35.0, crossover_hz=25.0))
+    assert ("loop_phase_margin_low", CONSEIL) in _keys(1.0, 15, phase_margin_deg=34.9, crossover_hz=25.0)
+    assert not any(k in rules.LOOP_MARGIN_KEYS for k, _s in _keys(1.0, 15, phase_margin_deg=35.0, crossover_hz=25.0))
     # pic de sensibilité trop haut ET marge de phase faible : un seul constat (le pic)
-    both = _titles(1.0, 15, phase_margin_deg=20.0, crossover_hz=25.0, **edge)
-    assert sum(t.startswith("Marge") for t, _s in both) == 1
+    both = _keys(1.0, 15, phase_margin_deg=20.0, crossover_hz=25.0, **edge)
+    assert sum(k in rules.LOOP_MARGIN_KEYS for k, _s in both) == 1
 
 
 # ---------------------------------------------------------------- vérification des logs du guide
@@ -179,11 +180,11 @@ def test_recording_gaps_finding():
 
     log = make_flightlog(seconds=25.0)
     assert log.recording_gaps() == (0, 0.0)
-    assert "Trous dans l'enregistrement" not in {f.title for f in analyze(log).findings}
+    assert "recording_gaps" not in {f.key for f in analyze(log).findings}
     assert check_log(log).item("gaps") is None
     log.t[log.n // 2:] += 0.2  # 0,2 s perdues au milieu du vol
     n, lost = log.recording_gaps()
     assert n == 1 and lost == pytest.approx(0.2, abs=1e-6)
-    f = next(f for f in analyze(log).findings if f.title == "Trous dans l'enregistrement")
+    f = next(f for f in analyze(log).findings if f.key == "recording_gaps")
     assert f.severity == rules.INFO and "1 trou dans la période analysée (0,2 s perdues" in f.detail
     assert check_log(log).item("gaps").status == INFO

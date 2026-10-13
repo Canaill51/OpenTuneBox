@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
 | D-027 | Raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre | 2026-10-13 |
 | D-026 | Retard des filtres jugé dès 30 °/s de consigne (amende D-010) | 2026-10-13 |
 | D-025 | Paliers du pic de réponse selon le feedforward en service (0 en mode Angle) | 2026-10-13 |
@@ -99,6 +100,38 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-10-13 — Clés des constats de l'assistant
+
+### D-028 : les constats de l'assistant s'identifient par une clé stable, jamais par leur texte
+
+**Contexte.** Relecture du code après la version 0.7.0 : plusieurs règles décidaient en relisant le titre
+français ou le texte d'action d'un constat déjà produit (`x.title == "Filtrage du D peut-être trop fort"`,
+`"rpm_filter_q" in action`, `title.startswith("Raie fixe")`, étapes de la stratégie de filtrage, parties du
+diagnostic du bruit) ; les tests épinglaient aussi les titres. Reformuler un texte, même d'une virgule,
+pouvait désactiver une règle sans erreur. Cédric a demandé la refactorisation (branche `refactor/finding-keys`).
+
+**Décision.**
+- Chaque `Finding` (`advisor/rules.py`) porte une clé `key` : identifiant stable, en anglais, **littéral** à
+  la création (`Finding("dterm_noisy", "Bruit", …)`). Un même constat sur deux axes partage sa clé, l'axe
+  reste dans `axis`. Les règles, le diagnostic du bruit (`noise.CONDITION_KEYS`, `DTERM_KEYS`, `GYRO_KEYS`,
+  blocs par filtre), les étapes de la stratégie (`rules.FILTER_STAGES`) et les tests se réfèrent à la clé ;
+  jamais au titre, au détail ni aux actions. Les textes se reformulent librement.
+- Quand une règle doit savoir qu'un réglage est déjà conseillé par un constat précédent (`rpm_filter_q`,
+  `dyn_notch_count` : `rules.TRACKED_SETTINGS`), le constat le déclare dans `Finding.settings` ; pas de
+  recherche du nom dans les actions.
+- Pas de registre central des clés : la clé vit à côté du texte qu'elle identifie ; les tests vérifient que
+  chaque clé citée par une règle existe et que les clés sont des littéraux.
+- `analyze` et `check_log` sont découpés en sections (`_recording_rules`, `_step_section`, `_noise_rules`,
+  `_delay_rules`, `_filter_rules`, `_motor_rules`, `_slider_rules` ; `_recording_items`, `_flight_parts`,
+  `_protocol_items`, `_general_items`, `_usages`) qui partagent un état (`_Analysis`, `_Check`) ; l'ordre des
+  constats est inchangé.
+
+**Témoins.** `scripts/advisor_rates.py` avant / après sur tout le corpus : mêmes constats (clé, gravité,
+action) dans chaque session (comparaison du 2026-10-13, branche `refactor/finding-keys`) ;
+`tests/test_advisor_rules.py` (`test_finding_keys_are_literal_and_referenced_keys_exist`,
+`test_noise_report_classifies_every_key`, `test_tracked_settings_declared_on_synthetic_log`) et
+`tests/test_advisor.py:test_tracked_settings_declared_on_corpus`.
 
 ## 2026-10-13 — Derniers seuils estimés (W-003)
 

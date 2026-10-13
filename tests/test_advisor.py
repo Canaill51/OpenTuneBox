@@ -34,12 +34,12 @@ def test_profile_thresholds():
     from opentunebox.advisor.rules import analyze
 
     lg = _load("Cedric/JeNo 5/FINAL.bbl")
-    titles = lambda rep: {f.title for f in rep.findings}  # noqa: E731
+    keys = lambda rep: {f.key for f in rep.findings}  # noqa: E731
     # un seuil mécanique nul déclenche le constat : la règle lit bien le profil
     strict = replace(PROFILES["five"], imbalance_high_pct=0.0)
-    assert "Moteurs déséquilibrés" in titles(analyze(lg, profile=strict))
-    assert "Seuils provisoires pour cette taille" in titles(analyze(lg, profile=PROFILES["micro"]))
-    assert "Seuils provisoires pour cette taille" not in titles(analyze(lg, profile=PROFILES["five"]))
+    assert "motor_imbalance" in keys(analyze(lg, profile=strict))
+    assert "profile_provisional" in keys(analyze(lg, profile=PROFILES["micro"]))
+    assert "profile_provisional" not in keys(analyze(lg, profile=PROFILES["five"]))
 
 
 def test_overshoot_detected_on_low_damping():
@@ -48,14 +48,14 @@ def test_overshoot_detected_on_low_damping():
 
     lg = _load("1. PTB/BlackSummer/Damping 0.8.BFL")  # pic roll 1,25 sans feedforward
     rep = analyze(lg, lg.slice_time(*auto_period(lg)))
-    titles = [f.title for f in rep.findings if f.severity in (CONSEIL, ATTENTION)]
-    assert any("dépassement" in t and "roll" in t for t in titles)
+    overshoot = ("step_overshoot_light", "step_overshoot_strong")
+    assert any(f.key in overshoot and f.axis == "Roll" for f in rep.findings if f.severity in (CONSEIL, ATTENTION))
     # chaque constat explique sa mesure
     assert all(f.detail for f in rep.findings)
     # première valeur de Damping sans dépassement visible (pic 1,03) : rien à signaler
     lg = _load("1. PTB/BlackSummer/Damping 1.2.BFL")
     rep = analyze(lg, lg.slice_time(*auto_period(lg)))
-    assert not any("dépassement" in f.title for f in rep.findings)
+    assert not any(f.key in overshoot for f in rep.findings)
 
 
 def test_dterm_noise_on_ptb_scale():
@@ -64,9 +64,9 @@ def test_dterm_noise_on_ptb_scale():
     # Kris : terme D au-dessus du repère −10 dB de PIDtoolbox, gyro filtré au-dessus de −30 dB
     rep = analyze(_load("1. PTB/Kris/BTFL_BLACKBOX_LOG_TP_20260914_181415_F722_AIO.bbl"))
     assert rep.measures["dterm_peak_ptb_db"] > DTERM_PTB_MAX_DB
-    d = next(f for f in rep.findings if f.title == "Terme D bruité")
+    d = next(f for f in rep.findings if f.key == "dterm_noisy")
     assert "PIDtoolbox" in d.detail
-    g = next(f for f in rep.findings if "gyro filtré" in f.title.lower())
+    g = next(f for f in rep.findings if f.key in ("gyro_noisy", "gyro_noise_level"))
     assert "PIDtoolbox" in g.detail
 
 
@@ -81,7 +81,7 @@ def test_filter_delay_targets_and_rpm_q():
     lg = _load("1. PTB/Fred28/Stock.BFL")
     assert lg.settings.rpm_q < RPM_Q_MAX
     rep = analyze(lg, lg.slice_time(*auto_period(lg)), replace(PROFILES["five"], gyro_delay_max_ms=0.0))
-    f = next(f for f in rep.findings if f.title == "Filtrage gyro peut-être trop prudent")
+    f = next(f for f in rep.findings if f.key == "gyro_filter_cautious")
     assert "Brian White" in f.detail
     assert any("rpm_filter_q" in a for a in f.actions)
 
@@ -94,7 +94,7 @@ def test_rpm_weights_rule():
     # autres gardés
     lg = _load("Cedric/Meteor 75 Pro O4 HD/48k Base/stock.bbl")
     rep = analyze(lg, lg.slice_time(*auto_period(lg)))
-    f = next(f for f in rep.findings if f.title == "Filtre RPM plus fort que nécessaire")
+    f = next(f for f in rep.findings if f.key == "rpm_weight_lighten")
     assert "3e harmonique" in f.detail
     assert f.actions[0].startswith("rpm_filter_weights = 100, 100, 30")  # marge de 3 dB (2026-10-13)
 
@@ -110,25 +110,25 @@ def test_dyn_notch_rules():
     # Kris : raie fixe à 97 Hz sous la plage du notch dynamique (80–350 Hz, marge de 20 Hz) → plage élargie,
     # et aucun relèvement de dyn_notch_min_hz (conseil retiré : gain de retard mesuré ≈ 0)
     rep = report("1. PTB/Kris/13. Hover.bbl")
-    f = next(f for f in rep.findings if f.title.startswith("Raie fixe"))
+    f = next(f for f in rep.findings if f.key == "frame_line_fixed")
     assert any("dyn_notch_min_hz = 70" in a for a in f.actions)
     assert not any("dyn_notch_min_hz 80 →" in a for g in rep.findings for a in g.actions)
     # Thalhammer (7") : résonance à 37 Hz, sous 60 Hz → dyn_notch_min_hz jusqu'à la limite du firmware (20 Hz)
     from opentunebox.log.flightlog import load
 
     found = [f for lg in load(LOGS / "1. PTB/Thalhammer/Hover Test 48kHz.bbl")
-             for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings if f.title == "Raie fixe vers 37 Hz"]
+             for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings if f.key == "frame_line_fixed" and f.title == "Raie fixe vers 37 Hz"]
     assert found and any("dyn_notch_min_hz = 20," in a for a in found[0].actions)
     # dcodemonster : deux pics à suivre (≈ 196 et 289 Hz) pour 3 notchs → nombre réduit (info) ; le firmware
     # s'attarde bien sur ces deux groupes (debug FFT_FREQ, D-022)
     rep = report("1. PTB/dcodemonster/Hover Test 2.BBL")
-    f = next(f for f in rep.findings if f.title == "Notch dynamique : moins de notchs suffiraient")
+    f = next(f for f in rep.findings if f.key == "dyn_notch_fewer")
     assert f.actions[0].startswith("dyn_notch_count = 2 (actuellement 3)")
     # KL (log à 2 kHz) : le filtre RPM (poids 40 sur la 2e harmonique) laisse des restes que les 3 notchs du
     # firmware suivent de 100 à 420 Hz → pas d'allègement (le masque ± 5 % en proposait un, L-028)
-    assert not any(f.title == "Notch dynamique : moins de notchs suffiraient" for f in report("Cedric/KL/f3.bbl").findings)
+    assert not any(f.key == "dyn_notch_fewer" for f in report("Cedric/KL/f3.bbl").findings)
     # JeNo 5 « PD » enregistré à 1 kHz : spectre replié, pas d'allègement proposé
-    assert not any(f.title.startswith("Notch dynamique") for f in report("Cedric/JeNo 5/PD.bbl").findings)
+    assert not any(f.key.startswith("dyn_notch_") for f in report("Cedric/JeNo 5/PD.bbl").findings)
 
 
 def test_lowpass_rules():
@@ -137,24 +137,23 @@ def test_lowpass_rules():
 
     def findings(rel):
         lg = _load(rel)
-        return {f.title: f for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings}
+        return {f.key: f for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings}
 
     # réglages : LPF2 du gyro coupé à 4 kHz de PID pour 8 kHz de gyro ; D d'ordre 1 ; LPF1 du D statique
-    f = findings("1. PTB/StraylightFPV/KM/Filtering/011326 KM HOVER.bbl")["LPF2 du gyro coupé : risque de repliement"]
+    f = findings("1. PTB/StraylightFPV/KM/Filtering/011326 KM HOVER.bbl")["gyro_lpf2_off"]
     assert f.severity == CONSEIL
-    assert findings("1. PTB/StraylightFPV/KM/PID/011326 KM PDBAL 1.4.bbl")["Filtrage du D insuffisant"].severity == ATTENTION
-    assert findings("Pelafoin/btfl_PUNCH_1-modif2.bbl")["LPF1 du D en mode statique"].severity == INFO
+    assert findings("1. PTB/StraylightFPV/KM/PID/011326 KM PDBAL 1.4.bbl")["dterm_filter_weak"].severity == ATTENTION
+    assert findings("Pelafoin/btfl_PUNCH_1-modif2.bbl")["dterm_lpf1_static"].severity == INFO
     # simulateur : KL d'origine, LPF1 du gyro superflu avec le filtre RPM
-    f = findings("Cedric/KL/stock.bbl")["Le LPF1 du gyro peut être coupé"]
+    f = findings("Cedric/KL/stock.bbl")["gyro_lpf1_off"]
     assert "ms de retard en moins" in f.detail and f.actions[0].startswith("gyro_lpf1_static_hz = 0")
     # retard du D au-dessus du repère, D propre : relèvement proposé avec la prévision
-    f = findings("1. PTB/Fitz/btfl_004.bbl")["Filtrage du D peut-être trop fort"]
+    f = findings("1. PTB/Fitz/btfl_004.bbl")["dterm_filter_too_strong"]
     assert "le simulateur prévoit" in f.detail and f.actions[0] == "Curseur « filtre D » : +0,1."
     # vol stationnaire : retard non représentatif, aucun conseil fondé sur le retard
     hover = findings("1. PTB/BlackSummer/Hover_24kHz.bfl")
-    assert hover["Retard des filtres peu représentatif"].severity == INFO
-    assert not {"Filtrage du D peut-être trop fort", "Filtrage gyro peut-être trop prudent",
-                "Le LPF1 du gyro peut être coupé"} & set(hover)
+    assert hover["delay_not_representative"].severity == INFO
+    assert not {"dterm_filter_too_strong", "gyro_filter_cautious", "gyro_lpf1_off"} & set(hover)
 
 
 def test_hover_noise_and_filter_strategy():
@@ -170,14 +169,15 @@ def test_hover_noise_and_filter_strategy():
     # 7" de Thalhammer en stationnaire (3e session) : 3e harmonique hors du filtre RPM (2 harmoniques) ;
     # stratégie en tête, bruit à corriger d'abord, puis le filtre RPM
     rep = report("1. PTB/Thalhammer/Hover Test 48kHz.bbl", session=3)
-    f = {x.title: x for x in rep}
-    assert "Vol stationnaire : bruit identifié" in f
-    assert f["Harmonique moteur hors du filtre RPM"].actions[0].startswith("rpm_filter_harmonics = 3")
-    assert rep[0].title == "Stratégie de filtrage" and rep[0].actions[0].startswith("1. À corriger d'abord")
+    f = {x.key: x for x in rep}
+    assert "hover_noise_summary" in f
+    assert f["rpm_harmonic_missing"].actions[0].startswith("rpm_filter_harmonics = 3")
+    assert rep[0].key == "filter_strategy" and rep[0].actions[0].startswith("1. À corriger d'abord")
     assert any(a.split(" — ")[0].endswith("Filtre RPM") for a in rep[0].actions)
     # J3.5 en stationnaire : raie à 67 Hz que rien ne filtre, avec la mise en garde sous 100 Hz
-    f = {x.title: x for x in report("Cedric/J3.5/JHEMCU F722HD AIO/Hovering/24k.bbl")}
-    assert "où le PID travaille" in f["Raie à 67 Hz encore visible après filtrage"].detail
+    line = next(x for x in report("Cedric/J3.5/JHEMCU F722HD AIO/Hovering/24k.bbl")
+                if x.key == "hover_line_residual" and x.title.startswith("Raie à 67 Hz"))
+    assert "où le PID travaille" in line.detail
     # Kris : mécanique (raie fixe) avant les passe-bas ; LPF1 du gyro coupable même en stationnaire
     first = report("1. PTB/Kris/13. Hover.bbl")[0]
     stages = [a.split(" — ")[0].split(". ", 1)[1] for a in first.actions[:-1]]
@@ -191,13 +191,12 @@ def test_log_rate_rule():
     # Kris : 993 Hz pour une boucle PID à 4 kHz → assez pour les PID, conseil pour les filtres (1/2) ; aucun
     # allègement tiré d'un spectre replié
     lg = _load("1. PTB/Kris/BTFL_BLACKBOX_LOG_TP_20260914_181415_F722_AIO.bbl")
-    f = {x.title: x for x in analyze(lg).findings}
-    assert "Fréquence d'enregistrement trop basse" not in f
-    slow = f["Fréquence d'enregistrement trop basse pour les filtres"]
+    f = {x.key: x for x in analyze(lg).findings}
+    assert "log_rate_low" not in f
+    slow = f["log_rate_low_filters"]
     assert slow.severity == CONSEIL and "blackbox_sample_rate = 1/2" in slow.actions[0]
-    assert not {"Filtre RPM plus fort que nécessaire", "Le LPF1 du gyro peut être coupé",
-                "Notch dynamique : moins de notchs suffiraient"} & set(f)
-    assert f["Stratégie de filtrage"].actions[0].startswith("1. Enregistrement")
+    assert not {"rpm_weight_lighten", "gyro_lpf1_off", "dyn_notch_fewer"} & set(f)
+    assert f["filter_strategy"].actions[0].startswith("1. Enregistrement")
 
 
 def test_tool_windows_render(app):
@@ -247,16 +246,15 @@ def test_noise_report_strategy_fallback():
 
     nr = noise_report(_load("Cedric/JeNo 5/FINAL.bbl"))
     assert nr.moving and nr.has_unfiltered and nr.harmonics is not None
-    assert [f.title for f in nr.dterm_findings][0] == "Terme D bruité"
+    assert nr.dterm_findings[0].key == "dterm_noisy"
     # une seule étape de filtrage : pas de « Stratégie de filtrage » de l'assistant, mais un conseil quand même
-    assert len(nr.strategy) == 1 and nr.strategy[0].title == "Un seul réglage de filtre à faire"
+    assert len(nr.strategy) == 1 and nr.strategy[0].key == "filter_single_step"
     assert "filtre D" in nr.strategy[0].actions[0]
     # un bloc par filtre, avec un verdict quand aucun constat ne demande de changement
     rpm, notch, lpf = nr.gyro_blocks
     assert rpm.title == "Filtre RPM" and "rpm_filter_q = 700" in rpm.settings and len(rpm.observations) == 3
-    assert rpm.verdict.title == "Filtre RPM : rien à changer"
-    assert notch.verdict.title == "Notch dynamique : rien à changer"
-    assert lpf.verdict.title == "Passe-bas du gyro : rien à changer" and "gyro_lpf1 : coupé" in lpf.settings
+    assert rpm.verdict.key == "rpm_block_ok" and notch.verdict.key == "notch_block_ok"
+    assert lpf.verdict.key == "lowpass_block_ok" and lpf.verdict.title == "Passe-bas du gyro : rien à changer" and "gyro_lpf1 : coupé" in lpf.settings
     assert nr.dterm_block.verdict is None  # D bruité : le constat dit déjà quoi faire
     assert not {id(f) for b in nr.gyro_blocks for f in b.findings} & {id(f) for f in nr.gyro_other}
 
@@ -270,21 +268,21 @@ def test_rpm_and_dyn_notch_q_steps():
         from opentunebox.log.flightlog import load
 
         lg = load(corpus_log(rel))[session]
-        return lg.settings, {f.title: f for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings}
+        return lg.settings, {f.key: f for f in analyze(lg, lg.slice_time(*auto_period(lg))).findings}
 
     # Air65 d'origine : harmoniques effacées, bruit sous les repères → Q du filtre RPM + 100
     s, f = findings("Cedric/Air65/stock.bbl")
-    assert f["Filtre RPM : Q peut monter"].actions[0].startswith(f"rpm_filter_q {s.rpm_q} → {s.rpm_q + 100}")
+    assert f["rpm_q_raise"].actions[0].startswith(f"rpm_filter_q {s.rpm_q} → {s.rpm_q + 100}")
     # banc d'hélices 5" : raies étroites, aucune qui passe → Q calculé, plafonné à 500 avec filtre RPM
     s, f = findings("Cedric/Benchmark Props 5inch/HQ J37.bbl")
-    assert f["Notch dynamique : Q peut monter"].actions[0].startswith(f"dyn_notch_q {s.dyn_notch_q} → 500")
+    assert f["dyn_notch_q_raise"].actions[0].startswith(f"dyn_notch_q {s.dyn_notch_q} → 500")
     # InertiaFPV : raie à 239 Hz trop haute pour Q 500 et encore à +6 dB dans le gyro filtré → Q calculé plus bas
     s, f = findings("1. PTB/InertiaFPV/LOG00001.bfl")
-    q = f["Notch dynamique : Q trop haut pour les raies à suivre"]
+    q = f["dyn_notch_q_lower"]
     assert q.actions[0].startswith("dyn_notch_q 500 → 450") and "Encore visible dans le gyro filtré : 239 Hz" in q.detail
     # 2e vol de cheussure : le calcul demande Q 350, mais aucune raie ne passe les filtres → rien (D-023)
     s, f = findings("1. PTB/cheussure/FF0.0_0.5_1.0.bbl", session=1)
-    assert "Notch dynamique : Q trop haut pour les raies à suivre" not in f
+    assert "dyn_notch_q_lower" not in f
 
 
 def test_dterm_lift_from_noise():
@@ -294,9 +292,9 @@ def test_dterm_lift_from_noise():
 
     lg = _load("Cedric/JeNo 5/Stock.bbl")
     rep = analyze(lg, lg.slice_time(*auto_period(lg)))
-    f = next(x for x in rep.findings if x.title == "Terme D propre : ses filtres peuvent être relevés")
+    f = next(x for x in rep.findings if x.key == "dterm_lift")
     assert f.actions[0] == "Curseur « filtre D » : 1,0 → 1,2, en passant par 1,1 avec un vol d'essai à chaque pas."
-    assert not any(x.title == "Filtrage du D peut-être trop fort" and x.actions for x in rep.findings)
+    assert not any(x.key == "dterm_filter_too_strong" and x.actions for x in rep.findings)
 
 
 def test_setpoint_delay_given_by_assistant():
@@ -305,6 +303,23 @@ def test_setpoint_delay_given_by_assistant():
     from opentunebox.log.flightlog import load
 
     path = corpus_log("1. PTB/cheussure/FF0.0_0.5_1.0.bbl")  # série 0 → 0,5 → 1,0 en Acro, un vol par valeur
-    found = [next(f for f in analyze(lg).findings if f.title == "Retard consigne → gyro") for lg in load(path)]
+    found = [next(f for f in analyze(lg).findings if f.key == "setpoint_delay") for lg in load(path)]
     assert found[0].detail.startswith("Roll ") and "(feedforward 0,0, Acro)" in found[0].detail
     assert "(feedforward 0,5, Acro)" in found[1].detail and "(feedforward 1,0, Acro)" in found[2].detail
+
+
+def test_tracked_settings_declared_on_corpus():
+    """Sur de vrais logs, chaque constat qui cite rpm_filter_q ou dyn_notch_count le déclare (D-028)."""
+    from test_advisor_rules import assert_settings_declared
+
+    from opentunebox.advisor.noise import noise_report
+    from opentunebox.advisor.rules import analyze
+    from opentunebox.analysis.period import auto_period
+
+    for rel in ("1. PTB/Kris/13. Hover.bbl", "1. PTB/Thalhammer/Hover Test 48kHz.bbl", "1. PTB/dcodemonster/Hover Test 2.BBL",
+                "1. PTB/Fred28/Stock.BFL", "Cedric/Air65/stock.bbl", "Cedric/J3.5/JHEMCU F722HD AIO/Hovering/24k.bbl"):
+        lg = _load(rel)
+        sel = lg.slice_time(*auto_period(lg))
+        assert_settings_declared(analyze(lg, sel).findings)
+        nr = noise_report(lg, sel)
+        assert_settings_declared([b.verdict for b in nr.gyro_blocks if b.verdict is not None] + nr.strategy)

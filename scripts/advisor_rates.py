@@ -6,11 +6,11 @@ Usage : advisor_rates.py SORTIE.json [--limit N] [-j PROCESSUS]   (dossier de lo
         advisor_rates.py --resume SORTIE.json                     (tableau seul, sans recalcul)
 
 Mêmes sessions que la calibration (au moins 8 s, période analysée d'au moins 5 s). Pour chaque session :
-taille détectée, vol avec ou sans mouvements, et constats (titre, gravité, avec ou sans action). Le tableau
-donne, par constat d'attention ou de conseil, la part des sessions signalées : toutes, vols avec
-mouvements, vols stationnaires. Les nombres des titres sont remplacés par « N » pour les regrouper.
+taille détectée, vol avec ou sans mouvements, et constats (clé, titre, gravité, avec ou sans action). Le
+tableau donne, par constat d'attention ou de conseil (regroupé par clé, affiché par un de ses titres), la
+part des sessions signalées : toutes, vols avec mouvements, vols stationnaires.
 """
-import json, os, re, sys
+import json, os, sys
 from collections import Counter
 
 from opentunebox.advisor.rules import ATTENTION, CONSEIL, analyze
@@ -30,7 +30,7 @@ def analyze_file(f, root):
         rep = analyze(lg, sel)
         out.append({"file": os.path.relpath(f, root), "sess": lg.session, "profile": rep.profile.key,
                     "moving": bool(rep.measures["delays"].moving),
-                    "findings": [(x.title, x.severity, bool(x.actions)) for x in rep.findings]})
+                    "findings": [(x.key, x.title, x.severity, bool(x.actions)) for x in rep.findings]})
     return out
 
 
@@ -39,11 +39,13 @@ def summary(path):
     groups = {"tous": rows, "mouvements": [r for r in rows if r["moving"]],
               "stationnaires": [r for r in rows if not r["moving"]]}
     print(f"{len(rows)} sessions : " + ", ".join(f"{k} {len(v)}" for k, v in groups.items()))
-    counts = {k: Counter(t for r in v for t in {re.sub(r"(?<![A-Za-z])\d+(?:[.,]\d+)?", "N", t) for t, sev, _ in r["findings"]
-                                                if sev in (ATTENTION, CONSEIL)}) for k, v in groups.items()}
-    print(f"{'constat':60s} " + " ".join(f"{k:>13s}" for k in groups))
-    for t, _ in counts["tous"].most_common():
-        print(f"{t[:60]:60s} " + " ".join(f"{100 * counts[k][t] / max(1, len(v)):12.0f}%" for k, v in groups.items()))
+    counts = {k: Counter(key for r in v for key in {key for key, _t, sev, _ in r["findings"] if sev in (ATTENTION, CONSEIL)})
+              for k, v in groups.items()}
+    titles = {key: t for r in rows for key, t, _s, _ in r["findings"]}  # un titre par clé, pour la lecture
+    print(f"{'constat':70s} " + " ".join(f"{k:>13s}" for k in groups))
+    for key, _ in counts["tous"].most_common():
+        label = f"{key} ({titles[key]})"
+        print(f"{label[:70]:70s} " + " ".join(f"{100 * counts[k][key] / max(1, len(v)):12.0f}%" for k, v in groups.items()))
 
 
 if __name__ == "__main__":

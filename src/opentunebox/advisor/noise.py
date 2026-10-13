@@ -40,24 +40,22 @@ from .rules import (
     rpm_harmonic_levels,
 )
 
-# Rangement des constats par début de titre (comme rules.FILTER_STAGES). Un constat de bruit ou de
-# filtre absent de ces listes tombe dans la partie gyro (test_noise_report_classifies_every_title).
-CONDITION_TITLES = ("Seuils provisoires", "Retard des filtres peu représentatif")
-DTERM_TITLES = ("Terme D bruité", "Bruit du terme D", "Filtrage du D insuffisant", "LPF1 du D en mode statique",
-                "Filtrage du D peut-être trop fort", "Terme D propre", "Retard des filtres D")
-GYRO_TITLES = ("Gyro filtré bruité", "Bruit du gyro filtré", "Retard des filtres gyro",
-               "Filtrage gyro peut-être trop prudent", "Le LPF1 du gyro", "LPF2 du gyro coupé", "Biquad sur le",
-               "Bruit moteur mal éliminé", "Filtre RPM : Q", "Poids du filtre RPM trop bas", "Harmonique moteur hors du filtre RPM",
-               "Raie moteur encore visible", "Filtre RPM plus fort", "Raie fixe", "Raie à ", "Notch dynamique",
-               "Vol stationnaire : bruit identifié", "Oscillations basses fréquences")
-STRATEGY_TITLE = "Stratégie de filtrage"
-NOISE_CATEGORIES = ("Bruit", "Filtres")  # en mécanique, seule la « Raie fixe » (GYRO_TITLES) concerne le bruit
+# Rangement des constats par clé (`Finding.key`, comme rules.FILTER_STAGES). Un constat de bruit ou de
+# filtre absent de ces listes tombe dans la partie gyro (test_noise_report_classifies_every_key).
+CONDITION_KEYS = ("profile_provisional", "delay_not_representative")
+DTERM_KEYS = ("dterm_noisy", "dterm_noise_level", "dterm_filter_weak", "dterm_lpf1_static", "dterm_filter_too_strong",
+              "dterm_lift", "dterm_delay")
+GYRO_KEYS = ("gyro_noisy", "gyro_noise_level", "gyro_delay", "gyro_filter_cautious", "gyro_lpf1_off", "gyro_lpf2_off",
+             "gyro_lpf_biquad", "motor_noise_left", "rpm_q_raise", "rpm_weight_low", "rpm_harmonic_missing",
+             "rpm_line_visible", "rpm_weight_lighten", "frame_line_fixed", "hover_line_residual", "dyn_notch_q_lower",
+             "dyn_notch_q_raise", "dyn_notch_more", "dyn_notch_fewer", "hover_noise_summary", "low_band_oscillation")
+STRATEGY_KEY = "filter_strategy"
+NOISE_CATEGORIES = ("Bruit", "Filtres")  # en mécanique, seule la « Raie fixe » (GYRO_KEYS) concerne le bruit
 # Blocs de filtres de la partie gyro (étapes de rules.FILTER_STAGES ; la raie fixe va au notch, qui la traite)
 _STAGES = dict(FILTER_STAGES)
-RPM_TITLES = _STAGES["Filtre RPM"]
-NOTCH_TITLES = _STAGES["Notch dynamique"] + _STAGES["Mécanique"] + ("Raie fixe",)
-GYRO_LOWPASS_TITLES = _STAGES["Passe-bas du gyro"] + ("LPF2 du gyro coupé", "Retard des filtres gyro",
-                                                     "Gyro filtré bruité")  # conseil : curseur « filtre gyro »
+RPM_KEYS = _STAGES["Filtre RPM"]
+NOTCH_KEYS = _STAGES["Notch dynamique"] + _STAGES["Mécanique"]
+GYRO_LOWPASS_KEYS = _STAGES["Passe-bas du gyro"] + ("gyro_lpf2_off", "gyro_delay", "gyro_noisy")  # conseil : curseur « filtre gyro »
 DYN_NOTCH_UPDATE_MIN_HZ = 2000  # boucle PID minimale du notch dynamique (rules.dyn_notch_active)
 RPM_HARMONICS_DEFAULT = 3  # valeur par défaut de rpm_filter_harmonics (betaflight pg/rpm_filter.c)
 
@@ -102,13 +100,13 @@ class NoiseReport:
 
 def section_of(f: Finding) -> str | None:
     """Partie du diagnostic où ranger un constat de l'assistant (None : hors sujet)."""
-    if f.title == STRATEGY_TITLE:
+    if f.key == STRATEGY_KEY:
         return "strategy"
-    if f.category == "Enregistrement" or f.title.startswith(CONDITION_TITLES):
+    if f.category == "Enregistrement" or f.key in CONDITION_KEYS:
         return "conditions"
-    if f.title.startswith(DTERM_TITLES):
+    if f.key in DTERM_KEYS:
         return "dterm"
-    if f.title.startswith(GYRO_TITLES):
+    if f.key in GYRO_KEYS:
         return "gyro"
     if f.category in NOISE_CATEGORIES:
         return "gyro"
@@ -148,7 +146,7 @@ def _rpm_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Filt
                 f"rpm_filter_min_hz = {s.rpm_min_hz}" if n else "coupé (rpm_filter_harmonics = 0)")
     b = FilterBlock("Filtre RPM", settings, findings=findings)
     if log.motor_hz is None:
-        b.verdict = Finding("Filtres", CONSEIL if not s.dshot_bidir else INFO, "Filtre RPM : impossible à juger",
+        b.verdict = Finding("rpm_block_no_rpm", "Filtres", CONSEIL if not s.dshot_bidir else INFO, "Filtre RPM : impossible à juger",
                             "Pas d'eRPM dans le log : sans télémétrie RPM, le filtre RPM ne fonctionne pas et les "
                             "harmoniques moteur ne peuvent pas être repérées.",
                             ["blackbox_disable_rpm = OFF (dshot_bidir est déjà activé)." if s.dshot_bidir else
@@ -156,14 +154,14 @@ def _rpm_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Filt
                              f"rpm_filter_harmonics = {RPM_HARMONICS_DEFAULT}."])
         return b
     if n == 0:
-        b.verdict = Finding("Filtres", CONSEIL, "Filtre RPM coupé",
+        b.verdict = Finding("rpm_block_off", "Filtres", CONSEIL, "Filtre RPM coupé",
                             "L'eRPM est enregistré mais le filtre RPM est coupé : c'est le filtre le plus efficace "
                             "contre le bruit moteur, pour très peu de retard.",
                             [f"rpm_filter_harmonics = {RPM_HARMONICS_DEFAULT} (valeur par défaut de Betaflight), puis "
                              "réglez les poids d'après le log suivant."])
         return b
     if nr.harmonics is None:
-        b.verdict = Finding("Filtres", INFO, "Filtre RPM : efficacité non mesurable",
+        b.verdict = Finding("rpm_block_unmeasurable", "Filtres", INFO, "Filtre RPM : efficacité non mesurable",
                             "Sans gyro non filtré, on ne voit pas les harmoniques moteur avant filtrage.",
                             ["En 4.4 : debug_mode = GYRO_SCALED. En 4.5 et plus : blackbox_disable_gyrounfilt = OFF."])
         return b
@@ -188,7 +186,7 @@ def _rpm_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Filt
     q = (f"rpm_filter_q est déjà à {s.rpm_q}, le maximum conseillé ({RPM_Q_MAX})" if s.rpm_q >= RPM_Q_MAX else
          "L'assistant propose de monter rpm_filter_q (notchs plus étroits, moins de retard) quand les harmoniques "
          "sont effacées et que le bruit du gyro et du D est sous les repères")
-    b.verdict = Finding("Filtres", OK, "Filtre RPM : rien à changer",
+    b.verdict = Finding("rpm_block_ok", "Filtres", OK, "Filtre RPM : rien à changer",
                         f"Les harmoniques traitées sont effacées (au plus {HARMONIC_VISIBLE_DB:.0f} dB au-dessus du bruit "
                         f"voisin après filtres) ; {'; '.join(why)}. {q}.")
     return b
@@ -221,16 +219,16 @@ def _notch_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Fi
     rpm_on = log.motor_hz is not None and s.rpm_harmonics > 0
     if not dyn_notch_active(s):
         if rpm_on:
-            b.verdict = Finding("Filtres", OK, "Notch dynamique : rien à changer",
+            b.verdict = Finding("notch_block_ok", "Filtres", OK, "Notch dynamique : rien à changer",
                                 "Il est coupé ; avec le filtre RPM, il ne sert qu'aux résonances qui ne viennent pas "
                                 "des moteurs, et aucune n'est signalée.")
         else:
-            b.verdict = Finding("Filtres", INFO, "Notch dynamique et filtre RPM coupés",
+            b.verdict = Finding("notch_block_both_off", "Filtres", INFO, "Notch dynamique et filtre RPM coupés",
                                 "Seuls les passe-bas filtrent le bruit moteur : activez d'abord le filtre RPM (bloc "
                                 "ci-dessus), puis jugez le notch dynamique sur le log suivant.")
         return b
     if dn is None:
-        b.verdict = Finding("Filtres", INFO, "Notch dynamique : réglage non jugé",
+        b.verdict = Finding("notch_block_unjudged", "Filtres", INFO, "Notch dynamique : réglage non jugé",
                             "Il faut le gyro non filtré et le filtre RPM actif : sans filtre RPM, le notch dynamique "
                             "suit aussi les raies moteur et son nombre de notchs ne se juge pas.")
         return b
@@ -242,12 +240,12 @@ def _notch_block(log: FlightLog, nr: NoiseReport, findings: list[Finding]) -> Fi
         detail += (" Plus de pics que de notchs : les notchs suivent les plus forts ; l'assistant propose un notch "
                    "par pic seulement si une raie passe les filtres ou si le gyro filtré est bruité.")
     if out and nr.moving:  # en stationnaire, rules._hover_noise traite déjà chaque raie qui passe
-        b.verdict = Finding("Filtres", INFO, "Notch dynamique : pic en dehors de la plage",
+        b.verdict = Finding("notch_block_peak_outside", "Filtres", INFO, "Notch dynamique : pic en dehors de la plage",
                             detail + " Pic à " + ", ".join(f"{f:.0f}" for f in out) + " Hz hors de la plage : l'assistant "
                             "ne propose de l'élargir que pour une raie vue en vol stationnaire ou une raie fixe.",
                             ["Vol stationnaire de 20 à 30 s pour confirmer la raie."])
     else:
-        b.verdict = Finding("Filtres", OK, "Notch dynamique : rien à changer",
+        b.verdict = Finding("notch_block_ok", "Filtres", OK, "Notch dynamique : rien à changer",
                             detail + f" dyn_notch_q {s.dyn_notch_q} : l'assistant calcule le Q d'après la largeur et "
                             "la hauteur des raies à suivre ; il le baisse si une raie l'exige et le monte (jusqu'à "
                             f"{DYN_NOTCH_Q_RPM[1]}) quand rien ne passe et que le bruit du gyro et du D est sous les "
@@ -259,7 +257,7 @@ def _lowpass_block(title: str, lps, findings: list[Finding], moving: bool, prefi
     settings = " ; ".join(f"{prefix}_{name.lower()} : {lowpass_text(lp)}" for name, lp in zip(("LPF1", "LPF2"), lps))
     b = FilterBlock(title, settings, findings=findings)
     if not _actionable(findings):
-        b.verdict = Finding("Filtres", OK, f"{title} : rien à changer",
+        b.verdict = Finding("lowpass_block_ok", "Filtres", OK, f"{title} : rien à changer",
                             "Aucun constat ne demande de les modifier." if moving else
                             "Aucun constat de bruit ne demande de les modifier ; leur retard se juge sur un vol avec "
                             "mouvements.")
@@ -271,11 +269,11 @@ def _strategy_fallback(actionable: list[Finding], moving: bool) -> Finding:
     next_log = ("Log suivant : vol avec des mouvements francs (flips, rolls) pour juger le retard des filtres."
                 if not moving else "Log suivant : même type de vol, pour comparer.")
     if not actionable:
-        return Finding("Filtres", OK, "Aucun changement de filtre conseillé",
+        return Finding("filter_no_change", "Filtres", OK, "Aucun changement de filtre conseillé",
                        "Aucun constat de bruit ou de filtrage ne demande de modifier un réglage sur cette période.",
                        [next_log])
     f = actionable[0]
-    return Finding("Filtres", CONSEIL, "Un seul réglage de filtre à faire",
+    return Finding("filter_single_step", "Filtres", CONSEIL, "Un seul réglage de filtre à faire",
                    f"Commencez par « {f.title} » (détail ci-dessus), puis vérifiez la température des moteurs.",
                    [main_action(f), next_log])
 
@@ -301,9 +299,9 @@ def noise_report(log: FlightLog, sel: slice | None = None, profile: CraftProfile
         if key is not None:
             parts[key].append(f)
     s = log.settings
-    pick = lambda prefixes: [f for f in nr.gyro_findings if f.title.startswith(prefixes)]  # noqa: E731
-    nr.gyro_blocks = [_rpm_block(log, nr, pick(RPM_TITLES)), _notch_block(log, nr, pick(NOTCH_TITLES)),
-                      _lowpass_block("Passe-bas du gyro", (s.gyro_lpf1, s.gyro_lpf2), pick(GYRO_LOWPASS_TITLES),
+    pick = lambda keys: [f for f in nr.gyro_findings if f.key in keys]  # noqa: E731
+    nr.gyro_blocks = [_rpm_block(log, nr, pick(RPM_KEYS)), _notch_block(log, nr, pick(NOTCH_KEYS)),
+                      _lowpass_block("Passe-bas du gyro", (s.gyro_lpf1, s.gyro_lpf2), pick(GYRO_LOWPASS_KEYS),
                                      moving, "gyro")]
     in_blocks = {id(f) for b in nr.gyro_blocks for f in b.findings}
     nr.gyro_other = [f for f in nr.gyro_findings if id(f) not in in_blocks]

@@ -132,14 +132,23 @@ RESONANCE_MOTOR_SCORE_DB = -2.0
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
 SEVERITY_ORDER = {ALERTE: 0, ATTENTION: 1, CONSEIL: 2, INFO: 3, OK: 4}
 
+# Réglages CLI dont une règle a besoin de savoir qu'un constat précédent les conseille déjà (`Finding.settings`) :
+# tests/test_advisor_rules.py vérifie que chaque constat qui les cite dans ses actions les déclare, et inversement
+TRACKED_SETTINGS = ("rpm_filter_q", "dyn_notch_count")
+
+
 @dataclass
 class Finding:
+    """Un constat de l'assistant. ⚠️ Les règles, le diagnostic du bruit et les tests le reconnaissent par sa
+    clé `key`, jamais par son titre : les textes se reformulent librement (D-028)."""
+    key: str  # identifiant stable, en anglais, littéral à la création (un même constat sur deux axes partage sa clé)
     category: str  # Enregistrement, Réponse, Bruit, Filtres, Moteurs, Mécanique…
     severity: str
     title: str
     detail: str
     actions: list[str] = field(default_factory=list)
     axis: str | None = None
+    settings: tuple[str, ...] = ()  # réglages de TRACKED_SETTINGS que les actions citent
 
 
 @dataclass
@@ -192,35 +201,83 @@ def band_peak_ptb_db(x: np.ndarray, fs: float, lo: float, hi: float, breaks: np.
     return band_peak_ptb(x, fs, lo, hi, breaks)[1]
 
 
+@dataclass
+class _Analysis:
+    """État partagé par les sections d'`analyze` : le log, la période et le profil ; les constats accumulés
+    (`F`, dans l'ordre d'affichage à gravité égale) et les mesures (`meas`) ; puis ce qu'une section calcule
+    pour les suivantes."""
+    log: FlightLog
+    sel: slice
+    profile: CraftProfile
+    F: list[Finding] = field(default_factory=list)
+    meas: dict = field(default_factory=dict)
+    aliased: bool = False  # spectre replié : on n'allège aucun filtre sur cette base (_recording_rules)
+    steps: list[AxisStep] = field(default_factory=list)  # réponse indicielle par axe (_step_section)
+    # bande de bruit 80 Hz → hi, roll / pitch (_noise_rules) : moyennes, énergie 20–80 Hz, sommets (échelle PIDtoolbox)
+    hi: float = 500.0
+    g_db: list[float] = field(default_factory=list)
+    d_db: list[float] = field(default_factory=list)
+    low_db: list[float] = field(default_factory=list)
+    g_ptb: float = float("nan")
+    d_ptb: float = float("nan")
+    gyro_noisy: bool = False
+    dterm_noisy: bool = False
+    delays: object = None  # analysis.delay.Delays (_noise_rules)
+    br: object = None  # raccords du log : aucune fenêtre d'analyse ne les chevauche (D-020)
+
+    @property
+    def s(self):
+        return self.log.settings
+
+    @property
+    def fs(self) -> float:
+        return self.log.fs
+
+    @property
+    def hover(self) -> bool:
+        return not self.delays.moving
+
+
 def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | None = None) -> Report:
     sel = sel or slice(0, log.n)
     reason = "choisi par l'utilisateur"
     if profile is None:
         profile, reason = detect_profile(log)
-    F: list[Finding] = []
+    a = _Analysis(log, sel, profile, br=log.breaks(sel))
     if profile.provisional:
-        F.append(Finding("Réglage", INFO, "Seuils provisoires pour cette taille",
-                         f"Le corpus de calibration compte trop peu de drones « {profile.label} » : les seuils de "
-                         "bruit et de mécanique sont indicatifs."))
-    meas: dict = {}
-    fs = log.fs
-    s = log.settings
+        a.F.append(Finding("profile_provisional", "Réglage", INFO, "Seuils provisoires pour cette taille",
+                           f"Le corpus de calibration compte trop peu de drones « {profile.label} » : les seuils de "
+                           "bruit et de mécanique sont indicatifs."))
     t0, t1 = float(log.t[sel.start]), float(log.t[min(sel.stop, log.n) - 1])
-    br = log.breaks(sel)  # raccords : aucune fenêtre d'analyse ne les chevauche (D-020)
+    _recording_rules(a, t1 - t0)
+    _step_section(a)
+    _noise_rules(a)
+    _delay_rules(a)
+    _filter_rules(a)
+    _motor_rules(a)
+    _slider_rules(a)
+    strategy = filter_strategy(a.F, moving=a.delays.moving)
+    if strategy is not None:
+        a.F.insert(0, strategy)
+    return Report(profile, reason, (t0, t1), a.F, a.steps, a.meas)
 
-    # ------------------------------------------------------------ 1. qualité de l'enregistrement
+
+def _recording_rules(a: _Analysis, span_s: float) -> None:
+    """1. Qualité de l'enregistrement : fréquence du log, champs manquants, trous, crash."""
+    log, sel, s, fs, F = a.log, a.sel, a.s, a.fs, a.F
     hz = hover_motor_hz(log)
-    meas["hover_motor_hz"] = hz
+    a.meas["hover_motor_hz"] = hz
     base_hz = log_rate_needed(s.pid_rate_hz)
     harm_hz = log_rate_needed(s.pid_rate_hz, hz)
-    meas["log_rate_needed_hz"] = (base_hz, harm_hz)
-    aliased = fs < 0.95 * base_hz  # spectre replié : on n'allège aucun filtre sur cette base
+    a.meas["log_rate_needed_hz"] = (base_hz, harm_hz)
+    a.aliased = fs < 0.95 * base_hz
+    a.meas["aliased"] = a.aliased
     loops = f"gyro à {s.gyro_rate_hz / 1000:.1f} kHz, boucle PID à {s.pid_rate_hz / 1000:.1f} kHz"
     filter_fix = [f"Pour un vol de réglage des filtres : blackbox_sample_rate = "
                   f"{sample_rate_cli(s.pid_rate_hz, max(base_hz, harm_hz))} ({max(base_hz, harm_hz):.0f} Hz)."]
     pid_hz = pid_log_rate_needed(s.pid_rate_hz)
     if fs < 0.95 * PID_LOG_RATE_MIN_HZ:
-        F.append(Finding("Enregistrement", ATTENTION, "Fréquence d'enregistrement trop basse",
+        F.append(Finding("log_rate_low", "Enregistrement", ATTENTION, "Fréquence d'enregistrement trop basse",
                          f"Le log est enregistré à {fs:.0f} Hz ({loops}) : il faut au moins {PID_LOG_RATE_MIN_HZ:.0f} Hz "
                          f"pour régler les PID et {base_hz:.0f} Hz pour juger les filtres. Le blackbox garde un "
                          f"échantillon sur N sans filtre anti-repliement : tout bruit au-dessus de {fs / 2:.0f} Hz se "
@@ -228,13 +285,13 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          [f"Pour un vol de réglage des PID : blackbox_sample_rate = "
                           f"{sample_rate_cli(s.pid_rate_hz, pid_hz)} ({pid_hz:.0f} Hz).", *filter_fix]))
     elif fs < 0.95 * base_hz:
-        F.append(Finding("Enregistrement", CONSEIL, "Fréquence d'enregistrement trop basse pour les filtres",
+        F.append(Finding("log_rate_low_filters", "Enregistrement", CONSEIL, "Fréquence d'enregistrement trop basse pour les filtres",
                          f"Le log est enregistré à {fs:.0f} Hz ({loops}) : assez pour régler les PID (au moins "
                          f"{PID_LOG_RATE_MIN_HZ:.0f} Hz), pas pour juger les filtres (au moins {base_hz:.0f} Hz). Tout "
                          f"bruit au-dessus de {fs / 2:.0f} Hz se replie dans le spectre (fausses raies) : aucun filtre "
                          "n'est allégé d'après ce log.", filter_fix))
     if hz is not None and 3 * hz > fs / 2:
-        F.append(Finding("Enregistrement", CONSEIL, "Harmoniques moteur au-delà de la plage visible",
+        F.append(Finding("log_rate_harmonics", "Enregistrement", CONSEIL, "Harmoniques moteur au-delà de la plage visible",
                          f"Les moteurs tournent à ~{hz:.0f} Hz en vol : la 3e harmonique ({3 * hz:.0f} Hz) dépasse "
                          f"la moitié de la fréquence d'enregistrement ({fs / 2:.0f} Hz) et se replie dans le spectre "
                          "(petit drone : moteurs rapides).",
@@ -242,36 +299,41 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                           "sur un vol court pour régler les filtres." if harm_hz > fs * 1.05 else
                           "Boucle PID trop lente pour enregistrer plus vite : les harmoniques au-delà restent repliées."]))
     if log.gyro_unfilt is None:
-        F.append(Finding("Enregistrement", CONSEIL, "Gyro non filtré absent",
+        F.append(Finding("gyro_unfilt_missing", "Enregistrement", CONSEIL, "Gyro non filtré absent",
                          "Sans gyro non filtré, impossible de mesurer l'efficacité des filtres ni leur retard.",
                          ["En 4.4 : debug_mode = GYRO_SCALED. En 4.5 et plus : ne désactivez pas le champ gyroUnfilt."]))
     if log.motor_hz is None:
-        F.append(Finding("Enregistrement", CONSEIL, "Pas de télémétrie RPM",
+        F.append(Finding("rpm_missing", "Enregistrement", CONSEIL, "Pas de télémétrie RPM",
                          "Sans eRPM, le filtre RPM est inactif et les harmoniques moteur ne peuvent qu'être estimées.",
                          ["Activez dshot_bidir si vos ESC le permettent (BLHeli_32, Bluejay, AM32)."]))
     n_gaps, lost_s = log.recording_gaps(sel)
     if n_gaps:  # les fenêtres d'analyse qui chevauchent un trou sont écartées (D-020)
-        F.append(Finding("Enregistrement", INFO, "Trous dans l'enregistrement",
-                         f"{gaps_text(n_gaps, lost_s, t1 - t0)}, dus à des pauses d'écriture de la carte SD ou de la "
+        F.append(Finding("recording_gaps", "Enregistrement", INFO, "Trous dans l'enregistrement",
+                         f"{gaps_text(n_gaps, lost_s, span_s)}, dus à des pauses d'écriture de la carte SD ou de la "
                          "mémoire flash. Les fenêtres d'analyse qui chevauchent un trou sont écartées : il reste "
                          "moins de données à analyser.",
                          ["Si c'est fréquent : carte SD plus rapide, ou fréquence d'enregistrement plus basse."]))
     ct = crash_time(log)
     if ct is not None:
-        F.append(Finding("Vol", INFO, "Crash détecté",
+        F.append(Finding("crash", "Vol", INFO, "Crash détecté",
                          f"Crash vers {ct:.1f} s : la période d'analyse s'arrête avant."))
 
-    # ------------------------------------------------------------ 2. réponse indicielle
+
+def _step_section(a: _Analysis) -> None:
+    """2. Réponse indicielle : pic, latence, marges de la boucle ouverte, écart roll / pitch."""
+    log, sel, s, fs, F, profile = a.log, a.sel, a.s, a.fs, a.F, a.profile
+    br = a.br
     steps = []
     for ax in range(3):
         r = step_response(log.setpoint[ax, sel], log.gyro[ax, sel], fs, terms=log.pid_terms(ax, sel), breaks=br)
         steps.append(AxisStep(AXES[ax], r))
-    meas["steps"] = {st.axis: st.result.metrics for st in steps}
+    a.steps = steps
+    a.meas["steps"] = {st.axis: st.result.metrics for st in steps}
     cond = flight_conditions(log, sel)
     for ax, st in enumerate(steps[:2]):
         _step_rules(F, st, profile, cond.ff_gain(ax), s.pids[ax].F > 0 and cond.angle)
     if steps[0].result.n < STEP_MIN_WINDOWS and steps[1].result.n < STEP_MIN_WINDOWS:
-        F.append(Finding("Réponse", ATTENTION, "Pas assez de mouvements de manche",
+        F.append(Finding("step_few_windows", "Réponse", ATTENTION, "Pas assez de mouvements de manche",
                          f"Seulement {steps[0].result.n} fenêtres exploitables en roll et {steps[1].result.n} en pitch "
                          "(il faut des mouvements de plus de 20 °/s).",
                          ["Volez 20 à 30 s avec des mouvements francs et des flips/rolls rapides sur chaque axe."]))
@@ -280,32 +342,37 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         d = r1.metrics.peak - r0.metrics.peak
         if abs(d) > profile.roll_pitch_gap_high:
             more = "pitch" if d > 0 else "roll"
-            F.append(Finding("Réponse", CONSEIL, "Roll et pitch se comportent différemment",
+            F.append(Finding("step_roll_pitch_gap", "Réponse", CONSEIL, "Roll et pitch se comportent différemment",
                              f"Pic {r0.metrics.peak:.2f} en roll contre {r1.metrics.peak:.2f} en pitch : le {more} dépasse davantage "
                              f"(écart {abs(d):.2f}, seuil {profile.roll_pitch_gap_high:.2f}).",
                              [f"Curseur « D pitch » (pitch_d) : {'+' if d > 0 else '−'}0,1 pour équilibrer."]))
 
-    # ------------------------------------------------------------ 3. bruit et filtres
-    delays = compute_delays(log, sel)
-    meas["delays"] = delays
-    F.extend(_setpoint_delay(log, sel, delays.sp_gyro_ms))
+
+def _noise_rules(a: _Analysis) -> None:
+    """3a. Retard consigne → gyro, niveaux de bruit du gyro filtré et du terme D (moyenne 80 Hz → hi, sommet sur
+    l'échelle de PIDtoolbox) et constats « bruité »."""
+    log, sel, fs, F, profile = a.log, a.sel, a.fs, a.F, a.profile
+    br = a.br
+    a.delays = compute_delays(log, sel)
+    a.meas["delays"] = a.delays
+    F.extend(_setpoint_delay(log, sel, a.delays.sp_gyro_ms))
     nyq = fs / 2
     # Bandes vérifiées sur le corpus (docs/assistant.md, « Bandes de bruit ») : 500 Hz = plus haute borne
     # commune aux logs à 1 kHz ; changer une borne oblige à recalibrer les seuils p90 des profils
-    hi = min(500.0, 0.95 * nyq)
-    g_db = [_band_db(log.gyro[a, sel], fs, 80, hi, br) for a in range(2)]
-    d_db = [_band_db(log.d_term[a, sel], fs, 80, hi, br) for a in range(2) if np.any(log.d_term[a])]
-    low_db = [_band_db(log.gyro[a, sel], fs, 20, 80, br) for a in range(2)]
-    g_ptb = max(band_peak_ptb_db(log.gyro[a, sel], fs, 80, hi, br) for a in range(2))
-    d_ptb = max((band_peak_ptb_db(log.d_term[a, sel], fs, 80, hi, br) for a in range(2) if np.any(log.d_term[a])),
-                default=float("nan"))
-    meas.update(gyro_noise_db=g_db, dterm_noise_db=d_db, low_band_db=low_db, gyro_peak_ptb_db=g_ptb,
-                dterm_peak_ptb_db=d_ptb)
-    gyro_noisy = max(g_db) > profile.gyro_noise_high_db
+    hi = a.hi = min(500.0, 0.95 * nyq)
+    g_db = a.g_db = [_band_db(log.gyro[x, sel], fs, 80, hi, br) for x in range(2)]
+    d_db = a.d_db = [_band_db(log.d_term[x, sel], fs, 80, hi, br) for x in range(2) if np.any(log.d_term[x])]
+    a.low_db = [_band_db(log.gyro[x, sel], fs, 20, 80, br) for x in range(2)]
+    g_ptb = a.g_ptb = max(band_peak_ptb_db(log.gyro[x, sel], fs, 80, hi, br) for x in range(2))
+    d_ptb = a.d_ptb = max((band_peak_ptb_db(log.d_term[x, sel], fs, 80, hi, br) for x in range(2) if np.any(log.d_term[x])),
+                          default=float("nan"))
+    a.meas.update(gyro_noise_db=g_db, dterm_noise_db=d_db, low_band_db=a.low_db, gyro_peak_ptb_db=g_ptb,
+                  dterm_peak_ptb_db=d_ptb)
+    a.gyro_noisy = max(g_db) > profile.gyro_noise_high_db
     dterm_corpus = bool(d_db) and max(d_db) > profile.dterm_noise_high_db
     dterm_ptb = bool(np.isfinite(d_ptb) and d_ptb > DTERM_PTB_MAX_DB)
-    dterm_noisy = dterm_corpus or dterm_ptb
-    if dterm_noisy:
+    a.dterm_noisy = dterm_corpus or dterm_ptb
+    if a.dterm_noisy:
         why = []
         if dterm_corpus:
             why.append(f"bruit moyen {max(d_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille "
@@ -313,37 +380,39 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         if dterm_ptb:
             why.append(f"sommet du spectre à {d_ptb:.0f} dB sur l'échelle de PIDtoolbox, au-dessus du repère de "
                        f"{DTERM_PTB_MAX_DB:.0f} dB (idéal : sous −20 dB)")
-        F.append(Finding("Bruit", ATTENTION, "Terme D bruité",
+        F.append(Finding("dterm_noisy", "Bruit", ATTENTION, "Terme D bruité",
                          "Terme D : " + " ; ".join(why) + ". Un D bruité fait chauffer les moteurs et use les ESC.",
                          ["Vérifiez d'abord la mécanique (hélices, roulements, vis du châssis).",
                           "Curseur « filtre D » : −0,1 à −0,2 (filtrage plus fort), ou baisser le D (curseur Damping) si la réponse le permet.",
                           "Après le vol : moteurs tièdes = OK ; chauds = réduire D ou filtrer plus."]))
-    if gyro_noisy:
-        F.append(Finding("Bruit", ATTENTION, "Gyro filtré bruité",
+    if a.gyro_noisy:
+        F.append(Finding("gyro_noisy", "Bruit", ATTENTION, "Gyro filtré bruité",
                          f"Bruit du gyro filtré {max(g_db):.1f} dB (80–{hi:.0f} Hz), plus que 90 % des drones de cette taille (seuil {profile.gyro_noise_high_db:.1f} dB). "
                          f"Sommet du spectre à {g_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : sous {GYRO_PTB_MAX_DB:.0f} dB).",
                          ["Contrôlez hélices et moteurs (vibrations), la fixation du contrôleur de vol (silentblocs).",
                           "Curseur « filtre gyro » : −0,2."]))
     elif np.isfinite(g_ptb):
-        F.append(Finding("Bruit", OK if g_ptb <= GYRO_PTB_MAX_DB else INFO, "Bruit du gyro filtré",
+        F.append(Finding("gyro_noise_level", "Bruit", OK if g_ptb <= GYRO_PTB_MAX_DB else INFO, "Bruit du gyro filtré",
                          f"Sommet du spectre à {g_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : sous "
                          f"{GYRO_PTB_MAX_DB:.0f} dB) ; bruit moyen {max(g_db):.1f} dB, dans les 90 % du corpus "
                          f"(seuil {profile.gyro_noise_high_db:.1f} dB)."))
-    if not dterm_noisy and np.isfinite(d_ptb):
-        F.append(Finding("Bruit", OK, "Bruit du terme D",
+    if not a.dterm_noisy and np.isfinite(d_ptb):
+        F.append(Finding("dterm_noise_level", "Bruit", OK, "Bruit du terme D",
                          f"Sommet du spectre à {d_ptb:.0f} dB sur l'échelle de PIDtoolbox (repère : au plus "
                          f"{DTERM_PTB_MAX_DB:.0f} dB, idéal sous −20 dB)."))
-    fr = frame_resonance(log, sel)
-    fixed = fr[0] if fr is not None and fr[1] >= profile.resonance_high_db and not fr[2] else None
-    dn = dyn_notch_view(log, sel, fixed)
-    meas.update(frame_resonance=fr, dyn_notch=dn, aliased=aliased)
+
+
+def _delay_rules(a: _Analysis) -> None:
+    """3b. Retards des filtres gyro et D (vol avec mouvements seulement, D-010) et relèvement des filtres du D."""
+    log, sel, s, F, profile, delays = a.log, a.sel, a.s, a.F, a.profile, a.delays
+    hi, d_db, d_ptb = a.hi, a.d_db, a.d_ptb
     target = filter_delay_target_ms(profile.nominal_inch)
     g_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[0]:.2f} ms."
               if target else "")
     if not delays.moving and (np.isfinite(delays.gyro_ms) or np.isfinite(delays.dterm_ms)):
         vals = " ; ".join(f"{name} {v:.2f} ms" for name, v in (("gyro", delays.gyro_ms), ("D", delays.dterm_ms))
                           if np.isfinite(v))
-        F.append(Finding("Filtres", INFO, "Retard des filtres peu représentatif",
+        F.append(Finding("delay_not_representative", "Filtres", INFO, "Retard des filtres peu représentatif",
                          f"Retards mesurés : {vals}. Le vol contient trop peu de mouvements (consigne au-delà de "
                          f"{MOVING_SETPOINT_DPS:.0f} °/s moins de 5 % du temps, 95e centile {delays.stick_p95_dps:.0f} °/s) : "
                          "en vol stationnaire, les filtres dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne "
@@ -353,71 +422,86 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
                          ["Pour juger le retard des filtres : log avec des mouvements francs (flips, rolls, wobbles), "
                           "pas seulement du vol stationnaire."]))
     if delays.moving and np.isfinite(delays.gyro_ms):
-        if delays.gyro_ms > profile.gyro_delay_max_ms and not gyro_noisy and not dterm_noisy:
+        if delays.gyro_ms > profile.gyro_delay_max_ms and not a.gyro_noisy and not a.dterm_noisy:
             actions = ["Curseur « filtre gyro » : +0,2 (moins de retard → meilleure réactivité, moins de propwash)."]
+            settings: tuple[str, ...] = ()
             if s.rpm_harmonics > 0 and s.rpm_q < RPM_Q_MAX:
                 actions.append(f"Filtre RPM : rpm_filter_q {s.rpm_q} → {min(s.rpm_q + RPM_Q_STEP, RPM_Q_MAX)} (notchs "
                                f"plus étroits, moins de retard), puis par pas de {RPM_Q_STEP} jusqu'à {RPM_Q_MAX} au plus, "
                                "en vérifiant à chaque pas que les raies moteur ne réapparaissent pas.")
+                settings = ("rpm_filter_q",)
             actions.append("Contrôlez la température des moteurs après chaque changement.")
-            F.append(Finding("Filtres", CONSEIL, "Filtrage gyro peut-être trop prudent",
+            F.append(Finding("gyro_filter_cautious", "Filtres", CONSEIL, "Filtrage gyro peut-être trop prudent",
                              f"Retard des filtres gyro {delays.gyro_ms:.2f} ms (repère {profile.gyro_delay_max_ms:.1f} ms pour "
                              f"{profile.label}, plus que 90 % des drones du corpus) alors que le bruit est faible." + g_goal,
-                             actions))
+                             actions, settings=settings))
         elif delays.gyro_ms > profile.gyro_delay_max_ms:
-            F.append(Finding("Filtres", INFO, "Retard des filtres gyro",
+            F.append(Finding("gyro_delay", "Filtres", INFO, "Retard des filtres gyro",
                              f"{delays.gyro_ms:.2f} ms, au-dessus du repère ({profile.gyro_delay_max_ms:.1f} ms pour "
                              f"{profile.label}), mais le bruit ne permet pas de filtrer moins." + g_goal))
         else:
-            F.append(Finding("Filtres", OK, "Retard des filtres gyro",
+            F.append(Finding("gyro_delay", "Filtres", OK, "Retard des filtres gyro",
                              f"{delays.gyro_ms:.2f} ms (repère ≤ {profile.gyro_delay_max_ms:.1f} ms pour {profile.label})." + g_goal))
     if delays.moving and np.isfinite(delays.dterm_ms):
         d_goal = (f" Objectif de Brian White pour un {profile.nominal_inch:g} pouces : environ {target[1]:.2f} ms "
                   "lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms plus court qu'ici." if target else "")
-        if delays.dterm_ms > profile.dterm_delay_max_ms and not dterm_noisy:
-            F.append(_dterm_lift(log, sel, hi, profile, delays.dterm_ms, d_db, d_ptb, d_goal) if not aliased else
-                     Finding("Filtres", INFO, "Retard des filtres D",
+        if delays.dterm_ms > profile.dterm_delay_max_ms and not a.dterm_noisy:
+            F.append(_dterm_lift(log, sel, hi, profile, delays.dterm_ms, d_db, d_ptb, d_goal) if not a.aliased else
+                     Finding("dterm_delay", "Filtres", INFO, "Retard des filtres D",
                              f"{delays.dterm_ms:.2f} ms, au-dessus du repère ({profile.dterm_delay_max_ms:.1f} ms), mais le log "
                              "est trop lent pour juger le bruit : pas de relèvement proposé." + d_goal))
         elif delays.dterm_ms <= profile.dterm_delay_max_ms:
-            F.append(Finding("Filtres", OK, "Retard des filtres D",
+            F.append(Finding("dterm_delay", "Filtres", OK, "Retard des filtres D",
                              f"{delays.dterm_ms:.2f} ms (repère ≤ {profile.dterm_delay_max_ms:.1f} ms pour {profile.label})." + d_goal))
-    if (not aliased and not dterm_noisy and not gyro_noisy and np.isfinite(d_ptb) and d_ptb < DTERM_PTB_IDEAL_DB
+    if (not a.aliased and not a.dterm_noisy and not a.gyro_noisy and np.isfinite(d_ptb) and d_ptb < DTERM_PTB_IDEAL_DB
             and np.any(log.d_term[0])):
-        f = _dterm_lift_noise(log, sel, hi, profile, d_db, d_ptb, hover=not delays.moving,
+        f = _dterm_lift_noise(log, sel, hi, profile, d_db, d_ptb, hover=a.hover,
                               delay_ms=delays.dterm_ms if delays.moving else float("nan"))
         if f is not None:  # remplace le conseil +0,1 fondé sur le retard, qui en dit moins
-            F[:] = [x for x in F if not (x.title == "Filtrage du D peut-être trop fort" and x.severity == CONSEIL)]
+            F[:] = [x for x in F if not (x.key == "dterm_filter_too_strong" and x.severity == CONSEIL)]
             F.append(f)
+
+
+def _filter_rules(a: _Analysis) -> None:
+    """3c. Réglages des filtres : passe-bas déconseillés, LPF1 du gyro, filtre RPM, oscillations 20–80 Hz, raie
+    fixe, bilan du vol stationnaire, notch dynamique."""
+    log, sel, s, fs, F, profile = a.log, a.sel, a.s, a.fs, a.F, a.profile
+    br, hi, aliased = a.br, a.hi, a.aliased
+    g_db, d_db, g_ptb, d_ptb = a.g_db, a.d_db, a.g_ptb, a.d_ptb
+    fr = frame_resonance(log, sel)
+    fixed = fr[0] if fr is not None and fr[1] >= profile.resonance_high_db and not fr[2] else None
+    dn = dyn_notch_view(log, sel, fixed)
+    a.meas.update(frame_resonance=fr, dyn_notch=dn)
     F.extend(_lowpass_setup_rules(s))
     if (not aliased and s.gyro_lpf1.enabled and log.gyro_unfilt is not None and log.motor_hz is not None and s.rpm_harmonics > 0
-            and not gyro_noisy and not dterm_noisy):
-        f = _gyro_lpf1_off(log, sel, hi, profile, g_db, d_db, d_ptb, hover=not delays.moving)
+            and not a.gyro_noisy and not a.dterm_noisy):
+        f = _gyro_lpf1_off(log, sel, hi, profile, g_db, d_db, d_ptb, hover=a.hover)
         if f is not None:
             F.append(f)
     if log.motor_hz is not None and log.gyro_unfilt is not None and s.rpm_harmonics > 0:
-        mn = [motor_noise(log.gyro[a, sel], log.motor_hz[:, sel], fs, breaks=br) for a in range(2)]
-        mp = [motor_noise(log.gyro_unfilt[a, sel], log.motor_hz[:, sel], fs, breaks=br) for a in range(2)]
-        left = [float(np.nanmax([m.mean_db[0] for m in mn]))]
-        meas["motor_harmonic_left_db"] = left[0]
-        meas["motor_harmonic_raw_db"] = float(np.nanmax([m.mean_db[0] for m in mp]))
-        if left[0] > profile.motor_left_high_db:
-            F.append(Finding("Filtres", CONSEIL, "Bruit moteur mal éliminé",
-                             f"Il reste {left[0]:.1f} dB sur la fréquence de rotation des moteurs après filtrage "
-                             f"(avant filtrage : {meas['motor_harmonic_raw_db']:.1f} dB).",
+        mn = [motor_noise(log.gyro[x, sel], log.motor_hz[:, sel], fs, breaks=br) for x in range(2)]
+        mp = [motor_noise(log.gyro_unfilt[x, sel], log.motor_hz[:, sel], fs, breaks=br) for x in range(2)]
+        left = float(np.nanmax([m.mean_db[0] for m in mn]))
+        a.meas["motor_harmonic_left_db"] = left
+        a.meas["motor_harmonic_raw_db"] = float(np.nanmax([m.mean_db[0] for m in mp]))
+        if left > profile.motor_left_high_db:
+            F.append(Finding("motor_noise_left", "Filtres", CONSEIL, "Bruit moteur mal éliminé",
+                             f"Il reste {left:.1f} dB sur la fréquence de rotation des moteurs après filtrage "
+                             f"(avant filtrage : {a.meas['motor_harmonic_raw_db']:.1f} dB).",
                              ["Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs).",
                               f"Filtre RPM : rpm_filter_q {s.rpm_q} → {max(RPM_Q_MIN, s.rpm_q - RPM_Q_STEP)} (notchs plus "
-                              f"larges), puis par pas de {RPM_Q_STEP} tant que la raie reste visible."]))
-        F.extend(_rpm_weight_rules(log, sel, s, lighten=left[0] <= profile.motor_left_high_db and not aliased,
-                                   h1_flagged=left[0] > profile.motor_left_high_db))
-        q_said = any("rpm_filter_q" in a for f in F for a in f.actions)  # retard, raie visible : déjà conseillé
-        if not aliased and not gyro_noisy and not dterm_noisy and s.rpm_q < RPM_Q_MAX and not q_said:
-            f = _rpm_q_raise(log, sel, s, F, hover=not delays.moving)
+                              f"larges), puis par pas de {RPM_Q_STEP} tant que la raie reste visible."],
+                             settings=("rpm_filter_q",)))
+        F.extend(_rpm_weight_rules(log, sel, s, lighten=left <= profile.motor_left_high_db and not aliased,
+                                   h1_flagged=left > profile.motor_left_high_db))
+        q_said = any("rpm_filter_q" in f.settings for f in F)  # retard, raie visible : déjà conseillé
+        if not aliased and not a.gyro_noisy and not a.dterm_noisy and s.rpm_q < RPM_Q_MAX and not q_said:
+            f = _rpm_q_raise(log, sel, s, F, hover=a.hover)
             if f is not None:
                 F.append(f)
-    if max(low_db) > profile.low_band_high_db:
-        F.append(Finding("Réponse", CONSEIL, "Oscillations basses fréquences (20–80 Hz)",
-                         f"Énergie du gyro filtré entre 20 et 80 Hz : {max(low_db):.1f} dB (seuil {profile.low_band_high_db:.1f} dB, "
+    if max(a.low_db) > profile.low_band_high_db:
+        F.append(Finding("low_band_oscillation", "Réponse", CONSEIL, "Oscillations basses fréquences (20–80 Hz)",
+                         f"Énergie du gyro filtré entre 20 et 80 Hz : {max(a.low_db):.1f} dB (seuil {profile.low_band_high_db:.1f} dB, "
                          "90 % des drones de cette taille font mieux). C'est la zone du propwash "
                          "et des oscillations de réglage.",
                          ["Si cela arrive en descente/gaz coupés : propwash → plus de D (Damping +0,1) ou D max.",
@@ -426,27 +510,31 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     res = _frame_resonance(log, fr, profile, sel)
     if res is not None:
         F.append(res)
-    if not delays.moving and log.motor_hz is not None and log.gyro_unfilt is not None:
-        F.extend(_hover_noise(log, sel, profile, g_ptb, d_ptb, fr[0] if res is not None else None, meas, aliased))
-    lines_pass = any(f.title.startswith(("Raie fixe", "Raie à ")) for f in F)
+    if a.hover and log.motor_hz is not None and log.gyro_unfilt is not None:
+        F.extend(_hover_noise(log, sel, profile, g_ptb, d_ptb, fr[0] if res is not None else None, a.meas, aliased))
+    lines_pass = any(f.key in LINE_KEYS for f in F)
     if not aliased and dn is not None:
-        F.extend(_dyn_notch_q_n_rules(s, dn, lines_pass, gyro_noisy, dterm_noisy, F, hover=not delays.moving))
+        F.extend(_dyn_notch_q_n_rules(s, dn, lines_pass, a.gyro_noisy, a.dterm_noisy, F, hover=a.hover))
     if not aliased and dn is not None and dn["count"] > max(1, len(dn["peaks"])):
         n = max(1, len(dn["peaks"]))
         found = (f"{len(dn['peaks'])} pic(s) à suivre ({', '.join(f'{f:.0f}' for f in dn['peaks'])} Hz)" if dn["peaks"]
                  else "aucun pic à suivre")
-        F.append(Finding("Filtres", INFO, "Notch dynamique : moins de notchs suffiraient",
+        F.append(Finding("dyn_notch_fewer", "Filtres", INFO, "Notch dynamique : moins de notchs suffiraient",
                          f"Entre {dn['min_hz']} et {dn['max_hz']} Hz, après le filtre RPM, {found} pour "
                          f"{dn['count']} notchs. Chaque notch filtre en permanence, même sans pic à suivre (il reste à "
                          "sa dernière fréquence), et ajoute du retard.",
                          [f"dyn_notch_count = {n} (actuellement {dn['count']}), puis vérifiez sur le log suivant que "
-                          "les raies de résonance ne réapparaissent pas dans le gyro filtré."]))
+                          "les raies de résonance ne réapparaissent pas dans le gyro filtré."],
+                         settings=("dyn_notch_count",)))
 
-    # ------------------------------------------------------------ 4. moteurs et mécanique
+
+def _motor_rules(a: _Analysis) -> None:
+    """4. Moteurs et mécanique : saturation, déséquilibre, terme I décentré."""
+    log, sel, F, profile = a.log, a.sel, a.F, a.profile
     fst = flight_stats(log, sel)
-    meas["stats"] = fst
+    a.meas["stats"] = fst
     if fst.motor_saturation_pct > profile.saturation_high_pct:
-        F.append(Finding("Moteurs", ATTENTION, "Moteurs souvent saturés",
+        F.append(Finding("motor_saturation", "Moteurs", ATTENTION, "Moteurs souvent saturés",
                          f"Au moins un moteur est à fond {fst.motor_saturation_pct:.1f} % du temps (seuil "
                          f"{profile.saturation_high_pct:.1f} %) : le contrôleur n'a plus de marge pour corriger.",
                          ["Si c'est pendant les manœuvres : baisser les rates ou le Master.",
@@ -454,28 +542,25 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
     if np.isfinite(fst.motor_imbalance_pct) and fst.motor_imbalance_pct > profile.imbalance_high_pct:
         F.append(_imbalance_finding([mm.mean for mm in fst.motors], fst.motor_imbalance_pct))
     pe = pid_error_stats(log, sel)
-    meas["pid_error_sd"] = pe.sd
-    i_mean = [float(np.mean(log.i_term[a, sel])) for a in range(3)]
-    meas["iterm_mean"] = i_mean
-    for a in range(2):
-        if abs(i_mean[a]) > profile.iterm_offset_high:
-            F.append(Finding("Mécanique", CONSEIL, f"Terme I décentré en {AXES[a].lower()}",
-                             f"Le terme I {AXES[a].lower()} reste en moyenne à {i_mean[a]:.0f} (seuil ±{profile.iterm_offset_high:.0f}) : le drone "
+    a.meas["pid_error_sd"] = pe.sd
+    i_mean = [float(np.mean(log.i_term[x, sel])) for x in range(3)]
+    a.meas["iterm_mean"] = i_mean
+    for x in range(2):
+        if abs(i_mean[x]) > profile.iterm_offset_high:
+            F.append(Finding("iterm_offset", "Mécanique", CONSEIL, f"Terme I décentré en {AXES[x].lower()}",
+                             f"Le terme I {AXES[x].lower()} reste en moyenne à {i_mean[x]:.0f} (seuil ±{profile.iterm_offset_high:.0f}) : le drone "
                              "compense en permanence un déséquilibre.",
                              ["Centrez la batterie / la caméra (centre de gravité).", "Vérifiez qu'aucun moteur ne tourne moins vite."]))
 
-    # ------------------------------------------------------------ 5. réglage simplifié
-    sv = slider_view(s)
-    meas["sliders"] = sv
-    if not sv.from_header:
-        F.append(Finding("Réglage", INFO, "Réglage simplifié désactivé",
-                         "Les PID ont été saisis à la main : les conseils « curseur » sont donnés à titre indicatif.",
-                         ["Positions estimées : " + ", ".join(f"{k} {v:.2f}" for k, v in sv.values.items())]))
 
-    strategy = filter_strategy(F, moving=delays.moving)
-    if strategy is not None:
-        F.insert(0, strategy)
-    return Report(profile, reason, (t0, t1), F, steps, meas)
+def _slider_rules(a: _Analysis) -> None:
+    """5. Réglage simplifié : positions des curseurs, estimées si les PID ont été saisis à la main."""
+    sv = slider_view(a.s)
+    a.meas["sliders"] = sv
+    if not sv.from_header:
+        a.F.append(Finding("sliders_off", "Réglage", INFO, "Réglage simplifié désactivé",
+                           "Les PID ont été saisis à la main : les conseils « curseur » sont donnés à titre indicatif.",
+                           ["Positions estimées : " + ", ".join(f"{k} {v:.2f}" for k, v in sv.values.items())]))
 
 
 def _fr(x: float) -> str:
@@ -494,10 +579,13 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
     _step_findings(F, st, profile, ff_gain, ff_cut)
     if r.n < STEP_SURE_WINDOWS:
         for f in F[first:]:
-            if f.title.startswith("Marge"):
+            if f.key in LOOP_MARGIN_KEYS:
                 continue  # boucle ouverte : précision non mesurée ici, elle a sa propre réserve (_loop_caveat)
             f.detail += (f" Mesure moins sûre : {r.n} fenêtres ({STEP_SURE_WINDOWS} conseillées, soit environ 20 s de "
                          "wobbles roll et pitch mêlés).")
+
+
+LOOP_MARGIN_KEYS = ("loop_sensitivity_high", "loop_phase_margin_low")  # marges de la boucle ouverte mesurée
 
 
 def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int, ff_cut: bool = False) -> None:
@@ -512,7 +600,7 @@ def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gai
     if pk > advice and ff_gain > 0 and np.isfinite(lat) and lat < profile.latency_ms[0]:
         # Réponse plus rapide que ce que P et D permettent seuls, puis dépassement : c'est le
         # feedforward qui pousse (il agit à plein sur les mouvements de manche vifs).
-        F.append(Finding("Réponse", CONSEIL if pk <= strong else ATTENTION,
+        F.append(Finding("step_ff_overshoot", "Réponse", CONSEIL if pk <= strong else ATTENTION,
                          f"Dépassement dû au feedforward en {ax.lower()}",
                          f"Pic {pk:.2f} atteint après une montée très rapide (latence {lat:.1f} ms, plus courte que "
                          f"les {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms habituels pour {profile.label}). "
@@ -523,34 +611,34 @@ def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gai
                           "Le D n'est pas en cause tant que les vols calmes ne dépassent pas."], ax))
         return
     if pk > strong:
-        F.append(Finding("Réponse", ATTENTION, f"Fort dépassement en {ax.lower()}",
+        F.append(Finding("step_overshoot_strong", "Réponse", ATTENTION, f"Fort dépassement en {ax.lower()}",
                          f"Pic {pk:.2f} (> {_fr(strong)}{with_ff}, plus que 95 % des axes du corpus) : le drone "
                          "dépasse la consigne puis revient, signe d'un manque d'amortissement.",
                          ["Curseur Damping (D) : +0,2."], ax))
     elif pk > advice:
-        F.append(Finding("Réponse", CONSEIL, f"Léger dépassement en {ax.lower()}",
+        F.append(Finding("step_overshoot_light", "Réponse", CONSEIL, f"Léger dépassement en {ax.lower()}",
                          f"Pic {pk:.2f} (> {_fr(advice)}{with_ff}, plus que 90 % des drones du corpus). Sans "
                          f"feedforward, une réponse sans dépassement visible donne environ {_fr(STEP_PEAK_FLAT)} ; "
                          "le feedforward fait monter le pic.", ["Curseur Damping (D) : +0,1."], ax))
     elif pk < STEP_PEAK_SOFT and np.isfinite(lat) and lat > profile.latency_ms[1]:
-        F.append(Finding("Réponse", CONSEIL, f"Réponse molle en {ax.lower()}",
+        F.append(Finding("step_soft", "Réponse", CONSEIL, f"Réponse molle en {ax.lower()}",
                          f"Pic {pk:.2f} et latence {lat:.1f} ms (repère {profile.latency_ms[0]:.0f}–{profile.latency_ms[1]:.0f} ms "
                          f"pour {profile.label}) : trop amorti.",
                          ["Curseur Damping (D) : −0,1.",
                           f"Pour la réactivité au manche : {FF_SERIES_ADVICE}."], ax))
     else:
-        F.append(Finding("Réponse", OK, f"Réponse indicielle {ax.lower()}",
+        F.append(Finding("step_ok", "Réponse", OK, f"Réponse indicielle {ax.lower()}",
                          f"Pic {pk:.2f}, latence {lat:.1f} ms, {r.n} fenêtres analysées.", [], ax))
     if np.isfinite(lp.sensitivity_peak_db) and lp.sensitivity_peak_db > SENSITIVITY_HIGH_DB:
         at_least = "au moins " if lp.sensitivity_peak_at_edge else ""
-        F.append(Finding("Réponse", CONSEIL, f"Marge de stabilité faible en {ax.lower()}",
+        F.append(Finding("loop_sensitivity_high", "Réponse", CONSEIL, f"Marge de stabilité faible en {ax.lower()}",
                          f"Pic de sensibilité {at_least}{lp.sensitivity_peak_db:.1f} dB à {lp.sensitivity_peak_hz:.0f} Hz "
                          f"(> {SENSITIVITY_HIGH_DB:.0f} dB) : le drone amplifie les perturbations à cette fréquence et risque d'osciller."
                          + _loop_caveat(lp) + _whoop_margin_note(profile),
                          [*_margin_actions(lp), "Réduire le retard des filtres si le bruit le permet.",
                           *_edge_actions(lp)], ax))
     elif np.isfinite(lp.phase_margin_deg) and lp.phase_margin_deg < PHASE_MARGIN_LOW_DEG:
-        F.append(Finding("Réponse", CONSEIL, f"Marge de phase réduite en {ax.lower()}",
+        F.append(Finding("loop_phase_margin_low", "Réponse", CONSEIL, f"Marge de phase réduite en {ax.lower()}",
                          f"Marge de phase {lp.phase_margin_deg:.0f}° (< {PHASE_MARGIN_LOW_DEG:.0f}°) au croisement de {lp.crossover_hz:.0f} Hz."
                          + _loop_caveat(lp) + _whoop_margin_note(profile), _margin_actions(lp), ax))
 
@@ -566,7 +654,7 @@ def _setpoint_delay(log: FlightLog, sel: slice, sp_ms: list[float]) -> list[Find
     mode = ("mode Angle : le firmware y coupe le feedforward, volez en Acro pour la série" if cond.angle else "Acro")
     txt = ", ".join(f"{AXES[a].lower()} {v:.1f} ms" for a, v in enumerate(sp_ms[:2]) if np.isfinite(v))
     txt = f"{txt[0].upper()}{txt[1:]} (feedforward {ff:.1f}".replace(".", ",")
-    return [Finding("Réponse", INFO, "Retard consigne → gyro", f"{txt}, {mode})."
+    return [Finding("setpoint_delay", "Réponse", INFO, "Retard consigne → gyro", f"{txt}, {mode})."
                     + " Série Feedforward (0, 0,5, 1… en Acro) : comparez ce retard d'un vol à l'autre ; plus il est "
                     "court, plus le drone suit le manche tôt.", [])]
 
@@ -659,7 +747,7 @@ def _gyro_lpf1_off(log, sel, hi, profile, g_db, d_db, d_ptb, hover: bool = False
         return None
     lp = s.gyro_lpf1
     now = f"{lp.dyn_min_hz}–{lp.dyn_max_hz} Hz dynamique" if lp.dynamic else f"{lp.static_hz} Hz"
-    return Finding("Filtres", CONSEIL, "Le LPF1 du gyro peut être coupé",
+    return Finding("gyro_lpf1_off", "Filtres", CONSEIL, "Le LPF1 du gyro peut être coupé",
                    f"Avec le filtre RPM, le LPF1 du gyro ({lp.type} {now}) est souvent superflu. Sans lui, le simulateur "
                    f"prévoit {pred['gyro_delay_gain_ms']:.2f} ms de retard en moins, un gyro filtré à {g:.1f} dB "
                    f"(seuil {profile.gyro_noise_high_db:.1f}), un terme D à {d:.1f} dB (seuil {profile.dterm_noise_high_db:.1f}) "
@@ -684,17 +772,17 @@ def _dterm_lift(log, sel, hi, profile, delay_ms, d_db, d_ptb, d_goal) -> Finding
     pred = predict_filter_change(log, sel, mod, hi) if np.any(log.d_term[0]) else None
     head = f"Retard des filtres D {delay_ms:.2f} ms (repère {profile.dterm_delay_max_ms:.1f} ms) avec un D peu bruité."
     if pred is None:
-        return Finding("Filtres", CONSEIL, "Filtrage du D peut-être trop fort", head + d_goal, ["Curseur « filtre D » : +0,1."])
+        return Finding("dterm_filter_too_strong", "Filtres", CONSEIL, "Filtrage du D peut-être trop fort", head + d_goal, ["Curseur « filtre D » : +0,1."])
     _, d, dp = _noise_after(pred, d_db, d_ptb)
     forecast = (f" Avec le curseur « filtre D » +0,1 (coupures ×{factor:.2f}), le simulateur prévoit "
                 f"{pred['d_delay_gain_ms']:.2f} ms de retard en moins, un terme D à {d:.1f} dB (seuil "
                 f"{profile.dterm_noise_high_db:.1f}) et un sommet à {dp:.0f} dB PIDtoolbox (repère {DTERM_PTB_MAX_DB:.0f}).")
     if d is not None and dp is not None and d <= profile.dterm_noise_high_db and dp <= DTERM_PTB_MAX_DB:
-        return Finding("Filtres", CONSEIL, "Filtrage du D peut-être trop fort", head + forecast + d_goal,
+        return Finding("dterm_filter_too_strong", "Filtres", CONSEIL, "Filtrage du D peut-être trop fort", head + forecast + d_goal,
                        ["Curseur « filtre D » : +0,1.",
                         "Vol d'essai court, puis vérifiez la température des moteurs : moins de filtrage du D les fait "
                         "chauffer plus vite que tout autre réglage."])
-    return Finding("Filtres", INFO, "Retard des filtres D", head + forecast +
+    return Finding("dterm_delay", "Filtres", INFO, "Retard des filtres D", head + forecast +
                    " Le D dépasserait les repères : mieux vaut ne pas relever ses filtres." + d_goal)
 
 
@@ -741,7 +829,7 @@ def _dterm_lift_noise(log, sel, hi, profile, d_db, d_ptb, hover: bool, delay_ms:
                  f"dterm_lpf2_static_hz = {lp2.static_hz}" if lp2.enabled else ""]
         action = "Coupures du D (sans curseur) : " + " ; ".join(p for p in parts if p) + " (× 1,1 par pas)."
     delay = f" Retard mesuré du D : {delay_ms:.2f} ms." if np.isfinite(delay_ms) else ""
-    return Finding("Filtres", CONSEIL, "Terme D propre : ses filtres peuvent être relevés",
+    return Finding("dterm_lift", "Filtres", CONSEIL, "Terme D propre : ses filtres peuvent être relevés",
                    f"Sommet du terme D à {d_ptb:.1f} dB sur l'échelle de PIDtoolbox, sous l'idéal de {DTERM_PTB_IDEAL_DB:.0f} dB "
                    f"de Brian White.{delay} En relevant ses filtres de {k} pas, le simulateur prévoit "
                    f"{best['gain']:.2f} ms de retard en moins, un terme D à {best['d']:.1f} dB (seuil "
@@ -756,16 +844,17 @@ def _dterm_lift_noise(log, sel, hi, profile, d_db, d_ptb, hover: bool, delay_ms:
 # Stratégie de filtrage : ordre des étapes (doc Betaflight [S30] : un filtre à la fois, en vérifiant la
 # température des moteurs). D'abord ce qui protège (repliement, D sous-filtré, bruit trop fort), puis la
 # mécanique, le filtre RPM, le notch dynamique, enfin les passe-bas du gyro et du D.
-FILTER_STAGES = [
-    ("Enregistrement", ("Fréquence d'enregistrement trop basse", "Harmoniques moteur au-delà")),
-    ("À corriger d'abord", ("LPF2 du gyro coupé", "Filtrage du D insuffisant", "Gyro filtré bruité", "Terme D bruité")),
-    ("Mécanique", ("Raie fixe",)),
-    ("Filtre RPM", ("Filtre RPM : Q", "Harmonique moteur hors du filtre RPM", "Poids du filtre RPM trop bas", "Raie moteur encore visible", "Bruit moteur mal éliminé",
-                    "Filtre RPM plus fort que nécessaire")),
-    ("Notch dynamique", ("Raie à ", "Notch dynamique")),
-    ("Passe-bas du gyro", ("Le LPF1 du gyro", "Filtrage gyro peut-être trop prudent", "Biquad sur le")),
-    ("Passe-bas du D", ("LPF1 du D en mode statique", "Filtrage du D peut-être trop fort", "Terme D propre")),
+FILTER_STAGES = [  # (étape, clés des constats qui en relèvent)
+    ("Enregistrement", ("log_rate_low", "log_rate_low_filters", "log_rate_harmonics")),
+    ("À corriger d'abord", ("gyro_lpf2_off", "dterm_filter_weak", "gyro_noisy", "dterm_noisy")),
+    ("Mécanique", ("frame_line_fixed",)),
+    ("Filtre RPM", ("rpm_q_raise", "rpm_harmonic_missing", "rpm_weight_low", "rpm_line_visible", "motor_noise_left",
+                    "rpm_weight_lighten")),
+    ("Notch dynamique", ("hover_line_residual", "dyn_notch_q_lower", "dyn_notch_q_raise", "dyn_notch_more", "dyn_notch_fewer")),
+    ("Passe-bas du gyro", ("gyro_lpf1_off", "gyro_filter_cautious", "gyro_lpf_biquad")),
+    ("Passe-bas du D", ("dterm_lpf1_static", "dterm_filter_too_strong", "dterm_lift")),
 ]
+LINE_KEYS = ("frame_line_fixed", "hover_line_residual")  # raies qui passent les filtres (mécanique ou stationnaire)
 
 # Stratégie affichée à partir de 2 étapes (décision de Cédric, 2026-10-05) : 37 % des sessions du corpus,
 # contre 79 % dès une étape (scripts/advisor_rates.py).
@@ -782,9 +871,8 @@ def filter_strategy(findings: list[Finding], moving: bool = True) -> Finding | N
     gyro et du D) modifier, dans quel ordre. None sous STRATEGY_MIN_STAGES étapes : une seule étape, le
     constat seul dit déjà quoi faire."""
     steps = []
-    for stage, prefixes in FILTER_STAGES:
-        hits = [f for f in findings if f.actions and f.severity in (ATTENTION, CONSEIL)
-                and any(f.title.startswith(p) for p in prefixes)]
+    for stage, keys in FILTER_STAGES:
+        hits = [f for f in findings if f.actions and f.severity in (ATTENTION, CONSEIL) and f.key in keys]
         if hits:
             steps.append((stage, hits))
     if len(steps) < STRATEGY_MIN_STAGES:
@@ -795,7 +883,7 @@ def filter_strategy(findings: list[Finding], moving: bool = True) -> Finding | N
                for i, (stage, hits) in enumerate(steps)]
     actions.append("Un seul changement à la fois, vol d'essai court, puis température des moteurs ; nouveau log "
                    + ("avec mouvements pour juger le retard." if not moving else "après chaque étape."))
-    return Finding("Filtres", CONSEIL, "Stratégie de filtrage",
+    return Finding("filter_strategy", "Filtres", CONSEIL, "Stratégie de filtrage",
                    "Ordre conseillé des réglages de filtres d'après les constats ci-dessous : " + detail + ".", actions)
 
 
@@ -829,7 +917,7 @@ def _hover_noise(log, sel, profile, g_ptb, d_ptb, fixed_hz, meas, aliased: bool 
     parts.append(f"bruit restant : gyro {g_ptb:.0f} dB (repère {GYRO_PTB_MAX_DB:.0f}), D {d_ptb:.0f} dB "
                  f"(repère {DTERM_PTB_MAX_DB:.0f}) sur l'échelle de PIDtoolbox" if np.isfinite(d_ptb) else
                  f"bruit restant : gyro {g_ptb:.0f} dB (repère {GYRO_PTB_MAX_DB:.0f}) sur l'échelle de PIDtoolbox")
-    out = [Finding("Filtres", INFO, "Vol stationnaire : bruit identifié",
+    out = [Finding("hover_noise_summary", "Filtres", INFO, "Vol stationnaire : bruit identifié",
                    "Régime stable, raies moteur repérées par l'eRPM : " + " ; ".join(parts) + "."
                    + (" Log trop lent : certaines raies peuvent être des repliements." if aliased else ""))]
     if aliased:
@@ -887,14 +975,16 @@ def _residual_line(s, ln, cutoff: tuple[int, bool] | None = None) -> Finding:
     """Raie hors moteurs encore visible après filtrage : où la traiter."""
     f0 = ln.freq_hz
     actions = ["Cherchez d'abord une cause mécanique : vis, antennes, câbles, caméra, pile de cartes, hélices."]
-    actions += _dyn_notch_line_actions(s, f0, fixed=False)
+    notch, settings = _dyn_notch_line_actions(s, f0, fixed=False)
+    actions += notch
     if cutoff is None:
         cutoff = (int(f0 * STATIC_NOTCH_FALLBACK), False)
     actions += _static_notch_action(s, f0, cutoff, "Cas exceptionnel,")
     caveat = _low_line_caveat(f0)
-    return Finding("Filtres", CONSEIL, f"Raie à {f0:.0f} Hz encore visible après filtrage",
+    return Finding("hover_line_residual", "Filtres", CONSEIL, f"Raie à {f0:.0f} Hz encore visible après filtrage",
                    f"En vol stationnaire, une raie qui ne vient pas des moteurs dépasse le bruit voisin de {ln.raw_db:.0f} dB "
-                   f"avant filtres et de {ln.left_db:.0f} dB après : les filtres actuels ne la traitent pas." + caveat, actions)
+                   f"avant filtres et de {ln.left_db:.0f} dB après : les filtres actuels ne la traitent pas." + caveat, actions,
+                   settings=settings)
 
 
 def _lowpass_setup_rules(s) -> list[Finding]:
@@ -903,7 +993,7 @@ def _lowpass_setup_rules(s) -> list[Finding]:
     order = {"PT1": 1, "PT2": 2, "PT3": 3, "BIQUAD": 2}
     if s.pid_rate_hz < 0.99 * s.gyro_rate_hz and not s.gyro_lpf2.enabled:
         slow = s.pid_rate_hz < 3000
-        out.append(Finding("Filtres", ATTENTION if slow else CONSEIL, "LPF2 du gyro coupé : risque de repliement",
+        out.append(Finding("gyro_lpf2_off", "Filtres", ATTENTION if slow else CONSEIL, "LPF2 du gyro coupé : risque de repliement",
                            f"La boucle PID ({s.pid_rate_hz / 1000:.1f} kHz) est plus lente que le gyro "
                            f"({s.gyro_rate_hz / 1000:.1f} kHz) : le LPF2 du gyro sert de filtre anti-repliement avant "
                            "ce sous-échantillonnage. Sans lui, du bruit haute fréquence se replie dans la bande utile.",
@@ -911,14 +1001,14 @@ def _lowpass_setup_rules(s) -> list[Finding]:
                             f"({'indispensable à 2 kHz' if slow else 'à 4 kHz : de 500 à 1000 Hz'})."]))
     d_order = sum(order.get(lp.type, 1) for lp in (s.dterm_lpf1, s.dterm_lpf2) if lp.enabled)
     if d_order < 2:
-        out.append(Finding("Filtres", ATTENTION, "Filtrage du D insuffisant",
+        out.append(Finding("dterm_filter_weak", "Filtres", ATTENTION, "Filtrage du D insuffisant",
                            "Le terme D n'a qu'un filtre du premier ordre (ou aucun) : Betaflight demande au moins deux PT1 "
                            "ou un filtre du second ordre. Risque de moteurs brûlants ou de départ incontrôlé à l'armement.",
                            ["Réactivez le LPF2 du D (dterm_lpf2_type = PT1, dterm_lpf2_static_hz = valeur haute de la plage "
                             "dynamique du LPF1), ou passez le LPF1 du D en PT2."]))
     if s.dterm_lpf1.static_hz and not s.dterm_lpf1.dynamic:
         f = s.dterm_lpf1.static_hz
-        out.append(Finding("Filtres", INFO, "LPF1 du D en mode statique",
+        out.append(Finding("dterm_lpf1_static", "Filtres", INFO, "LPF1 du D en mode statique",
                            f"Le LPF1 du D est fixe à {f} Hz. Betaflight déconseille le mode statique pour le D : en mode "
                            "dynamique, il filtre plus à bas régime (grondement moteur, armement) et moins en vol (moins de "
                            "retard, moins de propwash).",
@@ -926,7 +1016,7 @@ def _lowpass_setup_rules(s) -> list[Finding]:
                             "75–150 Hz, gardé par le curseur « filtre D »)."]))
     for name, lp in (("LPF1", s.gyro_lpf1), ("LPF2", s.gyro_lpf2)):
         if lp.enabled and lp.type == "BIQUAD":
-            out.append(Finding("Filtres", INFO, f"Biquad sur le {name} du gyro",
+            out.append(Finding("gyro_lpf_biquad", "Filtres", INFO, f"Biquad sur le {name} du gyro",
                                "Le biquad peut osciller sur les variations brusques et dépasser près de sa coupure ; "
                                "Betaflight recommande le PT2, qui filtre presque autant avec moins de retard.",
                                [f"gyro_{name.lower()}_type = PT2."]))
@@ -953,15 +1043,15 @@ def _rpm_weight_rules(log: FlightLog, sel: slice, s, lighten: bool = True, h1_fl
     out = []
     low = [k for k in range(n) if left[k] > HARMONIC_VISIBLE_DB and cur[k] < 1.0]
     if low:
-        out.append(Finding("Filtres", CONSEIL, "Poids du filtre RPM trop bas",
+        out.append(Finding("rpm_weight_low", "Filtres", CONSEIL, "Poids du filtre RPM trop bas",
                            "Raie moteur encore visible après filtrage : " + " ; ".join(
                                f"{k + 1}e harmonique {left[k]:.1f} dB au-dessus du bruit voisin, poids {cur[k] * 100:.0f}"
                                for k in low) + ".",
                            ["rpm_filter_weights : remontez le poids de cette harmonique (vers 100) avant de toucher à "
-                            "rpm_filter_q."]))
+                            "rpm_filter_q."], settings=("rpm_filter_q",)))  # Q attend les poids : _rpm_q_raise se tait
     missing = [k for k in range(n, 3) if np.isfinite(left[k]) and left[k] > HARMONIC_VISIBLE_DB]
     if missing:
-        out.append(Finding("Filtres", CONSEIL, "Harmonique moteur hors du filtre RPM",
+        out.append(Finding("rpm_harmonic_missing", "Filtres", CONSEIL, "Harmonique moteur hors du filtre RPM",
                            f"Le filtre RPM ne traite que {n} harmonique(s) ; " + " ; ".join(
                                f"la {k + 1}e reste {left[k]:.0f} dB au-dessus du bruit voisin après filtrage" for k in missing)
                            + ".",
@@ -971,14 +1061,14 @@ def _rpm_weight_rules(log: FlightLog, sel: slice, s, lighten: bool = True, h1_fl
     full = [k for k in range(n) if left[k] > HARMONIC_VISIBLE_DB and cur[k] >= 1.0 and not (k == 0 and h1_flagged)]
     if full:
         q_new = max(RPM_Q_MIN, s.rpm_q - RPM_Q_STEP)  # comme « Bruit moteur mal éliminé »
-        out.append(Finding("Filtres", CONSEIL, "Raie moteur encore visible après le filtre RPM",
+        out.append(Finding("rpm_line_visible", "Filtres", CONSEIL, "Raie moteur encore visible après le filtre RPM",
                            "Malgré un poids de 100 : " + " ; ".join(
                                f"{k + 1}e harmonique {raw[k]:.0f} dB avant filtres, {left[k]:.0f} dB après (au-dessus du "
                                "bruit voisin)" for k in full) + ". Les notchs RPM sont trop étroits pour la raie, ou mal placés.",
                            ["Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs) : un "
                             "mauvais nombre de pôles décale tous les notchs.",
                             f"rpm_filter_q {s.rpm_q} → {q_new} (notchs plus larges, un peu plus de retard), puis par "
-                            f"pas de {RPM_Q_STEP} tant que la raie reste visible."]))
+                            f"pas de {RPM_Q_STEP} tant que la raie reste visible."], settings=("rpm_filter_q",)))
     if not lighten or (s.version and s.version < (4, 5)):
         return out  # rpm_filter_weights n'existe qu'à partir de Betaflight 4.5
     new = list(cur)
@@ -991,7 +1081,7 @@ def _rpm_weight_rules(log: FlightLog, sel: slice, s, lighten: bool = True, h1_fl
     if new != cur:
         fmt = lambda w: ", ".join(f"{x * 100:.0f}" for x in w[:max(n, 1)])  # noqa: E731
         changed = [k for k in range(n) if new[k] != cur[k]]
-        out.append(Finding("Filtres", CONSEIL, "Filtre RPM plus fort que nécessaire",
+        out.append(Finding("rpm_weight_lighten", "Filtres", CONSEIL, "Filtre RPM plus fort que nécessaire",
                            "Avant filtrage, " + " ; ".join(
                                f"la {k + 1}e harmonique ne dépasse le bruit voisin que de {raw[k]:.1f} dB" if raw[k] > 0
                                else f"la {k + 1}e harmonique ne dépasse pas le bruit voisin" for k in changed) +
@@ -1012,8 +1102,8 @@ def _rpm_q_raise(log: FlightLog, sel: slice, s, F: list[Finding], hover: bool) -
         return None
     levels = ", ".join(f"{k + 1}e {left[k]:.0f} dB" for k in treated)
     then = (" Un réglage à la fois : d'abord les poids (« Filtre RPM plus fort que nécessaire »), puis Q."
-            if any(f.title == "Filtre RPM plus fort que nécessaire" for f in F) else "")
-    return Finding("Filtres", CONSEIL, "Filtre RPM : Q peut monter",
+            if any(f.key == "rpm_weight_lighten" for f in F) else "")
+    return Finding("rpm_q_raise", "Filtres", CONSEIL, "Filtre RPM : Q peut monter",
                    f"Les harmoniques traitées sont effacées après filtres (au-dessus du bruit voisin : {levels} ; "
                    f"visible au-delà de {HARMONIC_VISIBLE_DB:.0f} dB) et le bruit du gyro et du D est sous les repères : "
                    "des notchs plus étroits suffiraient, avec moins de retard." + then +
@@ -1022,7 +1112,7 @@ def _rpm_q_raise(log: FlightLog, sel: slice, s, F: list[Finding], hover: bool) -
                    [f"rpm_filter_q {s.rpm_q} → {min(s.rpm_q + RPM_Q_STEP, RPM_Q_MAX)}, puis par pas de {RPM_Q_STEP} "
                     f"jusqu'à {RPM_Q_MAX} au plus, en vérifiant à chaque pas que les raies moteur ne réapparaissent pas "
                     "dans le gyro filtré.",
-                    "Température des moteurs après chaque vol d'essai."])
+                    "Température des moteurs après chaque vol d'essai."], settings=("rpm_filter_q",))
 
 
 def _dyn_notch_q_n_rules(s, dn: dict, lines_pass: bool, gyro_noisy: bool, dterm_noisy: bool, F: list[Finding],
@@ -1042,7 +1132,7 @@ def _dyn_notch_q_n_rules(s, dn: dict, lines_pass: bool, gyro_noisy: bool, dterm_
         new = _q_round(need)
         seen = ", ".join(f"{f0:.0f} Hz ({h:+.0f} dB)" for f0, h in passing)
         floor = need < DYN_NOTCH_Q_LOW  # raie trop large ou trop haute pour un notch dynamique raisonnable
-        out.append(Finding("Filtres", CONSEIL, "Notch dynamique : Q trop haut pour les raies à suivre",
+        out.append(Finding("dyn_notch_q_lower", "Filtres", CONSEIL, "Notch dynamique : Q trop haut pour les raies à suivre",
                            f"Raies à suivre après le filtre RPM (largeur à mi-puissance, hauteur au-dessus du bruit "
                            f"voisin) : {shapes}. Encore visible dans le gyro filtré : {seen}. Avec dyn_notch_q {q}, le "
                            f"notch est trop étroit pour ramener la plus exigeante à {HARMONIC_VISIBLE_DB:.0f} dB du "
@@ -1065,21 +1155,22 @@ def _dyn_notch_q_n_rules(s, dn: dict, lines_pass: bool, gyro_noisy: bool, dterm_
         if new > q:
             seen = ("aucune raie ne passe les filtres en vol stationnaire" if hover else
                     "aucune raie fixe n'est signalée")
-            out.append(Finding("Filtres", CONSEIL, "Notch dynamique : Q peut monter",
+            out.append(Finding("dyn_notch_q_raise", "Filtres", CONSEIL, "Notch dynamique : Q peut monter",
                                f"Avec le filtre RPM, le notch dynamique ne traite que les résonances qui ne viennent pas "
                                f"des moteurs ; {seen} et le bruit du gyro et du D est sous les repères ({why}). Un Q "
                                "plus haut donne des notchs plus étroits, avec moins de retard.",
                                [f"dyn_notch_q {q} → {new} ({DYN_NOTCH_Q_RPM[1]} au plus avec filtre RPM), puis vérifiez "
                                 "que les raies de résonance ne réapparaissent pas dans le gyro filtré."]))
     n_peaks = len(dn["peaks"])
-    said = any("dyn_notch_count" in a for f in F for a in f.actions)
+    said = any("dyn_notch_count" in f.settings for f in F)  # une raie qui passe demande déjà un notch de plus
     if n_peaks > dn["count"] and (lines_pass or gyro_noisy) and not said:
         n = min(n_peaks, 7)
-        out.append(Finding("Filtres", CONSEIL, "Notch dynamique : plus de notchs",
+        out.append(Finding("dyn_notch_more", "Filtres", CONSEIL, "Notch dynamique : plus de notchs",
                            f"{n_peaks} pics à suivre après le filtre RPM ({', '.join(f'{f:.0f}' for f in dn['peaks'])} Hz) "
                            f"pour {dn['count']} notch(s), et " + ("une raie passe les filtres." if lines_pass else
                                                                  "le gyro filtré est bruité."),
-                           [f"dyn_notch_count {dn['count']} → {n} (un notch par pic à suivre)."]))
+                           [f"dyn_notch_count {dn['count']} → {n} (un notch par pic à suivre)."],
+                           settings=("dyn_notch_count",)))
     return out
 
 
@@ -1148,7 +1239,7 @@ def _imbalance_finding(m: list[float], imbalance: float) -> Finding:
                      "un couple en lacet (yaw).")
             actions.insert(0, "Vérifiez le sens et le modèle des hélices, et qu'un moteur ne frotte pas ; un châssis "
                               "vrillé ou un moteur penché donne le même symptôme.")
-    return Finding("Mécanique", CONSEIL, "Moteurs déséquilibrés", f"{cause} ({values}).", actions)
+    return Finding("motor_imbalance", "Mécanique", CONSEIL, "Moteurs déséquilibrés", f"{cause} ({values}).", actions)
 
 
 def frame_resonance(log: FlightLog, sel: slice, lo_hz: float = 20.0) -> tuple[float, float, bool] | None:
@@ -1236,14 +1327,15 @@ def _frame_resonance(log: FlightLog, res, profile: CraftProfile, sel: slice | No
         return None
     actions = ["Resserrez les vis, fixez antennes et câbles, vérifiez la caméra et la pile de cartes."]
     s = log.settings
-    actions += _dyn_notch_line_actions(s, f0, fixed=True)
+    notch, settings = _dyn_notch_line_actions(s, f0, fixed=True)
+    actions += notch
     if static_notch_case(s, f0):
         cutoff = static_notch_cutoff(f0, *_line_shape(log, sel if sel is not None else slice(0, log.n), f0))
         actions += _static_notch_action(s, f0, cutoff, "Si elle persiste, cas exceptionnel :")
-    return Finding("Mécanique", CONSEIL, f"Raie fixe vers {f0:.0f} Hz",
+    return Finding("frame_line_fixed", "Mécanique", CONSEIL, f"Raie fixe vers {f0:.0f} Hz",
                    f"Une vibration à ~{f0:.0f} Hz reste présente quel que soit le gaz (+{excess:.0f} dB au-dessus du "
                    "bruit voisin) : résonance du châssis, d'une antenne, d'une caméra ou pièce desserrée."
-                   + _low_line_caveat(f0), actions)
+                   + _low_line_caveat(f0), actions, settings=settings)
 
 
 def dyn_notch_active(s) -> bool:
@@ -1266,27 +1358,29 @@ def static_notch_case(s, f0: float) -> str | None:
     return None
 
 
-def _dyn_notch_line_actions(s, f0: float, fixed: bool) -> list[str]:
-    """Réglages du notch dynamique pour qu'il traite une raie à f0 (plage, nombre de notchs, mise en service)."""
+def _dyn_notch_line_actions(s, f0: float, fixed: bool) -> tuple[list[str], tuple[str, ...]]:
+    """Réglages du notch dynamique pour qu'il traite une raie à f0 (plage, nombre de notchs, mise en service) :
+    (actions, réglages de TRACKED_SETTINGS cités)."""
+    count = ("dyn_notch_count",)
     if not dyn_notch_active(s):
         if s.pid_rate_hz < DYN_NOTCH_PID_MIN_HZ:
-            return []
+            return [], ()
         lo = max(DYN_NOTCH_MIN_HZ, int((f0 - DYN_NOTCH_MARGIN_HZ) // 10 * 10))
         hi = min(DYN_NOTCH_MAX_MAX_HZ, max(DYN_NOTCH_MAX_MIN_HZ, int(-(-(f0 + DYN_NOTCH_MARGIN_HZ) // 10) * 10)))
         return [f"Mettez en service le notch dynamique : dyn_notch_count = 1, dyn_notch_min_hz ≤ {lo}, "
-                f"dyn_notch_max_hz ≥ {hi}."]
+                f"dyn_notch_max_hz ≥ {hi}."], count
     lo, hi = f0 - DYN_NOTCH_MARGIN_HZ, f0 + DYN_NOTCH_MARGIN_HZ
     if lo < s.dyn_notch_min_hz or hi > s.dyn_notch_max_hz:
         new_lo = max(DYN_NOTCH_MIN_HZ, min(s.dyn_notch_min_hz, int(lo // 10 * 10)))
         new_hi = min(DYN_NOTCH_MAX_MAX_HZ, max(s.dyn_notch_max_hz, int(-(-hi // 10) * 10)))
         return [f"Notch dynamique : plage {s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz → dyn_notch_min_hz = "
-                f"{new_lo}, dyn_notch_max_hz = {new_hi} ({DYN_NOTCH_MARGIN_HZ} Hz de marge autour de la raie)."]
+                f"{new_lo}, dyn_notch_max_hz = {new_hi} ({DYN_NOTCH_MARGIN_HZ} Hz de marge autour de la raie)."], ()
     if fixed:
         return [f"Elle est dans la plage du notch dynamique ({s.dyn_notch_min_hz}–{s.dyn_notch_max_hz} Hz), qui "
-                "peut la suivre si un notch est libre."]
+                "peut la suivre si un notch est libre."], ()
     return [f"La raie est dans la plage du notch dynamique mais passe quand même : dyn_notch_count "
             f"{s.dyn_notch_count} → {min(s.dyn_notch_count + 1, DYN_NOTCH_COUNT_MAX)} (si le Q est trop haut pour elle, "
-            "le constat « Notch dynamique : Q trop haut » le dit)."]
+            "le constat « Notch dynamique : Q trop haut » le dit)."], count
 
 
 def _static_notch_action(s, f0: float, cutoff: tuple[int, bool], lead: str) -> list[str]:

@@ -50,8 +50,8 @@ def test_filter_delay_targets():
 def test_filter_strategy_needs_two_stages():
     from opentunebox.advisor.rules import CONSEIL, Finding, filter_strategy
 
-    rate = Finding("Filtres", CONSEIL, "Fréquence d'enregistrement trop basse", "", ["blackbox_sample_rate = 1/2"])
-    rpm = Finding("Filtres", CONSEIL, "Poids du filtre RPM trop bas", "", ["rpm_filter_weights = 100,100,100"])
+    rate = Finding("log_rate_low", "Filtres", CONSEIL, "Fréquence d'enregistrement trop basse", "", ["blackbox_sample_rate = 1/2"])
+    rpm = Finding("rpm_weight_low", "Filtres", CONSEIL, "Poids du filtre RPM trop bas", "", ["rpm_filter_weights = 100,100,100"])
     assert filter_strategy([rate]) is None and filter_strategy([rpm]) is None  # le constat seul suffit
     s = filter_strategy([rpm, rate])
     assert s.actions[0].startswith("1. Enregistrement") and s.actions[1].startswith("2. Filtre RPM")
@@ -76,26 +76,83 @@ def test_imbalance_interpretation():
     assert "diagonale" in diag.detail
 
 
-def test_noise_report_classifies_every_title():
-    """Chaque constat de bruit ou de filtre de l'assistant a sa place dans le diagnostic de la fenêtre Spectre."""
+def _source_findings(module) -> list[tuple[str, str]]:
+    """(clé, catégorie) de chaque `Finding(...)` écrit dans le source d'un module de l'assistant."""
     import re
     from pathlib import Path
 
+    src = Path(module.__file__).read_text(encoding="utf-8")
+    sites = re.findall(r'Finding\(\s*([^\s,)]+),\s*"([^"]+)"', src)
+    assert len(sites) == src.count("Finding("), module.__name__  # chaque création a bien été lue
+    for key, _cat in sites:
+        # ⚠️ la clé est un littéral : les règles, le diagnostic du bruit et les tests la cherchent telle quelle (D-028)
+        assert re.fullmatch(r'"[a-z][a-z0-9_]*"', key), f"{module.__name__} : clé non littérale {key}"
+    return [(k.strip('"'), cat) for k, cat in sites]
+
+
+def test_finding_keys_are_literal_and_referenced_keys_exist():
+    """Chaque clé citée par une règle (étapes de la stratégie, parties du diagnostic du bruit, marges, raies)
+    est créée quelque part : une faute de frappe désactiverait la règle en silence (D-028)."""
+    from opentunebox.advisor import noise, rules, step_tuning
+
+    created = {k for mod in (rules, noise, step_tuning) for k, _c in _source_findings(mod)}
+    referenced = {k for _stage, keys in rules.FILTER_STAGES for k in keys}
+    referenced |= set(rules.LINE_KEYS) | set(rules.LOOP_MARGIN_KEYS) | {noise.STRATEGY_KEY}
+    referenced |= set(noise.CONDITION_KEYS) | set(noise.DTERM_KEYS) | set(noise.GYRO_KEYS)
+    referenced |= set(noise.RPM_KEYS) | set(noise.NOTCH_KEYS) | set(noise.GYRO_LOWPASS_KEYS)
+    assert referenced <= created, referenced - created
+    # les sections de la stratégie ne se recouvrent pas
+    stage_keys = [k for _stage, keys in rules.FILTER_STAGES for k in keys]
+    assert len(stage_keys) == len(set(stage_keys))
+
+
+def test_noise_report_classifies_every_key():
+    """Chaque constat de bruit ou de filtre de l'assistant a sa place dans le diagnostic de la fenêtre Spectre ;
+    les constats de réponse et de mécanique en restent dehors, sauf la raie fixe (bruit) et les oscillations
+    20–80 Hz."""
     from opentunebox.advisor import noise, rules
     from opentunebox.advisor.rules import CONSEIL, Finding
 
-    src = Path(rules.__file__).read_text(encoding="utf-8")
-    titles = re.findall(r'Finding\("(Bruit|Filtres|Mécanique|Réponse)",\s*[^,]+,\s*f?"([^"{]*)', src)
-    explicit = noise.CONDITION_TITLES + noise.DTERM_TITLES + noise.GYRO_TITLES + (noise.STRATEGY_TITLE,)
-    for cat, title in titles:
-        f = Finding(cat, CONSEIL, title, "")
-        if cat in ("Réponse", "Mécanique") and not title.startswith(noise.GYRO_TITLES):
-            assert noise.section_of(f) is None, title
-        else:
-            assert title.startswith(explicit), f"constat non rangé : {title}"
-    assert noise.section_of(Finding("Filtres", CONSEIL, "Retard des filtres D", "")) == "dterm"
-    assert noise.section_of(Finding("Filtres", CONSEIL, "Retard des filtres gyro", "")) == "gyro"
-    assert noise.section_of(Finding("Enregistrement", CONSEIL, "Gyro non filtré absent", "")) == "conditions"
+    explicit = noise.CONDITION_KEYS + noise.DTERM_KEYS + noise.GYRO_KEYS + (noise.STRATEGY_KEY,)
+    for key, cat in _source_findings(rules):
+        f = Finding(key, cat, CONSEIL, "titre", "")
+        if cat in ("Réponse", "Mécanique") and key not in noise.GYRO_KEYS:
+            assert noise.section_of(f) is None, key
+        elif cat in ("Bruit", "Filtres", "Mécanique", "Réponse"):
+            assert key in explicit, f"constat non rangé : {key}"
+    assert noise.section_of(Finding("dterm_delay", "Filtres", CONSEIL, "", "")) == "dterm"
+    assert noise.section_of(Finding("gyro_delay", "Filtres", CONSEIL, "", "")) == "gyro"
+    assert noise.section_of(Finding("gyro_unfilt_missing", "Enregistrement", CONSEIL, "", "")) == "conditions"
+
+
+def assert_settings_declared(findings) -> None:
+    """`Finding.settings` suit les actions pour les réglages de TRACKED_SETTINGS : un constat qui cite
+    rpm_filter_q ou dyn_notch_count dans une action le déclare, et réciproquement. Les synthèses qui recopient
+    l'action d'un autre constat (stratégie, conseil unique) sont dispensées."""
+    from opentunebox.advisor.rules import TRACKED_SETTINGS
+
+    for f in findings:
+        if f.key in ("filter_strategy", "filter_single_step"):
+            continue
+        for name in TRACKED_SETTINGS:
+            cited = any(name in a for a in f.actions)
+            assert cited == (name in f.settings), f"{f.key} : {name} cité {cited}, déclaré {name in f.settings}"
+        assert set(f.settings) <= set(TRACKED_SETTINGS), f.key
+
+
+def test_tracked_settings_declared_on_synthetic_log(synthetic_log):
+    from dataclasses import replace
+
+    from opentunebox.advisor.noise import noise_report
+    from opentunebox.advisor.profiles import PROFILES
+    from opentunebox.advisor.rules import analyze
+
+    base = PROFILES["five"]
+    for profile in (base, replace(base, gyro_delay_max_ms=0.0, motor_left_high_db=-100.0, resonance_high_db=0.0)):
+        rep = analyze(synthetic_log, profile=profile)
+        assert_settings_declared(rep.findings)
+    nr = noise_report(synthetic_log)
+    assert_settings_declared([b.verdict for b in nr.gyro_blocks if b.verdict is not None] + nr.strategy)
 
 
 def test_static_notch_cutoff():
@@ -221,20 +278,20 @@ def test_rule_constants_snapshot():
 # Chaque seuil de profil lu par analyze() : mesure du log synthétique prise comme seuil ± δ → constat présent ou
 # absent, et seuil cité dans le texte quand la règle le fait. (motor_left, imbalance, resonance ne le citent pas.)
 THRESHOLD_CASES = [
-    ("gyro_noise_high_db", lambda m: max(m["gyro_noise_db"]), "Gyro filtré bruité", 0.1, "{:.1f}"),
-    ("low_band_high_db", lambda m: max(m["low_band_db"]), "Oscillations basses fréquences (20–80 Hz)", 0.1, "{:.1f}"),
-    ("motor_left_high_db", lambda m: m["motor_harmonic_left_db"], "Bruit moteur mal éliminé", 0.1, None),
-    ("saturation_high_pct", lambda m: m["stats"].motor_saturation_pct, "Moteurs souvent saturés", 0.1, "{:.1f}"),
-    ("imbalance_high_pct", lambda m: m["stats"].motor_imbalance_pct, "Moteurs déséquilibrés", 0.1, None),
-    ("iterm_offset_high", lambda m: abs(m["iterm_mean"][0]), "Terme I décentré en roll", 0.5, "{:.0f}"),
-    ("resonance_high_db", lambda m: m["frame_resonance"][1], "Raie fixe", 0.1, None),
+    ("gyro_noise_high_db", lambda m: max(m["gyro_noise_db"]), "gyro_noisy", 0.1, "{:.1f}"),
+    ("low_band_high_db", lambda m: max(m["low_band_db"]), "low_band_oscillation", 0.1, "{:.1f}"),
+    ("motor_left_high_db", lambda m: m["motor_harmonic_left_db"], "motor_noise_left", 0.1, None),
+    ("saturation_high_pct", lambda m: m["stats"].motor_saturation_pct, "motor_saturation", 0.1, "{:.1f}"),
+    ("imbalance_high_pct", lambda m: m["stats"].motor_imbalance_pct, "motor_imbalance", 0.1, None),
+    ("iterm_offset_high", lambda m: abs(m["iterm_mean"][0]), "iterm_offset", 0.5, "{:.0f}"),
+    ("resonance_high_db", lambda m: m["frame_resonance"][1], "frame_line_fixed", 0.1, None),
     ("roll_pitch_gap_high", lambda m: abs(m["steps"]["Pitch"].peak - m["steps"]["Roll"].peak),
-     "Roll et pitch se comportent différemment", 0.002, "{:.2f}"),
+     "step_roll_pitch_gap", 0.002, "{:.2f}"),
 ]
 
 
-@pytest.mark.parametrize("field, measure, title, delta, fmt", THRESHOLD_CASES, ids=[c[0] for c in THRESHOLD_CASES])
-def test_profile_threshold_drives_rule(synthetic_log, field, measure, title, delta, fmt):
+@pytest.mark.parametrize("field, measure, key, delta, fmt", THRESHOLD_CASES, ids=[c[0] for c in THRESHOLD_CASES])
+def test_profile_threshold_drives_rule(synthetic_log, field, measure, key, delta, fmt):
     from dataclasses import replace
 
     from opentunebox.advisor.profiles import PROFILES
@@ -246,7 +303,7 @@ def test_profile_threshold_drives_rule(synthetic_log, field, measure, title, del
 
     def findings(threshold):
         return [f for f in analyze(synthetic_log, profile=replace(base, **{field: threshold})).findings
-                if f.title.startswith(title)]
+                if f.key == key]
 
     assert not findings(value + delta), f"{field} : constat présent au-dessus du seuil"
     hit = findings(value - delta)
@@ -264,17 +321,17 @@ def test_dterm_noise_rule_corpus_and_ptb_branches(synthetic_log):
     base = PROFILES["five"]
     rep = analyze(synthetic_log, profile=replace(base, dterm_noise_high_db=100.0))
     assert rep.measures["dterm_peak_ptb_db"] > DTERM_PTB_MAX_DB
-    f = next(x for x in rep.findings if x.title == "Terme D bruité")
+    f = next(x for x in rep.findings if x.key == "dterm_noisy")
     assert "PIDtoolbox" in f.detail and "seuil" not in f.detail  # branche repère PTB seule
     quiet = replace(synthetic_log, d_term=synthetic_log.d_term * 0.002)
     rep = analyze(quiet, profile=base)
     assert rep.measures["dterm_peak_ptb_db"] < DTERM_PTB_MAX_DB
     d = max(rep.measures["dterm_noise_db"])
-    hit = [x for x in analyze(quiet, profile=replace(base, dterm_noise_high_db=d - 0.1)).findings if x.title == "Terme D bruité"]
+    hit = [x for x in analyze(quiet, profile=replace(base, dterm_noise_high_db=d - 0.1)).findings if x.key == "dterm_noisy"]
     assert hit and f"seuil {d - 0.1:.1f} dB" in hit[0].detail and "PIDtoolbox" not in hit[0].detail
     assert not [x for x in analyze(quiet, profile=replace(base, dterm_noise_high_db=d + 0.1)).findings
-                if x.title == "Terme D bruité"]
-    assert any(x.title == "Bruit du terme D" for x in analyze(quiet, profile=replace(base, dterm_noise_high_db=d + 0.1)).findings)
+                if x.key == "dterm_noisy"]
+    assert any(x.key == "dterm_noise_level" for x in analyze(quiet, profile=replace(base, dterm_noise_high_db=d + 0.1)).findings)
 
 
 def test_delay_thresholds_and_provisional(synthetic_log):
@@ -289,16 +346,16 @@ def test_delay_thresholds_and_provisional(synthetic_log):
 
     def gyro_delay(threshold):
         return [f for f in analyze(synthetic_log, profile=replace(base, gyro_delay_max_ms=threshold)).findings
-                if f.title in ("Retard des filtres gyro", "Filtrage gyro peut-être trop prudent")]
+                if f.key in ("gyro_delay", "gyro_filter_cautious")]
 
     assert [f.severity for f in gyro_delay(dl.gyro_ms + 0.1)] == [OK]
     assert all(f.severity != OK for f in gyro_delay(dl.gyro_ms - 0.1)) and gyro_delay(dl.gyro_ms - 0.1)
     ok_d = [f for f in analyze(synthetic_log, profile=replace(base, dterm_delay_max_ms=dl.dterm_ms + 0.1)).findings
-            if f.title == "Retard des filtres D" and f.severity == OK]
+            if f.key == "dterm_delay" and f.severity == OK]
     assert ok_d and f"{dl.dterm_ms + 0.1:.1f}" in ok_d[0].detail
-    titles = {f.title for f in analyze(synthetic_log, profile=replace(base, provisional=True)).findings}
-    assert "Seuils provisoires pour cette taille" in titles
-    assert "Seuils provisoires pour cette taille" not in {f.title for f in analyze(synthetic_log, profile=base).findings}
+    keys = {f.key for f in analyze(synthetic_log, profile=replace(base, provisional=True)).findings}
+    assert "profile_provisional" in keys
+    assert "profile_provisional" not in {f.key for f in analyze(synthetic_log, profile=base).findings}
 
 
 # ---------------------------------------------------------------- règles pures
@@ -312,21 +369,22 @@ def test_lowpass_setup_rules():
         base = {"looptime": "125", "pid_process_denom": "1", "gyro_lpf2_type": "0", "gyro_lpf2_static_hz": "500",
                 "dterm_lpf1_type": "0", "dterm_lpf1_dyn_hz": "75,150", "dterm_lpf2_type": "0", "dterm_lpf2_static_hz": "150"}
         base.update(raw)
-        return {f.title: f for f in _lowpass_setup_rules(parse_settings(base))}
+        return {f.key: f for f in _lowpass_setup_rules(parse_settings(base))}
 
     assert rules_for() == {}
-    f = rules_for(pid_process_denom="4", gyro_lpf2_static_hz="0")["LPF2 du gyro coupé : risque de repliement"]
+    f = rules_for(pid_process_denom="4", gyro_lpf2_static_hz="0")["gyro_lpf2_off"]
     assert f.severity == ATTENTION and "500" in f.actions[0]  # boucle PID à 2 kHz
-    f = rules_for(pid_process_denom="2", gyro_lpf2_static_hz="0")["LPF2 du gyro coupé : risque de repliement"]
+    f = rules_for(pid_process_denom="2", gyro_lpf2_static_hz="0")["gyro_lpf2_off"]
     assert f.severity == CONSEIL and "1000" in f.actions[0]  # 4 kHz
-    assert "LPF2 du gyro coupé : risque de repliement" not in rules_for(gyro_lpf2_static_hz="0")  # PID = gyro
-    assert rules_for(dterm_lpf2_static_hz="0")["Filtrage du D insuffisant"].severity == ATTENTION
-    assert "Filtrage du D insuffisant" not in rules_for(dterm_lpf2_static_hz="0", dterm_lpf1_type="2")  # PT2 seul
-    assert "Filtrage du D insuffisant" not in rules_for(dterm_lpf2_static_hz="0", dterm_lpf1_type="1")  # biquad seul
-    f = rules_for(dterm_lpf1_dyn_hz="0,0", dterm_lpf1_static_hz="90")["LPF1 du D en mode statique"]
+    assert "gyro_lpf2_off" not in rules_for(gyro_lpf2_static_hz="0")  # PID = gyro
+    assert rules_for(dterm_lpf2_static_hz="0")["dterm_filter_weak"].severity == ATTENTION
+    assert "dterm_filter_weak" not in rules_for(dterm_lpf2_static_hz="0", dterm_lpf1_type="2")  # PT2 seul
+    assert "dterm_filter_weak" not in rules_for(dterm_lpf2_static_hz="0", dterm_lpf1_type="1")  # biquad seul
+    f = rules_for(dterm_lpf1_dyn_hz="0,0", dterm_lpf1_static_hz="90")["dterm_lpf1_static"]
     assert f.severity == INFO and "dterm_lpf1_dyn_min_hz = 90, dterm_lpf1_dyn_max_hz = 180" in f.actions[0]
-    assert rules_for(gyro_lpf1_type="1", gyro_lpf1_static_hz="300")["Biquad sur le LPF1 du gyro"].severity == INFO  # 1 = BIQUAD
-    assert "Biquad sur le LPF1 du gyro" not in rules_for(gyro_lpf1_type="2", gyro_lpf1_static_hz="300")  # 2 = PT2
+    f = rules_for(gyro_lpf1_type="1", gyro_lpf1_static_hz="300")["gyro_lpf_biquad"]  # 1 = BIQUAD
+    assert f.severity == INFO and f.title == "Biquad sur le LPF1 du gyro"
+    assert "gyro_lpf_biquad" not in rules_for(gyro_lpf1_type="2", gyro_lpf1_static_hz="300")  # 2 = PT2
 
 
 def test_rpm_weight_rules_and_version_gate(monkeypatch):
@@ -338,22 +396,22 @@ def test_rpm_weight_rules_and_version_gate(monkeypatch):
     levels = {"raw": np.array([20.0, -1.0, -1.0]), "left": np.array([0.0, 0.0, 0.0])}
     monkeypatch.setattr(rules, "rpm_harmonic_levels", lambda _log, _sel: (levels["raw"], levels["left"]))
 
-    def titles(version="4.5.1", weights="100,100,100", **kw):
+    def keys(version="4.5.1", weights="100,100,100", **kw):
         s = parse_settings({"Firmware revision": f"Betaflight {version} (x) STM32F7X2", "rpm_filter_harmonics": "3",
                             "rpm_filter_weights": weights, "rpm_filter_q": "500"})
-        return {f.title: f for f in rules._rpm_weight_rules(None, slice(None), s, **kw)}
+        return {f.key: f for f in rules._rpm_weight_rules(None, slice(None), s, **kw)}
 
-    f = titles()["Filtre RPM plus fort que nécessaire"]
+    f = keys()["rpm_weight_lighten"]
     assert f.actions[0].startswith("rpm_filter_weights = 100, 30, 30")  # −1 dB + 3 dB de marge → 0,21 → 0,3
-    assert "Filtre RPM plus fort que nécessaire" not in titles("4.4.3")
-    assert "Filtre RPM plus fort que nécessaire" not in titles(lighten=False)
+    assert "rpm_weight_lighten" not in keys("4.4.3")
+    assert "rpm_weight_lighten" not in keys(lighten=False)
     levels["left"] = np.array([0.0, 5.0, 0.0])
-    assert "Poids du filtre RPM trop bas" in titles(weights="100,80,100")
-    f = titles()["Raie moteur encore visible après le filtre RPM"]
+    assert "rpm_weight_low" in keys(weights="100,80,100")
+    f = keys()["rpm_line_visible"]
     assert "rpm_filter_q 500 → 400" in f.actions[1]
     levels["left"] = np.array([5.0, 0.0, 0.0])
-    assert "Raie moteur encore visible après le filtre RPM" in titles(h1_flagged=False)
-    assert "Raie moteur encore visible après le filtre RPM" not in titles(h1_flagged=True)  # déjà « Bruit moteur mal éliminé »
+    assert "rpm_line_visible" in keys(h1_flagged=False)
+    assert "rpm_line_visible" not in keys(h1_flagged=True)  # déjà « Bruit moteur mal éliminé »
 
 
 def test_filter_targets_checks():
@@ -374,10 +432,10 @@ def test_dyn_notch_q_too_high_needs_a_passing_line():
     from opentunebox.advisor import rules
     s = SimpleNamespace(dyn_notch_q=500)
     dn = {"q_need": 360.0, "peaks": [240.0], "widths": [14.0], "heights": [16.0], "left": [2.0], "count": 2}
-    title = "Notch dynamique : Q trop haut pour les raies à suivre"
-    assert not any(f.title == title for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False))
+    key = "dyn_notch_q_lower"
+    assert not any(f.key == key for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False))
     dn["left"] = [6.2]
-    f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if f.title == title)
+    f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if f.key == key)
     assert f.actions[0].startswith("dyn_notch_q 500 → 350")
     assert "240 Hz (+6 dB)" in f.detail
     assert len(f.actions) == 1  # Q calculé au-dessus du plancher : pas de renvoi à la mécanique
@@ -389,11 +447,11 @@ def test_dyn_notch_q_floor():
     from opentunebox.advisor import rules
     s = SimpleNamespace(dyn_notch_q=400)
     dn = {"q_need": 150.0, "peaks": [220.0], "widths": [22.0], "heights": [20.0], "left": [6.0], "count": 1}
-    f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if "Q trop haut" in f.title)
+    f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if f.key == "dyn_notch_q_lower")
     assert f.actions[0].startswith("dyn_notch_q 400 → 250")
     assert "demanderait un Q de 150" in f.detail and "mécanique" in f.actions[1]
     s.dyn_notch_q = 250  # déjà au plancher : rien à baisser
-    assert not any("Q trop haut" in f.title for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False))
+    assert not any(f.key == "dyn_notch_q_lower" for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False))
 
 
 def test_static_notch_only_when_dynamic_notch_cannot():
