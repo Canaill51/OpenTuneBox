@@ -338,10 +338,25 @@ automatique : `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_th
 - **Preuve** — mesure du 2026-10-12 (`pytest-cov`, installé dans `.venv` seulement) ; `tests/test_gui_tools.py`
   exerce les 8 pages d'outils sans corpus.
 
+### L-029 : un script Qt lancé hors de pytest écrit dans les vrais réglages de l'utilisateur
+- **Symptôme** — 2026-10-13 : après un script de captures hors écran (`MainWindow` + `load_paths` + `close()`),
+  `~/.config/OpenTuneBox/OpenTuneBox.conf` porte la date du script ; `_change_theme("clair")` y aurait aussi
+  remplacé le thème choisi par Cédric. Rien en console.
+- **Cause** — lue dans `gui/main_window.py` : `load_paths` enregistre `last_dir`, `_change_theme` enregistre
+  `theme`, `closeEvent` enregistre la géométrie de la fenêtre (`save_geometry`) ; `QSettings` écrit dans le
+  dossier de l'utilisateur. Les tests sont protégés par `conftest.py` (`QStandardPaths.setTestModeEnabled`),
+  pas un script lancé à la main. Géométrie écrasée par le script de ce jour : supposé (valeur d'avant inconnue).
+- **Règle** — tout script Qt hors de pytest commence par `QStandardPaths.setTestModeEnabled(True)` avant
+  `QApplication` (compétence `opentunebox-dev`, « Captures hors écran ») ; vérifier la date du fichier de
+  réglages après un script douteux.
+- **Preuve** — `tests/conftest.py:pytest_configure` ; dates de `OpenTuneBox.conf` (réel 18:06, dossier de test
+  `~/.qttest/config/` 18:07 après la correction).
+
 ## Index rapide
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-029 | Script Qt hors pytest : réglages réels écrasés. `QStandardPaths.setTestModeEnabled(True)` d'abord | Outillage |
 | L-028 | Filtre RPM ≠ masque : appliquer sa réponse (poids, Q) ; vérifier sur le debug FFT_FREQ | Analyses |
 | L-027 | `corrupt_frames` ≠ temps perdu. Trous de temps (`recording_gaps`) | Décodeur et logs |
 | L-026 | Oscillation injectée par le gyro : invisible dans la réponse. Injecter par la consigne | Analyses |

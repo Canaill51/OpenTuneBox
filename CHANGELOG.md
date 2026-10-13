@@ -170,7 +170,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `docs/assistant.md` (Q minimum du notch dynamique 250, pas de `rpm_filter_q` −100, marge des poids RPM
   3 dB, taille par le nom en service), `docs/spec-methodes.md` (bornes de fréquence moteur par taille
   remplacées par celles du code, protocole d'enregistrement du guide), `docs/validation.md`, compétences ;
-  leçons L-022 à L-028 rangées par domaine, nouvelle section « Outillage ».
+  leçons L-022 à L-028 rangées par domaine, nouvelle section « Outillage ». Captures du README refaites
+  (visualiseur, réponse indicielle, Assistant) : elles dataient d'avant le Guide et montraient d'anciens
+  conseils de curseurs.
 
 ## [0.6.0] — 2026-10-12
 
