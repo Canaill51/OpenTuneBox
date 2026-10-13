@@ -58,8 +58,9 @@ D_DOMINANT_RATIO = 1.0
 DTERM_PTB_MAX_DB = -10.0
 # Terme D « idéalement sous −20 dB » [S20] : en dessous, le simulateur cherche jusqu'où relever ses filtres
 # (décision de Cédric, 2026-10-10) ; jusqu'à 1,2, borne du curseur « filtre D » hors mode expert du
-# configurateur (useTuningSliders.ts), ou +0,2 au plus au-delà (estimation : deux pas) ; sans curseur,
-# coupures × 1,1 par pas, deux pas au plus
+# configurateur (useTuningSliders.ts), ou +0,2 au plus au-delà ; sans curseur, coupures × 1,1 par pas (un cran
+# de 0,1 depuis 1,0), deux pas au plus. Limite de prudence (2026-10-13, choix de Cédric) : simulé, le D resterait
+# sous les repères jusqu'à 6 crans, mais la chauffe des moteurs ne se voit pas dans le log
 DTERM_PTB_IDEAL_DB = -20.0
 DTERM_SLIDER_BASIC_MAX = 120
 DTERM_LIFT_MAX_STEPS = 2
@@ -904,7 +905,7 @@ def _lowpass_setup_rules(s) -> list[Finding]:
                            "dynamique, il filtre plus à bas régime (grondement moteur, armement) et moins en vol (moins de "
                            "retard, moins de propwash).",
                            [f"dterm_lpf1_dyn_min_hz = {f}, dterm_lpf1_dyn_max_hz = {2 * f} (rapport des valeurs par défaut "
-                            "75–150 Hz)."]))
+                            "75–150 Hz, gardé par le curseur « filtre D »)."]))
     for name, lp in (("LPF1", s.gyro_lpf1), ("LPF2", s.gyro_lpf2)):
         if lp.enabled and lp.type == "BIQUAD":
             out.append(Finding("Filtres", INFO, f"Biquad sur le {name} du gyro",

@@ -340,6 +340,21 @@ LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallumen
   sessions, d'où la prévision ajoutée au seul conseil « filtrage du D peut-être trop fort » (34 sessions
   candidates).
 
+- **Vérifications du 2026-10-13** (W-003, choix de Cédric : règles gardées) :
+  - *LPF1 du D dynamique proposé* (min = coupure statique, max = 2 × min) : c'est le calcul du curseur « filtre
+    D » du firmware (statique = min dynamique = 75 × multiplicateur, max = 150 × multiplicateur,
+    `config/simplified_tuning.c`). Corpus (710 sessions) : 91 drones sur 94 en mode dynamique ont un rapport
+    max / min de 2 (75–150, 90–180, 97–195, 105–210 Hz…), deux de 1,4, un de 4,4 ; les 15 drones en mode
+    statique ont tous la coupure du curseur (75 × multiplicateur). Presets [S28] : rapport 2 le plus fréquent,
+    sauf les filtres AOS (75 ou 80–110 Hz en biquad, LPF2 du D coupé).
+  - *Relèvement du D propre* (deux crans au plus, 0,1 par vol d'essai, D-021) : simulé de 1 à 6 crans sur les
+    126 vols (43 drones) où le conseil s'affiche. Le bruit prévu reste sous les repères jusqu'à 6 crans dans
+    98 % des cas : la limite bloque tous les vols. Retard gagné (médiane, cumulé) : 0,23 ms au 1er cran,
+    0,44 ms au 2e, 0,61 au 3e, 0,75, 0,88, 0,99 ms au 6e ; sommet du D +0,3 dB par cran environ. En gardant
+    le sommet sous l'idéal de −20 dB : 84 vols iraient à 6 crans, 42 de 0 à 5. Limite gardée par prudence
+    (choix de Cédric) : la chauffe des moteurs ne se voit pas dans le log ; l'assistant repropose au log
+    suivant tant que le D reste propre.
+
 ### Pic de réponse indicielle (2026-10-05)
 
 Les anciens paliers (conseil > 1,10, attention > 1,20, objectif 1,02–1,08) étaient des estimations sans
@@ -708,14 +723,14 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Hausse de `rpm_filter_q` (harmoniques effacées) | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | [S27] ; condition « harmoniques effacées, bruit sous les repères, tout type de vol » : décision de Cédric (2026-10-10) |
 | `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 250 à 450 | Théorie + communauté + corpus | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 450 au plus avec filtre RPM [S19] ; 250 au moins : plus bas Q vu avec filtre RPM (presets officiels 250 [S28], corpus 285, choix de Cédric du 2026-10-13 ; avant : 100, estimation), voir « Notch dynamique » ; +50 si aucune raie n'est mesurable ; raie ramenée à 4 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) ; « Q trop haut » seulement si une raie passe encore les filtres (2026-10-13, D-023 : sans ce contrôle, juste une fois sur deux) |
 | `dyn_notch_count` en hausse | un notch par pic à suivre, 7 au plus, si une raie passe ou si le gyro est bruité | Firmware (borne) + décision | `cli/settings.c` (0 à 7) ; décision de Cédric (2026-10-10) |
-| Terme D propre : relèvement des filtres | D sous −20 dB PIDtoolbox ; jusqu'à 1,2 (ou +0,2 au-delà), D prévu sous −10 dB et sous le p90 | Communauté + configurateur + estimation | « ideally below about minus 20 dB » [S20] ; 0,8–1,2 hors mode expert (`useTuningSliders.ts`) ; +0,2 et deux pas × 1,1 sans curseur : estimations ; décision de Cédric (2026-10-10) |
+| Terme D propre : relèvement des filtres | D sous −20 dB PIDtoolbox ; jusqu'à 1,2 (ou +0,2 au-delà), D prévu sous −10 dB et sous le p90 | Communauté + configurateur + firmware + choix de Cédric | « ideally below about minus 20 dB » [S20] ; 0,8–1,2 hors mode expert (`useTuningSliders.ts`) ; × 1,1 sans curseur = un cran de 0,1 à partir de 1,0 (`simplified_tuning.c`) ; deux crans au plus : limite de prudence (chauffe des moteurs, invisible dans le log), choix de Cédric du 2026-10-13 sur simulation (« Passe-bas du gyro et du D ») ; décision de Cédric (2026-10-10) |
 | `rpm_filter_harmonics` | jusqu'à 3 | Firmware | `cli/settings.c` (0 à 3) |
 | Ordre de la stratégie de filtrage | enregistrement, corrections, mécanique, RPM, notch dynamique, LPF gyro, LPF D | Firmware (doc) + estimation | Un filtre à la fois [S30] ; ordre RPM → notch → passe-bas comme le guide RPM |
 | Stratégie de filtrage affichée | à partir de 2 étapes (`rules.STRATEGY_MIN_STAGES`) | Corpus + décision de Cédric | 37 % des sessions contre 79 % dès une étape (2026-10-05) |
 | Vol avec mouvements (retards représentatifs) | 95e centile de \|consigne\| ≥ 50 °/s (roll ou pitch) | Corpus + estimation | Remarque de Cédric (2026-10-05) ; vols stationnaires du corpus ≤ 24 °/s, avec wobble ≥ 92 °/s ; l'intercorrélation s'y trompe une fois sur deux (`validation.md`). 108 sessions (16 %) en dessous ; `calibrate_advisor.py` en écarte les retards ; seuils de retard calibrés sur les vols restants |
 | LPF2 du gyro anti-repliement | PID < gyro : PT1 500 Hz (attention sous 3 kHz), 500–1000 Hz (conseil à 4 kHz) | Firmware (doc) | [S12, S19, S29] |
 | Ordre minimal du filtrage du D | 2 (deux PT1 ou un filtre d'ordre 2) | Firmware (doc) | [S29] ; PT2 et biquad comptent pour 2, PT3 pour 3 |
-| LPF1 du D dynamique proposé | min = coupure statique, max = 2 × min | Firmware (défauts 75–150 Hz) + estimation | Mode statique « not recommended » [S29] |
+| LPF1 du D dynamique proposé | min = coupure statique, max = 2 × min | Firmware + corpus | Mode statique « not recommended » [S29] ; le curseur « filtre D » donne statique = min = 75 × multiplicateur, max = 150 × multiplicateur (`config/simplified_tuning.c`) ; rapport 2 chez 91 drones sur 94 en mode dynamique (2026-10-13, « Passe-bas du gyro et du D ») |
 | Coupure du LPF1 du gyro | si filtre RPM actif, vol avec mouvements, bruit actuel et prévu sous les repères | Firmware (doc) + corpus (repères) | [S29, S30] ; 4 % des sessions |
 | Prévision du curseur « filtre D » | +0,1 = multiplicateur +10 (×1,1 sans curseur) | Firmware | `simplified_tuning.c` ; relèvement proposé seulement si le D prévu reste sous les repères |
 | Déséquilibre des moteurs | > 11,2 (7") à 14 % (5") selon la taille, 13,5 % commun | Corpus | L'interprétation (côté ou diagonale au-delà de 12 %) reste estimée |
