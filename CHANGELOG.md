@@ -6,6 +6,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Notch dynamique : le Q conseillé ne descend plus sous 250 (au lieu de 100), le plus bas Q utilisé avec le
+  filtre RPM dans les presets officiels et dans le corpus. Un notch plus large ajouterait beaucoup de retard :
+  quand une raie demanderait moins, l'Assistant renvoie à sa cause mécanique. Concerne 8 vols du corpus (W-003).
 - Filtre RPM : les poids conseillés (« Filtre RPM plus fort que nécessaire ») visent la raie 3 dB sous le
   bruit voisin au lieu de 6 dB, d'après 1 186 harmoniques dont les pilotes du corpus ont déjà baissé le
   poids : elles restent invisibles après filtres jusqu'à 0 dB. Poids proposés plus bas, conseil plus

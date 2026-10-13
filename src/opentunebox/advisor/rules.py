@@ -91,17 +91,20 @@ DYN_NOTCH_MAX_MIN_HZ, DYN_NOTCH_MAX_MAX_HZ = 200, 1000  # bornes de dyn_notch_ma
 # Q calculé d'après la forme des raies à suivre (notch SVF de Betaflight, `common/filter.c`, largeur à −3 dB
 # = fréquence / Q [S31], Q × 100) : le plus haut Q qui atténue chaque raie de sa hauteur moins 4 dB
 # (HARMONIC_VISIBLE_DB) sur sa demi-largeur à mi-puissance ; le firmware vise le pic par interpolation
-# parabolique (`flight/dyn_notch_filter.c`). Arrondi à 50 vers le bas, 100 au moins (estimation : les
-# sources descendent à 120 sans filtre RPM [S19]) ; hausse jusqu'à 450 au plus [S19]
+# parabolique (`flight/dyn_notch_filter.c`). Arrondi à 50 vers le bas, 250 au moins (2026-10-13, choix de Cédric :
+# plus bas Q vu avec filtre RPM, presets officiels 250 et corpus 285 ; le calcul ne descend jamais sous 112 dans
+# le corpus) ; hausse jusqu'à 450 au plus [S19]
 DYN_NOTCH_Q_RPM = (300, 450)
 DYN_NOTCH_Q_STEP = 50
-DYN_NOTCH_Q_LOW = 100
+DYN_NOTCH_Q_LOW = 250
+# Notch statique : même calcul, Q de 1 au moins (anciens défauts de Betaflight 3.2.0 : Q 0,67 à 1,71)
+STATIC_NOTCH_Q_LOW = 100
 # Vol stationnaire : raies hors moteurs listées dès 6 dB au-dessus du bruit voisin (2026-10-12 : du bruit sans
 # raie simulé sur les vols stationnaires du corpus ne dépasse jamais 3 dB ; 6 dB fixe le nombre de conseils,
 # choix de Cédric) ; sous 100 Hz, prudence avant de les filtrer (bande de travail du PID, propwash ~20–100 Hz [S1])
 HOVER_LINE_MIN_DB = 6.0
 # Notch statique conseillé (gyro_notch1) : coupure tirée du Q nécessaire pour la raie, même calcul et mêmes bornes
-# que le Q du notch dynamique (dyn_notch_q_need, DYN_NOTCH_Q_LOW à DYN_NOTCH_Q_RPM[1], soit 0,62 à 0,89 × la
+# que le Q du notch dynamique (dyn_notch_q_need, STATIC_NOTCH_Q_LOW à DYN_NOTCH_Q_RPM[1], soit 0,62 à 0,89 × la
 # fréquence) ; firmware : Q = f·c / (f² − c²) (`filterGetNotchQ`, common/filter.c). Sans mesure de la raie (pas de
 # gyro non filtré ou d'eRPM, raie sous 4 dB dans le spectre moyen) : 0,7, entre les anciens défauts de Betaflight 3.2.0 (gyro 400 / 300 et
 # 200 / 100 Hz, D 260 / 160 Hz : 0,5 à 0,75) ; choix de Cédric, 2026-10-12
@@ -820,13 +823,13 @@ def _hover_noise(log, sel, profile, g_ptb, d_ptb, fixed_hz, meas, aliased: bool 
 
 def static_notch_cutoff(f0: float, width: float, height: float) -> tuple[int, bool]:
     """Coupure (Hz) de gyro_notch1 pour une raie de largeur à mi-puissance `width` et de hauteur `height` (dB) :
-    Q nécessaire (dyn_notch_q_need, arrondi et borné comme le notch dynamique), puis coupure c telle que
+    Q nécessaire (dyn_notch_q_need, arrondi comme le notch dynamique, de STATIC_NOTCH_Q_LOW à 450), puis coupure c telle que
     Q = f0·c / (f0² − c²), soit c = f0·(√(1 + 4Q²) − 1) / (2Q). Arrondie vers le bas (notch un peu plus large).
     Renvoie aussi si la raie a été mesurée (sinon STATIC_NOTCH_FALLBACK)."""
     q = dyn_notch_q_need([f0], [width], [height])
     if q is None or not np.isfinite(q):
         return int(f0 * STATIC_NOTCH_FALLBACK), False
-    Q = min(_q_round(q), DYN_NOTCH_Q_RPM[1]) / 100
+    Q = min(_q_round(q, STATIC_NOTCH_Q_LOW), DYN_NOTCH_Q_RPM[1]) / 100
     return int(f0 * (np.sqrt(1 + 4 * Q * Q) - 1) / (2 * Q)), True
 
 
@@ -1019,13 +1022,19 @@ def _dyn_notch_q_n_rules(s, dn: dict, lines_pass: bool, gyro_noisy: bool, dterm_
     if need is not None and np.isfinite(need) and _q_round(need) < q and passing:
         new = _q_round(need)
         seen = ", ".join(f"{f0:.0f} Hz ({h:+.0f} dB)" for f0, h in passing)
+        floor = need < DYN_NOTCH_Q_LOW  # raie trop large ou trop haute pour un notch dynamique raisonnable
         out.append(Finding("Filtres", CONSEIL, "Notch dynamique : Q trop haut pour les raies à suivre",
                            f"Raies à suivre après le filtre RPM (largeur à mi-puissance, hauteur au-dessus du bruit "
                            f"voisin) : {shapes}. Encore visible dans le gyro filtré : {seen}. Avec dyn_notch_q {q}, le "
                            f"notch est trop étroit pour ramener la plus exigeante à {HARMONIC_VISIBLE_DB:.0f} dB du "
-                           f"bruit voisin sur toute sa largeur ; il faut un Q de {new} au plus (calculé d'après la "
-                           "forme du notch de Betaflight).",
-                           [f"dyn_notch_q {q} → {new} (notchs plus larges, un peu plus de retard)."]))
+                           "bruit voisin sur toute sa largeur ; " + (
+                               f"le calcul (forme du notch de Betaflight) demanderait un Q de {need:.0f}, sous "
+                               f"{DYN_NOTCH_Q_LOW}, le plus bas Q utilisé avec filtre RPM : un notch aussi large "
+                               "ajouterait beaucoup de retard." if floor else
+                               f"il faut un Q de {new} au plus (calculé d'après la forme du notch de Betaflight)."),
+                           [f"dyn_notch_q {q} → {new} (notchs plus larges, un peu plus de retard)."] + (
+                               ["Si la raie reste visible : cherchez sa cause mécanique (vis, hélices, roulements, "
+                                "antenne, caméra, pile de cartes) plutôt que d'élargir encore le notch."] if floor else [])))
     elif not (lines_pass or gyro_noisy or dterm_noisy) and q < DYN_NOTCH_Q_RPM[1]:
         if need is None:  # aucune raie mesurable : pas de calcul, petit pas
             new = min(q + DYN_NOTCH_Q_STEP, DYN_NOTCH_Q_RPM[1])
@@ -1234,5 +1243,5 @@ def dyn_notch_q_need(peaks: list[float], widths: list[float], heights: list[floa
     return min(qs) if qs else None
 
 
-def _q_round(q: float) -> int:
-    return int(max(DYN_NOTCH_Q_LOW, q // DYN_NOTCH_Q_STEP * DYN_NOTCH_Q_STEP))
+def _q_round(q: float, low: int = DYN_NOTCH_Q_LOW) -> int:
+    return int(max(low, q // DYN_NOTCH_Q_STEP * DYN_NOTCH_Q_STEP))

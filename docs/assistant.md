@@ -252,6 +252,18 @@ filtre toujours ; désactivé sous 2 kHz de boucle PID.
   6. D'où la condition (choix de Cédric) : « Q trop haut » seulement si une raie à suivre dépasse encore
   `HARMONIC_VISIBLE_DB` dans le gyro filtré (`dyn_notch_view` : `left`). Effet : « Q trop haut » 19 → 30
   (12 gardées, 7 retirées, 18 ajoutées, une raie qui passe dans toutes), « Q peut monter » 117 → 113.
+- **Q minimum** (2026-10-13, choix de Cédric, W-003) : 250 au lieu de 100 (estimation). Aucun pilote ne
+  descend aussi bas avec filtre RPM : Q en place dans le corpus 285 au plus bas (702 sessions avec filtre RPM ;
+  316 à 500, 189 à 400, 81 à 300), presets officiels jamais sous 250 (258 réglages
+  `dyn_notch_q` [S28]) ; le configurateur met 500 en passant au DShot bidirectionnel, 300 sans filtre RPM depuis
+  Betaflight 4.3, 120 avant (`src/stores/fc.ts`, `MotorsTab.vue`, 2026-10-12). Le Q calculé ne descend jamais
+  sous 112 dans le corpus (5e centile 324, médiane 1 218) ; 16 sessions (3 %) demandent moins de 250, mais
+  leurs raies sont presque toutes déjà sous 4 dB dans le gyro filtré avec le Q actuel (400 à 600) : le calcul
+  est prudent. Coût d'un notch large (retard à 10 Hz, notch à 150 Hz) : Q 100 1,07 ms, Q 150 0,72 ms, Q 250
+  0,43 ms, Q 450 0,24 ms. Sous 250, « Q trop haut » s'arrête à 250 et renvoie à la mécanique. Le notch
+  statique garde son plancher de 100 (`rules.STATIC_NOTCH_Q_LOW`, anciens défauts de Betaflight 3.2.0 : Q 0,67 à 1,71).
+  Effet (`advisor_rates.py` avant / après, 705 sessions) : mêmes constats partout ; la valeur conseillée passe
+  à 250 dans 8 sessions de 4 drones (au lieu de 100 à 200), dont 4 du 7" « CINE » (raies à 37–50 Hz).
 - **Corpus** (681 sessions) : toutes à 2 kHz de boucle PID ou plus, une seule sans filtre RPM ; 1 à 3
   notchs (2 le plus souvent), Q 300–500, plage 100–600 Hz le plus souvent (minimum de 60 à 240 Hz).
 - **Taux** : « moins de notchs suffiraient » 27 % des sessions (16 % des drones) — d'où le niveau info ;
@@ -694,7 +706,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Raie basse fréquence | < 100 Hz : mise en garde avant de la filtrer | Communauté | Propwash et oscillations « ~20Hz to ~100Hz » [S1] |
 | Baisse de `rpm_filter_q` (raie moteur visible) | −100 par pas, borne 250 | Firmware (borne) + décision | Pas de 100 : décision de Cédric (2026-10-10), à la place de −30 % ; aussi dans « Bruit moteur mal éliminé » |
 | Hausse de `rpm_filter_q` (harmoniques effacées) | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | [S27] ; condition « harmoniques effacées, bruit sous les repères, tout type de vol » : décision de Cédric (2026-10-10) |
-| `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 100 à 450 | Théorie + communauté + estimation | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 450 au plus avec filtre RPM [S19] ; 100 au moins : estimation (sources : 120–150 sans filtre RPM [S19]) ; +50 si aucune raie n'est mesurable ; raie ramenée à 4 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) ; « Q trop haut » seulement si une raie passe encore les filtres (2026-10-13, D-023 : sans ce contrôle, juste une fois sur deux) |
+| `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 250 à 450 | Théorie + communauté + corpus | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 450 au plus avec filtre RPM [S19] ; 250 au moins : plus bas Q vu avec filtre RPM (presets officiels 250 [S28], corpus 285, choix de Cédric du 2026-10-13 ; avant : 100, estimation), voir « Notch dynamique » ; +50 si aucune raie n'est mesurable ; raie ramenée à 4 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) ; « Q trop haut » seulement si une raie passe encore les filtres (2026-10-13, D-023 : sans ce contrôle, juste une fois sur deux) |
 | `dyn_notch_count` en hausse | un notch par pic à suivre, 7 au plus, si une raie passe ou si le gyro est bruité | Firmware (borne) + décision | `cli/settings.c` (0 à 7) ; décision de Cédric (2026-10-10) |
 | Terme D propre : relèvement des filtres | D sous −20 dB PIDtoolbox ; jusqu'à 1,2 (ou +0,2 au-delà), D prévu sous −10 dB et sous le p90 | Communauté + configurateur + estimation | « ideally below about minus 20 dB » [S20] ; 0,8–1,2 hors mode expert (`useTuningSliders.ts`) ; +0,2 et deux pas × 1,1 sans curseur : estimations ; décision de Cédric (2026-10-10) |
 | `rpm_filter_harmonics` | jusqu'à 3 | Firmware | `cli/settings.c` (0 à 3) |

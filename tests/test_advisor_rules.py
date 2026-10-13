@@ -125,7 +125,8 @@ def test_dyn_notch_q_need():
     assert _q_round(q) == 250
     assert dyn_notch_q_need([200.0], [20.0], [3.0]) == float("inf")  # déjà sous 4 dB : aucun besoin
     assert dyn_notch_q_need([200.0], [float("nan")], [15.0]) is None
-    assert _q_round(40.0) == 100  # borne basse
+    assert _q_round(40.0) == 250  # borne basse du notch dynamique (plus bas Q vu avec filtre RPM)
+    assert _q_round(40.0, 100) == 100  # notch statique
 
 
 # ---------------------------------------------------------------- seuils des profils (D-011)
@@ -192,7 +193,8 @@ def test_rule_constants_snapshot():
     assert (rules.DTERM_PTB_MAX_DB, rules.DTERM_PTB_IDEAL_DB, rules.GYRO_PTB_MAX_DB) == (-10.0, -20.0, -30.0)
     assert (rules.RPM_Q_STEP, rules.RPM_Q_MAX, rules.RPM_Q_MIN) == (100, 1000, 250)
     assert (rules.RPM_WEIGHT_MARGIN_DB, rules.RPM_WEIGHT_GAIN_MIN, rules.HARMONIC_VISIBLE_DB) == (3.0, 0.5, 4.0)
-    assert (rules.DYN_NOTCH_Q_RPM, rules.DYN_NOTCH_Q_STEP, rules.DYN_NOTCH_Q_LOW) == ((300, 450), 50, 100)
+    assert (rules.DYN_NOTCH_Q_RPM, rules.DYN_NOTCH_Q_STEP, rules.DYN_NOTCH_Q_LOW) == ((300, 450), 50, 250)
+    assert rules.STATIC_NOTCH_Q_LOW == 100
     assert (rules.DYN_NOTCH_MIN_HZ, rules.DYN_NOTCH_MARGIN_HZ) == (20, 20)
     assert not hasattr(rules, "DYN_NOTCH_MIN_STEP_HZ")  # relèvement de dyn_notch_min_hz retiré (gain mesuré ≈ 0)
     assert (rules.LOG_RATE_MIN_HZ, rules.PID_LOG_RATE_MIN_HZ, rules.PID_LOG_RATE_FLOOR_HZ) == (1600.0, 1000.0, 500.0)
@@ -376,3 +378,17 @@ def test_dyn_notch_q_too_high_needs_a_passing_line():
     f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if f.title == title)
     assert f.actions[0].startswith("dyn_notch_q 500 → 350")
     assert "240 Hz (+6 dB)" in f.detail
+    assert len(f.actions) == 1  # Q calculé au-dessus du plancher : pas de renvoi à la mécanique
+
+
+def test_dyn_notch_q_floor():
+    """Q calculé sous DYN_NOTCH_Q_LOW (250, plus bas Q vu avec filtre RPM) : conseil arrêté à 250, renvoi à la
+    mécanique plutôt qu'un notch plus large (choix de Cédric, 2026-10-13)."""
+    from opentunebox.advisor import rules
+    s = SimpleNamespace(dyn_notch_q=400)
+    dn = {"q_need": 150.0, "peaks": [220.0], "widths": [22.0], "heights": [20.0], "left": [6.0], "count": 1}
+    f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if "Q trop haut" in f.title)
+    assert f.actions[0].startswith("dyn_notch_q 400 → 250")
+    assert "demanderait un Q de 150" in f.detail and "mécanique" in f.actions[1]
+    s.dyn_notch_q = 250  # déjà au plancher : rien à baisser
+    assert not any("Q trop haut" in f.title for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False))
