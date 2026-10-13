@@ -102,3 +102,21 @@ def test_calibrate_advisor_summary(tmp_path, capsys):
     tous = out[out.index("== TOUS"):]
     assert "peakdiff" in tous and "imean_abs" in tous and "prom1" in tous and "res_free_db" in tous  # mesures dérivées
     assert [ln for ln in tous.splitlines() if ln.startswith("gdelay")][0].split("n=")[1].strip().startswith("1 ")  # stationnaire exclu
+
+
+def test_advisor_rates_compare(tmp_path, capsys):
+    ar = _load("advisor_rates")
+    base = {"file": "a.bbl", "sess": 1, "profile": "five", "moving": True, "t_analyze": 2.0,
+            "findings": [("rpm_q_raise", "Filtre RPM : Q peut monter", "conseil", True)],
+            "details": [("rpm_q_raise", None, "conseil", "Filtre RPM : Q peut monter", "1e -0 dB", ["rpm_filter_q 600"])]}
+    same = {**base, "file": "b.bbl", "t_analyze": 1.0}
+    old, new = tmp_path / "avant.json", tmp_path / "apres.json"
+    old.write_text(json.dumps([base, same]), encoding="utf-8")
+    changed = {**base, "t_analyze": 1.0, "details": [(*base["details"][0][:4], "1e -1 dB", ["rpm_filter_q 600"])]}
+    new.write_text(json.dumps([changed, same]), encoding="utf-8")
+    assert ar.compare(str(old), str(new)) == 1  # seul le chiffre du détail change : la session est signalée
+    out = capsys.readouterr().out
+    assert "sessions aux constats différents : 1" in out and "== a.bbl (session 1)" in out
+    assert "1e -0 dB" in out and "1e -1 dB" in out
+    assert "3 s → 2 s" in out
+    assert ar.compare(str(old), str(old)) == 0
