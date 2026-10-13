@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-024 | Notch statique conseillé seulement si le notch dynamique ne peut pas traiter la raie | 2026-10-13 |
 | D-023 | « Q trop haut » seulement si une raie passe ; marge de 5 % de la fréquence moteur autour des harmoniques | 2026-10-13 |
 | D-022 | Notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé | 2026-10-13 |
 | D-021 | Pas des curseurs conseillés, choisis par Cédric | 2026-10-12 |
@@ -97,6 +98,26 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-12 — Trous d'enregistrement
+
+### D-024 : notch statique conseillé seulement si le notch dynamique ne peut pas traiter la raie
+
+**Contexte.** « Raie fixe vers X Hz » et « Raie à X Hz encore visible après filtrage » proposaient tous un notch
+statique (`gyro_notch1`) en plus de la mécanique et du notch dynamique : 112 constats sur 84 sessions du corpus.
+Règle de Cédric, pilote (2026-10-13) : éviter au maximum le notch statique, sauf cas vraiment exceptionnel.
+
+**Décision.**
+- Mécanique d'abord, puis le notch dynamique (plage, nombre de notchs, ou remise en service s'il est coupé).
+- Notch statique seulement si le notch dynamique ne peut pas traiter la raie (`rules.static_notch_case`) :
+  boucle PID sous 2 kHz, 7 notchs déjà en service, raie au-delà de 980 Hz.
+- Jamais sous 100 Hz (`rules.HOVER_LOW_LINE_HZ`) : un notch y retarde la bande où travaille le PID, et la raie
+  vient souvent du réglage ; « Raie fixe » y ajoute la même mise en garde que les raies résiduelles.
+- Effet sur le corpus : 0 conseil de notch statique sur les 112 constats (705 sessions).
+
+**Options écartées.** Garder le notch statique en dernier recours dans chaque constat (contraire au choix de
+Cédric) ; l'autoriser pour les raies hors de portée basse du notch dynamique, sous 40 Hz (2 constats : 7"
+« CINE » à 37 Hz, « JeNo Ced » à 30 Hz ; retard dans la bande du PID).
+
+**Témoins.** `tests/test_advisor_rules.py:test_static_notch_only_when_dynamic_notch_cannot`.
 
 ### D-023 : « Q trop haut » seulement si une raie passe ; marge de 5 % de la fréquence moteur autour des harmoniques
 

@@ -252,6 +252,22 @@ filtre toujours ; désactivé sous 2 kHz de boucle PID.
   6. D'où la condition (choix de Cédric) : « Q trop haut » seulement si une raie à suivre dépasse encore
   `HARMONIC_VISIBLE_DB` dans le gyro filtré (`dyn_notch_view` : `left`). Effet : « Q trop haut » 19 → 30
   (12 gardées, 7 retirées, 18 ajoutées, une raie qui passe dans toutes), « Q peut monter » 117 → 113.
+- **Q minimum** (2026-10-13, choix de Cédric, W-003) : 250 au lieu de 100 (estimation). Aucun pilote ne
+  descend aussi bas avec filtre RPM : Q en place dans le corpus 285 au plus bas (702 sessions avec filtre RPM ;
+  316 à 500, 189 à 400, 81 à 300), presets officiels jamais sous 250 (258 réglages
+  `dyn_notch_q` [S28]) ; le configurateur met 500 en passant au DShot bidirectionnel, 300 sans filtre RPM depuis
+  Betaflight 4.3, 120 avant (`src/stores/fc.ts`, `MotorsTab.vue`, 2026-10-12). Le Q calculé ne descend jamais
+  sous 112 dans le corpus (5e centile 324, médiane 1 218) ; 16 sessions (3 %) demandent moins de 250, mais
+  leurs raies sont presque toutes déjà sous 4 dB dans le gyro filtré avec le Q actuel (400 à 600) : le calcul
+  est prudent. Coût d'un notch large (retard à 10 Hz, notch à 150 Hz) : Q 100 1,07 ms, Q 150 0,72 ms, Q 250
+  0,43 ms, Q 450 0,24 ms. Sous 250, « Q trop haut » s'arrête à 250 et renvoie à la mécanique.
+  **Q maximum** (2026-10-13, choix de Cédric) : 500 au lieu de 450 [S19] ; guide RPM [S9] « Count to 1 and Q to
+  500 », configurateur 500 avec DShot bidirectionnel, presets avec filtre RPM : 500 pour 72 sur 156, 600 pour 11,
+  750 pour 3 [S28] ; corpus : 316 sessions à 500, 77 de 600 à 800. Gain faible (notch à 250 Hz : 0,142 ms à
+  Q 450, 0,128 ms à Q 500) ; « Q peut monter » 113 → 115 sessions. Le notch
+  statique garde son plancher de 100 (`rules.STATIC_NOTCH_Q_LOW`, anciens défauts de Betaflight 3.2.0 : Q 0,67 à 1,71).
+  Effet (`advisor_rates.py` avant / après, 705 sessions) : mêmes constats partout ; la valeur conseillée passe
+  à 250 dans 8 sessions de 4 drones (au lieu de 100 à 200), dont 4 du 7" « CINE » (raies à 37–50 Hz).
 - **Corpus** (681 sessions) : toutes à 2 kHz de boucle PID ou plus, une seule sans filtre RPM ; 1 à 3
   notchs (2 le plus souvent), Q 300–500, plage 100–600 Hz le plus souvent (minimum de 60 à 240 Hz).
 - **Taux** : « moins de notchs suffiraient » 27 % des sessions (16 % des drones) — d'où le niveau info ;
@@ -327,6 +343,21 @@ LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallumen
   (règle écartée). Relever ceux du D de 25 % : 0,48 ms pour +2,6 dB, sous les repères dans 60 % des
   sessions, d'où la prévision ajoutée au seul conseil « filtrage du D peut-être trop fort » (34 sessions
   candidates).
+
+- **Vérifications du 2026-10-13** (W-003, choix de Cédric : règles gardées) :
+  - *LPF1 du D dynamique proposé* (min = coupure statique, max = 2 × min) : c'est le calcul du curseur « filtre
+    D » du firmware (statique = min dynamique = 75 × multiplicateur, max = 150 × multiplicateur,
+    `config/simplified_tuning.c`). Corpus (710 sessions) : 91 drones sur 94 en mode dynamique ont un rapport
+    max / min de 2 (75–150, 90–180, 97–195, 105–210 Hz…), deux de 1,4, un de 4,4 ; les 15 drones en mode
+    statique ont tous la coupure du curseur (75 × multiplicateur). Presets [S28] : rapport 2 le plus fréquent,
+    sauf les filtres AOS (75 ou 80–110 Hz en biquad, LPF2 du D coupé).
+  - *Relèvement du D propre* (deux crans au plus, 0,1 par vol d'essai, D-021) : simulé de 1 à 6 crans sur les
+    126 vols (43 drones) où le conseil s'affiche. Le bruit prévu reste sous les repères jusqu'à 6 crans dans
+    98 % des cas : la limite bloque tous les vols. Retard gagné (médiane, cumulé) : 0,23 ms au 1er cran,
+    0,44 ms au 2e, 0,61 au 3e, 0,75, 0,88, 0,99 ms au 6e ; sommet du D +0,3 dB par cran environ. En gardant
+    le sommet sous l'idéal de −20 dB : 84 vols iraient à 6 crans, 42 de 0 à 5. Limite gardée par prudence
+    (choix de Cédric) : la chauffe des moteurs ne se voit pas dans le log ; l'assistant repropose au log
+    suivant tant que le D reste propre.
 
 ### Pic de réponse indicielle (2026-10-05)
 
@@ -467,6 +498,39 @@ Pas conseillés d'un vol au suivant, choisis par Cédric d'après la méthode de
 Le curseur Tracking (P et I) n'est plus conseillé seul (choix de Cédric). Le Diagnostic du réglage par
 séries garde ses pas de 0,2 et signale un pas plus fin que 0,15.
 
+### Bandes de bruit (2026-10-13)
+
+Bornes des bandes de bruit : 80–500 Hz pour le gyro filtré et le terme D (« Gyro filtré bruité », « Terme D
+bruité », repères de PIDtoolbox), 20–80 Hz pour le gyro filtré (« Oscillations basses fréquences »). Avant, origine
+« Communauté + estimation » (W-003) ; vérifiées sur 705 sessions (98 drones) et gardées (choix de Cédric). Spectres
+des sessions par tranches de 5 Hz (roll et pitch, période analysée, fenêtres hors trous) ; pour chaque bande
+candidate, seuil p90 recalculé par taille, puis sessions signalées comparées à celles des bornes actuelles.
+
+| Bande | Variante | Sessions signalées identiques |
+|---|---|---|
+| 80–500 Hz, gyro | 100–500 / 60–500 | 100 % / 92 % |
+| 80–500 Hz, gyro | 80–400 / 80–700 / jusqu'à Nyquist | 80 % / 76 % / 66 % |
+| 80–500 Hz, terme D | 100–500 / 60–500 | 97 % / 92 % |
+| 80–500 Hz, terme D | 80–300 / 80–400 / 80–700 / jusqu'à Nyquist | 59 % / 76 % / 64 % / 54 % |
+| 20–80 Hz | 10–80 / 30–80 / 40–80 | 80 % / 78 % / 66 % |
+| 20–80 Hz | 20–60 / 20–100 / 20–120 | 70 % / 80 % / 66 % |
+
+(Recouvrement de Jaccard : sessions signalées par les deux bornes / sessions signalées par l'une ou l'autre.)
+
+- **80 Hz** : le choix exact compte peu (60 à 100 Hz donnent presque les mêmes sessions) ; la borne reste sous la
+  fréquence moteur du vol stationnaire de toutes les tailles (p10 : 8"+ 95 Hz, 7" 124 Hz, 5" 172 Hz).
+- **500 Hz** : sensible, mais c'est la plus haute borne commune aux logs à 1 kHz (26 % des sessions, bande
+  arrêtée à 0,95 × 500 = 475 Hz) et aux logs plus rapides : au-delà, deux logs du même drone à 1 et 2 kHz
+  seraient mesurés sur des bandes différentes. Le terme D filtré garde l'essentiel de son énergie sous 500 Hz
+  (part au-dessus de 500 Hz entre 80 Hz et Nyquist, médiane : 3 % whoop, 6 % 5", 14 % 7") ; au-delà, le gyro
+  filtré n'est plus qu'un fond plat vers −37 dB. Limite : le bruit moteur des whoops (fréquence moteur médiane
+  481 Hz) tombe en partie au-delà ; il est jugé par les harmoniques (`motor_left_high_db`), pas par cette bande.
+- **20–80 Hz** : le manche ne fausse pas le constat. Il touche 11 % des vols stationnaires et 10 % des vols
+  avec mouvements. Cohérence consigne → gyro des vols avec mouvements (médiane, p90) : 20–40 Hz 0,20 / 0,63 ;
+  40–60 Hz 0,03 / 0,31 ; au-dessus de 60 Hz ≤ 0,01 / 0,06. Monter la borne basse à 30 Hz ne signale pas moins
+  de vols stationnaires (13 % contre 10 % des vols avec mouvements) : elle est gardée à 20 Hz, comme la borne
+  basse de la source [S1] (« ~20Hz to ~100Hz »).
+
 ## Règles
 
 Le diagnostic du bruit de la fenêtre Spectre (`advisor/noise.py`) reprend ces mêmes constats, rangés par
@@ -542,7 +606,7 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   haut **et** une raie à suivre encore à plus de 4 dB dans le gyro filtré → « Q trop haut pour les raies à
   suivre » (`dyn_notch_q` = Q nécessaire) ;
   sinon, sans raie qui passe et avec gyro et D sous leurs repères, « Q peut monter » jusqu'au Q nécessaire,
-  450 au plus (+50 si aucune raie n'est mesurable). Plus de pics que de notchs avec une raie qui passe ou un
+  500 au plus (+50 si aucune raie n'est mesurable). Plus de pics que de notchs avec une raie qui passe ou un
   gyro bruité → « plus de notchs » (`dyn_notch_count` = nombre de pics, 7 au plus) ; une raie qui passe
   dans la plage → `dyn_notch_count` + 1.
 - **Terme D propre** (tout vol, log assez rapide, gyro et D non signalés) : sommet du D sous −20 dB
@@ -573,8 +637,20 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
 - **Résonance** : raie au-dessus de la moyenne glissante voisine de plus que le seuil de la taille
   (20 Hz à min(900 Hz ; 0,9 × Nyquist), sans les 5 premiers Hz), présente dans la médiane de toutes les tranches de gaz (au moins
   8 tranches), à plus de ±8 % des harmoniques 1 à 3 du moteur.
-- **Notch statique conseillé** (« Raie fixe », « Raie à X Hz encore visible après filtrage » ;
-  `rules.static_notch_cutoff`, choix de Cédric du 2026-10-12) : `gyro_notch1_cutoff` tiré de la forme de la
+  *Méthode vérifiée* (2026-10-13, 705 sessions, W-003 ; choix de Cédric : gardée) : pour chaque raie, pente de sa
+  fréquence face à la vitesse moyenne des moteurs d'une tranche de gaz à l'autre (raie fixe ≈ 0, raie moteur
+  ≈ numéro de l'harmonique ; témoin : pics à ± 3 % de la fondamentale, pente médiane 0,82). Avec 6 ou 7
+  tranches, les raies trouvées suivent les moteurs (pente médiane 1,04) : le minimum de 8 tranches les écarte
+  (14 % des sessions en dessous). Aucune raie au-dessus du seuil entre 900 Hz et la fin de la plage. Raies
+  signalées à plus de 15 % d'une harmonique : fixes (pente 0,10, 85 % sous 0,3) ; suivies par le notch dynamique
+  (debug FFT_FREQ) 42 % du temps contre 8 % pour une fréquence au hasard. Limite : l'exclusion ± 8 % (vitesse
+  moyenne en stationnaire) est imparfaite. Les 39 raies écartées mêlent raies fixes (36 %) et raies moteur
+  (33 %), et entre 8 et 15 % d'une harmonique les raies signalées sont mêlées (39 % fixes, 22 % moteur). Le
+  test de pente, fiable sur la fondamentale mais pas sur les harmoniques 2 et 3, reste à faire (W-013).
+- **Notch statique conseillé**, seulement en cas exceptionnel (D-024, choix de Cédric du 2026-10-13 :
+  `rules.static_notch_case`, notch dynamique impossible — boucle PID sous 2 kHz, 7 notchs en service, raie
+  au-delà de 980 Hz — et jamais sous 100 Hz ; aucun cas dans le corpus ; avant, les 112 constats « Raie fixe »
+  et « Raie à X Hz » en proposaient un). Coupure (`rules.static_notch_cutoff`, choix de Cédric du 2026-10-12) : `gyro_notch1_cutoff` tiré de la forme de la
   raie dans le gyro non filtré (largeur à mi-puissance et hauteur, la plus large et la plus haute du roll et
   du pitch), par le même calcul que le Q du notch dynamique : Q nécessaire pour ramener la raie à 4 dB du
   bruit voisin, arrondi et borné de 1 à 4,5 (100 à 450), puis coupure c telle que Q = f·c / (f² − c²)
@@ -637,7 +713,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
 | Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Corpus | Choisit le conseil (Master −0,1 plutôt que plus de D). 55 séries Damping et Pitch Damping (« D dominant », 2026-10-12) : dès 1,0, un cran de D fait monter le pic de sensibilité ; aussi la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) |
-| Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + estimation | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes exactes choisies |
+| Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + corpus | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes vérifiées sur le corpus (« Bandes de bruit », 2026-10-13) : 80 Hz peu sensible (60–100 Hz : 92 à 100 % des mêmes sessions), 500 Hz = plus haute borne commune aux logs à 1 kHz (26 % des sessions), 20–80 Hz signale autant les vols stationnaires (11 %) que les vols avec mouvements (10 %) |
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
 | Terme D, échelle de PIDtoolbox | sommet > −10 dB (attention, avec le p90) ; idéal < −20 dB (texte) | Communauté | Brian White [S20] (« maybe minus 10 would be the highest ») ; 18 % des sessions (voir « Repères de PIDtoolbox ») |
 | Gyro filtré, échelle de PIDtoolbox | sommet < −30 dB (affiché) | Communauté | « a good rule of thumb » [S21, S22] ; ne déclenche rien (35 % des sessions au-dessus) |
@@ -652,7 +728,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
 | Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 10 et 8 drones seulement |
 | Seuils du profil 8"+ | voir « Calibration » | Estimation | 6 drones, 20 sessions |
-| Résonance | raie > 6,8 (5") à 8,2 dB (7") selon la taille, 7,9 dB commun ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil) + estimation (méthode) | | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage
+| Résonance | raie > 6,8 (5") à 8,2 dB (7") selon la taille, 7,9 dB commun ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil et méthode) | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage. Méthode vérifiée le 2026-10-13 (« Règles », Résonance) : 8 tranches au moins (en dessous, raies moteur), rien au-delà de 900 Hz ; exclusion ± 8 % imparfaite (W-013) |
 | Pic suivi par le notch dynamique | > 2 × la puissance moyenne de la plage (+3 dB), cases de 18,5 Hz | Firmware | `flight/dyn_notch_filter.c` (`sdftNoiseThreshold *= 2`, bruit au-dessus de 60 Hz) ; ce que le filtre RPM laisse passer d'après sa réponse (Q, poids, fondu), comparé au firmware sur 598 sessions (« Notch dynamique ») |
 | Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
 | Relèvement de `dyn_notch_min_hz` | retiré (2026-10-13) | Corpus | Gain de retard mesuré ≈ 0 (+30 Hz : 0,002 ms en médiane), les notchs n'étant presque jamais à leur minimum (« Notch dynamique », D-022) ; avant : jusqu'à 200 Hz (7" et plus : 125 Hz) si le gain atteignait 30 Hz (estimation) |
@@ -661,16 +737,16 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Raie basse fréquence | < 100 Hz : mise en garde avant de la filtrer | Communauté | Propwash et oscillations « ~20Hz to ~100Hz » [S1] |
 | Baisse de `rpm_filter_q` (raie moteur visible) | −100 par pas, borne 250 | Firmware (borne) + décision | Pas de 100 : décision de Cédric (2026-10-10), à la place de −30 % ; aussi dans « Bruit moteur mal éliminé » |
 | Hausse de `rpm_filter_q` (harmoniques effacées) | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | [S27] ; condition « harmoniques effacées, bruit sous les repères, tout type de vol » : décision de Cédric (2026-10-10) |
-| `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 100 à 450 | Théorie + communauté + estimation | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 450 au plus avec filtre RPM [S19] ; 100 au moins : estimation (sources : 120–150 sans filtre RPM [S19]) ; +50 si aucune raie n'est mesurable ; raie ramenée à 4 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) ; « Q trop haut » seulement si une raie passe encore les filtres (2026-10-13, D-023 : sans ce contrôle, juste une fois sur deux) |
+| `dyn_notch_q` avec filtre RPM | Q calculé d'après la largeur et la hauteur des raies, arrondi à 50, de 250 à 500 | Théorie + communauté + corpus | Forme du notch [S31] (décision de Cédric, 2026-10-10 : calcul plutôt que paliers) ; 500 au plus (2026-10-13, choix de Cédric) : « Count to 1 and Q to 500 » [S9], valeur du configurateur avec DShot bidirectionnel, la plus fréquente des presets avec filtre RPM (72 sur 156 [S28]) et du corpus (316 sessions) ; avant : 450 [S19] (« around 300-450 ») ; 250 au moins : plus bas Q vu avec filtre RPM (presets officiels 250 [S28], corpus 285, choix de Cédric du 2026-10-13 ; avant : 100, estimation), voir « Notch dynamique » ; +50 si aucune raie n'est mesurable ; raie ramenée à 4 dB du bruit voisin (`HARMONIC_VISIBLE_DB`) ; « Q trop haut » seulement si une raie passe encore les filtres (2026-10-13, D-023 : sans ce contrôle, juste une fois sur deux) |
 | `dyn_notch_count` en hausse | un notch par pic à suivre, 7 au plus, si une raie passe ou si le gyro est bruité | Firmware (borne) + décision | `cli/settings.c` (0 à 7) ; décision de Cédric (2026-10-10) |
-| Terme D propre : relèvement des filtres | D sous −20 dB PIDtoolbox ; jusqu'à 1,2 (ou +0,2 au-delà), D prévu sous −10 dB et sous le p90 | Communauté + configurateur + estimation | « ideally below about minus 20 dB » [S20] ; 0,8–1,2 hors mode expert (`useTuningSliders.ts`) ; +0,2 et deux pas × 1,1 sans curseur : estimations ; décision de Cédric (2026-10-10) |
+| Terme D propre : relèvement des filtres | D sous −20 dB PIDtoolbox ; jusqu'à 1,2 (ou +0,2 au-delà), D prévu sous −10 dB et sous le p90 | Communauté + configurateur + firmware + choix de Cédric | « ideally below about minus 20 dB » [S20] ; 0,8–1,2 hors mode expert (`useTuningSliders.ts`) ; × 1,1 sans curseur = un cran de 0,1 à partir de 1,0 (`simplified_tuning.c`) ; deux crans au plus : limite de prudence (chauffe des moteurs, invisible dans le log), choix de Cédric du 2026-10-13 sur simulation (« Passe-bas du gyro et du D ») ; décision de Cédric (2026-10-10) |
 | `rpm_filter_harmonics` | jusqu'à 3 | Firmware | `cli/settings.c` (0 à 3) |
 | Ordre de la stratégie de filtrage | enregistrement, corrections, mécanique, RPM, notch dynamique, LPF gyro, LPF D | Firmware (doc) + estimation | Un filtre à la fois [S30] ; ordre RPM → notch → passe-bas comme le guide RPM |
 | Stratégie de filtrage affichée | à partir de 2 étapes (`rules.STRATEGY_MIN_STAGES`) | Corpus + décision de Cédric | 37 % des sessions contre 79 % dès une étape (2026-10-05) |
 | Vol avec mouvements (retards représentatifs) | 95e centile de \|consigne\| ≥ 50 °/s (roll ou pitch) | Corpus + estimation | Remarque de Cédric (2026-10-05) ; vols stationnaires du corpus ≤ 24 °/s, avec wobble ≥ 92 °/s ; l'intercorrélation s'y trompe une fois sur deux (`validation.md`). 108 sessions (16 %) en dessous ; `calibrate_advisor.py` en écarte les retards ; seuils de retard calibrés sur les vols restants |
 | LPF2 du gyro anti-repliement | PID < gyro : PT1 500 Hz (attention sous 3 kHz), 500–1000 Hz (conseil à 4 kHz) | Firmware (doc) | [S12, S19, S29] |
 | Ordre minimal du filtrage du D | 2 (deux PT1 ou un filtre d'ordre 2) | Firmware (doc) | [S29] ; PT2 et biquad comptent pour 2, PT3 pour 3 |
-| LPF1 du D dynamique proposé | min = coupure statique, max = 2 × min | Firmware (défauts 75–150 Hz) + estimation | Mode statique « not recommended » [S29] |
+| LPF1 du D dynamique proposé | min = coupure statique, max = 2 × min | Firmware + corpus | Mode statique « not recommended » [S29] ; le curseur « filtre D » donne statique = min = 75 × multiplicateur, max = 150 × multiplicateur (`config/simplified_tuning.c`) ; rapport 2 chez 91 drones sur 94 en mode dynamique (2026-10-13, « Passe-bas du gyro et du D ») |
 | Coupure du LPF1 du gyro | si filtre RPM actif, vol avec mouvements, bruit actuel et prévu sous les repères | Firmware (doc) + corpus (repères) | [S29, S30] ; 4 % des sessions |
 | Prévision du curseur « filtre D » | +0,1 = multiplicateur +10 (×1,1 sans curseur) | Firmware | `simplified_tuning.c` ; relèvement proposé seulement si le D prévu reste sous les repères |
 | Déséquilibre des moteurs | > 11,2 (7") à 14 % (5") selon la taille, 13,5 % commun | Corpus | L'interprétation (côté ou diagonale au-delà de 12 %) reste estimée |
@@ -679,7 +755,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Pas des curseurs conseillés | filtre gyro 0,2 ; filtre D 0,1–0,2 ; Damping 0,2 (dégrossir) ou 0,1 (fin) ; roll / pitch 0,2 ; Master 0,2 puis retour de 0,1–0,2 ; feedforward : série de 0,5 depuis 0 | Communauté [S32] + choix de Cédric | D-021, voir « Pas des curseurs » ; le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
 | `rpm_filter_q` conseillé | −100 par pas (500 → 400) | Firmware (500) + décision (pas) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre selon Brian White [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où des pas de 100 (décision de Cédric, 2026-10-10). Monter Q : voir la ligne « pour gagner du retard ». Avec un poids < 100, la règle « poids trop bas » propose d'abord de le remonter |
 | `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
-| Notch statique conseillé | coupure tirée du Q nécessaire pour la raie, 0,62 à 0,89 × sa fréquence ; 0,7 sans mesure | Théorie + firmware | Même calcul que le Q du notch dynamique [S31], `filterGetNotchQ` ; repli 0,7 dans la plage des défauts de Betaflight 3.2.0 (0,5 à 0,75), voir « Règles » (2026-10-12) |
+| Notch statique conseillé | seulement si le notch dynamique ne peut pas traiter la raie (boucle PID < 2 kHz, 7 notchs, raie > 980 Hz), jamais sous 100 Hz ; coupure tirée du Q nécessaire pour la raie, 0,62 à 0,89 × sa fréquence ; 0,7 sans mesure | Choix de Cédric + théorie + firmware | Même calcul que le Q du notch dynamique [S31], `filterGetNotchQ` ; repli 0,7 dans la plage des défauts de Betaflight 3.2.0 (0,5 à 0,75), voir « Règles » (2026-10-12) ; D-024 |
 
 Le champ `resonance_hz` des profils (`advisor/profiles.py`) est renseigné mais **aucune règle ne
 l'utilise** ; `hover_hz` ne sert qu'à la fiche drone du guide (`advisor/drone_card.py:log_rate`,

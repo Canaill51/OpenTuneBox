@@ -60,6 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | ouvert |
 | W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | clos |
 | W-011 | LPF1 et notch statique absents du modèle du notch dynamique | sans suite |
 | W-010 | Analyses recollées de part et d'autre des trous du log | clos |
@@ -118,6 +119,14 @@ Règles d'écriture :
   Poids RPM (2026-10-13, branche feat/calibrate-rpm-weights) : marge 6 → 3 dB et gain minimal 0,5 gardé, mesurés
   sur les harmoniques à poids déjà réduit du corpus et par le retard calculé. Taille pour l'objectif de retard :
   3" et 8" confirmés par la médiane des drones de taille connue du corpus (branche feat/calibrate-delay-size).
+  Bandes de bruit (2026-10-13, branche feat/calibrate-remaining-estimates) : 80–500 Hz et 20–80 Hz gardés,
+  vérifiés sur le corpus (sensibilité des sessions signalées aux bornes, logs à 1 kHz, cohérence avec le manche).
+  Q minimum du notch dynamique (2026-10-13) : 100 → 250, plus bas Q vu avec filtre RPM (presets, corpus).
+  Filtre du D (2026-10-13) : LPF1 dynamique proposé (max = 2 × min) sourcé par le firmware et le corpus ;
+  relèvement du D propre gardé à deux crans, limite de prudence choisie par Cédric sur simulation.
+  Q maximum du notch dynamique : 450 → 500 (guide RPM, configurateur, presets). Notch statique : seulement si
+  le notch dynamique ne peut pas traiter la raie (D-024).
+  Méthode des résonances vérifiée et gardée (8 tranches, 25–900 Hz) ; limite de l'exclusion ± 8 % ouverte en W-013.
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.
@@ -250,3 +259,20 @@ Règles d'écriture :
   **Reprise** : prochaine calibration d'un seuil de raies ou du Q du notch dynamique.
   **Piste** : même méthode que D-022 (réponse RPM au lieu du masque, comparée au debug FFT_FREQ).
   [`src/opentunebox/analysis/motors.py:line_shapes`]
+
+## Origine : vérification de la méthode des résonances, branche feat/calibrate-remaining-estimates (2026-10-13)
+
+- **W-013** — « Raie fixe » (`rules.frame_resonance`) écarte toute raie à ± 8 % d'une harmonique de la vitesse
+  moyenne en stationnaire : mesuré par la pente de la raie face à la vitesse des moteurs d'une tranche de gaz à
+  l'autre, les 39 raies écartées du corpus mêlent raies fixes (36 %) et raies moteur (33 %), et les raies
+  signalées entre 8 et 15 % d'une harmonique sont mêlées (39 % fixes, 22 % moteur).
+  **Pourquoi reporté** : le test de pente est fiable sur la fondamentale (témoin 0,82 pour 1) mais pas sur les
+  harmoniques 2 et 3 (0,40 pour 2, 1,79 pour 3) ; choix de Cédric (2026-10-13) : garder la méthode.
+  **Risque si on n'y touche pas** : une vraie résonance proche de la fondamentale n'est pas signalée (environ 14
+  sessions du corpus), une raie moteur l'est parfois à sa place (environ 5) ; les conseils (mécanique, notch
+  dynamique) restent sensés dans les deux cas.
+  **Reprise** : prochaine modification de la recherche des résonances, ou si un pilote signale une résonance
+  manquée près de la fréquence moteur.
+  **Piste** : pente sur la fondamentale seulement (± 15 %), seuils calibrés sur les raies du vol stationnaire
+  et le debug FFT_FREQ ; script de mesure à refaire comme une fonction de `rules` (même calcul que la règle).
+  [`src/opentunebox/advisor/rules.py:frame_resonance`, [assistant.md](assistant.md#règles)]

@@ -125,7 +125,8 @@ def test_dyn_notch_q_need():
     assert _q_round(q) == 250
     assert dyn_notch_q_need([200.0], [20.0], [3.0]) == float("inf")  # déjà sous 4 dB : aucun besoin
     assert dyn_notch_q_need([200.0], [float("nan")], [15.0]) is None
-    assert _q_round(40.0) == 100  # borne basse
+    assert _q_round(40.0) == 250  # borne basse du notch dynamique (plus bas Q vu avec filtre RPM)
+    assert _q_round(40.0, 100) == 100  # notch statique
 
 
 # ---------------------------------------------------------------- seuils des profils (D-011)
@@ -192,7 +193,8 @@ def test_rule_constants_snapshot():
     assert (rules.DTERM_PTB_MAX_DB, rules.DTERM_PTB_IDEAL_DB, rules.GYRO_PTB_MAX_DB) == (-10.0, -20.0, -30.0)
     assert (rules.RPM_Q_STEP, rules.RPM_Q_MAX, rules.RPM_Q_MIN) == (100, 1000, 250)
     assert (rules.RPM_WEIGHT_MARGIN_DB, rules.RPM_WEIGHT_GAIN_MIN, rules.HARMONIC_VISIBLE_DB) == (3.0, 0.5, 4.0)
-    assert (rules.DYN_NOTCH_Q_RPM, rules.DYN_NOTCH_Q_STEP, rules.DYN_NOTCH_Q_LOW) == ((300, 450), 50, 100)
+    assert (rules.DYN_NOTCH_Q_RPM, rules.DYN_NOTCH_Q_STEP, rules.DYN_NOTCH_Q_LOW) == ((300, 500), 50, 250)
+    assert (rules.STATIC_NOTCH_Q_LOW, rules.STATIC_NOTCH_Q_HIGH) == (100, 450)
     assert (rules.DYN_NOTCH_MIN_HZ, rules.DYN_NOTCH_MARGIN_HZ) == (20, 20)
     assert not hasattr(rules, "DYN_NOTCH_MIN_STEP_HZ")  # relèvement de dyn_notch_min_hz retiré (gain mesuré ≈ 0)
     assert (rules.LOG_RATE_MIN_HZ, rules.PID_LOG_RATE_MIN_HZ, rules.PID_LOG_RATE_FLOOR_HZ) == (1600.0, 1000.0, 500.0)
@@ -376,3 +378,39 @@ def test_dyn_notch_q_too_high_needs_a_passing_line():
     f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if f.title == title)
     assert f.actions[0].startswith("dyn_notch_q 500 → 350")
     assert "240 Hz (+6 dB)" in f.detail
+    assert len(f.actions) == 1  # Q calculé au-dessus du plancher : pas de renvoi à la mécanique
+
+
+def test_dyn_notch_q_floor():
+    """Q calculé sous DYN_NOTCH_Q_LOW (250, plus bas Q vu avec filtre RPM) : conseil arrêté à 250, renvoi à la
+    mécanique plutôt qu'un notch plus large (choix de Cédric, 2026-10-13)."""
+    from opentunebox.advisor import rules
+    s = SimpleNamespace(dyn_notch_q=400)
+    dn = {"q_need": 150.0, "peaks": [220.0], "widths": [22.0], "heights": [20.0], "left": [6.0], "count": 1}
+    f = next(f for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False) if "Q trop haut" in f.title)
+    assert f.actions[0].startswith("dyn_notch_q 400 → 250")
+    assert "demanderait un Q de 150" in f.detail and "mécanique" in f.actions[1]
+    s.dyn_notch_q = 250  # déjà au plancher : rien à baisser
+    assert not any("Q trop haut" in f.title for f in rules._dyn_notch_q_n_rules(s, dn, False, False, False, [], False))
+
+
+def test_static_notch_only_when_dynamic_notch_cannot():
+    """Notch statique conseillé seulement si le notch dynamique ne peut pas traiter la raie (choix de Cédric,
+    2026-10-13) : boucle PID sous 2 kHz, raie au-delà de 1000 Hz à 20 Hz près, 7 notchs en service ;
+    jamais sous 100 Hz."""
+    from opentunebox.advisor import rules
+    s = SimpleNamespace(pid_rate_hz=4000, dyn_notch_count=2, dyn_notch_min_hz=100, dyn_notch_max_hz=600)
+    ln = SimpleNamespace(freq_hz=240.0, raw_db=14.0, left_db=8.0)
+    assert rules.static_notch_case(s, 240.0) is None
+    f = rules._residual_line(s, ln)
+    assert not any("gyro_notch1" in a for a in f.actions) and "dyn_notch_count 2 → 3" in f.actions[1]
+    assert rules.static_notch_case(s, 35.0) is None  # sous 100 Hz : jamais (bande du PID)
+    assert "au-delà" in rules.static_notch_case(s, 990.0)
+    s.dyn_notch_count = 7
+    assert "7 notchs" in rules.static_notch_case(s, 240.0)
+    assert any("gyro_notch1_hz = 240" in a for a in rules._residual_line(s, ln).actions)
+    s.dyn_notch_count, s.pid_rate_hz = 2, 1000
+    assert "boucle PID" in rules.static_notch_case(s, 240.0)
+    s.dyn_notch_count, s.pid_rate_hz = 0, 4000  # notch dynamique coupé : le remettre en service, pas de statique
+    f = rules._residual_line(s, ln)
+    assert "dyn_notch_count = 1" in f.actions[1] and not any("gyro_notch1" in a for a in f.actions)
