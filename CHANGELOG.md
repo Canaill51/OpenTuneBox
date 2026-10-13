@@ -5,6 +5,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- `scripts/advisor_rates.py --compare AVANT.json APRÈS.json` : sessions du corpus dont un constat de l'assistant
+  a changé, texte et chiffres compris, et temps de calcul gagné ; chaque passage garde le texte complet des
+  constats. Sert à prouver qu'une optimisation ou une refactorisation ne change aucun conseil.
+
 ### Modifié
 - Assistant et Simulateur de filtres plus rapides : la réponse des filtres se calcule étage par étage dans un
   noyau numba (au lieu de polynômes reconstruits pour chaque fenêtre), les notchs RPM de tous les moteurs

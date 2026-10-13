@@ -92,6 +92,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python scripts/validate_corpus.py [DOSSIER] [--limit N]   # décodeur vs blackbox_decode
 .venv/bin/python scripts/corpus_labels.py                        # tableau d'étiquettes $OTB_LOGS/corpus.csv
 .venv/bin/python scripts/advisor_rates.py SORTIE.json            # taux de chaque constat sur le corpus (≈ 2 min)
+.venv/bin/python scripts/advisor_rates.py --compare AVANT.json APRÈS.json   # mêmes conseils avant / après ?
 .venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
 .venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```

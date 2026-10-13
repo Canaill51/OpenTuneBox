@@ -14,6 +14,13 @@ Les scripts du corpus répartissent les fichiers sur **tous les cœurs** par `sc
 | `scripts/calibrate_advisor.py 600 SCRATCH/stats.json` | mesures brutes des seuils (`--resume` : percentiles, < 1 s) | 2 min 40 (≈ 10 min un fichier à la fois) |
 | `scripts/advisor_rates.py SCRATCH/rates.json` | assistant complet sur chaque session, taux de chaque constat (`--resume` : tableau seul) | 2 min 10 |
 | `scripts/corpus_labels.py` | tableau `$OTB_LOGS/corpus.csv` | 40 s (≈ 3 min un fichier à la fois) |
+| `scripts/advisor_rates.py --compare AVANT.json APRÈS.json` | sessions dont un constat a changé (texte complet, chiffres compris) et temps gagné ; code 1 si différence | < 1 s |
+
+**Prouver qu'une modification ne change aucun conseil** (optimisation, refactorisation) : un passage de
+`advisor_rates.py` sur `main` (copie isolée par `git worktree add SCRATCH/main main`, lancée avec
+`PYTHONPATH=SCRATCH/main/src` depuis ce dossier), un sur la branche, puis `--compare`. Une différence se
+recalcule seule (`-j 1`, ou la session isolée) avant d'accuser le code : elle peut venir des inversions de
+bits du poste (voir Pièges). Ne pas modifier le code pendant un passage : les processus le relisent.
 
 `SCRATCH` = répertoire temporaire de la session (jamais dans le dépôt).
 
