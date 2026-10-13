@@ -209,6 +209,13 @@ automatique : `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_th
 - **Preuve** — `tests/test_bf_filters.py:test_whatif_spectrum_identity_when_nothing_changes` (rouge avant,
   vert après) et `test_whatif_spectrum_follows_filter_change` (écart analytique à 0,1 dB).
 
+**⚠️ RÉCIDIVE le 2026-10-13** — en accélérant `chain_response` (produit des étages au lieu des polynômes
+convolués), le centre d'un notch tombé pile sur une case (harmonique à 450 Hz, `1. PTB/Sam/HoverTest24-48`)
+valait exactement 0 dans les deux chaînes, au lieu de ~1e-33 d'arrondi : la garde `r_cur > 0` remettait le
+rapport à 1, et le bruit prévu sans LPF1 changeait de 0,01 dB (2 sessions sur 705, chiffre affiché décalé
+de 0,1). Règle précisée : chaque étage garde un gain plancher commun (`bf_filters._MIN_STAGE_GAIN`, 1e-15),
+qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch_centre_keeps_the_ratio_of_the_other_stages`.
+
 ### L-026 : injecter une oscillation en filtrant le gyro ne l'ajoute presque pas à la réponse indicielle
 - **Symptôme** — 2026-10-12 : pour mesurer la sensibilité des vagues, un mode peu amorti à 45 ou 60 Hz
   ajouté au gyro réel (gyro + c × (mode(gyro) − gyro)) ne change presque rien, même à c = 0,2 ; parfois le

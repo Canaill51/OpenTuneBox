@@ -709,13 +709,15 @@ def predict_filter_change(log: FlightLog, sel: slice, mod, hi: float) -> dict:
         sm = lambda v: np.convolve(v, np.ones(5) / 5, mode="same")  # noqa: E731
         return float(np.mean(new) - np.mean(cur)), float(np.max(sm(new)) - np.max(sm(cur)))
 
+    cache: dict = {}  # réponses des filtres par fenêtre, communes aux deux axes et au gyro / D
     for a in range(2):
         if log.gyro_unfilt is not None:
-            g = deltas(bf_filters.whatif_spectrum(log.gyro[a], log.gyro_unfilt[a], log, sel, s, mod, "gyro"))
+            g = deltas(bf_filters.whatif_spectrum(log.gyro[a], log.gyro_unfilt[a], log, sel, s, mod, "gyro", cache=cache))
             out["gyro_mean"].append(g[0])
             out["gyro_peak"].append(g[1])
         if np.any(log.d_term[a]):
-            d = deltas(bf_filters.whatif_spectrum(log.d_term[a], log.d_term_prefilter[a], log, sel, s, mod, "dterm"))
+            d = deltas(bf_filters.whatif_spectrum(log.d_term[a], log.d_term_prefilter[a], log, sel, s, mod, "dterm",
+                                                  cache=cache))
             out["d_mean"].append(d[0])
             out["d_peak"].append(d[1])
     thr = float(np.median(log.throttle[sel])) / 100.0

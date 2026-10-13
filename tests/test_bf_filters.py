@@ -347,3 +347,51 @@ def test_simulate_gyro_on_synthetic_log_removes_motor_harmonic():
     assert d.shape == lg.gyro.shape and np.all(np.isfinite(d))
     with pytest.raises(ValueError):
         bf.simulate_gyro(make_flightlog(seconds=1.0, unfilt=False))
+
+
+def test_chain_response_matches_polynomial_product():
+    # produit des étages (noyau numba) = polynômes convolués de `coefficients`, cadences mélangées
+    rng = np.random.default_rng(1)
+    f = np.linspace(0.0, 1900.0, 400)
+    for _ in range(50):
+        chain = [(bf.FilterSpec(str(rng.choice(bf.FILTER_KINDS)), float(rng.uniform(20, 900)), float(rng.uniform(0.5, 6)),
+                                float(rng.uniform(0, 1))), float(rng.choice([2000.0, 4000.0, 8000.0])))
+                 for _ in range(int(rng.integers(1, 12)))]
+        ref = np.ones(f.size, complex)
+        for spec, fs in chain:
+            b, a = bf.coefficients(spec, fs)
+            z1 = np.exp(-2j * np.pi * f / fs)
+            ref *= np.polyval(b[::-1], z1) / np.polyval(a[::-1], z1)
+        assert np.allclose(bf.chain_response(chain, f), ref, rtol=1e-7, atol=1e-12)
+    assert bf.chain_response([], [10.0, 20.0]) == pytest.approx([1.0, 1.0])
+
+
+def test_exact_notch_centre_keeps_the_ratio_of_the_other_stages():
+    # harmonique pile sur une case : le notch y vaut exactement 0 ; le rapport de deux chaînes qui ont le même
+    # notch doit rester celui des autres étages, pas 0/0 (L-024)
+    fs, f0 = 8000.0, 450.0
+    f = np.array([f0])
+    notch = (bf.FilterSpec("notch", f0, 5.0), fs)
+    lpf = (bf.FilterSpec("pt1", 300.0), fs)
+    cur = np.abs(bf.chain_response([notch, lpf], f)) ** 2
+    new = np.abs(bf.chain_response([notch], f)) ** 2
+    assert cur[0] > 0
+    assert new[0] / cur[0] == pytest.approx(1 / np.abs(bf.chain_response([lpf], f)[0]) ** 2, rel=1e-9)
+
+
+def test_rpm_attenuation_is_the_product_of_the_rpm_notches():
+    from types import SimpleNamespace
+    from opentunebox.analysis.motors import rpm_attenuation
+    s = SimpleNamespace(rpm_q=500, pid_rate_hz=8000.0, rpm_harmonics=3, rpm_min_hz=100, rpm_fade_hz=50,
+                        rpm_weights=[100, 0, 80])
+    f = np.linspace(0, 1500, 300)
+    mhz = np.array([[120.0, 300.0], [125.0, 310.0], [90.0, 305.0], [130.0, 290.0]])  # 4 moteurs, 2 fenêtres
+    out = rpm_attenuation(f, mhz, s)
+    for k in range(2):
+        ref = np.ones(f.size)
+        for m in mhz[:, k]:
+            for h in range(3):
+                fr, w = bf.rpm_notch_freq_weight(m, h, s, 8000.0)
+                if w > 0:
+                    ref *= np.abs(bf.freq_response([bf.FilterSpec("notch", float(fr), 5.0, float(w))], f, 8000.0))
+        assert np.allclose(out[k], ref, rtol=1e-9)
