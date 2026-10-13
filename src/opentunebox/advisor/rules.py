@@ -1163,7 +1163,8 @@ def frame_resonance(log: FlightLog, sel: slice, lo_hz: float = 20.0) -> tuple[fl
     k = int(np.argmax(excess))
     f0 = float(fm[k])
     # une raie moteur se déplace avec le gaz : si f0 correspond à la vitesse moteur en stationnaire,
-    # ce n'est probablement pas une résonance
+    # ce n'est probablement pas une résonance. ⚠️ Séparation imparfaite près de la fondamentale : raies fixes
+    # écartées et raies moteur gardées entre 8 et 15 % (W-013, docs/assistant.md « Règles »)
     hz = hover_motor_hz(log)
     near_motor = hz is not None and any(abs(f0 - h * hz) < 0.08 * h * hz for h in (1, 2, 3))
     return f0, float(excess[k]), near_motor

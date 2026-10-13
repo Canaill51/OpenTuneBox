@@ -637,6 +637,16 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
 - **Résonance** : raie au-dessus de la moyenne glissante voisine de plus que le seuil de la taille
   (20 Hz à min(900 Hz ; 0,9 × Nyquist), sans les 5 premiers Hz), présente dans la médiane de toutes les tranches de gaz (au moins
   8 tranches), à plus de ±8 % des harmoniques 1 à 3 du moteur.
+  *Méthode vérifiée* (2026-10-13, 705 sessions, W-003 ; choix de Cédric : gardée) : pour chaque raie, pente de sa
+  fréquence face à la vitesse moyenne des moteurs d'une tranche de gaz à l'autre (raie fixe ≈ 0, raie moteur
+  ≈ numéro de l'harmonique ; témoin : pics à ± 3 % de la fondamentale, pente médiane 0,82). Avec 6 ou 7
+  tranches, les raies trouvées suivent les moteurs (pente médiane 1,04) : le minimum de 8 tranches les écarte
+  (14 % des sessions en dessous). Aucune raie au-dessus du seuil entre 900 Hz et la fin de la plage. Raies
+  signalées à plus de 15 % d'une harmonique : fixes (pente 0,10, 85 % sous 0,3) ; suivies par le notch dynamique
+  (debug FFT_FREQ) 42 % du temps contre 8 % pour une fréquence au hasard. Limite : l'exclusion ± 8 % (vitesse
+  moyenne en stationnaire) est imparfaite. Les 39 raies écartées mêlent raies fixes (36 %) et raies moteur
+  (33 %), et entre 8 et 15 % d'une harmonique les raies signalées sont mêlées (39 % fixes, 22 % moteur). Le
+  test de pente, fiable sur la fondamentale mais pas sur les harmoniques 2 et 3, reste à faire (W-013).
 - **Notch statique conseillé**, seulement en cas exceptionnel (D-024, choix de Cédric du 2026-10-13 :
   `rules.static_notch_case`, notch dynamique impossible — boucle PID sous 2 kHz, 7 notchs en service, raie
   au-delà de 980 Hz — et jamais sous 100 Hz ; aucun cas dans le corpus ; avant, les 112 constats « Raie fixe »
@@ -718,7 +728,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |
 | Seuils des profils whoop et 2–3,5" | voir « Calibration » | Corpus (provisoire) | 10 et 8 drones seulement |
 | Seuils du profil 8"+ | voir « Calibration » | Estimation | 6 drones, 20 sessions |
-| Résonance | raie > 6,8 (5") à 8,2 dB (7") selon la taille, 7,9 dB commun ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil) + estimation (méthode) | | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage
+| Résonance | raie > 6,8 (5") à 8,2 dB (7") selon la taille, 7,9 dB commun ; 20–900 Hz (sans les 5 premiers Hz), ≥ 8 tranches de gaz, à plus de ±8 % des harmoniques moteur | Corpus (seuil et méthode) | Recherche descendue de 60 à 20 Hz le 2026-10-05 (`dyn_notch_min_hz` descend jusqu'à 20 Hz) : 39 sessions signalées au lieu de 35, dont 5 raies réelles sous 60 Hz (7" de Thalhammer à 37–50 Hz) ; les raies collées à 20 Hz venaient des mouvements et des tests wobble / chirp ; seuils calibrés avec l'ancienne plage. Méthode vérifiée le 2026-10-13 (« Règles », Résonance) : 8 tranches au moins (en dessous, raies moteur), rien au-delà de 900 Hz ; exclusion ± 8 % imparfaite (W-013) |
 | Pic suivi par le notch dynamique | > 2 × la puissance moyenne de la plage (+3 dB), cases de 18,5 Hz | Firmware | `flight/dyn_notch_filter.c` (`sdftNoiseThreshold *= 2`, bruit au-dessus de 60 Hz) ; ce que le filtre RPM laisse passer d'après sa réponse (Q, poids, fondu), comparé au firmware sur 598 sessions (« Notch dynamique ») |
 | Plage du notch dynamique autour d'une raie | ± 20 Hz | Firmware (doc) | « including 20hz additional range each side of the noise » [S19] ; bornes du firmware 20–250 Hz (min) et 200–1000 Hz (max) |
 | Relèvement de `dyn_notch_min_hz` | retiré (2026-10-13) | Corpus | Gain de retard mesuré ≈ 0 (+30 Hz : 0,002 ms en médiane), les notchs n'étant presque jamais à leur minimum (« Notch dynamique », D-022) ; avant : jusqu'à 200 Hz (7" et plus : 125 Hz) si le gain atteignait 30 Hz (estimation) |
