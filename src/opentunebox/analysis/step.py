@@ -119,9 +119,11 @@ def step_response(
         Y = gy[st0[:, None] + idx] * w
         X = np.pad(X, ((0, 0), (PAD, PAD)))
         Y = np.pad(Y, ((0, 0), (PAD, PAD)))
-        H = np.fft.fft(X, axis=1) / nfft
-        G = np.fft.fft(Y, axis=1) / nfft
-        imp = np.real(np.fft.ifft(G * np.conj(H) / (H * np.conj(H) + reg), axis=1))
+        # signaux réels : FFT réelles (moitié du spectre, l'autre moitié est conjuguée), même résultat
+        Hr = np.fft.rfft(X, axis=1)
+        Gr = np.fft.rfft(Y, axis=1)
+        H, G = Hr / nfft, Gr / nfft
+        imp = np.fft.irfft(G * np.conj(H) / (H * np.conj(H) + reg), n=nfft, axis=1)
         st = np.cumsum(imp, axis=1)[:, :Lr]
         ss = st[:, steady]
         good = (ss.min(axis=1) > 0.5) & (ss.max(axis=1) < 3.0) if ss.size else np.ones(len(st0), bool)
@@ -132,8 +134,7 @@ def step_response(
             st = st * (2.0 - ss[good].mean(axis=1, keepdims=True))  # « Y corr. » de PIDtoolbox
         resp.append(st)
         maxin.append(np.max(np.abs(sp[st0[good][:, None] + idx]), axis=1))
-        Hr = np.fft.rfft(X[good], axis=1)
-        Gr = np.fft.rfft(Y[good], axis=1)
+        Hr, Gr = Hr[good], Gr[good]
         sum_gh += np.sum(Gr * np.conj(Hr), axis=0)
         sum_hh += np.sum(np.abs(Hr) ** 2, axis=0)
         sum_gg += np.sum(np.abs(Gr) ** 2, axis=0)

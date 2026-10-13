@@ -98,8 +98,10 @@ def simulate_filters(entry, mod: Settings, with_current: bool = True) -> FilterS
         sp = spectrum(np.asarray(x[sel], dtype=float), fs, "psd", resolution_hz=1000.0 / 300.0, breaks=log.breaks(sel))
         return to_ptb_db(sp.values)
 
+    cache: dict = {}  # réponses des filtres par fenêtre, communes aux trois axes et au gyro / D
     for ax in range(3):
-        w = whatif_spectrum(log.gyro[ax], log.gyro_unfilt[ax] if res.has_unfilt else None, log, sel, base, mod, "gyro")
+        w = whatif_spectrum(log.gyro[ax], log.gyro_unfilt[ax] if res.has_unfilt else None, log, sel, base, mod, "gyro",
+                            cache=cache)
         res.freqs = w.freqs
         res.spectra["gyro"][ax] = to_ptb_db(w.current_db)
         res.spectra["gyro_sim"][ax] = to_ptb_db(w.modified_db)
@@ -111,7 +113,7 @@ def simulate_filters(entry, mod: Settings, with_current: bool = True) -> FilterS
             res.d_scale.append(float("nan"))
             continue
         res.d_scale.append(1.0)
-        wd = whatif_spectrum(log.d_term[ax], log.d_term_prefilter[ax], log, sel, base, mod, "dterm")
+        wd = whatif_spectrum(log.d_term[ax], log.d_term_prefilter[ax], log, sel, base, mod, "dterm", cache=cache)
         res.spectra["d"][ax] = to_ptb_db(wd.current_db)
         res.spectra["d_sim"][ax] = to_ptb_db(wd.modified_db)
         if with_current:
