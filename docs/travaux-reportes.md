@@ -60,7 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
-| W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | ouvert |
+| W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | clos |
 | W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | clos |
 | W-011 | LPF1 et notch statique absents du modèle du notch dynamique | sans suite |
 | W-010 | Analyses recollées de part et d'autre des trous du log | clos |
@@ -131,7 +131,7 @@ Règles d'écriture :
   vérifié sur les séries où seul F change ; paliers du pic recalculés avec le feedforward coupé en mode
   Angle (D-025).
   Vol avec mouvements : seuil 50 → 30 °/s (D-026), les wobbles du protocole en mode Angle plafonnant vers
-  47 °/s ; repères de retard gardés.
+  47 °/s ; repères de retard gardés. Raies près de la fondamentale : test des deux trajets (D-027, W-013 clos).
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.
@@ -267,10 +267,13 @@ Règles d'écriture :
 
 ## Origine : vérification de la méthode des résonances, branche feat/calibrate-remaining-estimates (2026-10-13)
 
-- **W-013** — « Raie fixe » (`rules.frame_resonance`) écarte toute raie à ± 8 % d'une harmonique de la vitesse
+- ~~**W-013** — « Raie fixe » (`rules.frame_resonance`) écarte toute raie à ± 8 % d'une harmonique de la vitesse
   moyenne en stationnaire : mesuré par la pente de la raie face à la vitesse des moteurs d'une tranche de gaz à
   l'autre, les 39 raies écartées du corpus mêlent raies fixes (36 %) et raies moteur (33 %), et les raies
-  signalées entre 8 et 15 % d'une harmonique sont mêlées (39 % fixes, 22 % moteur).
+  signalées entre 8 et 15 % d'une harmonique sont mêlées (39 % fixes, 22 % moteur).~~
+  ✅ **CLOS (2026-10-13)** — D-027 : test des deux trajets sur la fondamentale (± 15 %, seuil −2 dB), exclusion
+  ± 8 % gardée sur les harmoniques 2 et 3 ; « Raie fixe » sur 59 sessions au lieu de 45. Branche
+  feat/calibrate-last-estimates.
   **Pourquoi reporté** : le test de pente est fiable sur la fondamentale (témoin 0,82 pour 1) mais pas sur les
   harmoniques 2 et 3 (0,40 pour 2, 1,79 pour 3) ; choix de Cédric (2026-10-13) : garder la méthode.
   **Risque si on n'y touche pas** : une vraie résonance proche de la fondamentale n'est pas signalée (environ 14

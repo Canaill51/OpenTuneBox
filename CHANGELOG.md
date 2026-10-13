@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- « Raie fixe » : une raie proche de la fréquence des moteurs n'est plus écartée d'office. L'Assistant regarde,
+  d'une tranche de gaz à l'autre, si elle suit la vitesse des moteurs ou reste à la même fréquence : une
+  résonance du châssis proche de la fondamentale est maintenant signalée (59 vols du corpus au lieu de 45).
+  Les harmoniques 2 et 3 gardent l'écart de ± 8 % (D-027).
 - Retard des filtres : jugé dès que la consigne dépasse 30 °/s au moins 5 % du temps (au lieu de 50 °/s). Les
   wobbles du protocole en mode Angle limité à 30° (consigne vers 47 °/s) n'étaient pas jugés, comme un vol
   stationnaire. Même seuil pour la découpe « stationnaire / mouvements » du guide (D-026).

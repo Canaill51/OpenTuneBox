@@ -196,6 +196,8 @@ def test_rule_constants_snapshot():
     assert (rules.DYN_NOTCH_Q_RPM, rules.DYN_NOTCH_Q_STEP, rules.DYN_NOTCH_Q_LOW) == ((300, 500), 50, 250)
     assert (rules.STATIC_NOTCH_Q_LOW, rules.STATIC_NOTCH_Q_HIGH) == (100, 450)
     assert (rules.DYN_NOTCH_MIN_HZ, rules.DYN_NOTCH_MARGIN_HZ) == (20, 20)
+    assert (rules.RESONANCE_HARMONIC_MARGIN, rules.RESONANCE_FUND_MARGIN, rules.RESONANCE_MOTOR_SCORE_DB) == \
+        (0.08, 0.15, -2.0)
     assert not hasattr(rules, "DYN_NOTCH_MIN_STEP_HZ")  # relèvement de dyn_notch_min_hz retiré (gain mesuré ≈ 0)
     assert (rules.LOG_RATE_MIN_HZ, rules.PID_LOG_RATE_MIN_HZ, rules.PID_LOG_RATE_FLOOR_HZ) == (1600.0, 1000.0, 500.0)
     assert rules.STRATEGY_MIN_STAGES == 2 and rules.LOG_RATE_FRACTIONS == (1, 2, 4, 8, 16)
@@ -414,3 +416,37 @@ def test_static_notch_only_when_dynamic_notch_cannot():
     s.dyn_notch_count, s.pid_rate_hz = 0, 4000  # notch dynamique coupé : le remettre en service, pas de statique
     f = rules._residual_line(s, ln)
     assert "dyn_notch_count = 1" in f.actions[1] and not any("gyro_notch1" in a for a in f.actions)
+
+
+def test_resonance_near_fundamental_two_paths():
+    """W-013, D-027 : près de la fondamentale, une raie fixe reste à f0 d'une tranche de gaz à l'autre et une raie
+    moteur suit la vitesse des moteurs de la tranche ; le test des deux trajets les sépare, la raie fixe est
+    signalée par frame_resonance."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from synthetic import make_flightlog
+
+    from opentunebox.advisor import rules
+    from opentunebox.analysis import spectral
+    from opentunebox.analysis.motors import hover_motor_hz
+
+    def score(kind):
+        lg = make_flightlog(seconds=60.0, seed=1)  # moteurs de 200 à 240 Hz selon le gaz
+        hz = hover_motor_hz(lg)
+        if kind == "fixe":
+            lg.gyro_unfilt[:2] += 10 * np.sin(2 * np.pi * 1.05 * hz * lg.t)
+        else:
+            lg.gyro_unfilt[:2] += 10 * np.sin(2 * np.pi * np.cumsum(lg.motor_hz.mean(axis=0)) / lg.fs)
+        fts = [spectral.freq_throttle(lg.gyro_unfilt[a], lg.throttle, lg.fs, mode="amp") for a in range(2)]
+        z = np.mean([ft.z for ft in fts], axis=0)
+        return rules.line_follows_motors(lg, slice(None), 1.05 * hz, z, fts[0].freqs, fts[0].counts > 3), lg, hz
+
+    fixed, lg, hz = score("fixe")
+    motor, _, _ = score("moteur")
+    assert fixed < rules.RESONANCE_MOTOR_SCORE_DB - 5 and motor > 10
+    f0, excess, near_motor = rules.frame_resonance(lg, slice(None))
+    assert abs(f0 - 1.05 * hz) < 5 and excess > 10 and not near_motor  # à 5 % : écartée avant (± 8 %)
+    lg.motor_hz = None  # sans eRPM : pas de vitesse par tranche, prudence (raie moteur)
+    assert np.isnan(rules.line_follows_motors(lg, slice(None), f0, np.zeros((10, 100)), np.arange(10.0), np.ones(100, bool)))

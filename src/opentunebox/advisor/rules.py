@@ -119,6 +119,14 @@ STATIC_NOTCH_FALLBACK = 0.7
 DYN_NOTCH_PID_MIN_HZ = 2000  # boucle PID minimale du notch dynamique (`flight/dyn_notch_filter.c`)
 DYN_NOTCH_COUNT_MAX = 7  # borne de dyn_notch_count (cli/settings.c)
 HOVER_LOW_LINE_HZ = 100.0
+# « Raie fixe » : raie moteur ou raie fixe ? Harmoniques 2 et 3 : écartée à ± 8 % de l'harmonique de la vitesse
+# en stationnaire. Fondamentale (± 15 %) : test des deux trajets d'une tranche de gaz à l'autre (raie à la
+# vitesse des moteurs de la tranche ou à f0) ; raie moteur si le trajet moteur est plus haut de plus de −2 dB
+# en moyenne, ou si trop peu de tranches les séparent. Corpus du 2026-10-13 (D-027, choix de Cédric) : 93–94 %
+# des vraies fondamentales reconnues, 89–90 % des raies fixes ajoutées à 3–15 % de la fondamentale
+RESONANCE_HARMONIC_MARGIN = 0.08
+RESONANCE_FUND_MARGIN = 0.15
+RESONANCE_MOTOR_SCORE_DB = -2.0
 
 # Niveaux de gravité
 INFO, OK, CONSEIL, ATTENTION, ALERTE = "info", "ok", "conseil", "attention", "alerte"
@@ -1145,15 +1153,16 @@ def _imbalance_finding(m: list[float], imbalance: float) -> Finding:
 
 def frame_resonance(log: FlightLog, sel: slice, lo_hz: float = 20.0) -> tuple[float, float, bool] | None:
     """Raie la plus marquée au-dessus du bruit voisin, quel que soit le gaz : (fréquence en Hz, excès en dB,
-    proche d'une harmonique moteur). None si le log ne couvre pas assez de tranches de gaz."""
+    raie moteur). None si le log ne couvre pas assez de tranches de gaz."""
     x = log.gyro_unfilt if log.gyro_unfilt is not None else log.gyro
     lo, hi = lo_hz, min(0.9 * log.fs / 2, 900.0)
-    prof = []
+    maps, prof = [], []
     for a in range(2):
         ft = spectral.freq_throttle(x[a, sel], log.throttle[sel], log.fs, mode="amp", breaks=log.breaks(sel))
         ok = ft.counts > 3
         if ok.sum() < 8:
             return None
+        maps.append(ft.z)
         prof.append(np.nanmedian(ft.z[:, ok], axis=1))
     f = ft.freqs
     p = 20 * np.log10(np.maximum(np.mean(prof, axis=0), 1e-9))
@@ -1168,12 +1177,53 @@ def frame_resonance(log: FlightLog, sel: slice, lo_hz: float = 20.0) -> tuple[fl
     excess[fm < lo + 5] = -np.inf
     k = int(np.argmax(excess))
     f0 = float(fm[k])
-    # une raie moteur se déplace avec le gaz : si f0 correspond à la vitesse moteur en stationnaire,
-    # ce n'est probablement pas une résonance. ⚠️ Séparation imparfaite près de la fondamentale : raies fixes
-    # écartées et raies moteur gardées entre 8 et 15 % (W-013, docs/assistant.md « Règles »)
+    # une raie moteur se déplace avec le gaz : harmoniques 2 et 3 écartées autour de la vitesse en stationnaire,
+    # fondamentale jugée par le test des deux trajets (D-027). ⚠️ Sur les harmoniques 2 et 3, la pente et le test
+    # des trajets ne sont pas fiables : la vitesse moyenne y suffit (D-027)
     hz = hover_motor_hz(log)
-    near_motor = hz is not None and any(abs(f0 - h * hz) < 0.08 * h * hz for h in (1, 2, 3))
+    near_motor = False
+    if hz is not None:
+        if abs(f0 - hz) < RESONANCE_FUND_MARGIN * hz:
+            score = line_follows_motors(log, sel, f0, np.mean(maps, axis=0), f, ok)
+            near_motor = not (np.isfinite(score) and score <= RESONANCE_MOTOR_SCORE_DB)
+        else:
+            near_motor = any(abs(f0 - h * hz) < RESONANCE_HARMONIC_MARGIN * h * hz for h in (2, 3))
     return f0, float(excess[k]), near_motor
+
+
+def line_follows_motors(log: FlightLog, sel: slice, f0: float, z: np.ndarray, f: np.ndarray, ok: np.ndarray) -> float:
+    """Test des deux trajets pour une raie à f0 près de la fondamentale : dans chaque tranche de gaz (carte
+    `z` fréquence × tranche de `spectral.freq_throttle`, tranches `ok`), excès de la raie au-dessus du bruit
+    voisin à la vitesse moyenne des moteurs de la tranche, moins son excès à f0. Moyenne en dB sur les tranches
+    où les deux trajets se séparent (au moins 4 % de f0 et 3 cases) : > 0 raie moteur, < 0 raie fixe ; NaN
+    sous 3 tranches (D-027)."""
+    if log.motor_hz is None:
+        return float("nan")
+    mm = log.motor_hz[:, sel].mean(axis=0)
+    # vitesse moyenne des moteurs par tranche de gaz de 1 %, avec ses deux voisines comme freq_throttle
+    k = np.clip(np.floor(log.throttle[sel]).astype(int), 0, z.shape[1] - 1)
+    sums = np.bincount(k, weights=mm, minlength=z.shape[1])
+    cnt = np.bincount(k, minlength=z.shape[1])
+    s3 = sums + np.r_[0, sums[:-1]] + np.r_[sums[1:], 0]
+    c3 = cnt + np.r_[0, cnt[:-1]] + np.r_[cnt[1:], 0]
+    df = f[1] - f[0]
+    win = (f >= 0.6 * f0) & (f <= 1.6 * f0)
+    fw = f[win]
+    d = []
+    for b in np.flatnonzero(ok):
+        if c3[b] == 0:
+            continue
+        mb = s3[b] / c3[b]
+        if abs(mb - f0) < max(3 * df, 0.04 * f0) or not fw[0] <= mb <= fw[-1]:
+            continue  # trajets confondus dans cette tranche, ou raie moteur hors de la fenêtre
+        pdb = 20 * np.log10(np.maximum(z[:, b], 1e-9))
+        ex = (pdb - np.convolve(pdb, np.ones(15) / 15, mode="same"))[win]
+
+        def at(x):
+            j = int(np.argmin(abs(fw - x)))
+            return float(np.max(ex[max(0, j - 1): j + 2]))  # raie entre deux cases
+        d.append(at(mb) - at(f0))
+    return float(np.mean(d)) if len(d) >= 3 else float("nan")
 
 
 def _frame_resonance(log: FlightLog, res, profile: CraftProfile, sel: slice | None = None) -> Finding | None:

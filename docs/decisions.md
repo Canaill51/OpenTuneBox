@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-027 | Raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre | 2026-10-13 |
 | D-026 | Retard des filtres jugé dès 30 °/s de consigne (amende D-010) | 2026-10-13 |
 | D-025 | Paliers du pic de réponse selon le feedforward en service (0 en mode Angle) | 2026-10-13 |
 | D-024 | Notch statique conseillé seulement si le notch dynamique ne peut pas traiter la raie | 2026-10-13 |
@@ -100,6 +101,32 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-13 — Derniers seuils estimés (W-003)
+
+### D-027 : raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre
+
+**Contexte.** W-013 : « Raie fixe » écartait toute raie à ± 8 % d'une harmonique de la vitesse moyenne en
+stationnaire ; les raies écartées mêlaient raies fixes et raies moteur. Une mesure de pente (fréquence de la
+raie face à la vitesse des moteurs) s'est révélée fragile quand la fondamentale est faible : témoin moteur à
+0,57 en médiane, 43 % sous 0,5 (2026-10-13).
+
+**Décision.**
+- Fondamentale (± 15 % de la vitesse en stationnaire) : test des deux trajets (`rules.line_follows_motors`).
+  Dans chaque tranche de gaz, hauteur de la raie au-dessus du bruit voisin à la vitesse des moteurs de la
+  tranche, moins sa hauteur à f0 ; moyenne sur les tranches où les deux trajets se séparent (4 % de f0 et
+  3 cases au moins). Raie fixe si la moyenne est au plus −2 dB (`RESONANCE_MOTOR_SCORE_DB`) ; raie moteur
+  au-dessus, ou si moins de 3 tranches les séparent (prudence). Choix de Cédric (seuil −2 dB plutôt que 0).
+- Harmoniques 2 et 3 : exclusion de ± 8 % gardée (`RESONANCE_HARMONIC_MARGIN`) : ni la pente ni les trajets
+  n'y sont fiables.
+- Pas « trajet moteur = f0 × vitesse / vitesse en stationnaire » : une raie moteur trouvée à quelques % de la
+  vitesse en stationnaire (spectre médian étalé) est à la vitesse de chaque tranche, pas à un multiple fixe.
+
+**Options écartées.** Seuil 0 dB (95–96 % des raies fixes reconnues, mais 11–15 % des raies moteur prises
+pour fixes) ; garder l'exclusion ± 8 % sur la fondamentale.
+
+**Témoins.** Corpus du 2026-10-13 (705 sessions) : fondamentales visibles (≥ 3 dB, 281 sessions) jugées
+depuis f0 décalé de 3–8 % / 8–15 % : 93 % / 94 % reconnues raies moteur ; raies fixes de 8 dB ajoutées aux
+spectres réels à la même distance : 90 % / 89 % reconnues fixes. « Raie fixe » : 45 → 59 sessions (+17, −3,
+`advisor_rates.py`). `tests/test_advisor_rules.py:test_resonance_near_fundamental_two_paths`. Clôt W-013.
 
 ### D-026 : retard des filtres jugé dès 30 °/s de consigne
 
