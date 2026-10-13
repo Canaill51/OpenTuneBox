@@ -98,32 +98,32 @@ def _conditions(flights: list[FlightStep], ff_series: set[int] = frozenset()) ->
     out = []
     ff = [f.label for i, f in enumerate(flights) if f.conditions.ff_active and i not in ff_series]
     if ff:
-        out.append(Finding("Réglage", CONSEIL, "Feedforward actif",
+        out.append(Finding("ff_active", "Réglage", CONSEIL, "Feedforward actif",
                            f"{', '.join(ff)} : feedforward > 0 hors mode Angle. Il gonfle le pic et raccourcit la "
                            "latence : la réponse ne montre plus seulement le P et le D.",
                            ["Pour les séries : feedforward à 0 en Acro, ou vols en mode Angle (le firmware y coupe "
                             "le feedforward de la boucle de vitesse)."]))
     angle = [flights[i].label for i in sorted(ff_series) if flights[i].conditions.angle]
     if angle:
-        out.append(Finding("Réglage", ATTENTION, "Série Feedforward en mode Angle",
+        out.append(Finding("ff_series_angle", "Réglage", ATTENTION, "Série Feedforward en mode Angle",
                            f"{', '.join(angle)} : le firmware coupe le feedforward en mode Angle, ces vols ne "
                            "mesurent pas son effet.", ["Série Feedforward : vols en Acro uniquement."]))
     lo, hi = I_SLIDER_RANGE
     bad_i = [f"{f.label} ({_fmt(f.conditions.i_slider)})" for f in flights if not lo <= f.conditions.i_slider <= hi]
     if bad_i:
-        out.append(Finding("Réglage", CONSEIL, "Curseur I hors de 0,2–0,3",
+        out.append(Finding("i_slider_out", "Réglage", CONSEIL, "Curseur I hors de 0,2–0,3",
                            f"{', '.join(bad_i)}. Le terme I change la forme de la réponse et fausse la lecture.",
                            ["Pour les séries : curseur I (Drift-Wobble) entre 0,2 et 0,3, remonté une fois le "
                             "réglage terminé."]))
     few = [f.label for f in flights if not _axes(f)]
     if few:
-        out.append(Finding("Réglage", ATTENTION, "Pas assez de mouvements",
+        out.append(Finding("few_windows", "Réglage", ATTENTION, "Pas assez de mouvements",
                            f"{', '.join(few)} : moins de {MIN_WINDOWS} fenêtres exploitables en roll et en pitch.",
                            ["Volez 20 à 30 s avec des flips et rolls francs sur chaque axe."]))
     thin = [f"{f.label} (N = {min(f.n[:2])})" for f in flights
             if _axes(f) and len(f.n) >= 2 and min(f.n[:2]) < SURE_WINDOWS]
     if thin:
-        out.append(Finding("Réglage", CONSEIL, "Mesure moins sûre",
+        out.append(Finding("few_windows_unsure", "Réglage", CONSEIL, "Mesure moins sûre",
                            f"{', '.join(thin)} : moins de {SURE_WINDOWS} fenêtres en roll ou en pitch. La réponse "
                            "moyenne bouge encore d'un vol à l'autre ; le choix peut se jouer à un cran près.",
                            ["Wobbles roll et pitch mêlés, au moins 20 s (environ 12 fenêtres par seconde de "
@@ -159,7 +159,7 @@ def damping_block(flights: list[FlightStep], s: Series) -> TuningBlock:
             f"{AXES2[a].lower()} {_n(f.metrics[a].peak, 2)}" for a in _axes(f)) + f" ({f.label})")
     ok = [k for k, p in enumerate(peaks) if math.isfinite(p)]
     if len(ok) < 2:
-        b.finding = Finding("Réponse", INFO, f"Série {name} incomplète",
+        b.finding = Finding("series_incomplete", "Réponse", INFO, f"Série {name} incomplète",
                             "Il faut au moins deux vols exploitables.", [])
         return b
     axis = AXES2[ax].lower()
@@ -175,14 +175,14 @@ def damping_block(flights: list[FlightStep], s: Series) -> TuningBlock:
     note = _step_note(s)
     if chosen is None:
         nxt = vals[ok[-1]] + SERIES_STEP
-        b.finding = Finding("Réponse", CONSEIL, f"Encore du dépassement en {axis}",
+        b.finding = Finding("series_more_overshoot", "Réponse", CONSEIL, f"Encore du dépassement en {axis}",
                             f"Le pic {axis} reste au-dessus de {_fmt(PEAK_FLAT_MAX)} jusqu'à {name} "
                             f"{_fmt(vals[ok[-1]])}." + note, [f"Volez avec {name} {_fmt(nxt)}, puis comparez."])
         return b
     b.best = idx[chosen]
     if chosen == ok[0] and flat:
         prv = vals[chosen] - SERIES_STEP
-        b.finding = Finding("Réponse", CONSEIL, f"{name} {_fmt(vals[chosen])} : déjà sans dépassement",
+        b.finding = Finding("series_already_flat", "Réponse", CONSEIL, f"{name} {_fmt(vals[chosen])} : déjà sans dépassement",
                             f"Pic {axis} {_n(peaks[chosen], 2)} dès la plus petite valeur testée : une valeur "
                             "plus basse suffit peut-être." + note,
                             [f"Volez avec {name} {_fmt(prv)} pour trouver la limite."])
@@ -196,7 +196,7 @@ def damping_block(flights: list[FlightStep], s: Series) -> TuningBlock:
         detail += f" Le pitch dépasse encore ({_n(pitch, 2)}) : il a plus d'inertie, son D se règle à part."
         actions.append(f"Pitch Damping (simplified_pitch_d_gain) +{_fmt(SERIES_STEP)} pour amortir le pitch, "
                        "puis comparez son pic.")
-    b.finding = Finding("Réponse", sev, f"{name} conseillé : {_fmt(vals[chosen])}", detail, actions)
+    b.finding = Finding("series_choice", "Réponse", sev, f"{name} conseillé : {_fmt(vals[chosen])}", detail, actions)
     return b
 
 
@@ -262,13 +262,13 @@ def master_block(flights: list[FlightStep], s: Series) -> TuningBlock:
         b.best = idx[last]
         nxt = _fmt(vals[last] + SERIES_STEP)
         if signs[last][1]:
-            b.finding = Finding("Réponse", CONSEIL, f"Master {_fmt(vals[last])} : proche de l'optimum",
+            b.finding = Finding("master_near_optimum", "Réponse", CONSEIL, f"Master {_fmt(vals[last])} : proche de l'optimum",
                                 f"Premiers signes : {', '.join(signs[last][1])}." + note,
                                 [f"Vous pouvez garder Master {_fmt(vals[last])}, ou voler à {nxt} pour confirmer : "
                                  "si la cassure devient nette, revenez à la valeur d'avant.",
                                  "Surveillez aussi la chaleur des moteurs et le bruit (fenêtre Spectre)."])
         else:
-            b.finding = Finding("Réponse", CONSEIL, f"Master {_fmt(vals[last])} sans signe de gains trop hauts",
+            b.finding = Finding("master_no_sign", "Réponse", CONSEIL, f"Master {_fmt(vals[last])} sans signe de gains trop hauts",
                                 "Latence encore en baisse, sans cassure ni vagues." + note,
                                 [f"Volez avec Master {nxt}, puis comparez.",
                                  "Surveillez aussi la chaleur des moteurs et le bruit (fenêtre Spectre)."])
@@ -281,7 +281,7 @@ def master_block(flights: list[FlightStep], s: Series) -> TuningBlock:
         actions.append(f"Affinage possible : Master {_fmt((vals[keep] + vals[stop]) / 2)}.")
     if math.isfinite(rip[stop][1]) and rip[stop][1] > 0.03:
         actions.append("Cassure mesurée avec une grande incertitude : un vol de plus à cette valeur la confirmerait.")
-    b.finding = Finding("Réponse", OK, f"Master conseillé : {_fmt(vals[keep])}",
+    b.finding = Finding("master_choice", "Réponse", OK, f"Master conseillé : {_fmt(vals[keep])}",
                         f"À Master {_fmt(vals[stop])} : {', '.join(signs[stop][0])}." + note, actions)
     return b
 
@@ -310,14 +310,14 @@ def roll_pitch_block(flights: list[FlightStep], s: Series | None, ref: int | Non
         ok = [k for k, i in enumerate(idx) if math.isfinite(_gap(flights[i]))
               and not flights[i].metrics[1].ripple >= RIPPLE_HIGH]
         if not ok:
-            b.finding = Finding("Réponse", INFO, "Série incomplète ou cassure sur le pitch",
+            b.finding = Finding("pitch_series_incomplete", "Réponse", INFO, "Série incomplète ou cassure sur le pitch",
                                 "Aucun vol avec les deux axes mesurés et sans cassure nette sur le pitch.", [])
             return b
         k = min(ok, key=lambda k: abs(_gap(flights[idx[k]])))
         b.best = idx[k]
         g = _gap(flights[idx[k]])
         sev = OK if abs(g) <= LATENCY_GAP_OK_MS else CONSEIL if abs(g) <= LATENCY_GAP_MAX_MS else ATTENTION
-        b.finding = Finding("Réponse", sev, f"{name} conseillé : {_fmt(vals[k])}",
+        b.finding = Finding("series_choice", "Réponse", sev, f"{name} conseillé : {_fmt(vals[k])}",
                             f"Écart de latence pitch − roll le plus faible sans cassure nette : {_n(g, 1, True)} ms "
                             f"(visé : {_n(LATENCY_GAP_OK_MS, 0)} à {_n(LATENCY_GAP_MAX_MS, 0)} ms au plus)."
                             + _step_note(s), [] if sev == OK else [_gap_action(g)])
@@ -330,14 +330,14 @@ def roll_pitch_block(flights: list[FlightStep], s: Series | None, ref: int | Non
         return None
     b = TuningBlock("Équilibre roll / pitch", None, [f"{_gap_line(f)} ({f.label})"], best=ref)
     if abs(g) <= LATENCY_GAP_OK_MS:
-        b.finding = Finding("Réponse", OK, "Roll et pitch équilibrés",
+        b.finding = Finding("pitch_balance_ok", "Réponse", OK, "Roll et pitch équilibrés",
                             f"Écart de latence {_n(g, 1, True)} ms (≤ {_n(LATENCY_GAP_OK_MS, 0)} ms).", [])
     elif abs(g) <= LATENCY_GAP_MAX_MS:
-        b.finding = Finding("Réponse", INFO, "Roll et pitch presque équilibrés",
+        b.finding = Finding("pitch_balance_near", "Réponse", INFO, "Roll et pitch presque équilibrés",
                             f"Écart de latence {_n(g, 1, True)} ms : acceptable (1 à 2 ms selon le drone).",
                             [_gap_action(g) + " (facultatif)"])
     else:
-        b.finding = Finding("Réponse", CONSEIL, f"Le {'pitch' if g > 0 else 'roll'} répond plus lentement",
+        b.finding = Finding("pitch_balance_slower", "Réponse", CONSEIL, f"Le {'pitch' if g > 0 else 'roll'} répond plus lentement",
                             f"Écart de latence {_n(g, 1, True)} ms (> {_n(LATENCY_GAP_MAX_MS, 0)} ms).",
                             [_gap_action(g)])
     return b
@@ -355,7 +355,7 @@ def ff_block(flights: list[FlightStep], s: Series) -> TuningBlock:
     vals, idx = _pick(flights, s)
     b = TuningBlock("Feedforward (série Réponse des sticks)", s,
                     [f"Feedforward {_fmt(v)} : {flights[i].label}" for v, i in zip(vals, idx)])
-    b.finding = Finding("Réponse", INFO, "Série Feedforward : lisez les retards dans l'Assistant",
+    b.finding = Finding("ff_series_info", "Réponse", INFO, "Série Feedforward : lisez les retards dans l'Assistant",
                         "Le feedforward fausse la réponse indicielle : elle ne sert pas à choisir sa valeur. "
                         "L'Assistant donne, pour chaque vol, le retard consigne → gyro en roll et en pitch.", [])
     return b

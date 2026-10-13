@@ -104,8 +104,8 @@ def test_roll_pitch_gap():
 def test_conditions():
     fl = [flight("acro", ff=(120, 125), angle=0.0, i=1.0, Master=1.0), flight("angle", ff=(120, 125), Master=1.2)]
     rep = step_tuning(fl)
-    titles = [c.title for c in rep.conditions]
-    assert "Feedforward actif" in titles and "Curseur I hors de 0,2–0,3" in titles
+    keys = [c.key for c in rep.conditions]
+    assert "ff_active" in keys and "i_slider_out" in keys
     assert "acro" in rep.conditions[0].detail and "angle" not in rep.conditions[0].detail.replace("Angle", "")
     fl = [flight("a", Damping=1.0, peak=1.1), flight("b", Damping=1.1, peak=1.04)]
     assert "trop fin" in block(step_tuning(fl), "Équilibre P/D").finding.detail
@@ -119,9 +119,9 @@ def test_feedforward_series_not_judged_on_step_response():
     b = block(rep, "Feedforward")
     assert [s.key for s in find_series(fl)] == ["Stick Resp."] and b.best is None
     assert b.lines[1] == "Feedforward 0,5 : ff0.5" and "Assistant" in b.finding.title
-    assert "Feedforward actif" not in [c.title for c in rep.conditions]
+    assert "ff_active" not in [c.key for c in rep.conditions]
     fl[2].conditions.angle_share = 1.0  # vol en mode Angle : le feedforward n'y agit pas
-    assert "Série Feedforward en mode Angle" in [c.title for c in step_tuning(fl).conditions]
+    assert "ff_series_angle" in [c.key for c in step_tuning(fl).conditions]
 
 
 # ---------------------------------------------------------------- compléments : cas limites de chaque bloc
@@ -140,10 +140,10 @@ def test_conditions_windows():
     fl = [flight("peu", Master=1.0), flight("moyen", Master=1.2), flight("bien", Master=1.4)]
     fl[0].n = [10, 10]  # aucun axe lu : vol sans mouvements suffisants
     fl[1].n = [150, 300]  # lu, mais moins sûr
-    titles = {c.title: c for c in step_tuning(fl).conditions}
-    assert "peu" in titles["Pas assez de mouvements"].detail and titles["Pas assez de mouvements"].severity == "attention"
-    assert titles["Mesure moins sûre"].detail.startswith("moyen (N = 150)") and "bien" not in titles["Mesure moins sûre"].detail
-    assert "peu (" not in titles["Mesure moins sûre"].detail  # déjà signalé comme non lu
+    c = {c.key: c for c in step_tuning(fl).conditions}
+    assert "peu" in c["few_windows"].detail and c["few_windows"].severity == "attention"
+    assert c["few_windows_unsure"].detail.startswith("moyen (N = 150)") and "bien" not in c["few_windows_unsure"].detail
+    assert "peu (" not in c["few_windows_unsure"].detail  # déjà signalé comme non lu
 
 
 def test_damping_incomplete_and_already_flat():

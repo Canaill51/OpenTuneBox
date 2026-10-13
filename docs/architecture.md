@@ -26,7 +26,9 @@ fichier .bbl/.bfl
        └─ log/flightlog.py  FlightLog : temps, gyro, consigne, P/I/D/F, moteurs, gaz, debug, tension…
                             en unités physiques ; trames impossibles écartées ; settings.py normalise l'en-tête
             └─ analysis/*   calculs purs (aucun Qt)
-                 ├─ advisor/rules.py      constats + actions, seuils par profil (advisor/profiles.py)
+                 ├─ advisor/rules.py      constats (clé stable `Finding.key`, D-028) + actions, seuils par profil
+                 │                        (advisor/profiles.py) ; `analyze` par sections (enregistrement, réponse,
+                 │                        bruit, retards, filtres, moteurs, curseurs) sur un état partagé
                  ├─ advisor/noise.py      diagnostic du bruit de la fenêtre Spectre (constats de rules.py rangés
                  │                        par partie : conditions, gyro, terme D, stratégie ; niveaux avant/après)
                  ├─ advisor/step_tuning.py  diagnostic du réglage de la Réponse indicielle (séries de vols :

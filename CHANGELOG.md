@@ -5,6 +5,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Modifié
+- Assistant : chaque constat porte une clé stable (`Finding.key`) ; les règles, la stratégie de filtrage, le
+  diagnostic du bruit et les tests s'y réfèrent au lieu de relire les titres et les actions, et un constat
+  qui conseille `rpm_filter_q` ou `dyn_notch_count` le déclare (`Finding.settings`). `analyze` et la
+  vérification des logs du guide sont découpées en sections. Aucun changement des conseils : mêmes constats
+  sur tout le corpus avant et après (D-028). `scripts/advisor_rates.py` regroupe les taux par clé.
+
 ## [0.7.0] — 2026-10-13
 
 ### Ajouté

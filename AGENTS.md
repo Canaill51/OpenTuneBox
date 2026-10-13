@@ -75,6 +75,9 @@ Règles :
   (`build_controls`, `snapshot_options`, `compute` en arrière-plan, `render`) et s'enregistre dans `gui/tools/__init__.py:REGISTRY`.
 - Les widgets Qt ne se lisent pas dans `compute` (autre thread) : copier leurs valeurs dans `snapshot_options`
   (vérifié par `tests/test_gui_tools.py` sur chaque outil du registre) ; les tests appellent `compute_sync`.
+- Un constat de l'assistant (`advisor/rules.py:Finding`) se reconnaît par sa clé `key` (littéral anglais),
+  jamais par son titre ou ses actions : les textes se reformulent librement ; un réglage déjà conseillé se
+  déclare dans `settings` (D-028).
 
 ## Commandes
 

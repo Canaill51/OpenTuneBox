@@ -64,10 +64,12 @@ def test_advisor_rates_summary(tmp_path, capsys):
     ar = _load("advisor_rates")
     rows = [
         {"file": "a.bbl", "sess": 1, "profile": "five", "moving": True,
-         "findings": [("Gyro filtré bruité en roll", "attention", True), ("Raie à 330 Hz", "conseil", True),
-                      ("Raie à 410 Hz", "conseil", True), ("Vol stationnaire : bruit identifié", "info", False)]},
+         "findings": [("gyro_noisy", "Gyro filtré bruité en roll", "attention", True),
+                      ("hover_line_residual", "Raie à 330 Hz", "conseil", True),
+                      ("hover_line_residual", "Raie à 410 Hz", "conseil", True),
+                      ("hover_noise_summary", "Vol stationnaire : bruit identifié", "info", False)]},
         {"file": "b.bbl", "sess": 1, "profile": "whoop", "moving": False,
-         "findings": [("Raie à 250 Hz", "conseil", True), ("Dépassement en roll", "ok", False)]},
+         "findings": [("hover_line_residual", "Raie à 250 Hz", "conseil", True), ("step_ok", "Dépassement en roll", "ok", False)]},
     ]
     path = tmp_path / "rates.json"
     path.write_text(json.dumps(rows), encoding="utf-8")
@@ -75,9 +77,10 @@ def test_advisor_rates_summary(tmp_path, capsys):
     out = capsys.readouterr().out
     assert out.startswith("2 sessions : tous 2, mouvements 1, stationnaires 1")
     lines = {ln.split("  ")[0].strip(): ln for ln in out.splitlines()[2:]}
-    assert "Raie à N Hz" in lines and "100%" in lines["Raie à N Hz"]  # nombres remplacés, comptée une fois par session
-    assert "Gyro filtré bruité en roll" in lines and "0%" in lines["Gyro filtré bruité en roll"]
-    assert not any(t.startswith(("Vol stationnaire", "Dépassement")) for t in lines)  # info et ok ignorés
+    line = lines["hover_line_residual (Raie à 250 Hz)"]  # regroupée par clé, comptée une fois par session
+    assert "100%" in line
+    assert "0%" in lines["gyro_noisy (Gyro filtré bruité en roll)"]
+    assert not any(t.startswith(("hover_noise_summary", "step_ok")) for t in lines)  # info et ok ignorés
 
 
 def test_calibrate_advisor_summary(tmp_path, capsys):

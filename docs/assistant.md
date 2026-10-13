@@ -549,8 +549,14 @@ candidate, seuil p90 recalculé par taille, puis sessions signalées comparées 
 
 ## Règles
 
+Chaque constat porte une clé stable (`Finding.key`, par exemple `dterm_noisy`, `frame_line_fixed`) : les
+règles qui dépendent d'un constat précédent, les étapes de la stratégie (`rules.FILTER_STAGES`), le
+diagnostic du bruit et les tests lisent cette clé, jamais le titre (D-028) ; un constat qui conseille
+`rpm_filter_q` ou `dyn_notch_count` le déclare dans `Finding.settings`, ce qui fait taire les règles qui
+proposeraient le même réglage.
+
 Le diagnostic du bruit de la fenêtre Spectre (`advisor/noise.py`) reprend ces mêmes constats, rangés par
-début de titre en quatre parties (conditions du log, gyro, terme D, stratégie) ; il n'a aucun seuil à lui.
+clé en quatre parties (conditions du log, gyro, terme D, stratégie) ; il n'a aucun seuil à lui.
 Quand l'assistant n'écrit pas de stratégie (moins de deux étapes), il indique le seul réglage de filtre à
 faire, ou qu'aucun n'est conseillé. Les constats du gyro sont répartis en blocs (filtre RPM, notch
 dynamique, passe-bas ; étapes de `rules.FILTER_STAGES`) ; un bloc sans constat à appliquer reçoit un
@@ -558,8 +564,9 @@ verdict qui reprend les repères existants (harmonique effacée à 4 dB au plus,
 3 dB) et dit quand l'assistant proposerait un changement (Q du filtre RPM : vol avec mouvements, retard
 au-dessus du repère, bruit faible). Seules valeurs ajoutées, toutes du firmware :
 `rpm_filter_harmonics = 3` proposé si le filtre RPM est coupé malgré l'eRPM (défaut de Betaflight,
-`pg/rpm_filter.c`), `blackbox_disable_rpm = OFF` si `dshot_bidir` est actif sans eRPM enregistré. Un nouveau constat de bruit ou de filtre doit avoir sa place dans
-`noise.GYRO_TITLES` ou `noise.DTERM_TITLES` (vérifié par `tests/test_advisor.py`).
+`pg/rpm_filter.c`), `blackbox_disable_rpm = OFF` si `dshot_bidir` est actif sans eRPM enregistré. Un nouveau
+constat de bruit ou de filtre doit avoir sa place dans `noise.GYRO_KEYS` ou `noise.DTERM_KEYS` (vérifié par
+`tests/test_advisor_rules.py`).
 
 Le diagnostic du réglage de la Réponse indicielle (`advisor/step_tuning.py`) a ses propres seuils, tous
 dans ce module (tableau ci-dessous) ; il réutilise seulement les niveaux de gravité et la mise en forme des
