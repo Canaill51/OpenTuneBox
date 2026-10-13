@@ -6,6 +6,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Modifié
+- Réponse indicielle : un vol en mode Angle est jugé comme un vol sans feedforward (le firmware l'y coupe),
+  même si F > 0 dans les réglages ; il ne reçoit plus « Dépassement dû au feedforward ». Paliers du dépassement
+  recalculés sur le corpus : sans feedforward 1,20 (conseil) / 1,25 (attention), avec feedforward 1,60 / 1,70
+  (avant : 1,15 / 1,25 et 1,40 / 1,55, calculés en comptant les vols en Angle avec le feedforward). Dépassement
+  signalé sur 11 % des vols du corpus au lieu de 13 % (D-025).
 - Raies fixes et raies encore visibles après filtrage : l'Assistant ne propose plus de notch statique, sauf si le
   notch dynamique ne peut pas traiter la raie (boucle PID sous 2 kHz, 7 notchs en service, raie au-delà de
   980 Hz), et jamais sous 100 Hz. Il conseille la mécanique, puis la plage ou le nombre de notchs du notch

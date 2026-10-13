@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-025 | Paliers du pic de réponse selon le feedforward en service (0 en mode Angle) | 2026-10-13 |
 | D-024 | Notch statique conseillé seulement si le notch dynamique ne peut pas traiter la raie | 2026-10-13 |
 | D-023 | « Q trop haut » seulement si une raie passe ; marge de 5 % de la fréquence moteur autour des harmoniques | 2026-10-13 |
 | D-022 | Notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé | 2026-10-13 |
@@ -96,6 +97,34 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-10-13 — Derniers seuils estimés (W-003)
+
+### D-025 : paliers du pic de réponse selon le feedforward en service (0 en mode Angle)
+
+**Contexte.** Les paliers du pic (2026-10-05) séparaient les vols selon le F de l'en-tête. Or le firmware coupe
+le feedforward en mode Angle (D-014) : 483 axes de vols en Angle avec F > 0 (50 drones) étaient comptés « avec
+feedforward », leur terme F enregistré étant nul dans 480 cas. Leurs pics ressemblent à ceux des vols sans
+feedforward (p90 par axe 1,19 contre 1,18 ; avec feedforward en Acro : 1,58). Ils étaient jugés avec les paliers
+du feedforward (1,40 au lieu de 1,15) et pouvaient recevoir « Dépassement dû au feedforward ».
+
+**Décision.**
+- Le feedforward en service vaut 0 en mode Angle (`FlightConditions.ff_gain`), pour les règles de dépassement et
+  pour `scripts/calibrate_advisor.py` ; le constat le dit (« sans feedforward (coupé par le mode Angle) »).
+- Paliers recalculés avec la même méthode (conseil = p90 une voix par drone, attention = p95 par axe, arrondis à
+  0,05) : sans feedforward 1,20 / 1,25 (p90 1,186, p95 1,235 ; 990 axes, 76 drones), avec feedforward
+  1,60 / 1,70 (p90 1,589, p95 1,710 ; 288 axes, 47 drones). Choix de Cédric (option A).
+- « Dépassement dû au feedforward » (F en service > 0 et latence sous le p10 de la taille) est gardé : sur les
+  séries du corpus où seul F change (16 axes, 8 drones), +100 de F monte le pic de 0,24 et baisse la latence de
+  3,6 ms (médianes), et le repère de latence reconnaît 7 des 8 dépassements que le vol à F plus bas n'a pas.
+
+**Options écartées.** Corriger le mode Angle en gardant 1,15 / 1,25 et 1,40 / 1,55 : 21 % des sessions
+signalées au lieu de 13 % (les vols en Angle passent sous des paliers calibrés sans eux) ; un troisième groupe
+pour le mode Angle : son p90 par drone (1,19) est celui des vols sans feedforward.
+
+**Témoins.** `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_thresholds_without_feedforward` ;
+sessions signalées pour un dépassement : 13 % → 11 % (dépouillement du 2026-10-13, `docs/assistant.md`, « Pic de
+réponse indicielle »).
 
 ## 2026-10-12 — Trous d'enregistrement
 

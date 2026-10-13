@@ -127,7 +127,8 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
   guide range les logs par rôle (`log_check.FILTERS` / `PID`) : chaque case ne lit que ceux de sa phase.
   Vol stationnaire = identifier le bruit ; vol avec mouvements = juger le retard. D-017, L-008
 - Feedforward : forcé à 0 par le firmware en mode **Angle** seulement (pas en Horizon) → masque
-  `flightlog.ANGLE_MODE_MASK`, distinct de `ANGLE_HORIZON_MASK` (instrument de la boucle ouverte). D-014, L-005
+  `flightlog.ANGLE_MODE_MASK`, distinct de `ANGLE_HORIZON_MASK` (instrument de la boucle ouverte). Juger la
+  réponse selon `FlightConditions.ff_gain(axe)` (0 en Angle), jamais le F de l'en-tête. D-014, D-025, L-005
 - Réponse indicielle par séries (`advisor/step_tuning.py`) : seuils tirés de 10 séries Master du corpus,
   choix des pilotes relus dans les vols suivants ; la cassure varie d'environ 0,01 entre deux vols
   identiques (incertitude jackknife plus faible : elle ne couvre que le bruit d'un vol). L-012

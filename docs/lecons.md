@@ -185,6 +185,13 @@ est celle du commit qui les a introduites.
   la boucle ouverte. Décision D-014.
 - **Preuve** — commit `3e75e1d`.
 
+**⚠️ RÉCIDIVE le 2026-10-13** — les paliers du pic de réponse (2026-10-05) et la règle de dépassement lisaient le
+F de l'en-tête : 483 axes de vols en Angle (50 drones) comptés « avec feedforward », jugés avec des paliers
+trop indulgents et parfois « Dépassement dû au feedforward ». Règle précisée : tout code qui juge la réponse
+selon le feedforward lit `FlightConditions.ff_gain(axe)` (0 en Angle), jamais `settings.pids[axe].F`. Contrôle
+automatique : `tests/test_advisor_synthetic.py:test_step_peak_angle_mode_uses_thresholds_without_feedforward`
+(D-025).
+
 ## 2. Analyses
 
 ### L-006 : l'intercorrélation donne des retards de filtres dominés par le bruit haute fréquence
@@ -349,7 +356,7 @@ est celle du commit qui les a introduites.
 | L-008 | Repliement au-dessus de fs/2. Deux fréquences minimales | Analyses |
 | L-007 | Retard en stationnaire non représentatif. Vol avec mouvements | Analyses |
 | L-006 | Intercorrélation dominée par le bruit. Méthode de phase | Analyses |
-| L-005 | Feedforward nul en Angle seulement. `ANGLE_MODE_MASK` | Décodeur et logs |
+| L-005 | Feedforward nul en Angle seulement. `ANGLE_MODE_MASK`, `FlightConditions.ff_gain` (récidive 2026-10-13) | Décodeur et logs |
 | L-004 | D / D min inversés selon la version. `log/settings.py` | Décodeur et logs |
 | L-003 | Numéros de debug selon la version. `log/debug_tables.py` | Décodeur et logs |
 | L-002 | Trames impossibles. `_drop_implausible` | Décodeur et logs |

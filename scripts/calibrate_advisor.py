@@ -16,6 +16,7 @@ from opentunebox.log.flightlog import load
 from opentunebox.analysis.period import auto_period
 from opentunebox.analysis.spectral import spectrum
 from opentunebox.analysis.step import step_response
+from opentunebox.analysis.step_series import flight_conditions
 from opentunebox.analysis.delay import MOVING_SETPOINT_DPS, compute_delays, stick_p95_dps, xcorr_delay_ms
 from opentunebox.analysis.motors import harmonic_prominence, motor_noise
 from opentunebox.advisor.profiles import PROFILES, detect_profile, profile_key
@@ -78,7 +79,7 @@ def measure_file(f, root):
         r={"file":os.path.relpath(f,root),"sess":lg.session,"profile":prof.key,"fs":lg.fs,
            "craft":lg.settings.craft_name,"hover_hz":hover_motor_hz(lg),"cells":lg.cells,
            "corrupt":lg.stats.get("corrupt_frames",0),"sliders":lg.settings.sliders()}
-        nyq=lg.fs/2; br=lg.breaks(sel)  # aucune fenêtre sur un trou du log (D-020)
+        cond=flight_conditions(lg,sel); nyq=lg.fs/2; br=lg.breaks(sel)  # aucune fenêtre sur un trou du log (D-020)
         def band(x,lo,hi):
             s=spectrum(x,lg.fs,resolution_hz=2,breaks=br); m=(s.freqs>=lo)&(s.freqs<=min(hi,nyq*0.95)); return float(np.mean(s.values[m]))
         r["rpmq"]=lg.settings.rpm_q; r["rpmh"]=lg.settings.rpm_harmonics; r["rpmw"]=lg.settings.rpm_weights
@@ -100,7 +101,7 @@ def measure_file(f, root):
                 r[f"peak_{a}"]=st.metrics.peak; r[f"lat_{a}"]=st.metrics.latency_ms
                 r[f"nwin_{a}"]=st.n; r[f"ripple_{a}"]=st.metrics.ripple  # vagues : mesure à vide du Diagnostic du réglage
                 r[f"waves_{a}"]=st.metrics.waves; r[f"wavesr_{a}"]=st.metrics.waves_ratio
-                pid=lg.settings.pids[a]; r[f"ff_{a}"]=pid.F; r[f"dgain_{a}"]=pid.D; r[f"pgain_{a}"]=pid.P  # pic selon le feedforward
+                pid=lg.settings.pids[a]; r[f"ff_{a}"]=cond.ff_gain(a); r[f"dgain_{a}"]=pid.D; r[f"pgain_{a}"]=pid.P  # pic selon le feedforward en service : 0 en mode Angle (L-005)
                 r[f"smax_{a}"]=lp.sensitivity_peak_db; r[f"pm_{a}"]=lp.phase_margin_deg  # comme les règles
                 r[f"measured_{a}"]=lp.measured; r[f"smaxedge_{a}"]=lp.sensitivity_peak_at_edge
                 r[f"fc_{a}"]=lp.crossover_hz; r[f"gm_{a}"]=lp.gain_margin_db; r[f"dratio_{a}"]=lp.d_ratio

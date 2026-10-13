@@ -359,29 +359,40 @@ LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallumen
     (choix de Cédric) : la chauffe des moteurs ne se voit pas dans le log ; l'assistant repropose au log
     suivant tant que le D reste propre.
 
-### Pic de réponse indicielle (2026-10-05)
+### Pic de réponse indicielle (2026-10-05, recalculé le 2026-10-13)
 
 Les anciens paliers (conseil > 1,10, attention > 1,20, objectif 1,02–1,08) étaient des estimations sans
-source. Ils signalaient 46 % des sessions du corpus (23 % en attention). Mesures sur 681 sessions, axes roll
-et pitch, une voix par drone (médiane de ses axes) :
+source. Ils signalaient 46 % des sessions du corpus (23 % en attention). Mesures du 2026-10-13 sur 705 sessions,
+axes roll et pitch, une voix par drone (médiane de ses axes), selon le **feedforward en service** : F de
+l'en-tête, mais 0 en mode Angle (au moins 90 % de la période), où le firmware le coupe (D-025) :
 
 | Pic de réponse | Axes | Drones | p50 | p75 | p90 | p95 |
 |---|---|---|---|---|---|---|
-| Sans feedforward (F = 0) | 492 | 40 | 1,06 | 1,10 | 1,15 | 1,20 (axes : 1,25) |
-| Avec feedforward (F > 0) | 761 | 76 | 1,12 | 1,22 | 1,42 | 1,60 (axes : 1,55) |
+| Sans feedforward (F = 0 ou mode Angle) | 990 | 76 | 1,06 | 1,11 | 1,19 | 1,24 (axes : 1,24) |
+| Avec feedforward (F > 0 hors mode Angle) | 288 | 47 | 1,18 | 1,35 | 1,59 | 1,70 (axes : 1,71) |
 
+- **Mode Angle** : le 2026-10-05, les 483 axes de vols en Angle avec F > 0 (50 drones) étaient comptés avec
+  feedforward ; leur terme F enregistré est nul (480 sur 483) et leur pic est celui des vols sans feedforward
+  (p90 par drone 1,19 ; F = 0 seul : 1,14). Les anciens paliers (1,15 / 1,25 et 1,40 / 1,55) mélangeaient
+  les deux groupes (récidive de L-005).
 - **Le feedforward gonfle le pic** (mesuré ici ; aussi dit par Brian White dans une vidéo de questions-réponses,
-  non citée faute de citation vérifiée) : p90 par session 1,18 sans, 1,38 avec. Un même
-  palier pour les deux signalerait surtout les drones avec feedforward.
+  non citée faute de citation vérifiée) : p90 par axe 1,19 sans, 1,58 avec. Un même palier pour les deux
+  signalerait surtout les drones avec feedforward. Séries du corpus où seul F change (mêmes filtres, mêmes P,
+  I, D, hors mode Angle ; 16 axes, 8 drones) : +100 de F monte le pic de 0,24 (p10 / p90 −0,04 / +0,45) et
+  baisse la latence de 3,6 ms (−6,6 / −2,0).
 - **Paliers communs à toutes les tailles** : moins de 20 drones par taille dans chaque groupe (sauf le 5"
-  avec feedforward), percentiles par taille instables. Par session, sans feedforward : 5" p90 1,16, 7"
-  1,11, 2–3,5" 1,28.
-- **Paliers retenus** (décision de Cédric) : conseil = p90 par drone, attention = p95 par axe, arrondis :
-  sans feedforward 1,15 / 1,25, avec feedforward 1,40 / 1,55 (`rules.STEP_PEAK_HIGH`,
-  `rules.STEP_PEAK_HIGH_FF`). Sessions signalées : 13 % (`advisor_rates.py`, au moins un constat de
-  dépassement ; environ 7 % en attention) ; 5" 12 %, 7" 7 %, 2–3,5" 23 %,
-  whoop 18 %, 8"+ 21 %. Le corpus est fait surtout de demandes d'aide : ces paliers sont probablement
-  indulgents (Damping 1.0 de BlackSummer, pic 1,14, n'est plus signalé).
+  avec feedforward), percentiles par taille instables.
+- **Paliers retenus** (décision de Cédric, option A du 2026-10-13) : conseil = p90 par drone, attention = p95
+  par axe, arrondis à 0,05 : sans feedforward 1,20 / 1,25, avec feedforward 1,60 / 1,70
+  (`rules.STEP_PEAK_HIGH`, `rules.STEP_PEAK_HIGH_FF`). Sessions signalées pour un dépassement : 13 % avant,
+  11 % après (6 % en attention) ; corriger le mode Angle en gardant les anciens paliers en aurait signalé
+  21 %. Le corpus est fait surtout de demandes d'aide : ces paliers sont probablement indulgents (Damping 1.0
+  de BlackSummer, pic 1,11, n'est pas signalé ; Damping 0.8, 1,22, l'est).
+- **Dépassement dû au feedforward** (F en service > 0, pic au-dessus du palier et latence sous le p10 de la
+  taille) : sur les séries où seul F change, 8 axes dépassent avec F alors que le vol à F plus bas ne dépasse
+  pas ; le repère de latence en reconnaît 7 (le 8e, FoxWhoop 25, est à 10,0 ms pour un repère de 10 ms). Sur
+  tout le corpus, les axes ainsi reconnus ont un terme F 2,85 fois plus fort que le terme P quand le manche
+  bouge (médiane), contre 0,33 pour les autres dépassements avec feedforward.
 - **Repère sans dépassement** : série BlackSummer (`1. PTB/BlackSummer`, sans feedforward, seul le D change),
   méthode de Brian White (garder la première valeur de Damping sans dépassement [S24, S25]) : pic roll 1,25 /
   1,14 / 1,03 / 1,03 / 1,02 (D croissant ; 1,23 / 1,11 / 1,00 / 0,98 dans PIDtoolbox, `validation.md`) ;
@@ -565,9 +576,9 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   constats du pic et de la latence ajoutent « mesure moins sûre ») :
   - retard consigne → gyro roll / pitch (intercorrélation, info), avec la valeur du feedforward et le mode de
     vol : la mesure de la série Feedforward des finitions, comparée d'un vol à l'autre ;
-  - dépassement : sans feedforward, pic > 1,25 (attention), > 1,15 (conseil) ; avec feedforward (F > 0),
-    > 1,55 et > 1,40 ; attribué au feedforward si F > 0 et si la
-    latence est plus courte que le repère bas de la taille ;
+  - dépassement : sans feedforward, pic > 1,25 (attention), > 1,20 (conseil) ; avec feedforward en service
+    (F > 0 hors mode Angle, où le firmware le coupe), > 1,70 et > 1,60 ; attribué au feedforward s'il est en
+    service et si la latence est plus courte que le repère bas de la taille ;
   - réponse molle : pic < 1,01 et latence au-delà du repère haut de la taille ;
   - roll et pitch différents : écart de pic > seuil de la taille (curseur « D pitch ») ;
   - stabilité (boucle ouverte, voir « Boucle ouverte mesurée ») : pic de sensibilité > 7 dB (conseil ;
@@ -706,8 +717,8 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Trous dans l'enregistrement | au moins un trou (pas de temps > 4 périodes du log) dans la période analysée | Corpus | Constat informatif (fenêtres touchées écartées, D-020) ; 7 % des sessions signalées (« Trous dans l'enregistrement », 2026-10-12). Remplace le compteur de trames corrompues (> 20), qui comptait des tentatives de resynchronisation et non du temps perdu |
 | Mouvements de manche suffisants | ≥ 20 fenêtres ; « mesure moins sûre » sous 200 | Corpus + communauté [S35] | Écart du pic p90 0,20 à 20 fenêtres, 0,07 à 200 (« Pic de réponse indicielle », 2026-10-12) ; mêmes valeurs que le Diagnostic du réglage |
 | Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Code de PID-Analyzer (2018) et de PIDtoolbox v0.55 (2022) [S5, S2] |
-| Dépassement | sans feedforward : pic > 1,15 (conseil), > 1,25 (attention) ; avec feedforward : > 1,40, > 1,55 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon F (« Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode de Brian White [S24, S25]) |
-| Dépassement dû au feedforward | F > 0 et latence < p10 de la taille | Corpus + estimation | Repère de latence mesuré, raisonnement choisi |
+| Dépassement | sans feedforward : pic > 1,20 (conseil), > 1,25 (attention) ; avec feedforward : > 1,60, > 1,70 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon le feedforward en service, 0 en mode Angle (D-025, 2026-10-13, « Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode de Brian White [S24, S25]) |
+| Dépassement dû au feedforward | feedforward en service (F > 0 hors mode Angle) et latence < p10 de la taille | Corpus | Séries du corpus où seul F change (2026-10-13, 8 drones) : +100 de F = pic +0,24 et latence −3,6 ms ; 7 des 8 dépassements dus au feedforward reconnus ; axes reconnus : terme F 2,85 fois le terme P (autres : 0,33). Voir « Pic de réponse indicielle » |
 | Réponse molle | pic < 1,01 et latence > p90 de la taille | Corpus | Pic : p10 des axes (« Pic de réponse indicielle », 2026-10-12) ; 1,3 % des sessions |
 | Roll et pitch différents | écart de pic > 0,08 (7") à 0,12 (commun) selon la taille | Corpus | Seuils mécaniques (`profiles.py`, voir « Calibration ») |
 | Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |

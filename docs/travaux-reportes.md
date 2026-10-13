@@ -127,6 +127,9 @@ Règles d'écriture :
   Q maximum du notch dynamique : 450 → 500 (guide RPM, configurateur, presets). Notch statique : seulement si
   le notch dynamique ne peut pas traiter la raie (D-024).
   Méthode des résonances vérifiée et gardée (8 tranches, 25–900 Hz) ; limite de l'exclusion ± 8 % ouverte en W-013.
+  Dépassement dû au feedforward (2026-10-13, branche feat/calibrate-last-estimates) : repère de latence
+  vérifié sur les séries où seul F change ; paliers du pic recalculés avec le feedforward coupé en mode
+  Angle (D-025).
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.

@@ -32,10 +32,11 @@ from .profiles import CraftProfile, detect_profile, filter_delay_target_ms
 # 7 dB et 35° retenus sur le corpus du 2026-10-05 (20 % des sessions au lieu de 33 %, docs/assistant.md)
 SENSITIVITY_HIGH_DB = 7.0
 # Pic de réponse indicielle (conseil, attention), communs à toutes les tailles (moins de 20 drones par taille
-# et par groupe) : p90 (une voix par drone) et p95 (par axe) du corpus du 2026-10-05, séparés selon le
-# feedforward, qui gonfle le pic (docs/assistant.md). Repère sans dépassement visible : série BlackSummer.
-STEP_PEAK_HIGH = (1.15, 1.25)
-STEP_PEAK_HIGH_FF = (1.40, 1.55)
+# et par groupe) : p90 (une voix par drone) et p95 (par axe) du corpus du 2026-10-13, séparés selon le
+# feedforward en service (F > 0 hors mode Angle), qui gonfle le pic (D-025, docs/assistant.md). Repère sans
+# dépassement visible : série BlackSummer.
+STEP_PEAK_HIGH = (1.20, 1.25)
+STEP_PEAK_HIGH_FF = (1.60, 1.70)
 STEP_PEAK_FLAT = 1.03
 # Réponse molle : pic sous le p10 des axes du corpus (1,008 sans feedforward, 1,012 avec, 2026-10-12) et latence
 # au-dessus du p90 de la taille
@@ -258,8 +259,9 @@ def analyze(log: FlightLog, sel: slice | None = None, profile: CraftProfile | No
         r = step_response(log.setpoint[ax, sel], log.gyro[ax, sel], fs, terms=log.pid_terms(ax, sel), breaks=br)
         steps.append(AxisStep(AXES[ax], r))
     meas["steps"] = {st.axis: st.result.metrics for st in steps}
+    cond = flight_conditions(log, sel)
     for ax, st in enumerate(steps[:2]):
-        _step_rules(F, st, profile, s.pids[ax].F)
+        _step_rules(F, st, profile, cond.ff_gain(ax), s.pids[ax].F > 0 and cond.angle)
     if steps[0].result.n < STEP_MIN_WINDOWS and steps[1].result.n < STEP_MIN_WINDOWS:
         F.append(Finding("Réponse", ATTENTION, "Pas assez de mouvements de manche",
                          f"Seulement {steps[0].result.n} fenêtres exploitables en roll et {steps[1].result.n} en pitch "
@@ -473,12 +475,15 @@ def _fr(x: float) -> str:
     return f"{x:.2f}".replace(".", ",")
 
 
-def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int = 0) -> None:
+def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int = 0,
+                ff_cut: bool = False) -> None:
+    """`ff_gain` : gain F en service (0 en mode Angle, `FlightConditions.ff_gain`) ; `ff_cut` : F > 0 dans
+    l'en-tête mais coupé par le mode Angle."""
     r = st.result
     if r.n < STEP_MIN_WINDOWS:
         return
     first = len(F)
-    _step_findings(F, st, profile, ff_gain)
+    _step_findings(F, st, profile, ff_gain, ff_cut)
     if r.n < STEP_SURE_WINDOWS:
         for f in F[first:]:
             if f.title.startswith("Marge"):
@@ -487,14 +492,15 @@ def _step_rules(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: 
                          "wobbles roll et pitch mêlés).")
 
 
-def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int) -> None:
+def _step_findings(F: list[Finding], st: AxisStep, profile: CraftProfile, ff_gain: int, ff_cut: bool = False) -> None:
     r = st.result
     ax = st.axis
     m = r.metrics
     lp = r.loop
     pk, lat = m.peak, m.latency_ms
     advice, strong = STEP_PEAK_HIGH_FF if ff_gain > 0 else STEP_PEAK_HIGH
-    with_ff = f" avec feedforward (F = {ff_gain})" if ff_gain > 0 else " sans feedforward"
+    with_ff = (f" avec feedforward (F = {ff_gain})" if ff_gain > 0
+               else " sans feedforward (coupé par le mode Angle)" if ff_cut else " sans feedforward")
     if pk > advice and ff_gain > 0 and np.isfinite(lat) and lat < profile.latency_ms[0]:
         # Réponse plus rapide que ce que P et D permettent seuls, puis dépassement : c'est le
         # feedforward qui pousse (il agit à plein sur les mouvements de manche vifs).
