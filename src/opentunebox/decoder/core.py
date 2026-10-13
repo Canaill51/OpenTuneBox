@@ -651,9 +651,11 @@ def decode_stream(
             last_type = -1
 
     stats[4] = st[ST_POS] - start
+    # copies à la taille exacte : le tableau réservé (estimé d'après le nombre d'octets) peut être deux fois
+    # trop grand, et une vue le garderait en mémoire tant que la session existe
     return (
-        main[:n_rows],
-        kind[:n_rows],
+        main[:n_rows].copy(),
+        kind[:n_rows].copy(),
         slow[:n_slow_rows],
         slow_at[:n_slow_rows],
         gps[:n_gps_rows],

@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-029 | Les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64 | 2026-10-13 |
 | D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
 | D-027 | Raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre | 2026-10-13 |
 | D-026 | Retard des filtres jugé dès 30 °/s de consigne (amende D-010) | 2026-10-13 |
@@ -100,6 +101,29 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-10-13 — Mémoire du chargement des logs
+
+### D-029 : les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64
+
+**Contexte.** Chantier performance demandé par Cédric (« rapidité, robustesse, maintenance, taille,
+mémoire »). Le plus gros log du corpus (`3. BBLR FB/James Godley/LOG00024.BFL`, 39 Mo, 965 000 trames)
+occupait 2047 Mo au pic du chargement et 708 Mo une fois chargé, dont 360 Mo de courbes en float64.
+L'interface garde jusqu'à 10 logs ouverts (`gui/state.py:MAX_LOGS`).
+
+**Décision.**
+- `log/flightlog.py:SAMPLE_DTYPE` = float32 pour toutes les courbes (gyro, consigne, termes PID, moteurs,
+  debug, tension…) : 7 chiffres significatifs, bien au-delà de la résolution des capteurs loggés (gyro au
+  dixième de °/s au mieux). `mode_flags` en int32 (masque 32 bits du firmware).
+- `t` reste en float64 : en float32, la microseconde se perd après 16 s de vol.
+- Les analyses gardent leurs calculs en float64 (`np.asarray(x, dtype=np.float64)` à l'entrée, FFT de numpy) ;
+  une somme cumulée sur tout un log se fait en float64, jamais sur le tableau float32 lui-même.
+- Pas float64 partout : le double de mémoire pour une précision que les capteurs n'ont pas.
+
+**Témoins.** Plus gros log : 458 Mo une fois chargé au lieu de 708 Mo, pic du chargement 1347 Mo au lieu
+de 2047 Mo (avec les copies évitées du décodeur et de `_drop_implausible`). Assistant sur les 705 sessions
+du corpus : mêmes constats, mêmes gravités ; 9 sessions voient un chiffre affiché bouger d'une unité
+(3e harmonique à 597 Hz au lieu de 598, raie fixe à +15 dB au lieu de +14 : valeurs sur une limite d'arrondi).
 
 ## 2026-10-13 — Clés des constats de l'assistant
 
