@@ -81,7 +81,9 @@ def map_files(work, files, jobs=None, root=None):
     done, failed = {}, []
     if jobs > 1 and len(files) > 1:
         order = sorted(files, key=os.path.getsize, reverse=True)
-        ctx = get_context("fork" if sys.platform.startswith("linux") else "spawn")
+        # forkserver, pas fork : Python 3.14 refuse (avertissement, blocage possible) de bifurquer un processus
+        # qui a déjà des fils (numba, Qt pendant les tests) ; le serveur bifurque depuis un processus propre.
+        ctx = get_context("forkserver" if sys.platform.startswith("linux") else "spawn")
         with ctx.Pool(min(jobs, len(files))) as pool:
             for i, (f, ok, res) in enumerate(pool.imap_unordered(_guarded, [(work, f) for f in order])):
                 print(f"[{i + 1}/{len(files)}] {rel(f)}", file=sys.stderr)

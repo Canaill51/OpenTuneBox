@@ -5,72 +5,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
-### Modifié
-- « Raie fixe » : une raie proche de la fréquence des moteurs n'est plus écartée d'office. L'Assistant regarde,
-  d'une tranche de gaz à l'autre, si elle suit la vitesse des moteurs ou reste à la même fréquence : une
-  résonance du châssis proche de la fondamentale est maintenant signalée (59 vols du corpus au lieu de 45).
-  Les harmoniques 2 et 3 gardent l'écart de ± 8 % (D-027).
-- Retard des filtres : jugé dès que la consigne dépasse 30 °/s au moins 5 % du temps (au lieu de 50 °/s). Les
-  wobbles du protocole en mode Angle limité à 30° (consigne vers 47 °/s) n'étaient pas jugés, comme un vol
-  stationnaire. Même seuil pour la découpe « stationnaire / mouvements » du guide (D-026).
-- Réponse indicielle : un vol en mode Angle est jugé comme un vol sans feedforward (le firmware l'y coupe),
-  même si F > 0 dans les réglages ; il ne reçoit plus « Dépassement dû au feedforward ». Paliers du dépassement
-  recalculés sur le corpus : sans feedforward 1,20 (conseil) / 1,25 (attention), avec feedforward 1,60 / 1,70
-  (avant : 1,15 / 1,25 et 1,40 / 1,55, calculés en comptant les vols en Angle avec le feedforward). Dépassement
-  signalé sur 11 % des vols du corpus au lieu de 13 % (D-025).
-- Raies fixes et raies encore visibles après filtrage : l'Assistant ne propose plus de notch statique, sauf si le
-  notch dynamique ne peut pas traiter la raie (boucle PID sous 2 kHz, 7 notchs en service, raie au-delà de
-  980 Hz), et jamais sous 100 Hz. Il conseille la mécanique, puis la plage ou le nombre de notchs du notch
-  dynamique (D-024).
-- Notch dynamique : « Q peut monter » propose jusqu'à 500 (au lieu de 450), la valeur du configurateur avec le
-  filtre RPM et la plus fréquente des presets officiels (W-003).
-- Notch dynamique : le Q conseillé ne descend plus sous 250 (au lieu de 100), le plus bas Q utilisé avec le
-  filtre RPM dans les presets officiels et dans le corpus. Un notch plus large ajouterait beaucoup de retard :
-  quand une raie demanderait moins, l'Assistant renvoie à sa cause mécanique. Concerne 8 vols du corpus (W-003).
-- Filtre RPM : les poids conseillés (« Filtre RPM plus fort que nécessaire ») visent la raie 3 dB sous le
-  bruit voisin au lieu de 6 dB, d'après 1 186 harmoniques dont les pilotes du corpus ont déjà baissé le
-  poids : elles restent invisibles après filtres jusqu'à 0 dB. Poids proposés plus bas, conseil plus
-  fréquent (6 → 18 % des vols) ; chaque baisse de 0,5 retire environ 0,1 à 0,2 ms de retard (W-003).
-- Notch dynamique : « Q trop haut pour les raies à suivre » ne s'affiche plus que si une raie à suivre se voit
-  encore dans le gyro filtré ; avant, il se trompait une fois sur deux. Les restes d'harmoniques laissés par
-  le filtre RPM entrent maintenant dans le Q calculé (106 vols du corpus de plus en ont un).
-- Vol stationnaire : les raies hors moteurs proches des harmoniques 2 et 3 ne sont plus cachées (marge de 5 %
-  de la fréquence moteur, au lieu de 10 et 15 %), mesurée sur 119 vols stationnaires (D-023, W-012).
-- Notch dynamique (Assistant, étape « notch dynamique ») : les pics à suivre sont prévus d'après la réponse
-  réelle du filtre RPM (Q, poids de chaque harmonique), au lieu de retirer les harmoniques ± 5 %. Comparé aux
-  fréquences que Betaflight suit vraiment (debug FFT_FREQ, 598 vols), le modèle en retrouve 69 % au lieu de
-  48 % : une harmonique à poids réduit laisse un reste que le notch dynamique doit suivre. « Moins de notchs
-  suffiraient » devient plus rare (97 → 64 vols du corpus), « plus de notchs » un peu plus fréquent (45 → 56).
-  L'Assistant ne propose plus de relever `dyn_notch_min_hz` : en vol, les notchs n'approchent presque jamais
-  leur minimum, le retard gagné serait d'environ 0,002 ms (D-022, W-003).
-- Assistant : les curseurs conseillés suivent la méthode des séries de vols. Filtre gyro par 0,2 ; Damping
-  +0,2 sur un fort dépassement, 0,1 en réglage fin ; Master −0,1 à −0,2 ; le feedforward renvoie à la série
-  du guide (0, 0,5, 1… en Acro) au lieu d'un pas de 0,1 ; le curseur Tracking n'est plus conseillé seul
-  (D-021, W-003).
-- « Trames corrompues » devient « Trous dans l'enregistrement », dans l'Assistant et dans la vérification
-  des logs du guide : il compte les trous de la période analysée et le temps perdu, au lieu des tentatives
-  de resynchronisation du décodeur, qui manquaient des vols vraiment troués (W-003).
-- Diagnostic du réglage, série Master : les vagues ne sont plus lues sur un axe de moins de 200 fenêtres
-  (« vagues non lues ») ; le bruit seul y donne déjà environ 2 fois le bruit attendu, et une vraie vague de
-  10 % passe inaperçue. Le seuil de 2,5 est gardé, désormais mesuré sur le corpus : il ne signale que 0,6 % des
-  vols ordinaires sans feedforward et détecte une vague d'environ 3 % sur un vol bien fourni (W-003).
-- Notch statique conseillé (« Raie fixe », « Raie à X Hz encore visible ») : la coupure `gyro_notch1_cutoff`
-  est calculée d'après la largeur et la hauteur de la raie, comme le Q du notch dynamique (0,62 à 0,89 × sa
-  fréquence), au lieu de 0,7 × la fréquence dans tous les cas : notch plus étroit, donc moins de retard, pour
-  une raie fine. 0,7 reste le repli quand la raie ne se mesure pas (W-003).
-- Réponse indicielle : avec moins de 200 fenêtres (environ 20 s de wobbles), les constats de dépassement, de
-  réponse molle et la ligne « ok » ajoutent « mesure moins sûre » : sur le corpus, le pic mesuré sur 20
-  fenêtres s'écarte jusqu'à 0,20 de celui du vol entier, 0,07 sur 200. « Réponse molle » se déclenche sous
-  un pic de 1,01 (10e percentile du corpus) au lieu de 0,98 (W-003).
-- Une raie moteur n'est plus dite « visible » après filtrage qu'au-delà de 4 dB au-dessus du bruit voisin
-  (3 dB avant) : mesuré sur le corpus là où il n'y a aucune raie, 3 dB donnait 1,4 à 2,8 % de fausses alertes,
-  4 dB moins de 1 %. Moins de conseils sur le filtre RPM et les raies restantes (« Raie moteur encore visible
-  après le filtre RPM » 9 → 6 % des sessions), Q du notch dynamique calculé pour laisser 4 dB (W-003).
-- Le vol chirp de Betaflight n'est plus conseillé (guide utilisateur) : il faut le compiler à part dans le
-  firmware, ses données changent encore d'une version à l'autre et aucune méthode publiée n'en tire un
-  réglage. OpenTuneBox suit la méthode de Brian White : quand le pic de sensibilité tombe au bord des
-  fréquences mesurables, le constat « Marge de stabilité faible » conseille des wobbles plus rapides et plus
-  secs. Un log chirp reste lu et mesuré comme avant (D-019, W-004).
+## [0.7.0] — 2026-10-13
 
 ### Ajouté
 - Un vrai extrait de log Blackbox (`tests/data/jeno5_5s.bbl`, 5 s d'un vol du JeNo 5 de Cédric, Betaflight
@@ -126,6 +61,72 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `pytest`.
 
 ### Modifié
+- « Raie fixe » : une raie proche de la fréquence des moteurs n'est plus écartée d'office. L'Assistant regarde,
+  d'une tranche de gaz à l'autre, si elle suit la vitesse des moteurs ou reste à la même fréquence : une
+  résonance du châssis proche de la fondamentale est maintenant signalée (59 vols du corpus au lieu de 45).
+  Les harmoniques 2 et 3 gardent l'écart de ± 8 % (D-027).
+- Retard des filtres : jugé dès que la consigne dépasse 30 °/s au moins 5 % du temps (au lieu de 50 °/s). Les
+  wobbles du protocole en mode Angle limité à 30° (consigne vers 47 °/s) n'étaient pas jugés, comme un vol
+  stationnaire. Même seuil pour la découpe « stationnaire / mouvements » du guide (D-026).
+- Réponse indicielle : un vol en mode Angle est jugé comme un vol sans feedforward (le firmware l'y coupe),
+  même si F > 0 dans les réglages ; il ne reçoit plus « Dépassement dû au feedforward ». Paliers du dépassement
+  recalculés sur le corpus : sans feedforward 1,20 (conseil) / 1,25 (attention), avec feedforward 1,60 / 1,70
+  (avant : 1,15 / 1,25 et 1,40 / 1,55, calculés en comptant les vols en Angle avec le feedforward). Dépassement
+  signalé sur 11 % des vols du corpus au lieu de 13 % (D-025).
+- Raies fixes et raies encore visibles après filtrage : l'Assistant ne propose plus de notch statique, sauf si le
+  notch dynamique ne peut pas traiter la raie (boucle PID sous 2 kHz, 7 notchs en service, raie au-delà de
+  980 Hz), et jamais sous 100 Hz. Il conseille la mécanique, puis la plage ou le nombre de notchs du notch
+  dynamique (D-024).
+- Notch dynamique : « Q peut monter » propose jusqu'à 500 (au lieu de 450), la valeur du configurateur avec le
+  filtre RPM et la plus fréquente des presets officiels (W-003).
+- Notch dynamique : le Q conseillé ne descend plus sous 250 (au lieu de 100), le plus bas Q utilisé avec le
+  filtre RPM dans les presets officiels et dans le corpus. Un notch plus large ajouterait beaucoup de retard :
+  quand une raie demanderait moins, l'Assistant renvoie à sa cause mécanique. Concerne 8 vols du corpus (W-003).
+- Filtre RPM : les poids conseillés (« Filtre RPM plus fort que nécessaire ») visent la raie 3 dB sous le
+  bruit voisin au lieu de 6 dB, d'après 1 186 harmoniques dont les pilotes du corpus ont déjà baissé le
+  poids : elles restent invisibles après filtres jusqu'à 0 dB. Poids proposés plus bas, conseil plus
+  fréquent (6 → 18 % des vols) ; chaque baisse de 0,5 retire environ 0,1 à 0,2 ms de retard (W-003).
+- Notch dynamique : « Q trop haut pour les raies à suivre » ne s'affiche plus que si une raie à suivre se voit
+  encore dans le gyro filtré ; avant, il se trompait une fois sur deux. Les restes d'harmoniques laissés par
+  le filtre RPM entrent maintenant dans le Q calculé (106 vols du corpus de plus en ont un).
+- Vol stationnaire : les raies hors moteurs proches des harmoniques 2 et 3 ne sont plus cachées (marge de 5 %
+  de la fréquence moteur, au lieu de 10 et 15 %), mesurée sur 119 vols stationnaires (D-023, W-012).
+- Notch dynamique (Assistant, étape « notch dynamique ») : les pics à suivre sont prévus d'après la réponse
+  réelle du filtre RPM (Q, poids de chaque harmonique), au lieu de retirer les harmoniques ± 5 %. Comparé aux
+  fréquences que Betaflight suit vraiment (debug FFT_FREQ, 598 vols), le modèle en retrouve 69 % au lieu de
+  48 % : une harmonique à poids réduit laisse un reste que le notch dynamique doit suivre. « Moins de notchs
+  suffiraient » devient plus rare (97 → 64 vols du corpus), « plus de notchs » un peu plus fréquent (45 → 56,
+  puis 62 après les calibrations suivantes).
+  L'Assistant ne propose plus de relever `dyn_notch_min_hz` : en vol, les notchs n'approchent presque jamais
+  leur minimum, le retard gagné serait d'environ 0,002 ms (D-022, W-003).
+- Assistant : les curseurs conseillés suivent la méthode des séries de vols. Filtre gyro par 0,2 ; Damping
+  +0,2 sur un fort dépassement, 0,1 en réglage fin ; Master −0,1 à −0,2 ; le feedforward renvoie à la série
+  du guide (0, 0,5, 1… en Acro) au lieu d'un pas de 0,1 ; le curseur Tracking n'est plus conseillé seul
+  (D-021, W-003).
+- « Trames corrompues » devient « Trous dans l'enregistrement », dans l'Assistant et dans la vérification
+  des logs du guide : il compte les trous de la période analysée et le temps perdu, au lieu des tentatives
+  de resynchronisation du décodeur, qui manquaient des vols vraiment troués (W-003).
+- Diagnostic du réglage, série Master : les vagues ne sont plus lues sur un axe de moins de 200 fenêtres
+  (« vagues non lues ») ; le bruit seul y donne déjà environ 2 fois le bruit attendu, et une vraie vague de
+  10 % passe inaperçue. Le seuil de 2,5 est gardé, désormais mesuré sur le corpus : il ne signale que 0,6 % des
+  vols ordinaires sans feedforward et détecte une vague d'environ 3 % sur un vol bien fourni (W-003).
+- Notch statique conseillé (« Raie fixe », « Raie à X Hz encore visible ») : la coupure `gyro_notch1_cutoff`
+  est calculée d'après la largeur et la hauteur de la raie, comme le Q du notch dynamique (0,62 à 0,89 × sa
+  fréquence), au lieu de 0,7 × la fréquence dans tous les cas : notch plus étroit, donc moins de retard, pour
+  une raie fine. 0,7 reste le repli quand la raie ne se mesure pas (W-003).
+- Réponse indicielle : avec moins de 200 fenêtres (environ 20 s de wobbles), les constats de dépassement, de
+  réponse molle et la ligne « ok » ajoutent « mesure moins sûre » : sur le corpus, le pic mesuré sur 20
+  fenêtres s'écarte jusqu'à 0,20 de celui du vol entier, 0,07 sur 200. « Réponse molle » se déclenche sous
+  un pic de 1,01 (10e percentile du corpus) au lieu de 0,98 (W-003).
+- Une raie moteur n'est plus dite « visible » après filtrage qu'au-delà de 4 dB au-dessus du bruit voisin
+  (3 dB avant) : mesuré sur le corpus là où il n'y a aucune raie, 3 dB donnait 1,4 à 2,8 % de fausses alertes,
+  4 dB moins de 1 %. Moins de conseils sur le filtre RPM et les raies restantes (« Raie moteur encore visible
+  après le filtre RPM » 9 → 6 % des sessions), Q du notch dynamique calculé pour laisser 4 dB (W-003).
+- Le vol chirp de Betaflight n'est plus conseillé (guide utilisateur) : il faut le compiler à part dans le
+  firmware, ses données changent encore d'une version à l'autre et aucune méthode publiée n'en tire un
+  réglage. OpenTuneBox suit la méthode de Brian White : quand le pic de sensibilité tombe au bord des
+  fréquences mesurables, le constat « Marge de stabilité faible » conseille des wobbles plus rapides et plus
+  secs. Un log chirp reste lu et mesuré comme avant (D-019, W-004).
 - Toutes les couleurs fixes de l'interface (courbes et repères des graphiques, badges de l'assistant, curseur et
   textes posés sur les spectrogrammes, surlignage de la page Configuration) sont regroupées dans `gui/theme.py` ;
   les écarts verts / rouges du tableau des curseurs PID et des retards du simulateur, le titre d'alerte du
@@ -162,6 +163,16 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   `rcCommand`, qui le sont) ; vérifié dans `blackbox.c` 4.4 → 2026.12, spécification corrigée.
 - Tests sur les vrais logs : logs supprimés du corpus remplacés par des logs aux mêmes propriétés ; un log
   absent fait ignorer le test en le nommant au lieu de le faire échouer.
+- Scripts du corpus sous Linux : les processus parallèles partent d'un serveur de processus (`forkserver`)
+  au lieu de bifurquer le processus courant, que Python 3.14 refuse dès qu'il a plusieurs fils (numba, Qt
+  pendant les tests) ; mêmes résultats, même durée.
+- Documentation relue avant la version : guide utilisateur (série Damping courte dès 6", pas 7"),
+  `docs/assistant.md` (Q minimum du notch dynamique 250, pas de `rpm_filter_q` −100, marge des poids RPM
+  3 dB, taille par le nom en service), `docs/spec-methodes.md` (bornes de fréquence moteur par taille
+  remplacées par celles du code, protocole d'enregistrement du guide), `docs/validation.md`, compétences ;
+  leçons L-022 à L-028 rangées par domaine, nouvelle section « Outillage ». Captures du README refaites
+  (visualiseur, réponse indicielle, Assistant) : elles dataient d'avant le Guide et montraient d'anciens
+  conseils de curseurs.
 
 ## [0.6.0] — 2026-10-12
 
@@ -484,7 +495,8 @@ Première version complète.
 - Lanceur Linux (menu des applications) et recette PyInstaller.
 - Guide d'utilisation en français.
 
-[Non publié]: ../../compare/v0.6.0...HEAD
+[Non publié]: ../../compare/v0.7.0...HEAD
+[0.7.0]: ../../releases/tag/v0.7.0
 [0.6.0]: ../../releases/tag/v0.6.0
 [0.5.0]: ../../releases/tag/v0.5.0
 [0.4.0]: ../../releases/tag/v0.4.0

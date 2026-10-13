@@ -163,9 +163,11 @@ ils viennent du bruit (`validation.md`).
 - Infos de configuration : tableau des réglages de l'en-tête de chaque log.
 
 ## Recommandations d'enregistrement
-Log à 2 kHz (1 kHz suffit pour la réponse indicielle) ; debug FFT_FREQ (ou GYRO_SCALED en 4.4) ; vols de
-20–30 s avec des coups de manche francs sur chaque axe pour la réponse indicielle ; stationnaire et
-montées de gaz pour le bruit.
+Log à 2 kHz pour les filtres (1,6 kHz avec un gyro à 3,2 kHz, plus pour les petits drones), 1 kHz pour
+les séries PID ; debug FFT_FREQ (ou GYRO_SCALED en 4.4). Vol des filtres : stationnaire puis wobbles ;
+séries PID : wobbles roll et pitch mêlés, 20 à 30 s, en mode Angle ou en Acro avec le feedforward à 0,
+au moins 200 fenêtres par axe (protocole détaillé dans le guide intégré et `assistant.md`, « Origine des
+seuils », lignes « Guide »).
 
 ## Repères de réglage (indicatifs)
 
@@ -208,10 +210,10 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   dont le retard D est environ 0,5 ms sous le nôtre, `validation.md`) ; 4–5 ms « raisonnable » pour un 5"
   [S10] ; 7–8 ms = filtrage très lourd [S11].
 - **Fréquence fondamentale des moteurs** : régime en charge ≈ 70 % du régime à vide KV × cellules × 4 V
-  [S12], soit ≈ KV × tension nominale × 0,75. Tableau par taille (whoop 65–75 mm 550–800 Hz en
-  stationnaire / 1,1–1,4 kHz plein gaz ; 2,5–3,5" 350–450 / 800–950 ; 5" 200–270 / 500–650 ; 7" 130–170 /
-  350–420 ; 10" 85–110 / 250–300) : **Estimation** déduite de la formule, aucune source ; trop haut pour les
-  whoops. Mesuré sur le corpus (médiane par drone en vol) : AIR65 ≈ 480 Hz, Meteor 75 ≈ 355 Hz,
+  [S12], soit ≈ KV × tension nominale × 0,75 : formule indicative seulement, l'estimation par taille qu'on
+  en tirait donnait des whoops trop hauts. Bornes retenues, mesurées sur le corpus (`advisor/profiles.py`,
+  `hover_hz`, fréquence en stationnaire) : whoop 345–900 Hz, 2–3,5" 200–345 Hz, 4–5" 160–290 Hz, 6–7"
+  115–160 Hz, 8"+ 50–125 Hz ; médianes par drone en vol : AIR65 ≈ 480 Hz, Meteor 75 ≈ 355 Hz,
   3" ≈ 325 Hz, 5" ≈ 210 Hz, 7" ≈ 140 Hz, 9" ≈ 110 Hz (`assistant.md`, « Taille du drone »). Les whoops
   demandent un log rapide. Pôles : 14 par défaut, « Smaller motors have fewer magnets, often 12 » [S9] ;
   12 pour les 08XX à 16XX, 14 pour les 22XX à 24XX [S13].

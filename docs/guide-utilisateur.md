@@ -225,7 +225,7 @@ Les quatre phases :
    gyro puis du D. Fin quand les repères sont atteints (gyro filtré sous −30 dB, terme D au plus −10 dB,
    retard sous l'objectif de la taille).
 3. **PID par séries** (méthode de Brian White) : mode Angle (ou Acro avec le feedforward à 0), curseur I à 0,25, Dynamic Damping à 0 ; série
-   **Damping** (0,6 → 1,6, ou 1,0 → 1,6 pour un 7" et plus), **Master** (1,0 → 2,0), puis Pitch Damping et
+   **Damping** (0,6 → 1,6, ou 1,0 → 1,6 pour un 6" et plus), **Master** (1,0 → 2,0), puis Pitch Damping et
    Pitch Tracking selon le diagnostic ; au moins 200 fenêtres par vol. Le « Diagnostic du réglage » de la
    Réponse indicielle lit chaque série.
 4. **Finitions** : série Feedforward en Acro (0, 0,5, 1 ; retard consigne → gyro de chaque vol, donné par

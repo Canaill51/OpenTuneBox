@@ -24,7 +24,8 @@ mettre la documentation à jour avec la compétence `docs-sync` (un crochet bloq
 .venv/bin/python scripts/validate_corpus.py "$OTB_LOGS" --start 300    # reprise après un blocage
 ```
 Statuts : `ok`, `gap` (trames tronquées avant un trou SD, tolérées), `slow` (trames S corrompues acceptées
-par la référence), `rows` / `values` (à examiner), `refhang` (référence bloquée, délai 180 s).
+par la référence), `rows` / `values` (à examiner), `refhang` (référence bloquée, délai 180 s), `noref`
+(référence introuvable ou sortie vide).
 Référence : `blackbox_decode` de PIDtoolbox (`OTB_REF_DECODER`, défaut `~/.local/share/PIDtoolboxProV094/`).
 Objectif : ne pas faire baisser la proportion de sessions `ok` (95 %).
 
@@ -50,9 +51,16 @@ Objectif : ne pas faire baisser la proportion de sessions `ok` (95 %).
 ## Captures hors écran
 
 Script dans le répertoire temporaire de la session, lancé avec `QT_QPA_PLATFORM=offscreen` :
-créer `MainWindow`, `load_paths([...])`, pomper les événements (`app.processEvents()` en boucle) jusqu'à
-`win._loading == 0`, `open_tool(clé)`, attendre `not w._busy and w._last_result is not None`,
-`w.grab().save(...)`, puis **`hard_exit(0, wait_all)`**. Toujours regarder l'image produite.
+**`QStandardPaths.setTestModeEnabled(True)` avant `QApplication`** (sinon le script écrit dans les vrais
+réglages de Cédric : dossier des logs, thème, géométrie de la fenêtre à la fermeture, L-029), créer
+`MainWindow`, `win._change_theme("clair")` pour les captures du README (la fenêtre recharge le thème
+enregistré), `load_paths([...])`, pomper les événements (`app.processEvents()` puis `time.sleep(0.02)` en
+boucle, avec un délai en secondes) jusqu'à `win._loading == 0`, `open_tool(clé)`, attendre
+`not w._busy and w._last_result is not None` ; pour plusieurs logs, `w.files.selectAll()` puis `w.run()`
+et attendre de nouveau ; `w.grab().save(...)` ; ne pas fermer une fenêtre dont un calcul tourne encore
+(`wait_all()` d'abord), puis **`hard_exit(0, wait_all)`**. Toujours regarder l'image produite.
+Captures du README : `Cedric/JeNo 5/FINAL.bbl` (visualiseur, 1500 × 950, session FINAL.02) ; `LAST.bbl` +
+`FINAL.bbl` (réponse indicielle avec les trois sessions, Assistant sur FINAL.02, 1600 × 1000).
 
 ## Calibrer l'assistant
 

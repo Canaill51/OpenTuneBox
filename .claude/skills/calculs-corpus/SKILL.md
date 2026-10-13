@@ -34,8 +34,8 @@ Les scripts du corpus répartissent les fichiers sur **tous les cœurs** par `sc
 ## Nouvelle mesure ponctuelle sur tout le corpus
 
 Ne pas écrire de boucle séquentielle jetable : une fonction **par fichier**, au niveau du module, et
-`map_files` sous `if __name__ == "__main__"` (obligatoire sous Windows / macOS, qui relancent le module
-dans chaque processus) :
+`map_files` sous `if __name__ == "__main__"` (obligatoire partout : Windows / macOS relancent le module
+dans chaque processus, et Linux passe par un serveur de processus `forkserver` qui le réimporte aussi) :
 
 ```python
 import json, os, sys
