@@ -60,6 +60,9 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | ouvert |
+| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | ouvert |
+| W-014 | Décodeur : 3,4 µs par trame, plus grosse part de l'ouverture d'un log | ouvert |
 | W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | clos |
 | W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | clos |
 | W-011 | LPF1 et notch statique absents du modèle du notch dynamique | sans suite |
@@ -284,3 +287,41 @@ Règles d'écriture :
   **Piste** : pente sur la fondamentale seulement (± 15 %), seuils calibrés sur les raies du vol stationnaire
   et le debug FFT_FREQ ; script de mesure à refaire comme une fonction de `rules` (même calcul que la règle).
   [`src/opentunebox/advisor/rules.py:frame_resonance`, [assistant.md](assistant.md#règles)]
+
+## Origine : chantier performance demandé par Cédric (2026-10-13)
+
+- **W-014** — Le décodeur prend environ 3,4 µs par trame (3,3 s pour les 965 000 trames du plus gros log du
+  corpus, 39 Mo) : c'est maintenant la plus grosse part de l'ouverture d'un log dans l'interface (5,2 s).
+  **Pourquoi reporté** : la boucle principale est validée trame par trame contre `blackbox_decode`
+  ([validation.md](validation.md#décodeur)) ; la remanier pour un gain incertain demande un passage complet
+  de `scripts/validate_corpus.py` (plusieurs heures, la référence se bloque sur certains fichiers).
+  **Risque si on n'y touche pas** : quelques secondes d'attente à l'ouverture des très gros logs ; les logs
+  courants (quelques Mo) s'ouvrent en moins d'une seconde.
+  **Reprise** : prochaine modification du décodeur, ou si un pilote se plaint de l'ouverture.
+  **Piste** : profiler `decode_stream` par type de trame (copie `main[n_rows, :] = cur`, lectures d'octets
+  via le tableau d'état `st`) ; ou le réécrire hors numba (voir W-015).
+  [`src/opentunebox/decoder/core.py:decode_stream`]
+
+- **W-015** — Numba impose `llvmlite` (170 Mo sur les 463 Mo du dossier Linux, ≈ 37 %) et une compilation au
+  premier lancement : c'est le seul levier restant sur la taille des installateurs. Le reste est Qt (102 Mo,
+  déjà allégé), scipy (71 Mo) et numpy (41 Mo) ; nettoyer `libllvmlite.so` par `strip` ne gagne que 18 Mo.
+  **Pourquoi reporté** : supprimer numba demande de réécrire le décodeur et les noyaux de filtres dans un
+  langage compilé (Rust par une extension PyO3, ou C), fabriqué pour chaque système par `construire.yml` :
+  cela remplace D-002 et D-006, décision réservée à Cédric (proposée dans le rapport du chantier).
+  **Risque si on n'y touche pas** : installateurs de 88 à 167 Mo selon le système ; 5 à 15 s de compilation
+  au tout premier lancement (mesuré : 6 s pour un rapport à cache numba vide sous Linux).
+  **Reprise** : accord de Cédric pour une extension compilée.
+  **Piste** : extension Rust (PyO3 + maturin) pour `decoder/core.py` et `bf_filters` (`_sections_response`,
+  simulation temporelle) ; le reste reste en Python ; validation par `scripts/validate_corpus.py` et
+  `scripts/advisor_rates.py --compare`.
+  [`src/opentunebox/decoder/core.py`, `packaging/opentunebox.spec`]
+
+- **W-016** — Le décodeur réserve ses trames d'après la taille du fichier (`est_rows = octets // 20`), soit
+  environ deux fois trop pour les logs courants (≈ 40 octets par trame) : le pic de mémoire à l'ouverture
+  (1347 Mo pour le plus gros log) vient de ce tableau provisoire plus la copie à la taille exacte.
+  **Pourquoi reporté** : une estimation plus juste force des agrandissements (copie à chaque fois) sur les
+  logs aux trames très compressées ; gain mesuré seulement sur les plus gros logs (> 30 Mo), rares.
+  **Risque si on n'y touche pas** : un ordinateur à 4 Go de mémoire peut peiner sur un log de plus de 50 Mo.
+  **Reprise** : un pilote signale un manque de mémoire, ou W-014 est repris.
+  **Piste** : tableaux par blocs de 65 536 trames, réunis à la fin (pic ≈ 2 × la taille utile au lieu de 3 ×).
+  [`src/opentunebox/decoder/reader.py:_decode_session`]
