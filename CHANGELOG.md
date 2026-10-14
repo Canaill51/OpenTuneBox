@@ -11,6 +11,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ### Ajouté
 - La CI publie la couverture de tests (mesure seule, sans seuil) dans le résumé de l'exécution « Tests », décodeur mesuré en
   Python pur compris ; `pytest-cov` rejoint les outils de développement.
+- Workflow `audit.yml` : contrôle des failles connues des dépendances d'exécution (`pip-audit`) à chaque envoi,
+  chaque demande de fusion et chaque lundi.
 - Dependabot : une demande de fusion hebdomadaire pour les dépendances Python et une pour les actions GitHub
   (`.github/dependabot.yml`).
 

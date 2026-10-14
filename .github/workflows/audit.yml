@@ -1,0 +1,36 @@
+# Contrôle des vulnérabilités connues dans les bibliothèques dont dépend OpenTuneBox (pip-audit, base
+# d'avis de PyPI). Se lance à chaque envoi et demande de fusion, et chaque lundi : une faille peut être
+# publiée sans qu'on ait changé une ligne. Échec = une dépendance a une faille connue : la mettre à jour
+# (Dependabot propose souvent déjà la demande de fusion).
+name: Audit
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Dépendances d'exécution
+        # pip d'abord : pip-audit contrôle aussi pip lui-même, et celui de l'image peut avoir une faille connue
+        # (vu le 2026-10-14 : pip 25.1.1). Sans l'extra [dev] : seul ce qui est livré compte.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: pip-audit
+        # version épinglée : un outil « latest » peut changer sans qu'on ait touché au code ; à relever à la main
+        # de temps en temps (Dependabot ne lit pas les versions écrites dans une commande)
+        run: |
+          python -m pip install pip-audit==2.9.0
+          pip-audit --skip-editable

@@ -36,13 +36,19 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    gh pr create --base main --title "fix/windows-close-crash"
    ```
 
-## Mises à jour automatiques des dépendances
+## Contrôles et mises à jour automatiques des dépendances
 
 Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) ouvre chaque lundi une demande de fusion
 pour les bibliothèques Python (`pyproject.toml`) et une pour les actions GitHub des workflows. Les
 mises à jour mineures et correctives sont groupées ; une mise à jour majeure est une demande à part.
 Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`), pas le nom d'une branche : c'est
 normal. On les fusionne à la main, une fois la CI verte et après avoir lu les notes de la nouvelle version.
+
+Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connues dans les bibliothèques
+livrées (`pip-audit`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
+a une faille publiée : la relever dans `pyproject.toml` (ou fusionner la demande de Dependabot qui le fait).
+Rien à lancer en local ; pour un essai, dans un environnement vierge (`python3 -m venv /tmp/audit`) :
+`/tmp/audit/bin/pip install -e . pip-audit && /tmp/audit/bin/pip-audit --skip-editable`.
 
 ## Publier une version
 
