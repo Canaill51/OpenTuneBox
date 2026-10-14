@@ -60,6 +60,21 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-031 : `pip-audit` installé à côté du projet audite aussi pip et ses propres outils, et fait échouer la CI sur une faille étrangère au projet
+- **Symptôme** — 2026-10-14 : premier essai de `audit.yml` dans un environnement vierge : `pip-audit` sort en
+  erreur (code 1) sur `pip 25.1.1  PYSEC-2026-3721  26.2`, alors que `numpy`, `scipy`, `numba`, `PySide6`,
+  `pyqtgraph` et `platformdirs` n'ont aucune faille connue.
+- **Cause** — mesurée : sans argument, `pip-audit` contrôle **tout** l'environnement courant, `pip` compris ;
+  le `pip` fourni avec Python peut être en retard (25.1.1 ici, corrigé en 26.2). Supposée, non mesurée : installé
+  dans le même environnement que le projet, `pip-audit` y ajoute ses propres bibliothèques (`requests`,
+  `urllib3`…), dont une faille ferait échouer le contrôle sans rapport avec ce qu'on livre.
+- **Règle** — mettre `pip` à jour avant l'audit, et installer `pip-audit` (version épinglée) dans un
+  environnement à part, dirigé sur celui du projet : `pip-audit --skip-editable --path <site-packages>`.
+  Un échec de l'audit doit toujours dire « une dépendance livrée a une faille », jamais « un outil de la CI ».
+- **Preuve** — `.github/workflows/audit.yml` ; `tests/test_ci_audit.py` (3 tests qui lisent le workflow : ils
+  échouent sur la première version du commit `21708fe`, et sans la mise à jour de pip) ; essai local sans
+  faille avec la forme corrigée (`No known vulnerabilities found`) ; CI verte de la demande de fusion #60.
+
 ### L-030 : exclure `PySide6.QtOpenGL` de la recette passe la construction, puis l'application plante au premier graphique
 - **Symptôme** — 2026-10-13 : pour alléger l'exécutable, `PySide6.QtOpenGL`, `QtOpenGLWidgets`, `QtTest` et
   `QtNetwork` ajoutés aux `excludes` de `packaging/opentunebox.spec` ; PyInstaller réussit sans avertissement,
@@ -374,6 +389,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-031 | `pip-audit` audite tout son environnement (pip compris) : pip à jour, outil dans un environnement à part, `--path` | Outillage |
 | L-030 | Module Qt exclu de la recette : construction réussie, plantage au premier graphique. Exécutable d'essai | Construction |
 | L-029 | Script Qt hors pytest : réglages réels écrasés. `QStandardPaths.setTestModeEnabled(True)` d'abord | Outillage |
 | L-028 | Filtre RPM ≠ masque : appliquer sa réponse (poids, Q) ; vérifier sur le debug FFT_FREQ | Analyses |

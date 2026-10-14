@@ -23,14 +23,14 @@ jobs:
         with:
           python-version: "3.13"
       - name: Dépendances d'exécution
-        # pip d'abord : pip-audit contrôle aussi pip lui-même, et celui de l'image peut avoir une faille connue
-        # (vu le 2026-10-14 : pip 25.1.1). Sans l'extra [dev] : seul ce qui est livré compte.
+        # ⚠️ pip-audit contrôle aussi pip lui-même, et celui de l'image peut avoir une faille connue (vu le
+        # 2026-10-14 : pip 25.1.1) : pip d'abord (L-031). Sans l'extra [dev] : seul ce qui est livré compte.
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .
       - name: pip-audit
-        # pip-audit vit dans son propre environnement : installé à côté des dépendances, il serait audité avec
-        # elles et une faille de ses outils (requests, urllib3…) ferait échouer ce contrôle à tort.
+        # ⚠️ pip-audit vit dans son propre environnement : installé à côté des dépendances, il serait audité avec
+        # elles et une faille de ses outils (requests, urllib3…) ferait échouer ce contrôle à tort (L-031).
         # Version épinglée : un outil « latest » peut changer sans qu'on ait touché au code ; à relever à la main
         # de temps en temps (Dependabot ne lit pas les versions écrites dans une commande).
         run: |

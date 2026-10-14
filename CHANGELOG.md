@@ -9,6 +9,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Lint par `ruff check` (règles de pyflakes, mêmes contrôles) à la place de `pyflakes`, en local et en CI (D-030).
 
 ### Ajouté
+- `tests/test_ci_audit.py` : le workflow d'audit garde sa forme (pip à jour, pip-audit dans un environnement à
+  part, dirigé par `--path`) ; leçon L-031.
 - La CI publie la couverture de tests (mesure seule, sans seuil) dans le résumé de l'exécution « Tests », décodeur mesuré en
   Python pur compris ; `pytest-cov` rejoint les outils de développement.
 - Workflow `audit.yml` : contrôle des failles connues des dépendances d'exécution (`pip-audit`) à chaque envoi,
