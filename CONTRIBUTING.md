@@ -36,6 +36,14 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    gh pr create --base main --title "fix/windows-close-crash"
    ```
 
+## Mises à jour automatiques des dépendances
+
+Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) ouvre chaque lundi une demande de fusion
+pour les bibliothèques Python (`pyproject.toml`) et une pour les actions GitHub des workflows. Les
+mises à jour mineures et correctives sont groupées ; une mise à jour majeure est une demande à part.
+Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`), pas le nom d'une branche : c'est
+normal. On les fusionne à la main, une fois la CI verte et après avoir lu les notes de la nouvelle version.
+
 ## Publier une version
 
 1. Sur une branche (`chore/release-0.2.0`) : `python scripts/release.py prepare 0.2.0`. Le script met le

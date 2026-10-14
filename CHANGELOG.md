@@ -5,6 +5,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- Dependabot : une demande de fusion hebdomadaire pour les dépendances Python et une pour les actions GitHub
+  (`.github/dependabot.yml`).
+
 ## [0.8.0] — 2026-10-13
 
 ### Ajouté
