@@ -20,7 +20,7 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
 2. Modifier, puis vérifier :
    ```sh
    .venv/bin/pytest -q
-   .venv/bin/python -m pyflakes src tests scripts packaging/make_icons.py
+   .venv/bin/ruff check src tests scripts packaging/make_icons.py
    ```
 3. Mettre la documentation à jour **dans le même commit** : le tableau de `.claude/skills/docs-sync/SKILL.md`
    indique quels documents relire selon le changement ; `tests/test_docs.py` (lancé par `pytest`) vérifie

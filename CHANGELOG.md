@@ -5,6 +5,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Modifié
+- Lint par `ruff check` (règles de pyflakes, mêmes contrôles) à la place de `pyflakes`, en local et en CI (D-030).
+
 ### Ajouté
 - Dependabot : une demande de fusion hebdomadaire pour les dépendances Python et une pour les actions GitHub
   (`.github/dependabot.yml`).

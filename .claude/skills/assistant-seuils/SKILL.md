@@ -102,4 +102,4 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
    `test_rule_constants_snapshot`), qui échoue à chaque changement de valeur ; les règles pures et les seuils
    encadrés sont dans `test_advisor_rules.py` / `test_advisor_synthetic.py` (sans corpus), les vérifications sur
    vrais logs dans `tests/test_advisor.py`.
-4. `pytest` et `pyflakes` propres.
+4. `pytest` et `ruff check` propres.
