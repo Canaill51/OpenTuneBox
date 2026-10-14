@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant | 2026-10-14 |
 | D-029 | Les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64 | 2026-10-13 |
 | D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
 | D-027 | Raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre | 2026-10-13 |
@@ -101,6 +102,24 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-10-14 — Lint de la CI
+
+### D-030 : lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant
+
+**Contexte.** Superview (autre projet de Cédric) a une CI plus fournie qu'OpenTuneBox. En comparant, on a
+remplacé `pyflakes` par `ruff`, plus rapide et extensible (formatage, règles de style, sécurité). Mesures du
+2026-10-14 (ruff 0.15.0) : règles `F` (celles de pyflakes) → 0 signalement ; règles par défaut → 51 signalements
+de style (E701/E702 plusieurs instructions sur une ligne, E741 noms ambigus, E401) ; `ruff format` reformaterait
+87 fichiers sur 103.
+
+**Décision.** `ruff check` avec `select = ["F"]` (`pyproject.toml`) remplace `pyflakes`, avec exactement les
+mêmes contrôles : aucun code modifié. `ruff` est borné (`>=0.15,<0.18`) : une version future pourrait durcir une règle
+F et casser la CI sans changement de code ; relever la borne à la main après essai. Pas de `ruff format` ni de règles de style pour l'instant : un reformatage
+de 87 fichiers noierait l'historique (`git blame`) et obligerait à rebaser les branches en cours.
+
+**Choix de Cédric** (2026-10-14, parmi : lint pyflakes seul / règles par défaut / lint + formatage).
+Voir W-017 pour la suite.
 
 ## 2026-10-13 — Mémoire du chargement des logs
 

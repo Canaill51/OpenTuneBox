@@ -20,7 +20,7 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
 2. Modifier, puis vérifier :
    ```sh
    .venv/bin/pytest -q
-   .venv/bin/python -m pyflakes src tests scripts packaging/make_icons.py
+   .venv/bin/ruff check src tests scripts packaging/make_icons.py
    ```
 3. Mettre la documentation à jour **dans le même commit** : le tableau de `.claude/skills/docs-sync/SKILL.md`
    indique quels documents relire selon le changement ; `tests/test_docs.py` (lancé par `pytest`) vérifie
@@ -35,6 +35,26 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    ```sh
    gh pr create --base main --title "fix/windows-close-crash"
    ```
+
+## Contrôles et mises à jour automatiques des dépendances
+
+Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) ouvre chaque lundi une demande de fusion
+pour les actions GitHub des workflows (mises à jour mineures et correctives groupées, majeure à part).
+Pour les bibliothèques Python, `pyproject.toml` ne fixe que des versions minimales (`>=`) : Dependabot n'y
+touche pas tant que la borne admet la dernière version, et c'est voulu (les planchers disent ce qui est
+compatible, pas ce qui est à jour). Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`),
+pas le nom d'une branche : c'est normal. On les fusionne à la main, une fois la CI verte et après avoir lu
+les notes de la nouvelle version.
+
+Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connues dans les bibliothèques
+livrées (`pip-audit`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
+a une faille publiée : relever sa version minimale dans `pyproject.toml`. Rien à lancer en local ; pour un
+essai, dans un environnement vierge (`python3 -m venv /tmp/projet /tmp/outil`) :
+```sh
+/tmp/projet/bin/pip install --upgrade pip && /tmp/projet/bin/pip install -e .
+/tmp/outil/bin/pip install pip-audit==2.9.0
+/tmp/outil/bin/pip-audit --skip-editable --path /tmp/projet/lib/python3.*/site-packages
+```
 
 ## Publier une version
 

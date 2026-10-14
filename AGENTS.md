@@ -85,7 +85,8 @@ Règles :
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/pytest -q                                  # tous les tests (≈ 4 min avec le corpus, 1 min sans)
 .venv/bin/pytest -q -m "not corpus"                  # tests rapides, sans vrais logs
-.venv/bin/python -m pyflakes src tests scripts packaging/make_icons.py   # lint (doit être vide)
+.venv/bin/ruff check src tests scripts packaging/make_icons.py   # lint (doit être vide, D-030)
+.venv/bin/pytest -q --cov=opentunebox --cov-report=term-missing   # couverture (hors code numba : L-025)
 .venv/bin/pytest -q tests/test_docs.py               # cohérence de la documentation (< 1 s)
 .venv/bin/opentunebox-gui [LOG…]                     # interface
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande
@@ -96,6 +97,9 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
 .venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```
+
+CI : `tests.yml` (lint, tests, couverture) et `audit.yml` (failles des dépendances, voir `CONTRIBUTING.md`) ; la
+CI ne voit pas le corpus.
 
 Variables d'environnement : `OTB_LOGS` (dossier de vrais logs, défaut `~/Documents/Drones/Logs` ; contient
 aussi `corpus.csv`, les étiquettes des drones remplies par Cédric, à ne jamais écraser),
@@ -194,7 +198,7 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
 3. **Documentation à jour à chaque modification**, dans le même commit que le code : suivre la compétence
    `.claude/skills/docs-sync` (quels documents relire selon le changement) ; `tests/test_docs.py` vérifie
    automatiquement liens, chemins, outils, modules, fichiers publiés et langue.
-   `pytest` et `pyflakes` propres avant chaque commit ; mettre à jour `CHANGELOG.md` (section *Non publié*).
+   `pytest` et `ruff check` propres avant chaque commit ; mettre à jour `CHANGELOG.md` (section *Non publié*).
 4. Commits en français, à l'impératif ou descriptifs, un sujet par commit. Auteur `Cedric <desmetgerry@gmail.com>`.
    Ne jamais pousser sur GitHub ni publier quoi que ce soit sans l'accord de Cédric.
 5. Une branche par sujet, nommée `type/description-courte` (convention GitHub : `feat`, `fix`, `docs`,

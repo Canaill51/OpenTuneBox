@@ -60,6 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | ouvert |
 | W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | ouvert |
 | W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | ouvert |
 | W-014 | Décodeur : 3,4 µs par trame, plus grosse part de l'ouverture d'un log | ouvert |
@@ -325,3 +326,17 @@ Règles d'écriture :
   **Reprise** : un pilote signale un manque de mémoire, ou W-014 est repris.
   **Piste** : tableaux par blocs de 65 536 trames, réunis à la fin (pic ≈ 2 × la taille utile au lieu de 3 ×).
   [`src/opentunebox/decoder/reader.py:_decode_session`]
+
+## Origine : comparaison des CI d'OpenTuneBox et de Superview (2026-10-14)
+
+- **W-017** — Le lint se limite aux règles `F` de ruff (D-030) : les 51 signalements de style des règles par
+  défaut (E701, E702, E741, E401) ne sont pas corrigés, le code n'est pas formaté par `ruff format` (87 fichiers
+  sur 103 changeraient), et la couverture de tests est publiée par la CI sans seuil bloquant.
+  **Pourquoi reporté** : un gros commit de reformatage brouille `git blame` et les branches en cours ; le
+  seuil de couverture de la CI (sans corpus, ≈ 35 % mesuré le 2026-10-12) ne dirait rien de la qualité réelle
+  (L-025).
+  **Risque si on n'y touche pas** : un style hétérogène ; pas de garde-fou chiffré contre une baisse de couverture.
+  **Reprise** : avant de passer le dépôt en public, ou quand aucune branche n'est en cours.
+  **Piste** : corriger les 51 lignes, activer `ruff format` en un commit séparé (à ajouter à `.git-blame-ignore-revs`),
+  puis `ruff format --check` en CI ; seuil de couverture à fixer d'après la mesure CI du moment.
+  [`pyproject.toml`, `.github/workflows/tests.yml`]

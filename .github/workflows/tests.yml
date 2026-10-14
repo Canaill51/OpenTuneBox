@@ -21,9 +21,16 @@ jobs:
       - name: Dépendances
         run: python -m pip install -e '.[dev]'
       - name: Lint
-        run: python -m pyflakes src tests scripts packaging/make_icons.py
+        run: ruff check src tests scripts packaging/make_icons.py
       - name: Tests
-        run: python -m pytest -q
+        # --cov-report= : la couverture est seulement mesurée ici, le rapport est affiché plus bas
+        run: python -m pytest -q --cov=opentunebox --cov-report=
       - name: Décodeur en Python pur (numba désactivé)
-        # le code compilé par numba échappe aux mesures de couverture et masque des erreurs Python
-        run: NUMBA_DISABLE_JIT=1 python -m pytest -q tests/test_decoder.py tests/test_flightlog.py tests/test_real_log.py
+        # le code compilé par numba échappe aux mesures de couverture et masque des erreurs Python ;
+        # --cov-append ajoute cette mesure à la précédente (L-025)
+        run: NUMBA_DISABLE_JIT=1 python -m pytest -q tests/test_decoder.py tests/test_flightlog.py tests/test_real_log.py --cov=opentunebox --cov-append --cov-report=
+      - name: Couverture
+        # Mesure seule, sans seuil (W-017) : la CI n'a pas les vrais logs du corpus. Rapport en bas de la page de l'exécution.
+        run: |
+          python -m coverage report
+          python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
