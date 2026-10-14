@@ -353,7 +353,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
   tests purs ; tout outil ou analyse doit avoir un test sur les logs synthétiques (`tests/synthetic.py`),
   le corpus ne sert qu'à vérifier des valeurs réelles. Un vrai extrait versionné (`tests/data/jeno5_5s.bbl`,
   `tests/test_real_log.py`) fait passer l'en-tête et les encodages réels en CI, numba désactivé compris.
-- **Preuve** — mesure du 2026-10-12 (`pytest-cov`, installé dans `.venv` seulement) ; `tests/test_gui_tools.py`
+- **Preuve** — mesure du 2026-10-12 (`pytest-cov`, depuis ajouté à `pyproject.toml` : la CI publie la couverture combinée, sans seuil, W-017) ; `tests/test_gui_tools.py`
   exerce les 8 pages d'outils sans corpus.
 
 ### L-029 : un script Qt lancé hors de pytest écrit dans les vrais réglages de l'utilisateur

@@ -86,6 +86,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/pytest -q                                  # tous les tests (≈ 4 min avec le corpus, 1 min sans)
 .venv/bin/pytest -q -m "not corpus"                  # tests rapides, sans vrais logs
 .venv/bin/ruff check src tests scripts packaging/make_icons.py   # lint (doit être vide, D-030)
+.venv/bin/pytest -q --cov=opentunebox --cov-report=term-missing   # couverture (hors code numba : L-025)
 .venv/bin/pytest -q tests/test_docs.py               # cohérence de la documentation (< 1 s)
 .venv/bin/opentunebox-gui [LOG…]                     # interface
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande

@@ -9,6 +9,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Lint par `ruff check` (règles de pyflakes, mêmes contrôles) à la place de `pyflakes`, en local et en CI (D-030).
 
 ### Ajouté
+- La CI publie la couverture de tests (mesure seule, sans seuil) dans le résumé de l'exécution « Tests », décodeur mesuré en
+  Python pur compris ; `pytest-cov` rejoint les outils de développement.
 - Dependabot : une demande de fusion hebdomadaire pour les dépendances Python et une pour les actions GitHub
   (`.github/dependabot.yml`).
 
