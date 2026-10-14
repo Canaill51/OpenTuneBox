@@ -13,8 +13,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   Python pur compris ; `pytest-cov` rejoint les outils de développement.
 - Workflow `audit.yml` : contrôle des failles connues des dépendances d'exécution (`pip-audit`) à chaque envoi,
   chaque demande de fusion et chaque lundi.
-- Dependabot : une demande de fusion hebdomadaire pour les dépendances Python et une pour les actions GitHub
-  (`.github/dependabot.yml`).
+- Dependabot : une demande de fusion hebdomadaire pour les actions GitHub (`.github/dependabot.yml`) ; les
+  dépendances Python restent des planchers `>=`, que Dependabot ne relève pas.
 
 ## [0.8.0] — 2026-10-13
 

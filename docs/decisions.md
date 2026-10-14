@@ -114,7 +114,8 @@ de style (E701/E702 plusieurs instructions sur une ligne, E741 noms ambigus, E40
 87 fichiers sur 103.
 
 **Décision.** `ruff check` avec `select = ["F"]` (`pyproject.toml`) remplace `pyflakes`, avec exactement les
-mêmes contrôles : aucun code modifié. Pas de `ruff format` ni de règles de style pour l'instant : un reformatage
+mêmes contrôles : aucun code modifié. `ruff` est borné (`>=0.15,<0.18`) : une version future pourrait durcir une règle
+F et casser la CI sans changement de code ; relever la borne à la main après essai. Pas de `ruff format` ni de règles de style pour l'instant : un reformatage
 de 87 fichiers noierait l'historique (`git blame`) et obligerait à rebaser les branches en cours.
 
 **Choix de Cédric** (2026-10-14, parmi : lint pyflakes seul / règles par défaut / lint + formatage).

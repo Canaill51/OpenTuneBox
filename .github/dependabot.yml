@@ -1,7 +1,10 @@
-# Mises à jour automatiques des dépendances : Dependabot ouvre une demande de fusion par semaine et par
-# famille (Python, actions GitHub). Les mises à jour mineures et correctives sont groupées en une seule
-# demande ; une mise à jour majeure (changement possible de comportement) reste une demande à part.
-# Chaque demande passe par la CI (« Tests » et « Audit ») avant d'être fusionnée à la main.
+# Mises à jour automatiques : une demande de fusion hebdomadaire (lundi) pour les actions GitHub, dont les
+# mises à jour mineures et correctives sont groupées ; une mise à jour majeure reste une demande à part.
+# Pour les bibliothèques Python, pyproject.toml ne fixe que des versions minimales (>=) : avec
+# « increase-if-necessary », Dependabot ne touche à une borne que si elle n'admet plus la dernière version, donc
+# presque jamais. On le garde pour que ce soit explicite (sans cela, « auto » relèverait chaque semaine les
+# planchers, qui sont des versions minimales compatibles et non des versions à jour). Les failles des
+# bibliothèques sont contrôlées par le workflow audit.yml.
 version: 2
 updates:
   - package-ecosystem: "pip" # lit les dépendances de pyproject.toml
@@ -12,18 +15,12 @@ updates:
       time: "06:00"
       timezone: "Europe/Paris"
     open-pull-requests-limit: 5
+    versioning-strategy: "increase-if-necessary"
     labels:
       - "dependencies"
     commit-message:
       prefix: "chore"
       include: "scope"
-    groups:
-      python-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   - package-ecosystem: "github-actions" # lit .github/workflows/*.yml
     directory: "/"
@@ -35,7 +32,6 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
-      - "ci"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -43,3 +39,6 @@ updates:
       github-actions:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"

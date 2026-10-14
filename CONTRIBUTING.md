@@ -39,16 +39,22 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
 ## Contrôles et mises à jour automatiques des dépendances
 
 Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) ouvre chaque lundi une demande de fusion
-pour les bibliothèques Python (`pyproject.toml`) et une pour les actions GitHub des workflows. Les
-mises à jour mineures et correctives sont groupées ; une mise à jour majeure est une demande à part.
-Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`), pas le nom d'une branche : c'est
-normal. On les fusionne à la main, une fois la CI verte et après avoir lu les notes de la nouvelle version.
+pour les actions GitHub des workflows (mises à jour mineures et correctives groupées, majeure à part).
+Pour les bibliothèques Python, `pyproject.toml` ne fixe que des versions minimales (`>=`) : Dependabot n'y
+touche pas tant que la borne admet la dernière version, et c'est voulu (les planchers disent ce qui est
+compatible, pas ce qui est à jour). Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`),
+pas le nom d'une branche : c'est normal. On les fusionne à la main, une fois la CI verte et après avoir lu
+les notes de la nouvelle version.
 
 Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connues dans les bibliothèques
 livrées (`pip-audit`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
-a une faille publiée : la relever dans `pyproject.toml` (ou fusionner la demande de Dependabot qui le fait).
-Rien à lancer en local ; pour un essai, dans un environnement vierge (`python3 -m venv /tmp/audit`) :
-`/tmp/audit/bin/pip install -e . pip-audit && /tmp/audit/bin/pip-audit --skip-editable`.
+a une faille publiée : relever sa version minimale dans `pyproject.toml`. Rien à lancer en local ; pour un
+essai, dans un environnement vierge (`python3 -m venv /tmp/projet /tmp/outil`) :
+```sh
+/tmp/projet/bin/pip install --upgrade pip && /tmp/projet/bin/pip install -e .
+/tmp/outil/bin/pip install pip-audit==2.9.0
+/tmp/outil/bin/pip-audit --skip-editable --path /tmp/projet/lib/python3.*/site-packages
+```
 
 ## Publier une version
 
