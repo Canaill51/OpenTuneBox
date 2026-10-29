@@ -9,6 +9,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Lint par `ruff check` (règles de pyflakes, mêmes contrôles) à la place de `pyflakes`, en local et en CI (D-030).
 
 ### Ajouté
+- `scripts/golden.py` : références figées du décodeur, des outils et de l'assistant pour prouver qu'une réécriture
+  en Rust ne change rien ; plan de migration `docs/migration-rust.md` (D-031).
 - `tests/test_ci_audit.py` : le workflow d'audit garde sa forme (pip à jour, pip-audit dans un environnement à
   part, dirigé par `--path`) ; leçon L-031.
 - La CI publie la couverture de tests (mesure seule, sans seuil) dans le résumé de l'exécution « Tests », décodeur mesuré en

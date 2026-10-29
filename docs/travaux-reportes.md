@@ -62,7 +62,7 @@ Règles d'écriture :
 |---|---|---|
 | W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | ouvert |
 | W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | ouvert |
-| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | ouvert |
+| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | EN COURS (D-031) |
 | W-014 | Décodeur : 3,4 µs par trame, plus grosse part de l'ouverture d'un log | ouvert |
 | W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | clos |
 | W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | clos |
@@ -315,6 +315,8 @@ Règles d'écriture :
   **Piste** : extension Rust (PyO3 + maturin) pour `decoder/core.py` et `bf_filters` (`_sections_response`,
   simulation temporelle) ; le reste reste en Python ; validation par `scripts/validate_corpus.py` et
   `scripts/advisor_rates.py --compare`.
+  **Arbitrage de Cédric (2026-10-29)** — EN COURS : migration complète vers Rust sur `feat/rust-migration`
+  (D-031, plan dans [migration-rust.md](migration-rust.md)), pas seulement une extension.
   [`src/opentunebox/decoder/core.py`, `packaging/opentunebox.spec`]
 
 - **W-016** — Le décodeur réserve ses trames d'après la taille du fichier (`est_rows = octets // 20`), soit
