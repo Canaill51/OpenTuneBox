@@ -60,6 +60,52 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-037 : déplacer une dépendance vers l'extra `dev` casse les workflows qui installent sans `dev`
+- **Symptôme** — relu avant la fusion (2026-10-29) : `construire.yml` installe `. pyinstaller pytest`, lance des
+  tests, puis PyInstaller. Après avoir sorti scipy et numba des dépendances, `tests/conftest.py` →
+  `synthetic.py` → `scipy.signal.lfilter` aurait échoué à la collecte, sur les trois systèmes : aucun installateur.
+- **Cause** — `test_workflows.py` ne vérifiait que la validité du YAML, pas que les tests lancés ont leurs imports.
+- **Règle** — en changeant une dépendance de place, chercher tous les workflows (`grep -rn "pip install"
+  .github`). Les références de test s'installent pour les tests, puis se **désinstallent avant PyInstaller** :
+  l'exécutable ne peut pas les reprendre.
+- **Preuve** — `tests/test_workflows.py:test_build_workflow_installs_what_its_tests_import` (échoue si on retire
+  `scipy numba` de la ligne d'installation).
+
+### L-036 : `PyReadonlyArray2::as_slice` accepte l'ordre Fortran et le lit comme du C : résultat faux, sans erreur
+- **Symptôme** — relu avant la fusion : `_native.run_section(np.asfortranarray(x), …)` rend autre chose que
+  la version rangée normalement, sans exception. Aujourd'hui `bf_filters._apply` protège l'appel, un appel direct
+  (une transposée) ne l'est pas.
+- **Cause** — `as_slice` demande un tableau contigu, pas contigu **ligne par ligne**.
+- **Règle** — un tableau 2D passé au Rust comme `&[T]` à plat se contrôle par `is_c_contiguous()` ; un test
+  avec `np.asfortranarray` accompagne chaque entrée 2D.
+- **Preuve** — `rust/otb-py/src/lib.rs:run_section` ;
+  `tests/test_native_dsp.py:test_run_section_rejects_fortran_order_instead_of_reading_it_wrong` (échoue sans le garde).
+
+### L-035 : `ruff check --fix` supprime un import qui sert de réexport à un test
+- **Symptôme** — 2026-10-29 : après avoir déplacé les constantes `CTX_*` de `decoder/core.py` vers `header.py`,
+  `ruff check --fix` a retiré de `core.py` les imports qu'il n'utilisait pas lui-même : 10 tests de
+  `test_decoder.py` et `test_bbl_decode.py` échouent avec `AttributeError: module '…core' has no attribute 'CTX_SIZE'`.
+- **Cause** — un import non utilisé dans le module est vu comme mort ; les tests, eux, lisent `core.CTX_SIZE`.
+- **Règle** — un nom réexporté volontairement porte `# noqa: F401` avec sa raison ; relancer la suite après tout
+  `ruff check --fix`, et ne l'appliquer qu'après avoir lu le diff.
+- **Preuve** — `src/opentunebox/decoder/core.py` (import de `header`) ; `pytest -m "not corpus"` : 585 passés.
+
+### L-034 : un garde ou un test de parité qui ne sait pas échouer ne prouve rien (dépendance lourde, tolérance trop large)
+- **Symptôme** — 2026-10-29 (phase 2a, D-032) : deux tests écrits « verts du premier coup » laissaient passer
+  l'erreur qu'ils devaient attraper. (1) `test_no_heavy_deps.py` : avec `import scipy.ndimage` ajouté à `delay.py`,
+  il passait. (2) `test_native_dsp.py` : plancher de gain du Rust changé de 1e-15 à 1e-14, il passait aussi.
+- **Cause** — (1) le script du sous-processus fabriquait son vol avec `tests/synthetic.py`, qui importe scipy
+  (aide de test), puis purgeait `sys.modules` : un import fait au chargement de l'application était effacé avant
+  le contrôle. (2) tolérance absolue de 1e-12 : l'écart de 9e-15 du plancher y disparaît ; et le cas « centre
+  d'un notch » choisi à la main (|g| ≈ 3e-15) n'atteignait même pas le plancher.
+- **Règle** — avant de faire confiance à un garde ou à un test de parité, le **casser exprès** (importer scipy,
+  changer une constante) et vérifier qu'il échoue. Garde d'import : bloqueur (`sys.meta_path`) posé **avant**
+  d'importer l'application, levé seulement le temps de fabriquer les données de test, puis modules purgés et
+  bloqueur remis. Valeur seuil (plancher, saturation) : comparaison **exacte**, sur un cas qui l'atteint
+  vraiment (chercher un tel cas par balayage).
+- **Preuve** — `tests/test_no_heavy_deps.py` (échoue avec « import interdit : scipy ») ;
+  `tests/test_native_dsp.py:test_sections_response_floor_at_exact_notch_centre` (3 échecs avec 1e-14).
+
 ### L-033 : `Path.read_text()` sans encodage lit en cp1252 sous Windows : test vert sous Linux, `UnicodeDecodeError` en CI Windows
 - **Symptôme** — 2026-10-29 : premier job Windows de la CI : `test_constants_match_python` échoue avec
   `UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f` en lisant `frame.rs` (commentaires en français) ;
@@ -417,6 +463,10 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-037 | Dépendance déplacée vers `dev` : relire tous les workflows ; références de test installées puis désinstallées avant PyInstaller | Construction |
+| L-036 | `as_slice` accepte l'ordre Fortran et le lit comme du C : `is_c_contiguous()` + test `asfortranarray` | Décodeur et logs |
+| L-035 | `ruff check --fix` supprime un import qui sert de réexport à un test : `# noqa: F401`, relancer la suite | Outillage |
+| L-034 | Garde ou test de parité jamais vu en échec : le casser exprès ; bloqueur d'import posé avant l'application ; valeur seuil comparée exactement | Outillage |
 | L-033 | `read_text()` sans `encoding` lit en cp1252 sous Windows : toujours `encoding="utf-8"` | Outillage |
 | L-032 | Numba lit hors tableau sans erreur, Rust panique (`BaseException`). Comportement défini, `catch_unwind`, session sans temps ignorée | Décodeur et logs |
 | L-031 | `pip-audit` audite tout son environnement (pip compris) : pip à jour, outil dans un environnement à part, `--path` | Outillage |

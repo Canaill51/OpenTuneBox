@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy import signal
+from . import _numeric
 
 from ..log.flightlog import FlightLog
 from .spectral import _segments
@@ -33,8 +33,7 @@ def xcorr_delay_ms(x: np.ndarray, y: np.ndarray, fs: float, max_ms: float = 30.0
     if not np.any(x) or not np.any(y):
         return float("nan")
     max_lag = max(1, int(round(max_ms * fs / 1000.0)))
-    c = signal.correlate(y, x, mode="full", method="fft")
-    lags = signal.correlation_lags(n, n, mode="full")
+    c, lags = _numeric.xcorr_full(y, x)
     m = (lags >= -max_lag) & (lags <= max_lag)
     c, lags = c[m], lags[m]
     i = int(np.argmax(c))
@@ -67,7 +66,7 @@ def phase_delay_ms(x: np.ndarray, y: np.ndarray, fs: float, band: tuple[float, f
     sy, _ = _segments(y[:n], nper, nper // 2, breaks)
     if sx.shape[0] == 0:
         return float("nan")
-    w = signal.get_window("hann", nper)
+    w = _numeric.hann(nper, sym=False)
     X = np.fft.rfft((sx - sx.mean(axis=1, keepdims=True)) * w, axis=1)
     Y = np.fft.rfft((sy - sy.mean(axis=1, keepdims=True)) * w, axis=1)
     f = np.fft.rfftfreq(nper, 1.0 / fs)

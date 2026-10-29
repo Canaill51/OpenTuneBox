@@ -60,9 +60,10 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-018 | `opentunebox report` plante sous Windows quand sa sortie est redirigée (cp1252) | ouvert |
 | W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | TRAITÉ sur `feat/rust-migration` (D-031) |
 | W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | TRAITÉ sur `feat/rust-migration` (D-031) |
-| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | EN COURS (D-031) |
+| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | EN COURS (D-031, D-032 : numba et scipy hors de l'application) |
 | W-014 | Décodeur : 3,4 µs par trame, plus grosse part de l'ouverture d'un log | ouvert |
 | W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | clos |
 | W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | clos |
@@ -305,7 +306,7 @@ Règles d'écriture :
   (965 000 trames) en 0,58 s au lieu de 2,44 s, identique au bit près.
   [`src/opentunebox/decoder/core.py:decode_stream`]
 
-- **W-015** — Numba impose `llvmlite` (170 Mo sur les 463 Mo du dossier Linux, ≈ 37 %) et une compilation au
+- **W-015** — *(Mesure du 2026-10-29 après D-032 : dossier Linux 206 Mo au lieu de 463 Mo, voir `migration-rust.md`.)* Numba impose `llvmlite` (170 Mo sur les 463 Mo du dossier Linux, ≈ 37 %) et une compilation au
   premier lancement : c'est le seul levier restant sur la taille des installateurs. Le reste est Qt (102 Mo,
   déjà allégé), scipy (71 Mo) et numpy (41 Mo) ; nettoyer `libllvmlite.so` par `strip` ne gagne que 18 Mo.
   **Pourquoi reporté** : supprimer numba demande de réécrire le décodeur et les noyaux de filtres dans un
@@ -346,3 +347,14 @@ Règles d'écriture :
   **Piste** : corriger les 51 lignes, activer `ruff format` en un commit séparé (à ajouter à `.git-blame-ignore-revs`),
   puis `ruff format --check` en CI ; seuil de couverture à fixer d'après la mesure CI du moment.
   [`pyproject.toml`, `.github/workflows/tests.yml`]
+
+## Origine : CI Windows de la phase 2a (2026-10-29)
+
+- **W-018** — `opentunebox report` écrit des caractères hors cp1252 (« ≈ ») sur la sortie standard : sous Windows,
+  avec la sortie redirigée vers un fichier ou un tube (`opentunebox report log.bbl > rapport.txt`),
+  `UnicodeEncodeError` ; vu seulement dans la CI (sous-processus de `test_no_heavy_deps.py`), pas en console.
+  **Pourquoi reporté** : hors du sujet de la phase 2a ; le test contourne par `PYTHONUTF8=1`.
+  **Risque si on n'y touche pas** : un rapport redirigé échoue sous Windows ; en console, rien.
+  **Reprise** : phase 5 (ligne de commande en binaire Rust) ou dès qu'on touche à `cli.py`.
+  **Piste** : `sys.stdout.reconfigure(encoding="utf-8")` au début de `cli.main` (en vérifiant `sys.stdout is not None`,
+  L-021), avec un test qui redirige la sortie. [`src/opentunebox/cli.py`]

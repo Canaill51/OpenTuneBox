@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-032 | Phase 2 de la migration en deux temps : scipy remplacé par numpy, noyaux de filtres en Rust, scipy et numba réservés aux tests | 2026-10-29 |
 | D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python | 2026-10-29 |
 | D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant | 2026-10-14 |
 | D-029 | Les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64 | 2026-10-13 |
@@ -105,6 +106,37 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-29 — Migration vers Rust
+
+### D-032 : phase 2 en deux temps ; scipy remplacé par numpy, noyaux des filtres en Rust, scipy et numba réservés aux tests
+
+**Contexte.** L'inventaire du 2026-10-29 montre que scipy ne sert presque plus : Welch, CSD et cohérence sont
+déjà écrits à la main avec `np.fft`, et scipy ne fournit que la fenêtre de Hann, deux lissages (`uniform_filter1d`,
+`gaussian_filter`) et l'intercorrélation. numba ne reste que dans 4 noyaux de `analysis/bf_filters.py` et dans
+l'ancien décodeur. Poids installés dans le `.venv` : scipy 140 Mo, llvmlite 173 Mo, numba 34 Mo (numpy 70 Mo reste).
+
+**Décision.** Phase 2 découpée (branche `feat/rust-dsp`) :
+- **2a** : scipy remplacé par `analysis/_numeric.py` (numpy seul) ; les 4 noyaux numba réécrits dans `rust/otb-dsp`
+  (Rust pur) ; scipy et numba passent dans l'extra `dev` (références des tests) et ne sont plus importés par
+  l'application (`tests/test_no_heavy_deps.py`) ; `decoder/core.py` (numba) n'est chargé que par `OTB_BACKEND=python`.
+- **2b** (après mesure du poids des installateurs) : bibliothèque Rust de FFT, Welch, CSD, Wiener, réutilisée
+  par la phase 3.
+- Les anciens noyaux numba restent dans `tests/ref_bf_kernels.py`, **inchangés**, comme étalon de parité.
+- Les fenêtres de Hann des deux conventions restent distinctes (périodique : `spectral`, `delay` ; symétrique :
+  `step`, `loop`), comme avec scipy.
+
+**Choix de Cédric** (2026-10-29, parmi : 2a puis 2b / tout en Rust tout de suite / 2a seulement ; ancien
+décodeur : gardé pour les tests / supprimé).
+Amende D-002 (numba ne sert plus qu'aux tests) sur la branche Rust seulement.
+
+**Témoins.** `tests/test_numeric.py` (69+ cas face à scipy, écart ≈ 1e-14 relatif) ; `tests/test_native_dsp.py`
+(Rust = numba : identique au bit près pour `biquad`, `run_section`, `pt1_track`, 1,2e-15 relatif pour la réponse
+en fréquence) ; `scripts/golden.py check` : décodeur 0 différence sur 499 fichiers, assistant 0 session aux
+constats différents sur 630, outils : 20 logs, aucune différence de structure, écart relatif maximal 2,4e-10
+(boucle ouverte `loop.L`), donc `--rtol 1e-9` suffit ; mutations vues en échec (L-034).
+
+**Poids mesuré** (Linux, 2026-10-29) : dossier de l'exécutable 206 Mo au lieu de 463 Mo.
+
+**Ouvert.** Poids des installateurs compressés des trois systèmes ; phase 2b ; W-015.
 
 ### D-031 : migration vers Rust sur une branche d'intégration, `main` reste en Python
 

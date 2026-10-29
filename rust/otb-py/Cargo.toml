@@ -11,5 +11,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 otb-decoder = { path = "../otb-decoder" }
+otb-dsp = { path = "../otb-dsp" }
 pyo3 = { version = "0.30", features = ["abi3-py311"] }
 numpy = "0.30"

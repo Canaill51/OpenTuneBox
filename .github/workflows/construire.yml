@@ -80,11 +80,15 @@ jobs:
         # L'extension opentunebox._native (D-031) se compile à l'installation du paquet.
         run: rustup toolchain install stable --profile minimal
       - name: Dépendances
-        run: python -m pip install . pyinstaller pytest
+        # scipy et numba : références des tests seulement (D-032) ; retirés avant la construction
+        run: python -m pip install . pyinstaller pytest scipy numba
       - name: Tests rapides
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest -q -m "not corpus" tests/test_decoder.py tests/test_native_decoder.py tests/test_analysis.py tests/test_bf_filters.py tests/test_sliders.py
+      - name: Retirer scipy et numba avant la construction
+        # L'exécutable ne doit pas les contenir (≈ 350 Mo, D-032) : on les enlève pour qu'aucune recette ne puisse les reprendre.
+        run: python -m pip uninstall -y scipy numba llvmlite
       - name: Exécutable
         # Les serveurs n'ont pas d'écran : si une bibliothèque crée une fenêtre pendant l'analyse, elle reste invisible.
         env:

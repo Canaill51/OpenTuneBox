@@ -10,7 +10,7 @@ main                          Python, publiable à tout moment
  └─ feat/rust-migration       branche d'intégration (longue durée)
       ├─ chore/rust-safety-net      phase 0 : références, outillage, décisions
       ├─ feat/rust-decoder          phase 1
-      ├─ feat/rust-dsp              phase 2 (découpée si besoin)
+      ├─ feat/rust-dsp              phase 2a (2b : nouvelle branche)
       └─ …                          une branche par module ou par étape
 ```
 
@@ -62,7 +62,8 @@ Le filet a été éprouvé : une valeur altérée à la main est détectée (dé
 |---|---|---|---|
 | 0 | Filet : références, décisions, CI de la branche | faible | `golden.py` éprouvé |
 | 1 | Décodeur (`decoder/`) ; règle aussi W-014 et W-016 | faible | empreintes identiques, `validate_corpus.py` |
-| 2 | Calcul numérique : Welch, CSD, filtre uniforme, filtres Betaflight, Wiener (numba et scipy disparaissent) | **élevé** | parité à tolérance mesurée |
+| 2a | scipy → numpy (`_numeric.py`), noyaux des filtres Betaflight en Rust (numba et scipy quittent l'application) | moyen | parité mesurée : outils 2,4e-10, filtres identiques |
+| 2b | Calcul numérique en Rust : FFT, Welch, CSD, Wiener | **élevé** | parité à tolérance mesurée |
 | 3 | Analyses (`analysis/`, `log/`) module par module | moyen | `golden.py check --rtol` |
 | 4 | Assistant (`advisor/`) sans changer un seuil | faible | `advisor_rates.py --compare` |
 | 5 | Ligne de commande en binaire Rust | faible | rapports identiques caractère par caractère |
@@ -80,4 +81,7 @@ Après la phase 2, **mesurer le poids réel des installateurs** (objectif n° 1)
 |---|---|
 | 0 | Fait le 2026-10-29 (branche `chore/rust-safety-net`) : références enregistrées (499 fichiers, 680 sessions, 630 sessions de l'assistant, 20 logs d'outils, 705 Mo) ; `check` relancé sur tout le corpus : identique |
 | 1 | Fait le 2026-10-29 (branche `feat/rust-decoder`) : décodeur Rust par défaut, identique au bit près sur tout le corpus, 6 fois plus rapide ; relu par un agent indépendant (L-032). Reste : CI Windows à voir tourner après envoi sur GitHub |
-| 2 à 6 | à faire |
+| 2a | Fait le 2026-10-29 (branche `feat/rust-dsp`, D-032) : scipy remplacé par `analysis/_numeric.py`, noyaux des filtres Betaflight en Rust (`rust/otb-dsp`), scipy et numba hors de l'application (extra `dev`). Parité : décodeur 0 différence (499 fichiers), assistant 0 différence (630 sessions), outils : écart relatif maximal 2,4e-10 sur 20 logs. Relu par un agent indépendant (L-036, L-037) |
+| Poids | **Mesuré le 2026-10-29** (Linux, `feat/rust-dsp`, environnement neuf `pip install . pyinstaller`, PySide6 6.12, numpy 2.5.4) : dossier PyInstaller **206 Mo, contre 463 Mo** avant la migration (−55 %) ; PySide6 102 Mo, numpy 14 Mo + `numpy.libs` 27 Mo (OpenBLAS de numpy), `opentunebox` 0,7 Mo ; ni scipy, ni numba, ni llvmlite ; l'exécutable reste ouvert 25 s. Reste à mesurer : installateurs compressés (AppImage, Windows, macOS), à lire sur `construire.yml` quand le quota d'artefacts GitHub le permet |
+| 2b | à faire, après la mesure du poids des installateurs : FFT, Welch, CSD, Wiener en Rust |
+| 3 à 6 | à faire |

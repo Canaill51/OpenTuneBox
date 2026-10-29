@@ -263,11 +263,12 @@ def test_simulation_variable_notch_tracks_a_moving_line():
 
 
 def test_pt1_track_matches_lfilter():
+    from opentunebox import _native
     from scipy.signal import lfilter
 
     k = bf.pt1_gain(150.0, 2000.0)
     x = np.concatenate([np.zeros(10), np.full(200, 100.0)])
-    y = bf._pt1_track(x, k)
+    y = _native.pt1_track(x, k)
     assert np.allclose(y, lfilter([k], [1.0, -(1.0 - k)], x), atol=1e-9)
     assert y[-1] == pytest.approx(100.0, rel=1e-6) and 0 < y[11] < 100
 

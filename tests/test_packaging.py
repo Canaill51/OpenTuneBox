@@ -63,7 +63,12 @@ def test_spec_filters_unused_qt_and_pyqtgraph_parts():
 def test_spec_excludes_and_hidden_imports_name_real_packages():
     """Les modules écartés ou forcés sont écrits en clair : vérifier qu'ils sont bien ceux du projet."""
     text = SPEC.read_text(encoding="utf-8")
-    assert 'collect_submodules("opentunebox")' in text and 'collect_submodules("pyqtgraph", filter=used_by_app)' in text
+    assert 'collect_submodules("opentunebox", filter=' in text and 'collect_submodules("pyqtgraph", filter=used_by_app)' in text
+    # scipy, numba et llvmlite (≈ 350 Mo) restent hors de l'exécutable, ancien décodeur numba compris (D-032)
+    excludes = text.split("excludes=[")[1].split("]")[0]
+    for name in ("scipy", "numba", "llvmlite", "opentunebox.decoder.core"):
+        assert f'"{name}"' in excludes, name
+    assert 'n != "opentunebox.decoder.core"' in text  # sinon la recette force ce que `excludes` écarte
     assert "console=False" in text  # exécutable Windows sans console : sys.stdout vaut None (L-021)
     assert "strip" not in text.split("UNUSED = ")[1].split("\n")[0]  # pas d'option strip (voir en-tête de la recette)
 

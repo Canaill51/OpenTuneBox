@@ -99,11 +99,16 @@ name = "otb-decoder"
 version = "0.8.0"
 
 [[package]]
+name = "otb-dsp"
+version = "0.8.0"
+
+[[package]]
 name = "otb-py"
 version = "0.8.0"
 dependencies = [
  "numpy",
  "otb-decoder",
+ "otb-dsp",
  "pyo3",
 ]
 

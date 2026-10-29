@@ -6,7 +6,9 @@ use pyo3::prelude::*;
 #[pymodule]
 mod _native {
     use numpy::ndarray::Array2;
-    use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1};
+    use numpy::{
+        Complex64, IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods,
+    };
     use otb_decoder::{CTX_SIZE, FrameDef, Params, Table};
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
     use pyo3::prelude::*;
@@ -31,6 +33,17 @@ mod _native {
     fn slice<'a, T: numpy::Element>(a: &'a PyReadonlyArray1<'_, T>, name: &str) -> PyResult<&'a [T]> {
         a.as_slice()
             .map_err(|_| PyValueError::new_err(format!("{name} : tableau non contigu")))
+    }
+
+    /// Exécute un calcul sans le GIL ; une erreur de taille devient `ValueError`, une panique (bug)
+    /// `RuntimeError` ordinaire plutôt qu'une `PanicException` qui échappe aux `except Exception` (L-032).
+    fn guarded<T: Send>(
+        py: Python<'_>,
+        f: impl FnOnce() -> Result<T, String> + Send + std::panic::UnwindSafe,
+    ) -> PyResult<T> {
+        py.detach(|| std::panic::catch_unwind(f))
+            .map_err(|_| PyRuntimeError::new_err("calcul : erreur interne"))?
+            .map_err(PyValueError::new_err)
     }
 
     fn def<'a>(
@@ -123,5 +136,78 @@ mod _native {
                 .into_pyarray(py),
             d.stats.to_vec().into_pyarray(py),
         ))
+    }
+
+    /// Même résultat que `bf_filters._biquad` (numba) : coefficients (b0, b1, b2, a1, a2) d'un étage.
+    #[pyfunction]
+    fn biquad(kind: i64, f: f64, q: f64, w: f64, fs: f64) -> (f64, f64, f64, f64, f64) {
+        let [b0, b1, b2, a1, a2] = otb_dsp::biquad(kind, f, q, w, fs);
+        (b0, b1, b2, a1, a2)
+    }
+
+    /// Même résultat que `bf_filters._sections_response` (numba).
+    #[pyfunction]
+    fn sections_response<'py>(
+        py: Python<'py>,
+        kinds: PyReadonlyArray1<'py, i64>,
+        fcs: PyReadonlyArray1<'py, f64>,
+        qs: PyReadonlyArray1<'py, f64>,
+        ws: PyReadonlyArray1<'py, f64>,
+        rates: PyReadonlyArray1<'py, f64>,
+        freqs: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray1<Complex64>>> {
+        let st = otb_dsp::Sections {
+            kinds: slice(&kinds, "kinds")?,
+            fcs: slice(&fcs, "fcs")?,
+            qs: slice(&qs, "qs")?,
+            ws: slice(&ws, "ws")?,
+            rates: slice(&rates, "rates")?,
+        };
+        let freqs = slice(&freqs, "freqs")?;
+        let (re, im) = guarded(py, || otb_dsp::sections_response(&st, freqs))?;
+        let h: Vec<Complex64> = re.iter().zip(&im).map(|(&r, &i)| Complex64::new(r, i)).collect();
+        Ok(h.into_pyarray(py))
+    }
+
+    /// Même résultat que `bf_filters._run_section` (numba) : un étage biquad appliqué à x (axes, n).
+    #[pyfunction]
+    #[allow(clippy::too_many_arguments)]
+    fn run_section<'py>(
+        py: Python<'py>,
+        x: PyReadonlyArray2<'py, f64>,
+        kind: i64,
+        freq: PyReadonlyArray1<'py, f64>,
+        q: f64,
+        weight: PyReadonlyArray1<'py, f64>,
+        fs: f64,
+        f_limit: f64,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let (n_ax, n_cols) = (x.shape()[0], x.shape()[1]);
+        // ⚠️ `as_slice` accepte aussi l'ordre « colonne par colonne » (Fortran) : lu ligne par ligne, il donnerait
+        // un résultat faux sans erreur (L-036)
+        if !x.is_c_contiguous() {
+            return Err(PyValueError::new_err(
+                "x : tableau non rangé ligne par ligne (C contigu)",
+            ));
+        }
+        let xs = x
+            .as_slice()
+            .map_err(|_| PyValueError::new_err("x : tableau non contigu"))?;
+        let (freq, weight) = (slice(&freq, "freq")?, slice(&weight, "weight")?);
+        let y = guarded(py, || {
+            otb_dsp::run_section(xs, n_ax, kind, freq, q, weight, fs, f_limit)
+        })?;
+        let n = n_cols;
+        Array2::from_shape_vec((n_ax, n), y)
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+            .map(|a| a.into_pyarray(py))
+    }
+
+    /// Même résultat que `bf_filters._pt1_track` (numba) : PT1 sur un signal 1D.
+    #[pyfunction]
+    fn pt1_track<'py>(py: Python<'py>, x: PyReadonlyArray1<'py, f64>, k: f64) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let xs = slice(&x, "x")?;
+        let y = guarded(py, || Ok(otb_dsp::pt1_track(xs, k)))?;
+        Ok(y.into_pyarray(py))
     }
 }
