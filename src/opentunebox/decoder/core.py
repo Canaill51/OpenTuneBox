@@ -13,7 +13,17 @@ from __future__ import annotations
 import numpy as np
 from numba import njit
 
-from .header import (
+from .header import (  # noqa: F401  (CTX_* : réexportés, définis dans header.py pour ne pas charger numba)
+    CTX_DATA_VERSION,
+    CTX_HAS_LAST_TIME,
+    CTX_HOME0_IDX,
+    CTX_HOME1_IDX,
+    CTX_LAST_TIME,
+    CTX_MINTHROTTLE,
+    CTX_MOTOR0_IDX,
+    CTX_MOTOR_MIN,
+    CTX_SIZE,
+    CTX_VBATREF,
     ENC_NEG_14BIT,
     ENC_NULL,
     ENC_SIGNED_VB,
@@ -42,18 +52,6 @@ MAX_ITERATION_JUMP = 500 * 10
 
 FIELD_ITERATION = 0
 FIELD_TIME = 1
-
-# Indices dans le tableau de contexte `ctx`
-CTX_MINTHROTTLE = 0
-CTX_MOTOR0_IDX = 1
-CTX_VBATREF = 2
-CTX_MOTOR_MIN = 3
-CTX_HOME0_IDX = 4
-CTX_HOME1_IDX = 5
-CTX_HAS_LAST_TIME = 6
-CTX_LAST_TIME = 7
-CTX_DATA_VERSION = 8
-CTX_SIZE = 9
 
 # Indices dans le tableau d'état du flux `st`
 ST_POS = 0

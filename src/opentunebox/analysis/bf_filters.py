@@ -18,7 +18,8 @@ from dataclasses import dataclass, replace
 from typing import NamedTuple, Sequence
 
 import numpy as np
-from numba import njit
+
+from .. import _native
 
 # Corrections de coupure : n PT1 identiques en cascade → −3 dB à fc (filter.c)
 CUTOFF_CORRECTION_PT2 = 1.553773974
@@ -90,32 +91,6 @@ def dyn_lpf_cutoff(min_hz, max_hz, expo, throttle_frac):
     return float(fc) if fc.ndim == 0 else fc
 
 
-@njit(cache=True)
-def _biquad(kind: int, f: float, q: float, w: float, fs: float):
-    """Coefficients (b0, b1, b2, a1, a2) d'un étage ; f ≤ 0 → étage transparent."""
-    if f <= 0.0:
-        return 1.0, 0.0, 0.0, 0.0, 0.0
-    if kind == _K_PT1:
-        omega = 2.0 * math.pi * f / fs
-        k = omega / (omega + 1.0)
-        return k, 0.0, 0.0, -(1.0 - k), 0.0
-    omega = 2.0 * math.pi * f / fs
-    sn = math.sin(omega)
-    cs = math.cos(omega)
-    alpha = sn / (2.0 * q)
-    a0 = 1.0 + alpha
-    a1 = -2.0 * cs / a0
-    a2 = (1.0 - alpha) / a0
-    if kind == _K_LPF:
-        b1 = (1.0 - cs) / a0
-        return b1 * 0.5, b1, b1 * 0.5, a1, a2
-    # notch pondéré : b = w·b_notch + (1−w)·a
-    b0 = 1.0 / a0
-    b1 = -2.0 * cs / a0
-    b2 = 1.0 / a0
-    return (w * b0 + (1.0 - w), w * b1 + (1.0 - w) * a1, w * b2 + (1.0 - w) * a2, a1, a2)
-
-
 def _sections(spec: FilterSpec) -> list[tuple[int, float, float, float]]:
     """Décompose un filtre en étages biquad : (code, fréquence corrigée, q, poids)."""
     if spec.kind == "pt1":
@@ -134,7 +109,7 @@ def coefficients(spec: FilterSpec, fs: float) -> tuple[np.ndarray, np.ndarray]:
     b = np.array([1.0])
     a = np.array([1.0])
     for kind, f, q, w in _sections(spec):
-        b0, b1, b2, a1, a2 = _biquad(kind, float(f), float(q), float(w), float(fs))
+        b0, b1, b2, a1, a2 = _native.biquad(kind, float(f), float(q), float(w), float(fs))
         if kind == _K_PT1:
             bs, as_ = np.array([b0]), np.array([1.0, a1])
         else:
@@ -147,34 +122,17 @@ def coefficients(spec: FilterSpec, fs: float) -> tuple[np.ndarray, np.ndarray]:
 # ---------------------------------------------------------------- réponses en fréquence
 
 
-_MIN_STAGE_GAIN = 1e-15  # gain plancher d'un étage (|H|² ≥ 1e-30), ordre de grandeur des arrondis de l'ancien calcul
-
-
-@njit(cache=True)
-def _sections_response(kinds, fcs, qs, ws, rates, freqs):
-    """Réponse complexe du produit des étages biquad (kinds, fcs, qs, ws, rates : un élément par étage).
+def _sections_response(kinds, fcs, qs, ws, rates, freqs) -> np.ndarray:
+    """Réponse complexe du produit des étages biquad (un élément par étage dans kinds, fcs, qs, ws, rates).
 
     Chaque étage est évalué seul, H = (b0 + b1·z⁻¹ + b2·z⁻²)/(1 + a1·z⁻¹ + a2·z⁻²), puis multiplié :
-    même résultat que le produit des polynômes de `coefficients`, sans en construire aucun.
-    ⚠️ Gain d'un étage jamais sous `_MIN_STAGE_GAIN` : au centre exact d'un notch (harmonique moteur sur une
-    case FFT), un vrai zéro rendrait nul le rapport |H_mod|²/|H_actuel|² du simulateur (L-024).
+    même résultat que le produit des polynômes de `coefficients`, sans en construire aucun. Calcul en Rust.
+    ⚠️ Gain d'un étage jamais sous 1e-15 : au centre exact d'un notch (harmonique moteur sur une case FFT),
+    un vrai zéro rendrait nul le rapport |H_mod|²/|H_actuel|² du simulateur (L-024).
     """
-    n = freqs.shape[0]
-    h = np.ones(n, dtype=np.complex128)
-    z = np.empty(n, dtype=np.complex128)  # z⁻¹, recalculé seulement quand la cadence change
-    rate = -1.0
-    for s in range(kinds.shape[0]):
-        if rates[s] != rate:
-            rate = rates[s]
-            for i in range(n):
-                z[i] = np.exp(-2j * np.pi * freqs[i] / rate)
-        b0, b1, b2, a1, a2 = _biquad(kinds[s], fcs[s], qs[s], ws[s], rate)
-        for i in range(n):
-            g = (b0 + z[i] * (b1 + z[i] * b2)) / (1.0 + z[i] * (a1 + z[i] * a2))
-            if abs(g) < _MIN_STAGE_GAIN:
-                g = _MIN_STAGE_GAIN  # creux exact d'un notch : même plancher dans les deux chaînes comparées
-            h[i] *= g
-    return h
+    f64 = lambda a: np.ascontiguousarray(a, dtype=np.float64)  # noqa: E731
+    return _native.sections_response(np.ascontiguousarray(kinds, dtype=np.int64), f64(fcs), f64(qs), f64(ws),
+                                     f64(rates), f64(freqs))
 
 
 def _chain_arrays(chain):
@@ -195,7 +153,7 @@ def freq_response(specs: Sequence[FilterSpec], freqs, fs: float) -> np.ndarray:
 def chain_response(chain: Chain, freqs) -> np.ndarray:
     """Réponse complexe d'une chaîne à cadences mixtes : chaque étage évalué à sa propre cadence."""
     freqs = np.asarray(freqs, dtype=np.float64)
-    h = _sections_response(*_chain_arrays(chain), np.ascontiguousarray(freqs.ravel()))
+    h = _sections_response(*_chain_arrays(chain), freqs.ravel())
     return h.reshape(freqs.shape)
 
 
@@ -351,52 +309,6 @@ def dterm_chain(settings, throttle_frac: float = 0.5) -> Chain:
 # ---------------------------------------------------------------- simulation temporelle
 
 
-@njit(cache=True)
-def _run_section(x, kind, freq, q, weight, fs, f_limit):
-    """Applique un étage biquad (forme directe I) à x (axes, n), coefficients variables.
-
-    freq / weight : tableaux (n,) ; une fréquence ≤ 0 ou ≥ f_limit rend l'étage transparent.
-    L'état initial est l'état stationnaire pour la première valeur (gain statique 1).
-    """
-    n_ax, n = x.shape
-    y = np.empty_like(x)
-    for ax in range(n_ax):
-        x1 = x[ax, 0]
-        x2 = x1
-        y1 = x1
-        y2 = x1
-        pf = -1.0
-        pw = -1.0
-        b0, b1, b2, a1, a2 = 1.0, 0.0, 0.0, 0.0, 0.0
-        for i in range(n):
-            f = freq[i]
-            w = weight[i]
-            if f != pf or w != pw:
-                fe = f if f < f_limit else 0.0
-                b0, b1, b2, a1, a2 = _biquad(kind, fe, q, w, fs)
-                pf = f
-                pw = w
-            xi = x[ax, i]
-            yi = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
-            x2 = x1
-            x1 = xi
-            y2 = y1
-            y1 = yi
-            y[ax, i] = yi
-    return y
-
-
-@njit(cache=True)
-def _pt1_track(x, k):
-    """PT1 simple sur un signal 1D (lissage de la fréquence moteur)."""
-    y = np.empty_like(x)
-    s = x[0]
-    for i in range(x.shape[0]):
-        s += k * (x[i] - s)
-        y[i] = s
-    return y
-
-
 def _apply(x, spec_kind: str, freq, fs: float, q: float = BUTTERWORTH_Q, weight=1.0):
     """Applique un filtre (fréquence/poids scalaires ou tableaux) via ses étages biquad."""
     n = x.shape[1]
@@ -411,7 +323,7 @@ def _apply(x, spec_kind: str, freq, fs: float, q: float = BUTTERWORTH_Q, weight=
     # filtre « au-delà » de la cadence du log : ignoré (la composante est de toute façon repliée)
     f_eff = np.where(freq < limit, f_eff, 0.0)
     for _ in range(reps):
-        x = _run_section(np.ascontiguousarray(x), code, f_eff, float(q), w, float(fs), np.inf)
+        x = _native.run_section(np.ascontiguousarray(x, dtype=np.float64), code, f_eff, float(q), w, float(fs), np.inf)
     return x
 
 
@@ -475,7 +387,7 @@ def simulate_gyro(log, settings=None) -> np.ndarray:
         q = s.rpm_q / 100.0
         k = pt1_gain(s.rpm_lpf_hz, fs) if s.rpm_lpf_hz > 0 else 1.0
         for m in range(log.motor_hz.shape[0]):
-            mhz = _pt1_track(np.ascontiguousarray(log.motor_hz[m], dtype=np.float64), k)
+            mhz = _native.pt1_track(np.ascontiguousarray(log.motor_hz[m], dtype=np.float64), k)
             for h in range(s.rpm_harmonics):
                 f, w = rpm_notch_freq_weight(mhz, h, s, s.pid_rate_hz)
                 if not np.any(w > 0):

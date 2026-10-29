@@ -30,7 +30,10 @@ a = Analysis(
     datas=[(str(root / "src" / "opentunebox" / "gui" / "assets"), "opentunebox/gui/assets")],
     hiddenimports=["opentunebox._native", *collect_submodules("opentunebox")] + collect_submodules("pyqtgraph", filter=used_by_app),
     # ⚠️ Pas PySide6.QtOpenGL ni QtOpenGLWidgets : pyqtgraph les importe pour toute courbe (L-030)
-    excludes=["tkinter", "matplotlib", "IPython", "pytest", *PYQTGRAPH_UNUSED,
+    # ⚠️ scipy, numba, llvmlite (≈ 350 Mo) : références des tests seulement, jamais dans l'exécutable (D-031) ;
+    # opentunebox.decoder.core (ancien décodeur numba) ne sert que derrière OTB_BACKEND=python
+    excludes=["tkinter", "matplotlib", "IPython", "pytest", "scipy", "numba", "llvmlite", "opentunebox.decoder.core",
+              *PYQTGRAPH_UNUSED,
               "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtPdf", "PySide6.QtVirtualKeyboard"],
 )
 

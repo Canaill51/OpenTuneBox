@@ -8,8 +8,21 @@ from pathlib import Path
 
 import numpy as np
 
-from . import core
-from .header import FrameDef, LogHeader, as_array, find_log_starts, parse_header
+from .header import (
+    CTX_DATA_VERSION,
+    CTX_HOME0_IDX,
+    CTX_HOME1_IDX,
+    CTX_MINTHROTTLE,
+    CTX_MOTOR0_IDX,
+    CTX_MOTOR_MIN,
+    CTX_SIZE,
+    CTX_VBATREF,
+    FrameDef,
+    LogHeader,
+    as_array,
+    find_log_starts,
+    parse_header,
+)
 
 
 @dataclass
@@ -46,6 +59,8 @@ def decode_stream_backend():
         return _native.decode_stream
     if backend != "python":
         raise ValueError(f"OTB_BACKEND inconnu : {backend!r} (python ou rust)")
+    from . import core  # numba : chargé seulement à la demande (tests de parité), pas dans l'installateur
+
     return core.decode_stream
 
 
@@ -97,14 +112,14 @@ def _decode_session(buf: np.ndarray, header: LogHeader, index: int) -> DecodedSe
     h_pred, h_enc, n_home, has_h = _defs(header.frames.get("H"))
     fh = header.frames.get("H")
 
-    ctx = np.zeros(core.CTX_SIZE, dtype=np.int64)
-    ctx[core.CTX_MINTHROTTLE] = header.minthrottle
-    ctx[core.CTX_MOTOR0_IDX] = max(0, fi.index("motor[0]"))
-    ctx[core.CTX_VBATREF] = header.vbatref
-    ctx[core.CTX_MOTOR_MIN] = header.motor_output[0]
-    ctx[core.CTX_HOME0_IDX] = max(0, fh.index("GPS_home[0]")) if fh else 0
-    ctx[core.CTX_HOME1_IDX] = max(0, fh.index("GPS_home[1]")) if fh else 0
-    ctx[core.CTX_DATA_VERSION] = header.data_version
+    ctx = np.zeros(CTX_SIZE, dtype=np.int64)
+    ctx[CTX_MINTHROTTLE] = header.minthrottle
+    ctx[CTX_MOTOR0_IDX] = max(0, fi.index("motor[0]"))
+    ctx[CTX_VBATREF] = header.vbatref
+    ctx[CTX_MOTOR_MIN] = header.motor_output[0]
+    ctx[CTX_HOME0_IDX] = max(0, fh.index("GPS_home[0]")) if fh else 0
+    ctx[CTX_HOME1_IDX] = max(0, fh.index("GPS_home[1]")) if fh else 0
+    ctx[CTX_DATA_VERSION] = header.data_version
 
     p_num, p_denom = header.p_interval
     nbytes = header.data_end - header.data_start

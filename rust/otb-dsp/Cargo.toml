@@ -1,0 +1,6 @@
+[package]
+name = "otb-dsp"
+description = "Noyaux de calcul d'OpenTuneBox (filtres Betaflight), Rust pur"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
