@@ -26,7 +26,8 @@ fichier .bbl/.bfl
                             `OTB_BACKEND=rust|python` choisit l'un ou l'autre pendant la migration (D-031)
                             `decoder/core.py` (numba) n'est chargé que par `OTB_BACKEND=python` (tests de parité, D-032)
   └─ decoder/reader.py      DecodedSession (entiers bruts, trames S propagées)
-       └─ log/flightlog.py  FlightLog : temps, gyro, consigne, P/I/D/F, moteurs, gaz, debug, tension…
+       └─ log/flightlog.py  (rejet des trames impossibles et conversions float32 en Rust : `rust/otb-log`, D-034)
+                            FlightLog : temps, gyro, consigne, P/I/D/F, moteurs, gaz, debug, tension…
                             en unités physiques ; trames impossibles écartées ; settings.py normalise l'en-tête
             └─ analysis/*   calculs purs (aucun Qt)
                  ├─ advisor/rules.py      constats (clé stable `Finding.key`, D-028) + actions, seuils par profil

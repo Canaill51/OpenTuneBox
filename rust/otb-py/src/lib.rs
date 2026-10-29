@@ -7,7 +7,8 @@ use pyo3::prelude::*;
 mod _native {
     use numpy::ndarray::Array2;
     use numpy::{
-        Complex64, IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods,
+        Complex64, IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray2,
+        PyUntypedArrayMethods,
     };
     use otb_decoder::{CTX_SIZE, FrameDef, Params, Table};
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -266,5 +267,82 @@ mod _native {
             out.sum_hh.into_pyarray(py),
             out.sum_gg.into_pyarray(py),
         ))
+    }
+
+    /// Trames impossibles d'une session (D-031, phase 3a) : ramène `main` (n, colonnes) aux entiers 32 bits **sur
+    /// place**, colonne par colonne, et renvoie le masque des trames à rejeter. Même résultat que
+    /// `tests/ref_flightlog.py:drop_implausible_ref` ; le filtrage des lignes reste à l'appelant.
+    #[pyfunction]
+    fn drop_implausible<'py>(
+        py: Python<'py>,
+        mut main: PyReadwriteArray2<'py, i64>,
+        kinds: PyReadonlyArray1<'py, u8>,
+        hr: f64,
+    ) -> PyResult<Bound<'py, PyArray1<bool>>> {
+        // ⚠️ `as_slice_mut` accepte l'ordre Fortran : lu ligne par ligne, il donnerait un résultat faux (L-036)
+        if !main.is_c_contiguous() {
+            return Err(PyValueError::new_err(
+                "main : tableau non rangé ligne par ligne (C contigu)",
+            ));
+        }
+        let (nrows, ncols) = (main.shape()[0], main.shape()[1]);
+        let kinds = slice(&kinds, "kinds")?;
+        let m = main
+            .as_slice_mut()
+            .map_err(|_| PyValueError::new_err("main : tableau non contigu"))?;
+        let bad = guarded(
+            py,
+            std::panic::AssertUnwindSafe(|| otb_log::drop_implausible(m, nrows, ncols, kinds, hr)),
+        )?;
+        Ok(bad.into_pyarray(py))
+    }
+
+    /// Colonnes `cols` de `src` (n, colonnes) en float32 divisées par `scale` : (k, n). Même résultat que `axes()` et
+    /// `col()` de `tests/ref_flightlog.py` ; `-1` = colonne absente (zéros).
+    #[pyfunction]
+    fn rows_f32<'py>(
+        py: Python<'py>,
+        src: PyReadonlyArray2<'py, i64>,
+        cols: PyReadonlyArray1<'py, i64>,
+        scale: f64,
+    ) -> PyResult<Bound<'py, PyArray2<f32>>> {
+        if !src.is_c_contiguous() {
+            return Err(PyValueError::new_err(
+                "src : tableau non rangé ligne par ligne (C contigu)",
+            ));
+        }
+        let (nrows, ncols) = (src.shape()[0], src.shape()[1]);
+        let s = src
+            .as_slice()
+            .map_err(|_| PyValueError::new_err("src : tableau non contigu"))?;
+        let cols = slice(&cols, "cols")?;
+        let out = guarded(py, || otb_log::rows_f32(s, nrows, ncols, cols, scale))?;
+        Array2::from_shape_vec((cols.len(), nrows), out)
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+            .map(|a| a.into_pyarray(py))
+    }
+
+    /// Comme `rows_f32` avec une échelle par colonne : toutes les colonnes demandées en une seule passe sur la matrice.
+    #[pyfunction]
+    fn rows_f32_scaled<'py>(
+        py: Python<'py>,
+        src: PyReadonlyArray2<'py, i64>,
+        cols: PyReadonlyArray1<'py, i64>,
+        scales: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<f32>>> {
+        if !src.is_c_contiguous() {
+            return Err(PyValueError::new_err(
+                "src : tableau non rangé ligne par ligne (C contigu)",
+            ));
+        }
+        let (nrows, ncols) = (src.shape()[0], src.shape()[1]);
+        let s = src
+            .as_slice()
+            .map_err(|_| PyValueError::new_err("src : tableau non contigu"))?;
+        let (cols, scales) = (slice(&cols, "cols")?, slice(&scales, "scales")?);
+        let out = guarded(py, || otb_log::rows_f32_scaled(s, nrows, ncols, cols, scales))?;
+        Array2::from_shape_vec((cols.len(), nrows), out)
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+            .map(|a| a.into_pyarray(py))
     }
 }

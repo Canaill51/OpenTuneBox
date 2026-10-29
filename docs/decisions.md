@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé | 2026-10-29 |
 | D-033 | Phase 2b limitée à un pilote : le noyau de `step_response` en Rust (FFT seule écartée : gain ≤ 5 %) | 2026-10-29 |
 | D-032 | Phase 2 de la migration en deux temps : scipy remplacé par numpy, noyaux de filtres en Rust, scipy et numba réservés aux tests | 2026-10-29 |
 | D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python | 2026-10-29 |
@@ -107,6 +108,35 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-29 — Migration vers Rust
+
+### D-034 : phase 3 « par le gain mesuré » : ouverture des logs, puis `motors.py` ; le reste de `analysis/` et `log/` est repoussé
+
+**Contexte.** Exploration du 2026-10-29 (carte des 16 modules, profilage sur une session de 72 s et trois gros logs) :
+porter tout `analysis/` et `log/` rapporterait peu en vitesse. Le reste est de la FFT numpy (déjà en C), ou de la
+logique métier (dicts de réglages, `round()` demi-pair de Python, seuils discontinus, regex). Le gain est dans
+deux postes : l'ouverture d'un gros log (`from_session` = 51–56 % du chargement) et `motors.py` avec son noyau
+`sections_response` (24 % + 17 % des 574 ms de l'assistant).
+
+**Décision.** Phase 3 dans cet ordre, une branche et une PR par étape, un critère chiffré fixé avant le Rust :
+- **3a** : ouverture des logs (`_drop_implausible`, `axes()`, `col()`) en Rust, crate `rust/otb-log` (Rust pur).
+- **3b** : `motors.py` (boucles par fenêtre × harmonique) et `sections_response` en Rust, crate `rust/otb-analysis`.
+- **3c** (`whatif_spectrum` de filter_sim) décidée seulement après la mesure de 3b : elle exige de porter la
+  construction des chaînes de filtres (`gyro_chain`, `Settings`).
+- **Repoussé** (W-019) : `spectral`, `loop`, `delay`, `stats`, `sliders`, `step_series`, `settings`, `datasets`,
+  `period`, `FlightLog` lui-même (objet Python gardé : seuls des tableaux contigus et des scalaires passent à Rust).
+- Les anciennes fonctions restent **inchangées** dans `tests/ref_*.py` comme étalons de parité.
+
+**Choix de Cédric** (2026-10-29, parmi : par le gain mesuré / bas en haut, tout porter / seulement 3a).
+
+**3a, résultats** (2026-10-29, fichier de 33,6 Mo, un chargement par processus) : chargement **838 ms → 502–548 ms
+(1,6×)**, `from_session` 413 → 147 ms (2,8×) ; sorties **identiques au bit près** à l'ancien code ; mémoire conservée après
+ouverture +154 Mo → +138 Mo (−10 %), pic +11 Mo. Parité sur le corpus (`golden.py`) : décodeur 0 différence, assistant
+**0 session aux constats différents** sur 630 (durée cumulée 1879 s → 1357 s), outils : structure identique, écart relatif
+maximal 2,4e-10 (inchangé). `tests/test_native_log.py` (245 cas, six mutations vues en échec, L-034).
+Le premier critère visait « moins de mémoire » : atteint seulement après correction (L-040) ; le gain vient d'une
+**seule passe** sur la matrice (L-039).
+
+**Ouvert.** 3b ; W-015 ; W-019.
 
 ### D-033 : phase 2b réduite à un pilote : le noyau de `step_response` en Rust ; porter la FFT seule est écarté
 

@@ -25,6 +25,11 @@ analyses (`scripts/validate_corpus.py`, tests `-m corpus`).
   `main` : décodeur 0 différence, assistant 0 session aux constats différents sur 630 (durée cumulée de l'assistant
   1879 s → 1410 s), outils (20 logs) même structure et écart relatif maximal 2,4e-10 ; noyau face à la boucle numpy :
   1,7e-14 sur les réponses, 4e-12 case par case sur les sommes. Temps (session de 72 s, 3 axes) : 315 ms → 185 ms à un fil (1,70×), 64 ms avec tous les cœurs (4,9×).
+- **Phase 3a, ouverture des logs en Rust** (D-034, 2026-10-29) : `FlightLog` **identique au bit près** à celui de l'ancien
+  code numpy (224 + 21 cas de `tests/test_native_log.py`, dont 40 fichiers abîmés et le corpus) ; mêmes références de
+  `main` : décodeur 0 différence, assistant 0 session aux constats différents sur 630 (durée cumulée de l'assistant
+  1879 s → 1357 s), outils (20 logs) même structure et écart relatif maximal 2,4e-10. Temps (un chargement par processus,
+  33,6 Mo, 620 000 trames) : 838 → 502–548 ms (1,6×) ; `from_session` 413 → 147 ms ; mémoire conservée +154 → +138 Mo.
 - Un vrai extrait est versionné pour la CI : `tests/data/jeno5_5s.bbl` (5,1 s du début de la 1re session de
   `Cedric/JeNo 5/FINAL.bbl`, Betaflight 2026.6.0-rc3, 8 262 trames, coupé sur une trame I). Statut `ok` face à
   `blackbox_decode` le 2026-10-12 ; `tests/test_real_log.py` fige l'en-tête, la première et la dernière trame,

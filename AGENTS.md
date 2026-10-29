@@ -56,7 +56,7 @@ src/opentunebox/
   gui/        app.py, main_window.py (visualiseur), guide.py (guide intégré : fiches drone, cases ; accueil dans assets/guide/),
               state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
-rust/         espace de travail Cargo (D-031) : otb-decoder (décodeur, Rust pur), otb-dsp (noyaux des filtres Betaflight et de `step_response` ; dépendances realfft et rayon, D-033), otb-py (pont PyO3 → `opentunebox._native`)
+rust/         espace de travail Cargo (D-031) : otb-decoder (décodeur, Rust pur), otb-dsp (noyaux des filtres Betaflight et de `step_response` ; dépendances realfft et rayon, D-033), otb-log (rejet des trames impossibles et conversions float32 de l'ouverture d'un log, D-034), otb-py (pont PyO3 → `opentunebox._native`)
 tests/        pytest ; conftest.py (Qt hors écran, réglages isolés, fixtures `app`, `synthetic_log`, `synthetic_state`),
               synthetic.py (`make_flightlog`, `make_session` : vol et session fabriqués, sans corpus),
               bbl_factory.py (fichiers Blackbox binaires fabriqués : en-tête, trames I/P/S/E),
@@ -91,7 +91,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/ruff check src tests scripts packaging/make_icons.py   # lint (doit être vide, D-030)
 .venv/bin/pytest -q --cov=opentunebox --cov-report=term-missing   # couverture (hors code numba : L-025)
 .venv/bin/pytest -q tests/test_docs.py               # cohérence de la documentation (< 1 s)
-(cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp)   # Rust
+(cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp -p otb-log)   # Rust
 .venv/bin/pip install -e .                           # recompile l'extension Rust (maturin, profil release) après un changement de rust/
 .venv/bin/opentunebox-gui [LOG…]                     # interface
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande

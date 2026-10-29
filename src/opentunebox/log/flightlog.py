@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .. import _native
 from ..analysis.loop import PidTerms
 from ..decoder.reader import DecodedSession, decode_file
 from .settings import Settings, parse_settings
@@ -233,35 +234,54 @@ def load(path: str | Path) -> list[FlightLog]:
     return [lg for lg in logs if lg is not None]
 
 
+def _column_kinds(names: list[str]) -> np.ndarray:
+    """Rôle de chaque colonne principale pour `_native.drop_implausible` : 0 ignorée (`loopIteration`, `time`),
+    1 gyro ou consigne (rejet au-delà de 4000 °/s), 2 terme PID (rejet au-delà de ±65535), 3 autre (ramenée aux
+    32 bits seulement). `setpoint[3]` (gaz du mixeur) n'est jamais contrôlée."""
+    kinds = np.full(len(names), 3, dtype=np.uint8)
+    for i, n in enumerate(names):
+        if n in ("loopIteration", "time"):
+            kinds[i] = 0
+        elif n.startswith(("gyroADC[", "gyroUnfilt[")) or (n.startswith("setpoint[") and n != "setpoint[3]"):
+            kinds[i] = 1
+        elif n.startswith(("axisP[", "axisI[", "axisD[", "axisF[")):
+            kinds[i] = 2
+    return kinds
+
+
 def _drop_implausible(sess: DecodedSession, hr: float) -> int:
     """Écarte les trames aux valeurs impossibles (données abîmées acceptées par le format).
 
     Les champs signés sont d'abord ramenés aux entiers 32 bits comme dans le firmware. Une trame est
     rejetée si le gyro ou la consigne dépasse 4000 °/s, ou un terme PID ±65535 : ce ne peut être
     qu'une trame corrompue, qui fausserait spectres et réponses indicielles.
+    Le calcul est fait en Rust, en une seule passe sur les lignes (D-031, phase 3a) : `tests/ref_flightlog.py` garde
+    l'ancienne version numpy, colonne par colonne, comme étalon.
     """
     main = sess.main
     if main.shape[0] == 0:
         return 0
-    names = sess.main_names
-    bad = np.zeros(main.shape[0], dtype=bool)
-    for i, n in enumerate(names):
-        if n in ("loopIteration", "time"):
-            continue
-        c = main[:, i]
-        # colonne par colonne et seulement si besoin : ramener tout le tableau d'un coup en ferait quatre copies
-        if c.min() < -2**31 or c.max() >= 2**31:
-            c[:] = ((c + 2**31) % 2**32) - 2**31
-        if n.startswith(("gyroADC[", "gyroUnfilt[")) or (n.startswith("setpoint[") and n != "setpoint[3]"):
-            bad |= np.abs(c) > 4000 * hr
-        elif n.startswith(("axisP[", "axisI[", "axisD[", "axisF[")):
-            bad |= np.abs(c) > 65535
-    if bad.any():
+    if not main.flags.c_contiguous or not main.flags.writeable or main.dtype != np.int64:
+        main = np.array(main, dtype=np.int64, order="C")  # le noyau lit ligne par ligne et modifie sur place
+        sess.main = main
+    bad = _native.drop_implausible(main, _column_kinds(sess.main_names), hr)
+    n_bad = int(bad.sum())
+    if n_bad:
         keep = ~bad
         sess.main = main[keep]
         sess.main_kind = sess.main_kind[keep]
         sess.slow = sess.slow[keep]
-    return int(bad.sum())
+    return n_bad
+
+
+def _rows(table: np.ndarray, cols: list[int], scale) -> np.ndarray:
+    """Colonnes `cols` (−1 = absente : zéros) de `table` en float32, divisées par `scale` (un nombre, ou un par
+    colonne) : forme (len(cols), n). Une seule passe sur les lignes quel que soit le nombre de colonnes."""
+    if table.dtype != np.int64 or not table.flags.c_contiguous:
+        table = np.ascontiguousarray(table, dtype=np.int64)
+    scales = np.asarray(scale, dtype=np.float64)
+    scales = np.full(len(cols), scales) if scales.ndim == 0 else scales
+    return _native.rows_f32_scaled(table, np.asarray(cols, dtype=np.int64), np.ascontiguousarray(scales))
 
 
 def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
@@ -273,20 +293,73 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
     if sess.main.shape[0] < 2 or sess.stats["implausible_frames"] > n0 / 2:
         return None  # session essentiellement corrompue
 
+    main_idx: dict[str, int] = {}
+    for i, name in enumerate(sess.main_names):
+        main_idx.setdefault(name, i)  # premier indice si un nom est répété, comme `list.index`
+
+    def where(name: str) -> tuple[np.ndarray, int] | None:
+        """(tableau, indice de colonne) d'un champ : trames principales d'abord, puis lentes (comme `sess.column`)."""
+        if name in main_idx:
+            return sess.main, main_idx[name]
+        if name in sess.slow_names:
+            return sess.slow, sess.slow_names.index(name)
+        return None
+
+    # champs lus plus bas, convertis en float32 par lots : une passe sur 600 000 lignes × 43 colonnes coûte ≈ 8 ms,
+    # et en faire dix-sept coûtait 134 ms (D-031, phase 3a). Lot 1 : ce que le FlightLog garde tel quel, en VUES d'un
+    # seul tableau (aucune copie). Lot 2 : lu ensuite, recopié par le code ci-dessous puis libéré : le mettre dans
+    # le lot 1 garderait ≈ 14 lignes inutiles en mémoire tant que le log est ouvert.
+    plan: dict[str, float] = {}  # champ → échelle (division float32)
+    kept: set[str] = set()  # champs du lot 1
+
+    def want(prefix: str, count: int, scale: float, keep: bool = False) -> None:
+        names = [f"{prefix}[{i}]" for i in range(count)]
+        plan.update({n: scale for n in names})
+        if keep:
+            kept.update(names)
+
+    want("gyroADC", 3, hr, keep=True)
+    want("gyroUnfilt", 3, hr, keep=True)
+    want("debug", 8, 1.0, keep=True)
+    want("rcCommand", 4, 1.0, keep=True)
+    for term in ("axisP", "axisI", "axisD", "axisF"):
+        want(term, 3, 1.0, keep=True)
+    want("accSmooth", 3, float(st.acc_1g), keep=True)
+    want("setpoint", 4, 1.0)
+    want("motor", 16, 1.0)
+    want("eRPM", 16, 1.0)
+    plan.update({"vbatLatest": 1.0, "amperageLatest": 1.0})
+    where_row: dict[str, tuple[np.ndarray, int]] = {}  # champ → (tableau du lot, ligne)
+    for keep_lot in (True, False):
+        wanted = [name for name in plan if name in main_idx and (name in kept) == keep_lot]
+        if wanted:
+            lot = _rows(sess.main, [main_idx[n] for n in wanted], [plan[n] for n in wanted])
+            where_row.update({n: (lot, i) for i, n in enumerate(wanted)})
+
+    def field(name: str, scale: float) -> np.ndarray | None:
+        """Champ en float32 divisé par `scale`, ou None s'il est absent."""
+        if name in where_row and plan[name] == scale:
+            lot, i = where_row[name]
+            return lot[i]
+        w = where(name)
+        return None if w is None else _rows(w[0], [w[1]], scale)[0]
+
     def col(name: str) -> np.ndarray | None:
-        c = sess.column(name)
-        return None if c is None else c.astype(SAMPLE_DTYPE)
+        return field(name, 1.0)
 
     def axes(prefix: str, scale: float = 1.0, count: int = 3) -> np.ndarray | None:
-        cols = [sess.column(f"{prefix}[{i}]") for i in range(count)]
-        if all(c is None for c in cols):
+        names = [f"{prefix}[{i}]" for i in range(count)]
+        loc = [where_row.get(n) for n in names]
+        if all(loc) and all(n in kept and plan[n] == scale for n in names) and len({id(x[0]) for x in loc}) == 1 \
+                and [x[1] for x in loc] == list(range(loc[0][1], loc[0][1] + count)):
+            return loc[0][0][loc[0][1]:loc[0][1] + count]  # lignes consécutives du lot 1 : une vue, sans copie
+        rows = [field(n, scale) for n in names]
+        if all(r is None for r in rows):
             return None
-        out = np.zeros((count, sess.main.shape[0]), dtype=SAMPLE_DTYPE)  # rempli ligne par ligne : une seule copie des données
-        for i, c in enumerate(cols):
-            if c is not None:
-                out[i] = c
-                if scale != 1.0:
-                    out[i] /= scale
+        out = np.zeros((count, sess.main.shape[0]), dtype=SAMPLE_DTYPE)  # voie absente : zéros
+        for i, r in enumerate(rows):
+            if r is not None:
+                out[i] = r
         return out
 
     time_us = sess.main[:, 1].astype(np.float64)

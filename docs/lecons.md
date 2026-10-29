@@ -60,6 +60,28 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-040 : des vues d'un même lot gardent en vie toutes ses lignes, même celles que plus rien n'utilise
+- **Symptôme** — relu avant la fusion (phase 3a, D-034) : `from_session` lisait les 47 colonnes utiles en une passe et
+  rendait des VUES du lot (gyro, PID, debug…) : les 14 lignes déjà recopiées ailleurs (consigne, moteurs, eRPM, tension,
+  courant) restaient en mémoire tant que le log était ouvert, ≈ 34 Mo de trop pour 600 000 trames, à chaque log ouvert.
+- **Cause** — une vue garde son tableau de base entier ; recopier les lignes inutiles n'en libère pas la mémoire.
+- **Règle** — un lot lu en une passe ne contient que ce que l'objet garde en vue ; ce qui est recopié puis jeté va dans
+  un second lot, libéré à la fin de la fonction (une passe de plus, ≈ 8–20 ms).
+- **Preuve** — `tests/test_native_log.py:test_flightlog_arrays_do_not_keep_unused_rows_of_the_shared_batch_alive` (échoue
+  avec un seul lot) ; mémoire conservée mesurée +154 Mo (ancien code) → +138 Mo.
+
+### L-039 : mesurer un noyau Rust : `tracemalloc` ne voit pas ses tableaux, et un banc qui enchaîne les chargements ment
+- **Symptôme** — 2026-10-29 (phase 3a) : `tracemalloc` annonçait un pic de 72 Mo contre 160 Mo avant (faux : les tableaux
+  créés par Rust n'y figurent pas) ; un banc qui chargeait cinq fois le même log dans un processus annonçait +75 Mo de
+  pic (faux : deux jeux de tableaux vivants en même temps), alors qu'un seul chargement par processus donnait +11 Mo.
+  Premier critère de vitesse mal chiffré aussi : la durée de `from_session` avait été prise sous `cProfile`.
+- **Cause** — l'allocateur de numpy et celui de Rust sont distincts ; `maxrss` d'un processus qui répète une opération
+  mélange plusieurs vies de tableaux.
+- **Règle** — mémoire d'un noyau Rust : `/proc/self/status` (`VmRSS` après libération, `VmHWM` après avoir écrit `5` dans
+  `/proc/self/clear_refs`), **un chargement par processus**, plusieurs processus ; temps : `perf_counter` sans profileur,
+  médiane de plusieurs essais, ancien et nouveau code dans le même banc.
+- **Preuve** — mesures de D-034 ; banc dans le répertoire temporaire de la session.
+
 ### L-038 : rayon et les processus : un enfant créé par `fork` se bloque ; la variable de fils se pose dans chaque processus
 - **Symptôme** — relu avant la fusion (2026-10-29, noyau de `step_response`, D-033) : un processus parent appelle
   `step_windows`, puis crée un `Pool` par `fork` ; dans les enfants, `step_windows` ne rend jamais la main.
@@ -476,6 +498,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-040 | Vues d'un lot lu en une passe : elles gardent toutes ses lignes vivantes ; lot 1 = ce que l'objet garde, lot 2 = temporaire | Décodeur et logs |
+| L-039 | Mesure d'un noyau Rust : `tracemalloc` ne voit pas ses tableaux ; un chargement par processus, `VmRSS`/`VmHWM`, temps sans profileur | Outillage |
 | L-038 | Rayon : un enfant créé par `fork` se bloque ; `RAYON_NUM_THREADS=1` par `Pool(initializer=…)`, pas dans le parent | Outillage |
 | L-037 | Dépendance déplacée vers `dev` : relire tous les workflows ; références de test installées puis désinstallées avant PyInstaller | Construction |
 | L-036 | `as_slice` accepte l'ordre Fortran et le lit comme du C : `is_c_contiguous()` + test `asfortranarray` | Décodeur et logs |
