@@ -60,6 +60,17 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-033 : `Path.read_text()` sans encodage lit en cp1252 sous Windows : test vert sous Linux, `UnicodeDecodeError` en CI Windows
+- **Symptôme** — 2026-10-29 : premier job Windows de la CI : `test_constants_match_python` échoue avec
+  `UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f` en lisant `frame.rs` (commentaires en français) ;
+  les 126 autres tests passent, le même test passe sous Linux.
+- **Cause** — mesurée (journal de la CI) : sans `encoding=`, Python prend l'encodage de la région (cp1252 sous
+  Windows, UTF-8 sous Linux et macOS) ; un fichier UTF-8 accentué n'y est pas lisible.
+- **Règle** — toujours `read_text(encoding="utf-8")` / `open(..., encoding="utf-8")` pour un fichier texte du
+  dépôt, dans le code comme dans les tests.
+- **Preuve** — `tests/test_native_decoder.py:test_constants_match_python` ; exécution Windows de la CI de
+  `feat/rust-migration`.
+
 ### L-032 : numba lit hors tableau sans erreur ; le port Rust, lui, panique, et la panique n'est pas une `Exception`
 - **Symptôme** — 2026-10-29 : le décodeur Rust, identique à numba sur tout le corpus et 6 000 flux aléatoires,
   plante sur un en-tête qui n'a qu'un seul champ I (`index out of bounds: the len is 1 but the index is 1`) ;
@@ -406,6 +417,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-033 | `read_text()` sans `encoding` lit en cp1252 sous Windows : toujours `encoding="utf-8"` | Outillage |
 | L-032 | Numba lit hors tableau sans erreur, Rust panique (`BaseException`). Comportement défini, `catch_unwind`, session sans temps ignorée | Décodeur et logs |
 | L-031 | `pip-audit` audite tout son environnement (pip compris) : pip à jour, outil dans un environnement à part, `--path` | Outillage |
 | L-030 | Module Qt exclu de la recette : construction réussie, plantage au premier graphique. Exécutable d'essai | Construction |

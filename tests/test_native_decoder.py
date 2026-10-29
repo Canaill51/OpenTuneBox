@@ -37,7 +37,7 @@ def test_constants_match_python():
     """Les numéros de prédicteurs, d'encodages et du contexte sont écrits des deux côtés."""
     import re
     from opentunebox.decoder import core
-    src = (Path(__file__).parent.parent / "rust" / "otb-decoder" / "src" / "frame.rs").read_text()
+    src = (Path(__file__).parent.parent / "rust" / "otb-decoder" / "src" / "frame.rs").read_text(encoding="utf-8")
     rust = {m[0]: int(m[1]) for m in re.findall(r"pub const (\w+): (?:i64|usize) = (\d+);", src)}
     for name, value in rust.items():
         mod = header if hasattr(header, name) else core
