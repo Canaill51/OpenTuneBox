@@ -4,9 +4,8 @@ d'origine de `flightlog._drop_implausible` / `from_session`, gardé tel quel dan
 
 Les deux noyaux doivent donner des résultats IDENTIQUES AU BIT PRÈS (aucune tolérance) : ce sont des entiers
 ramenés à 32 bits, des masques, et des conversions int64 -> float32 suivies d'une division float32. Un écart
-d'un seul bit changerait les spectres. Les tests de la section C (intégration) ne passeront pour de bon
-qu'une fois `from_session` branché sur les noyaux (étape suivante) : avant, ils comparent le code d'origine à
-lui-même et passent déjà, ce qui est normal."""
+d'un seul bit changerait les spectres. Les tests de la section C (intégration) confrontent `from_session`, branché
+sur les noyaux, à `from_session_ref` (le code numpy d'origine) : ils échouent si le branchement diffère."""
 
 import copy
 import dataclasses
@@ -367,7 +366,7 @@ def test_rows_f32_rejects_int32_cols():
 
 # ----------------------------------------------------------------------------------------------------------
 # C. Intégration : `from_session` branché sur les noyaux = `from_session_ref`
-# (passe déjà aujourd'hui, puisque `from_session` est encore le code d'origine ; garde le branchement honnête)
+# (`from_session` nouveau contre `from_session_ref` : le code numpy d'origine, copié tel quel)
 
 def same_flightlog(a, b):
     """Tous les champs identiques : tableaux au bit près (NaN égaux), même dtype et forme ; sinon égalité simple."""
@@ -568,3 +567,63 @@ def test_rows_f32_scaled_errors():
     with pytest.raises(TypeError):
         _native.rows_f32_scaled(src, np.array([0], np.int64), np.array([1.0], np.float32))
     assert _native.rows_f32_scaled(src[:0], np.array([0, 1], np.int64), np.array([2.0, 1.0])).shape == (2, 0)
+
+
+# ----------------------------------------------------------------------------------------------------------
+# E. Cas limites de `from_session` (relecture) : voies absentes, ordre, dtype ; mémoire retenue par les vues
+
+def without(cols, *names):
+    return {k: v for k, v in cols.items() if k not in names}
+
+
+EDGE_CASES = {
+    "gyroADC[1] absent": lambda c: without(c, "gyroADC[1]"),
+    "debug[1] absent": lambda c: without(c, "debug[1]"),
+    "debug[0..2] seulement": lambda c: without(c, *(f"debug[{i}]" for i in range(3, 8))),
+    "axisD[2] absent": lambda c: without(c, "axisD[2]"),
+    "setpoint[3] absent": lambda c: without(c, "setpoint[3]"),
+    "sans eRPM": lambda c: {k: v for k, v in c.items() if not k.startswith("eRPM")},
+    "sans gyroUnfilt": lambda c: {k: v for k, v in c.items() if not k.startswith("gyroUnfilt")},
+    "ordre inversé": lambda c: dict(reversed(list(c.items()))),
+}
+
+
+@pytest.mark.parametrize("case", sorted(EDGE_CASES))
+@pytest.mark.parametrize("header", [{}, {"debug_mode": "GYRO_SCALED"}], ids=["défaut", "gyro_scaled"])
+def test_from_session_missing_or_reordered_fields_identical_to_reference(case, header):
+    """Les deux chemins de `axes()` : vue du lot (voies consécutives) et copie (voie absente, ordre inversé)."""
+    compare(make_session(EDGE_CASES[case](synthetic_columns(250, 3)), header))
+
+
+@pytest.mark.parametrize("how", ["fortran", "int32"])
+def test_from_session_main_with_another_layout_or_dtype_identical_to_reference(how):
+    sess = make_session(synthetic_columns(250, 4), {})
+    sess.main = np.asfortranarray(sess.main) if how == "fortran" else sess.main.astype(np.int32)
+    compare(sess)
+
+
+def test_from_session_read_only_main_still_works():
+    """L'étalon plantait sur un tableau en lecture seule (écriture sur place) ; le port en travaille sur une copie."""
+    sess = make_session(synthetic_columns(250, 5), {})
+    expected = flightlog.from_session(Path("x.bbl"), copy.deepcopy(sess))
+    sess.main.flags.writeable = False
+    same_flightlog(flightlog.from_session(Path("x.bbl"), sess), expected)
+
+
+def test_from_session_main_names_shorter_than_columns_is_a_clear_error():
+    sess = make_session(synthetic_columns(100, 6), {})
+    sess.main_names = sess.main_names[:-1]
+    with pytest.raises(ValueError, match="kinds"):
+        flightlog.from_session(Path("x.bbl"), sess)
+
+
+def test_flightlog_arrays_do_not_keep_unused_rows_of_the_shared_batch_alive():
+    """Les voies lues en une passe sont des VUES d'un même tableau : il ne doit contenir que des lignes que le
+    FlightLog garde (gyro 3, gyro non filtré 3, debug 8, rcCommand 4, termes PID 12, acc 3), pas la consigne, les
+    moteurs, l'eRPM, la tension ni le courant, déjà recopiés ailleurs : ≈ 34 Mo de trop pour 600 000 trames."""
+    lg = flightlog.from_session(Path("x.bbl"), make_session(synthetic_columns(300, 7), {}))
+    kept = 3 + 3 + 8 + 4 + 12 + 3
+    base = lg.gyro.base
+    assert base is not None and base.shape == (kept, lg.n), base.shape
+    for name in ("gyro_unfilt", "rc_command", "p_term", "i_term", "d_term", "f_term", "debug", "acc"):
+        assert getattr(lg, name).base is base, name

@@ -305,32 +305,42 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
             return sess.slow, sess.slow_names.index(name)
         return None
 
-    # tous les champs lus plus bas, convertis en float32 en UNE passe sur la matrice : chaque passe sur 600 000 lignes
-    # × 43 colonnes coûte ≈ 8 ms, et en faire dix-sept coûtait 134 ms (D-031, phase 3a)
+    # champs lus plus bas, convertis en float32 par lots : une passe sur 600 000 lignes × 43 colonnes coûte ≈ 8 ms,
+    # et en faire dix-sept coûtait 134 ms (D-031, phase 3a). Lot 1 : ce que le FlightLog garde tel quel, en VUES d'un
+    # seul tableau (aucune copie). Lot 2 : lu ensuite, recopié par le code ci-dessous puis libéré : le mettre dans
+    # le lot 1 garderait ≈ 14 lignes inutiles en mémoire tant que le log est ouvert.
     plan: dict[str, float] = {}  # champ → échelle (division float32)
+    kept: set[str] = set()  # champs du lot 1
 
-    def want(prefix: str, count: int, scale: float) -> None:
-        plan.update({f"{prefix}[{i}]": scale for i in range(count)})
+    def want(prefix: str, count: int, scale: float, keep: bool = False) -> None:
+        names = [f"{prefix}[{i}]" for i in range(count)]
+        plan.update({n: scale for n in names})
+        if keep:
+            kept.update(names)
 
-    want("gyroADC", 3, hr)
-    want("gyroUnfilt", 3, hr)
-    want("debug", 8, 1.0)
-    want("setpoint", 4, 1.0)
-    want("rcCommand", 4, 1.0)
+    want("gyroADC", 3, hr, keep=True)
+    want("gyroUnfilt", 3, hr, keep=True)
+    want("debug", 8, 1.0, keep=True)
+    want("rcCommand", 4, 1.0, keep=True)
     for term in ("axisP", "axisI", "axisD", "axisF"):
-        want(term, 3, 1.0)
-    want("accSmooth", 3, float(st.acc_1g))
+        want(term, 3, 1.0, keep=True)
+    want("accSmooth", 3, float(st.acc_1g), keep=True)
+    want("setpoint", 4, 1.0)
     want("motor", 16, 1.0)
     want("eRPM", 16, 1.0)
     plan.update({"vbatLatest": 1.0, "amperageLatest": 1.0})
-    wanted = [name for name in plan if name in main_idx]
-    big = _rows(sess.main, [main_idx[n] for n in wanted], [plan[n] for n in wanted]) if wanted else None
-    rank = {name: i for i, name in enumerate(wanted)}  # ligne de chaque champ dans `big`
+    where_row: dict[str, tuple[np.ndarray, int]] = {}  # champ → (tableau du lot, ligne)
+    for keep_lot in (True, False):
+        wanted = [name for name in plan if name in main_idx and (name in kept) == keep_lot]
+        if wanted:
+            lot = _rows(sess.main, [main_idx[n] for n in wanted], [plan[n] for n in wanted])
+            where_row.update({n: (lot, i) for i, n in enumerate(wanted)})
 
     def field(name: str, scale: float) -> np.ndarray | None:
         """Champ en float32 divisé par `scale`, ou None s'il est absent."""
-        if name in rank and plan[name] == scale:
-            return big[rank[name]]
+        if name in where_row and plan[name] == scale:
+            lot, i = where_row[name]
+            return lot[i]
         w = where(name)
         return None if w is None else _rows(w[0], [w[1]], scale)[0]
 
@@ -339,10 +349,10 @@ def from_session(path: Path, sess: DecodedSession) -> FlightLog | None:
 
     def axes(prefix: str, scale: float = 1.0, count: int = 3) -> np.ndarray | None:
         names = [f"{prefix}[{i}]" for i in range(count)]
-        pos = [rank.get(n) for n in names]
-        if all(p is not None for p in pos) and pos == list(range(pos[0], pos[0] + count)) \
-                and all(plan[n] == scale for n in names):
-            return big[pos[0]:pos[0] + count]  # lignes consécutives du lot : une vue, sans copie (mémoire)
+        loc = [where_row.get(n) for n in names]
+        if all(loc) and all(n in kept and plan[n] == scale for n in names) and len({id(x[0]) for x in loc}) == 1 \
+                and [x[1] for x in loc] == list(range(loc[0][1], loc[0][1] + count)):
+            return loc[0][0][loc[0][1]:loc[0][1] + count]  # lignes consécutives du lot 1 : une vue, sans copie
         rows = [field(n, scale) for n in names]
         if all(r is None for r in rows):
             return None

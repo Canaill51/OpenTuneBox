@@ -104,7 +104,11 @@ pub fn rows_f32_scaled(
         }
         idx.push(if c < 0 { None } else { Some(c as usize) });
     }
-    let mut out = vec![0.0f32; cols.len() * nrows];
+    let size = cols
+        .len()
+        .checked_mul(nrows)
+        .ok_or("sortie trop grande : colonnes × lignes déborde")?;
+    let mut out = vec![0.0f32; size];
     if nrows == 0 {
         return Ok(out);
     }
@@ -235,6 +239,13 @@ mod tests {
             assert_eq!(&all[i * 6..(i + 1) * 6], &one[..], "colonne {c}");
         }
         assert!(rows_f32_scaled(&src, 6, 4, &cols, &scales[..3]).is_err());
+    }
+
+    #[test]
+    fn output_size_overflow_is_an_error_not_a_short_buffer() {
+        // 2 colonnes × (usize::MAX / 2 + 1) lignes déborde ; `src` vide de 0 colonne passe le contrôle de forme
+        let r = rows_f32_scaled(&[], usize::MAX / 2 + 1, 0, &[-1, -1], &[1.0, 1.0]);
+        assert!(r.is_err(), "{r:?}");
     }
 
     #[test]
