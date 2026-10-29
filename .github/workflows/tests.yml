@@ -25,7 +25,7 @@ jobs:
         run: python -m pip install -e '.[dev]'
       - name: Lint
         run: ruff check src tests scripts packaging/make_icons.py
-      - name: Rust : formatage, lint et tests
+      - name: "Rust : formatage, lint et tests"
         working-directory: rust
         run: |
           cargo fmt --check
