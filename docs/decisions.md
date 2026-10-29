@@ -134,7 +134,9 @@ en fréquence) ; `scripts/golden.py check` : décodeur 0 différence sur 499 fic
 constats différents sur 630, outils : 20 logs, aucune différence de structure, écart relatif maximal 2,4e-10
 (boucle ouverte `loop.L`), donc `--rtol 1e-9` suffit ; mutations vues en échec (L-034).
 
-**Ouvert.** Mesure du poids des installateurs ; phase 2b ; W-015.
+**Poids mesuré** (Linux, 2026-10-29) : dossier de l'exécutable 206 Mo au lieu de 463 Mo.
+
+**Ouvert.** Poids des installateurs compressés des trois systèmes ; phase 2b ; W-015.
 
 ### D-031 : migration vers Rust sur une branche d'intégration, `main` reste en Python
 

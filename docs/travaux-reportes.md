@@ -305,7 +305,7 @@ Règles d'écriture :
   (965 000 trames) en 0,58 s au lieu de 2,44 s, identique au bit près.
   [`src/opentunebox/decoder/core.py:decode_stream`]
 
-- **W-015** — Numba impose `llvmlite` (170 Mo sur les 463 Mo du dossier Linux, ≈ 37 %) et une compilation au
+- **W-015** — *(Mesure du 2026-10-29 après D-032 : dossier Linux 206 Mo au lieu de 463 Mo, voir `migration-rust.md`.)* Numba impose `llvmlite` (170 Mo sur les 463 Mo du dossier Linux, ≈ 37 %) et une compilation au
   premier lancement : c'est le seul levier restant sur la taille des installateurs. Le reste est Qt (102 Mo,
   déjà allégé), scipy (71 Mo) et numpy (41 Mo) ; nettoyer `libllvmlite.so` par `strip` ne gagne que 18 Mo.
   **Pourquoi reporté** : supprimer numba demande de réécrire le décodeur et les noyaux de filtres dans un
