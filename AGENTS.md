@@ -21,6 +21,8 @@ Résumé ; contexte, options écartées et preuves dans `docs/decisions.md`.
   des formules du firmware Betaflight et de méthodes publiées (voir `docs/spec-*.md`).
   Seule exception, validée par Cédric : les icônes [Lucide](https://lucide.dev) (licence ISC) dans
   `gui/assets/icons/`, à garder avec leur fichier de licence. D-004, D-005
+- Migration vers Rust : `main` reste en Python, le travail passe par `feat/rust-migration` et ses sous-branches
+  (`docs/migration-rust.md`) ; chaque module est prouvé équivalent avant de supprimer l'ancien. D-031
 - Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français. D-001
 
 ## Suivi du projet
@@ -62,7 +64,7 @@ tests/        pytest ; conftest.py (Qt hors écran, réglages isolés, fixtures 
               test_docs.py vérifie la documentation
 scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
               advisor_rates.py (taux de déclenchement des constats), corpus_labels.py (tableau d'étiquettes
-              du corpus, passages parallèles map_files), release.py (préparer une version, notes de la page Releases)
+              du corpus, passages parallèles map_files), golden.py (références figées pour la migration Rust, D-031), release.py (préparer une version, notes de la page Releases)
 packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes (make_icons.py), installateurs :
               windows/ (Inno Setup), macos/ (.dmg), linux/ (AppImage)
 docs/         guide utilisateur, architecture, validation, assistant, spécifications (index : docs/README.md)
@@ -94,6 +96,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python scripts/corpus_labels.py                        # tableau d'étiquettes $OTB_LOGS/corpus.csv
 .venv/bin/python scripts/advisor_rates.py SORTIE.json            # taux de chaque constat sur le corpus (≈ 2 min)
 .venv/bin/python scripts/advisor_rates.py --compare AVANT.json APRÈS.json   # mêmes conseils avant / après ?
+.venv/bin/python scripts/golden.py record|check "$OTB_LOGS/golden"   # références pour la migration Rust (D-031)
 .venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
 .venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```

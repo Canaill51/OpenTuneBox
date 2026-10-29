@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python | 2026-10-29 |
 | D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant | 2026-10-14 |
 | D-029 | Les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64 | 2026-10-13 |
 | D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
@@ -100,6 +101,38 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
+
+---
+
+## 2026-10-29 — Migration vers Rust
+
+### D-031 : migration vers Rust sur une branche d'intégration, `main` reste en Python
+
+**Contexte.** Numba impose `llvmlite` (≈ 37 % des installateurs) et une compilation au premier lancement
+(W-015) ; Cédric veut des installateurs plus légers, plus de rapidité et, à terme, un binaire autonome. Le
+poste de développement a maintenant `cargo` 1.99 et `gcc`.
+
+**Décision.** Le code est réécrit en Rust, module par module, **sans régression** :
+- **Branches.** `main` reste en Python, publiable à tout moment. `feat/rust-migration` est la branche
+  d'intégration ; chaque étape a sa branche (`chore/rust-safety-net`, `feat/rust-decoder`…) créée depuis elle
+  et fusionnée par PR vers elle, jamais vers `main`. Les correctifs de `main` y sont rapatriés par
+  `git merge main`. Une seule PR finale `feat/rust-migration` → `main`, une fois tout testé et validé par Cédric.
+- **Ordre.** Décodeur → noyaux de calcul (FFT, Welch, CSD, filtres Betaflight, Wiener) → analyses → assistant
+  → ligne de commande → interface (bibliothèque choisie à ce moment-là ; PySide6 reste en attendant).
+  Pont PyO3 + maturin, module `opentunebox._native`, commutateur `OTB_BACKEND=python|rust` pendant la transition.
+- **Équivalence.** Décodeur identique au bit près ; analyses à tolérance mesurée (≈ 1e-5 relatif, FFT
+  différente de scipy) ; assistant : mêmes constats sur tout le corpus (`advisor_rates.py --compare`).
+  Références figées avant d'écrire du Rust (`scripts/golden.py`, stockées dans `$OTB_LOGS/golden`).
+- **Systèmes.** Windows fait partie des livrables à chaque étape (CI sous Linux et Windows).
+- Amende D-002 et D-006 **sur la branche Rust seulement** ; D-001 sera amendée pour l'interface à la dernière phase.
+
+**Choix de Cédric** (2026-10-29, parmi : hybride / tout en Rust par étapes / tout d'un coup ; interface
+PySide6 gardée en attendant ; tolérance « décodeur exact, analyses à tolérance »).
+Plan complet : [migration-rust.md](migration-rust.md).
+
+**Témoins.** `scripts/golden.py`, branche `chore/rust-safety-net`.
+
+**Ouvert.** W-015.
 
 ---
 
@@ -573,6 +606,8 @@ retomber exactement sur ce spectre quand rien ne change.
 
 ### D-006 : aucune dépendance à compiler
 
+✏️ AMENDÉE par D-031 (sur `feat/rust-migration` seulement).
+
 **Contexte.** Pas de compilateur C sur le poste de développement ; les exécutables se fabriquent sur trois
 systèmes.
 
@@ -610,6 +645,8 @@ référence de résultats, pas de source.
 **Témoins.** Aucune dépendance réseau dans `pyproject.toml`.
 
 ### D-002 : décodeur Python accéléré par numba
+
+✏️ AMENDÉE par D-031 (sur `feat/rust-migration` seulement).
 
 **Contexte.** `blackbox_decode` n'existe pas sur toutes les plateformes et a ses propres défauts (L-001).
 
