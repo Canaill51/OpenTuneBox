@@ -183,6 +183,13 @@ mod _native {
         f_limit: f64,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
         let (n_ax, n_cols) = (x.shape()[0], x.shape()[1]);
+        // ⚠️ `as_slice` accepte aussi l'ordre « colonne par colonne » (Fortran) : lu ligne par ligne, il donnerait
+        // un résultat faux sans erreur (L-036)
+        if !x.is_c_contiguous() {
+            return Err(PyValueError::new_err(
+                "x : tableau non rangé ligne par ligne (C contigu)",
+            ));
+        }
         let xs = x
             .as_slice()
             .map_err(|_| PyValueError::new_err("x : tableau non contigu"))?;

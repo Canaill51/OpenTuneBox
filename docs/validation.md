@@ -17,6 +17,10 @@ analyses (`scripts/validate_corpus.py`, tests `-m corpus`).
   680 sessions (`scripts/golden.py check`, aussi pour les outils et les constats de l'assistant : 0 différence
   sur 630 sessions) ; 6 000 flux aléatoires et 40 fichiers abîmés (`tests/test_native_decoder.py`). Temps
   d'ouverture : 3,6 Mo 0,32 s → 0,05 s ; 22,3 Mo 1,94 s → 0,29 s.
+- **Phase 2a** (D-032, 2026-10-29) : sans scipy ni numba, mêmes résultats que les références figées par `main` :
+  décodeur 0 différence sur 499 fichiers, assistant 0 session aux constats différents sur 630, outils (20 logs)
+  même structure, écart relatif maximal **2,4e-10** (boucle ouverte, qui amplifie les écarts de 1e-14 de
+  `_numeric.py` face à scipy) ; noyaux des filtres Rust = numba au bit près, sauf la réponse en fréquence (1,2e-15).
 - Un vrai extrait est versionné pour la CI : `tests/data/jeno5_5s.bbl` (5,1 s du début de la 1re session de
   `Cedric/JeNo 5/FINAL.bbl`, Betaflight 2026.6.0-rc3, 8 262 trames, coupé sur une trame I). Statut `ok` face à
   `blackbox_decode` le 2026-10-12 ; `tests/test_real_log.py` fige l'en-tête, la première et la dernière trame,

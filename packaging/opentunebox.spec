@@ -28,7 +28,7 @@ a = Analysis(
     [str(root / "packaging" / "launcher.py")],
     pathex=[str(root / "src")],
     datas=[(str(root / "src" / "opentunebox" / "gui" / "assets"), "opentunebox/gui/assets")],
-    hiddenimports=["opentunebox._native", *collect_submodules("opentunebox")] + collect_submodules("pyqtgraph", filter=used_by_app),
+    hiddenimports=["opentunebox._native", *collect_submodules("opentunebox", filter=lambda n: n != "opentunebox.decoder.core")] + collect_submodules("pyqtgraph", filter=used_by_app),
     # ⚠️ Pas PySide6.QtOpenGL ni QtOpenGLWidgets : pyqtgraph les importe pour toute courbe (L-030)
     # ⚠️ scipy, numba, llvmlite (≈ 350 Mo) : références des tests seulement, jamais dans l'exécutable (D-031) ;
     # opentunebox.decoder.core (ancien décodeur numba) ne sert que derrière OTB_BACKEND=python

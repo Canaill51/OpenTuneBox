@@ -24,6 +24,7 @@ fichier .bbl/.bfl
   └─ decoder/core.py        décodage numba des trames I/P/S/G/H/E (encodages + prédicteurs)
      rust/otb-decoder       même décodeur en Rust (extension `opentunebox._native`, pont `rust/otb-py`) ;
                             `OTB_BACKEND=rust|python` choisit l'un ou l'autre pendant la migration (D-031)
+                            `decoder/core.py` (numba) n'est chargé que par `OTB_BACKEND=python` (tests de parité, D-032)
   └─ decoder/reader.py      DecodedSession (entiers bruts, trames S propagées)
        └─ log/flightlog.py  FlightLog : temps, gyro, consigne, P/I/D/F, moteurs, gaz, debug, tension…
                             en unités physiques ; trames impossibles écartées ; settings.py normalise l'en-tête
@@ -53,7 +54,8 @@ fichier .bbl/.bfl
 | `step_series.py` | Séries de vols à un seul curseur changé (Damping, Master, Pitch Tracking, Pitch Damping) et conditions du protocole (feedforward, mode Angle, curseur I) |
 | `loop.py` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.py` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
-| `bf_filters.py` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si », passe-bas relevé ou coupé |
+| `bf_filters.py` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si », passe-bas relevé ou coupé ; noyaux de calcul en Rust (`rust/otb-dsp`, D-032) |
+| `_numeric.py` | Primitives numpy qui remplacent scipy : fenêtre de Hann, moyenne glissante, flou gaussien, intercorrélation (D-032) |
 | `sliders.py` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |
 | `motors.py` | Fréquences moteur depuis l'eRPM, harmoniques, centres des notchs dynamiques, bruit moteur, hauteur des harmoniques et poids RPM juste suffisant, pics à suivre par le notch dynamique, raies hors moteurs (vol stationnaire) |
 | `stats.py`, `period.py` | Statistiques de vol, erreur PID robuste, période automatique, détection de crash |

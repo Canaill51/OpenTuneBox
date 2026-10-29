@@ -59,7 +59,10 @@ def decode_stream_backend():
         return _native.decode_stream
     if backend != "python":
         raise ValueError(f"OTB_BACKEND inconnu : {backend!r} (python ou rust)")
-    from . import core  # numba : chargé seulement à la demande (tests de parité), pas dans l'installateur
+    try:
+        from . import core  # numba : chargé seulement à la demande (tests de parité), pas dans l'installateur
+    except ImportError as e:
+        raise ValueError("OTB_BACKEND=python : numba n'est pas installé (extra « dev », ou absent de l'exécutable)") from e
 
     return core.decode_stream
 

@@ -86,6 +86,8 @@ def xcorr_full(y, x) -> tuple[np.ndarray, np.ndarray]:
     et `signal.correlation_lags`). Le pic est au décalage positif quand `y` retarde sur `x`."""
     y = np.asarray(y, dtype=np.float64)
     x = np.asarray(x, dtype=np.float64)
+    if len(x) == 0 or len(y) == 0:
+        raise ValueError("xcorr_full : signal vide")
     n = len(y) + len(x) - 1
     nfft = 1 << max(0, (n - 1).bit_length())
     corr = np.fft.irfft(np.fft.rfft(y, nfft) * np.conj(np.fft.rfft(x, nfft)), nfft)

@@ -92,6 +92,15 @@ def test_bad_shapes_raise_value_error_not_panic():
         _native.sections_response(np.zeros(2, np.int64), f, f, f, f, f)
 
 
+def test_run_section_rejects_fortran_order_instead_of_reading_it_wrong():
+    """Un tableau rangé colonne par colonne serait lu ligne par ligne : résultat faux sans erreur (L-036)."""
+    x = np.random.default_rng(0).normal(size=(3, 40))
+    f = np.full(40, 120.0)
+    with pytest.raises(ValueError):
+        _native.run_section(np.asfortranarray(x), 1, f, 0.7, np.ones(40), 2000.0, np.inf)
+    assert _native.run_section(np.ascontiguousarray(x), 1, f, 0.7, np.ones(40), 2000.0, np.inf).shape == (3, 40)
+
+
 def test_run_section_needs_contiguous_float64():
     f = np.ones(4)
     with pytest.raises((ValueError, TypeError)):

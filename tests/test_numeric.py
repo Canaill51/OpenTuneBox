@@ -15,7 +15,8 @@ import scipy.signal.windows
 
 from opentunebox.analysis import _numeric
 
-# À resserrer/justifier après mesure de l'écart réel une fois l'implémentation faite.
+# Écart réel mesuré (2026-10-29) : ≈ 1e-14 relatif au maximum pour la moyenne glissante, 1e-15 pour le flou et
+# l'intercorrélation ; 1e-12 laisse la marge d'une autre bibliothèque mathématique (Windows, macOS).
 ATOL_FACTOR = 1e-12
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "opentunebox" / "analysis" / "_numeric.py"
@@ -137,3 +138,26 @@ def test_module_imports_neither_scipy_nor_numba():
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             imported.add(node.module.split(".")[0])
     assert not imported & {"scipy", "numba"}
+
+
+def test_gaussian_filter_zero_sigma_leaves_the_axis_untouched():
+    z = np.random.default_rng(5).normal(size=(9, 14))
+    _assert_close(_numeric.gaussian_filter(z, (0.0, 1.5)), scipy.ndimage.gaussian_filter(z, (0.0, 1.5), mode="nearest"))
+    _assert_close(_numeric.gaussian_filter(z, 0.0), z)
+
+
+def test_uniform_filter1d_nan_and_empty_match_scipy():
+    x = np.random.default_rng(6).normal(size=40)
+    x[7] = np.nan
+    with np.errstate(invalid="ignore"):
+        got = _numeric.uniform_filter1d(x, 5)
+    ref = scipy.ndimage.uniform_filter1d(x, 5, mode="nearest")
+    assert np.array_equal(np.isnan(got), np.isnan(ref))
+    assert _numeric.uniform_filter1d(np.zeros(0), 3).shape == (0,)
+
+
+def test_xcorr_full_rejects_empty_signals():
+    with pytest.raises(ValueError):
+        _numeric.xcorr_full(np.zeros(0), np.ones(3))
+    with pytest.raises(ValueError):
+        _numeric.xcorr_full(np.ones(3), np.zeros(0))

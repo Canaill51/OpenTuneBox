@@ -62,7 +62,7 @@ Règles d'écriture :
 |---|---|---|
 | W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | TRAITÉ sur `feat/rust-migration` (D-031) |
 | W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | TRAITÉ sur `feat/rust-migration` (D-031) |
-| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | EN COURS (D-031) |
+| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | EN COURS (D-031, D-032 : numba et scipy hors de l'application) |
 | W-014 | Décodeur : 3,4 µs par trame, plus grosse part de l'ouverture d'un log | ouvert |
 | W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | clos |
 | W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | clos |
