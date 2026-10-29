@@ -64,7 +64,8 @@ hard_exit(code)
 
 
 def test_application_loads_no_scipy_numba_llvmlite():
-    env = {**os.environ, "OTB_BACKEND": "rust", "PYTHONPATH": str(TESTS)}
+    # PYTHONUTF8 : `report` écrit des « ≈ » ; tube redirigé, Windows prendrait cp1252 et planterait (W-018)
+    env = {**os.environ, "OTB_BACKEND": "rust", "PYTHONPATH": str(TESTS), "PYTHONUTF8": "1"}
     env.pop("NUMBA_DISABLE_JIT", None)
     pytest.importorskip("opentunebox._native")
     r = subprocess.run([sys.executable, "-c", SCRIPT], env=env, capture_output=True, text=True, timeout=600)
