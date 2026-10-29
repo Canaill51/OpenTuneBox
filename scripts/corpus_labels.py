@@ -84,6 +84,9 @@ def map_files(work, files, jobs=None, root=None):
         # forkserver, pas fork : Python 3.14 refuse (avertissement, blocage possible) de bifurquer un processus
         # qui a déjà des fils (numba, Qt pendant les tests) ; le serveur bifurque depuis un processus propre.
         ctx = get_context("forkserver" if sys.platform.startswith("linux") else "spawn")
+        # ⚠️ un processus par cœur : sans cela, le noyau Rust de step_response (rayon) ouvrirait en plus autant de
+        # fils par processus (cœurs² fils, plus lent) ; `setdefault` laisse la main à qui fixe déjà la variable (D-033)
+        os.environ.setdefault("RAYON_NUM_THREADS", "1")
         with ctx.Pool(min(jobs, len(files))) as pool:
             for i, (f, ok, res) in enumerate(pool.imap_unordered(_guarded, [(work, f) for f in order])):
                 print(f"[{i + 1}/{len(files)}] {rel(f)}", file=sys.stderr)

@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-033 | Phase 2b limitée à un pilote : le noyau de `step_response` en Rust (FFT seule écartée : gain ≤ 5 %) | 2026-10-29 |
 | D-032 | Phase 2 de la migration en deux temps : scipy remplacé par numpy, noyaux de filtres en Rust, scipy et numba réservés aux tests | 2026-10-29 |
 | D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python | 2026-10-29 |
 | D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant | 2026-10-14 |
@@ -106,6 +107,35 @@ ici, jamais dans le code.
 ---
 
 ## 2026-10-29 — Migration vers Rust
+
+### D-033 : phase 2b réduite à un pilote : le noyau de `step_response` en Rust ; porter la FFT seule est écarté
+
+**Contexte.** Profilage du 2026-10-29 (log de 72 s à 2016 Hz, assistant complet 720 ms) : la FFT ne pèse que 27 %
+de l'assistant et `rustfft` va à peu près aussi vite que `pocketfft` (numpy) : porter **la FFT seule** donnerait
+5 % au plus. Le temps part dans de grosses opérations numpy limitées par la mémoire : `step_response` prend 348 ms
+(48 % de l'assistant) dont 38 % de FFT seulement.
+
+**Décision.** Pilote limité à `step_response` (fenêtrage, FFT, déconvolution de Wiener, `cumsum`, contrôle
+qualité et sommes fusionnés en un noyau Rust, `rust/otb-dsp/src/step.rs`) ; `_seg_spectra`, `loop_spectra` et
+`xcorr` ne sont portés qu'après mesure, avec leur contexte, en phase 3.
+- Dépendances Rust pures (pas de compilateur C, D-006) : `realfft` (FFT réelles) et `rayon` (fenêtres en parallèle).
+- **Résultat indépendant du nombre de fils** : les fenêtres se calculent en parallèle, les sommes se font dans
+  l'ordre des fenêtres (par paquets de 256, comme la boucle numpy).
+- **Un processus par cœur = un fil par processus** : `scripts/corpus_labels.py:map_files` fixe
+  `RAYON_NUM_THREADS=1` (sinon cœurs² fils).
+- La boucle numpy d'origine reste dans `tests/ref_step.py`, **inchangée**, comme étalon de parité.
+- Critère fixé avant d'écrire le Rust : `step_response` ≥ 1,5× et assistant ≥ 1,2× plus rapides à un seul fil.
+
+**Choix de Cédric** (2026-10-29, parmi : pilote `step_response` / tout le noyau FFT d'un coup / sauter à la phase 3).
+
+**Témoins.** `tests/test_native_step.py` (72 cas face à l'étalon numpy : écart mesuré 1,7e-14 relatif sur les
+réponses, 6e-16 sur les sommes ; déterminisme à 1 et 8 fils ; fenêtres hors tableau → `ValueError`) ; six
+mutations du noyau (`reg`, seuils 0,5 et 3,0, 1/nfft, `y_correction`, somme) vues en échec (L-034) ; banc du
+2026-10-29 sur la session de 72 s : `step_response` ×3 axes 315 ms → 185 ms à un fil (**1,70×**), 80 ms à
+4 fils (3,9×), 64 ms avec tous les cœurs (**4,9×**) ; assistant 763 ms → 635 ms (**1,20×**, tout juste au seuil)
+à un fil, 539 ms (1,42×) avec tous les cœurs.
+
+**Ouvert.** Parité sur le corpus (`golden.py`), W-015.
 
 ### D-032 : phase 2 en deux temps ; scipy remplacé par numpy, noyaux des filtres en Rust, scipy et numba réservés aux tests
 

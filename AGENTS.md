@@ -56,7 +56,7 @@ src/opentunebox/
   gui/        app.py, main_window.py (visualiseur), guide.py (guide intégré : fiches drone, cases ; accueil dans assets/guide/),
               state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
-rust/         espace de travail Cargo (D-031) : otb-decoder (décodeur, Rust pur), otb-dsp (noyaux des filtres Betaflight, Rust pur), otb-py (pont PyO3 → `opentunebox._native`)
+rust/         espace de travail Cargo (D-031) : otb-decoder (décodeur, Rust pur), otb-dsp (noyaux des filtres Betaflight et de `step_response` ; dépendances realfft et rayon, D-033), otb-py (pont PyO3 → `opentunebox._native`)
 tests/        pytest ; conftest.py (Qt hors écran, réglages isolés, fixtures `app`, `synthetic_log`, `synthetic_state`),
               synthetic.py (`make_flightlog`, `make_session` : vol et session fabriqués, sans corpus),
               bbl_factory.py (fichiers Blackbox binaires fabriqués : en-tête, trames I/P/S/E),

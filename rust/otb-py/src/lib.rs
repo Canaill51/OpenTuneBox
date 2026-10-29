@@ -210,4 +210,61 @@ mod _native {
         let y = guarded(py, || Ok(otb_dsp::pt1_track(xs, k)))?;
         Ok(y.into_pyarray(py))
     }
+
+    /// Même résultat que `tests/ref_step.py:step_windows_numpy` : réponses indicielles des fenêtres `starts`
+    /// (D-031, phase 2b). → (R (k, lr), maxin (k,), sum_gh complexe, sum_hh, sum_gg).
+    #[pyfunction]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    fn step_windows<'py>(
+        py: Python<'py>,
+        sp: PyReadonlyArray1<'py, f64>,
+        gy: PyReadonlyArray1<'py, f64>,
+        w: PyReadonlyArray1<'py, f64>,
+        starts: PyReadonlyArray1<'py, i64>,
+        l: usize,
+        lr: usize,
+        pad: usize,
+        reg: f64,
+        y_correction: bool,
+        steady_lo: usize,
+        steady_hi: usize,
+    ) -> PyResult<(
+        Bound<'py, PyArray2<f64>>,
+        Bound<'py, PyArray1<f64>>,
+        Bound<'py, PyArray1<Complex64>>,
+        Bound<'py, PyArray1<f64>>,
+        Bound<'py, PyArray1<f64>>,
+    )> {
+        let (sp, gy, w, starts) = (
+            slice(&sp, "sp")?,
+            slice(&gy, "gy")?,
+            slice(&w, "w")?,
+            slice(&starts, "starts")?,
+        );
+        let p = otb_dsp::step::StepParams {
+            w,
+            l,
+            lr,
+            pad,
+            reg,
+            y_correction,
+            steady: (steady_lo, steady_hi),
+        };
+        let out = guarded(py, || otb_dsp::step::step_windows(sp, gy, starts, &p))?;
+        let k = out.maxin.len();
+        let rows = Array2::from_shape_vec((k, lr), out.rows).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let gh: Vec<Complex64> = out
+            .sum_gh_re
+            .iter()
+            .zip(&out.sum_gh_im)
+            .map(|(&r, &i)| Complex64::new(r, i))
+            .collect();
+        Ok((
+            rows.into_pyarray(py),
+            out.maxin.into_pyarray(py),
+            gh.into_pyarray(py),
+            out.sum_hh.into_pyarray(py),
+            out.sum_gg.into_pyarray(py),
+        ))
+    }
 }

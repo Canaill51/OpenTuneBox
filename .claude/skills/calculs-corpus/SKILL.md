@@ -85,5 +85,8 @@ Si la mesure doit servir plusieurs fois (taux, seuil), l'ajouter à `calibrate_a
   `pkill -f MOTIF` dans une commande dont le texte contient ce motif : elle se tue elle-même.
 - Limiter les fils de numpy / numba par processus (`OMP_NUM_THREADS=1`…) ne fait rien gagner ici (essai du
   2026-10-05) : la durée est fixée par les cœurs physiques et le plus gros fichier.
+- Fils de Rust (rayon, noyau de `step_response`, D-033) : `map_files` fixe `RAYON_NUM_THREADS=1` dans chaque
+  processus (sans cela, cœurs × cœurs fils). Un script qui calcule dans UN seul processus peut laisser tous
+  les cœurs au noyau (4,9× plus rapide que numpy mesuré le 2026-10-29).
 - `scripts/validate_corpus.py` (comparaison avec `blackbox_decode`) reste séquentiel : il pilote un
   programme externe avec un délai de 180 s par fichier et se reprend par `--start`.

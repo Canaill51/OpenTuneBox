@@ -24,8 +24,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from . import _numeric
 
+from .. import _native
+from . import _numeric
 from .loop import LoopMetrics, PidTerms, loop_from_T, loop_from_terms
 from .spectral import clear_of_breaks
 
@@ -105,43 +106,15 @@ def step_response(
     w = _numeric.hann(L)
     nfft = L + 2 * PAD
 
-    # toutes les fenêtres d'un coup (par paquets) : FFT vectorisées
-    resp, maxin = [], []
-    sum_gh = np.zeros(nfft // 2 + 1, dtype=complex)
-    sum_hh = np.zeros(nfft // 2 + 1)
-    sum_gg = np.zeros(nfft // 2 + 1)
-    steady = (t_ms >= 200) & (t_ms <= 500)
-    idx = np.arange(L)
-    for k in range(0, starts.size, 256):
-        st0 = starts[k : k + 256]
-        X = sp[st0[:, None] + idx] * w
-        Y = gy[st0[:, None] + idx] * w
-        X = np.pad(X, ((0, 0), (PAD, PAD)))
-        Y = np.pad(Y, ((0, 0), (PAD, PAD)))
-        # signaux réels : FFT réelles (moitié du spectre, l'autre moitié est conjuguée), même résultat
-        Hr = np.fft.rfft(X, axis=1)
-        Gr = np.fft.rfft(Y, axis=1)
-        H, G = Hr / nfft, Gr / nfft
-        imp = np.fft.irfft(G * np.conj(H) / (H * np.conj(H) + reg), n=nfft, axis=1)
-        st = np.cumsum(imp, axis=1)[:, :Lr]
-        ss = st[:, steady]
-        good = (ss.min(axis=1) > 0.5) & (ss.max(axis=1) < 3.0) if ss.size else np.ones(len(st0), bool)
-        if not good.any():
-            continue
-        st = st[good]
-        if y_correction and ss.size:
-            st = st * (2.0 - ss[good].mean(axis=1, keepdims=True))  # « Y corr. » de PIDtoolbox
-        resp.append(st)
-        maxin.append(np.max(np.abs(sp[st0[good][:, None] + idx]), axis=1))
-        Hr, Gr = Hr[good], Gr[good]
-        sum_gh += np.sum(Gr * np.conj(Hr), axis=0)
-        sum_hh += np.sum(np.abs(Hr) ** 2, axis=0)
-        sum_gg += np.sum(np.abs(Gr) ** 2, axis=0)
-
-    if not resp:
+    # toutes les fenêtres d'un coup : FFT, déconvolution, marche et contrôle qualité en Rust (D-033), en parallèle
+    # mais sommées dans l'ordre des fenêtres. Plage de la réponse (200–500 ms) où l'on contrôle la qualité.
+    steady = np.flatnonzero((t_ms >= 200) & (t_ms <= 500))
+    lo, hi = (int(steady[0]), int(steady[-1]) + 1) if steady.size else (0, 0)
+    R, maxin, sum_gh, sum_hh, sum_gg = _native.step_windows(
+        np.ascontiguousarray(sp), np.ascontiguousarray(gy), np.ascontiguousarray(w),
+        np.ascontiguousarray(starts, dtype=np.int64), L, Lr, PAD, reg, bool(y_correction), lo, hi)
+    if R.shape[0] == 0:
         return empty
-    R = np.vstack(resp)
-    maxin = np.concatenate(maxin)
     mean = R.mean(axis=0)
     std = R.std(axis=0)
     freqs = np.fft.rfftfreq(nfft, 1.0 / fs)

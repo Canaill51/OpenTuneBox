@@ -10,6 +10,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Les lissages, la fenêtre de Hann et l'intercorrélation ne passent plus par scipy mais par `analysis/_numeric.py` (numpy seul, écart à scipy ≈ 1e-14 relatif) ; les 4 noyaux numba des filtres Betaflight sont réécrits en Rust (`rust/otb-dsp`, identiques à numba au bit près, sauf la réponse en fréquence : 1e-15 relatif). scipy, numba et llvmlite (≈ 350 Mo installés) ne sont plus nécessaires à l'application (dossier de l'exécutable Linux : 206 Mo au lieu de 463 Mo) : ils passent dans l'extra `dev`, comme références des tests (D-032).
 
 ### Ajouté
+- Réponse indicielle (`step_response`) : fenêtrage, FFT, déconvolution et contrôle qualité en un noyau Rust parallèle (`rust/otb-dsp/src/step.rs`), résultat identique quel que soit le nombre de fils ; 1,7× plus rapide à un fil, 4,9× avec tous les cœurs ; l'assistant complet gagne 1,2× à 1,4× (D-033).
 - Décodeur Blackbox en Rust (`rust/otb-decoder`, extension `opentunebox._native` par PyO3 et maturin), moteur par
   défaut : mêmes tableaux que numba au bit près sur tout le corpus, environ 6 fois plus rapide (22 Mo : 1,94 s →
   0,29 s) ; `OTB_BACKEND=python` garde numba pendant la migration (D-031, L-032).
