@@ -50,7 +50,7 @@ fichier .bbl/.bfl
 | Module | Rôle |
 |---|---|
 | `spectral.py` | PSD de Welch, fréquence × gaz (fenêtres 300 ms, 100 tranches), fréquence × temps |
-| `step.py` | Réponse indicielle par déconvolution de Wiener ; métriques (pic, latence, montée, cassure, vagues), bande passante, et boucle ouverte par `loop.py` |
+| `step.py` | Réponse indicielle par déconvolution de Wiener (noyau en Rust, `rust/otb-dsp/src/step.rs`, D-033) ; métriques (pic, latence, montée, cassure, vagues), bande passante, et boucle ouverte par `loop.py` |
 | `step_series.py` | Séries de vols à un seul curseur changé (Damping, Master, Pitch Tracking, Pitch Damping) et conditions du protocole (feedforward, mode Angle, curseur I) |
 | `loop.py` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.py` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
