@@ -12,7 +12,11 @@ analyses (`scripts/validate_corpus.py`, tests `-m corpus`).
   d'écriture sur la carte SD (`gap`), trames S parasites (`slow`), valeurs impossibles (gyro ou consigne
   > 4000 °/s, terme PID > ±65535). OpenTuneBox les rejette.
 - La référence se bloque sur 3 fichiers (`refhang`) qu'OpenTuneBox lit.
-- Démarrage à froid du décodeur ≈ 0,6 s (cache numba).
+- Démarrage à froid du décodeur numba ≈ 0,6 s (cache numba).
+- **Décodeur Rust** (D-031, 2026-10-29) : empreintes identiques à celles du décodeur numba sur 499 fichiers et
+  680 sessions (`scripts/golden.py check`, aussi pour les outils et les constats de l'assistant : 0 différence
+  sur 630 sessions) ; 6 000 flux aléatoires et 40 fichiers abîmés (`tests/test_native_decoder.py`). Temps
+  d'ouverture : 3,6 Mo 0,32 s → 0,05 s ; 22,3 Mo 1,94 s → 0,29 s.
 - Un vrai extrait est versionné pour la CI : `tests/data/jeno5_5s.bbl` (5,1 s du début de la 1re session de
   `Cedric/JeNo 5/FINAL.bbl`, Betaflight 2026.6.0-rc3, 8 262 trames, coupé sur une trame I). Statut `ok` face à
   `blackbox_decode` le 2026-10-12 ; `tests/test_real_log.py` fige l'en-tête, la première et la dernière trame,

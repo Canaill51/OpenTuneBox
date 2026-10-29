@@ -60,6 +60,23 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-032 : numba lit hors tableau sans erreur ; le port Rust, lui, panique, et la panique n'est pas une `Exception`
+- **Symptôme** — 2026-10-29 : le décodeur Rust, identique à numba sur tout le corpus et 6 000 flux aléatoires,
+  plante sur un en-tête qui n'a qu'un seul champ I (`index out of bounds: the len is 1 but the index is 1`) ;
+  numba, sur le même fichier, renvoie `[5 6]`. Dans l'interface, la tâche de calcul ne finit jamais.
+- **Cause** — mesurée (relecture par agent, reproduite de bout en bout) : le décodeur lit toujours la case 1
+  (temps) alors que les tableaux n'ont que `max(n_champs, 1)` cases. Numba ne contrôle pas les indices
+  (comportement indéfini, il lit la mémoire voisine) ; Rust si. Une panique traverse PyO3 en
+  `pyo3_runtime.PanicException`, qui hérite de `BaseException` : `except Exception` (`gui/worker.py`,
+  `cli.py`) ne l'attrape pas.
+- **Règle** — en portant du code numba : (1) tout indice que numba ne contrôlait pas reçoit un comportement
+  défini (tampons assez grands, lecture tolérante `at()` qui rend 0) et documenté ; (2) le pont attrape les
+  paniques (`catch_unwind`) et lève une exception ordinaire ; (3) une session sans champ de temps est
+  ignorée par `reader.py`. Les tests de parité évitent les indices hors tableau de numba, dont la valeur est
+  indéfinie : seuls ces cas peuvent légitimement différer.
+- **Preuve** — `tests/test_native_decoder.py` (`test_single_field_header_is_ignored_by_both`,
+  `test_random_streams_identical`, mutation d'une constante : 8 échecs) ; `rust/otb-decoder/src/frame.rs:at`.
+
 ### L-031 : `pip-audit` installé à côté du projet audite aussi pip et ses propres outils, et fait échouer la CI sur une faille étrangère au projet
 - **Symptôme** — 2026-10-14 : premier essai de `audit.yml` dans un environnement vierge : `pip-audit` sort en
   erreur (code 1) sur `pip 25.1.1  PYSEC-2026-3721  26.2`, alors que `numpy`, `scipy`, `numba`, `PySide6`,
@@ -389,6 +406,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-032 | Numba lit hors tableau sans erreur, Rust panique (`BaseException`). Comportement défini, `catch_unwind`, session sans temps ignorée | Décodeur et logs |
 | L-031 | `pip-audit` audite tout son environnement (pip compris) : pip à jour, outil dans un environnement à part, `--path` | Outillage |
 | L-030 | Module Qt exclu de la recette : construction réussie, plantage au premier graphique. Exécutable d'essai | Construction |
 | L-029 | Script Qt hors pytest : réglages réels écrasés. `QStandardPaths.setTestModeEnabled(True)` d'abord | Outillage |

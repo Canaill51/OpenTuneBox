@@ -72,7 +72,8 @@ opentunebox report LOG.bbl [--profil five]   # diagnostic (profils : whoop micro
 
 ## Développement
 
-Depuis les sources (Python 3.11 ou plus récent) :
+Depuis les sources (Python 3.11 ou plus récent ; [Rust](https://rustup.rs) est requis sur la branche
+`feat/rust-migration` : l'extension `opentunebox._native` est compilée par `pip install`) :
 
 ```sh
 python3 -m venv .venv
@@ -80,6 +81,7 @@ python3 -m venv .venv
 .venv/bin/opentunebox-gui                 # interface graphique
 sh packaging/linux/install_linux.sh       # Linux : ajoute OpenTuneBox au menu des applications
 .venv/bin/pytest -q                       # tests (ceux qui demandent de vrais logs sont ignorés sans corpus)
+(cd rust && cargo test -p otb-decoder)    # tests du code Rust
 OTB_LOGS=/chemin/logs .venv/bin/pytest -q -m corpus   # tests sur un dossier de vrais logs
 ```
 
