@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
 
 [project]
 name = "opentunebox"
@@ -36,8 +36,13 @@ opentunebox = "opentunebox.cli:main"
 [project.gui-scripts]
 opentunebox-gui = "opentunebox.gui.app:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+# Extension Rust opentunebox._native (D-031) : `pip install -e .` la compile (cargo requis, voir CONTRIBUTING.md)
+[tool.maturin]
+python-source = "src"
+module-name = "opentunebox._native"
+manifest-path = "rust/otb-py/Cargo.toml"
+features = ["pyo3/extension-module"]
+profile = "release"
 
 [tool.ruff.lint]
 # Mêmes contrôles que pyflakes (D-030) : imports et variables inutiles, noms indéfinis. Les règles de style
