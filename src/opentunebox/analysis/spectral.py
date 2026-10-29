@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy import ndimage, signal
+from . import _numeric
 
 EPS = 1e-12
 
@@ -65,7 +65,7 @@ def ptb_subsample(duration_s: float, short: int, mid: int, long: int) -> int:
 def _seg_spectra(segs: np.ndarray, fs: float, mode: str) -> tuple[np.ndarray, np.ndarray]:
     """Spectres unilatéraux de fenêtres déjà découpées (Hann). mode = 'psd' (dB) ou 'amp'."""
     L = segs.shape[1]
-    w = signal.windows.hann(L, sym=False)
+    w = _numeric.hann(L, sym=False)
     segs = segs - segs.mean(axis=1, keepdims=True)
     X = np.fft.rfft(segs * w, axis=1)
     f = np.fft.rfftfreq(L, 1.0 / fs)
@@ -93,7 +93,7 @@ def smooth_freq(y: np.ndarray, level: int) -> np.ndarray:
     if level <= 0:
         return y
     width = 1 + 2 * level
-    return ndimage.uniform_filter1d(y, size=width, axis=-1, mode="nearest")
+    return _numeric.uniform_filter1d(y, size=width, axis=-1)
 
 
 # ---------------------------------------------------------------- spectre 2D
@@ -196,8 +196,8 @@ def smooth_map(z: np.ndarray, level: int) -> np.ndarray:
     mask = ~np.isnan(z)
     zz = np.where(mask, z, 0.0)
     sig = (1.25 * level, 0.5 * level)
-    num = ndimage.gaussian_filter(zz, sig, mode="nearest")
-    den = ndimage.gaussian_filter(mask.astype(float), sig, mode="nearest")
+    num = _numeric.gaussian_filter(zz, sig)
+    den = _numeric.gaussian_filter(mask.astype(float), sig)
     with np.errstate(invalid="ignore", divide="ignore"):
         out = num / den
     out[~mask] = np.nan

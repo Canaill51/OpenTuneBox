@@ -24,8 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy import signal
-from scipy.ndimage import uniform_filter1d
+from . import _numeric
 
 from .loop import LoopMetrics, PidTerms, loop_from_T, loop_from_terms
 from .spectral import clear_of_breaks
@@ -103,7 +102,7 @@ def step_response(
     if n < L:
         return empty
     starts = _window_starts(sp[:n], fs, L, hop_ms, min_input, max_input, breaks)
-    w = signal.windows.hann(L)
+    w = _numeric.hann(L)
     nfft = L + 2 * PAD
 
     # toutes les fenêtres d'un coup (par paquets) : FFT vectorisées
@@ -211,7 +210,7 @@ def step_metrics(t_ms: np.ndarray, r: np.ndarray) -> StepMetrics:
 
 
 def _smooth(x: np.ndarray, n: int) -> np.ndarray:
-    return uniform_filter1d(x, max(1, n), axis=-1, mode="nearest")
+    return _numeric.uniform_filter1d(x, max(1, n), axis=-1)
 
 
 def _ripple(t_ms: np.ndarray, r: np.ndarray, latency_ms: float) -> tuple[float, float]:

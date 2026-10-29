@@ -34,8 +34,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy import signal
-from scipy.ndimage import uniform_filter1d
+from . import _numeric
 
 from .bf_filters import chain_response, dterm_chain
 from .spectral import clear_of_breaks
@@ -234,7 +233,7 @@ def loop_spectra(r: np.ndarray, y: np.ndarray, terms: PidTerms, fs: float, seg_s
     starts = starts[ok]
     if starts.size < 2:
         return None
-    w = signal.windows.hann(L)
+    w = _numeric.hann(L)
     freqs = np.fft.rfftfreq(L, 1.0 / fs)
     groups = np.array_split(starts, min(blocks, starts.size))
     out = {k: np.zeros((len(groups), freqs.size), dtype=complex) for k in _PAIRS}
@@ -387,4 +386,4 @@ def _smooth_complex(z: np.ndarray, width: int) -> np.ndarray:
     """Moyenne glissante sur parties réelle et imaginaire, bords prolongés (pas d'écrasement)."""
     if width <= 1 or z.size < width:
         return z
-    return uniform_filter1d(z.real, width, mode="nearest") + 1j * uniform_filter1d(z.imag, width, mode="nearest")
+    return _numeric.uniform_filter1d(z.real, width) + 1j * _numeric.uniform_filter1d(z.imag, width)

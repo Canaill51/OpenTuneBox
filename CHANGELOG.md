@@ -7,6 +7,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Modifié
 - Lint par `ruff check` (règles de pyflakes, mêmes contrôles) à la place de `pyflakes`, en local et en CI (D-030).
+- Les lissages, la fenêtre de Hann et l'intercorrélation ne passent plus par scipy mais par `analysis/_numeric.py` (numpy seul, écart à scipy ≈ 1e-14 relatif) : première étape pour retirer scipy de l'installateur (D-031, phase 2a).
 
 ### Ajouté
 - Décodeur Blackbox en Rust (`rust/otb-decoder`, extension `opentunebox._native` par PyO3 et maturin), moteur par
