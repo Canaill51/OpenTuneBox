@@ -138,12 +138,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "otb-log"
+version = "0.8.0"
+
+[[package]]
 name = "otb-py"
 version = "0.8.0"
 dependencies = [
  "numpy",
  "otb-decoder",
  "otb-dsp",
+ "otb-log",
  "pyo3",
 ]
 

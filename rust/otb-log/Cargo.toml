@@ -1,0 +1,6 @@
+[package]
+name = "otb-log"
+description = "Ouverture d'un log : rejet des trames impossibles et conversions en float32 ; Rust pur, sans dépendance"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true

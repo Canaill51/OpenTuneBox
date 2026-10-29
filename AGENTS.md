@@ -91,7 +91,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/ruff check src tests scripts packaging/make_icons.py   # lint (doit être vide, D-030)
 .venv/bin/pytest -q --cov=opentunebox --cov-report=term-missing   # couverture (hors code numba : L-025)
 .venv/bin/pytest -q tests/test_docs.py               # cohérence de la documentation (< 1 s)
-(cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp)   # Rust
+(cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp -p otb-log)   # Rust
 .venv/bin/pip install -e .                           # recompile l'extension Rust (maturin, profil release) après un changement de rust/
 .venv/bin/opentunebox-gui [LOG…]                     # interface
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande
