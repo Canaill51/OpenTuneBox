@@ -68,6 +68,10 @@ def assert_same(kw):
     close(got[2].imag, ref[2].imag)
     close(got[3], ref[3])
     close(got[4], ref[4])
+    # les sommes couvrent plusieurs décades (6e6 mesuré) : la tolérance « au maximum » ne vérifie pas les hautes
+    # fréquences ; on exige aussi l'écart relatif case par case (mesuré : 4e-12 au pire, 200 fois sous RTOL)
+    for k in (2, 3, 4):
+        np.testing.assert_allclose(got[k], ref[k], rtol=RTOL, atol=0)
     return got
 
 

@@ -60,6 +60,19 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-038 : rayon et les processus : un enfant créé par `fork` se bloque ; la variable de fils se pose dans chaque processus
+- **Symptôme** — relu avant la fusion (2026-10-29, noyau de `step_response`, D-033) : un processus parent appelle
+  `step_windows`, puis crée un `Pool` par `fork` ; dans les enfants, `step_windows` ne rend jamais la main.
+  Autre piège vu en même temps : `RAYON_NUM_THREADS` posée dans le parent **après** le démarrage d'un forkserver
+  n'atteint pas les processus de calcul, et `os.environ.setdefault` dans le parent ralentit tout ce qui suit.
+- **Cause** — le pool de fils rayon (global, créé au premier appel) est copié par `fork` sans ses fils ; le
+  forkserver reçoit l'environnement de son démarrage, pas celui d'après.
+- **Règle** — passages parallèles en `forkserver` ou `spawn` seulement (jamais `fork` après un appel au noyau) ;
+  `RAYON_NUM_THREADS=1` posée dans chaque processus par `Pool(initializer=…)` (`corpus_labels._one_thread`),
+  jamais dans le parent. Python < 3.14 utilise `fork` par défaut sous Linux : le demander explicitement.
+- **Preuve** — `tests/test_scripts.py:test_map_files_gives_each_process_one_rust_thread_and_leaves_the_parent_alone`
+  (échoue sans l'initialiseur) ; `tests/test_native_step.py` (déterminisme à 1 et 8 fils) ; relecture indépendante.
+
 ### L-037 : déplacer une dépendance vers l'extra `dev` casse les workflows qui installent sans `dev`
 - **Symptôme** — relu avant la fusion (2026-10-29) : `construire.yml` installe `. pyinstaller pytest`, lance des
   tests, puis PyInstaller. Après avoir sorti scipy et numba des dépendances, `tests/conftest.py` →
@@ -463,6 +476,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-038 | Rayon : un enfant créé par `fork` se bloque ; `RAYON_NUM_THREADS=1` par `Pool(initializer=…)`, pas dans le parent | Outillage |
 | L-037 | Dépendance déplacée vers `dev` : relire tous les workflows ; références de test installées puis désinstallées avant PyInstaller | Construction |
 | L-036 | `as_slice` accepte l'ordre Fortran et le lit comme du C : `is_c_contiguous()` + test `asfortranarray` | Décodeur et logs |
 | L-035 | `ruff check --fix` supprime un import qui sert de réexport à un test : `# noqa: F401`, relancer la suite | Outillage |

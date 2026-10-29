@@ -13,6 +13,9 @@ use std::sync::Arc;
 /// Fenêtres traitées ensemble : borne la mémoire, comme les paquets de 256 de la version numpy.
 const BATCH: usize = 256;
 
+/// Plafond de la taille de FFT (≈ 67 millions de points) : au-delà, une allocation tuerait le processus.
+const MAX_NFFT: usize = 1 << 26;
+
 /// Paramètres du calcul (tout ce qui n'est ni un signal ni la liste des fenêtres).
 pub struct StepParams<'a> {
     /// Fenêtre de pondération (Hann symétrique, passée depuis Python), `l` valeurs.
@@ -155,7 +158,13 @@ fn window(
 
 /// Réponses indicielles des fenêtres `starts` de `sp` (consigne) et `gy` (gyro).
 pub fn step_windows(sp: &[f64], gy: &[f64], starts: &[i64], p: &StepParams) -> Result<StepOut, String> {
-    let nfft = p.l + 2 * p.pad;
+    // ⚠️ en release un débordement entier passe sans erreur : `pad` géant donnerait un `nfft` faux (L-038)
+    let nfft = p
+        .pad
+        .checked_mul(2)
+        .and_then(|x| x.checked_add(p.l))
+        .filter(|&n| n <= MAX_NFFT)
+        .ok_or_else(|| format!("l + 2·pad dépasse {MAX_NFFT} (l = {}, pad = {})", p.l, p.pad))?;
     let nf = nfft / 2 + 1;
     if p.w.len() != p.l {
         return Err(format!("w : {} valeurs, {} attendues", p.w.len(), p.l));
@@ -208,6 +217,7 @@ pub fn step_windows(sp: &[f64], gy: &[f64], starts: &[i64], p: &StepParams) -> R
         if kept.is_empty() {
             continue;
         }
+        out.rows.reserve(kept.len() * p.lr);
         let (mut bgh_re, mut bgh_im, mut bhh, mut bgg) = (vec![0.0; nf], vec![0.0; nf], vec![0.0; nf], vec![0.0; nf]);
         for w in &kept {
             for j in 0..nf {
@@ -361,6 +371,18 @@ mod tests {
         assert!(step_windows(&sp, &sp[..150], &[100], &p).is_err()); // le plus court des deux signaux fait loi
         assert!(step_windows(&sp, &sp, &[200], &p).is_ok());
         assert!(step_windows(&sp, &sp, &[], &p).unwrap().rows.is_empty());
+    }
+
+    #[test]
+    fn huge_pad_is_an_error_not_a_wrong_result() {
+        let sp = noise(300, 7);
+        let w = hann(100);
+        for pad in [1usize << 63, 1 << 62, (1 << 63) - 50, MAX_NFFT, 1 << 40] {
+            assert!(
+                step_windows(&sp, &sp, &[0], &params(&w, 100, 50, pad)).is_err(),
+                "pad = {pad}"
+            );
+        }
     }
 
     #[test]

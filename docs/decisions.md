@@ -135,7 +135,12 @@ mutations du noyau (`reg`, seuils 0,5 et 3,0, 1/nfft, `y_correction`, somme) vue
 4 fils (3,9×), 64 ms avec tous les cœurs (**4,9×**) ; assistant 763 ms → 635 ms (**1,20×**, tout juste au seuil)
 à un fil, 539 ms (1,42×) avec tous les cœurs.
 
-**Ouvert.** Parité sur le corpus (`golden.py`), W-015.
+**Parité sur le corpus** (`scripts/golden.py check`, 2026-10-29) : décodeur 0 différence (499 fichiers) ; assistant
+**0 session aux constats différents** sur 630, durée cumulée 1879 s → 1410 s (références de `main` : numba, scipy et
+décodeur Python) ; outils (20 logs) : structure identique, donc mêmes fenêtres retenues, écart relatif maximal
+**2,4e-10** (boucle ouverte `loop.L`, identique à la mesure de la phase 2a : le noyau n'ajoute rien de mesurable).
+
+**Ouvert.** W-015 ; `_seg_spectra`, `loop_spectra`, `xcorr` : phase 3.
 
 ### D-032 : phase 2 en deux temps ; scipy remplacé par numpy, noyaux des filtres en Rust, scipy et numba réservés aux tests
 

@@ -110,6 +110,7 @@ def step_response(
     # mais sommées dans l'ordre des fenêtres. Plage de la réponse (200–500 ms) où l'on contrôle la qualité.
     steady = np.flatnonzero((t_ms >= 200) & (t_ms <= 500))
     lo, hi = (int(steady[0]), int(steady[-1]) + 1) if steady.size else (0, 0)
+    # ⚠️ pool de fils rayon créé au premier appel : un processus créé par `fork` APRÈS cet appel se bloque (L-038)
     R, maxin, sum_gh, sum_hh, sum_gg = _native.step_windows(
         np.ascontiguousarray(sp), np.ascontiguousarray(gy), np.ascontiguousarray(w),
         np.ascontiguousarray(starts, dtype=np.int64), L, Lr, PAD, reg, bool(y_correction), lo, hi)

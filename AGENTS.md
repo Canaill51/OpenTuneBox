@@ -184,7 +184,8 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
   temporaire (`theme._colored_svg`). L-018
 - scipy, numba et llvmlite ne servent plus qu'aux tests (extra `dev`) : `tests/test_no_heavy_deps.py` interdit
   de les importer dans l'application. Réexport nécessaire à un test (`core.CTX_*`) : `# noqa: F401`, car
-  `ruff check --fix` supprime les imports « inutiles ». D-032, L-034, L-035, L-037. Tableau 2D passé au Rust à plat : `is_c_contiguous()` (L-036)
+  `ruff check --fix` supprime les imports « inutiles ». D-032, L-034, L-035, L-037. Tableau 2D passé au Rust à plat : `is_c_contiguous()` (L-036). Noyau parallèle (rayon, D-033) :
+  jamais de `fork` après un appel ; `RAYON_NUM_THREADS=1` dans chaque processus du corpus (L-038)
 - Pas de compilateur C sur le poste de développement : pas de dépendance à compiler. D-006
 - Linux : PyInstaller a besoin de `binutils` (`objdump`). Windows/macOS : construire sur le système cible. L-020
 - Exécutable Windows sans console (`console=False`) : `sys.stdout` et `sys.stderr` valent `None` ;

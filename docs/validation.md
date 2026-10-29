@@ -21,6 +21,10 @@ analyses (`scripts/validate_corpus.py`, tests `-m corpus`).
   décodeur 0 différence sur 499 fichiers, assistant 0 session aux constats différents sur 630, outils (20 logs)
   même structure, écart relatif maximal **2,4e-10** (boucle ouverte, qui amplifie les écarts de 1e-14 de
   `_numeric.py` face à scipy) ; noyaux des filtres Rust = numba au bit près, sauf la réponse en fréquence (1,2e-15).
+- **Phase 2b, noyau de `step_response` en Rust** (D-033, 2026-10-29) : mêmes résultats que les références de
+  `main` : décodeur 0 différence, assistant 0 session aux constats différents sur 630 (durée cumulée de l'assistant
+  1879 s → 1410 s), outils (20 logs) même structure et écart relatif maximal 2,4e-10 ; noyau face à la boucle numpy :
+  1,7e-14 sur les réponses, 4e-12 case par case sur les sommes. Temps (session de 72 s, 3 axes) : 315 ms → 185 ms à un fil (1,70×), 64 ms avec tous les cœurs (4,9×).
 - Un vrai extrait est versionné pour la CI : `tests/data/jeno5_5s.bbl` (5,1 s du début de la 1re session de
   `Cedric/JeNo 5/FINAL.bbl`, Betaflight 2026.6.0-rc3, 8 262 trames, coupé sur une trame I). Statut `ok` face à
   `blackbox_decode` le 2026-10-12 ; `tests/test_real_log.py` fige l'en-tête, la première et la dernière trame,

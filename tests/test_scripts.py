@@ -27,6 +27,10 @@ def _size(path):
     return os.path.getsize(path)
 
 
+def _rayon_threads(path):
+    return os.environ.get("RAYON_NUM_THREADS")
+
+
 def _size_or_fail(path):
     if path.endswith("bad.bbl"):
         raise ValueError("fichier abîmé")
@@ -54,6 +58,16 @@ def test_map_files_keeps_input_order_and_retries_failures(files, jobs, capsys):
     err = capsys.readouterr().err
     assert "ERR bad.bbl" in err and "ValueError" in err
     assert cl.map_files(_size, [], jobs=jobs) == [] and cl.map_files(_size, files[:1], jobs=jobs) == [(files[0], 10)]
+
+
+def test_map_files_gives_each_process_one_rust_thread_and_leaves_the_parent_alone(files, monkeypatch):
+    """Un processus par cœur : sans `RAYON_NUM_THREADS=1` dans chacun, cœurs² fils (L-038). La variable est posée
+    dans les processus de calcul, pas dans le parent (un forkserver déjà lancé ne la recevrait pas). Limite : une
+    variable posée APRÈS le démarrage du forkserver n'atteint pas les processus (non testable dans ce processus)."""
+    monkeypatch.delenv("RAYON_NUM_THREADS", raising=False)
+    res = cl.map_files(_rayon_threads, files[:3], jobs=2)
+    assert [v for _, v in res] == ["1", "1", "1"]
+    assert "RAYON_NUM_THREADS" not in os.environ
 
 
 def test_default_jobs_is_cpu_count():
