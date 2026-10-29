@@ -13,3 +13,6 @@ dist/
 .mypy_cache/
 *.spec.bak
 OTB_FIGS_*.png
+rust/target/
+*.so
+*.pyd

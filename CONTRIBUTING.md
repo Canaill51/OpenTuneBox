@@ -21,7 +21,10 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    ```sh
    .venv/bin/pytest -q
    .venv/bin/ruff check src tests scripts packaging/make_icons.py
+   (cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder)   # si rust/ change
    ```
+   Sur `feat/rust-migration`, `pip install -e .` compile l'extension Rust : [rustup](https://rustup.rs) est requis ;
+   après un changement dans `rust/`, relancer `.venv/bin/pip install -e .`.
 3. Mettre la documentation à jour **dans le même commit** : le tableau de `.claude/skills/docs-sync/SKILL.md`
    indique quels documents relire selon le changement ; `tests/test_docs.py` (lancé par `pytest`) vérifie
    automatiquement liens, chemins, outils, modules et fichiers publiés. Ajouter une ligne dans

@@ -60,8 +60,8 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
-| W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | ouvert |
-| W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | ouvert |
+| W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | TRAITÉ sur `feat/rust-migration` (D-031) |
+| W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | TRAITÉ sur `feat/rust-migration` (D-031) |
 | W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | EN COURS (D-031) |
 | W-014 | Décodeur : 3,4 µs par trame, plus grosse part de l'ouverture d'un log | ouvert |
 | W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | clos |
@@ -301,6 +301,8 @@ Règles d'écriture :
   **Reprise** : prochaine modification du décodeur, ou si un pilote se plaint de l'ouverture.
   **Piste** : profiler `decode_stream` par type de trame (copie `main[n_rows, :] = cur`, lectures d'octets
   via le tableau d'état `st`) ; ou le réécrire hors numba (voir W-015).
+  **Traité le 2026-10-29** sur `feat/rust-migration` : le décodeur Rust (D-031) ouvre le plus gros log
+  (965 000 trames) en 0,58 s au lieu de 2,44 s, identique au bit près.
   [`src/opentunebox/decoder/core.py:decode_stream`]
 
 - **W-015** — Numba impose `llvmlite` (170 Mo sur les 463 Mo du dossier Linux, ≈ 37 %) et une compilation au
@@ -327,6 +329,8 @@ Règles d'écriture :
   **Risque si on n'y touche pas** : un ordinateur à 4 Go de mémoire peut peiner sur un log de plus de 50 Mo.
   **Reprise** : un pilote signale un manque de mémoire, ou W-014 est repris.
   **Piste** : tableaux par blocs de 65 536 trames, réunis à la fin (pic ≈ 2 × la taille utile au lieu de 3 ×).
+  **Traité le 2026-10-29** sur `feat/rust-migration` : réserve moitié moindre puis copie à la taille exacte ;
+  pic de mémoire du plus gros log, interpréteur compris, 507 Mo → 364 Mo.
   [`src/opentunebox/decoder/reader.py:_decode_session`]
 
 ## Origine : comparaison des CI d'OpenTuneBox et de Superview (2026-10-14)

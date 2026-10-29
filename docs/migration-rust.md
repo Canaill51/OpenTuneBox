@@ -79,4 +79,5 @@ Après la phase 2, **mesurer le poids réel des installateurs** (objectif n° 1)
 | Phase | État |
 |---|---|
 | 0 | Fait le 2026-10-29 (branche `chore/rust-safety-net`) : références enregistrées (499 fichiers, 680 sessions, 630 sessions de l'assistant, 20 logs d'outils, 705 Mo) ; `check` relancé sur tout le corpus : identique |
-| 1 à 6 | à faire |
+| 1 | Fait le 2026-10-29 (branche `feat/rust-decoder`) : décodeur Rust par défaut, identique au bit près sur tout le corpus, 6 fois plus rapide ; relu par un agent indépendant (L-032). Reste : CI Windows à voir tourner après envoi sur GitHub |
+| 2 à 6 | à faire |

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +35,18 @@ class DecodedSession:
         if name in self.slow_names:
             return self.slow[:, self.slow_names.index(name)]
         return None
+
+
+def decode_stream_backend():
+    """Implémentation du décodage : `OTB_BACKEND=rust` (extension `opentunebox._native`) (défaut) ou `python` (numba,
+    gardé le temps de la migration, D-031). Lue à chaque appel : les tests de parité passent de l'une à l'autre."""
+    backend = os.environ.get("OTB_BACKEND", "rust")
+    if backend == "rust":
+        from .. import _native
+        return _native.decode_stream
+    if backend != "python":
+        raise ValueError(f"OTB_BACKEND inconnu : {backend!r} (python ou rust)")
+    return core.decode_stream
 
 
 def list_sessions(path: str | Path) -> list[LogHeader]:
@@ -74,7 +87,7 @@ def _defs(fd: FrameDef | None):
 
 def _decode_session(buf: np.ndarray, header: LogHeader, index: int) -> DecodedSession | None:
     fi = header.frames.get("I")
-    if fi is None or not fi.complete():
+    if fi is None or not fi.complete() or fi.count < 2:  # itération et temps sont indispensables (D-031)
         return None
     fp = header.frames.get("P")
     i_pred, i_enc, n_main, _ = _defs(fi)
@@ -97,7 +110,7 @@ def _decode_session(buf: np.ndarray, header: LogHeader, index: int) -> DecodedSe
     nbytes = header.data_end - header.data_start
     est_rows = max(1024, nbytes // 20)
 
-    main, kind, slow, slow_at, gps, gps_at, events, st = core.decode_stream(
+    main, kind, slow, slow_at, gps, gps_at, events, st = decode_stream_backend()(
         buf,
         header.data_start,
         header.data_end,

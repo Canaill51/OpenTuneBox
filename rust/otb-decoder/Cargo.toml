@@ -1,0 +1,6 @@
+[package]
+name = "otb-decoder"
+description = "Décodeur binaire des trames Blackbox Betaflight (Rust pur, sans Python)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true

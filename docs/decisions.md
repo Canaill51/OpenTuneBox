@@ -124,6 +124,11 @@ poste de développement a maintenant `cargo` 1.99 et `gcc`.
   différente de scipy) ; assistant : mêmes constats sur tout le corpus (`advisor_rates.py --compare`).
   Références figées avant d'écrire du Rust (`scripts/golden.py`, stockées dans `$OTB_LOGS/golden`).
 - **Systèmes.** Windows fait partie des livrables à chaque étape (CI sous Linux et Windows).
+- **Comportement défini là où numba était indéfini** : une lecture hors tableau (prédicteur `MOTOR_0` dans une
+  trame S/G/H, coordonnée GPS d'une trame H incomplète) rend 0 ; une session à moins de 2 champs I est ignorée ;
+  une panique du Rust devient une `RuntimeError`. Les tests de parité excluent ces cas (L-032).
+- Pas de repli vers numba si `_native` manque : le Rust est le moteur par défaut dès la phase 1
+  (`OTB_BACKEND=python` garde numba le temps de la migration).
 - Amende D-002 et D-006 **sur la branche Rust seulement** ; D-001 sera amendée pour l'interface à la dernière phase.
 
 **Choix de Cédric** (2026-10-29, parmi : hybride / tout en Rust par étapes / tout d'un coup ; interface

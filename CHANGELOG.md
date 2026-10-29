@@ -9,6 +9,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Lint par `ruff check` (règles de pyflakes, mêmes contrôles) à la place de `pyflakes`, en local et en CI (D-030).
 
 ### Ajouté
+- Décodeur Blackbox en Rust (`rust/otb-decoder`, extension `opentunebox._native` par PyO3 et maturin), moteur par
+  défaut : mêmes tableaux que numba au bit près sur tout le corpus, environ 6 fois plus rapide (22 Mo : 1,94 s →
+  0,29 s) ; `OTB_BACKEND=python` garde numba pendant la migration (D-031, L-032).
 - `scripts/golden.py` : références figées du décodeur, des outils et de l'assistant pour prouver qu'une réécriture
   en Rust ne change rien ; plan de migration `docs/migration-rust.md` (D-031).
 - `tests/test_ci_audit.py` : le workflow d'audit garde sa forme (pip à jour, pip-audit dans un environnement à

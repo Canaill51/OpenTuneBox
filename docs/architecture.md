@@ -22,6 +22,8 @@ leur contexte, les options écartées et ce qui les prouve.
 fichier .bbl/.bfl
   └─ decoder/header.py      en-têtes H, définitions de trames, débuts de sessions
   └─ decoder/core.py        décodage numba des trames I/P/S/G/H/E (encodages + prédicteurs)
+     rust/otb-decoder       même décodeur en Rust (extension `opentunebox._native`, pont `rust/otb-py`) ;
+                            `OTB_BACKEND=rust|python` choisit l'un ou l'autre pendant la migration (D-031)
   └─ decoder/reader.py      DecodedSession (entiers bruts, trames S propagées)
        └─ log/flightlog.py  FlightLog : temps, gyro, consigne, P/I/D/F, moteurs, gaz, debug, tension…
                             en unités physiques ; trames impossibles écartées ; settings.py normalise l'en-tête
