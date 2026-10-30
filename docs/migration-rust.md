@@ -23,12 +23,18 @@ main                          Python, publiable à tout moment
 
 ## Principe
 
-Chaque module Python est réécrit en Rust, branché par PyO3 (module `opentunebox._native`) puis prouvé
-équivalent avant de supprimer l'ancien. Pendant la transition, `OTB_BACKEND=python|rust` choisit
-l'implémentation et les tests de parité comparent les deux. Espace de travail Cargo prévu :
+**Phases 0 à 3** : chaque module Python est réécrit en Rust, branché par PyO3 (module `opentunebox._native`) puis prouvé
+équivalent ; `OTB_BACKEND=python|rust` choisit l'implémentation le temps de la transition.
+
+**Depuis la décision D-035 (phases 4 à 7)** : plus aucun Python à la fin, tout le dépôt en Rust. Le noyau est réécrit en
+bibliothèques Rust autonomes, **sans pont PyO3 module par module** ; le Python de la branche reste intact et sert
+d'**étalon figé** (tag `python-etalon`), par des références enregistrées sur le corpus (`golden.py record-modules`) que le
+comparateur Rust `otb-parity` relit. L'interface devient egui + egui_plot, sous réserve d'un prototype d'essai. Espace de
+travail Cargo :
 
 ```
-rust/  otb-decoder  otb-dsp  otb-log  otb-analysis  otb-advisor  otb-py (pont PyO3)  otb-gui (phase 6)
+rust/  otb-decoder  otb-dsp  otb-log  otb-analysis  otb-advisor  otb-cli  otb-gui  otb-parity (dev)
+       otb-py (pont PyO3, supprimé à la phase 7)
 ```
 
 ## Preuves d'équivalence
@@ -67,11 +73,18 @@ Le filet a été éprouvé : une valeur altérée à la main est détectée (dé
 | 3a | Ouverture des logs en Rust (`_drop_implausible`, conversions float32) : une seule passe sur la matrice (D-034) | faible | sorties identiques au bit près ; chargement ≥ 1,5× |
 | 3b | `motors.py` et `sections_response` en Rust (boucles par fenêtre entières) | moyen | parité mesurée ; assistant ≥ 1,25× à un fil |
 | 3c | ~~`whatif_spectrum` (filter_sim)~~ ABANDONNÉE le 2026-10-30 : gain plafonné à 1,04× à un fil (D-034) | — | — |
-| 4 | Assistant (`advisor/`) sans changer un seuil | faible | `advisor_rates.py --compare` |
-| 5 | Ligne de commande en binaire Rust | faible | rapports identiques caractère par caractère |
-| 6 | Interface (bibliothèque choisie alors : egui, Slint, cxx-qt) | très élevé | captures, thèmes, Windows |
+| E1 | Prototype d'interface egui sur de vraies données (D-035) | moyen | tableau « point → supporté / contourné / bloquant » |
+| E2 | Filet de parité : tag `python-etalon`, `record-modules`, `otb-parity`, formats de nombres, `PidTerms` sorti de `loop.py` | faible | références enregistrées, formats identiques sur ≥ 10⁶ valeurs |
+| 4a | Décodeur (en-tête, lecture), `log/` (`debug_tables`, `modes`, `settings`, `FlightLog`) | moyen | décodage au bit près, réglages identiques, tableaux float32 identiques |
+| 4b | `_numeric`, `spectral`, `bf_filters` (chaînes), `sliders` | moyen | tolérance de chaque module fixée avant le code |
+| 4c | `delay`, `loop`, `step`, `step_series`, `stats`, `period`, `datasets`, `motors` | élevé | idem ; outils à ≤ 2,4e-10 déjà vus |
+| 5a | Assistant : `profiles`, `rules`, `noise`, `step_tuning` | élevé | 0 session aux constats différents sur 630 |
+| 5b | `drone_card`, `log_check`, `tuning_path` | moyen | idem + JSON des fiches identique |
+| 5c | Ligne de commande en binaire Rust (`otb-cli`) | faible | rapports identiques caractère par caractère |
+| 6 | Interface egui : socle, visualiseur, 8 outils, guide, 41 tests d'interface réécrits | très élevé | captures des 2 thèmes, contrats couleurs, Linux, Windows, macOS |
+| 7 | Basculement : suppression de tout le Python, CI, installateurs, outil d'icônes en Rust | élevé | `git ls-files '*.py'` vide, 3 systèmes, accord de Cédric |
 
-Règles de chaque étape : tests Python et Rust verts, `ruff` et `clippy` propres, un test de parité qui
+Règles de chaque étape (jusqu'à la phase 7 : tests Python de l'étalon et tests Rust verts) : `ruff` et `clippy` propres, un test de parité qui
 échoue si le Rust diffère, aucun test affaibli, code Python supprimé seulement après recherche de ses usages
 et parité prouvée, documentation et `CHANGELOG.md` à jour, pièges notés dans `lecons.md`.
 
@@ -89,4 +102,5 @@ Après la phase 2, **mesurer le poids réel des installateurs** (objectif n° 1)
 | 3a | Fait le 2026-10-29 (branche `feat/rust-log-open`, D-034) : ouverture des logs en Rust (`rust/otb-log`). Chargement 838 → ≈ 530 ms (1,6×) sur 33,6 Mo, sorties identiques au bit près, mémoire conservée −10 %. Parité : assistant 0 différence (630 sessions), outils 2,4e-10. Relu par un agent indépendant (L-039, L-040) |
 | 3b | Fait le 2026-10-29 (branche `feat/rust-motors`, D-034) : boucles par fenêtre de `motors.py` en Rust (`rust/otb-analysis`, génériques f32 / f64). Assistant 666 → 515 ms par session à un fil (1,29×), sorties identiques au bit près. Parité : assistant 0 différence (630 sessions), outils 0 à `rtol=1e-9`, décodeur 0 (499 fichiers). Huit mutations vues en échec (L-041, L-042) |
 | 3c | Abandonnée le 2026-10-30 (D-034) : la construction des chaînes de filtres pèse 4,0 % de l'assistant à un fil (mesure sans profileur), gain maximal 1,04× ; mémorisation essayée en prototype : 1,06× |
-| 4 à 6 | à faire ; le reste de `analysis/` et `log/` repoussé (W-019) |
+| E0 | Décision D-035 écrite le 2026-10-30 (egui + egui_plot sous réserve du prototype, périmètre complet, noyau Rust autonome) ; W-019 repris |
+| E1, E2, 4 à 7 | à faire (D-035) |

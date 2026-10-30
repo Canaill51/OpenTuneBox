@@ -60,7 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
-| W-019 | Phase 3 repoussée : `spectral`, `loop`, `delay`, `stats`, `sliders`, `step_series`, `settings`, `datasets`, `period` restent en Python | ouvert |
+| W-019 | Phase 3 repoussée : `spectral`, `loop`, `delay`, `stats`, `sliders`, `step_series`, `settings`, `datasets`, `period` restent en Python | EN COURS (D-035 : repris par la phase 4) |
 | W-018 | `opentunebox report` plante sous Windows quand sa sortie est redirigée (cp1252) | ouvert |
 | W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | TRAITÉ sur `feat/rust-migration` (D-031) |
 | W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | TRAITÉ sur `feat/rust-migration` (D-031) |
@@ -369,7 +369,7 @@ Règles d'écriture :
   13 % de l'assistant, `loop` 11 %, `_numeric` 10 % (FFT), `delay` 3,5 %, `stats` 4,5 %, le reste moins de 1 %.
   **Pourquoi reporté** : gain de vitesse nul ou faible pour un risque d'écart élevé (D-034).
   **Risque si on n'y touche pas** : Python et numpy restent nécessaires à l'application ; pas de binaire 100 % Rust.
-  **Reprise** : phases 4 et 5 (assistant, ligne de commande en binaire Rust), quand Python disparaît : porter alors
+  **Reprise** : décidée le 2026-10-30 (D-035) : phases 4 et 5 (journaux, analyses, assistant, ligne de commande en binaire Rust) : porter alors
   ces modules avec leurs consommateurs, avec les étalons `tests/ref_*.py` et `golden.py` ; commencer par les feuilles
   (`_numeric`, `spectral`, `settings` sans la partie modifiable).
   **Piste** : `PidTerms` doit d'abord quitter `analysis/loop.py` (dépendance circulaire avec `log/flightlog.py`) ;

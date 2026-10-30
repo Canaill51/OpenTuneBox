@@ -23,6 +23,8 @@ Résumé ; contexte, options écartées et preuves dans `docs/decisions.md`.
   `gui/assets/icons/`, à garder avec leur fichier de licence. D-004, D-005
 - Migration vers Rust : `main` reste en Python, le travail passe par `feat/rust-migration` et ses sous-branches
   (`docs/migration-rust.md`) ; chaque module est prouvé équivalent avant de supprimer l'ancien. D-031
+- Objectif de la migration : **plus aucun Python** dans le dépôt (application, tests, scripts), interface egui + egui_plot
+  (sous réserve d'un prototype d'essai), noyau Rust autonome, Python figé comme étalon (tag `python-etalon`). D-035
 - Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français. D-001
 
 ## Suivi du projet
