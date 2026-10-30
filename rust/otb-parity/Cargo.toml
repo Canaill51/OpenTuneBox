@@ -6,6 +6,7 @@ publish.workspace = true
 description = "Comparateur de parité (D-035) : rejoue en Rust les appels de modules enregistrés avec l'étalon Python (golden.py record-modules)"
 
 [dependencies]
+otb-analysis = { path = "../otb-analysis" }
 otb-decoder = { path = "../otb-decoder" }
 otb-dsp = { path = "../otb-dsp" }
 otb-log = { path = "../otb-log" }

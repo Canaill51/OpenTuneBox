@@ -60,6 +60,51 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-050 : une batterie de mutations n'est lisible qu'avec les vraies tolérances, des données qui atteignent chaque branche et un outil sûr
+- **Symptôme** — 2026-10-30 (4b-4) : 14 mutations « survivaient » dont des erreurs franches (plafond du rapport, fenêtre minimale) ;
+  plus tard, un chemin de sauvegarde mal recopié a **empilé** plusieurs mutations dans `bf_filters.rs`.
+- **Cause** — mesurée : (1) la tolérance du test valait encore `1.0` (valeur provisoire pour afficher l'écart maximal) : rien ne
+  pouvait échouer ; (2) des branches n'étaient atteintes par aucune donnée : la branche « signal avant filtres » ne change le
+  résultat que si le spectre enregistré est plus faible que `préfiltre × |H_base|²`, les clés du cache (moteurs, centres) que si
+  deux fenêtres de même gaz diffèrent par un seul des deux, `rpm_lpf_hz = 0` que si les harmoniques RPM sont actives ;
+  (3) la fonction de mutation copiait la sauvegarde sans vérifier qu'elle existait.
+- **Règle** — ne lancer la batterie qu'après avoir posé les tolérances finales (mesure d'abord, puis constantes, puis mutations).
+  Pour chaque survivante, écrire la condition de données qui la rendrait visible, puis l'ajouter aux cas : sinon la raisonner
+  et la noter équivalente. Utiliser un outil de mutation qui refuse de démarrer sans sauvegarde valide et qui restaure
+  toujours le fichier (vérifier par `cmp`).
+- **Preuve** — `scripts/bf_sim_cases.py` (journaux `flat_throttle`, `const_debug`, `const_motors`, `zero_debug_from`, réglages
+  `extras`) ; `rust/otb-analysis/tests/bf_sim.rs`.
+
+### L-049 : un test de parité qui compare Rust à Rust ne prouve que la colle
+- **Symptôme** — 2026-10-30 (4b-3) : `coefficients` et `chain_response` ressortaient à 0 écart, exactement, dès le premier essai.
+- **Cause** — mesurée : l'étalon Python appelle déjà le noyau Rust d'`otb-dsp` (`_native.biquad`, `_native.sections_response`). Le
+  test compare donc ce noyau à lui-même ; il prouve seulement que la construction des étages (`_sections`, ordre, cadences,
+  reshape) est la même, pas que le noyau est juste. Le noyau a été prouvé contre l'ancien code numba en 2a.
+- **Règle** — avant de lire « 0 écart » comme une preuve, regarder si l'étalon passe par la fonction testée. Dans ce cas, noter
+  ce que le test couvre vraiment (la colle) et d'où vient la preuve du noyau. Ne pas en tirer de tolérance « mesurée à 0 » :
+  la tolérance se justifie par ce que peut changer une autre plate-forme (libm, BLAS), pas par ce nombre.
+- **Aussi** — une frontière exacte (`|dd| = π` de `np.unwrap`) n'est jamais atteinte par de vraies données : une mutation de
+  ce test survivait sur les 4 749 cas et le corpus. Elle est épinglée par un test unitaire dont les réponses viennent de numpy
+  (`unwrap3_comme_numpy`), pas par un jeu de données.
+- **Preuve** — `rust/otb-analysis/tests/bf_filters.rs`, `rust/otb-analysis/src/bf_filters.rs` (module `tests`).
+
+### L-048 : l'étalon numpy dépend du processeur (`exp` AVX-512) ; un test « bit pour bit » sur `exp`, `cos`, `log10` est faux
+- **Symptôme** — 2026-10-30 (4b-1) : `gaussian_filter` de Rust différait de Python de 2 ulp pour σ = 2, 5, 6,25 alors que les
+  autres σ étaient identiques bit pour bit ; le noyau ne différait qu'à quelques indices symétriques (±1…).
+- **Cause** — mesurée : sur ce poste (AVX-512), `np.exp` donne un autre dernier bit que `math.exp` pour 4,5 % des arguments
+  (9 070 sur 200 001 entre −20 et 0). Avec `NPY_DISABLE_CPU_FEATURES="X86_V4 AVX512_ICL"` (numpy 2.5 : niveaux `X86_V3` /
+  `X86_V4`, pas `AVX512F`) `np.exp` redonne exactement `math.exp`, et le noyau de Rust. Le Rust appelle la bibliothèque
+  mathématique du système (glibc, CRT de Windows, macOS) : elle peut elle aussi différer du dernier bit d'un système à l'autre.
+  Idem pour `log10`, `atan2`, `hypot` (4b-0 : 1 à 7 % de dernier bit) et, par principe, `cos`.
+- **Règle** — tout ce qui passe par `exp`, `log`/`log10`, `cos`/`sin`, `atan2`, `hypot` ou une FFT se compare à une tolérance
+  (1e-14 du plus grand élément pour `cos` et `exp`, 1e-12 pour une FFT), jamais au bit près ; seule l'arithmétique pure
+  (`+ − × ÷`, `sqrt`, sommes, arrondis) est exigée identique au bit près. Un test « bit pour bit » écrit avec les bits de ce
+  poste échouerait sous Windows (la CI y exécute les tests Rust) ou sur une machine sans AVX-512. Sur le corpus enregistré, les
+  sorties de `hann`, `uniform_filter1d` et `gaussian_filter` sont pourtant identiques au bit près (mesuré, 120 appels).
+- **Preuve** — `rust/otb-dsp/tests/numeric.rs` (constantes `FN_RTOL`, `XCORR_RTOL`) ; `registry::tolerance` dans `rust/otb-parity`.
+- **Spectres en dB (4b-2)** — l'écart de la FFT, relatif au plus grand élément, est de 4e-16 sur l'amplitude mais passe à 1,5e-10 (cas écrits) et 1e-10 (corpus, spectrogramme) une fois en dB : un petit élément, très en dessous du maximum, est relativement bien plus touché, et `10·log10` ne réduit rien. Tolérance fixée sur la mesure (1e-9), pas sur une estimation : celle de départ (1e-5) était 5 chiffres trop large.
+- **Sans compter** — `np.fft` ≠ `realfft` à 9e-16 du plus grand élément (mesuré avec `rust/otb-dsp/examples/banc_4b0.rs`).
+
 ### L-047 : une mutation « survivante » peut être équivalente, ou ne rien avoir muté
 - **Symptôme** — 2026-10-30 (4a-5) : changer le signe du gradient de `d_term_prefilter` ou le plancher de sa largeur de lissage
   laissait `check-flightlog` à 0 écart ; deux mutations de la batterie ne changeaient aucun fichier (motif absent après
@@ -590,6 +635,9 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-050 | Batterie de mutations : tolérances finales d'abord, données qui atteignent chaque branche, outil de mutation qui refuse sans sauvegarde | Outillage |
+| L-049 | Parité Rust contre un étalon qui appelle déjà le noyau Rust : 0 écart ne prouve que la colle ; frontières exactes épinglées par un test unitaire | Outillage |
+| L-048 | Étalon numpy dépendant du processeur (`exp` AVX-512 ≠ `math.exp` pour 4,5 %) : `exp`, `cos`, `log10`, FFT à tolérance, jamais bit pour bit | Outillage |
 | L-047 | Mutation survivante : équivalente (gain ajusté, plancher inactif) ou motif absent ; seuils prouvés par une valeur qui les franchit | Décodeur et logs |
 | L-046 | Parité sur le corpus : ne prouve pas les défauts, il faut des cas écrits en plus | Décodeur et logs |
 | L-045 | En-tête Blackbox lu comme Python : `strip` (U+001C…), `0x` sans signe, soulignés entre chiffres seulement (`header.rs`) | Décodeur et logs |

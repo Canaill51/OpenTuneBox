@@ -5,6 +5,7 @@
 
 use std::f64::consts::PI;
 
+pub mod numeric;
 pub mod step;
 
 /// Codes des types d'étage (les mêmes que `_K_PT1`, `_K_LPF`, `_K_NOTCH` de `bf_filters.py`).
