@@ -16,12 +16,12 @@ static WORST: Mutex<BTreeMap<&'static str, f64>> = Mutex::new(BTreeMap::new());
 
 /// `log10` (mesuré 7,4e-18) : 1 ulp d'une valeur en dB, rapporté au plus grand.
 const DB_RTOL: f64 = 1e-14;
-/// Spectre d'amplitude ou de puissance après FFT, rapporté au plus grand élément (mesuré 4,3e-16, marge ×23).
+/// Spectre d'amplitude ou de puissance après FFT, rapporté au plus grand élément (mesuré 5,0e-16, marge ×20).
 const FFT_RTOL: f64 = 1e-14;
-/// Spectre en dB après FFT (mesuré 7,0e-11 : la dynamique du spectre, jusqu'à 1e12 en puissance dans ces cas, amplifie
-/// l'écart de la FFT sur les petits éléments ; marge ×14).
+/// Spectre en dB après FFT (mesuré 1,5e-10 : la dynamique du spectre, jusqu'à 1e12 en puissance dans ces cas, amplifie
+/// l'écart de la FFT sur les petits éléments ; marge ×7, et ≤ 1e-10 sur le corpus).
 const FFT_DB_RTOL: f64 = 1e-9;
-/// Carte lissée par `gaussian_filter` (`exp`, mesuré 3,1e-16) : voir `numeric.rs`.
+/// Carte lissée par `gaussian_filter` (`exp`, mesuré 4,3e-16) : voir `numeric.rs`.
 const SMOOTH_RTOL: f64 = 1e-14;
 
 fn cas() -> Value {
@@ -33,6 +33,11 @@ fn f64s(h: &str) -> Vec<f64> {
     (0..h.len() / 16)
         .map(|i| f64::from_bits(u64::from_str_radix(&h[16 * i..16 * i + 16], 16).unwrap().swap_bytes()))
         .collect()
+}
+
+/// Entrée d'un cas : les signaux sont écrits une fois dans la table `inputs`, les cas y renvoient par identifiant.
+fn input(c: &Value, id: &Value) -> Vec<f64> {
+    f64s(c["inputs"][id.as_str().unwrap()].as_str().unwrap())
 }
 
 fn f1(h: &Value) -> f64 {
@@ -123,8 +128,9 @@ fn ptb_subsample_identique() {
 
 #[test]
 fn to_db_dans_la_tolerance() {
-    for k in cas()["to_db"].as_array().unwrap() {
-        let p = f64s(k["p"].as_str().unwrap());
+    let c = cas();
+    for k in c["to_db"].as_array().unwrap() {
+        let p = input(&c, &k["p"]);
         let db = spectral::to_db(&p);
         assert_close("to_db", &db, &f64s(k["db"].as_str().unwrap()), DB_RTOL, "to_db");
         // l'échelle PIDtoolbox est une soustraction : identique bit pour bit à partir des dB de Python
@@ -140,9 +146,10 @@ fn to_db_dans_la_tolerance() {
 
 #[test]
 fn smooth_freq_identique() {
-    for k in cas()["smooth_freq"].as_array().unwrap() {
+    let c = cas();
+    for k in c["smooth_freq"].as_array().unwrap() {
         let shape: Vec<usize> = ints(&k["shape"]).iter().map(|&v| v as usize).collect();
-        let (y, level) = (f64s(k["y"].as_str().unwrap()), k["level"].as_i64().unwrap());
+        let (y, level) = (input(&c, &k["y"]), k["level"].as_i64().unwrap());
         let what = format!("smooth_freq forme {shape:?} niveau {level}");
         assert_bits(
             &spectral::smooth_freq(&y, &shape, level),
@@ -158,7 +165,7 @@ fn spectrum_dans_la_tolerance() {
     let cases = c["spectrum"].as_array().unwrap();
     assert!(cases.len() >= 80);
     for k in cases {
-        let (x, fs) = (f64s(k["x"].as_str().unwrap()), f1(&k["fs"]));
+        let (x, fs) = (input(&c, &k["x"]), f1(&k["fs"]));
         let mode = k["mode"].as_str().unwrap();
         let breaks = opt_ints(&k["breaks"]);
         let what = format!(
@@ -207,11 +214,7 @@ fn freq_throttle_dans_la_tolerance() {
     let cases = c["freq_throttle"].as_array().unwrap();
     assert!(cases.len() >= 40);
     for k in cases {
-        let (x, xa, fs) = (
-            f64s(k["x"].as_str().unwrap()),
-            f64s(k["xaxis"].as_str().unwrap()),
-            f1(&k["fs"]),
-        );
+        let (x, xa, fs) = (input(&c, &k["x"]), input(&c, &k["xaxis"]), f1(&k["fs"]));
         let mode = k["mode"].as_str().unwrap();
         let breaks = opt_ints(&k["breaks"]);
         let r = k["range"].as_array().unwrap();
@@ -269,9 +272,10 @@ fn freq_throttle_dans_la_tolerance() {
 
 #[test]
 fn smooth_map_dans_la_tolerance() {
-    for k in cas()["smooth_map"].as_array().unwrap() {
+    let c = cas();
+    for k in c["smooth_map"].as_array().unwrap() {
         let shape: Vec<usize> = ints(&k["shape"]).iter().map(|&v| v as usize).collect();
-        let (z, level) = (f64s(k["z"].as_str().unwrap()), k["level"].as_i64().unwrap());
+        let (z, level) = (input(&c, &k["z"]), k["level"].as_i64().unwrap());
         let what = format!("smooth_map forme {shape:?} niveau {level}");
         assert_close(
             "smooth_map",
@@ -290,11 +294,7 @@ fn freq_time_dans_la_tolerance() {
     let cases = c["freq_time"].as_array().unwrap();
     assert!(cases.len() >= 25);
     for k in cases {
-        let (x, t, fs) = (
-            f64s(k["x"].as_str().unwrap()),
-            f64s(k["t"].as_str().unwrap()),
-            f1(&k["fs"]),
-        );
+        let (x, t, fs) = (input(&c, &k["x"]), input(&c, &k["t"]), f1(&k["fs"]));
         let breaks = opt_ints(&k["breaks"]);
         let what = format!(
             "freq_time n={} fenêtre={} hop_div={} lissage={} breaks={breaks:?}",

@@ -21,6 +21,20 @@ def hexs(a) -> str:
     return np.ascontiguousarray(a, dtype="<f8").tobytes().hex()
 
 
+INPUTS: dict[str, str] = {}  # entrées partagées par les cas : identifiant → hexadécimal
+_IDS: dict[str, str] = {}
+_SIGNALS: dict[tuple, np.ndarray] = {}
+
+
+def ref(a) -> str:
+    """Identifiant d'une entrée dans la table `inputs` du fichier : une entrée identique n'y est écrite qu'une fois."""
+    h = hexs(a)
+    if h not in _IDS:
+        _IDS[h] = f"i{len(_IDS)}"
+        INPUTS[_IDS[h]] = h
+    return _IDS[h]
+
+
 def call(fn, *args, **kw):
     """(résultat, False) ou (None, True) si Python lève une exception."""
     try:
@@ -33,6 +47,13 @@ def signal(rng, n, fs, floor=1e-3):
     """Deux raies fortes sur un plancher faible : grande dynamique en dB."""
     t = np.arange(n) / fs
     return 200.0 * np.sin(2 * np.pi * 37.0 * t) + 40.0 * np.sin(2 * np.pi * 151.3 * t) + floor * rng.standard_normal(n)
+
+
+def sig(rng, n, fs):
+    """Signal de `n` points, tiré une fois par (n, fs) : tous les cas de même longueur le partagent."""
+    if (n, fs) not in _SIGNALS:
+        _SIGNALS[(n, fs)] = signal(rng, n, fs) if n else np.zeros(0)
+    return _SIGNALS[(n, fs)]
 
 
 def spec_out(res, err):
@@ -66,14 +87,14 @@ def main():
     for p in (np.array([]), np.array([0.0, 1e-13, 1e-12, 1.5e-12, 1.0, 10.0, 1e6, 1e12, np.nan, np.inf, -3.0]),
               10.0 ** rng.uniform(-14, 8, 500), rng.standard_normal(40)):
         db = spectral.to_db(p)
-        out["to_db"].append({"p": hexs(p), "db": hexs(db), "ptb": hexs(spectral.to_ptb_db(db))})
+        out["to_db"].append({"p": ref(p), "db": hexs(db), "ptb": hexs(spectral.to_ptb_db(db))})
 
     # ---- smooth_freq : 1D et 2D, niveaux de 0 à 5 (et négatif)
     for shape in ((0,), (1,), (3,), (12,), (60,), (4, 33), (1, 20), (7, 1), (3, 2, 15)):
         y = rng.standard_normal(int(np.prod(shape))).reshape(shape) * 30.0
         for level in (-1, 0, 1, 2, 3, 5):
             res = spectral.smooth_freq(y, level)
-            out["smooth_freq"].append({"shape": list(shape), "level": level, "y": hexs(y), "out": hexs(res)})
+            out["smooth_freq"].append({"shape": list(shape), "level": level, "y": ref(y), "out": hexs(res)})
 
     # ---- spectrum
     cases = []
@@ -92,13 +113,13 @@ def main():
         cases.append((1200, 400.0, "psd", 2.0, 0, breaks))
         cases.append((1200, 400.0, "amp", 4.0, 2, breaks))
     for n, fs, mode, res_hz, smoothing, breaks in cases:
-        x = signal(rng, n, fs) if n else np.zeros(0)
+        x = sig(rng, n, fs)
         for f32 in (False, True) if (n in (1500, 1200) and mode == "psd" and not breaks) else (False,):
             xin = x.astype(np.float32) if f32 else x
             b = None if breaks is None else np.array(breaks, dtype=np.int64)
             res, err = call(spectral.spectrum, xin, fs, mode, res_hz, smoothing, b)
             out["spectrum"].append({"n": n, "fs": hexs(np.float64(fs)), "mode": mode, "res_hz": res_hz,
-                                    "smoothing": smoothing, "breaks": breaks, "x": hexs(xin.astype(np.float64)),
+                                    "smoothing": smoothing, "breaks": breaks, "x": ref(xin.astype(np.float64)),
                                     "f32": f32, "out": spec_out(res, err)})
 
     # ---- freq_throttle : durées courte / moyenne / longue (recouvrement 5 / 3 / 1), portes sur les frontières
@@ -128,7 +149,7 @@ def main():
     for breaks in ([], [400], [400, 401, 900], list(range(0, 1200, 120))):
         ft_cases.append((1200, 200.0, "psd", "ramp", 300.0, 20, (0.0, 100.0), breaks))
     for n, fs, mode, kind, seg_ms, nbins, xr, breaks in ft_cases:
-        x = signal(rng, n, fs) if n else np.zeros(0)
+        x = sig(rng, n, fs)
         if kind == "ramp":
             xa = ramp(n, 0.0, 100.0)
         elif kind.startswith("const"):
@@ -143,7 +164,7 @@ def main():
         b = None if breaks is None else np.array(breaks, dtype=np.int64)
         res, err = call(spectral.freq_throttle, x, xa, fs, mode, seg_ms, nbins, xr, b)
         out["freq_throttle"].append({"n": n, "fs": hexs(np.float64(fs)), "mode": mode, "seg_ms": seg_ms, "nbins": nbins,
-                                     "range": list(xr), "breaks": breaks, "x": hexs(x), "xaxis": hexs(xa),
+                                     "range": list(xr), "breaks": breaks, "x": ref(x), "xaxis": ref(xa),
                                      "out": ft_out(res, err)})
 
     # ---- smooth_map : cartes avec tranches vides (NaN), niveaux de 0 à 5
@@ -155,9 +176,9 @@ def main():
             for variant in ("nan", "plein") if shape in ((3, 5), (33, 20)) else ("nan",):
                 zz = z if variant == "nan" else np.nan_to_num(z)
                 res = spectral.smooth_map(zz, level)
-                out["smooth_map"].append({"shape": list(shape), "level": level, "z": hexs(zz), "out": hexs(res)})
+                out["smooth_map"].append({"shape": list(shape), "level": level, "z": ref(zz), "out": hexs(res)})
     zz = np.full((6, 8), np.nan)
-    out["smooth_map"].append({"shape": [6, 8], "level": 2, "z": hexs(zz), "out": hexs(spectral.smooth_map(zz, 2))})
+    out["smooth_map"].append({"shape": [6, 8], "level": 2, "z": ref(zz), "out": hexs(spectral.smooth_map(zz, 2))})
 
     # ---- freq_time
     def tf_out(res, err):
@@ -179,16 +200,17 @@ def main():
     for breaks in ([], [500], [500, 501, 900], list(range(0, 1200, 130)), [0], [1199]):
         tf_cases.append((1200, 400.0, 300.0, 2, 1, breaks))
     for n, fs, win_ms, hop_div, smoothing, breaks in tf_cases:
-        x = signal(rng, n, fs) if n else np.zeros(0)
+        x = sig(rng, n, fs)
         t = 12.5 + np.arange(n) / fs
         b = None if breaks is None else np.array(breaks, dtype=np.int64)
         res, err = call(spectral.freq_time, x, t, fs, win_ms, hop_div, smoothing, b)
         out["freq_time"].append({"n": n, "fs": hexs(np.float64(fs)), "win_ms": win_ms, "hop_div": hop_div,
-                                 "smoothing": smoothing, "breaks": breaks, "x": hexs(x), "t": hexs(t),
+                                 "smoothing": smoothing, "breaks": breaks, "x": ref(x), "t": ref(t),
                                  "out": tf_out(res, err)})
 
+    out["inputs"] = INPUTS
     json.dump(out, open(sys.argv[1], "w", encoding="utf-8"), separators=(",", ":"))
-    print({k: len(v) for k, v in out.items()})
+    print({k: len(v) for k, v in out.items() if k != "inputs"}, len(INPUTS), "entrées distinctes")
 
 
 if __name__ == "__main__":

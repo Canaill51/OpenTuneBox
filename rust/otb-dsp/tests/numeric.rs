@@ -28,6 +28,11 @@ fn f64s(h: &str) -> Vec<f64> {
         .collect()
 }
 
+/// Entrée d'un cas : les signaux sont écrits une fois dans la table `inputs`, les cas y renvoient par identifiant.
+fn input(c: &Value, id: &Value) -> Vec<f64> {
+    f64s(c["inputs"][id.as_str().unwrap()].as_str().unwrap())
+}
+
 fn f32s(h: &str) -> Vec<f32> {
     (0..h.len() / 8)
         .map(|i| f32::from_bits(u32::from_str_radix(&h[8 * i..8 * i + 8], 16).unwrap().swap_bytes()))
@@ -123,7 +128,7 @@ fn uniform_filter1d_identique() {
             k["axis"].as_i64().unwrap(),
             k["size"].as_i64().unwrap(),
         );
-        let x = f64s(k["x"].as_str().unwrap());
+        let x = input(&c, &k["x"]);
         let what = format!("uniform_filter1d forme {sh:?} axe {axis} largeur {size}");
         let got = uniform_filter1d(&x, &sh, size, axis);
         if k["out"].is_null() {
@@ -147,7 +152,7 @@ fn gaussian_filter_dans_la_tolerance() {
             .iter()
             .map(|v| v.as_f64().unwrap())
             .collect();
-        let x = f64s(k["x"].as_str().unwrap());
+        let x = input(&c, &k["x"]);
         let what = format!("gaussian_filter forme {sh:?} sigma {sigma:?}");
         check_out(&gaussian_filter(&x, &sh, &sigma), k, Some(FN_RTOL), &what);
     }
@@ -159,7 +164,7 @@ fn xcorr_full_dans_la_tolerance() {
     let cases = c["xcorr"].as_array().unwrap();
     assert!(cases.len() >= 18);
     for k in cases {
-        let (y, x) = (f64s(k["y"].as_str().unwrap()), f64s(k["x"].as_str().unwrap()));
+        let (y, x) = (input(&c, &k["y"]), input(&c, &k["x"]));
         let what = format!("xcorr_full ({}, {})", y.len(), x.len());
         let got = xcorr_full(&y, &x);
         if k["out"].is_null() {
