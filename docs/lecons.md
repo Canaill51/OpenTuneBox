@@ -74,6 +74,7 @@ est celle du commit qui les a introduites.
   poste échouerait sous Windows (la CI y exécute les tests Rust) ou sur une machine sans AVX-512. Sur le corpus enregistré, les
   sorties de `hann`, `uniform_filter1d` et `gaussian_filter` sont pourtant identiques au bit près (mesuré, 120 appels).
 - **Preuve** — `rust/otb-dsp/tests/numeric.rs` (constantes `FN_RTOL`, `XCORR_RTOL`) ; `registry::tolerance` dans `rust/otb-parity`.
+- **Spectres en dB (4b-2)** — l'écart de la FFT, relatif au plus grand élément, est de 4e-16 sur l'amplitude mais passe à 7e-11 (cas écrits) et 1e-10 (corpus, spectrogramme) une fois en dB : un petit élément, très en dessous du maximum, est relativement bien plus touché, et `10·log10` ne réduit rien. Tolérance fixée sur la mesure (1e-9), pas sur une estimation : celle de départ (1e-5) était 5 chiffres trop large.
 - **Sans compter** — `np.fft` ≠ `realfft` à 9e-16 du plus grand élément (mesuré avec `rust/otb-dsp/examples/banc_4b0.rs`).
 
 ### L-047 : une mutation « survivante » peut être équivalente, ou ne rien avoir muté

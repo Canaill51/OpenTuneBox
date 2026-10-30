@@ -185,3 +185,21 @@ pub fn xcorr_full(y: &[f64], x: &[f64]) -> Result<(Vec<f64>, Vec<i64>), String> 
     let lags = (-(x.len() as i64 - 1)..y.len() as i64).collect();
     Ok((out, lags))
 }
+
+pub use realfft::num_complex::Complex as Complex64;
+
+/// `np.fft.rfft(a, axis=1)` d'une matrice `rows × len` rangée ligne par ligne : `rows × (len / 2 + 1)` valeurs complexes.
+/// `len` doit être au moins 1 (numpy lève une erreur pour 0).
+pub fn rfft_rows(data: &[f64], rows: usize, len: usize) -> Vec<Complex64<f64>> {
+    assert!(len >= 1 && data.len() == rows * len, "matrice {rows} × {len}");
+    let plan = RealFftPlanner::<f64>::new().plan_fft_forward(len);
+    let nf = len / 2 + 1;
+    let mut out = vec![Complex64::new(0.0, 0.0); rows * nf];
+    let mut buf = vec![0.0; len];
+    for r in 0..rows {
+        buf.copy_from_slice(&data[r * len..(r + 1) * len]);
+        plan.process(&mut buf, &mut out[r * nf..(r + 1) * nf])
+            .expect("longueurs cohérentes");
+    }
+    out
+}

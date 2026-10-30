@@ -4,6 +4,7 @@
 //! est comptée « non portée » (ce n'est pas un échec) : les phases 4 et 5 la remplissent module par module.
 
 use crate::value::{Array, Case, Value};
+use otb_analysis::spectral::{self, Mode};
 use otb_dsp::numeric;
 use otb_log::flightlog::{FlightLog, PidTerms};
 use std::collections::{BTreeMap, HashMap};
@@ -382,8 +383,198 @@ fn xcorr_full(c: &Case) -> Result<Value, String> {
     ]))
 }
 
+// ---------------------------------------------------------------- spectral (phase 4b-2)
+
+fn array_i64(v: &[i64]) -> Value {
+    Value::Array(Array {
+        shape: vec![v.len()],
+        kind: 'i',
+        size: 8,
+        bytes: v.iter().flat_map(|x| x.to_le_bytes()).collect(),
+    })
+}
+
+fn array_f64(v: &[f64]) -> Value {
+    array_nd(vec![v.len()], v, false)
+}
+
+/// Raccords du log : `None` ou tableau d'entiers.
+fn breaks_arg(v: Option<&Value>) -> Result<Option<Vec<i64>>, String> {
+    match v {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Array(a)) if matches!(a.kind, 'i' | 'u') => {
+            Ok(Some((0..a.len()).map(|i| a.get_f64(i) as i64).collect()))
+        }
+        other => Err(format!("breaks : {other:?}")),
+    }
+}
+
+fn mode_arg(v: Option<&Value>, default: &str) -> Result<String, String> {
+    match v {
+        None => Ok(default.to_string()),
+        Some(Value::Str(s)) => Ok(s.clone()),
+        other => Err(format!("mode : {other:?}")),
+    }
+}
+
+fn float_or(c: &Case, pos: usize, name: &str, default: f64) -> Result<f64, String> {
+    c.arg(pos, name).map_or(Ok(default), float)
+}
+
+fn int_or(c: &Case, pos: usize, name: &str, default: i64) -> Result<i64, String> {
+    if c.arg(pos, name).is_some() {
+        int(c.arg(pos, name), name)
+    } else {
+        Ok(default)
+    }
+}
+
+fn clear_of_breaks(c: &Case) -> Result<Value, String> {
+    let (_, starts, _) = floats(c.arg(0, "starts"), "starts")?;
+    let starts: Vec<i64> = starts.iter().map(|&v| v as i64).collect();
+    let out = spectral::clear_of_breaks(
+        &starts,
+        int(c.arg(1, "length"), "length")?,
+        breaks_arg(c.arg(2, "breaks"))?.as_deref(),
+    );
+    Ok(Value::Array(Array {
+        shape: vec![out.len()],
+        kind: 'b',
+        size: 1,
+        bytes: out.iter().map(|&b| b as u8).collect(),
+    }))
+}
+
+fn ptb_subsample(c: &Case) -> Result<Value, String> {
+    let d = float(c.arg(0, "duration_s").ok_or("duration_s")?)?;
+    Ok(Value::Int(spectral::ptb_subsample(
+        d,
+        int(c.arg(1, "short"), "short")?,
+        int(c.arg(2, "mid"), "mid")?,
+        int(c.arg(3, "long"), "long")?,
+    )))
+}
+
+fn to_db(c: &Case) -> Result<Value, String> {
+    let (shape, p, _) = floats(c.arg(0, "p"), "p")?;
+    Ok(array_nd(shape, &spectral::to_db(&p), false))
+}
+
+fn to_ptb_db(c: &Case) -> Result<Value, String> {
+    let (shape, db, _) = floats(c.arg(0, "db"), "db")?;
+    Ok(array_nd(shape, &spectral::to_ptb_db(&db), false))
+}
+
+fn smooth_freq(c: &Case) -> Result<Value, String> {
+    let (shape, y, _) = floats(c.arg(0, "y"), "y")?;
+    let out = spectral::smooth_freq(&y, &shape, int(c.arg(1, "level"), "level")?);
+    Ok(array_nd(shape, &out, false))
+}
+
+fn spectrum(c: &Case) -> Result<Value, String> {
+    let (_, x, _) = floats(c.arg(0, "x"), "x")?;
+    let fs = float(c.arg(1, "fs").ok_or("fs")?)?;
+    let mode = mode_arg(c.arg(2, "mode"), "psd")?;
+    let res = float_or(c, 3, "resolution_hz", 0.5)?;
+    let sp = spectral::spectrum(
+        &x,
+        fs,
+        Mode::parse(&mode),
+        res,
+        int_or(c, 4, "smoothing", 0)?,
+        breaks_arg(c.arg(5, "breaks"))?.as_deref(),
+    )?;
+    Ok(Value::Obj(
+        "Spectrum".into(),
+        vec![
+            ("freqs".into(), array_f64(&sp.freqs)),
+            ("values".into(), array_f64(&sp.values)),
+            ("mode".into(), Value::Str(mode)),
+            ("resolution_hz".into(), Value::F64(sp.resolution_hz)),
+        ],
+    ))
+}
+
+fn freq_throttle(c: &Case) -> Result<Value, String> {
+    let (_, x, _) = floats(c.arg(0, "x"), "x")?;
+    let (_, xaxis, _) = floats(c.arg(1, "xaxis"), "xaxis")?;
+    let fs = float(c.arg(2, "fs").ok_or("fs")?)?;
+    let mode = mode_arg(c.arg(3, "mode"), "amp")?;
+    let range = match c.arg(6, "x_range") {
+        None => (0.0, 100.0),
+        Some(Value::Tuple(v) | Value::List(v)) if v.len() == 2 => (float(&v[0])?, float(&v[1])?),
+        other => return Err(format!("x_range : {other:?}")),
+    };
+    let nbins = int_or(c, 5, "nbins", 100)?;
+    if nbins < 1 {
+        return Err("nbins < 1".into());
+    }
+    let ft = spectral::freq_throttle(
+        &x,
+        &xaxis,
+        fs,
+        Mode::parse(&mode),
+        float_or(c, 4, "seg_ms", 300.0)?,
+        nbins as usize,
+        range,
+        breaks_arg(c.arg(7, "breaks"))?.as_deref(),
+    )?;
+    Ok(Value::Obj(
+        "FreqThrottle".into(),
+        vec![
+            ("freqs".into(), array_f64(&ft.freqs)),
+            ("bins".into(), array_f64(&ft.bins)),
+            ("z".into(), array_nd(vec![ft.freqs.len(), ft.bins.len()], &ft.z, false)),
+            ("counts".into(), array_i64(&ft.counts)),
+            ("mode".into(), Value::Str(mode)),
+        ],
+    ))
+}
+
+fn smooth_map(c: &Case) -> Result<Value, String> {
+    let (shape, z, _) = floats(c.arg(0, "z"), "z")?;
+    let out = spectral::smooth_map(&z, &shape, int(c.arg(1, "level"), "level")?);
+    Ok(array_nd(shape, &out, false))
+}
+
+fn freq_time(c: &Case) -> Result<Value, String> {
+    let (_, x, _) = floats(c.arg(0, "x"), "x")?;
+    let (_, t, _) = floats(c.arg(1, "t"), "t")?;
+    let fs = float(c.arg(2, "fs").ok_or("fs")?)?;
+    let sg = spectral::freq_time(
+        &x,
+        &t,
+        fs,
+        float_or(c, 3, "win_ms", 300.0)?,
+        int_or(c, 4, "hop_div", 2)?,
+        int_or(c, 5, "freq_smoothing", 0)?,
+        breaks_arg(c.arg(6, "breaks"))?.as_deref(),
+    )?;
+    Ok(Value::Obj(
+        "Spectrogram".into(),
+        vec![
+            ("times".into(), array_f64(&sg.times)),
+            ("freqs".into(), array_f64(&sg.freqs)),
+            ("z".into(), array_nd(vec![sg.nf, sg.nt], &sg.z, false)),
+        ],
+    ))
+}
+
 /// Tolérance relative (au plus grand élément) de chaque fonction portée ; 0 = identique au bit près. Fixée en 4b-0 puis
 /// précisée en 4b-1 (docs/migration-rust.md) : ce qui passe par `cos`, `exp` ou une FFT s'écarte de numpy au dernier bit.
+/// Le résultat enregistré est en dB : objet de mode `psd`, ou spectrogramme (toujours en dB).
+fn result_is_db(c: &Case) -> bool {
+    match &c.result {
+        Ok(Value::Obj(name, fields)) => {
+            name == "Spectrogram"
+                || fields
+                    .iter()
+                    .any(|(k, v)| k == "mode" && matches!(v, Value::Str(m) if m == "psd"))
+        }
+        _ => false,
+    }
+}
+
 pub fn tolerance(function: &str, c: &Case) -> f64 {
     let out_f32 = matches!(&c.result, Ok(Value::Array(a)) if a.kind == 'f' && a.size == 4);
     match function {
@@ -391,6 +582,16 @@ pub fn tolerance(function: &str, c: &Case) -> f64 {
         "_numeric.gaussian_filter" if out_f32 => 2e-7,
         "_numeric.gaussian_filter" => 1e-14,
         "_numeric.xcorr_full" => 1e-12,
+        "spectral.to_db" => 1e-14,
+        "spectral.smooth_map" => 1e-14,
+        // FFT : amplitude ≈ 4e-16 du plus grand élément (mesuré en 4b-2) ; en dB la dynamique du spectre amplifie l'écart
+        "spectral.spectrum" | "spectral.freq_throttle" | "spectral.freq_time" => {
+            if result_is_db(c) {
+                1e-9
+            } else {
+                1e-14
+            }
+        }
         _ => 0.0,
     }
 }
@@ -401,6 +602,15 @@ pub fn lookup(function: &str) -> Option<Port> {
         "_numeric.uniform_filter1d" => uniform_filter1d,
         "_numeric.gaussian_filter" => gaussian_filter,
         "_numeric.xcorr_full" => xcorr_full,
+        "spectral.clear_of_breaks" => clear_of_breaks,
+        "spectral.ptb_subsample" => ptb_subsample,
+        "spectral.to_db" => to_db,
+        "spectral.to_ptb_db" => to_ptb_db,
+        "spectral.smooth_freq" => smooth_freq,
+        "spectral.spectrum" => spectrum,
+        "spectral.freq_throttle" => freq_throttle,
+        "spectral.smooth_map" => smooth_map,
+        "spectral.freq_time" => freq_time,
         "bf_filters.pt1_gain" => pt1_gain,
         "bf_filters.notch_q" => notch_q,
         "debug_tables.family" => family,
