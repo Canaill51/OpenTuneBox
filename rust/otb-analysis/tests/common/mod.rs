@@ -180,7 +180,11 @@ pub fn flight_log(c: &Value, v: &Value) -> FlightLog {
     FlightLog {
         path: Default::default(),
         session: 1,
-        settings: Settings::default(),
+        settings: if v.get("settings").is_some_and(|x| !x.is_null()) {
+            log_settings(&v["settings"])
+        } else {
+            Settings::default()
+        },
         t: input(c, &v["t"]),
         fs: f1(&v["fs"]),
         gyro: rows32(c, &v["gyro"], n),
@@ -193,7 +197,7 @@ pub fn flight_log(c: &Value, v: &Value) -> FlightLog {
         f_term: rows32(c, &v["f_term"], n),
         throttle: inp32(c, &v["throttle"]),
         motors: rows32(c, &v["motors"], n),
-        motor_hz: None,
+        motor_hz: (!v["motor_hz"].is_null()).then(|| rows32(c, &v["motor_hz"], n)),
         debug: rows32(c, &v["debug"], n),
         vbat: opt32("vbat"),
         current: opt32("current"),
@@ -205,4 +209,13 @@ pub fn flight_log(c: &Value, v: &Value) -> FlightLog {
         implausible_frames: 0,
         pid_columns: BTreeSet::new(),
     }
+}
+
+/// Réglages d'un journal fabriqué : ceux des chaînes de filtres (`settings`) plus le KV moteur.
+pub fn log_settings(v: &Value) -> Settings {
+    let mut s = settings(v);
+    if let Some(kv) = v.get("motor_kv") {
+        s.motor_kv = kv.as_i64().unwrap();
+    }
+    s
 }

@@ -56,14 +56,17 @@ fn main() {
             println!("≠ {f}");
         }
         println!(
-            "analyses ({}) : {} sessions, {} clés comparées, {} sections où Python lève (Rust aussi), écart maximal aux tolérances {:e}, {} écarts",
+            "analyses ({}) : {} sessions, {} clés comparées, {} sections où Python lève (Rust aussi), {} largeurs de raies inexistantes exemptées, {} écarts",
             otb_parity::analysis_layer::PORTED.join(", "),
             rep.sessions,
             rep.keys,
             rep.python_errors,
-            rep.worst,
+            rep.exempt,
             rep.failures.len()
         );
+        for (section, w) in &rep.worst {
+            println!("  écart maximal aux tolérances, {section} : {w:e}");
+        }
         std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });
     }
     if mode == "check-flightlog" {

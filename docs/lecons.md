@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-055 : la largeur d'une raie sur un spectre plat est une fonction discontinue du dernier bit : prouver le port sur le spectre exact de Python
+- **Symptôme** — 2026-10-30 (4c-3) : sur 147 713 clés du corpus, un seul écart franc (`GF7037-3_carbon_nylon.bbl`, roll) : largeur de la 2ᵉ raie
+  0 Hz en Python, 4,45 Hz en Rust, alors que tout le reste concorde à 1e-11.
+- **Cause** — mesurée : le spectre masqué est plat à 1e-22 près autour de 421,5 Hz (6,9247e-08), `S[k]` dépasse la moyenne du bruit d'**1 ulp**,
+  `level` se confond avec `S[k]` et les deux bords tombent sur `f[k]` (largeur 0) ; au dernier bit près la FFT de Rust donne un spectre un
+  rien différent et la boucle `S[j+step] > level` s'arrête une case plus loin. Donné le spectre **exact de Python**, `half_power_width` de Rust rend 0 aussi :
+  le port est correct, c'est l'entrée qui est dégénérée (raie de hauteur −1e-15 dB : elle n'existe pas).
+- **Règle** — devant un écart franc sur une décision discrète, ne pas relâcher la tolérance : rejouer la **fonction seule sur l'entrée exacte de
+  Python** (spectre sauvegardé) ; si elle concorde, l'écart vient du bruit de l'entrée. Dans la couche corpus, exempter **explicitement et
+  compter** les largeurs de raies dont la hauteur de référence est < 1e-6 dB (ici 1 sur 413 sessions à raies). ⚠️ Conséquence pour l'assistant (phase
+  5a) : `dyn_notch_q_need` ignore une largeur nulle (`w > 0`) mais accepterait 4,45 Hz et rendrait `inf` au lieu de `None` pour une raie inexistante :
+  la parité des conseils (0 session différente sur 630) tranchera.
+- **Preuve** — `rust/otb-parity/src/analysis_layer.rs` (`exempt`), spectre de la session rejoué en Rust : 0 Hz.
+
 ### L-054 : un retard par intercorrélation se compare en périodes d'échantillonnage, et sa tolérance se fixe aussi sur le corpus
 - **Symptôme** — 2026-10-30 (4c-2) : sur les cas écrits, l'écart de `xcorr_delay_ms` montait à 100 % (« impulsions identiques », vrai retard nul :
   Python 2,2e-19 ms, Rust 4,3e-19 ms, du bruit d'arrondi) ; sur le corpus, un retard consigne → gyro du lacet de `HORUS/stock.bbl` dépassait la
@@ -681,6 +695,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-055 | Largeur de raie sur spectre plat = fonction discontinue du dernier bit : rejouer la fonction seule sur l'entrée exacte de Python, exempter et compter | Analyses |
 | L-054 | Retard d'intercorrélation : écart en périodes d'échantillonnage ; tolérance mesurée sur les cas écrits ET sur le corpus (pic plat = division mal conditionnée) | Analyses |
 | L-053 | Outil de mutation : restaurer avec une date neuve (`utime`), sinon cargo garde le binaire muté ; référence relancée par code de sortie | Outillage |
 | L-052 | `a[:, masque].mean(axis=1)` est rangé « Fortran » : somme dans l'ordre, pas par paires (`a.flags` avant de reproduire une réduction) | Analyses |

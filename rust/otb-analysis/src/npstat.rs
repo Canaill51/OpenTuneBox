@@ -267,3 +267,64 @@ pub fn cdiv(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
 pub fn conj_mul_fma(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
     (a.0.mul_add(b.0, a.1 * b.1), a.0.mul_add(b.1, -(a.1 * b.0)))
 }
+
+// ---------------------------------------------------------------- float64 : écart-type, médiane (phase 4c-3)
+
+/// `np.std` (ddof = 0) d'un tableau `float64` contigu. Vide → NaN.
+pub fn std_f64(a: &[f64]) -> f64 {
+    if a.is_empty() {
+        return f64::NAN;
+    }
+    let n = a.len() as f64;
+    let m = (0.0 + otb_dsp::pairwise_sum(a)) / n;
+    let sq: Vec<f64> = a.iter().map(|&v| (v - m) * (v - m)).collect();
+    ((0.0 + otb_dsp::pairwise_sum(&sq)) / n).sqrt()
+}
+
+/// `np.median` d'un tableau `float64` : un NaN le rend NaN, nombre pair → moyenne des deux éléments centraux. Vide → NaN.
+pub fn median_f64(a: &[f64]) -> f64 {
+    if a.is_empty() || a.iter().any(|v| v.is_nan()) {
+        return f64::NAN;
+    }
+    let mut s = a.to_vec();
+    s.sort_by(f64::total_cmp);
+    let n = s.len();
+    let mid = |sl: &[f64]| (0.0 + otb_dsp::pairwise_sum(sl)) / sl.len() as f64;
+    if n % 2 == 1 {
+        mid(&s[n / 2..n / 2 + 1])
+    } else {
+        mid(&s[n / 2 - 1..n / 2 + 1])
+    }
+}
+
+/// `np.nanargmax` : indice du premier maximum parmi les valeurs qui ne sont pas NaN ; `None` si tout est NaN ou vide.
+pub fn nanargmax_f64(a: &[f64]) -> Option<usize> {
+    let mut best: Option<usize> = None;
+    for (i, &v) in a.iter().enumerate() {
+        if v.is_nan() {
+            continue;
+        }
+        if best.is_none_or(|b| v > a[b]) {
+            best = Some(i);
+        }
+    }
+    best
+}
+
+/// `np.arange(start, stop, step)` pour des flottants : longueur `ceil((stop − start) / step)`, valeurs `début + i × delta` avec
+/// `delta = (début + pas) − début` (c'est ainsi que numpy remplit le tableau, pas `début + i × pas`).
+pub fn arange_f64(start: f64, stop: f64, step: f64) -> Vec<f64> {
+    let len = ((stop - start) / step).ceil();
+    if len.is_nan() || len <= 0.0 || !len.is_finite() {
+        return Vec::new();
+    }
+    let n = len as usize;
+    let delta = (start + step) - start;
+    (0..n)
+        .map(|i| match i {
+            0 => start,
+            1 => start + step,
+            _ => start + i as f64 * delta,
+        })
+        .collect()
+}

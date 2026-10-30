@@ -88,7 +88,7 @@ def with_(lg: FlightLog, **kw) -> FlightLog:
 def enc_log(lg: FlightLog) -> dict:
     a = lambda x: None if x is None else {"k": int(x.shape[0]), "x": ref(x, True)}  # noqa: E731
     return {"n": lg.n, "fs": hx(lg.fs), "t": ref(lg.t), "gyro": a(lg.gyro), "setpoint": a(lg.setpoint),
-            "gyro_unfilt": a(lg.gyro_unfilt), "rc_command": a(lg.rc_command), "p_term": a(lg.p_term), "i_term": a(lg.i_term), "d_term": a(lg.d_term),
+            "gyro_unfilt": a(lg.gyro_unfilt), "motor_hz": a(lg.motor_hz), "rc_command": a(lg.rc_command), "p_term": a(lg.p_term), "i_term": a(lg.i_term), "d_term": a(lg.d_term),
             "f_term": a(lg.f_term), "throttle": ref(lg.throttle, True), "motors": a(lg.motors), "debug": a(lg.debug),
             "vbat": None if lg.vbat is None else ref(lg.vbat, True),
             "current": None if lg.current is None else ref(lg.current, True),

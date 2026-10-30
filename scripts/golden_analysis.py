@@ -8,7 +8,9 @@ les nombres, textes et tableaux (noms stables de `golden.flatten`, flottants en 
 - `datasets`  : `available`, `has_axis` de chaque jeu et de chaque axe ;
 - `stats`     : `flight_stats`, `pid_error_stats` ;
 - `delay`     : `compute_delays` ;
-- `motors`    : `motor_hz` (tableau et indicateur « estimée »), `hover_motor_hz`, `dyn_notch_centres` ;
+- `motors`    : `motor_hz` (tableau et indicateur « estimée »), `hover_motor_hz`, `dyn_notch_centres` et, avec eRPM et gyro non
+  filtré, les appels de l'assistant : bruit moteur, hauteur des harmoniques, cibles du notch dynamique, forme et hauteur des raies,
+  raies du vol stationnaire, spectre après filtre RPM ;
 - `step`      : `flight_step` (métriques, retards, conditions, boucle ouverte de roll et de pitch, `LoopMetrics` entier :
   marges, écarts-types jackknife, bande, masque `valid`) ;
 - `series`    : `find_series` de la session seule (sa signature).
@@ -62,7 +64,22 @@ def analysis_record(lg) -> dict[str, np.ndarray]:
 
     def _motors():
         mhz, est = motors.motor_hz(lg)
-        return {"motor_hz": mhz, "estimated": est, "hover": motors.hover_motor_hz(lg), "dyn": motors.dyn_notch_centres(lg)}
+        res = {"motor_hz": mhz, "estimated": est, "hover": motors.hover_motor_hz(lg), "dyn": motors.dyn_notch_centres(lg)}
+        if lg.motor_hz is None or lg.gyro_unfilt is None:  # les règles de l'assistant n'en font rien sans eRPM ni gyro non filtré
+            return res
+        st, fs, br = lg.settings, lg.fs, lg.breaks(sel)
+        mh, raw, flt = lg.motor_hz[:, sel], lg.gyro_unfilt[:, sel], lg.gyro[:, sel]
+        res["noise"] = [[motors.motor_noise(g[a], mh, fs, breaks=br) for g in (flt, raw)] for a in range(2)]
+        res["prominence"] = [[motors.harmonic_prominence(g[a], mh, fs, breaks=br) for g in (raw, flt)] for a in range(2)]
+        band = (max(st.dyn_notch_min_hz - 37, 20), st.dyn_notch_max_hz + 37)
+        res["targets"] = [motors.dyn_notch_targets(raw[a], mh, fs, band, st, breaks=br) for a in range(2)]
+        peaks = [float(f) for f in max(res["targets"], key=lambda x: x.freqs.size).freqs] + [133.0, 421.5]
+        res["peaks"] = peaks
+        res["shapes"] = [motors.line_shapes(raw[a], mh, fs, peaks, st.rpm_harmonics, breaks=br, rpm_settings=st) for a in range(2)]
+        res["heights"] = [motors.line_heights(flt[a], fs, peaks, breaks=br) for a in range(2)]
+        res["lines"] = [motors.spectrum_lines(raw[a], flt[a], mh, fs, (20.0, 900.0), min_db=6.0, breaks=br) for a in range(2)]
+        res["filtered"] = [motors.rpm_filtered_spectrum(raw[a], mh, fs, st, breaks=br) for a in range(2)]
+        return res
 
     _section(out, "motors", _motors)
     fs_box: dict = {}

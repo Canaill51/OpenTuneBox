@@ -6,8 +6,8 @@
 //! Python (`<section>|_error`) aussi. Une clé présente d'un côté seulement est un écart.
 
 use crate::value::{Array, load_arrays};
-use otb_analysis::{datasets, delay, period, stats};
-use otb_log::flightlog::FlightLog;
+use otb_analysis::{datasets, delay, motors, period, stats};
+use otb_log::flightlog::{FlightLog, Rows, clamp_range};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -15,6 +15,12 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 enum Item {
     F(f64),
+    /// Tableau `float32` (bits `f32`).
+    A32(Vec<f32>),
+    /// Tableau d'entiers.
+    AI(Vec<i64>),
+    /// Tableau de flottants comparé à une tolérance relative au plus grand élément fini de la référence.
+    TA(Vec<f64>, f64),
     /// Flottant comparé à une tolérance : `(valeur, tolérance, unité)` ; écart = |Rust − Python| / max(|Python|, unité).
     T(f64, f64, f64),
     I(i64),
@@ -26,7 +32,12 @@ enum Item {
 type Flat = BTreeMap<String, Item>;
 
 /// Sections de la couche déjà portées en Rust (les autres sont ignorées).
-pub const PORTED: [&str; 4] = ["period", "datasets", "stats", "delay"];
+pub const PORTED: [&str; 5] = ["period", "datasets", "stats", "delay", "motors"];
+
+/// Tolérance des valeurs en dB et des spectres des fonctions de `motors` (FFT de `realfft`, `log10`, `hypot`, `pow` : L-048). **Mesurée sur
+/// les 668 sessions** : 1,5e-11 au pire (cas écrits : 7,1e-12, écart-type de valeurs en dB, qui amplifie l'arrondi de la FFT). Marge ×70 ;
+/// les erreurs de logique que l'on veut voir (mauvaise bande, mauvais seuil) dépassent 1e-6.
+pub const MOTORS_TOL: f64 = 1e-9;
 
 /// Tolérance des retards (FFT, `hypot`, `atan2`, produits complexes en FMA : L-048, L-051), relative à la valeur ou, si elle est
 /// plus petite, à une période d'échantillonnage. **Mesurée sur les 668 sessions** : 2,6e-10 au pire (retard consigne → gyro du lacet
@@ -79,7 +90,8 @@ fn ported(lg: &FlightLog) -> Vec<Section> {
         ("period", period),
         ("datasets", datasets_section(lg)),
         ("stats", Ok(stats_section(lg, sel.clone()))),
-        ("delay", delay_section(lg, sel)),
+        ("delay", delay_section(lg, sel.clone())),
+        ("motors", motors_section(lg, sel)),
     ]
 }
 
@@ -124,6 +136,109 @@ fn delay_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, St
         f.insert(format!("delay.sp_gyro_ms[{a}]"), Item::T(*v, DELAY_TOL, unit));
     }
     f.insert("delay.stick_p95_dps".into(), Item::F(d.stick_p95_dps));
+    Ok(f)
+}
+
+fn put_arr(f: &mut Flat, key: &str, v: Option<Vec<f64>>) {
+    f.insert(key.to_string(), v.map_or(Item::S("None".into()), Item::A));
+}
+
+/// Colonnes `sel` d'un tableau `(k, n)`.
+fn sub_rows(r: &Rows, sel: &std::ops::Range<usize>) -> Rows {
+    let mut out = Rows::zeros(r.k, sel.len());
+    for k in 0..r.k {
+        out.row_mut(k).copy_from_slice(&r.row(k)[sel.clone()]);
+    }
+    out
+}
+
+/// Section `motors` : ce que fait l'assistant avec la télémétrie eRPM (bruit moteur, harmoniques, cibles du notch dynamique, raies).
+fn motors_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, String> {
+    let mut f = Flat::new();
+    let (mhz, est) = motors::motor_hz(lg, None);
+    match &mhz {
+        Some(m) => f.insert("motors|motor_hz".into(), Item::A32(m.data.clone())),
+        None => f.insert("motors|motor_hz".into(), Item::S("None".into())),
+    };
+    f.insert("motors|estimated".into(), Item::B(est));
+    put_opt(&mut f, "motors|hover", motors::hover_motor_hz(lg));
+    put_arr(&mut f, "motors|dyn", motors::dyn_notch_centres(lg).map(|v| v.concat()));
+    let (Some(mhz_log), Some(gu)) = (&lg.motor_hz, &lg.gyro_unfilt) else {
+        return Ok(f);
+    };
+    let (st, fs) = (&lg.settings, lg.fs);
+    let sel = clamp_range(sel.start, sel.end, lg.n());
+    let br: Vec<i64> = lg.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect();
+    let mh = sub_rows(mhz_log, &sel);
+    let wide = |r: &[f32]| -> Vec<f64> { r[sel.clone()].iter().map(|&v| v as f64).collect() };
+    let raw: Vec<Vec<f64>> = (0..2).map(|a| wide(gu.row(a))).collect();
+    let flt: Vec<Vec<f64>> = (0..2).map(|a| wide(lg.gyro.row(a))).collect();
+    let tol = MOTORS_TOL;
+    for a in 0..2 {
+        for (j, x) in [&flt[a], &raw[a]].into_iter().enumerate() {
+            let n = motors::motor_noise(x, &mh, fs, 3, 300.0, 20.0, Some(&br))?;
+            let key = format!("motors|noise[{a}][{j}]");
+            f.insert(format!("{key}.harmonics"), Item::AI(n.harmonics));
+            f.insert(format!("{key}.mean_db"), Item::TA(n.mean_db, tol));
+            f.insert(format!("{key}.std_db"), Item::TA(n.std_db, tol));
+        }
+        for (j, x) in [&raw[a], &flt[a]].into_iter().enumerate() {
+            let p = motors::harmonic_prominence(x, &mh, fs, 3, 300.0, 20.0, Some(&br))?;
+            f.insert(format!("motors|prominence[{a}][{j}]"), Item::TA(p, tol));
+        }
+    }
+    // cibles du notch dynamique ; ⚠️ `band` mélange des entiers et des flottants comme en Python (`min(int, float)`)
+    let lo_i = (st.dyn_notch_min_hz - 37).max(20);
+    let hi_i = st.dyn_notch_max_hz + 37;
+    let band = (lo_i as f64, hi_i as f64);
+    let hi_is_int = 0.95 * fs / 2.0 >= hi_i as f64;
+    let mut targets = Vec::new();
+    for (a, x) in raw.iter().enumerate() {
+        let t = motors::dyn_notch_targets(x, Some(&mh), fs, band, Some(st), 300.0, 18.5, Some(&br))?;
+        let key = format!("motors|targets[{a}]");
+        f.insert(format!("{key}.freqs"), Item::A(t.freqs.clone()));
+        f.insert(format!("{key}.ratios_db"), Item::TA(t.ratios_db.clone(), tol));
+        f.insert(format!("{key}.band[0]"), Item::I(lo_i));
+        f.insert(
+            format!("{key}.band[1]"),
+            if hi_is_int { Item::I(hi_i) } else { Item::F(t.band.1) },
+        );
+        targets.push(t);
+    }
+    // `max(t, key=lambda x: x.freqs.size)` : le premier des plus longs
+    let best = if targets[1].freqs.len() > targets[0].freqs.len() {
+        &targets[1]
+    } else {
+        &targets[0]
+    };
+    let mut peaks: Vec<f64> = best.freqs.clone();
+    peaks.extend([133.0, 421.5]);
+    for (i, p) in peaks.iter().enumerate() {
+        f.insert(format!("motors|peaks[{i}]"), Item::F(*p));
+    }
+    for a in 0..2 {
+        let sh = motors::line_shapes(&raw[a], &mh, fs, &peaks, st.rpm_harmonics, 300.0, Some(&br), Some(st))?;
+        for (i, (w, h)) in sh.iter().enumerate() {
+            f.insert(format!("motors|shapes[{a}][{i}][0]"), Item::T(*w, tol, 1.0));
+            f.insert(format!("motors|shapes[{a}][{i}][1]"), Item::T(*h, tol, 1.0));
+        }
+        for (i, h) in motors::line_heights(&flt[a], fs, &peaks, 300.0, Some(&br))?
+            .iter()
+            .enumerate()
+        {
+            f.insert(format!("motors|heights[{a}][{i}]"), Item::T(*h, tol, 1.0));
+        }
+        let lines = motors::spectrum_lines(&raw[a], &flt[a], &mh, fs, (20.0, 900.0), 6.0, 8, 300.0, Some(&br))?;
+        for (i, l) in lines.iter().enumerate() {
+            let key = format!("motors|lines[{a}][{i}]");
+            f.insert(format!("{key}.freq_hz"), Item::F(l.freq_hz));
+            f.insert(format!("{key}.raw_db"), Item::T(l.raw_db, tol, 1.0));
+            f.insert(format!("{key}.left_db"), Item::T(l.left_db, tol, 1.0));
+        }
+        let (ff, ss) = motors::rpm_filtered_spectrum(&raw[a], Some(&mh), fs, Some(st), 300.0, Some(&br))?;
+        f.insert(format!("motors|filtered[{a}][0]"), Item::A(ff));
+        f.insert(format!("motors|filtered[{a}][1]"), Item::TA(ss, tol));
+    }
     Ok(f)
 }
 
@@ -197,6 +312,70 @@ fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<
             *worst = worst.max(err);
             (err > *tol).then(|| format!("{key} : Rust {g:e} / Python {w:e} (écart {err:e} > {tol:e})"))
         }
+        Item::A32(g) => {
+            if want.kind != 'f' || want.size != 4 || want.len() != g.len() {
+                return bad(format!(
+                    "{} valeurs float32 (Python {}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                ));
+            }
+            (0..g.len())
+                .find(|&i| {
+                    let w = want.get_f64(i) as f32;
+                    g[i].to_bits() != w.to_bits() && !(g[i].is_nan() && w.is_nan())
+                })
+                .map(|i| format!("{key} : élément {i} : Rust {:e} / Python {:e}", g[i], want.get_f64(i)))
+        }
+        Item::AI(g) => {
+            if !matches!(want.kind, 'i' | 'u') || want.len() != g.len() {
+                return bad(format!(
+                    "{} entiers (Python {}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                ));
+            }
+            (0..g.len())
+                .find(|&i| want.get_f64(i) != g[i] as f64)
+                .map(|i| format!("{key} : élément {i} : Rust {}", g[i]))
+        }
+        Item::TA(g, tol) => {
+            if want.kind != 'f' || want.size != 8 || want.len() != g.len() {
+                return bad(format!(
+                    "{} valeurs (Python {}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                ));
+            }
+            let top = (0..g.len())
+                .map(|i| want.get_f64(i))
+                .filter(|v| v.is_finite())
+                .fold(0.0f64, |m, v| m.max(v.abs()))
+                .max(1e-300);
+            for (i, gi) in g.iter().enumerate() {
+                let w = want.get_f64(i);
+                if !gi.is_finite() || !w.is_finite() {
+                    if !same_bits(*gi, w) {
+                        return Some(format!("{key} : élément {i} : Rust {gi:e} / Python {w:e}"));
+                    }
+                    continue;
+                }
+                let err = (gi - w).abs() / top;
+                *worst = worst.max(err);
+                if err > *tol {
+                    return Some(format!(
+                        "{key} : élément {i} : Rust {gi:e} / Python {w:e} (écart {err:e} > {tol:e})"
+                    ));
+                }
+            }
+            None
+        }
         Item::I(g) => {
             let ok = matches!(want.kind, 'i' | 'u') && want.len() == 1 && want.get_f64(0) == *g as f64;
             (!ok).then(|| format!("{key} : Rust {g} / Python {}", want.get_f64(0)))
@@ -236,8 +415,11 @@ pub struct AnalysisReport {
     pub keys: usize,
     /// Sections où Python lève (Rust doit lever aussi).
     pub python_errors: usize,
+    /// Largeurs de raie ignorées : la raie n'existe pas (hauteur de référence < 1e-6 dB), la largeur est alors une fonction
+    /// discontinue du dernier bit du spectre (L-055).
+    pub exempt: usize,
     /// Plus grand écart normalisé des valeurs comparées à une tolérance (`Item::T`).
-    pub worst: f64,
+    pub worst: std::collections::BTreeMap<String, f64>,
     pub failures: Vec<String>,
 }
 
@@ -275,8 +457,19 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AnalysisReport
             match py.get(k) {
                 None => rep.failures.push(format!("{who} : {k} absente de Python")),
                 Some(w) => {
+                    // largeur d'une raie inexistante (hauteur de référence ≈ 0 dB) : exemptée et comptée (L-055)
+                    if let Some(base) = k.strip_suffix("[0]").filter(|b| b.starts_with("motors|shapes["))
+                        && py.get(&format!("{base}[1]")).is_some_and(|h| h.get_f64(0).abs() < 1e-6)
+                    {
+                        rep.exempt += 1;
+                        continue;
+                    }
                     rep.keys += 1;
-                    if let Some(m) = compare_item(k, item, w, &mut rep.worst) {
+                    let mut w_err = 0.0;
+                    let m = compare_item(k, item, w, &mut w_err);
+                    let e = rep.worst.entry(section.to_string()).or_insert(0.0);
+                    *e = e.max(w_err);
+                    if let Some(m) = m {
                         rep.failures.push(format!("{who} : {m}"));
                     }
                 }
@@ -300,7 +493,8 @@ pub fn check_analysis(dossier: &Path, logs_root: &Path, threads: usize) -> Resul
         sessions: 0,
         keys: 0,
         python_errors: 0,
-        worst: 0.0,
+        exempt: 0,
+        worst: Default::default(),
         failures: vec![],
     });
     std::thread::scope(|scope| {
@@ -313,7 +507,8 @@ pub fn check_analysis(dossier: &Path, logs_root: &Path, threads: usize) -> Resul
                         sessions: 0,
                         keys: 0,
                         python_errors: 0,
-                        worst: 0.0,
+                        exempt: 0,
+                        worst: Default::default(),
                         failures: vec![],
                     };
                     match otb_log::flightlog::load(&logs_root.join(rel)) {
@@ -328,7 +523,11 @@ pub fn check_analysis(dossier: &Path, logs_root: &Path, threads: usize) -> Resul
                     r.sessions += local.sessions;
                     r.keys += local.keys;
                     r.python_errors += local.python_errors;
-                    r.worst = r.worst.max(local.worst);
+                    r.exempt += local.exempt;
+                    for (k, v) in local.worst {
+                        let e = r.worst.entry(k).or_insert(0.0);
+                        *e = e.max(v);
+                    }
                     r.failures.extend(local.failures);
                 }
             });
