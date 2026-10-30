@@ -47,6 +47,37 @@ fn arr(m: &StepMetrics) -> [f64; 11] {
     ]
 }
 
+/// Réponses, moyenne et écart-type après FFT : écart relatif au plus grand élément. Mesuré : 0 sous Linux, 1,8e-12 sous Windows (CI du 2026-10-30,
+/// erreur de la première case seulement). Marge ×500.
+const RESPONSE_RTOL: f64 = 1e-9;
+/// Métriques tirées de ces réponses : écart relatif à max(|valeur|, 1) (ms, %, rapports). Les NaN doivent coïncider.
+const METRICS_RTOL: f64 = 1e-6;
+
+fn assert_metrics_close(got: &StepMetrics, want: &StepMetrics, what: &str) {
+    let names = [
+        "pic",
+        "pic (ms)",
+        "latence",
+        "montée",
+        "établissement",
+        "dépassement",
+        "cassure",
+        "cassure (écart-type)",
+        "cassure (ms)",
+        "vagues",
+        "vagues (rapport)",
+    ];
+    for ((n, g), w) in names.iter().zip(arr(got)).zip(arr(want)) {
+        assert_close(
+            "métrique de step_response",
+            &[g, 1.0],
+            &[w, 1.0],
+            METRICS_RTOL,
+            &format!("{what} : {n}"),
+        );
+    }
+}
+
 fn assert_metrics(got: &StepMetrics, want: &StepMetrics, what: &str) {
     assert_bits(&arr(got), &arr(want), what);
 }

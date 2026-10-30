@@ -60,6 +60,17 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-059 : « identique au bit près » après une FFT n'est vrai que sur le poste qui a écrit la référence ; la CI Windows est la seule preuve
+- **Symptôme** — 2026-10-30 (PR 4c-B) : la CI Windows échoue sur `step_response "a : termes PID, fenêtres de 2 s" : réponses : élément 0` : Rust −4,654068096933931e-4,
+  Python −4,6540680969330825e-4 (écart relatif 1,8e-12) ; Linux : 0 écart.
+- **Cause** — le noyau de déconvolution (`realfft`) est le même des deux côtés, donc identique **sur ce poste** ; les références ont été écrites sous Linux, et sous Windows la
+  FFT (jeux d'instructions, `sin`/`cos` des facteurs) rend un dernier bit différent. J'avais écrit `assert_bits` sur les réponses, la moyenne, l'écart-type et les métriques
+  en comptant sur L-049 (même noyau des deux côtés), sans me rappeler L-048 : une FFT n'est jamais identique d'une plateforme à l'autre.
+- **Règle** — tout ce qui sort d'une FFT se compare à une tolérance dans les tests que la CI exécute (réponses, moyenne, écart-type : 1e-9 ; métriques qui en dérivent : 1e-6) ;
+  « au bit près » reste réservé à l'arithmétique pure (somme, `gradient`, métriques de **réponses données**). `cargo test` s'arrête au premier binaire en échec : un échec
+  Windows cache les suivants, donc relire toute la sortie de la CI après chaque correction.
+- **Preuve** — `rust/otb-analysis/tests/step.rs` (`RESPONSE_RTOL`, `METRICS_RTOL`). La couche corpus (`otb-parity check-analysis`, Linux seulement) garde ses comparaisons au bit près : la CI n'a pas le corpus.
+
 ### L-058 : la disposition mémoire décide de l'ordre des sommes de numpy : masque sur le dernier axe et matrice d'une colonne
 - **Symptôme** — 2026-10-30 (4c-B(d), `shape_metrics`) : `waves_ratio` diffère d'un dernier bit entre Rust et Python dès 39 réponses (9 blocs de jackknife), pas
   avant ; puis la moyenne d'une réponse d'**un seul point** (`resp_ms = 0`) diffère aussi.
@@ -728,6 +739,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-059 | « Identique au bit près » après une FFT : vrai sur le poste des références seulement ; tolérance dans les tests de la CI, relire toute la sortie Windows (cargo s'arrête au 1er échec) | Outillage |
 | L-058 | Ordre des sommes de numpy : `x[..., masque]` et matrice d'une colonne sont « Fortran », somme par paires sur l'axe 0 (≥ 8 valeurs) | Analyses |
 | L-057 | Cas aléatoires qui n'atteignent jamais le régime valide : seuils libres ; phases lentes, puissances voisines, compter les cas non vides | Outillage |
 | L-056 | Un résidu d'arrondi de zéro exact (centre d'un notch) ne se compare pas en relatif : absolu pour |H|, plancher pour les spectres ; une comparaison durcie passe par la CI Windows | Outillage |
