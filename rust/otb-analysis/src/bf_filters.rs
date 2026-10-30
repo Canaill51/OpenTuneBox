@@ -1,5 +1,6 @@
 //! Chaînes de filtres Betaflight de `analysis/bf_filters.py` (D-035, phase 4b-3) : étages biquad d'un filtre, chaînes gyro et
-//! D lues dans l'en-tête, réponse en fréquence, retard. La simulation temporelle et `whatif_spectrum` viennent en 4b-4.
+//! D lues dans l'en-tête, réponse en fréquence, retard. La simulation temporelle et `whatif_spectrum` (4b-4)
+//! suivent plus bas.
 //!
 //! Les chaînes (liste de filtres avec leur cadence) ne font qu'arithmétique, arrondis et entiers : elles sont identiques à
 //! Python au bit près sur toute plate-forme. La réponse, les coefficients et le retard passent par `sin`, `cos`, `atan2`
@@ -121,13 +122,14 @@ pub struct ChainDelay {
     pub phase_ms: f64,
 }
 
-/// `np.clip(x, lo, hi)` : `min(max(x, lo), hi)`, un NaN reste NaN (si `lo > hi`, le résultat est `hi`).
+/// `np.clip(x, lo, hi)` : `min(max(x, lo), hi)`, un NaN reste NaN, à égalité la valeur de `x` est gardée (`-0.0` reste `-0.0`)
+/// (si `lo > hi`, le résultat est `hi`).
 fn clip(x: f64, lo: f64, hi: f64) -> f64 {
     if x.is_nan() {
         return x;
     }
-    let a = if x > lo { x } else { lo };
-    if a < hi { a } else { hi }
+    let a = if x < lo { lo } else { x }; // à égalité numpy garde x (zéro signé)
+    if a > hi { hi } else { a }
 }
 
 /// Étage d'un filtre : (code, fréquence corrigée, q, poids).
@@ -267,7 +269,8 @@ pub fn dyn_lpf_cutoff(min_hz: f64, max_hz: f64, expo: f64, throttle_frac: f64) -
 }
 
 /// `scale_lowpass` : coupures multipliées par `factor`, plafonnées à 1000 Hz ; un filtre coupé le reste (le firmware ne
-/// recalcule que les coupures non nulles). Erreur si `v × factor` n'est pas un nombre fini non nul à arrondir.
+/// recalcule que les coupures non nulles). Erreur si `v × factor` n'est pas un nombre fini (NaN, infini) ; un produit fini
+/// énorme est saturé puis plafonné à 1000 Hz.
 pub fn scale_lowpass(lp: &Lowpass, factor: f64) -> Result<Lowpass, String> {
     let k = |v: i64| -> Result<i64, String> {
         if v == 0 {
@@ -834,7 +837,7 @@ pub fn whatif_spectrum(
     let ppf = match x_prefilt {
         Some(xp) => {
             let s2 = segments(&xp[clamp(&sel, xp.len())], l, hop, Some(&br));
-            if s2.nseg != segs.nseg {
+            if s2.nseg < segs.nseg {
                 return Err("x_prefilt : nombre de fenêtres différent".into());
             }
             Some(seg_spectra(&s2, fs, Mode::Psd)?.1)
@@ -942,7 +945,32 @@ pub fn whatif_spectrum(
 
 #[cfg(test)]
 mod tests {
-    use super::unwrap3;
+    use super::{clip, scale_lowpass, unwrap3};
+    use otb_log::settings::Lowpass;
+
+    #[test]
+    fn clip_garde_x_a_egalite_comme_numpy() {
+        // numpy : np.clip(-0.0, 0.0, 1.0) = -0.0 ; np.clip(0.0, -1.0, -0.0) = 0.0 ; NaN reste NaN ; lo > hi → hi
+        assert_eq!(clip(-0.0, 0.0, 1.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(clip(0.0, -1.0, -0.0).to_bits(), 0.0f64.to_bits());
+        assert!(clip(f64::NAN, 0.0, 1.0).is_nan());
+        assert_eq!(clip(5.0, 3.0, 2.0), 2.0);
+        assert_eq!(clip(-1.0, 0.0, 1.0), 0.0);
+    }
+
+    #[test]
+    fn scale_lowpass_plafonne_un_facteur_enorme_comme_python() {
+        // Python : scale_lowpass(PT1 100 Hz, 1e20) → static_hz = 1000
+        let lp = Lowpass {
+            kind: "PT1",
+            static_hz: 100,
+            dyn_min_hz: 0,
+            dyn_max_hz: 0,
+            expo: 5,
+        };
+        assert_eq!(scale_lowpass(&lp, 1e20).unwrap().static_hz, 1000);
+        assert!(scale_lowpass(&lp, f64::INFINITY).is_err());
+    }
 
     /// Flottant écrit en hexadécimal, octets dans l'ordre de la mémoire (petit-boutiste).
     fn h(s: &str) -> f64 {

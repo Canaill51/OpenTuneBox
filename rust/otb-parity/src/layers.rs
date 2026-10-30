@@ -337,9 +337,6 @@ pub fn check_sliders(dossier: &Path, logs_root: &Path) -> Result<SlidersReport, 
     let mut cache: Option<(String, Vec<u8>, Vec<usize>)> = None;
     for line in text.lines() {
         let rec: Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
-        if rec.get("error").is_some() {
-            continue;
-        }
         let file = rec["file"].as_str().unwrap().to_string();
         if cache.as_ref().map(|c| &c.0) != Some(&file) {
             let data = std::fs::read(logs_root.join(&file)).map_err(|e| format!("{file} : {e}"))?;
@@ -351,6 +348,16 @@ pub fn check_sliders(dossier: &Path, logs_root: &Path) -> Result<SlidersReport, 
         let end = starts.get(k + 1).copied().unwrap_or(data.len());
         let st = otb_log::settings::parse_settings(&parse_header(data, starts[k], end).raw);
         rep.checked += 1;
+        if rec.get("error").is_some() {
+            // Python plante sur cet en-tête : Rust doit refuser aussi
+            if sliders::slider_view(&st).is_ok() {
+                rep.failures.push(format!(
+                    "{file} session {} : Python plante, Rust rend un résultat",
+                    rec["session"]
+                ));
+            }
+            continue;
+        }
         let mut check = || -> Result<(), String> {
             let view = sliders::slider_view(&st)?;
             let want = &rec["view"];

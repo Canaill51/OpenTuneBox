@@ -366,7 +366,7 @@ fn gaussian_filter(c: &Case) -> Result<Value, String> {
     }
     Ok(array_nd(
         shape.clone(),
-        &numeric::gaussian_filter(&a, &shape, &sigma),
+        &numeric::gaussian_filter(&a, &shape, &sigma)?,
         as_f32,
     ))
 }
@@ -470,7 +470,7 @@ fn to_ptb_db(c: &Case) -> Result<Value, String> {
 
 fn smooth_freq(c: &Case) -> Result<Value, String> {
     let (shape, y, _) = floats(c.arg(0, "y"), "y")?;
-    let out = spectral::smooth_freq(&y, &shape, int(c.arg(1, "level"), "level")?);
+    let out = spectral::smooth_freq(&y, &shape, int(c.arg(1, "level"), "level")?)?;
     Ok(array_nd(shape, &out, false))
 }
 
@@ -536,7 +536,7 @@ fn freq_throttle(c: &Case) -> Result<Value, String> {
 
 fn smooth_map(c: &Case) -> Result<Value, String> {
     let (shape, z, _) = floats(c.arg(0, "z"), "z")?;
-    let out = spectral::smooth_map(&z, &shape, int(c.arg(1, "level"), "level")?);
+    let out = spectral::smooth_map(&z, &shape, int(c.arg(1, "level"), "level")?)?;
     Ok(array_nd(shape, &out, false))
 }
 
@@ -1204,9 +1204,10 @@ pub fn tolerance(function: &str, c: &Case) -> f64 {
         // sin / cos (libm), np.convolve (BLAS), atan2 : mesures de 4b-3 dans docs/migration-rust.md
         "bf_filters.coefficients" => 1e-14,
         "bf_filters.freq_response" | "bf_filters.chain_response" => 1e-12,
-        "bf_filters.chain_delay_ms" => 1e-9,
+        "bf_filters.chain_delay_ms" => 1e-10,
         // filtres récursifs (coefficients sin / cos), puis FFT et dB : voir tests/bf_sim.rs
-        "bf_filters.simulate_gyro" | "bf_filters.simulate_dterm" | "bf_filters.whatif_spectrum" => 1e-9,
+        "bf_filters.simulate_gyro" | "bf_filters.simulate_dterm" => 1e-12,
+        "bf_filters.whatif_spectrum" => 1e-11,
         // SVD de Jacobi au lieu de LAPACK, `ln` et `exp` (mesure de 4b-5 dans docs/migration-rust.md)
         "sliders.sliders_from_pids" => 1e-11,
         "sliders.slider_view" => 1e-12,

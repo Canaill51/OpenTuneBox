@@ -60,6 +60,8 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-022 | `otb-parity check` : une seule tolérance par fonction, y compris pour les champs exacts (`freqs`, `bins`) | ouvert (à voir en phase 7) |
+| W-021 | Écarts connus Rust / Python sur entrées irréalistes (`nbins = 0`, `fs = 0`, `astype(int)` sur ARM, message d'erreur) | ouvert (à voir au premier test macOS ARM) |
 | W-020 | `LogHeader.raw` et `Settings.raw` du Rust sont triés par clé, le dict Python garde l'ordre du fichier | ouvert (à voir en phase 5c / 6) |
 | W-019 | Phase 3 repoussée : `spectral`, `loop`, `delay`, `stats`, `sliders`, `step_series`, `settings`, `datasets`, `period` restent en Python | EN COURS (D-035 : repris par la phase 4) |
 | W-018 | `opentunebox report` plante sous Windows quand sa sortie est redirigée (cp1252) | ouvert |
@@ -386,3 +388,20 @@ Règles d'écriture :
   dans un autre ordre que l'étalon.
   **Reprise** : quand une sortie parcourt `raw` : passer à une liste ordonnée avec index (ou `indexmap`) et comparer l'ordre
   dans `layers.rs:check_header`.
+
+## Origine : relecture indépendante de la phase 4b (2026-10-30)
+
+- **W-021** — Écarts connus entre Rust et Python sur des entrées qu'aucun appel réel ne produit : (a) `freq_throttle` avec
+  `nbins = 0` : Python rend un `z` de forme (151, 0), le registre de parité refuse `nbins < 1` (la bibliothèque, elle, ne
+  panique plus) ; (b) `fs = 0` : Python lève `ZeroDivisionError` pour un `float` Python mais rend un résultat pour un
+  `np.float64`, Rust rend toujours un résultat ; (c) `to_bin` reproduit `astype(int)` de x86 (NaN et débordement →
+  `INT_MIN`), sur ARM numpy sature (+∞ → `INT_MAX`) : non vérifié sur ARM ; (d) message d'erreur de `freq_time` pour `t`
+  vide (« index 0 » contre « index -1 »), sans effet car le comparateur n'exige que « erreur des deux côtés ».
+  **Pourquoi reporté** : entrées irréalistes ou plate-forme non utilisée par Cédric.
+  **Risque si on n'y touche pas** : un écart de résultat sur Mac ARM pour des gaz NaN.
+  **Reprise** : au premier test sur macOS ARM (phase 7), ou si une entrée réelle produit l'un de ces cas.
+- **W-022** — `otb-parity check` applique une seule tolérance à tout le résultat d'une fonction, y compris les champs
+  documentés « identiques au bit près » (`freqs`, `bins`, `resolution_hz`). Les tests de cas écrits, eux, les exigent exacts.
+  **Pourquoi reporté** : demande une tolérance par champ dans `registry::tolerance` ; les fréquences sont identiques
+  partout où on les a comparées.
+  **Reprise** : quand on resserre la couche corpus (phase 7), ou si un écart sur ces champs est soupçonné.

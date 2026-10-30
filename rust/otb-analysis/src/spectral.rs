@@ -11,12 +11,13 @@ pub const EPS: f64 = 1e-12;
 /// Nos DSP en dB (densité physique) sont 6,5 dB au-dessus de celles de PIDtoolbox (`spectral.PTB_PSD_OFFSET_DB`).
 pub const PTB_PSD_OFFSET_DB: f64 = 6.5;
 
-/// `round()` de Python : au pair le plus proche sur les demi-entiers. Erreur pour NaN et infini (Python lève).
+/// `round()` de Python : au pair le plus proche sur les demi-entiers. Erreur pour NaN et infini (Python lève) ; un grand
+/// nombre fini est saturé à `i64::MIN` / `i64::MAX`.
 pub fn py_round(x: f64) -> Result<i64, String> {
-    if !x.is_finite() || x.abs() >= 9.0e18 {
+    if !x.is_finite() {
         return Err(format!("round({x}) : hors entiers"));
     }
-    Ok(x.round_ties_even() as i64)
+    Ok(x.round_ties_even() as i64) // sature : Python rend un grand entier, que les appelants bornent aussitôt
 }
 
 /// Fenêtres successives d'un signal : `nseg` lignes de `length` valeurs, et leur indice de début.
@@ -173,11 +174,14 @@ pub fn to_ptb_db(db: &[f64]) -> Vec<f64> {
 }
 
 /// `smooth_freq` : lissage le long du dernier axe (0 ou moins = aucun ; 1…5 de plus en plus fort).
-pub fn smooth_freq(y: &[f64], shape: &[usize], level: i64) -> Vec<f64> {
+pub fn smooth_freq(y: &[f64], shape: &[usize], level: i64) -> Result<Vec<f64>, String> {
     if level <= 0 {
-        return y.to_vec();
+        return Ok(y.to_vec());
     }
-    uniform_filter1d(y, shape, 1 + 2 * level, -1).expect("largeur ≥ 3")
+    if shape.is_empty() {
+        return Err("tableau 0-d : pas de dernier axe (AxisError en Python)".into());
+    }
+    uniform_filter1d(y, shape, 1 + 2 * level, -1)
 }
 
 /// Spectre 1D (`Spectrum`).
@@ -227,7 +231,7 @@ pub fn spectrum(
     if mode == Mode::Psd {
         v = to_db(&v);
     }
-    let v = smooth_freq(&v, &[nf], smoothing);
+    let v = smooth_freq(&v, &[nf], smoothing)?;
     Ok(Spectrum {
         freqs: f,
         values: v,
@@ -266,7 +270,7 @@ fn to_bin(t: f64, nbins: usize) -> usize {
     } else {
         t as i64
     };
-    k.clamp(0, nbins as i64 - 1) as usize
+    k.max(0).min((nbins as i64 - 1).max(0)) as usize // sans panique si nbins = 0
 }
 
 /// `freq_throttle` : chaque fenêtre de `seg_ms` est rangée selon la moyenne de `xaxis` ; elle compte aussi pour les deux
@@ -344,21 +348,22 @@ pub fn freq_throttle(
 }
 
 /// `smooth_map` : lissage gaussien d'une carte `nf × nb` en ignorant les tranches vides (NaN).
-pub fn smooth_map(z: &[f64], shape: &[usize], level: i64) -> Vec<f64> {
+pub fn smooth_map(z: &[f64], shape: &[usize], level: i64) -> Result<Vec<f64>, String> {
     if level <= 0 {
-        return z.to_vec();
+        return Ok(z.to_vec());
     }
     let mask: Vec<bool> = z.iter().map(|v| !v.is_nan()).collect();
     let zz: Vec<f64> = z.iter().zip(&mask).map(|(v, m)| if *m { *v } else { 0.0 }).collect();
     let mf: Vec<f64> = mask.iter().map(|m| if *m { 1.0 } else { 0.0 }).collect();
     let sig = [1.25 * level as f64, 0.5 * level as f64];
-    let num = gaussian_filter(&zz, shape, &sig);
-    let den = gaussian_filter(&mf, shape, &sig);
-    num.iter()
+    let num = gaussian_filter(&zz, shape, &sig)?;
+    let den = gaussian_filter(&mf, shape, &sig)?;
+    Ok(num
+        .iter()
         .zip(&den)
         .zip(&mask)
         .map(|((n, d), m)| if *m { n / d } else { f64::NAN })
-        .collect()
+        .collect())
 }
 
 /// Spectrogramme : `z` est `nf × nt` (fréquence × temps).
@@ -395,7 +400,7 @@ pub fn freq_time(
     }
     let (f, p) = seg_spectra(&segs, fs, Mode::Psd)?;
     let (nf, nt) = (f.len(), segs.nseg);
-    let db = smooth_freq(&to_db(&p), &[nt, nf], freq_smoothing);
+    let db = smooth_freq(&to_db(&p), &[nt, nf], freq_smoothing)?;
     let starts: Vec<i64> = segs.starts.iter().map(|&s| s as i64).collect();
     let keep = clear_of_breaks(&starts, l as i64, breaks);
     let mut z = vec![0.0; nf * nt];
@@ -415,4 +420,40 @@ pub fn freq_time(
         nf,
         nt,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn py_round_sature_les_grands_nombres_finis_et_refuse_nan_et_infini() {
+        assert_eq!(py_round(1e20), Ok(i64::MAX));
+        assert_eq!(py_round(-1e20), Ok(i64::MIN));
+        assert_eq!(py_round(2.5), Ok(2));
+        assert!(py_round(f64::NAN).is_err() && py_round(f64::INFINITY).is_err());
+    }
+
+    #[test]
+    fn spectrum_accepte_une_resolution_minuscule_comme_python() {
+        // Python : `spectrum(x, 1000, resolution_hz=1e-20)` rend 251 valeurs (fenêtre = tout le signal)
+        let x: Vec<f64> = (0..500).map(|i| (i as f64 * 0.3).sin()).collect();
+        let s = spectrum(&x, 1000.0, Mode::Psd, 1e-20, 0, None).unwrap();
+        assert_eq!(s.freqs.len(), 251);
+    }
+
+    #[test]
+    fn les_formes_que_python_refuse_donnent_une_erreur_pas_une_panique() {
+        assert!(smooth_freq(&[1.0], &[], 1).is_err()); // tableau 0-d
+        assert!(smooth_map(&[1.0, 2.0, 3.0], &[3], 1).is_err()); // pas 2D
+        assert!(smooth_map(&[1.0, 2.0], &[2], 0).is_ok()); // niveau 0 : rien à faire
+    }
+
+    #[test]
+    fn to_bin_ne_panique_pas_sans_tranche() {
+        assert_eq!(to_bin(3.0, 0), 0);
+        assert_eq!(to_bin(f64::NAN, 5), 0);
+        assert_eq!(to_bin(1e30, 5), 0); // débordement x86 : INT_MIN puis borne basse
+        assert_eq!(to_bin(7.0, 5), 4);
+    }
 }

@@ -154,7 +154,7 @@ fn gaussian_filter_dans_la_tolerance() {
             .collect();
         let x = input(&c, &k["x"]);
         let what = format!("gaussian_filter forme {sh:?} sigma {sigma:?}");
-        check_out(&gaussian_filter(&x, &sh, &sigma), k, Some(FN_RTOL), &what);
+        check_out(&gaussian_filter(&x, &sh, &sigma).unwrap(), k, Some(FN_RTOL), &what);
     }
 }
 

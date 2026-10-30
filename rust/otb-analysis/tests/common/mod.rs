@@ -12,7 +12,14 @@ static WORST: Mutex<BTreeMap<&'static str, f64>> = Mutex::new(BTreeMap::new());
 
 pub fn cas(name: &str) -> Value {
     let p = format!("{}/tests/data/{name}.json", env!("CARGO_MANIFEST_DIR"));
-    serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap()
+    let c: Value = serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap();
+    // une liste de cas vide ferait passer sa boucle de test sans rien vérifier
+    for (k, v) in c.as_object().unwrap() {
+        if let Some(a) = v.as_array() {
+            assert!(!a.is_empty(), "{name}.json : la liste « {k} » est vide");
+        }
+    }
+    c
 }
 
 pub fn f64s(h: &str) -> Vec<f64> {

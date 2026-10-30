@@ -21,7 +21,7 @@ const RESP_RTOL: f64 = 1e-12;
 /// Mesuré : 2,2e-13. L'écart de `atan2` (≈ 1 ulp d'un angle jusqu'à π, 4e-16) est divisé par `2π · 2 · df` (≈ 0,13 pour
 /// 10 Hz) : ≈ 3e-15 en valeur relative pour un retard de 1 ms ; marge large, un vrai défaut (signe, saut de phase oublié)
 /// fait de l'ordre de 1.
-const DELAY_RTOL: f64 = 1e-9;
+const DELAY_RTOL: f64 = 1e-10;
 
 fn spec(v: &Value) -> FilterSpec {
     FilterSpec::with(

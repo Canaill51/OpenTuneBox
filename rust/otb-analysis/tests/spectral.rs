@@ -152,7 +152,7 @@ fn smooth_freq_identique() {
         let (y, level) = (input(&c, &k["y"]), k["level"].as_i64().unwrap());
         let what = format!("smooth_freq forme {shape:?} niveau {level}");
         assert_bits(
-            &spectral::smooth_freq(&y, &shape, level),
+            &spectral::smooth_freq(&y, &shape, level).unwrap(),
             &f64s(k["out"].as_str().unwrap()),
             &what,
         );
@@ -279,7 +279,7 @@ fn smooth_map_dans_la_tolerance() {
         let what = format!("smooth_map forme {shape:?} niveau {level}");
         assert_close(
             "smooth_map",
-            &spectral::smooth_map(&z, &shape, level),
+            &spectral::smooth_map(&z, &shape, level).unwrap(),
             &f64s(k["out"].as_str().unwrap()),
             SMOOTH_RTOL,
             &what,

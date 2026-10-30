@@ -1,8 +1,8 @@
 //! Primitives numériques de `analysis/_numeric.py` (D-035, phase 4b-1) : fenêtre de Hann, moyenne glissante, flou
 //! gaussien, intercorrélation par FFT.
 //!
-//! Même ordre des opérations que numpy pour rendre les mêmes bits (`hann`, `uniform_filter1d`, `gaussian_filter` :
-//! identiques au bit près, vérifié sur `tests/data/numeric.json`) ; `xcorr_full` passe par une FFT et s'écarte de numpy
+//! Même ordre des opérations que numpy pour rendre les mêmes bits (`uniform_filter1d` identique au bit près,
+//! `hann` et `gaussian_filter` à 1e-14 : `cos` et `exp` de la bibliothèque mathématique, L-048 ; vérifié sur `tests/data/numeric.json`) ; `xcorr_full` passe par une FFT et s'écarte de numpy
 //! de ≈ 1e-15 du plus grand élément (mesuré en 4b-0). Les tableaux sont à plat, rangés ligne par ligne (ordre C), avec
 //! leur forme. Une entrée float32 est convertie en float64 avant (exact) et le résultat arrondi en float32 après, par
 //! l'appelant (`as f32`, arrondi au plus proche comme `astype`).
@@ -116,8 +116,13 @@ pub fn gaussian_kernel(sigma: f64) -> Vec<f64> {
 
 /// Flou gaussien séparable, bord répété (`gaussian_filter`, `truncate = 4`) : un sigma par axe, un sigma ≤ 1e-15 laisse
 /// l'axe intact. Chaque ligne cumule `noyau[j] × valeur` dans l'ordre des j, en partant de 0.0, comme Python.
-pub fn gaussian_filter(a: &[f64], shape: &[usize], sigma: &[f64]) -> Vec<f64> {
-    assert_eq!(sigma.len(), shape.len(), "un sigma par axe");
+pub fn gaussian_filter(a: &[f64], shape: &[usize], sigma: &[f64]) -> Result<Vec<f64>, String> {
+    if sigma.len() != shape.len() {
+        return Err(format!("{} sigma pour {} axes", sigma.len(), shape.len()));
+    }
+    if sigma.iter().any(|s| s.is_infinite()) {
+        return Err("sigma infini : le rayon du noyau déborde (OverflowError en Python)".into());
+    }
     let mut cur = a.to_vec();
     for (axis, &s) in sigma.iter().enumerate() {
         if s > 1e-15 {
@@ -140,7 +145,7 @@ pub fn gaussian_filter(a: &[f64], shape: &[usize], sigma: &[f64]) -> Vec<f64> {
             .expect("forme cohérente");
         }
     }
-    cur
+    Ok(cur)
 }
 
 /// Spectre d'un signal réel complété de zéros jusqu'à `nfft`.
@@ -202,4 +207,17 @@ pub fn rfft_rows(data: &[f64], rows: usize, len: usize) -> Vec<Complex64<f64>> {
             .expect("longueurs cohérentes");
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::gaussian_filter;
+
+    #[test]
+    fn gaussian_filter_refuse_ce_que_python_refuse() {
+        // Python : sigma infini → OverflowError ; mauvais nombre de sigma → erreur
+        assert!(gaussian_filter(&[1.0, 2.0, 3.0], &[3], &[f64::INFINITY]).is_err());
+        assert!(gaussian_filter(&[1.0, 2.0, 3.0], &[3], &[1.0, 2.0]).is_err());
+        assert!(gaussian_filter(&[1.0, 2.0, 3.0], &[3], &[1.0]).is_ok());
+    }
 }

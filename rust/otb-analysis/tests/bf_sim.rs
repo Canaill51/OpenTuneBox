@@ -19,10 +19,10 @@ use common::*;
 /// Gyro et terme D simulés : filtres récursifs (état conservé sur tout le signal), coefficients de `sin` / `cos`. Mesuré : 0
 /// (mêmes bits que Python, qui appelle le même noyau). Une autre libm change les coefficients d'≈ 1 ulp ; un filtre stable
 /// ne l'amplifie guère, le Q d'un notch (≤ 10 ici) un peu : marge de six chiffres.
-const SIM_RTOL: f64 = 1e-9;
+const SIM_RTOL: f64 = 1e-12;
 /// Spectres « et si » en dB : FFT (4b-2) puis réponses de filtres (`sin` / `cos`). Mesuré : 1,7e-15 sur ces signaux à faible
 /// dynamique ; sur un spectre très dynamique l'écart de la FFT monte à 1e-10 (L-048) : même tolérance qu'en 4b-2.
-const WHATIF_RTOL: f64 = 1e-9;
+const WHATIF_RTOL: f64 = 1e-11;
 
 fn rows(c: &Value, o: &Value, n: usize) -> Option<Rows> {
     (!o.is_null()).then(|| Rows {
