@@ -6,7 +6,7 @@
 //! Python (`<section>|_error`) aussi. Une clé présente d'un côté seulement est un écart.
 
 use crate::value::{Array, load_arrays};
-use otb_analysis::{datasets, delay, motors, period, stats};
+use otb_analysis::{datasets, delay, motors, open_loop, period, stats};
 use otb_log::flightlog::{FlightLog, Rows, clamp_range};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -29,12 +29,49 @@ enum Item {
     B(bool),
     S(String),
     A(Vec<f64>),
+    /// Tableau de booléens.
+    AB(Vec<bool>),
+    /// Tableau complexe comparé élément par élément : `|Rust − Python| / (|Python| + plancher × plus grand module)`.
+    C(Vec<(f64, f64)>, f64),
 }
 
 type Flat = BTreeMap<String, Item>;
 
 /// Sections de la couche déjà portées en Rust (les autres sont ignorées).
-pub const PORTED: [&str; 5] = ["period", "datasets", "stats", "delay", "motors"];
+pub const PORTED: [&str; 6] = ["period", "datasets", "stats", "delay", "motors", "step"];
+
+/// Sections portées en partie seulement : une clé de Python que Rust ne produit pas encore n'est pas un écart. `step` : 4c-B(a) rejoue
+/// les marges des boucles mesurées (les spectres, `T`, `std`… viennent aux étapes (b) et (c)) et toute la boucle approchée ; les
+/// métriques et les réponses viennent avec `step` et `step_series`.
+fn in_scope(section: &str, key: &str, py: &HashMap<String, Array>) -> bool {
+    if section != "step" {
+        return true;
+    }
+    let Some((loop_key, field)) = key.split_once("].") else {
+        return false;
+    };
+    let measured = py
+        .get(&format!("{loop_key}].method"))
+        .and_then(|m| m.as_string())
+        .is_some_and(|m| m == open_loop::MEASURED);
+    // `notes` : ajoutées par `step` et `loop_from_terms`, pas par `loop_from_T`
+    key.starts_with("step.loops[")
+        && !field.starts_with("notes[")
+        && (!measured
+            || matches!(
+                field,
+                "crossover_hz"
+                    | "phase_margin_deg"
+                    | "gain_margin_db"
+                    | "sensitivity_peak_db"
+                    | "sensitivity_peak_hz"
+                    | "sensitivity_peak_at_edge"
+            ))
+}
+
+/// Tolérance des marges et des courbes de la boucle ouverte (`log`, `atan2`, `exp` : L-048). **Mesurée sur les 668 sessions** : 1,9e-15
+/// au pire (cas écrits : 2,0e-15). Marge ×5 000 ; un saut d'indice (croisement, passage par −180°, pic) vaut un pas de grille.
+pub const LOOP_TOL: f64 = 1e-11;
 
 /// Tolérance des valeurs en dB et des spectres des fonctions de `motors` (FFT de `realfft`, `log10`, `hypot`, `pow` : L-048). **Mesurée sur
 /// les 668 sessions** : 1,5e-11 au pire (cas écrits : 7,1e-12, écart-type de valeurs en dB, qui amplifie l'arrondi de la FFT). Marge ×70 ;
@@ -88,7 +125,7 @@ fn put_pair(f: &mut Flat, key: &str, v: &Option<(f64, f64)>) {
 type Section = (&'static str, Result<Flat, String>);
 
 /// Résultats des modules portés pour une session, par section et sous les noms de Python.
-fn ported(lg: &FlightLog) -> Vec<Section> {
+fn ported(lg: &FlightLog, py: &HashMap<String, Array>) -> Vec<Section> {
     let period = period_section(lg);
     // la période de vol ; si `auto_period` échoue, Python garde `slice(None)` pour les sections suivantes
     let sel = period::auto_period(lg, 8.0, 0.5)
@@ -100,7 +137,76 @@ fn ported(lg: &FlightLog) -> Vec<Section> {
         ("stats", Ok(stats_section(lg, sel.clone()))),
         ("delay", delay_section(lg, sel.clone())),
         ("motors", motors_section(lg, sel)),
+        ("step", step_section(py)),
     ]
+}
+
+/// Boucles ouvertes de `step` rejouées **depuis les entrées de la référence** (4c-B(a) : `margins` et `loop_from_T`). Une boucle
+/// mesurée : marges de `(freqs, L, valid)` ; une boucle approchée : `loop_from_T(freqs, T, coherence)` entière. Les étapes (b) et (c)
+/// refont la boucle mesurée depuis le journal.
+fn step_section(py: &HashMap<String, Array>) -> Result<Flat, String> {
+    if py.contains_key("step|_error") {
+        return Err("référence en erreur".into());
+    }
+    let get = |k: &str| py.get(k).ok_or_else(|| format!("{k} absente de la référence"));
+    let floats = |a: &Array| (0..a.len()).map(|i| a.get_f64(i)).collect::<Vec<f64>>();
+    let mut f = Flat::new();
+    for i in 0.. {
+        let p = format!("step.loops[{i}]");
+        let Some(method) = py.get(&format!("{p}.method")) else {
+            break;
+        };
+        let method = method.as_string().ok_or("méthode illisible")?;
+        let freqs = floats(get(&format!("{p}.freqs"))?);
+        let cplx = |a: &Array| -> Vec<open_loop::C> {
+            (0..a.len()).map(|i| (a.get_f64(2 * i), a.get_f64(2 * i + 1))).collect()
+        };
+        let t = |v: f64, unit: f64| Item::T(v, LOOP_TOL, unit);
+        let put_margins = |f: &mut Flat, m: &open_loop::Margins| {
+            f.insert(format!("{p}.crossover_hz"), t(m.crossover_hz, 1.0));
+            f.insert(format!("{p}.phase_margin_deg"), t(m.phase_margin_deg, 180.0));
+            f.insert(format!("{p}.gain_margin_db"), t(m.gain_margin_db, 1.0));
+            f.insert(format!("{p}.sensitivity_peak_db"), t(m.sensitivity_peak_db, 1.0));
+            f.insert(format!("{p}.sensitivity_peak_hz"), Item::F(m.sensitivity_peak_hz));
+            f.insert(
+                format!("{p}.sensitivity_peak_at_edge"),
+                Item::B(m.sensitivity_peak_at_edge),
+            );
+        };
+        if method == open_loop::MEASURED {
+            let l = cplx(get(&format!("{p}.L"))?);
+            let valid: Vec<bool> = floats(get(&format!("{p}.valid"))?).iter().map(|&v| v != 0.0).collect();
+            put_margins(&mut f, &open_loop::margins(&freqs, &l, Some(&valid))?);
+        } else {
+            let (tt, coh) = (cplx(get(&format!("{p}.T"))?), floats(get(&format!("{p}.coherence"))?));
+            let lm = open_loop::loop_from_t(&freqs, &tt, &coh, 150.0, 0.5)?;
+            f.insert(format!("{p}.method"), Item::S(lm.method.to_string()));
+            f.insert(format!("{p}.band_hz[0]"), Item::F(lm.band_hz.0));
+            f.insert(format!("{p}.band_hz[1]"), Item::F(lm.band_hz.1));
+            f.insert(format!("{p}.bandwidth_hz"), Item::F(lm.bandwidth_hz));
+            f.insert(format!("{p}.tracking_peak_db"), t(lm.tracking_peak_db, 1.0));
+            f.insert(format!("{p}.d_ratio"), Item::F(lm.d_ratio));
+            put_margins(
+                &mut f,
+                &open_loop::Margins {
+                    crossover_hz: lm.crossover_hz,
+                    phase_margin_deg: lm.phase_margin_deg,
+                    gain_margin_db: lm.gain_margin_db,
+                    phase_crossover_hz: f64::NAN,
+                    sensitivity_peak_db: lm.sensitivity_peak_db,
+                    sensitivity_peak_hz: lm.sensitivity_peak_hz,
+                    sensitivity_peak_at_edge: lm.sensitivity_peak_at_edge,
+                },
+            );
+            // les entrées conservées dans le résultat (relues de la référence : recopiées telles quelles)
+            f.insert(format!("{p}.freqs"), Item::A(lm.freqs.clone()));
+            f.insert(format!("{p}.T"), Item::C(lm.t.clone(), LOOP_TOL));
+            f.insert(format!("{p}.coherence"), Item::A(lm.coherence.clone()));
+            f.insert(format!("{p}.L"), Item::C(lm.l.clone(), LOOP_TOL));
+            f.insert(format!("{p}.valid"), Item::AB(lm.valid.clone()));
+        }
+    }
+    Ok(f)
 }
 
 fn period_section(lg: &FlightLog) -> Result<Flat, String> {
@@ -432,6 +538,52 @@ fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<
         }
         Item::S(g) => (want.as_string().as_ref() != Some(g))
             .then(|| format!("{key} : Rust {g:?} / Python {:?}", want.as_string())),
+        Item::AB(g) => {
+            let ok =
+                want.kind == 'b' && want.len() == g.len() && (0..g.len()).all(|i| (want.get_f64(i) != 0.0) == g[i]);
+            (!ok).then(|| {
+                format!(
+                    "{key} : {} booléens différents de Python ({}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                )
+            })
+        }
+        Item::C(g, tol) => {
+            if want.kind != 'c' || want.len() != g.len() {
+                return bad(format!(
+                    "{} complexes (Python {}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                ));
+            }
+            let w = |i: usize| (want.get_f64(2 * i), want.get_f64(2 * i + 1));
+            let top = (0..g.len())
+                .map(w)
+                .filter(|z| z.0.is_finite() && z.1.is_finite())
+                .fold(0.0f64, |m, z| m.max(z.0.hypot(z.1)));
+            for (i, gi) in g.iter().enumerate() {
+                let wi = w(i);
+                if !(gi.0.is_finite() && gi.1.is_finite() && wi.0.is_finite() && wi.1.is_finite()) {
+                    if !(same_bits(gi.0, wi.0) && same_bits(gi.1, wi.1)) {
+                        return Some(format!("{key} : élément {i} : Rust {gi:?} / Python {wi:?}"));
+                    }
+                    continue;
+                }
+                let err = (gi.0 - wi.0).hypot(gi.1 - wi.1) / (wi.0.hypot(wi.1) + CELL_FLOOR * top).max(1e-300);
+                *worst = worst.max(err);
+                if err > *tol {
+                    return Some(format!(
+                        "{key} : élément {i} : Rust {gi:?} / Python {wi:?} (écart relatif {err:e} > {tol:e})"
+                    ));
+                }
+            }
+            None
+        }
         Item::A(g) => {
             if want.kind != 'f' || want.size != 8 || want.len() != g.len() {
                 return bad(format!(
@@ -481,7 +633,7 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AnalysisReport
         Err(e) => return rep.failures.push(format!("{who} : {e}")),
     };
     rep.sessions += 1;
-    for (section, result) in ported(lg) {
+    for (section, result) in ported(lg, &py) {
         // Python a levé dans cette section : Rust doit lever aussi (et réciproquement)
         if py.contains_key(&format!("{section}|_error")) {
             rep.python_errors += 1;
@@ -522,7 +674,8 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AnalysisReport
             }
         }
         for k in py.keys() {
-            if section_of(k) == section && !k.ends_with("|_error") && !got.contains_key(k) {
+            if section_of(k) == section && in_scope(section, k, &py) && !k.ends_with("|_error") && !got.contains_key(k)
+            {
                 rep.failures.push(format!("{who} : {k} absente de Rust"));
             }
         }

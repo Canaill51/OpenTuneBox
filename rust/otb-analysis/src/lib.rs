@@ -9,6 +9,7 @@ pub mod datasets;
 pub mod delay;
 pub mod motors;
 pub mod npstat;
+pub mod open_loop;
 pub mod period;
 pub mod sliders;
 pub mod spectral;
