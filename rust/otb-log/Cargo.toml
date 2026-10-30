@@ -4,3 +4,6 @@ description = "Ouverture d'un log : rejet des trames impossibles et conversions 
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+
+[dev-dependencies]
+serde_json = "1"

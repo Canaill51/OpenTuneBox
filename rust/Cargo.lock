@@ -269,12 +269,16 @@ version = "0.8.0"
 [[package]]
 name = "otb-log"
 version = "0.8.0"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "otb-parity"
 version = "0.8.0"
 dependencies = [
  "otb-dsp",
+ "otb-log",
  "serde_json",
  "zip",
 ]
