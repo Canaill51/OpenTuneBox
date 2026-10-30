@@ -70,6 +70,12 @@ est celle du commit qui les a introduites.
   raisonne d'abord (équivalente ?) puis se couvre par un cas ou se note équivalente. Un seuil ou un plafond ne se prouve que
   par une valeur qui le franchit (gaz de repli : `fl_gaz_de_repli_hors_bornes`), l'égalité exacte aussi (`fl_moitie_exacte`).
 - **Preuve** — `rust/otb-parity/tests/decode_fixtures.rs` ; `scripts/decoder_fixtures.py` (scénarios `fl_…`).
+- **Suite** — la relecture indépendante (agent `relecteur`) a trouvé ce que ni les 668 sessions du corpus ni les 62 fixtures ne
+  couvraient : `np.convolve` échange ses arguments quand le signal est plus court que le noyau (`n < w`, sessions de moins de
+  133 trames à 8 kHz avec un terme D : gain `k` faux de 1,6e-3), `trim` de Rust au lieu de `strip` de Python dans
+  `debug_mode_name`, un débordement de `+ 1` après un `as i64` saturé. Corrigés avec leurs tests (`fl_courte_avec_terme_d_*`,
+  `settings_cases.py`, tests de `flightlog.rs`), chacun vu en échec sans le correctif. **Le corpus ne contient pas les cas
+  courts** : toute branche numpy qui dépend de la longueur d'un tableau demande une fixture courte.
 
 ### L-046 : une couche de parité sur le corpus ne prouve pas les valeurs par défaut
 - **Symptôme** — 2026-10-30 (4a-4) : changer le défaut de `looptime`, `motor_poles` ou `rpm_filter_q` dans `parse_settings` laissait

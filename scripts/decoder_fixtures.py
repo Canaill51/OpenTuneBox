@@ -147,6 +147,10 @@ def flightlog_scenarios() -> dict[str, bytes]:
     out["fl_gaz_de_repli_hors_bornes"] = fl_session(
         ["rcCommand[0]", "rcCommand[1]", "rcCommand[2]", "rcCommand[3]"],
         tweak=lambda k, n, v: (900, 2100, 1500, 1995, 1004)[k % 5] if n == "rcCommand[3]" else v)
+    # sessions plus courtes que le noyau de lissage de `d_term_prefilter` (133 points à 8 kHz) : `np.convolve` échange alors
+    # ses deux arguments et rend `max(n, w)` valeurs (relecture indépendante de la phase 4a)
+    for n in (2, 3, 4, 12, 60, 132, 133, 140):
+        out[f"fl_courte_avec_terme_d_{n}"] = fl_session(["axisD[0]", "axisD[1]", "axisD[2]"], n=n)
     out["fl_voies_absentes"] = fl_session([])
     out["fl_un_axe_pid"] = fl_session(["axisP[1]", "axisD[0]", "axisD[1]", "axisF[2]"])
     out["fl_une_voie_de_chaque_groupe"] = fl_session(["setpoint[2]", "rcCommand[1]", "debug[2]", "motor[0]", "accSmooth[1]",

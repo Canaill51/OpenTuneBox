@@ -1528,6 +1528,830 @@
 }
 ]
 },
+"fl_courte_avec_terme_d_12": {
+"flightlog": [
+{
+"acc": null,
+"armed": "bool|(12,)|3ee5f0d83bf791f0fb4d750a5719ce19d6d352ef7e5a4264e4b760f0f9c15014",
+"cells": 4,
+"current": null,
+"d_term": "float32|(3, 12)|bedd254b7702a39b2e9e372d2bf07f9047d037cc71701cad9a4bdbceae2b5dff",
+"d_term_prefilter": {
+"samples": [
+[
+"c23087ae"
+],
+[
+"00000000"
+],
+[
+"c233da42"
+]
+],
+"shape": [
+3,
+12
+],
+"stride": 1009
+},
+"debug": "float32|(0, 12)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"events": "int64|(1, 4)|7a9228ba9c39603fd99db5d4a2c0f7a2933a624cff271a574ff490d8dc56da4f",
+"f_term": "float32|(3, 12)|81c611f35bff79491538b2f7cf201c7597a661a5c549633541c62bdc8af1613f",
+"fs": "f64:40bf400000000000",
+"gyro": "float32|(3, 12)|3043b35f0eeafac67ff62eae7d8525b45db60c9899117b2fac72c6118879386f",
+"gyro_unfilt": null,
+"i_term": "float32|(3, 12)|81c611f35bff79491538b2f7cf201c7597a661a5c549633541c62bdc8af1613f",
+"mode_flags": null,
+"motor_hz": null,
+"motors": "float32|(0, 12)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"n": 12,
+"p_term": "float32|(3, 12)|81c611f35bff79491538b2f7cf201c7597a661a5c549633541c62bdc8af1613f",
+"pid_columns": [
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+"pid_error": "float32|(3, 12)|3043b35f0eeafac67ff62eae7d8525b45db60c9899117b2fac72c6118879386f",
+"pid_sum": "float32|(3, 12)|bedd254b7702a39b2e9e372d2bf07f9047d037cc71701cad9a4bdbceae2b5dff",
+"rc_command": "float32|(4, 12)|5d89f056865052bcb89c910d2d62872e029fb273c3db03f8968a52a41593c1b5",
+"segments": [
+[
+0,
+12
+]
+],
+"session": 1,
+"setpoint": "float32|(3, 12)|81c611f35bff79491538b2f7cf201c7597a661a5c549633541c62bdc8af1613f",
+"stats": {
+"bytes": 116,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 1,
+"implausible_frames": 0,
+"log_end_seen": true,
+"p_frames": 11,
+"skipped_iterations": 0
+},
+"t": "float64|(12,)|613a408419172b5702e102b2969f2da19a098ad63cb97905e37691eb9c80f615",
+"throttle": "float32|(12,)|17b0761f87b081d5cf10757ccc89f12be355c70e2e29df288b65b30710dcbcd1",
+"vbat": null
+}
+],
+"sessions": [
+{
+"events": "int64|(1, 4)|7a9228ba9c39603fd99db5d4a2c0f7a2933a624cff271a574ff490d8dc56da4f",
+"gps": "int64|(0, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"gps_at": "int64|(0,)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"main": "int64|(12, 8)|988bf0d4339d799d311430fad9f7d6eadc01034c827237d4bd36b120daf0759b",
+"main_kind": "int8|(12,)|4b0ff71ccde0c169925e654d031b99cd5d36793307f83e9404eb7529cd881d05",
+"names": [
+[
+"loopIteration",
+"time",
+"gyroADC[0]",
+"gyroADC[1]",
+"gyroADC[2]",
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+[],
+[]
+],
+"slow": "int64|(12, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"stats": {
+"bytes": 116,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 1,
+"log_end_seen": true,
+"p_frames": 11,
+"skipped_iterations": 0
+}
+}
+]
+},
+"fl_courte_avec_terme_d_132": {
+"flightlog": [
+{
+"acc": null,
+"armed": "bool|(132,)|020f896d348ca41e79779709153cb7b7fbd01720edbb66dd17c496b83277ea05",
+"cells": 4,
+"current": null,
+"d_term": "float32|(3, 132)|257f5e0b01f4ec3bafc3b549d116a080135b57c57e8f214cb9275cbecc333e89",
+"d_term_prefilter": {
+"samples": [
+[
+"c1928b3c"
+],
+[
+"00000000"
+],
+[
+"c14cada9"
+]
+],
+"shape": [
+3,
+132
+],
+"stride": 1009
+},
+"debug": "float32|(0, 132)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"events": "int64|(1, 4)|5bd3b8606cc70bb010ebd3484a87fee65ea0208b95f8623cf3ab698a96926596",
+"f_term": "float32|(3, 132)|c87499548f9efbd98c824a95a664af38f414efb1c9eede544e55e019473d6b24",
+"fs": "f64:40bf400000000000",
+"gyro": "float32|(3, 132)|a38114ef04cc369c588de1606eed5e54a8c0bf8ff85e29fa816664107dfe16de",
+"gyro_unfilt": null,
+"i_term": "float32|(3, 132)|c87499548f9efbd98c824a95a664af38f414efb1c9eede544e55e019473d6b24",
+"mode_flags": null,
+"motor_hz": null,
+"motors": "float32|(0, 132)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"n": 132,
+"p_term": "float32|(3, 132)|c87499548f9efbd98c824a95a664af38f414efb1c9eede544e55e019473d6b24",
+"pid_columns": [
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+"pid_error": "float32|(3, 132)|a38114ef04cc369c588de1606eed5e54a8c0bf8ff85e29fa816664107dfe16de",
+"pid_sum": "float32|(3, 132)|257f5e0b01f4ec3bafc3b549d116a080135b57c57e8f214cb9275cbecc333e89",
+"rc_command": "float32|(4, 132)|80b67b115f8e28f3b67fddcd4cd1daac24a054603d1dd0cb13793a299a5dadfc",
+"segments": [
+[
+0,
+132
+]
+],
+"session": 1,
+"setpoint": "float32|(3, 132)|c87499548f9efbd98c824a95a664af38f414efb1c9eede544e55e019473d6b24",
+"stats": {
+"bytes": 1102,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 5,
+"implausible_frames": 0,
+"log_end_seen": true,
+"p_frames": 127,
+"skipped_iterations": 0
+},
+"t": "float64|(132,)|54a82e4bf6235469111eb56f24acc9f8c3141807693599bd6c895b2abed84bcc",
+"throttle": "float32|(132,)|8889eb3cdd3d0ac94711b47ce78b430d8e23a7b31ecc994c56d0c3310c87674a",
+"vbat": null
+}
+],
+"sessions": [
+{
+"events": "int64|(1, 4)|5bd3b8606cc70bb010ebd3484a87fee65ea0208b95f8623cf3ab698a96926596",
+"gps": "int64|(0, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"gps_at": "int64|(0,)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"main": "int64|(132, 8)|3cb7d7bd53d17a1e355afd3fc3dd06ac6c971fb7e29d6842f74766d2415986cb",
+"main_kind": "int8|(132,)|a284d07929fb9dc45cfd7d49e366af81c4cc3d8336703c81e55d89cebc6092c6",
+"names": [
+[
+"loopIteration",
+"time",
+"gyroADC[0]",
+"gyroADC[1]",
+"gyroADC[2]",
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+[],
+[]
+],
+"slow": "int64|(132, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"stats": {
+"bytes": 1102,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 5,
+"log_end_seen": true,
+"p_frames": 127,
+"skipped_iterations": 0
+}
+}
+]
+},
+"fl_courte_avec_terme_d_133": {
+"flightlog": [
+{
+"acc": null,
+"armed": "bool|(133,)|2be1e207cb3c363ebec163e3de22b4b60a5357f10f7e3afc1e10a7e47c4dc03a",
+"cells": 4,
+"current": null,
+"d_term": "float32|(3, 133)|54786737bae9e6dc2f3e0b4db319bfe844920949bafe43b0619a93270b85360d",
+"d_term_prefilter": {
+"samples": [
+[
+"c1b10018"
+],
+[
+"00000000"
+],
+[
+"c12bffc6"
+]
+],
+"shape": [
+3,
+133
+],
+"stride": 1009
+},
+"debug": "float32|(0, 133)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"events": "int64|(1, 4)|6ab820fe2853e9f50ba45cd5e9c4173112051f7db3d716a76f5c193340748556",
+"f_term": "float32|(3, 133)|bfd6d535131a45e8a31340082147c4928edd44f2e05fe127081a1900b3cc0edc",
+"fs": "f64:40bf400000000000",
+"gyro": "float32|(3, 133)|042d6b0b98c3a12c43f31ead4e6ece1d6906f92c6056dc46d283b3bc84335a02",
+"gyro_unfilt": null,
+"i_term": "float32|(3, 133)|bfd6d535131a45e8a31340082147c4928edd44f2e05fe127081a1900b3cc0edc",
+"mode_flags": null,
+"motor_hz": null,
+"motors": "float32|(0, 133)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"n": 133,
+"p_term": "float32|(3, 133)|bfd6d535131a45e8a31340082147c4928edd44f2e05fe127081a1900b3cc0edc",
+"pid_columns": [
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+"pid_error": "float32|(3, 133)|042d6b0b98c3a12c43f31ead4e6ece1d6906f92c6056dc46d283b3bc84335a02",
+"pid_sum": "float32|(3, 133)|54786737bae9e6dc2f3e0b4db319bfe844920949bafe43b0619a93270b85360d",
+"rc_command": "float32|(4, 133)|8378cf66af72b7b288185379a7bb28c562587780d9491a94b3b6d8df5a77d3dd",
+"segments": [
+[
+0,
+133
+]
+],
+"session": 1,
+"setpoint": "float32|(3, 133)|bfd6d535131a45e8a31340082147c4928edd44f2e05fe127081a1900b3cc0edc",
+"stats": {
+"bytes": 1110,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 5,
+"implausible_frames": 0,
+"log_end_seen": true,
+"p_frames": 128,
+"skipped_iterations": 0
+},
+"t": "float64|(133,)|c92d0a0aff29ecaab9c196236816381e8925dbecbed6aa7370bf1ed081af0ca4",
+"throttle": "float32|(133,)|47bed81b9dd45f914b6f4c65d96eb6803050cbb576f6f4d2e7911d0b35983b51",
+"vbat": null
+}
+],
+"sessions": [
+{
+"events": "int64|(1, 4)|6ab820fe2853e9f50ba45cd5e9c4173112051f7db3d716a76f5c193340748556",
+"gps": "int64|(0, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"gps_at": "int64|(0,)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"main": "int64|(133, 8)|93c156c6634c9faaeb20bba8e8c9b0edaca8ed92cab7326b6711b965696356fe",
+"main_kind": "int8|(133,)|9436d1d2182119dc9e1600a03c2ec7b8e3c75eae64ac705769e59fea4524be11",
+"names": [
+[
+"loopIteration",
+"time",
+"gyroADC[0]",
+"gyroADC[1]",
+"gyroADC[2]",
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+[],
+[]
+],
+"slow": "int64|(133, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"stats": {
+"bytes": 1110,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 5,
+"log_end_seen": true,
+"p_frames": 128,
+"skipped_iterations": 0
+}
+}
+]
+},
+"fl_courte_avec_terme_d_140": {
+"flightlog": [
+{
+"acc": null,
+"armed": "bool|(140,)|89ae85497a48890d94a4eaf3a2c008e95cbe6162d602de2e962cbafb1445daa7",
+"cells": 4,
+"current": null,
+"d_term": "float32|(3, 140)|f62b57d857f78c30f19d9b5c77fcb5a86b75ec30db04df9d247ae867288049d0",
+"d_term_prefilter": {
+"samples": [
+[
+"c1011332"
+],
+[
+"00000000"
+],
+[
+"407aa8ef"
+]
+],
+"shape": [
+3,
+140
+],
+"stride": 1009
+},
+"debug": "float32|(0, 140)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"events": "int64|(1, 4)|6a0913f41cce09b5df0958d4900c6cad4db078e6620aa826dc50b640a5779345",
+"f_term": "float32|(3, 140)|065cc6b2b996ca729f6aa0208e13ac4b494dd0d74a4c4df6053d08b0c11da865",
+"fs": "f64:40bf400000000000",
+"gyro": "float32|(3, 140)|55229133c9e17527408a306d74649b2ca332860d5f763d0724b578fbe12f3948",
+"gyro_unfilt": null,
+"i_term": "float32|(3, 140)|065cc6b2b996ca729f6aa0208e13ac4b494dd0d74a4c4df6053d08b0c11da865",
+"mode_flags": null,
+"motor_hz": null,
+"motors": "float32|(0, 140)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"n": 140,
+"p_term": "float32|(3, 140)|065cc6b2b996ca729f6aa0208e13ac4b494dd0d74a4c4df6053d08b0c11da865",
+"pid_columns": [
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+"pid_error": "float32|(3, 140)|55229133c9e17527408a306d74649b2ca332860d5f763d0724b578fbe12f3948",
+"pid_sum": "float32|(3, 140)|f62b57d857f78c30f19d9b5c77fcb5a86b75ec30db04df9d247ae867288049d0",
+"rc_command": "float32|(4, 140)|2f7eaacf490839d9c603736149286272aea4df46c0daf58f0c70062041c68230",
+"segments": [
+[
+0,
+140
+]
+],
+"session": 1,
+"setpoint": "float32|(3, 140)|065cc6b2b996ca729f6aa0208e13ac4b494dd0d74a4c4df6053d08b0c11da865",
+"stats": {
+"bytes": 1166,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 5,
+"implausible_frames": 0,
+"log_end_seen": true,
+"p_frames": 135,
+"skipped_iterations": 0
+},
+"t": "float64|(140,)|ea0bdfd982aa9af7ec5ff8771d71522cf6de3657371984fe455438d0aca812b1",
+"throttle": "float32|(140,)|738c079dff6c9b77a0891ac42db1cabcab933a672b14aed8ecfcf94c0e77bb40",
+"vbat": null
+}
+],
+"sessions": [
+{
+"events": "int64|(1, 4)|6a0913f41cce09b5df0958d4900c6cad4db078e6620aa826dc50b640a5779345",
+"gps": "int64|(0, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"gps_at": "int64|(0,)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"main": "int64|(140, 8)|2f60fe04477061cf1981c477d0bed8bd325f7cd31b5d5ddb2d16da916e1c028c",
+"main_kind": "int8|(140,)|560375c4f6781d325e3844c72bd2e165a3285e9284786de47f1e94642410ef50",
+"names": [
+[
+"loopIteration",
+"time",
+"gyroADC[0]",
+"gyroADC[1]",
+"gyroADC[2]",
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+[],
+[]
+],
+"slow": "int64|(140, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"stats": {
+"bytes": 1166,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 5,
+"log_end_seen": true,
+"p_frames": 135,
+"skipped_iterations": 0
+}
+}
+]
+},
+"fl_courte_avec_terme_d_2": {
+"flightlog": [
+{
+"acc": null,
+"armed": "bool|(2,)|9dcf97a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2",
+"cells": 4,
+"current": null,
+"d_term": "float32|(3, 2)|77bb94e4bb8a22b36518376e43faa3bfb4dc6f44204ab78546bf330c0b78f484",
+"d_term_prefilter": {
+"samples": [
+[
+"411822d8"
+],
+[
+"80000000"
+],
+[
+"c29802e7"
+]
+],
+"shape": [
+3,
+2
+],
+"stride": 1009
+},
+"debug": "float32|(0, 2)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"events": "int64|(1, 4)|5bbb5a8a71cd7c8ab94178e80a14fa8204b656e4d618a1fa887c7012a16eb34f",
+"f_term": "float32|(3, 2)|9d908ecfb6b256def8b49a7c504e6c889c4b0e41fe6ce3e01863dd7b61a20aa0",
+"fs": "f64:40bf400000000000",
+"gyro": "float32|(3, 2)|a1a04fa4563e3c455331264add7d79d675abe7106d77a805223d222376998e26",
+"gyro_unfilt": null,
+"i_term": "float32|(3, 2)|9d908ecfb6b256def8b49a7c504e6c889c4b0e41fe6ce3e01863dd7b61a20aa0",
+"mode_flags": null,
+"motor_hz": null,
+"motors": "float32|(0, 2)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"n": 2,
+"p_term": "float32|(3, 2)|9d908ecfb6b256def8b49a7c504e6c889c4b0e41fe6ce3e01863dd7b61a20aa0",
+"pid_columns": [
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+"pid_error": "float32|(3, 2)|a1a04fa4563e3c455331264add7d79d675abe7106d77a805223d222376998e26",
+"pid_sum": "float32|(3, 2)|77bb94e4bb8a22b36518376e43faa3bfb4dc6f44204ab78546bf330c0b78f484",
+"rc_command": "float32|(4, 2)|66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925",
+"segments": [
+[
+0,
+2
+]
+],
+"session": 1,
+"setpoint": "float32|(3, 2)|9d908ecfb6b256def8b49a7c504e6c889c4b0e41fe6ce3e01863dd7b61a20aa0",
+"stats": {
+"bytes": 36,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 1,
+"implausible_frames": 0,
+"log_end_seen": true,
+"p_frames": 1,
+"skipped_iterations": 0
+},
+"t": "float64|(2,)|309093bbf10a27e3960af3690d7f1a063642532fcb87920f78f5d98cd360c207",
+"throttle": "float32|(2,)|af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+"vbat": null
+}
+],
+"sessions": [
+{
+"events": "int64|(1, 4)|5bbb5a8a71cd7c8ab94178e80a14fa8204b656e4d618a1fa887c7012a16eb34f",
+"gps": "int64|(0, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"gps_at": "int64|(0,)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"main": "int64|(2, 8)|bbe67766ce610411f1518563848e4f65db1fad38c83c74cbc3a9088e20c9529f",
+"main_kind": "int8|(2,)|b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2",
+"names": [
+[
+"loopIteration",
+"time",
+"gyroADC[0]",
+"gyroADC[1]",
+"gyroADC[2]",
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+[],
+[]
+],
+"slow": "int64|(2, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"stats": {
+"bytes": 36,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 1,
+"log_end_seen": true,
+"p_frames": 1,
+"skipped_iterations": 0
+}
+}
+]
+},
+"fl_courte_avec_terme_d_3": {
+"flightlog": [
+{
+"acc": null,
+"armed": "bool|(3,)|75c8fd04ad916aec3e3d5cb76a452b116b3d4d0912a0a485e9fb8e3d240e210c",
+"cells": 4,
+"current": null,
+"d_term": "float32|(3, 3)|2df788644caa050b08c556ba942a7940f964280f2ad1094e3d11bc431652aae7",
+"d_term_prefilter": {
+"samples": [
+[
+"40491d2a"
+],
+[
+"80000000"
+],
+[
+"c2e513bf"
+]
+],
+"shape": [
+3,
+3
+],
+"stride": 1009
+},
+"debug": "float32|(0, 3)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"events": "int64|(1, 4)|9e27f5a2a1d7b58a8b3864ac4692737ec41f6b69d91621aae7aec31ba50e4231",
+"f_term": "float32|(3, 3)|6db65fd59fd356f6729140571b5bcd6bb3b83492a16e1bf0a3884442fc3c8a0e",
+"fs": "f64:40bf400000000000",
+"gyro": "float32|(3, 3)|3cfd1b37d43aec2adbdb29f6c8b826787893836d1c3d4ccd5f6e9835b6a1776a",
+"gyro_unfilt": null,
+"i_term": "float32|(3, 3)|6db65fd59fd356f6729140571b5bcd6bb3b83492a16e1bf0a3884442fc3c8a0e",
+"mode_flags": null,
+"motor_hz": null,
+"motors": "float32|(0, 3)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"n": 3,
+"p_term": "float32|(3, 3)|6db65fd59fd356f6729140571b5bcd6bb3b83492a16e1bf0a3884442fc3c8a0e",
+"pid_columns": [
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+"pid_error": "float32|(3, 3)|3cfd1b37d43aec2adbdb29f6c8b826787893836d1c3d4ccd5f6e9835b6a1776a",
+"pid_sum": "float32|(3, 3)|2df788644caa050b08c556ba942a7940f964280f2ad1094e3d11bc431652aae7",
+"rc_command": "float32|(4, 3)|17b0761f87b081d5cf10757ccc89f12be355c70e2e29df288b65b30710dcbcd1",
+"segments": [
+[
+0,
+3
+]
+],
+"session": 1,
+"setpoint": "float32|(3, 3)|6db65fd59fd356f6729140571b5bcd6bb3b83492a16e1bf0a3884442fc3c8a0e",
+"stats": {
+"bytes": 44,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 1,
+"implausible_frames": 0,
+"log_end_seen": true,
+"p_frames": 2,
+"skipped_iterations": 0
+},
+"t": "float64|(3,)|6d527213b74fcf756ca67987a3f82cff48b2ac3495cb3b6607eb6e8e4749b567",
+"throttle": "float32|(3,)|15ec7bf0b50732b49f8228e07d24365338f9e3ab994b00af08e5a3bffe55fd8b",
+"vbat": null
+}
+],
+"sessions": [
+{
+"events": "int64|(1, 4)|9e27f5a2a1d7b58a8b3864ac4692737ec41f6b69d91621aae7aec31ba50e4231",
+"gps": "int64|(0, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"gps_at": "int64|(0,)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"main": "int64|(3, 8)|738a1e0e26eb81f8e1a267cdedf7ba94c74c0e56bc9a894eadce9d97997209e1",
+"main_kind": "int8|(3,)|fbb59ed10e9cd4ff45a12c5bb92cbd80df984ba1fe60f26a30febf218e2f0f5e",
+"names": [
+[
+"loopIteration",
+"time",
+"gyroADC[0]",
+"gyroADC[1]",
+"gyroADC[2]",
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+[],
+[]
+],
+"slow": "int64|(3, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"stats": {
+"bytes": 44,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 1,
+"log_end_seen": true,
+"p_frames": 2,
+"skipped_iterations": 0
+}
+}
+]
+},
+"fl_courte_avec_terme_d_4": {
+"flightlog": [
+{
+"acc": null,
+"armed": "bool|(4,)|27ecd0a598e76f8a2fd264d427df0a119903e8eae384e478902541756f089dd1",
+"cells": 4,
+"current": null,
+"d_term": "float32|(3, 4)|b657278dd3e1ad3c9ae122dc8436e5e77b177497dc9dcda886d7b42f712cb336",
+"d_term_prefilter": {
+"samples": [
+[
+"bf8e1533"
+],
+[
+"80000000"
+],
+[
+"c298857d"
+]
+],
+"shape": [
+3,
+4
+],
+"stride": 1009
+},
+"debug": "float32|(0, 4)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"events": "int64|(1, 4)|2e3e1e5eb4923b44bacd406cb056309c8608e516eef9fbea081fc1bf4f39a4ca",
+"f_term": "float32|(3, 4)|17b0761f87b081d5cf10757ccc89f12be355c70e2e29df288b65b30710dcbcd1",
+"fs": "f64:40bf400000000000",
+"gyro": "float32|(3, 4)|bb07b5634e80e1e951ad3bd3418e3e9551cff15b0ca5f7dabcc9fa0615fad681",
+"gyro_unfilt": null,
+"i_term": "float32|(3, 4)|17b0761f87b081d5cf10757ccc89f12be355c70e2e29df288b65b30710dcbcd1",
+"mode_flags": null,
+"motor_hz": null,
+"motors": "float32|(0, 4)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"n": 4,
+"p_term": "float32|(3, 4)|17b0761f87b081d5cf10757ccc89f12be355c70e2e29df288b65b30710dcbcd1",
+"pid_columns": [
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+"pid_error": "float32|(3, 4)|bb07b5634e80e1e951ad3bd3418e3e9551cff15b0ca5f7dabcc9fa0615fad681",
+"pid_sum": "float32|(3, 4)|b657278dd3e1ad3c9ae122dc8436e5e77b177497dc9dcda886d7b42f712cb336",
+"rc_command": "float32|(4, 4)|f5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b",
+"segments": [
+[
+0,
+4
+]
+],
+"session": 1,
+"setpoint": "float32|(3, 4)|17b0761f87b081d5cf10757ccc89f12be355c70e2e29df288b65b30710dcbcd1",
+"stats": {
+"bytes": 52,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 1,
+"implausible_frames": 0,
+"log_end_seen": true,
+"p_frames": 3,
+"skipped_iterations": 0
+},
+"t": "float64|(4,)|4ddc69796c92a53e6532fd0b0b55e3d4021a9df0c535e48ada8468f4bbc9c979",
+"throttle": "float32|(4,)|374708fff7719dd5979ec875d56cd2286f6d3cf7ec317a3b25632aab28ec37bb",
+"vbat": null
+}
+],
+"sessions": [
+{
+"events": "int64|(1, 4)|2e3e1e5eb4923b44bacd406cb056309c8608e516eef9fbea081fc1bf4f39a4ca",
+"gps": "int64|(0, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"gps_at": "int64|(0,)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"main": "int64|(4, 8)|29332e952b74de3e3bc9cda6bb568e7ce4c9a32512a0b3a6c9a939b2b5b5917f",
+"main_kind": "int8|(4,)|cbd95ae5ef8810691e3fc7efb7c39ef9ffb661135d858aa0ccc81fc74a0160ae",
+"names": [
+[
+"loopIteration",
+"time",
+"gyroADC[0]",
+"gyroADC[1]",
+"gyroADC[2]",
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+[],
+[]
+],
+"slow": "int64|(4, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"stats": {
+"bytes": 52,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 1,
+"log_end_seen": true,
+"p_frames": 3,
+"skipped_iterations": 0
+}
+}
+]
+},
+"fl_courte_avec_terme_d_60": {
+"flightlog": [
+{
+"acc": null,
+"armed": "bool|(60,)|5e4084eff2f37d637e6502bf9472b0029755bbd130ebb52c8c33bb8148c31fd2",
+"cells": 4,
+"current": null,
+"d_term": "float32|(3, 60)|ae7ee7fa05156af6855c7336bec6bdc8557c1340081f658bd825c638e82895a5",
+"d_term_prefilter": {
+"samples": [
+[
+"41dabdea"
+],
+[
+"00000000"
+],
+[
+"4168fe46"
+]
+],
+"shape": [
+3,
+60
+],
+"stride": 1009
+},
+"debug": "float32|(0, 60)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"events": "int64|(1, 4)|7069ef20cdaec6b3663bb7b0c6821708808feeecd256ff9de692d7fb8bcbec5f",
+"f_term": "float32|(3, 60)|fe2f74a1e0b16a66452888eb4d734bc455cf1304481bb495d59afa8cf9cae93b",
+"fs": "f64:40bf400000000000",
+"gyro": "float32|(3, 60)|e24afd83b6d4f2d91e5e1515bf27c15620760f64fb09d80761ff54f184c51843",
+"gyro_unfilt": null,
+"i_term": "float32|(3, 60)|fe2f74a1e0b16a66452888eb4d734bc455cf1304481bb495d59afa8cf9cae93b",
+"mode_flags": null,
+"motor_hz": null,
+"motors": "float32|(0, 60)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"n": 60,
+"p_term": "float32|(3, 60)|fe2f74a1e0b16a66452888eb4d734bc455cf1304481bb495d59afa8cf9cae93b",
+"pid_columns": [
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+"pid_error": "float32|(3, 60)|e24afd83b6d4f2d91e5e1515bf27c15620760f64fb09d80761ff54f184c51843",
+"pid_sum": "float32|(3, 60)|ae7ee7fa05156af6855c7336bec6bdc8557c1340081f658bd825c638e82895a5",
+"rc_command": "float32|(4, 60)|3dc463a76fc170607c07b104c3cb531362ce7d6e10c1a34e0c0f370aeae08ce8",
+"segments": [
+[
+0,
+60
+]
+],
+"session": 1,
+"setpoint": "float32|(3, 60)|fe2f74a1e0b16a66452888eb4d734bc455cf1304481bb495d59afa8cf9cae93b",
+"stats": {
+"bytes": 506,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 2,
+"implausible_frames": 0,
+"log_end_seen": true,
+"p_frames": 58,
+"skipped_iterations": 0
+},
+"t": "float64|(60,)|e70c62afd78d3b51fa6e306c87c0a12fa72b7cf754666d2a25fee545a0a1968d",
+"throttle": "float32|(60,)|2dfba633817046c7f559ed4b93076048435f7e1a90f14eb8035c04b9ebae2537",
+"vbat": null
+}
+],
+"sessions": [
+{
+"events": "int64|(1, 4)|7069ef20cdaec6b3663bb7b0c6821708808feeecd256ff9de692d7fb8bcbec5f",
+"gps": "int64|(0, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"gps_at": "int64|(0,)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"main": "int64|(60, 8)|8f3583d2eb8c0d13fc420bb3a429628c9b67e61b0937c3c1d5c25cbd3ba8cb18",
+"main_kind": "int8|(60,)|6a1b25e8addf90cd20b6b5c5c05b509952ca19cbcb7a8ce7e9ad3a42f546af79",
+"names": [
+[
+"loopIteration",
+"time",
+"gyroADC[0]",
+"gyroADC[1]",
+"gyroADC[2]",
+"axisD[0]",
+"axisD[1]",
+"axisD[2]"
+],
+[],
+[]
+],
+"slow": "int64|(60, 0)|e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"stats": {
+"bytes": 506,
+"corrupt_frames": 0,
+"desync_frames": 0,
+"i_frames": 2,
+"log_end_seen": true,
+"p_frames": 58,
+"skipped_iterations": 0
+}
+}
+]
+},
 "fl_deux_lignes_meme_temps": {
 "flightlog": [
 {

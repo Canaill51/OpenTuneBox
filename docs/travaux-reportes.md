@@ -60,6 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-020 | `LogHeader.raw` et `Settings.raw` du Rust sont triés par clé, le dict Python garde l'ordre du fichier | ouvert (à voir en phase 5c / 6) |
 | W-019 | Phase 3 repoussée : `spectral`, `loop`, `delay`, `stats`, `sliders`, `step_series`, `settings`, `datasets`, `period` restent en Python | EN COURS (D-035 : repris par la phase 4) |
 | W-018 | `opentunebox report` plante sous Windows quand sa sortie est redirigée (cp1252) | ouvert |
 | W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | TRAITÉ sur `feat/rust-migration` (D-031) |
@@ -375,3 +376,13 @@ Règles d'écriture :
   **Piste** : `PidTerms` doit d'abord quitter `analysis/loop.py` (dépendance circulaire avec `log/flightlog.py`) ;
   garder `Settings.raw` exposé (lu par clés arbitraires hors de `log/`). [`docs/migration-rust.md`]
 
+## Origine : relecture indépendante de la phase 4a (2026-10-30)
+
+- **W-020** — Dans `rust/otb-decoder/src/header.rs` et `rust/otb-log/src/settings.rs`, `raw` est un `BTreeMap` (trié par clé) ;
+  le dict Python garde l'ordre des lignes du fichier. Les couches de parité comparent clé par clé, donc l'ordre n'est
+  jamais vérifié.
+  **Pourquoi reporté** : aucun code Rust ne parcourt `raw` pour l'instant (recherches par clé seulement).
+  **Risque si on n'y touche pas** : l'affichage de l'en-tête (ligne de commande, phase 5c ; interface, phase 6) sortirait
+  dans un autre ordre que l'étalon.
+  **Reprise** : quand une sortie parcourt `raw` : passer à une liste ordonnée avec index (ou `indexmap`) et comparer l'ordre
+  dans `layers.rs:check_header`.

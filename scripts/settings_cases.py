@@ -25,7 +25,7 @@ VOCAB = {
     "Firmware revision": FW, "Craft name": ["", "Mon drone", " espace ", "é\xa0"],
     "looptime": ["125", "250", "0", "-5", "x", "100.7", "0x7d", "", " 125 "], "pid_process_denom": ["1", "2", "0", "x", "-1"],
     "P interval": ["1", "2", "1/2", "3/4", "0/0", "x", "", "/"], "debug_mode": ["0", "6", "17", "16", "96", "999", "x", "-1", ""],
-    "debug_mode_name": ["", "chirp", " fft_freq ", "GYRO_SCALED"], "rollPID": ["45,80,40", "45,80", "45", "x,y", "", "45,80,40,5",
+    "debug_mode_name": ["", "chirp", " fft_freq ", "GYRO_SCALED", "\x1fchirp\x1f", "\x85gyro_scaled\xa0", "\x1f"], "rollPID": ["45,80,40", "45,80", "45", "x,y", "", "45,80,40,5",
     "0x2d,80,40"], "pitchPID": ["47,84,46", "1,2,3"], "yawPID": ["45,80,0", "30,80,0"],
     "ff_weight": ["120,125,120", "120", "", "x", "0,0,0"], "d_min": ["30,34,0", "0,0,0", "50,50,50", "x", "30"],
     "d_max": ["40,46,0", "30,30,30", "60", "x"], "gyro_lpf1_type": ["0", "1", "2", "3", "4", "-1", "x", ""],

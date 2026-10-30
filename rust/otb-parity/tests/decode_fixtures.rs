@@ -66,3 +66,11 @@ fn les_journaux_de_vol_se_construisent_comme_en_python() {
         "{logs} FlightLog, {absents} fichiers sans FlightLog"
     );
 }
+
+#[test]
+fn index_of_range_un_temps_nan_en_dernier_comme_numpy() {
+    // `np.searchsorted(t, nan)` = n (NaN trié en dernier), puis clip à n - 1
+    let (_, path, _) = fixtures().into_iter().find(|(n, _, _)| n == "fl_complet").unwrap();
+    let lg = &load(&path).unwrap()[0];
+    assert_eq!(lg.index_of(f64::NAN), lg.n() - 1);
+}

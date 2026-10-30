@@ -221,7 +221,7 @@ pub fn family(version: &[i64]) -> &'static str {
 /// Nom du mode de débogage. `explicit` = clé d'en-tête `debug_mode_name` si présente (non vide).
 pub fn debug_mode_name(index: Option<i64>, version: &[i64], explicit: Option<&str>) -> String {
     if let Some(e) = explicit.filter(|e| !e.is_empty()) {
-        return e.trim().to_uppercase();
+        return otb_decoder::header::py_strip(e).to_uppercase(); // `strip()` de Python, pas `trim` (U+001C…)
     }
     let Some(i) = index else { return "NONE".into() };
     let t = table(family(version));

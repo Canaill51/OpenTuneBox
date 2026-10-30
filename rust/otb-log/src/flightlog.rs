@@ -6,6 +6,9 @@
 //!
 //! Chaque opération reproduit celle de numpy (NEP 50) : un nombre Python mélangé à un tableau `float32` reste en
 //! `float32` (converti d'abord, puis opération en `f32`) ; un `float32` mélangé à un `float64` passe en `f64`. Voir L-041.
+//!
+//! ⚠️ Écarts de robustesse assumés, là où Python lève une exception : une amplitude de chirp illisible (`chirp_amplitude_roll:abc`)
+//! vaut 0 (pas de chirp) ; `rpm_weights` par défaut est plafonné à 2²⁰ éléments (voir `settings.rs`).
 
 use std::collections::{BTreeSet, HashMap};
 use std::ops::Range;
@@ -525,19 +528,22 @@ fn gradient(f: &[f32]) -> Vec<f32> {
     out
 }
 
-/// `np.convolve(a, kern, mode="same")` avec un noyau constant `1/w` (somme séquentielle ; numpy passe par BLAS : l'ordre
-/// des sommes diffère, donc des écarts de l'ordre de 1e-16 relatif).
-fn smooth_same(a: &[f64], w: usize) -> Vec<f64> {
-    let kern = 1.0 / w as f64;
-    let n = a.len() as isize;
-    let left = (w / 2) as isize;
+/// `np.convolve(a, v, mode="same")` : si `v` est plus long que `a`, numpy échange les deux et rend `max(len)` valeurs ; le
+/// plus court est retourné (corrélation), décalé de la moitié de sa longueur. Somme séquentielle ; numpy passe par BLAS :
+/// l'ordre des sommes diffère, donc des écarts de l'ordre de 1e-16 relatif (relecture indépendante de la phase 4a : le cas
+/// `n < w` donnait un autre gain, voir `fl_courte_avec_terme_d_*`).
+fn convolve_same(a: &[f64], v: &[f64]) -> Vec<f64> {
+    let (long, short) = if v.len() > a.len() { (v, a) } else { (a, v) };
+    let rev: Vec<f64> = short.iter().rev().copied().collect();
+    let n = long.len() as isize;
+    let left = (short.len() / 2) as isize;
     (0..n)
         .map(|i| {
             let mut s = 0.0;
-            for k in 0..w as isize {
-                let j = i - left + k;
+            for (k, r) in rev.iter().enumerate() {
+                let j = i - left + k as isize;
                 if (0..n).contains(&j) {
-                    s += a[j as usize] * kern;
+                    s += long[j as usize] * r;
                 }
             }
             s
@@ -548,8 +554,9 @@ fn smooth_same(a: &[f64], w: usize) -> Vec<f64> {
 /// Gain k minimisant |d − k·raw| sur les composantes < ~30 Hz (moyenne glissante).
 fn slow_gain(raw: &[f32], d: &[f32], fs: f64) -> f64 {
     let w = 3.max((fs / 60.0) as usize);
-    let a = smooth_same(&raw.iter().map(|&v| v as f64).collect::<Vec<_>>(), w);
-    let b = smooth_same(&d.iter().map(|&v| v as f64).collect::<Vec<_>>(), w);
+    let kern = vec![1.0 / w as f64; w]; // `np.ones(w) / w`
+    let a = convolve_same(&raw.iter().map(|&v| v as f64).collect::<Vec<_>>(), &kern);
+    let b = convolve_same(&d.iter().map(|&v| v as f64).collect::<Vec<_>>(), &kern);
     let dot = |x: &[f64], y: &[f64]| x.iter().zip(y).fold(0.0, |s, (p, q)| s + p * q);
     let den = dot(&a, &a);
     if den <= 0.0 {
@@ -576,7 +583,7 @@ pub fn cell_count(settings: &Settings, vbat: Option<&[f32]>) -> Option<i64> {
     } else {
         4.30
     };
-    Some(((v / vmax) as i64 + 1).min(24))
+    Some(((v / vmax) as i64).saturating_add(1).min(24)) // `as` sature : un quotient hors de i64 donne 24, comme Python
 }
 
 impl FlightLog {
@@ -775,7 +782,12 @@ impl FlightLog {
     }
 
     pub fn index_of(&self, time_s: f64) -> usize {
-        let i = self.t.partition_point(|&x| x < time_s); // `np.searchsorted(t, time_s)` (côté gauche)
+        // `np.searchsorted(t, time_s)` (côté gauche) ; NaN est trié en dernier : n
+        let i = if time_s.is_nan() {
+            self.n()
+        } else {
+            self.t.partition_point(|&x| x < time_s)
+        };
         i.min(self.n().saturating_sub(1))
     }
 
@@ -787,4 +799,33 @@ impl FlightLog {
 /// `float(v)` de Python (0 si illisible : `float(x or 0)` d'une valeur d'en-tête, qui lèverait une exception sinon).
 fn python_float(v: &str) -> f64 {
     otb_decoder::header::py_float(v).unwrap_or(0.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn settings(pairs: &[(&str, &str)]) -> Settings {
+        parse_settings(
+            &pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect::<BTreeMap<_, _>>(),
+        )
+    }
+
+    #[test]
+    fn cell_count_ne_deborde_pas_sur_une_tension_enorme() {
+        // `vbatref` illisible de taille (saturé à i64::MAX) et cellule maximale de 0,01 V : le quotient dépasse i64
+        let s = settings(&[("vbatref", "1e30"), ("vbatcellvoltage", "330,350,1")]);
+        assert_eq!(cell_count(&s, None), Some(24));
+    }
+
+    #[test]
+    fn cell_count_suit_la_formule_du_firmware() {
+        assert_eq!(cell_count(&settings(&[("vbatref", "1680")]), None), Some(4)); // 16,8 V / 4,30 + 1
+        assert_eq!(cell_count(&settings(&[]), Some(&[12.6])), Some(3));
+        assert_eq!(cell_count(&settings(&[("vbatref", "30")]), None), None); // 0,3 V : pas de batterie
+    }
 }
