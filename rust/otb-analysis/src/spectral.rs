@@ -93,7 +93,7 @@ pub fn ptb_subsample(duration_s: f64, short: i64, mid: i64, long: i64) -> i64 {
 }
 
 /// Moyenne d'une ligne comme `np.mean(axis=1)` : +0,0 plus la somme par paires, divisée par la longueur (L-042).
-fn row_mean(row: &[f64]) -> f64 {
+pub fn row_mean(row: &[f64]) -> f64 {
     (0.0 + pairwise_sum(row)) / row.len() as f64
 }
 

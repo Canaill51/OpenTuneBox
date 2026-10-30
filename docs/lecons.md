@@ -60,6 +60,21 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-050 : une batterie de mutations n'est lisible qu'avec les vraies tolérances, des données qui atteignent chaque branche et un outil sûr
+- **Symptôme** — 2026-10-30 (4b-4) : 14 mutations « survivaient » dont des erreurs franches (plafond du rapport, fenêtre minimale) ;
+  plus tard, un chemin de sauvegarde mal recopié a **empilé** plusieurs mutations dans `bf_filters.rs`.
+- **Cause** — mesurée : (1) la tolérance du test valait encore `1.0` (valeur provisoire pour afficher l'écart maximal) : rien ne
+  pouvait échouer ; (2) des branches n'étaient atteintes par aucune donnée : la branche « signal avant filtres » ne change le
+  résultat que si le spectre enregistré est plus faible que `préfiltre × |H_base|²`, les clés du cache (moteurs, centres) que si
+  deux fenêtres de même gaz diffèrent par un seul des deux, `rpm_lpf_hz = 0` que si les harmoniques RPM sont actives ;
+  (3) la fonction de mutation copiait la sauvegarde sans vérifier qu'elle existait.
+- **Règle** — ne lancer la batterie qu'après avoir posé les tolérances finales (mesure d'abord, puis constantes, puis mutations).
+  Pour chaque survivante, écrire la condition de données qui la rendrait visible, puis l'ajouter aux cas : sinon la raisonner
+  et la noter équivalente. Utiliser un outil de mutation qui refuse de démarrer sans sauvegarde valide et qui restaure
+  toujours le fichier (vérifier par `cmp`).
+- **Preuve** — `scripts/bf_sim_cases.py` (journaux `flat_throttle`, `const_debug`, `const_motors`, `zero_debug_from`, réglages
+  `extras`) ; `rust/otb-analysis/tests/bf_sim.rs`.
+
 ### L-049 : un test de parité qui compare Rust à Rust ne prouve que la colle
 - **Symptôme** — 2026-10-30 (4b-3) : `coefficients` et `chain_response` ressortaient à 0 écart, exactement, dès le premier essai.
 - **Cause** — mesurée : l'étalon Python appelle déjà le noyau Rust d'`otb-dsp` (`_native.biquad`, `_native.sections_response`). Le
@@ -620,6 +635,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-050 | Batterie de mutations : tolérances finales d'abord, données qui atteignent chaque branche, outil de mutation qui refuse sans sauvegarde | Outillage |
 | L-049 | Parité Rust contre un étalon qui appelle déjà le noyau Rust : 0 écart ne prouve que la colle ; frontières exactes épinglées par un test unitaire | Outillage |
 | L-048 | Étalon numpy dépendant du processeur (`exp` AVX-512 ≠ `math.exp` pour 4,5 %) : `exp`, `cos`, `log10`, FFT à tolérance, jamais bit pour bit | Outillage |
 | L-047 | Mutation survivante : équivalente (gain ajusté, plancher inactif) ou motif absent ; seuils prouvés par une valeur qui les franchit | Décodeur et logs |

@@ -4,10 +4,10 @@
 //! est comptée « non portée » (ce n'est pas un échec) : les phases 4 et 5 la remplissent module par module.
 
 use crate::value::{Array, Case, Value};
-use otb_analysis::bf_filters::{self, Chain, ChainItem, FilterSpec, Kind};
+use otb_analysis::bf_filters::{self, Chain, ChainItem, FilterSpec, Kind, Matrix64, Target, WhatIfCache};
 use otb_analysis::spectral::{self, Mode};
 use otb_dsp::numeric;
-use otb_log::flightlog::{FlightLog, PidTerms};
+use otb_log::flightlog::{FlightLog, PidTerms, Rows};
 use otb_log::settings::{Lowpass, Settings};
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Range;
@@ -656,6 +656,18 @@ fn settings_for_filters(v: Option<&Value>) -> Result<Settings, String> {
         rpm_q: int_field(f, "rpm_q")?,
         rpm_min_hz: int_field(f, "rpm_min_hz")?,
         rpm_fade_hz: int_field(f, "rpm_fade_hz")?,
+        rpm_lpf_hz: int_field(f, "rpm_lpf_hz")?,
+        debug_mode: match field(f, "debug_mode")? {
+            Value::Str(m) => m.clone(),
+            other => return Err(format!("debug_mode : {other:?}")),
+        },
+        version: match field(f, "version")? {
+            Value::Tuple(v) | Value::List(v) => v
+                .iter()
+                .map(|x| int(Some(x), "version"))
+                .collect::<Result<Vec<_>, _>>()?,
+            other => return Err(format!("version : {other:?}")),
+        },
         ..Settings::default()
     })
 }
@@ -854,6 +866,174 @@ fn bf_dterm_chain(c: &Case) -> Result<Value, String> {
     )))
 }
 
+// ---------------------------------------------------------------- bf_filters : simulation (phase 4b-4)
+
+/// Journal gardé jusqu'à la colonne `m` (`v[..., :m]` de chaque courbe lue par la simulation), comme `golden_modules.py` :
+/// les simulations y sont enregistrées sur un journal tronqué (`dataclasses.replace(lg, **cut)`) dont la référence ne garde
+/// que le chemin du fichier. La largeur à garder est celle du résultat enregistré.
+fn truncated(lg: &FlightLog, m: usize) -> FlightLog {
+    let mut l = lg.clone();
+    let m = m.min(l.n());
+    l.t.truncate(m);
+    l.throttle.truncate(m);
+    let cut = |r: &mut Rows| {
+        let w = m.min(r.n);
+        r.data = (0..r.k).flat_map(|i| r.data[i * r.n..i * r.n + w].to_vec()).collect();
+        r.n = w;
+    };
+    cut(&mut l.gyro);
+    cut(&mut l.debug);
+    if let Some(g) = l.gyro_unfilt.as_mut() {
+        cut(g);
+    }
+    if let Some(mh) = l.motor_hz.as_mut() {
+        cut(mh);
+    }
+    l
+}
+
+/// Nombre de colonnes du résultat enregistré (tableau 2D) : la coupe de la simulation.
+fn recorded_width(c: &Case) -> Option<usize> {
+    match &c.result {
+        Ok(Value::Array(a)) if a.shape.len() == 2 => Some(a.shape[1]),
+        _ => None,
+    }
+}
+
+fn matrix_value(m: &Matrix64) -> Value {
+    array_nd(vec![m.k, m.n], &m.data, false)
+}
+
+fn optional_settings(v: Option<&Value>) -> Result<Option<Settings>, String> {
+    match v {
+        None | Some(Value::Null) => Ok(None),
+        other => settings_for_filters(other).map(Some),
+    }
+}
+
+fn bf_fft_freq_centres(c: &Case) -> Result<Value, String> {
+    let lg = flightlog(c.arg(0, "log"))?;
+    let s = optional_settings(c.arg(1, "settings"))?;
+    Ok(bf_filters::fft_freq_centres(&lg, s.as_ref()).map_or(Value::Null, |m| matrix_value(&m)))
+}
+
+fn bf_simulate_gyro(c: &Case) -> Result<Value, String> {
+    let lg = flightlog(c.arg(0, "log"))?;
+    let s = optional_settings(c.arg(1, "settings"))?;
+    let lg = match recorded_width(c) {
+        Some(w) => std::sync::Arc::new(truncated(&lg, w)),
+        None => lg,
+    };
+    Ok(matrix_value(&bf_filters::simulate_gyro(&lg, s.as_ref())?))
+}
+
+fn bf_simulate_dterm(c: &Case) -> Result<Value, String> {
+    let lg = flightlog(c.arg(0, "log"))?;
+    let s = optional_settings(c.arg(1, "settings"))?;
+    let lg = match recorded_width(c) {
+        Some(w) => std::sync::Arc::new(truncated(&lg, w)),
+        None => lg,
+    };
+    let gyro = match c.arg(2, "gyro") {
+        None | Some(Value::Null) => None,
+        Some(v) => {
+            let (shape, data, _) = floats(Some(v), "gyro")?;
+            if shape.len() != 2 {
+                return Err("gyro : tableau 2D attendu".into());
+            }
+            Some(Matrix64 {
+                k: shape[0],
+                n: shape[1],
+                data,
+            })
+        }
+    };
+    Ok(matrix_value(&bf_filters::simulate_dterm(
+        &lg,
+        s.as_ref(),
+        gyro.as_ref(),
+    )?))
+}
+
+/// Un élément facultatif de la clé du cache : `None` ou tuple de flottants, en bits.
+fn key_bits(v: &Value) -> Result<Option<Vec<u64>>, String> {
+    match v {
+        Value::Null => Ok(None),
+        Value::Tuple(l) | Value::List(l) => Ok(Some(
+            l.iter().map(|x| float(x).map(f64::to_bits)).collect::<Result<_, _>>()?,
+        )),
+        other => Err(format!("clé du cache : {other:?}")),
+    }
+}
+
+/// Le `dict` `cache` enregistré à l'entrée de l'appel : ses réponses sont réutilisées, comme par Python.
+fn cache_arg(v: Option<&Value>) -> Result<WhatIfCache, String> {
+    let mut cache = WhatIfCache::default();
+    let items = match v {
+        None | Some(Value::Null) => return Ok(cache),
+        Some(Value::Dict(items)) => items,
+        other => return Err(format!("cache : {other:?}")),
+    };
+    for (k, val) in items {
+        let (Value::Tuple(key), Value::Tuple(pair)) = (k, val) else {
+            return Err("cache : (clé, valeur) en tuples attendus".into());
+        };
+        if pair.len() != 2 {
+            return Err("cache : paire de réponses attendue".into());
+        }
+        let arr = |x: &Value| floats(Some(x), "cache").map(|r| r.1);
+        let resp = (arr(&pair[0])?, arr(&pair[1])?);
+        match key.as_slice() {
+            [Value::Str(kind), nf, t, motors, centres] if kind == "gyro" => {
+                let (nf, t) = (int(Some(nf), "nf")? as usize, float(t)?);
+                cache
+                    .gyro
+                    .insert((nf, t.to_bits(), key_bits(motors)?, key_bits(centres)?), resp);
+            }
+            [Value::Str(kind), nf, t] if kind == "dterm" => {
+                cache
+                    .dterm
+                    .insert((int(Some(nf), "nf")? as usize, float(t)?.to_bits()), resp);
+            }
+            other => return Err(format!("clé du cache : {other:?}")),
+        }
+    }
+    Ok(cache)
+}
+
+fn bf_whatif_spectrum(c: &Case) -> Result<Value, String> {
+    let (_, x_logged, _) = floats(c.arg(0, "x_logged"), "x_logged")?;
+    let x_prefilt = match c.arg(1, "x_prefilt") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(floats(Some(v), "x_prefilt")?.1),
+    };
+    let lg = flightlog(c.arg(2, "log"))?;
+    let sel = slice_range(c.arg(3, "sel"), lg.n())?;
+    let base = settings_for_filters(c.arg(4, "base"))?;
+    let modf = settings_for_filters(c.arg(5, "mod"))?;
+    let target = Target::parse(&mode_arg(c.arg(6, "target"), "gyro")?);
+    let mut cache = cache_arg(c.arg(8, "cache"))?;
+    let r = bf_filters::whatif_spectrum(
+        &x_logged,
+        x_prefilt.as_deref(),
+        &lg,
+        sel,
+        &base,
+        &modf,
+        target,
+        float_or(c, 7, "seg_ms", 300.0)?,
+        &mut cache,
+    )?;
+    Ok(Value::Obj(
+        "WhatIfSpectrum".into(),
+        vec![
+            ("freqs".into(), array_f64(&r.freqs)),
+            ("current_db".into(), array_f64(&r.current_db)),
+            ("modified_db".into(), array_f64(&r.modified_db)),
+        ],
+    ))
+}
+
 /// Le résultat enregistré est en dB : objet de mode `psd`, ou spectrogramme (toujours en dB).
 fn result_is_db(c: &Case) -> bool {
     match &c.result {
@@ -880,6 +1060,8 @@ pub fn tolerance(function: &str, c: &Case) -> f64 {
         "bf_filters.coefficients" => 1e-14,
         "bf_filters.freq_response" | "bf_filters.chain_response" => 1e-12,
         "bf_filters.chain_delay_ms" => 1e-9,
+        // filtres récursifs (coefficients sin / cos), puis FFT et dB : voir tests/bf_sim.rs
+        "bf_filters.simulate_gyro" | "bf_filters.simulate_dterm" | "bf_filters.whatif_spectrum" => 1e-9,
         "spectral.to_db" => 1e-14,
         "spectral.smooth_map" => 1e-14,
         // FFT : amplitude ≈ 4e-16 du plus grand élément (mesuré en 4b-2) ; en dB la dynamique du spectre amplifie l'écart
@@ -921,6 +1103,10 @@ pub fn lookup(function: &str) -> Option<Port> {
         "bf_filters.dyn_notch_initial_centres" => bf_dyn_notch_initial_centres,
         "bf_filters.gyro_chain" => bf_gyro_chain,
         "bf_filters.dterm_chain" => bf_dterm_chain,
+        "bf_filters.fft_freq_centres" => bf_fft_freq_centres,
+        "bf_filters.simulate_gyro" => bf_simulate_gyro,
+        "bf_filters.simulate_dterm" => bf_simulate_dterm,
+        "bf_filters.whatif_spectrum" => bf_whatif_spectrum,
         "bf_filters.pt1_gain" => pt1_gain,
         "bf_filters.notch_q" => notch_q,
         "debug_tables.family" => family,
