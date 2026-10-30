@@ -60,6 +60,22 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-048 : l'étalon numpy dépend du processeur (`exp` AVX-512) ; un test « bit pour bit » sur `exp`, `cos`, `log10` est faux
+- **Symptôme** — 2026-10-30 (4b-1) : `gaussian_filter` de Rust différait de Python de 2 ulp pour σ = 2, 5, 6,25 alors que les
+  autres σ étaient identiques bit pour bit ; le noyau ne différait qu'à quelques indices symétriques (±1…).
+- **Cause** — mesurée : sur ce poste (AVX-512), `np.exp` donne un autre dernier bit que `math.exp` pour 4,5 % des arguments
+  (9 070 sur 200 001 entre −20 et 0). Avec `NPY_DISABLE_CPU_FEATURES="X86_V4 AVX512_ICL"` (numpy 2.5 : niveaux `X86_V3` /
+  `X86_V4`, pas `AVX512F`) `np.exp` redonne exactement `math.exp`, et le noyau de Rust. Le Rust appelle la bibliothèque
+  mathématique du système (glibc, CRT de Windows, macOS) : elle peut elle aussi différer du dernier bit d'un système à l'autre.
+  Idem pour `log10`, `atan2`, `hypot` (4b-0 : 1 à 7 % de dernier bit) et, par principe, `cos`.
+- **Règle** — tout ce qui passe par `exp`, `log`/`log10`, `cos`/`sin`, `atan2`, `hypot` ou une FFT se compare à une tolérance
+  (1e-14 du plus grand élément pour `cos` et `exp`, 1e-12 pour une FFT), jamais au bit près ; seule l'arithmétique pure
+  (`+ − × ÷`, `sqrt`, sommes, arrondis) est exigée identique au bit près. Un test « bit pour bit » écrit avec les bits de ce
+  poste échouerait sous Windows (la CI y exécute les tests Rust) ou sur une machine sans AVX-512. Sur le corpus enregistré, les
+  sorties de `hann`, `uniform_filter1d` et `gaussian_filter` sont pourtant identiques au bit près (mesuré, 120 appels).
+- **Preuve** — `rust/otb-dsp/tests/numeric.rs` (constantes `FN_RTOL`, `XCORR_RTOL`) ; `registry::tolerance` dans `rust/otb-parity`.
+- **Sans compter** — `np.fft` ≠ `realfft` à 9e-16 du plus grand élément (mesuré avec `rust/otb-dsp/examples/banc_4b0.rs`).
+
 ### L-047 : une mutation « survivante » peut être équivalente, ou ne rien avoir muté
 - **Symptôme** — 2026-10-30 (4a-5) : changer le signe du gradient de `d_term_prefilter` ou le plancher de sa largeur de lissage
   laissait `check-flightlog` à 0 écart ; deux mutations de la batterie ne changeaient aucun fichier (motif absent après
@@ -590,6 +606,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-048 | Étalon numpy dépendant du processeur (`exp` AVX-512 ≠ `math.exp` pour 4,5 %) : `exp`, `cos`, `log10`, FFT à tolérance, jamais bit pour bit | Outillage |
 | L-047 | Mutation survivante : équivalente (gain ajusté, plancher inactif) ou motif absent ; seuils prouvés par une valeur qui les franchit | Décodeur et logs |
 | L-046 | Parité sur le corpus : ne prouve pas les défauts, il faut des cas écrits en plus | Décodeur et logs |
 | L-045 | En-tête Blackbox lu comme Python : `strip` (U+001C…), `0x` sans signe, soulignés entre chiffres seulement (`header.rs`) | Décodeur et logs |

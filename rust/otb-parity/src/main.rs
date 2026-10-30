@@ -20,7 +20,7 @@ fn main() {
         );
         std::process::exit(2);
     };
-    let rtol = args
+    let rtol: f64 = args
         .iter()
         .position(|a| a == "--rtol")
         .map_or(0.0, |i| args[i + 1].parse().expect("--rtol"));
@@ -137,7 +137,13 @@ fn main() {
             continue;
         }
         let verdict = match (&case.result, port(&case)) {
-            (Ok(want), Ok(got)) => compare::equal(want, &got, compare::Tol { rtol }),
+            (Ok(want), Ok(got)) => compare::equal(
+                want,
+                &got,
+                compare::Tol {
+                    rtol: rtol.max(registry::tolerance(&function, &case)),
+                },
+            ),
             (Err(_), Err(_)) => Ok(()),
             (want, got) => Err(format!("Python {want:?} ; Rust {got:?}")),
         };

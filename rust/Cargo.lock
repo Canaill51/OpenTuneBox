@@ -316,6 +316,7 @@ version = "0.8.0"
 dependencies = [
  "rayon",
  "realfft",
+ "serde_json",
 ]
 
 [[package]]

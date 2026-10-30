@@ -4,6 +4,7 @@
 //! est comptée « non portée » (ce n'est pas un échec) : les phases 4 et 5 la remplissent module par module.
 
 use crate::value::{Array, Case, Value};
+use otb_dsp::numeric;
 use otb_log::flightlog::{FlightLog, PidTerms};
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Range;
@@ -282,8 +283,124 @@ fn cell_count(c: &Case) -> Result<Value, String> {
     Ok(otb_log::flightlog::cell_count(&st, vbat.as_deref()).map_or(Value::Null, Value::Int))
 }
 
+// ---------------------------------------------------------------- _numeric (phase 4b-1)
+
+/// Tableau numérique d'un argument : forme, valeurs en f64 et `true` s'il était en float32 (le résultat l'est alors aussi).
+fn floats(v: Option<&Value>, name: &str) -> Result<(Vec<usize>, Vec<f64>, bool), String> {
+    match v {
+        Some(Value::Array(a)) if matches!(a.kind, 'f' | 'i' | 'u' | 'b') => Ok((
+            a.shape.clone(),
+            (0..a.len()).map(|i| a.get_f64(i)).collect(),
+            a.kind == 'f' && a.size == 4,
+        )),
+        other => Err(format!("{name} : tableau attendu, reçu {other:?}")),
+    }
+}
+
+fn int(v: Option<&Value>, name: &str) -> Result<i64, String> {
+    match v {
+        Some(Value::Int(n)) => Ok(*n),
+        Some(Value::NpScalar(_, inner)) => int(Some(inner), name),
+        other => Err(format!("{name} : entier attendu, reçu {other:?}")),
+    }
+}
+
+fn float(v: &Value) -> Result<f64, String> {
+    match v {
+        Value::F64(x) => Ok(*x),
+        Value::Int(n) => Ok(*n as f64),
+        Value::NpScalar(_, inner) => float(inner),
+        other => Err(format!("flottant attendu, reçu {other:?}")),
+    }
+}
+
+/// Tableau float64 (ou float32 arrondi) de forme `shape`.
+fn array_nd(shape: Vec<usize>, data: &[f64], as_f32: bool) -> Value {
+    let (size, bytes): (usize, Vec<u8>) = if as_f32 {
+        (4, data.iter().flat_map(|x| (*x as f32).to_le_bytes()).collect())
+    } else {
+        (8, data.iter().flat_map(|x| x.to_le_bytes()).collect())
+    };
+    Value::Array(Array {
+        shape,
+        kind: 'f',
+        size,
+        bytes,
+    })
+}
+
+fn hann(c: &Case) -> Result<Value, String> {
+    let sym = match c.arg(1, "sym") {
+        None => true,
+        Some(Value::Bool(b)) => *b,
+        other => return Err(format!("sym : {other:?}")),
+    };
+    let w = numeric::hann(int(c.arg(0, "length"), "length")?, sym);
+    Ok(array_nd(vec![w.len()], &w, false))
+}
+
+fn uniform_filter1d(c: &Case) -> Result<Value, String> {
+    let (shape, x, as_f32) = floats(c.arg(0, "x"), "x")?;
+    let axis = if c.arg(2, "axis").is_some() {
+        int(c.arg(2, "axis"), "axis")?
+    } else {
+        -1
+    };
+    let out = numeric::uniform_filter1d(&x, &shape, int(c.arg(1, "size"), "size")?, axis)?;
+    Ok(array_nd(shape, &out, as_f32))
+}
+
+fn gaussian_filter(c: &Case) -> Result<Value, String> {
+    let (shape, a, as_f32) = floats(c.arg(0, "a"), "a")?;
+    let sigma = match c.arg(1, "sigma") {
+        Some(Value::Tuple(v) | Value::List(v)) => v.iter().map(float).collect::<Result<Vec<_>, _>>()?,
+        Some(v) => vec![float(v)?; shape.len()],
+        None => return Err("sigma".into()),
+    };
+    if sigma.len() != shape.len() {
+        return Err(format!("{} sigma pour {} axes", sigma.len(), shape.len()));
+    }
+    Ok(array_nd(
+        shape.clone(),
+        &numeric::gaussian_filter(&a, &shape, &sigma),
+        as_f32,
+    ))
+}
+
+fn xcorr_full(c: &Case) -> Result<Value, String> {
+    let (_, y, _) = floats(c.arg(0, "y"), "y")?;
+    let (_, x, _) = floats(c.arg(1, "x"), "x")?;
+    let (corr, lags) = numeric::xcorr_full(&y, &x)?;
+    Ok(Value::Tuple(vec![
+        array_nd(vec![corr.len()], &corr, false),
+        Value::Array(Array {
+            shape: vec![lags.len()],
+            kind: 'i',
+            size: 8,
+            bytes: lags.iter().flat_map(|x| x.to_le_bytes()).collect(),
+        }),
+    ]))
+}
+
+/// Tolérance relative (au plus grand élément) de chaque fonction portée ; 0 = identique au bit près. Fixée en 4b-0 puis
+/// précisée en 4b-1 (docs/migration-rust.md) : ce qui passe par `cos`, `exp` ou une FFT s'écarte de numpy au dernier bit.
+pub fn tolerance(function: &str, c: &Case) -> f64 {
+    let out_f32 = matches!(&c.result, Ok(Value::Array(a)) if a.kind == 'f' && a.size == 4);
+    match function {
+        "_numeric.hann" => 1e-14,
+        "_numeric.gaussian_filter" if out_f32 => 2e-7,
+        "_numeric.gaussian_filter" => 1e-14,
+        "_numeric.xcorr_full" => 1e-12,
+        _ => 0.0,
+    }
+}
+
 pub fn lookup(function: &str) -> Option<Port> {
     Some(match function {
+        "_numeric.hann" => hann,
+        "_numeric.uniform_filter1d" => uniform_filter1d,
+        "_numeric.gaussian_filter" => gaussian_filter,
+        "_numeric.xcorr_full" => xcorr_full,
         "bf_filters.pt1_gain" => pt1_gain,
         "bf_filters.notch_q" => notch_q,
         "debug_tables.family" => family,
