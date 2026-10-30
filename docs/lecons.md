@@ -60,6 +60,27 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-044 : reproduire les textes de nombres de Python en Rust : `round`, `%g`, `repr`
+- **Symptôme** — 2026-10-30 (E2) : sur 12 M de cas, `f64::round` et la sortie courte `{:e}` de Rust différaient de Python.
+- **Cause** — mesurée : (1) `f64::round` arrondit les moitiés vers l'extérieur, `round` de Python vers le pair ; (2) Rust n'a pas
+  de `%g` ; (3) sur une égalité exacte à 16 chiffres (ex. 696994262879799.25, valeurs ≥ 5·10¹⁴), Rust écrit …799.3, Python
+  …799.2 (chiffre pair) ; (4) `round` de Python rend un entier sans limite, pas un `i64`.
+- **Règle** — passer par `rust/otb-format` (`fixed`, `percent`, `general`, `repr`, `round_half_even`, `round_digits`), jamais
+  `format!` ni `round` directement dans un texte comparé à l'étalon. `{:.N}` seul (décimales fixes) est identique à Python.
+- **Preuve** — `rust/otb-format/tests/cas.rs` : `cas.tsv` (4 320 cas, CI) ; `OTB_FORMAT_CASES` pour 12 M de cas
+  (`scripts/format_cases.py SORTIE.tsv 12000000`).
+
+### L-043 : egui 0.37 : trois pièges vus pendant le prototype d'interface (E1)
+- **Symptôme** — 2026-10-30 : (1) le thème « clair » s'affichait sombre dans la capture ; (2) la ligne d'un graphique ne se
+  laissait pas saisir à la souris (le test de glisser échouait, coupure inchangée) ; (3) `TopBottomPanel` et
+  `CentralPanel::show(ctx, …)` ne compilent plus.
+- **Cause** — mesurée : (1) `set_visuals` ne vaut qu'au cadre suivant, et rien ne le redemandait ; (2) egui annonce `drag_started`
+  après un déplacement : le curseur est déjà loin de la ligne quand on la cherche ; (3) egui 0.37 a fusionné les panneaux en
+  `egui::Panel` et `show` prend un `Ui` (`show_inside` est déprécié).
+- **Règle** — après `set_visuals`, appeler `request_repaint` ; chercher l'objet à glisser à `pointer.press_origin()`, pas à la
+  position courante ; en test, ne pas se fier à « ne panique pas » : regarder la capture.
+- **Preuve** — `rust/otb-spike-egui` (`rust/otb-spike-egui/tests/interaction.rs` échouait avant la correction, `rust/otb-spike-egui/tests/tabs.rs` produit les captures).
+
 ### L-042 : reproduire numpy au bit près : `np.abs` complexe et `np.mean` ne font pas ce qu'on croit
 - **Symptôme** — 2026-10-29 (phase 3b, D-034) : le port Rust de `rpm_attenuation` différait de 1 ulp de l'ancien code
   sur 4 811 valeurs de 12 040 (écart max 2,2e-16), puis celui de `harmonic_prominence` de 1 ulp sur 298 fenêtres de 471,
@@ -533,6 +554,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-044 | Textes de nombres Python en Rust : `round` au pair, `%g` et `repr` à refaire (`otb-format`) | Analyses |
+| L-043 | egui 0.37 : thème appliqué au cadre suivant, glisser cherché au point pressé, panneaux fusionnés en `Panel` | Interface |
 | L-042 | Reproduire numpy au bit près : `np.abs` complexe est SIMD (module pris en Python) ; `np.mean` = +0,0 + somme par paires de tous les éléments | Analyses |
 | L-041 | `motor_hz` est en float32 sur de vrais logs : les noyaux suivent la précision des tableaux d'entrée (NEP 50), jamais float64 d'office | Analyses |
 | L-040 | Vues d'un lot lu en une passe : elles gardent toutes ses lignes vivantes ; lot 1 = ce que l'objet garde, lot 2 = temporaire | Décodeur et logs |

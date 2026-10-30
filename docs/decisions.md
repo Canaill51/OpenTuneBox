@@ -145,7 +145,7 @@ périmètre « application seulement » (le dépôt aurait gardé du Python).
 **Choix de Cédric** (2026-10-30, parmi : egui / Slint / cxx-qt ; tout / application seulement ; noyau Rust autonome / pont
 PyO3 module par module).
 
-**Ouvert.** Verdict du prototype d'interface ; tolérance de chaque module ; reproduction exacte des formats de nombres de Python
+**Ouvert.** ~~Verdict du prototype d'interface~~ (rendu le 2026-10-30 : aucun point bloquant, cinq contournements, voir [migration-rust.md](migration-rust.md#verdict-du-prototype-dinterface-e1)) ; tolérance de chaque module ; reproduction exacte des formats de nombres de Python
 par `format!` (à tester sur des valeurs enregistrées) ; W-019 repris.
 
 ## 2026-10-29 — Migration vers Rust

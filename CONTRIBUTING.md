@@ -21,7 +21,7 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    ```sh
    .venv/bin/pytest -q
    .venv/bin/ruff check src tests scripts packaging/make_icons.py
-   (cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp -p otb-log -p otb-analysis)   # si rust/ change
+   (cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-parity)   # si rust/ change
    ```
    Sur `feat/rust-migration`, `pip install -e .` compile l'extension Rust : [rustup](https://rustup.rs) est requis ;
    après un changement dans `rust/`, relancer `.venv/bin/pip install -e .`.

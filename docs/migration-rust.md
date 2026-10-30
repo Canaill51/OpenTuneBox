@@ -90,6 +90,33 @@ et parité prouvée, documentation et `CHANGELOG.md` à jour, pièges notés dan
 
 Après la phase 2, **mesurer le poids réel des installateurs** (objectif n° 1) avant de poursuivre.
 
+## Verdict du prototype d'interface (E1)
+
+Prototype jetable `rust/otb-spike-egui` (egui 0.37, egui_plot 0.38, egui_commonmark 0.26, rfd 0.17, egui_kittest 0.37), hors de
+l'espace de travail Cargo donc hors de la CI. Données : un vrai log de Cédric (Valkyrie `M1.4.bbl`, 407 334 points, 1 984 Hz),
+exporté depuis Python. Mesures sur ce poste (Linux, Wayland, rendu logiciel pour les captures).
+
+| Point | Verdict | Détail |
+|---|---|---|
+| Axe logarithmique | **contourné** | egui_plot n'en a pas : tracé en log10(f), graduations 1-2-5 et libellés refaits (≈ 20 lignes). Vérifié sur capture |
+| Barres d'erreur | **contourné** | pas d'élément dédié : un segment vertical par point. Vérifié sur capture |
+| Carte fréquence × temps + barre de couleurs | **contourné** | `PlotImage` sur une texture colorée par nos soins ; barre dessinée à la main (sans graduations pour l'instant). L'élément `Heatmap` d'egui_plot (tuiles à libellés) n'a pas été essayé : **non vérifié** pour 10⁴ cases et plus |
+| Lignes et régions déplaçables | **contourné** | `VLine`, `HLine`, `Span` existent mais ne se glissent pas seuls : sélection et déplacement faits à la main (≈ 25 lignes). Prouvé par un test d'interface sans écran (L-043) |
+| Second axe Y | **contourné** | `custom_y_axes` : axe de droite en échelle liée à celui de gauche ; ses graduations suivent celles de la gauche (valeurs non rondes : 103, 88, 74 %). Vérifié sur capture |
+| Série de 1,2 M points | **supporté** | tracé direct : ≈ 20 ms par cadre (construction et tessellation, processeur seul, ≈ 50 images/s) ; avec décimation min/max recalculée à chaque cadre : ≈ 7 ms. Médianes de 7 cadres, version `release`. Le coût du GPU n'est pas mesuré |
+| Texte riche | **supporté** (Markdown) | `egui_commonmark` : titres, gras, code, listes, citation, tableau, lien. **HTML non vérifié** : les textes du guide actuel en HTML seront à convertir en Markdown |
+| Thèmes clair et sombre | **supporté** | les deux rendus vérifiés sur capture ; les contrôles de couleur en dur de `test_gui_contracts.py` sont à réécrire |
+| Fenêtres de fichiers | **supporté, non essayé à la main** | `rfd` compile, le portail XDG est présent sur ce poste ; le clic n'a pas été fait. Windows et macOS non vérifiés |
+| Test d'interface sans écran | **supporté** | `egui_kittest` : rendu en PNG dans les deux thèmes, souris simulée (survol, glisser, lâcher) |
+| Fenêtre réelle | **supporté** | l'exécutable s'ouvre et tourne 6 s sans erreur sous Wayland (rien d'autre n'y a été essayé à la main) |
+
+Taille de l'exécutable du prototype : 22,6 Mo après `strip` (30,8 Mo avant), profil `release` sans LTO.
+Une fois l'interface complète écrite, elle sera plus grosse : à remesurer en phase 6 (objectif n° 1).
+
+**Conclusion** : aucun point bloquant ; cinq contournements courts, à écrire une fois dans un module de graphiques commun
+(`otb-gui`). Deux points restent à lever avant la phase 6 : `Heatmap` d'egui_plot contre `PlotImage` à grand nombre de cases,
+et HTML.
+
 ## Avancement
 
 | Phase | État |
@@ -103,4 +130,6 @@ Après la phase 2, **mesurer le poids réel des installateurs** (objectif n° 1)
 | 3b | Fait le 2026-10-29 (branche `feat/rust-motors`, D-034) : boucles par fenêtre de `motors.py` en Rust (`rust/otb-analysis`, génériques f32 / f64). Assistant 666 → 515 ms par session à un fil (1,29×), sorties identiques au bit près. Parité : assistant 0 différence (630 sessions), outils 0 à `rtol=1e-9`, décodeur 0 (499 fichiers). Huit mutations vues en échec (L-041, L-042) |
 | 3c | Abandonnée le 2026-10-30 (D-034) : la construction des chaînes de filtres pèse 4,0 % de l'assistant à un fil (mesure sans profileur), gain maximal 1,04× ; mémorisation essayée en prototype : 1,06× |
 | E0 | Décision D-035 écrite le 2026-10-30 (egui + egui_plot sous réserve du prototype, périmètre complet, noyau Rust autonome) ; W-019 repris |
-| E1, E2, 4 à 7 | à faire (D-035) |
+| E1 | Fait le 2026-10-30 (branche `feat/egui-spike`) : prototype `rust/otb-spike-egui` sur un vrai log de 407 334 points ; verdict ci-dessous : aucun point bloquant. Reste à voir : essai à la main de la fenêtre de fichiers, Windows et macOS |
+| E2 | Fait le 2026-10-30 (branche `feat/egui-spike`) ; tag local `python-etalon` posé sur le dernier commit de code Python (pas envoyé sur GitHub) ; `pytest` complet : 1 623 réussis, 8 ignorés. Détail : formats de nombres (`rust/otb-format`, 12 M de cas ≈ 1 M de valeurs identiques à Python, L-044). `PidTerms` sorti de `loop.py` vers `log/pid_terms.py` (1 585 tests verts). `golden.py record-modules` / `check-modules` (`scripts/golden_modules.py`) : 20 logs, 3 123 fichiers npz, 840 Mo dans `$OTB_LOGS/golden/modules/`, deuxième enregistrement identique (0 différence), les 94 fonctions publiques de `analysis/` et `log/` couvertes. `rust/otb-parity` : lit les 3 123 fichiers, rejoue les fonctions portées (`pt1_gain`, `notch_q` de `otb-dsp` : 60 appels identiques au bit près) ; une erreur volontaire de 1e-15 relatif est détectée. Phase suivante : 4a |
+| 4 à 7 | à faire (D-035) |

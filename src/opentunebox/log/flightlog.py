@@ -16,8 +16,8 @@ from pathlib import Path
 import numpy as np
 
 from .. import _native
-from ..analysis.loop import PidTerms
 from ..decoder.reader import DecodedSession, decode_file
+from .pid_terms import PidTerms
 from .settings import Settings, parse_settings
 
 AXES = ("Roll", "Pitch", "Yaw")

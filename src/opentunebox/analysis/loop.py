@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from . import _numeric
 
+from ..log.pid_terms import PidTerms  # noqa: F401  (réexport : `loop.PidTerms` est le nom historique)
 from .bf_filters import chain_response, dterm_chain
 from .spectral import clear_of_breaks
 
@@ -110,18 +111,6 @@ def _interp(logf, logmag, phase, g, i):
 
 
 # ---------------------------------------------------------------- boucle ouverte d'un axe
-
-
-@dataclass
-class PidTerms:
-    """Termes PID loggés d'un axe sur la période analysée (unités « somme PID »)."""
-
-    p: np.ndarray
-    i: np.ndarray
-    d: np.ndarray
-    f: np.ndarray
-    note: str = ""  # non vide : boucle ouverte non mesurable (raison), repli sur la méthode approchée
-    instrument: np.ndarray | None = None  # signal extérieur à la boucle pour estimer G ; défaut : la consigne
 
 
 @dataclass
