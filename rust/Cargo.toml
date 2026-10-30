@@ -2,6 +2,7 @@
 [workspace]
 resolver = "3"
 members = ["otb-analysis", "otb-decoder", "otb-dsp", "otb-log", "otb-py"]
+exclude = ["otb-spike-egui"]
 
 [workspace.package]
 version = "0.8.0"
