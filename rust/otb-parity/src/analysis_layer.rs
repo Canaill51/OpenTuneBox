@@ -62,7 +62,7 @@ pub const CELL_FLOOR: f64 = 1e-12;
 /// d'échantillonnage (≥ 0,1 ms), six ordres de grandeur au-dessus : la tolérance le refuse.
 pub const DELAY_TOL: f64 = 1e-8;
 
-fn put_opt(f: &mut Flat, key: &str, v: Option<f64>) {
+pub(crate) fn put_opt(f: &mut Flat, key: &str, v: Option<f64>) {
     f.insert(key.to_string(), v.map_or(Item::S("None".into()), Item::F));
 }
 
@@ -394,35 +394,37 @@ fn motors_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, S
     Ok(f)
 }
 
-fn stats_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Flat {
-    let mut f = Flat::new();
-    let s = stats::flight_stats(lg, sel.clone());
-    f.insert("stats|flight.duration_s".into(), Item::F(s.duration_s));
+/// Les clés de `FlightStats` sous `prefix` (`stats|flight` ou `report|measures|stats`), mêmes noms que `golden.flatten`.
+pub(crate) fn put_flight_stats(f: &mut Flat, prefix: &str, s: &stats::FlightStats) {
+    f.insert(format!("{prefix}.duration_s"), Item::F(s.duration_s));
     for (name, centres, hist) in &s.stick_hist {
-        f.insert(format!("stats|flight.stick_hist|{name}[0]"), Item::A(centres.clone()));
-        f.insert(format!("stats|flight.stick_hist|{name}[1]"), Item::A(hist.clone()));
+        f.insert(format!("{prefix}.stick_hist|{name}[0]"), Item::A(centres.clone()));
+        f.insert(format!("{prefix}.stick_hist|{name}[1]"), Item::A(hist.clone()));
     }
     for (name, v) in &s.terms {
         for (a, m) in v.iter().enumerate() {
-            put_ms(&mut f, &format!("stats|flight.terms|{name}[{a}]"), m);
+            put_ms(f, &format!("{prefix}.terms|{name}[{a}]"), m);
         }
     }
     for (k, m) in s.motors.iter().enumerate() {
-        put_ms(&mut f, &format!("stats|flight.motors[{k}]"), m);
+        put_ms(f, &format!("{prefix}.motors[{k}]"), m);
     }
     f.insert(
-        "stats|flight.motor_saturation_pct".into(),
+        format!("{prefix}.motor_saturation_pct"),
         Item::F(s.motor_saturation_pct),
     );
-    f.insert(
-        "stats|flight.motor_imbalance_pct".into(),
-        Item::F(s.motor_imbalance_pct),
-    );
-    put_ms(&mut f, "stats|flight.throttle", &s.throttle);
-    put_opt_ms(&mut f, "stats|flight.vbat", &s.vbat);
-    put_opt(&mut f, "stats|flight.vbat_min", s.vbat_min);
-    put_opt_ms(&mut f, "stats|flight.current", &s.current);
-    put_opt(&mut f, "stats|flight.mah", s.mah);
+    f.insert(format!("{prefix}.motor_imbalance_pct"), Item::F(s.motor_imbalance_pct));
+    put_ms(f, &format!("{prefix}.throttle"), &s.throttle);
+    put_opt_ms(f, &format!("{prefix}.vbat"), &s.vbat);
+    put_opt(f, &format!("{prefix}.vbat_min"), s.vbat_min);
+    put_opt_ms(f, &format!("{prefix}.current"), &s.current);
+    put_opt(f, &format!("{prefix}.mah"), s.mah);
+}
+
+fn stats_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Flat {
+    let mut f = Flat::new();
+    let s = stats::flight_stats(lg, sel.clone());
+    put_flight_stats(&mut f, "stats|flight", &s);
     let e = stats::pid_error_stats(lg, sel, 100.0, 50.0);
     f.insert("stats|pid_error.edges".into(), Item::A(e.edges.clone()));
     f.insert("stats|pid_error.stick_bins".into(), Item::A(e.stick_bins.clone()));

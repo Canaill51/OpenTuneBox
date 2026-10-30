@@ -63,6 +63,26 @@ fn main() {
             rep.skipped,
             rep.failures.len()
         );
+        println!(
+            "  mesures portées en plus : {}",
+            otb_parity::advisor_layer::PORTED_MEASURES.join(", ")
+        );
+        println!(
+            "  constats comparés (KEYS_5A2B, Python filtré contre Rust) : {}",
+            rep.compared_findings
+                .iter()
+                .map(|(k, n)| format!("{k} ×{n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        println!(
+            "  constats EXCLUS (5a-3, non portés) : {}",
+            rep.excluded
+                .iter()
+                .map(|(k, n)| format!("{k} ×{n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
         println!("  écart maximal aux tolérances : {:e}", rep.worst);
         std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });
     }
