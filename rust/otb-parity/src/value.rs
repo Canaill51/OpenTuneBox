@@ -25,6 +25,16 @@ impl Array {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Texte d'un tableau `<U…` à un élément (`np.array("None")`).
+    pub fn as_string(&self) -> Option<String> {
+        (self.kind == 'U' && self.len() == 1).then(|| {
+            self.bytes
+                .chunks(4)
+                .map(|c| char::from_u32(u32::from_le_bytes(c.try_into().unwrap())).unwrap_or('\u{fffd}'))
+                .take_while(|&c| c != '\0')
+                .collect()
+        })
+    }
     /// Élément `i` converti en f64 (entiers exacts jusqu'à 2^53).
     pub fn get_f64(&self, i: usize) -> f64 {
         let (kind, size) = if self.kind == 'c' {
@@ -120,16 +130,18 @@ fn parse_npy(raw: &[u8]) -> Result<Array, String> {
     if order == ">" && size > 1 {
         return Err(format!("grand-boutiste non géré : {descr}"));
     }
-    if !matches!(kind, 'f' | 'i' | 'u' | 'b' | 'c') {
+    if !matches!(kind, 'f' | 'i' | 'u' | 'b' | 'c' | 'U') {
         return Err(format!("type non géré : {descr}"));
     }
     let n: usize = shape.iter().product();
     let data = &raw[start + hlen..];
-    if data.len() != n * size {
-        return Err(format!("{} octets pour {n} éléments de {size}", data.len()));
+    // `<U4` : texte UCS4, `size` caractères de 4 octets par élément
+    let elem = if kind == 'U' { 4 * size } else { size };
+    if data.len() != n * elem {
+        return Err(format!("{} octets pour {n} éléments de {elem}", data.len()));
     }
     let bytes = if fortran && shape.len() > 1 {
-        to_c_order(data, &shape, size)
+        to_c_order(data, &shape, elem)
     } else {
         data.to_vec()
     };
@@ -227,6 +239,25 @@ fn seq(j: &Json, arrays: &std::collections::HashMap<String, Array>) -> Result<Ve
         .iter()
         .map(|x| decode(x, arrays))
         .collect()
+}
+
+/// Tous les tableaux d'un `.npz` sous leur nom (sans `.npy`), par exemple les références `analysis/*.npz` (4c-0).
+pub fn load_arrays(path: &Path) -> Result<std::collections::HashMap<String, Array>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    let mut arrays = std::collections::HashMap::new();
+    for i in 0..zip.len() {
+        let mut f = zip.by_index(i).map_err(|e| e.to_string())?;
+        let name = f
+            .name()
+            .map_err(|e| e.to_string())?
+            .trim_end_matches(".npy")
+            .to_string();
+        let mut raw = Vec::new();
+        f.read_to_end(&mut raw).map_err(|e| e.to_string())?;
+        arrays.insert(name, parse_npy(&raw)?);
+    }
+    Ok(arrays)
 }
 
 /// Lit un fichier `MODULE.FONCTION.K.npz`.
