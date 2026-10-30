@@ -60,6 +60,18 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-056 : comparer en relatif une valeur qui est le résidu d'arrondi d'un zéro exact échoue sur une autre libm (CI Windows)
+- **Symptôme** — 2026-10-30 (PR 4c-A) : la CI Windows échoue sur `rpm_attenuation "3h" k=1 nwin=3` : écart relatif case par case 0,93 ; le même test passe
+  sous Linux (écart 2e-16).
+- **Cause** — mesurée : la case est |H| = 9,9e-16 à 250 Hz pour un moteur à 250 Hz, poids 1, c'est-à-dire **au centre exact du notch**, où le vrai module
+  vaut 0. Ce que Python rend est un résidu d'arrondi (cancellation) qui dépend de la libm (`sin`, `cos`, `hypot`) ; sous Windows il vaut autre chose : écart
+  absolu ≈ 1e-15, relatif ≈ 1. J'avais durci la comparaison (« case par case en relatif », relecture 4c-A) sans voir que ses zéros exacts sont des résidus.
+- **Règle** — le module `|H|` d'un notch se compare en **absolu** (rapporté au plus grand élément) ; un spectre (`P × |H|²`) se compare case par case avec un
+  **plancher** (`|g − w| / (|w| + 1e-12 × max|w|)`) : sous le plancher la case est un résidu de zéro exact (≈ 1e-25 du maximum au centre d'un notch). Toute
+  comparaison durcie doit passer par la CI Windows avant d'être crue (L-048).
+- **Preuve** — `rust/otb-analysis/tests/common/mod.rs` (`CELL_FLOOR`, `assert_close_rel`), `rust/otb-parity/src/analysis_layer.rs` (`CELL_FLOOR`) ; spectre après
+  filtre RPM : 3,7e-11 case par case avec plancher ; 3 sabotages (|H|², lobe, Q +1e-7) vus en échec.
+
 ### L-055 : la largeur d'une raie sur un spectre plat est une fonction discontinue du dernier bit : prouver le port sur le spectre exact de Python
 - **Symptôme** — 2026-10-30 (4c-3) : sur 147 713 clés du corpus, un seul écart franc (`GF7037-3_carbon_nylon.bbl`, roll) : largeur de la 2ᵉ raie
   0 Hz en Python, 4,45 Hz en Rust, alors que tout le reste concorde à 1e-11.
@@ -695,6 +707,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-056 | Un résidu d'arrondi de zéro exact (centre d'un notch) ne se compare pas en relatif : absolu pour |H|, plancher pour les spectres ; une comparaison durcie passe par la CI Windows | Outillage |
 | L-055 | Largeur de raie sur spectre plat = fonction discontinue du dernier bit : rejouer la fonction seule sur l'entrée exacte de Python, exempter et compter | Analyses |
 | L-054 | Retard d'intercorrélation : écart en périodes d'échantillonnage ; tolérance mesurée sur les cas écrits ET sur le corpus (pic plat = division mal conditionnée) | Analyses |
 | L-053 | Outil de mutation : restaurer avec une date neuve (`utime`), sinon cargo garde le binaire muté ; référence relancée par code de sortie | Outillage |

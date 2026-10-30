@@ -44,6 +44,9 @@ pub const MOTORS_TOL: f64 = 1e-9;
 /// Nombre maximal de largeurs de raies exemptées (L-055) : une seule est attendue sur le corpus ; davantage est un écart à examiner.
 pub const MAX_EXEMPT: usize = 1;
 
+/// Plancher de la comparaison case par case (part du plus grand élément) : une case plus petite est le résidu d'arrondi d'un zéro exact (L-056).
+pub const CELL_FLOOR: f64 = 1e-12;
+
 /// Tolérance des retards (FFT, `hypot`, `atan2`, produits complexes en FMA : L-048, L-051), relative à la valeur ou, si elle est
 /// plus petite, à une période d'échantillonnage. **Mesurée sur les 668 sessions** : 2,6e-10 au pire (retard consigne → gyro du lacet
 /// de `HORUS/stock.bbl`, pic d'intercorrélation plat : l'interpolation parabolique divise par `a − 2b + d`, différence de trois
@@ -396,6 +399,11 @@ fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<
                     want.len()
                 ));
             }
+            // plancher : une case sous 1e-12 du plus grand élément est le résidu d'arrondi d'un zéro exact (L-056)
+            let top = (0..g.len())
+                .map(|i| want.get_f64(i))
+                .filter(|v| v.is_finite())
+                .fold(0.0f64, |m, v| m.max(v.abs()));
             for (i, gi) in g.iter().enumerate() {
                 let w = want.get_f64(i);
                 if !gi.is_finite() || !w.is_finite() {
@@ -404,11 +412,7 @@ fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<
                     }
                     continue;
                 }
-                let err = if w == 0.0 {
-                    (gi - w).abs()
-                } else {
-                    (gi - w).abs() / w.abs()
-                };
+                let err = (gi - w).abs() / (w.abs() + CELL_FLOOR * top).max(1e-300);
                 *worst = worst.max(err);
                 if err > *tol {
                     return Some(format!(

@@ -16,7 +16,8 @@ use common::*;
 /// Spectres, bruit moteur, `rpm_weight_needed` : FFT, `log10`, `pow`. Mesuré le 2026-10-30 : 7,1e-12 au pire (écart-type en dB), le reste
 /// ≤ 1e-12. Marge ×140 (autre libm, autre FFT : L-048).
 const SPEC_RTOL: f64 = 1e-9;
-/// Module des notchs RPM : `hypot` de Rust contre le module SIMD de numpy, à un dernier bit près. Mesuré : 2,2e-16.
+/// Module des notchs RPM : `hypot` de Rust contre le module SIMD de numpy, à un dernier bit près. Mesuré : 2,2e-16, relatif au plus grand
+/// élément (**pas** case par case : au centre d'un notch, |H| est le résidu d'arrondi d'un zéro exact, différent d'une libm à l'autre, L-056).
 const ATT_RTOL: f64 = 1e-12;
 /// Hauteurs de pics en dB (`log10` d'un rapport de moyennes de spectres). Mesuré : 8,5e-13 (`harmonic_prominence`).
 const DB_RTOL: f64 = 1e-9;
@@ -281,13 +282,7 @@ fn rpm_attenuation_conforme() {
             continue;
         }
         let g = got.unwrap_or_else(|e| panic!("{what} : Rust lève ({e})"));
-        assert_close_rel(
-            "rpm_attenuation (case par case)",
-            &g,
-            &input(&c, &k["out"]),
-            ATT_RTOL,
-            &what,
-        );
+        assert_close("rpm_attenuation", &g, &input(&c, &k["out"]), ATT_RTOL, &what);
         ok += 1;
     }
     assert!(ok > 15 && errs == 3, "{ok} {errs}");

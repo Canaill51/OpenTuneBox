@@ -88,20 +88,23 @@ pub fn assert_close(cat: &'static str, got: &[f64], want: &[f64], rtol: f64, wha
     );
 }
 
-/// Écart **case par case**, relatif à la valeur de référence (`|g − w| / |w|`) : pour des spectres dont les petites cases comptent
-/// (creux d'un notch RPM, hautes fréquences), une tolérance rapportée au plus grand élément les laisserait libres (relecture 4c-A).
-/// Une référence nulle exige un résultat nul ; NaN et infinis aux mêmes endroits.
+/// Plancher des comparaisons case par case, en part du plus grand élément de la référence : une case plus petite est le résidu d'arrondi
+/// d'un zéro exact (centre d'un notch RPM, |H| ≈ 1e-15 de part et d'autre selon la libm : L-056), son écart relatif ne veut rien dire.
+pub const CELL_FLOOR: f64 = 1e-12;
+
+/// Écart **case par case**, relatif à la valeur de référence : `|g − w| / (|w| + CELL_FLOOR × max|w|)`. Pour des spectres dont les petites
+/// cases comptent (creux d'un notch RPM, hautes fréquences), une tolérance rapportée au plus grand élément les laisserait libres
+/// (relecture 4c-A) ; sous le plancher, l'écart est jugé relativement au plancher. NaN et infinis aux mêmes endroits.
 pub fn assert_close_rel(cat: &'static str, got: &[f64], want: &[f64], rtol: f64, what: &str) {
     assert_eq!(got.len(), want.len(), "{what} : longueur");
+    let top = want
+        .iter()
+        .filter(|v| v.is_finite())
+        .fold(0.0f64, |m, v| m.max(v.abs()));
     let mut worst = 0.0f64;
     for (i, (g, w)) in got.iter().zip(want).enumerate() {
         if w.is_finite() && g.is_finite() {
-            let e = if *w == 0.0 {
-                (g - w).abs()
-            } else {
-                (g - w).abs() / w.abs()
-            };
-            worst = worst.max(e);
+            worst = worst.max((g - w).abs() / (w.abs() + CELL_FLOOR * top).max(1e-300));
         } else {
             assert!(same(*g, *w), "{what} : élément {i} : Rust {g:e} / Python {w:e}");
         }
@@ -110,10 +113,7 @@ pub fn assert_close_rel(cat: &'static str, got: &[f64], want: &[f64], rtol: f64,
     let e = m.entry(cat).or_insert(0.0);
     *e = e.max(worst);
     drop(m);
-    assert!(
-        worst <= rtol,
-        "{what} : écart relatif case par case {worst:e} > {rtol:e}"
-    );
+    assert!(worst <= rtol, "{what} : écart case par case {worst:e} > {rtol:e}");
 }
 
 pub fn report() {
