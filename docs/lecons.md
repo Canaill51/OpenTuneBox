@@ -60,6 +60,38 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-059 : « identique au bit près » après une FFT n'est vrai que sur le poste qui a écrit la référence ; la CI Windows est la seule preuve
+- **Symptôme** — 2026-10-30 (PR 4c-B) : la CI Windows échoue sur `step_response "a : termes PID, fenêtres de 2 s" : réponses : élément 0` : Rust −4,654068096933931e-4,
+  Python −4,6540680969330825e-4 (écart relatif 1,8e-12) ; Linux : 0 écart.
+- **Cause** — le noyau de déconvolution (`realfft`) est le même des deux côtés, donc identique **sur ce poste** ; les références ont été écrites sous Linux, et sous Windows la
+  FFT (jeux d'instructions, `sin`/`cos` des facteurs) rend un dernier bit différent. J'avais écrit `assert_bits` sur les réponses, la moyenne, l'écart-type et les métriques
+  en comptant sur L-049 (même noyau des deux côtés), sans me rappeler L-048 : une FFT n'est jamais identique d'une plateforme à l'autre.
+- **Règle** — tout ce qui sort d'une FFT se compare à une tolérance dans les tests que la CI exécute (réponses, moyenne, écart-type : 1e-9 ; métriques qui en dérivent : 1e-6) ;
+  « au bit près » reste réservé à l'arithmétique pure (somme, `gradient`, métriques de **réponses données**). `cargo test` s'arrête au premier binaire en échec : un échec
+  Windows cache les suivants, donc relire toute la sortie de la CI après chaque correction.
+- **Preuve** — `rust/otb-analysis/tests/step.rs` (`RESPONSE_RTOL`, `METRICS_RTOL`). La couche corpus (`otb-parity check-analysis`, Linux seulement) garde ses comparaisons au bit près : la CI n'a pas le corpus.
+
+### L-058 : la disposition mémoire décide de l'ordre des sommes de numpy : masque sur le dernier axe et matrice d'une colonne
+- **Symptôme** — 2026-10-30 (4c-B(d), `shape_metrics`) : `waves_ratio` diffère d'un dernier bit entre Rust et Python dès 39 réponses (9 blocs de jackknife), pas
+  avant ; puis la moyenne d'une réponse d'**un seul point** (`resp_ms = 0`) diffère aussi.
+- **Cause** — mesurée (`flags` du tableau) : `x[..., w]` avec un masque booléen rend un tableau rangé « Fortran » : `mean(axis=0)` et `sum(axis=0)` somment alors
+  chaque colonne **par paires** (identique à la somme dans l'ordre jusqu'à 7 valeurs, différent à partir de 8). Une matrice `(k, 1)` est aussi « Fortran » :
+  sa somme sur l'axe 0 est par paires. Une matrice C ordinaire à plus d'une colonne somme ligne après ligne (L-052).
+- **Règle** — avant de reproduire une réduction sur l'axe 0, afficher `a.flags` ; un cas écrit doit dépasser 8 valeurs sommées (ici 8 blocs ou plus) et
+  couvrir la matrice d'une colonne.
+- **Preuve** — `rust/otb-analysis/src/step.rs` (`sum_rows`, colonnes de `shape_metrics`), cas `shape_metrics 39 réponses` et `réponse 0 ms` de `scripts/step_cases.py`.
+
+### L-057 : des cas aléatoires qui n'atteignent jamais le régime « valide » laissent les seuils libres ; les mutations le montrent
+- **Symptôme** — 2026-10-30 (4c-B(b), `estimate`) : les mutations du seuil `f ≤ 0,4 × fs`, de `isfinite(L)` et de la fin de `first_run` survivent, alors que les
+  spectres tirés au hasard devaient les atteindre.
+- **Cause** — mesurée : le masque `valid` des spectres aléatoires était presque toujours vide (0 à 1 point sur 40). La phase du spectre croisé était tirée **au
+  hasard à chaque case** : le lissage sur 5 points ou plus les moyenne et la cohérence tombe à ~0,3 ; des puissances `xx`, `yy` tirées sur [0,5 ; 5] par case
+  suffisent aussi à la faire passer sous 0,8. Sans point valide, aucun seuil de `valid` ne change le résultat.
+- **Règle** — un cas fabriqué pour un seuil doit **atteindre le régime où ce seuil décide** : compter (dans le script de cas) les cas où le masque n'est pas
+  vide, et exiger ce nombre dans le test ; phases lentes (le lissage les garde) et puissances voisines. Un zéro censé rendre `L` infini doit couvrir au moins la
+  largeur du lissage, sinon les cases voisines le comblent.
+- **Preuve** — `scripts/loop_spectra_cases.py` (`rnd`), `rust/otb-analysis/tests/open_loop_spectra.rs` (`with_valid >= 40`) ; les trois mutations sont maintenant tuées.
+
 ### L-056 : comparer en relatif une valeur qui est le résidu d'arrondi d'un zéro exact échoue sur une autre libm (CI Windows)
 - **Symptôme** — 2026-10-30 (PR 4c-A) : la CI Windows échoue sur `rpm_attenuation "3h" k=1 nwin=3` : écart relatif case par case 0,93 ; le même test passe
   sous Linux (écart 2e-16).
@@ -707,6 +739,9 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-059 | « Identique au bit près » après une FFT : vrai sur le poste des références seulement ; tolérance dans les tests de la CI, relire toute la sortie Windows (cargo s'arrête au 1er échec) | Outillage |
+| L-058 | Ordre des sommes de numpy : `x[..., masque]` et matrice d'une colonne sont « Fortran », somme par paires sur l'axe 0 (≥ 8 valeurs) | Analyses |
+| L-057 | Cas aléatoires qui n'atteignent jamais le régime valide : seuils libres ; phases lentes, puissances voisines, compter les cas non vides | Outillage |
 | L-056 | Un résidu d'arrondi de zéro exact (centre d'un notch) ne se compare pas en relatif : absolu pour |H|, plancher pour les spectres ; une comparaison durcie passe par la CI Windows | Outillage |
 | L-055 | Largeur de raie sur spectre plat = fonction discontinue du dernier bit : rejouer la fonction seule sur l'entrée exacte de Python, exempter et compter | Analyses |
 | L-054 | Retard d'intercorrélation : écart en périodes d'échantillonnage ; tolérance mesurée sur les cas écrits ET sur le corpus (pic plat = division mal conditionnée) | Analyses |

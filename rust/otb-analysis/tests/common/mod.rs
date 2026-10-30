@@ -2,6 +2,7 @@
 //! partagées, comparaison au bit près ou à une tolérance (avec l'écart maximal observé), décodage des réglages.
 #![allow(dead_code)]
 
+use otb_analysis::open_loop::C;
 use otb_decoder::file::{Matrix, Stats};
 use otb_log::flightlog::{FlightLog, Rows};
 use otb_log::settings::{Lowpass, Settings};
@@ -246,4 +247,36 @@ pub fn log_settings(v: &Value) -> Settings {
         s.motor_kv = kv.as_i64().unwrap();
     }
     s
+}
+
+// ---------------------------------------------------------------- nombres complexes (boucle ouverte, 4c-B)
+
+pub fn cx(c: &Value, v: &Value) -> Vec<C> {
+    let (re, im) = (input(c, &v["re"]), input(c, &v["im"]));
+    re.into_iter().zip(im).collect()
+}
+
+/// Écart relatif de chaque élément complexe : `|g − w| / |w|` (plancher : `CELL_FLOOR` fois le plus grand module de la référence).
+pub fn assert_close_cx(cat: &'static str, got: &[C], want: &[C], rtol: f64, what: &str) {
+    assert_eq!(got.len(), want.len(), "{what} : longueur");
+    let flat = |z: &[C]| -> Vec<f64> { z.iter().flat_map(|c| [c.0, c.1]).collect() };
+    // NaN et infinis aux mêmes endroits (partie réelle et imaginaire)
+    let (g, w) = (flat(got), flat(want));
+    let top = want
+        .iter()
+        .filter(|c| c.0.is_finite() && c.1.is_finite())
+        .fold(0.0f64, |m, c| m.max(c.0.hypot(c.1)));
+    let mut worst = 0.0f64;
+    for i in 0..got.len() {
+        let (a, b) = (got[i], want[i]);
+        if b.0.is_finite() && b.1.is_finite() && a.0.is_finite() && a.1.is_finite() {
+            let d = (a.0 - b.0).hypot(a.1 - b.1);
+            worst = worst.max(d / (b.0.hypot(b.1) + CELL_FLOOR * top).max(1e-300));
+        } else {
+            for k in [2 * i, 2 * i + 1] {
+                assert!(same(g[k], w[k]), "{what} : élément {i} : Rust {a:?} / Python {b:?}");
+            }
+        }
+    }
+    assert_close(cat, &[worst, 1.0], &[0.0, 1.0], rtol, what);
 }

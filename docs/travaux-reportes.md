@@ -61,6 +61,7 @@ Règles d'écriture :
 | ID | Sujet | Statut |
 |---|---|---|
 | W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
+| W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
 | W-025 | `motors` (Rust) n'accepte que des vitesses moteur `float32` (journaux) ; Python accepte aussi `float64` et choisit alors la précision des noyaux | ouvert (à voir en phase 6) |
 | W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ouvert (à voir en phase 7) |
 | W-023 | `FlightLog::d_term_prefilter` (Rust) planteait (index hors limites) pour un journal d'un point au terme D non nul, Python lève `ValueError` (`np.gradient`) | TRAITÉ le 2026-10-30 (4c-A : `Err`, relecture) |
@@ -434,3 +435,10 @@ Règles d'écriture :
   élément, pas case par case (leurs valeurs sont peu nombreuses et proches de la dizaine de dB).
   **Pourquoi reporté** : aucun appelant ne les atteint ; les corriger sans cas réel serait deviner la règle de numpy.
   **Reprise** : si un outil de la phase 6 passe des valeurs à zéros signés ou des arguments non finis, ou à la suppression du Python (phase 7).
+- **W-027** — `open_loop.rs` (port de `analysis/loop.py`) suppose les entrées que `loop_spectra` produit ; deux écarts à numpy sur des entrées que l'application ne
+  construit jamais, relevés par la relecture de la 4c-B : (1) `margins` avec un masque `valid` d'**un seul élément** : numpy le diffuse, Rust rend une erreur
+  « tailles différentes » ; (2) `estimate` sur des spectres à la main dont la grille de fréquences a un **pas nul** (fréquences en double) : `astype(int)` de NaN
+  rend `INT_MIN` en numpy (largeur de lissage énorme, moyenne sur toute la grille), Rust garde la largeur minimale de 5 points.
+  **Pourquoi reporté** : `loop_spectra` rend toujours une grille strictement croissante et un masque de la longueur de la grille ; reproduire ces cas sans appelant
+  réel serait deviner.
+  **Reprise** : si un outil de la phase 6 construit des spectres ou un masque à la main, ou à la suppression du Python (phase 7).

@@ -6,7 +6,7 @@
 //! Python (`<section>|_error`) aussi. Une clé présente d'un côté seulement est un écart.
 
 use crate::value::{Array, load_arrays};
-use otb_analysis::{datasets, delay, motors, period, stats};
+use otb_analysis::{datasets, delay, motors, open_loop, period, stats, step_series};
 use otb_log::flightlog::{FlightLog, Rows, clamp_range};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -29,12 +29,20 @@ enum Item {
     B(bool),
     S(String),
     A(Vec<f64>),
+    /// Tableau de booléens.
+    AB(Vec<bool>),
+    /// Tableau complexe comparé élément par élément : `|Rust − Python| / (|Python| + plancher × plus grand module)`.
+    C(Vec<(f64, f64)>, f64),
 }
 
 type Flat = BTreeMap<String, Item>;
 
 /// Sections de la couche déjà portées en Rust (les autres sont ignorées).
-pub const PORTED: [&str; 5] = ["period", "datasets", "stats", "delay", "motors"];
+pub const PORTED: [&str; 7] = ["period", "datasets", "stats", "delay", "motors", "step", "series"];
+
+/// Tolérance des marges et des courbes de la boucle ouverte (`log`, `atan2`, `exp` : L-048). **Mesurée sur les 668 sessions** : 1,9e-15
+/// au pire (cas écrits : 2,0e-15). Marge ×5 000 ; un saut d'indice (croisement, passage par −180°, pic) vaut un pas de grille.
+pub const LOOP_TOL: f64 = 1e-11;
 
 /// Tolérance des valeurs en dB et des spectres des fonctions de `motors` (FFT de `realfft`, `log10`, `hypot`, `pow` : L-048). **Mesurée sur
 /// les 668 sessions** : 1,5e-11 au pire (cas écrits : 7,1e-12, écart-type de valeurs en dB, qui amplifie l'arrondi de la FFT). Marge ×70 ;
@@ -99,8 +107,139 @@ fn ported(lg: &FlightLog) -> Vec<Section> {
         ("datasets", datasets_section(lg)),
         ("stats", Ok(stats_section(lg, sel.clone()))),
         ("delay", delay_section(lg, sel.clone())),
-        ("motors", motors_section(lg, sel)),
+        ("motors", motors_section(lg, sel.clone())),
+        ("step", step_section(lg, sel.clone())),
+        ("series", series_section(lg, sel.clone())),
     ]
+}
+
+/// Tolérance des fonctions de transfert mesurées **depuis le journal** (spectres croisés par FFT de `realfft` contre pocketfft : L-048,
+/// puis `L = G·(Ce + Cd)` qui amplifie les annulations). **Mesurée sur les 668 sessions** : 1,9e-7 au pire (les cas écrits : 8,3e-11
+/// sur les spectres, 2,2e-15 sur `estimate` seul). Marge ×50. Un saut d'indice (croisement, pic) ou une case mal comptée vaut ≥ 1e-3.
+pub const SPECTRA_LOOP_TOL: f64 = 1e-5;
+
+/// Tolérance des écarts-types jackknife des marges mesurées depuis le journal (différences entre 8 sous-ensembles). **Mesurée sur les 668
+/// sessions par balayage** : échec à 1e-12 (premiers écarts 5,9e-12), aucun écart à 1e-9 ; tolérance retenue 1e-8. Un point valide qui change
+/// dans un sous-ensemble déplace un écart-type de plusieurs ordres de grandeur.
+pub const STD_LOOP_TOL: f64 = 1e-8;
+
+/// Curseurs estimés depuis les PID quand l'en-tête n'en donne pas (`sliders_from_pids` : SVD de Jacobi à la place de `lstsq`, 4b-5) :
+/// mesuré à 1,6e-15 sur les 680 sessions, tolérance 1e-11 (comme `check-sliders`).
+pub const SLIDERS_TOL: f64 = 1e-11;
+
+fn put_sig(f: &mut Flat, key: &str, sig: &step_series::Sig) {
+    match sig {
+        step_series::Sig::I(v) => {
+            f.insert(key.to_string(), Item::I(*v));
+        }
+        step_series::Sig::T(items) => {
+            for (i, it) in items.iter().enumerate() {
+                put_sig(f, &format!("{key}[{i}]"), it);
+            }
+        }
+    }
+}
+
+/// Une boucle ouverte de `step` (clés `step.loops[i].*`). Une boucle mesurée vient de spectres par FFT : tolérance `SPECTRA_LOOP_TOL` ;
+/// une boucle approchée vient des sommes du noyau de déconvolution (les mêmes des deux côtés) : `LOOP_TOL`.
+fn put_loop(f: &mut Flat, p: &str, lm: &open_loop::LoopMetrics) {
+    let tol = if lm.method == open_loop::MEASURED {
+        SPECTRA_LOOP_TOL
+    } else {
+        LOOP_TOL
+    };
+    f.insert(format!("{p}.method"), Item::S(lm.method.to_string()));
+    for (k, n) in lm.notes.iter().enumerate() {
+        f.insert(format!("{p}.notes[{k}]"), Item::S(n.clone()));
+    }
+    f.insert(format!("{p}.band_hz[0]"), Item::F(lm.band_hz.0));
+    f.insert(format!("{p}.band_hz[1]"), Item::F(lm.band_hz.1));
+    f.insert(format!("{p}.bandwidth_hz"), Item::F(lm.bandwidth_hz));
+    f.insert(
+        format!("{p}.tracking_peak_db"),
+        Item::T(lm.tracking_peak_db, LOOP_TOL, 1.0),
+    );
+    f.insert(format!("{p}.crossover_hz"), Item::T(lm.crossover_hz, tol, 1.0));
+    f.insert(
+        format!("{p}.phase_margin_deg"),
+        Item::T(lm.phase_margin_deg, tol, 180.0),
+    );
+    f.insert(format!("{p}.gain_margin_db"), Item::T(lm.gain_margin_db, tol, 1.0));
+    f.insert(
+        format!("{p}.sensitivity_peak_db"),
+        Item::T(lm.sensitivity_peak_db, tol, 1.0),
+    );
+    f.insert(format!("{p}.sensitivity_peak_hz"), Item::F(lm.sensitivity_peak_hz));
+    f.insert(
+        format!("{p}.sensitivity_peak_at_edge"),
+        Item::B(lm.sensitivity_peak_at_edge),
+    );
+    f.insert(format!("{p}.d_ratio"), Item::T(lm.d_ratio, tol, 1.0));
+    for (key, v) in &lm.std {
+        f.insert(format!("{p}.std|{key}"), Item::T(*v, STD_LOOP_TOL, 1.0));
+    }
+    f.insert(format!("{p}.freqs"), Item::A(lm.freqs.clone()));
+    f.insert(format!("{p}.T"), Item::C(lm.t.clone(), tol));
+    f.insert(format!("{p}.coherence"), Item::TR(lm.coherence.clone(), tol));
+    f.insert(format!("{p}.L"), Item::C(lm.l.clone(), tol));
+    f.insert(format!("{p}.valid"), Item::AB(lm.valid.clone()));
+}
+
+/// Section `step` : `flight_step` entier refait depuis le journal (4c-B(d) et (e)) : curseurs, signature des filtres, conditions, métriques,
+/// fenêtres retenues, retards consigne → gyro et boucles ouvertes. Les métriques, moyennes et écarts-types viennent du noyau de
+/// déconvolution (le même des deux côtés) et de sommes dans l'ordre de numpy : **identiques au bit près**.
+fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, String> {
+    let fl = step_series::flight_step(lg, sel, "essai")?;
+    let mut f = Flat::new();
+    f.insert("step.label".into(), Item::S(fl.label.clone()));
+    for (cat, v) in &fl.sliders {
+        f.insert(format!("step.sliders|{cat}"), Item::T(*v, SLIDERS_TOL, 1.0));
+    }
+    put_sig(&mut f, "step.filters", &fl.filters);
+    f.insert("step.conditions.ff[0]".into(), Item::I(fl.conditions.ff.0));
+    f.insert("step.conditions.ff[1]".into(), Item::I(fl.conditions.ff.1));
+    f.insert("step.conditions.angle_share".into(), Item::F(fl.conditions.angle_share));
+    f.insert(
+        "step.conditions.i_slider".into(),
+        Item::T(fl.conditions.i_slider, SLIDERS_TOL, 1.0),
+    );
+    let unit = 1000.0 / lg.fs; // une période d'échantillonnage, en ms
+    for ax in 0..fl.metrics.len() {
+        let m = &fl.metrics[ax];
+        for (name, v) in [
+            ("peak", m.peak),
+            ("peak_ms", m.peak_ms),
+            ("latency_ms", m.latency_ms),
+            ("rise_ms", m.rise_ms),
+            ("settling_ms", m.settling_ms),
+            ("overshoot_pct", m.overshoot_pct),
+            ("ripple", m.ripple),
+            ("ripple_std", m.ripple_std),
+            ("ripple_ms", m.ripple_ms),
+            ("waves", m.waves),
+            ("waves_ratio", m.waves_ratio),
+        ] {
+            f.insert(format!("step.metrics[{ax}].{name}"), Item::F(v));
+        }
+        f.insert(format!("step.n[{ax}]"), Item::I(fl.n[ax] as i64));
+        f.insert(
+            format!("step.sp_delay_ms[{ax}]"),
+            Item::T(fl.sp_delay_ms[ax], DELAY_TOL, unit),
+        );
+        put_loop(&mut f, &format!("step.loops[{ax}]"), &fl.loops[ax]);
+    }
+    Ok(f)
+}
+
+/// Section `series` : `find_series` d'un seul vol ne rend jamais de série.
+fn series_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, String> {
+    let fl = step_series::flight_step(lg, sel, "essai")?;
+    let series = step_series::find_series(&[fl])?;
+    let mut f = Flat::new();
+    for (i, s) in series.iter().enumerate() {
+        f.insert(format!("series[{i}].key"), Item::S(s.key.to_string()));
+    }
+    Ok(f)
 }
 
 fn period_section(lg: &FlightLog) -> Result<Flat, String> {
@@ -432,6 +571,52 @@ fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<
         }
         Item::S(g) => (want.as_string().as_ref() != Some(g))
             .then(|| format!("{key} : Rust {g:?} / Python {:?}", want.as_string())),
+        Item::AB(g) => {
+            let ok =
+                want.kind == 'b' && want.len() == g.len() && (0..g.len()).all(|i| (want.get_f64(i) != 0.0) == g[i]);
+            (!ok).then(|| {
+                format!(
+                    "{key} : {} booléens différents de Python ({}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                )
+            })
+        }
+        Item::C(g, tol) => {
+            if want.kind != 'c' || want.len() != g.len() {
+                return bad(format!(
+                    "{} complexes (Python {}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                ));
+            }
+            let w = |i: usize| (want.get_f64(2 * i), want.get_f64(2 * i + 1));
+            let top = (0..g.len())
+                .map(w)
+                .filter(|z| z.0.is_finite() && z.1.is_finite())
+                .fold(0.0f64, |m, z| m.max(z.0.hypot(z.1)));
+            for (i, gi) in g.iter().enumerate() {
+                let wi = w(i);
+                if !(gi.0.is_finite() && gi.1.is_finite() && wi.0.is_finite() && wi.1.is_finite()) {
+                    if !(same_bits(gi.0, wi.0) && same_bits(gi.1, wi.1)) {
+                        return Some(format!("{key} : élément {i} : Rust {gi:?} / Python {wi:?}"));
+                    }
+                    continue;
+                }
+                let err = (gi.0 - wi.0).hypot(gi.1 - wi.1) / (wi.0.hypot(wi.1) + CELL_FLOOR * top).max(1e-300);
+                *worst = worst.max(err);
+                if err > *tol {
+                    return Some(format!(
+                        "{key} : élément {i} : Rust {gi:?} / Python {wi:?} (écart relatif {err:e} > {tol:e})"
+                    ));
+                }
+            }
+            None
+        }
         Item::A(g) => {
             if want.kind != 'f' || want.size != 8 || want.len() != g.len() {
                 return bad(format!(
