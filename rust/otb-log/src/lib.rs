@@ -7,6 +7,7 @@
 
 pub mod debug_tables;
 pub mod modes;
+pub mod settings;
 
 /// Colonne ignorée (`loopIteration`, `time`) : ni ramenée aux 32 bits ni contrôlée.
 pub const KIND_SKIP: u8 = 0;

@@ -52,19 +52,19 @@ pub struct LogHeader {
 
 /// Espace au sens de `str.strip()` de Python pour les caractères latin-1 : ni `trim` ni `is_whitespace` de Rust
 /// (ils ignorent U+001C à U+001F).
-fn py_space(c: char) -> bool {
+pub fn py_space(c: char) -> bool {
     matches!(
         c,
         ' ' | '\t' | '\n' | '\x0b' | '\x0c' | '\r' | '\x1c'..='\x1f' | '\u{85}' | '\u{a0}'
     )
 }
 
-fn py_strip(s: &str) -> &str {
+pub fn py_strip(s: &str) -> &str {
     s.trim_matches(py_space)
 }
 
 /// `float(s)` de Python : espaces ignorés, soulignés permis entre deux chiffres.
-fn py_float(s: &str) -> Option<f64> {
+pub fn py_float(s: &str) -> Option<f64> {
     let s = py_strip(s);
     let chars: Vec<char> = s.chars().collect();
     for (i, c) in chars.iter().enumerate() {
@@ -77,7 +77,7 @@ fn py_float(s: &str) -> Option<f64> {
 }
 
 /// `int(s, 0)` d'un texte qui commence par `0x` (soulignés permis entre deux chiffres, ou juste après le préfixe).
-fn py_hex(s: &str) -> Option<i64> {
+pub fn py_hex(s: &str) -> Option<i64> {
     let digits = s.get(2..)?;
     let digits = digits.strip_prefix('_').unwrap_or(digits);
     let valid = digits.chars().all(|c| c.is_ascii_hexdigit() || c == '_'); // `from_str_radix` accepterait un signe

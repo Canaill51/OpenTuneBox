@@ -326,6 +326,7 @@ version = "0.8.0"
 name = "otb-log"
 version = "0.8.0"
 dependencies = [
+ "otb-decoder",
  "serde_json",
 ]
 

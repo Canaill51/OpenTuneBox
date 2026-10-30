@@ -60,6 +60,14 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-046 : une couche de parité sur le corpus ne prouve pas les valeurs par défaut
+- **Symptôme** — 2026-10-30 (4a-4) : changer le défaut de `looptime`, `motor_poles` ou `rpm_filter_q` dans `parse_settings` laissait
+  `otb-parity check-settings` à 0 différence sur les 680 sessions ; seule la lecture d'une clé (`looptim`) échouait (69 sessions).
+- **Cause** — mesurée : les logs du corpus contiennent ces clés, donc le défaut n'y est jamais utilisé.
+- **Règle** — les défauts et les formes absurdes se prouvent par des cas écrits (`scripts/settings_cases.py`, aussi `{}`), le
+  corpus prouve les valeurs réelles ; toujours les deux couches, et une mutation par couche.
+- **Preuve** — `rust/otb-parity/tests/settings_cases.rs` (cas 0 : en-tête vide) contre `check-settings`.
+
 ### L-045 : lire un en-tête comme Python : espaces, hexadécimal, soulignés
 - **Symptôme** — 2026-10-30 (4a-2) : le port Rust de `parse_header` acceptait `0x-1` (Python : valeur par défaut) ; `trim` de
   Rust gardait U+001C là où `str.strip()` de Python l'enlève ; un nombre `1__0` ou `0x1__f` n'est pas à traiter comme `10`.
@@ -565,6 +573,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-046 | Parité sur le corpus : ne prouve pas les défauts, il faut des cas écrits en plus | Décodeur et logs |
 | L-045 | En-tête Blackbox lu comme Python : `strip` (U+001C…), `0x` sans signe, soulignés entre chiffres seulement (`header.rs`) | Décodeur et logs |
 | L-044 | Textes de nombres Python en Rust : `round` au pair, `%g` et `repr` à refaire (`otb-format`) | Analyses |
 | L-043 | egui 0.37 : thème appliqué au cadre suivant, glisser cherché au point pressé, panneaux fusionnés en `Panel` | Interface |

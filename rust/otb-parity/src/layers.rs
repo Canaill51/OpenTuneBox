@@ -171,3 +171,39 @@ pub fn check_decoder(dossier: &Path, logs_root: &Path, threads: usize) -> Result
     });
     Ok(report.into_inner().unwrap())
 }
+
+/// Compare `parse_settings` (Rust, à partir de l'en-tête lu par le Rust) à `dossier/settings.jsonl`.
+pub fn check_settings(dossier: &Path, logs_root: &Path) -> Result<LayerReport, String> {
+    let text = std::fs::read_to_string(dossier.join("settings.jsonl")).map_err(|e| format!("settings.jsonl : {e}"))?;
+    let mut rep = LayerReport {
+        checked: 0,
+        skipped: 0,
+        failures: vec![],
+    };
+    let mut cache: Option<(String, Vec<u8>, Vec<usize>)> = None;
+    for line in text.lines() {
+        let rec: Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
+        if rec.get("error").is_some() {
+            rep.skipped += 1;
+            continue;
+        }
+        let file = rec["file"].as_str().unwrap().to_string();
+        if cache.as_ref().map(|c| &c.0) != Some(&file) {
+            let data = std::fs::read(logs_root.join(&file)).map_err(|e| format!("{file} : {e}"))?;
+            let starts = find_log_starts(&data);
+            cache = Some((file.clone(), data, starts));
+        }
+        let (_, data, starts) = cache.as_ref().unwrap();
+        let k = rec["session"].as_u64().unwrap() as usize - 1;
+        let end = starts.get(k + 1).copied().unwrap_or(data.len());
+        let header = parse_header(data, starts[k], end);
+        let got = crate::settings_json::settings_json(&otb_log::settings::parse_settings(&header.raw));
+        rep.checked += 1;
+        let d = crate::settings_json::diff(&rec["settings"], &got);
+        if !d.is_empty() {
+            rep.failures
+                .push(format!("{file} session {} : {}", rec["session"], d.join(" ; ")));
+        }
+    }
+    Ok(rep)
+}
