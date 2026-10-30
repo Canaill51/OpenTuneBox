@@ -147,7 +147,19 @@ différents** sur 630, outils 0 différence à `rtol=1e-9` (écart scipy→numpy
 vrais logs, et l'ancien code calculait les bandes dans cette précision (L-041) ; `np.abs` complexe et `np.mean` ne se
 reproduisent pas avec `hypot` et une somme naïve (L-042). `FFT` et découpage restent en numpy.
 
-**Ouvert.** 3c (`whatif_spectrum`, 1,4 s sur les 11 s du lot avant 3b : décider d'après cette mesure) ; W-015 ; W-019.
+**3c abandonnée** (2026-10-30, mesures sans profileur, un fil sauf mention, 15 sessions tirées au hasard, 818 s de vol,
+après la 3b). Assistant : 516 ms par session (7,74 s au total) ; 348 ms avec 16 cœurs. `whatif_spectrum` : 0,84 s sur
+7,52 s, soit 0,15 s de FFT (`_seg_spectra`), 0,50 s pour les chaînes de filtres des fenêtres (`_gyro_h2`) et 0,19 s
+d'autre. La construction des chaînes (`gyro_chain`), la seule partie que la 3c aurait portée en Rust, pèse 0,31 s :
+4,0 % de l'assistant à un fil (5,8 % avec 16 cœurs). Même supprimée entièrement, le gain ne dépasse donc pas
+**1,04× à un fil (1,06× avec 16 cœurs)**, loin du critère de 1,25× ; et il faudrait réécrire les `Settings` et les
+chaînes de filtres (logique métier à variantes selon la version de Betaflight). Piste de mémorisation essayée en
+prototype (cache gardé pour toute l'analyse : 1 544 évaluations redondantes sur 2 701 pour la chaîne actuelle, 837 pour
+la modifiée) : 7,51 → 7,06 s, **1,06×**, mêmes clés de constats (177) ; sous le seuil de 1,1× fixé, non retenue.
+Le premier chiffre avancé (« 1,4 s » puis « environ 1 s de construction ») venait d'un profil pris sous `cProfile`,
+qui gonfle les petits appels Python (L-039).
+
+**Ouvert.** W-015 ; W-019.
 
 ### D-033 : phase 2b réduite à un pilote : le noyau de `step_response` en Rust ; porter la FFT seule est écarté
 
