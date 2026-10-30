@@ -36,6 +36,40 @@ mod _native {
             .map_err(|_| PyValueError::new_err(format!("{name} : tableau non contigu")))
     }
 
+    /// Tableau 2D en lignes de `cols` valeurs, rangé à la suite : refuse l'ordre Fortran et les vues non contiguës.
+    /// ⚠️ `as_slice` accepte l'ordre Fortran, lu ligne par ligne il donnerait un résultat faux (L-036)
+    fn slice2<'a>(a: &'a PyReadonlyArray2<'_, f64>, name: &str) -> PyResult<(&'a [f64], usize, usize)> {
+        if !a.is_c_contiguous() {
+            return Err(PyValueError::new_err(format!(
+                "{name} : tableau non rangé ligne par ligne (C contigu)"
+            )));
+        }
+        let (rows, cols) = (a.shape()[0], a.shape()[1]);
+        let data = a
+            .as_slice()
+            .map_err(|_| PyValueError::new_err(format!("{name} : tableau non contigu")))?;
+        Ok((data, rows, cols))
+    }
+
+    /// Exécute `$body` avec les tableaux `$arr` lus en `f64` ou, sinon, tous en `f32` (même type pour tous, sinon
+    /// `ValueError`) ; `$t` est le type choisi. Les fréquences moteur sont en float32 dans les vrais logs (D-029) et
+    /// les noyaux de `otb-analysis` calculent dans cette précision comme l'ancien code numpy (L-041).
+    macro_rules! by_dtype {
+        ([$($arr:ident),+], |$t:ident| $body:expr) => {{
+            if let ($(Ok($arr),)+) = ($($arr.extract::<PyReadonlyArray1<'py, f64>>(),)+) {
+                type $t = f64;
+                $(let $arr = slice(&$arr, stringify!($arr))?;)+
+                $body
+            } else if let ($(Ok($arr),)+) = ($($arr.extract::<PyReadonlyArray1<'py, f32>>(),)+) {
+                type $t = f32;
+                $(let $arr = slice(&$arr, stringify!($arr))?;)+
+                $body
+            } else {
+                Err(PyValueError::new_err(concat!(stringify!($($arr),+), " : tableaux float32 ou float64, tous du même type")))
+            }
+        }};
+    }
+
     /// Exécute un calcul sans le GIL ; une erreur de taille devient `ValueError`, une panique (bug)
     /// `RuntimeError` ordinaire plutôt qu'une `PanicException` qui échappe aux `except Exception` (L-032).
     fn guarded<T: Send>(
@@ -267,6 +301,124 @@ mod _native {
             out.sum_hh.into_pyarray(py),
             out.sum_gg.into_pyarray(py),
         ))
+    }
+
+    /// Réponse complexe des notchs RPM (D-031, phase 3b) ; `np.abs` en donne `tests/ref_motors.py:rpm_attenuation_ref`.
+    /// Étages rangés par fenêtre (`fk`, `wk` : (fenêtres, étages), moteur puis harmonique) → (fenêtres, len(f)).
+    #[pyfunction]
+    fn rpm_response<'py>(
+        py: Python<'py>,
+        f: PyReadonlyArray1<'py, f64>,
+        fk: PyReadonlyArray2<'py, f64>,
+        wk: PyReadonlyArray2<'py, f64>,
+        q: f64,
+        rate: f64,
+    ) -> PyResult<Bound<'py, PyArray2<Complex64>>> {
+        let f = slice(&f, "f")?;
+        let ((fk, nw, ns), (wk, nw2, ns2)) = (slice2(&fk, "fk")?, slice2(&wk, "wk")?);
+        if (nw, ns) != (nw2, ns2) {
+            return Err(PyValueError::new_err("fk et wk : formes différentes"));
+        }
+        let (re, im) = guarded(py, || otb_analysis::rpm_response(f, fk, wk, nw, ns, q, rate))?;
+        let h: Vec<Complex64> = re.iter().zip(&im).map(|(&r, &i)| Complex64::new(r, i)).collect();
+        Array2::from_shape_vec((nw, f.len()), h)
+            .map(|a| a.into_pyarray(py))
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    /// Moyennes de la raie et du bruit voisin des harmoniques moteur par fenêtre (D-031, phase 3b), pour
+    /// `motors.harmonic_prominence` → (raie, bruit, retenue), chacune (n_harm, fenêtres).
+    #[pyfunction]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    fn harmonic_levels<'py>(
+        py: Python<'py>,
+        f: PyReadonlyArray1<'py, f64>,
+        p: PyReadonlyArray2<'py, f64>,
+        lo_m: &Bound<'py, PyAny>,
+        hi_m: &Bound<'py, PyAny>,
+        mean_m: &Bound<'py, PyAny>,
+        n_harm: usize,
+        min_hz: f64,
+        fs: f64,
+    ) -> PyResult<(
+        Bound<'py, PyArray2<f64>>,
+        Bound<'py, PyArray2<f64>>,
+        Bound<'py, PyArray2<bool>>,
+    )> {
+        let f = slice(&f, "f")?;
+        let (p, nrows, ncols) = slice2(&p, "P")?;
+        let nw = nrows;
+        if ncols != f.len() {
+            return Err(PyValueError::new_err("P : forme (fenêtres, len(f)) attendue"));
+        }
+        let lv = by_dtype!([lo_m, hi_m, mean_m], |T| {
+            guarded(py, || {
+                otb_analysis::harmonic_levels::<T>(f, p, lo_m, hi_m, mean_m, n_harm, min_hz, fs)
+            })
+        })?;
+        let shape = (n_harm, nw);
+        let err = |e: numpy::ndarray::ShapeError| PyValueError::new_err(e.to_string());
+        Ok((
+            Array2::from_shape_vec(shape, lv.line).map_err(err)?.into_pyarray(py),
+            Array2::from_shape_vec(shape, lv.floor).map_err(err)?.into_pyarray(py),
+            Array2::from_shape_vec(shape, lv.used).map_err(err)?.into_pyarray(py),
+        ))
+    }
+
+    /// Même résultat que la fin de `tests/ref_motors.py:_masked_spectrum_ref` (D-031, phase 3b).
+    #[pyfunction]
+    #[allow(clippy::too_many_arguments)]
+    fn masked_mean<'py>(
+        py: Python<'py>,
+        f: PyReadonlyArray1<'py, f64>,
+        p: PyReadonlyArray2<'py, f64>,
+        lo_m: &Bound<'py, PyAny>,
+        hi_m: &Bound<'py, PyAny>,
+        n_harm: usize,
+        margin: f64,
+        fs: f64,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let f = slice(&f, "f")?;
+        let (p, _, ncols) = slice2(&p, "P")?;
+        if ncols != f.len() {
+            return Err(PyValueError::new_err("P : forme (fenêtres, len(f)) attendue"));
+        }
+        let out = by_dtype!([lo_m, hi_m], |T| {
+            guarded(py, || {
+                otb_analysis::masked_mean::<T>(f, p, lo_m, hi_m, n_harm, margin, fs)
+            })
+        })?;
+        Ok(out.into_pyarray(py))
+    }
+
+    /// Même résultat que la fin de `tests/ref_motors.py:rpm_filtered_spectrum_ref` (D-031, phase 3b).
+    #[pyfunction]
+    #[allow(clippy::too_many_arguments)]
+    fn fold_mean<'py>(
+        py: Python<'py>,
+        f: PyReadonlyArray1<'py, f64>,
+        p: PyReadonlyArray2<'py, f64>,
+        lo_m: &Bound<'py, PyAny>,
+        hi_m: &Bound<'py, PyAny>,
+        n_harm: usize,
+        lobe: f64,
+        fs: f64,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let f = slice(&f, "f")?;
+        let (p, _, ncols) = slice2(&p, "P")?;
+        if ncols != f.len() {
+            return Err(PyValueError::new_err("P : forme (fenêtres, len(f)) attendue"));
+        }
+        let out = by_dtype!([lo_m, hi_m], |T| {
+            guarded(py, || otb_analysis::fold_mean::<T>(f, p, lo_m, hi_m, n_harm, lobe, fs))
+        })?;
+        Ok(out.into_pyarray(py))
+    }
+
+    /// `np.mean` d'un tableau 1D contigu, bit pour bit (somme par paires de numpy).
+    #[pyfunction]
+    fn numpy_mean(a: PyReadonlyArray1<'_, f64>) -> PyResult<f64> {
+        Ok(otb_analysis::numpy_mean(slice(&a, "a")?))
     }
 
     /// Trames impossibles d'une session (D-031, phase 3a) : ramène `main` (n, colonnes) aux entiers 32 bits **sur

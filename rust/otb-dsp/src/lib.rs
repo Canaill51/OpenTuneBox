@@ -16,6 +16,10 @@ pub const K_NOTCH: i64 = 2;
 /// ⚠️ Au centre exact d'un notch, un vrai zéro rendrait nul le rapport |H_mod|²/|H_actuel|² du simulateur
 /// de filtres (L-024) : même plancher dans les deux chaînes comparées.
 pub const MIN_STAGE_GAIN: f64 = 1e-15;
+/// Bornes de |g|² qui décident du plancher sans calculer de `hypot` : sous (MIN/2)² il s'applique sûrement, au-dessus
+/// de (2·MIN)² jamais ; entre les deux, `hypot` tranche.
+const CLAMP_SURE_SQ: f64 = 2.5e-31;
+const UNCLAMP_SURE_SQ: f64 = 4e-30;
 
 /// Coefficients (b0, b1, b2, a1, a2) d'un étage ; `f ≤ 0` → étage transparent.
 /// Un type inconnu est traité comme un notch, comme dans la version numba.
@@ -59,6 +63,45 @@ pub struct Sections<'a> {
     pub rates: &'a [f64],
 }
 
+/// z⁻¹ = e^(−jω) aux fréquences `freqs` (Hz) pour la cadence `rate` : (partie réelle, partie imaginaire).
+pub fn unit_delays(freqs: &[f64], rate: f64) -> (Vec<f64>, Vec<f64>) {
+    let n = freqs.len();
+    let (mut zr, mut zi) = (vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        (zi[i], zr[i]) = (-2.0 * PI * freqs[i] / rate).sin_cos();
+    }
+    (zr, zi)
+}
+
+/// Multiplie la réponse `(hr, hi)` par celle d'un étage de coefficients `[b0, b1, b2, a1, a2]`, évaluée en `z⁻¹`
+/// (`zr`, `zi`, de [`unit_delays`]). Le gain de l'étage n'est jamais sous [`MIN_STAGE_GAIN`].
+/// Commun à `sections_response` et aux noyaux d'`otb-analysis` : une seule écriture du produit.
+pub fn apply_stage(hr: &mut [f64], hi: &mut [f64], zr: &[f64], zi: &[f64], c: [f64; 5]) {
+    let [b0, b1, b2, a1, a2] = c;
+    for i in 0..hr.len() {
+        let (z_re, z_im) = (zr[i], zi[i]);
+        // num = b0 + z·(b1 + z·b2) ; den = 1 + z·(a1 + z·a2)
+        let (t_re, t_im) = (b1 + (z_re * b2), z_im * b2);
+        let (num_re, num_im) = (b0 + (z_re * t_re - z_im * t_im), z_re * t_im + z_im * t_re);
+        let (u_re, u_im) = (a1 + (z_re * a2), z_im * a2);
+        let (den_re, den_im) = (1.0 + (z_re * u_re - z_im * u_im), z_re * u_im + z_im * u_re);
+        let d = den_re * den_re + den_im * den_im;
+        let (mut g_re, mut g_im) = (
+            (num_re * den_re + num_im * den_im) / d,
+            (num_im * den_re - num_re * den_im) / d,
+        );
+        // ⚠️ même décision que `hypot(g) < MIN_STAGE_GAIN`, sans appeler la libm (non vectorisable) à chaque case :
+        // |g|² hors de la zone [(MIN/2)², (2·MIN)²] tranche seul ; NaN et inf tombent « pas de plancher », comme avec hypot
+        let m2 = g_re * g_re + g_im * g_im;
+        if m2 < CLAMP_SURE_SQ || (m2 <= UNCLAMP_SURE_SQ && g_re.hypot(g_im) < MIN_STAGE_GAIN) {
+            (g_re, g_im) = (MIN_STAGE_GAIN, 0.0);
+        }
+        let (r, im) = (hr[i], hi[i]);
+        hr[i] = r * g_re - im * g_im;
+        hi[i] = r * g_im + im * g_re;
+    }
+}
+
 /// Réponse complexe (parties réelle et imaginaire) du produit des étages, aux fréquences `freqs` (Hz).
 /// Chaque étage est évalué à sa propre cadence ; son gain n'est jamais sous [`MIN_STAGE_GAIN`].
 pub fn sections_response(s: &Sections, freqs: &[f64]) -> Result<(Vec<f64>, Vec<f64>), String> {
@@ -71,36 +114,16 @@ pub fn sections_response(s: &Sections, freqs: &[f64]) -> Result<(Vec<f64>, Vec<f
     }
     let n = freqs.len();
     let (mut hr, mut hi) = (vec![1.0; n], vec![0.0; n]);
-    // z⁻¹ = e^(−jω), recalculé seulement quand la cadence change
+    // z⁻¹ recalculé seulement quand la cadence change
     let (mut zr, mut zi) = (vec![0.0; n], vec![0.0; n]);
     let mut rate = -1.0;
     for st in 0..n_st {
         if s.rates[st] != rate {
             rate = s.rates[st];
-            for i in 0..n {
-                (zi[i], zr[i]) = (-2.0 * PI * freqs[i] / rate).sin_cos();
-            }
+            (zr, zi) = unit_delays(freqs, rate);
         }
-        let [b0, b1, b2, a1, a2] = biquad(s.kinds[st], s.fcs[st], s.qs[st], s.ws[st], rate);
-        for i in 0..n {
-            let (z_re, z_im) = (zr[i], zi[i]);
-            // num = b0 + z·(b1 + z·b2) ; den = 1 + z·(a1 + z·a2)
-            let (t_re, t_im) = (b1 + (z_re * b2), z_im * b2);
-            let (num_re, num_im) = (b0 + (z_re * t_re - z_im * t_im), z_re * t_im + z_im * t_re);
-            let (u_re, u_im) = (a1 + (z_re * a2), z_im * a2);
-            let (den_re, den_im) = (1.0 + (z_re * u_re - z_im * u_im), z_re * u_im + z_im * u_re);
-            let d = den_re * den_re + den_im * den_im;
-            let (mut g_re, mut g_im) = (
-                (num_re * den_re + num_im * den_im) / d,
-                (num_im * den_re - num_re * den_im) / d,
-            );
-            if g_re.hypot(g_im) < MIN_STAGE_GAIN {
-                (g_re, g_im) = (MIN_STAGE_GAIN, 0.0);
-            }
-            let (r, im) = (hr[i], hi[i]);
-            hr[i] = r * g_re - im * g_im;
-            hi[i] = r * g_im + im * g_re;
-        }
+        let c = biquad(s.kinds[st], s.fcs[st], s.qs[st], s.ws[st], rate);
+        apply_stage(&mut hr, &mut hi, &zr, &zi, c);
     }
     Ok((hr, hi))
 }
@@ -168,6 +191,69 @@ mod tests {
 
     fn close(a: f64, b: f64) -> bool {
         (a - b).abs() <= 1e-12 * (1.0 + b.abs())
+    }
+
+    /// Réponse d'un étage `[b0, b1, 0, 0, 0]` pris en z⁻¹ = (0, 1) : g = b0 + j·b1 (dénominateur 1).
+    fn gain_after(b0: f64, b1: f64) -> (f64, f64) {
+        let (mut hr, mut hi) = ([1.0], [0.0]);
+        apply_stage(&mut hr, &mut hi, &[0.0], &[1.0], [b0, b1, 0.0, 0.0, 0.0]);
+        (hr[0], hi[0])
+    }
+
+    #[test]
+    fn stage_gain_floor_decision_matches_hypot_in_and_around_the_ambiguous_band() {
+        // sûrement sous le plancher, dans la zone ambiguë (de part et d'autre de 1e-15), sûrement au-dessus
+        assert_eq!(gain_after(3e-16, 0.0), (MIN_STAGE_GAIN, 0.0));
+        assert_eq!(gain_after(8e-16, 0.0), (MIN_STAGE_GAIN, 0.0));
+        assert_eq!(gain_after(1.5e-15, 0.0), (1.5e-15, 0.0));
+        assert_eq!(gain_after(5e-15, 0.0), (5e-15, 0.0));
+        // |g| = 1,13e-15 > 1e-15 bien que chaque composante soit sous le plancher
+        assert_eq!(gain_after(8e-16, 8e-16), (8e-16, 8e-16));
+        // un gain nul est relevé ; NaN et infini ne sont jamais relevés (comme `hypot(g) < MIN`)
+        assert_eq!(gain_after(0.0, 0.0), (MIN_STAGE_GAIN, 0.0));
+        assert!(gain_after(f64::NAN, 0.0).0.is_nan());
+        assert_ne!(gain_after(f64::INFINITY, 0.0).0, MIN_STAGE_GAIN);
+    }
+
+    #[test]
+    fn stage_gain_floor_matches_hypot_on_many_random_gains() {
+        // xorshift : pas de dépendance ; amplitudes de 1e-17 à 1e-13, sous-normaux, infinis et NaN, tous signes
+        let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        let specials = [
+            0.0,
+            -0.0,
+            1e-310,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+            MIN_STAGE_GAIN,
+            2e-15,
+            5e-16,
+        ];
+        for i in 0..200_000 {
+            let mut pick = |n: u64| {
+                let r = next();
+                if r % 11 == 0 {
+                    specials[(r >> 8) as usize % specials.len()]
+                } else {
+                    let mag = 10f64.powf(-17.0 + 4.0 * ((r >> 11) as f64 / (1u64 << 53) as f64));
+                    if (n ^ r) & 1 == 0 { mag } else { -mag }
+                }
+            };
+            let (b0, b1) = (pick(i), pick(i + 1));
+            if b0 == MIN_STAGE_GAIN && b1 == 0.0 {
+                continue; // la valeur relevée et la valeur d'origine sont alors identiques
+            }
+            // dénominateur 1 : sans plancher la réponse est g ; avec, c'est (MIN, 0). Même décision que `hypot`.
+            let clamped = gain_after(b0, b1) == (MIN_STAGE_GAIN, 0.0);
+            assert_eq!(clamped, b0.hypot(b1) < MIN_STAGE_GAIN, "b0={b0:e} b1={b1:e}");
+        }
     }
 
     #[test]

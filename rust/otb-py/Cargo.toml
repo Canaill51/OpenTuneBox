@@ -10,6 +10,7 @@ name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
+otb-analysis = { path = "../otb-analysis" }
 otb-decoder = { path = "../otb-decoder" }
 otb-dsp = { path = "../otb-dsp" }
 otb-log = { path = "../otb-log" }
