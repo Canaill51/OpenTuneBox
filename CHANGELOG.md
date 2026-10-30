@@ -10,6 +10,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Les lissages, la fenêtre de Hann et l'intercorrélation ne passent plus par scipy mais par `analysis/_numeric.py` (numpy seul, écart à scipy ≈ 1e-14 relatif) ; les 4 noyaux numba des filtres Betaflight sont réécrits en Rust (`rust/otb-dsp`, identiques à numba au bit près, sauf la réponse en fréquence : 1e-15 relatif). scipy, numba et llvmlite (≈ 350 Mo installés) ne sont plus nécessaires à l'application (dossier de l'exécutable Linux : 206 Mo au lieu de 463 Mo) : ils passent dans l'extra `dev`, comme références des tests (D-032).
 
 ### Ajouté
+- `golden.py record-modules` et `check-modules` : références par module (entrées et sorties de chaque fonction publique de `analysis/` et `log/`, fichiers npz) pour le comparateur Rust (D-035).
 - `PidTerms` déplacé de `analysis/loop.py` vers `log/pid_terms.py` (réexporté par `loop.py`, comportement inchangé) : prépare le noyau Rust autonome (D-035).
 - `rust/otb-format` : formats de nombres de Python reproduits en Rust (`{:.2f}`, `%g`, `repr`, `round`), identiques sur 12 M de cas ; générateur `scripts/format_cases.py` (D-035, L-044).
 - Prototype d'interface egui (`rust/otb-spike-egui`, jetable, hors CI) sur un vrai log : verdict de l'étape E1 de la migration, aucun point bloquant (D-035, L-043).
