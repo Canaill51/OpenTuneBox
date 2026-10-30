@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
-enum Item {
+pub(crate) enum Item {
     F(f64),
     /// Tableau `float32` (bits `f32`).
     A32(Vec<f32>),
@@ -35,7 +35,7 @@ enum Item {
     C(Vec<(f64, f64)>, f64),
 }
 
-type Flat = BTreeMap<String, Item>;
+pub(crate) type Flat = BTreeMap<String, Item>;
 
 /// Sections de la couche déjà portées en Rust (les autres sont ignorées).
 pub const PORTED: [&str; 7] = ["period", "datasets", "stats", "delay", "motors", "step", "series"];
@@ -442,7 +442,7 @@ fn same_bits(a: f64, b: f64) -> bool {
     a.to_bits() == b.to_bits() || (a.is_nan() && b.is_nan())
 }
 
-fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<String> {
+pub(crate) fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<String> {
     let bad = |what: String| Some(format!("{key} : {what}"));
     match got {
         Item::F(g) => {
@@ -654,7 +654,7 @@ pub struct AnalysisReport {
     pub failures: Vec<String>,
 }
 
-fn stem(rel: &str, session: i64) -> String {
+pub(crate) fn stem(rel: &str, session: i64) -> String {
     format!("{}.{session}.npz", rel.replace('/', "__"))
 }
 

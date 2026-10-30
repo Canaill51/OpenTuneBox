@@ -296,6 +296,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "otb-advisor"
+version = "0.8.0"
+dependencies = [
+ "otb-analysis",
+ "otb-decoder",
+ "otb-dsp",
+ "otb-format",
+ "otb-log",
+ "serde_json",
+]
+
+[[package]]
 name = "otb-analysis"
 version = "0.8.0"
 dependencies = [
@@ -340,6 +352,7 @@ dependencies = [
 name = "otb-parity"
 version = "0.8.0"
 dependencies = [
+ "otb-advisor",
  "otb-analysis",
  "otb-decoder",
  "otb-dsp",

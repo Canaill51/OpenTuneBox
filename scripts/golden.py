@@ -9,6 +9,7 @@ Usage : golden.py record DOSSIER [--limit N] [--sample N] [-j PROCESSUS]
         golden.py record-sliders DOSSIER [--limit N]   (curseurs de toutes les sessions : golden_sliders.py)
         golden.py record-flightlog DOSSIER [--limit N] [-j PROCESSUS]   (journaux de vol : golden_flightlog.py)
         golden.py record-analysis DOSSIER [--limit N] [-j PROCESSUS]   (analyses de vol de toutes les sessions : golden_analysis.py)
+        golden.py record-advisor DOSSIER [--limit N] [-j PROCESSUS]   (rapport et diagnostic du bruit de l'assistant : golden_advisor.py)
         golden.py check-modules  DOSSIER [--limit N] [--sample N]   (réenregistre dans DOSSIER.new, compare le contenu)
 
 DOSSIER : où ranger les références, hors du dépôt (par exemple `$OTB_LOGS/golden`). Trois couches :
@@ -188,7 +189,7 @@ def check_tools(files, root, out_dir, sample, rtol):
 def main():
     argv = sys.argv[1:]
     if len(argv) < 2 or argv[0] not in ("record", "check", "record-modules", "check-modules", "record-header", "record-settings", "record-sliders", "record-flightlog",
-                                                  "record-analysis"):
+                                                  "record-analysis", "record-advisor"):
         sys.exit(__doc__)
     mode, out_dir = argv[0], argv[1]
     opt = lambda name, default, cast: cast(argv[argv.index(name) + 1]) if name in argv else default  # noqa: E731
@@ -200,6 +201,11 @@ def main():
     if mode == "record-flightlog":
         from golden_flightlog import record_flightlog
         record_flightlog(files, root, out_dir, jobs)
+        from opentunebox.gui.app import hard_exit  # L-019
+        hard_exit(0)
+    if mode == "record-advisor":
+        from golden_advisor import record_advisor
+        record_advisor(files, root, out_dir, jobs)
         from opentunebox.gui.app import hard_exit  # L-019
         hard_exit(0)
     if mode == "record-analysis":

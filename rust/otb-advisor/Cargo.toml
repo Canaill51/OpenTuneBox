@@ -1,0 +1,16 @@
+[package]
+name = "otb-advisor"
+description = "Assistant de réglage (advisor/ de Python) : profils de taille, règles, diagnostic du bruit, réglage de la réponse indicielle (phase 5a, D-035) ; Rust pur"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+otb-analysis = { path = "../otb-analysis" }
+otb-dsp = { path = "../otb-dsp" }
+otb-format = { path = "../otb-format" }
+otb-log = { path = "../otb-log" }
+
+[dev-dependencies]
+serde_json = "1"
+otb-decoder = { path = "../otb-decoder" }

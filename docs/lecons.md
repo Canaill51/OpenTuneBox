@@ -60,6 +60,15 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-060 : `\w`, `\d` et `\s` de Python ne sont pas `is_alphanumeric`, `is_numeric` ni `is_whitespace` de Rust
+- **Symptôme** — 2026-10-30 (5a-1, `profiles.py`) : le premier essai de `\w` par `c == '_' || c.is_alphanumeric()` diffère de Python pour **6 167 caractères** sur 1,1 M de points
+  de code (premier : U+0345, un signe combinant) ; `\s` diffère par U+001C à U+001F (`str.isspace` les compte, pas `White_Space`).
+- **Cause** — Rust prend la propriété Unicode `Alphabetic` (qui contient des signes combinants) et `Numeric` (qui contient `No` et `Nl`) ; Python prend les catégories `L*` et `Nd`
+  (`isalnum`), et sa version d'Unicode (16.0 pour Python 3.14) n'est pas celle de Rust.
+- **Règle** — une classe de caractères d'expression régulière se reproduit par **table générée depuis Python** (`scripts/profiles_cases.py TABLES.rs` → `src/pyclasses.rs`) et se
+  vérifie sur tous les points de code ; jamais par une fonction de la bibliothèque standard « qui a l'air pareille ». `\d` sert aussi à `float()` : un chiffre Unicode se lit.
+- **Preuve** — `rust/otb-advisor/tests/profiles.rs` (`classes_de_caracteres_de_python` : `\d`, `\s`, `\w` sur les 1 114 112 points ; `minuscules_comme_python`).
+
 ### L-059 : « identique au bit près » après une FFT n'est vrai que sur le poste qui a écrit la référence ; la CI Windows est la seule preuve
 - **Symptôme** — 2026-10-30 (PR 4c-B) : la CI Windows échoue sur `step_response "a : termes PID, fenêtres de 2 s" : réponses : élément 0` : Rust −4,654068096933931e-4,
   Python −4,6540680969330825e-4 (écart relatif 1,8e-12) ; Linux : 0 écart.
@@ -739,6 +748,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-060 | `\w`, `\d`, `\s` de Python ≠ `is_alphanumeric`, `is_numeric`, `is_whitespace` de Rust : table générée depuis Python, vérifiée sur tous les points de code | Outillage |
 | L-059 | « Identique au bit près » après une FFT : vrai sur le poste des références seulement ; tolérance dans les tests de la CI, relire toute la sortie Windows (cargo s'arrête au 1er échec) | Outillage |
 | L-058 | Ordre des sommes de numpy : `x[..., masque]` et matrice d'une colonne sont « Fortran », somme par paires sur l'axe 0 (≥ 8 valeurs) | Analyses |
 | L-057 | Cas aléatoires qui n'atteignent jamais le régime valide : seuils libres ; phases lentes, puissances voisines, compter les cas non vides | Outillage |
