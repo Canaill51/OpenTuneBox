@@ -60,6 +60,19 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-051 : le produit complexe de numpy utilise le FMA du processeur ; en Rust, `mul_add` redonne ses bits, mais pas sur toute machine
+- **Symptôme** — 2026-10-30 (4c-0) : `Σ conj(X)·Y` (spectres croisés de `loop_spectra`) recalculé en Rust avec `a*b + c*d` n'est identique à
+  numpy que pour 1 176 valeurs sur 2 002 (écart relatif jusqu'à 5,8e-14 après les sommes).
+- **Cause** — mesurée sur ce poste (banc `rust/otb-dsp/examples/banc_4c0.rs`) : avec `re = a.re.mul_add(b.re, a.im*b.im)` et
+  `im = a.re.mul_add(b.im, -(a.im*b.re))`, les 2 002 valeurs sont identiques. NumPy multiplie donc les complexes avec des opérations
+  fusionnées ici. Que ce soit le cas sur un processeur sans FMA n'est **pas vérifié** : traiter ces bits comme dépendants du poste (L-048).
+- **Règle** — reproduire le produit complexe de numpy avec `mul_add` (fusion exacte, y compris sans instruction matérielle), mais ne jamais
+  exiger plus qu'une tolérance sur ce qui en dépend ; exiger l'égalité exacte des décisions discrètes en aval (L-050).
+  Autres primitives mesurées au même banc : division complexe (Smith) identique si le diviseur est réel (écart ≤ 1,7e-15 relatif sinon),
+  `np.cumsum` complexe et `np.gradient(f, x)` (formule à pas variable) identiques au bit près, `|z|` (`hypot`), `|z|²` et `angle`
+  (`atan2`) à ≤ 6,3e-16 relatif près (1 à 33 % de valeurs diffèrent du dernier bit).
+- **Preuve** — `cargo run --release -p otb-dsp --example banc_4c0 -- DOSSIER` (entrées et attendus : script numpy du dossier temporaire).
+
 ### L-050 : une batterie de mutations n'est lisible qu'avec les vraies tolérances, des données qui atteignent chaque branche et un outil sûr
 - **Symptôme** — 2026-10-30 (4b-4) : 14 mutations « survivaient » dont des erreurs franches (plafond du rapport, fenêtre minimale) ;
   plus tard, un chemin de sauvegarde mal recopié a **empilé** plusieurs mutations dans `bf_filters.rs`.
@@ -635,6 +648,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-051 | Produit complexe de numpy = FMA du processeur : `mul_add` en Rust, tolérance sur l'aval, décisions discrètes exactes | Outillage |
 | L-050 | Batterie de mutations : tolérances finales d'abord, données qui atteignent chaque branche, outil de mutation qui refuse sans sauvegarde | Outillage |
 | L-049 | Parité Rust contre un étalon qui appelle déjà le noyau Rust : 0 écart ne prouve que la colle ; frontières exactes épinglées par un test unitaire | Outillage |
 | L-048 | Étalon numpy dépendant du processeur (`exp` AVX-512 ≠ `math.exp` pour 4,5 %) : `exp`, `cos`, `log10`, FFT à tolérance, jamais bit pour bit | Outillage |
