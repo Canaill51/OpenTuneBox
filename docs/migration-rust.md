@@ -131,4 +131,5 @@ et HTML.
 | 3c | Abandonnée le 2026-10-30 (D-034) : la construction des chaînes de filtres pèse 4,0 % de l'assistant à un fil (mesure sans profileur), gain maximal 1,04× ; mémorisation essayée en prototype : 1,06× |
 | E0 | Décision D-035 écrite le 2026-10-30 (egui + egui_plot sous réserve du prototype, périmètre complet, noyau Rust autonome) ; W-019 repris |
 | E1 | Fait le 2026-10-30 (branche `feat/egui-spike`) : prototype `rust/otb-spike-egui` sur un vrai log de 407 334 points ; verdict ci-dessous : aucun point bloquant. Reste à voir : essai à la main de la fenêtre de fichiers, Windows et macOS |
-| E2, 4 à 7 | à faire (D-035) |
+| E2 | En cours. Fait le 2026-10-30 : formats de nombres (`rust/otb-format`, 12 M de cas ≈ 1 M de valeurs identiques à Python, L-044). Reste : `PidTerms` sorti de `loop.py`, `record-modules`, `otb-parity`, tag `python-etalon` |
+| 4 à 7 | à faire (D-035) |

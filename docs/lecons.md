@@ -60,6 +60,16 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-044 : reproduire les textes de nombres de Python en Rust : `round`, `%g`, `repr`
+- **Symptôme** — 2026-10-30 (E2) : sur 12 M de cas, `f64::round` et la sortie courte `{:e}` de Rust différaient de Python.
+- **Cause** — mesurée : (1) `f64::round` arrondit les moitiés vers l'extérieur, `round` de Python vers le pair ; (2) Rust n'a pas
+  de `%g` ; (3) sur une égalité exacte à 16 chiffres (ex. 696994262879799.25, valeurs ≥ 5·10¹⁴), Rust écrit …799.3, Python
+  …799.2 (chiffre pair) ; (4) `round` de Python rend un entier sans limite, pas un `i64`.
+- **Règle** — passer par `rust/otb-format` (`fixed`, `percent`, `general`, `repr`, `round_half_even`, `round_digits`), jamais
+  `format!` ni `round` directement dans un texte comparé à l'étalon. `{:.N}` seul (décimales fixes) est identique à Python.
+- **Preuve** — `rust/otb-format/tests/cas.rs` : `cas.tsv` (4 320 cas, CI) ; `OTB_FORMAT_CASES` pour 12 M de cas
+  (`scripts/format_cases.py SORTIE.tsv 12000000`).
+
 ### L-043 : egui 0.37 : trois pièges vus pendant le prototype d'interface (E1)
 - **Symptôme** — 2026-10-30 : (1) le thème « clair » s'affichait sombre dans la capture ; (2) la ligne d'un graphique ne se
   laissait pas saisir à la souris (le test de glisser échouait, coupure inchangée) ; (3) `TopBottomPanel` et
@@ -544,6 +554,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-044 | Textes de nombres Python en Rust : `round` au pair, `%g` et `repr` à refaire (`otb-format`) | Analyses |
 | L-043 | egui 0.37 : thème appliqué au cadre suivant, glisser cherché au point pressé, panneaux fusionnés en `Panel` | Interface |
 | L-042 | Reproduire numpy au bit près : `np.abs` complexe est SIMD (module pris en Python) ; `np.mean` = +0,0 + somme par paires de tous les éléments | Analyses |
 | L-041 | `motor_hz` est en float32 sur de vrais logs : les noyaux suivent la précision des tableaux d'entrée (NEP 50), jamais float64 d'office | Analyses |

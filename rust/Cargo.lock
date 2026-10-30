@@ -146,6 +146,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "otb-format"
+version = "0.8.0"
+
+[[package]]
 name = "otb-log"
 version = "0.8.0"
 
