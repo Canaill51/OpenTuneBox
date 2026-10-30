@@ -5,8 +5,14 @@
 //! [`nan_mean_rows`]). La FFT et le découpage en fenêtres restent côté Python (numpy, déjà en C).
 
 pub mod bf_filters;
+pub mod datasets;
+pub mod delay;
+pub mod motors;
+pub mod npstat;
+pub mod period;
 pub mod sliders;
 pub mod spectral;
+pub mod stats;
 
 use otb_dsp::{K_NOTCH, apply_stage, biquad, pairwise_sum, unit_delays};
 use rayon::prelude::*;

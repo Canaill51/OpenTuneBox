@@ -5,6 +5,7 @@
 
 #![recursion_limit = "512"] // le grand `json!` des réglages
 
+pub mod analysis_layer;
 pub mod compare;
 pub mod decoded;
 pub mod flightlog_digest;

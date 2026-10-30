@@ -60,6 +60,78 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-056 : comparer en relatif une valeur qui est le résidu d'arrondi d'un zéro exact échoue sur une autre libm (CI Windows)
+- **Symptôme** — 2026-10-30 (PR 4c-A) : la CI Windows échoue sur `rpm_attenuation "3h" k=1 nwin=3` : écart relatif case par case 0,93 ; le même test passe
+  sous Linux (écart 2e-16).
+- **Cause** — mesurée : la case est |H| = 9,9e-16 à 250 Hz pour un moteur à 250 Hz, poids 1, c'est-à-dire **au centre exact du notch**, où le vrai module
+  vaut 0. Ce que Python rend est un résidu d'arrondi (cancellation) qui dépend de la libm (`sin`, `cos`, `hypot`) ; sous Windows il vaut autre chose : écart
+  absolu ≈ 1e-15, relatif ≈ 1. J'avais durci la comparaison (« case par case en relatif », relecture 4c-A) sans voir que ses zéros exacts sont des résidus.
+- **Règle** — le module `|H|` d'un notch se compare en **absolu** (rapporté au plus grand élément) ; un spectre (`P × |H|²`) se compare case par case avec un
+  **plancher** (`|g − w| / (|w| + 1e-12 × max|w|)`) : sous le plancher la case est un résidu de zéro exact (≈ 1e-25 du maximum au centre d'un notch). Toute
+  comparaison durcie doit passer par la CI Windows avant d'être crue (L-048).
+- **Preuve** — `rust/otb-analysis/tests/common/mod.rs` (`CELL_FLOOR`, `assert_close_rel`), `rust/otb-parity/src/analysis_layer.rs` (`CELL_FLOOR`) ; spectre après
+  filtre RPM : 3,7e-11 case par case avec plancher ; 3 sabotages (|H|², lobe, Q +1e-7) vus en échec.
+
+### L-055 : la largeur d'une raie sur un spectre plat est une fonction discontinue du dernier bit : prouver le port sur le spectre exact de Python
+- **Symptôme** — 2026-10-30 (4c-3) : sur 147 713 clés du corpus, un seul écart franc (`GF7037-3_carbon_nylon.bbl`, roll) : largeur de la 2ᵉ raie
+  0 Hz en Python, 4,45 Hz en Rust, alors que tout le reste concorde à 1e-11.
+- **Cause** — mesurée : le spectre masqué est plat à 1e-22 près autour de 421,5 Hz (6,9247e-08), `S[k]` dépasse la moyenne du bruit d'**1 ulp**,
+  `level` se confond avec `S[k]` et les deux bords tombent sur `f[k]` (largeur 0) ; au dernier bit près la FFT de Rust donne un spectre un
+  rien différent et la boucle `S[j+step] > level` s'arrête une case plus loin. Donné le spectre **exact de Python**, `half_power_width` de Rust rend 0 aussi :
+  le port est correct, c'est l'entrée qui est dégénérée (raie de hauteur −1e-15 dB : elle n'existe pas).
+- **Règle** — devant un écart franc sur une décision discrète, ne pas relâcher la tolérance : rejouer la **fonction seule sur l'entrée exacte de
+  Python** (spectre sauvegardé) ; si elle concorde, l'écart vient du bruit de l'entrée. Dans la couche corpus, exempter **explicitement et
+  compter** les largeurs de raies dont la hauteur de référence est < 1e-6 dB (ici 1 largeur sur 6 482, dans 667 sessions ; la hauteur suivante vaut 1,9e-4 dB, 190 fois le seuil). ⚠️ Conséquence pour l'assistant (phase
+  5a) : `dyn_notch_q_need` ignore une largeur nulle (`w > 0`) mais accepterait 4,45 Hz et rendrait `inf` au lieu de `None` pour une raie inexistante :
+  la parité des conseils (0 session différente sur 630) tranchera. Le nombre d'exemptions est borné (`MAX_EXEMPT` = 1) : au-delà, la vérification échoue. Le test unitaire `largeur_sur_spectre_plat_comme_python` (`motors.rs`, spectre sauvegardé dans `rust/otb-analysis/tests/data/flat_spectrum.json`) rend la preuve vérifiable dans le dépôt.
+- **Preuve** — `rust/otb-parity/src/analysis_layer.rs` (`exempt`), spectre de la session rejoué en Rust : 0 Hz.
+
+### L-054 : un retard par intercorrélation se compare en périodes d'échantillonnage, et sa tolérance se fixe aussi sur le corpus
+- **Symptôme** — 2026-10-30 (4c-2) : sur les cas écrits, l'écart de `xcorr_delay_ms` montait à 100 % (« impulsions identiques », vrai retard nul :
+  Python 2,2e-19 ms, Rust 4,3e-19 ms, du bruit d'arrondi) ; sur le corpus, un retard consigne → gyro du lacet de `HORUS/stock.bbl` dépassait la
+  tolérance de 1e-10 posée d'après les seuls cas écrits (2,6e-10).
+- **Cause** — mesurée : (1) l'écart *relatif* d'un nombre proche de zéro ne veut rien dire ; (2) l'interpolation parabolique divise par
+  `a − 2b + d`, différence de trois valeurs voisines quand le pic est plat, qui amplifie l'arrondi de la FFT (≈ ×1e5 ici) ; les cas écrits sont
+  bien conditionnés, le corpus non.
+- **Règle** — comparer un retard à l'étalon en **périodes d'échantillonnage** (`1000 / fs` ms) avec le plancher d'une période, mesurer l'écart sur les
+  cas écrits **et** sur le corpus avant de fixer la tolérance (ici 1e-8 : un saut d'indice du pic vaut ≥ 1 période, six ordres de grandeur de plus), et
+  vérifier par sabotage que la couche corpus voit encore un changement d'échelle de 1e-7.
+- **Preuve** — `rust/otb-analysis/tests/delay.rs` (`close_samples`), `rust/otb-parity/src/analysis_layer.rs` (`DELAY_TOL`), 5 sabotages vus en échec.
+
+### L-052 : `a[:, masque].mean(axis=1)` additionne dans l'ordre, pas par paires : l'indexation avancée range le résultat « Fortran »
+- **Symptôme** — 2026-10-30 (4c-1) : le déséquilibre des moteurs de `flight_stats` calculé en Rust diffère de 2e-4 relatif (0,08872 contre
+  0,08874 %), bien au-delà d'un dernier bit : la différence `max − moyenne` de deux `float32` voisins amplifie un bit de chaque moyenne.
+- **Cause** — mesurée : `m[:, flying]` (masque sur le 2e axe) a pour drapeaux `c_contiguous = False`, `f_contiguous = True`, pas
+  `(4, 16)` ; `mean(axis=1)` y fait une somme **séquentielle** par ligne (identique au bit près à une boucle `s += x[j]`, différente
+  de la somme par paires d'une ligne contiguë).
+- **Règle** — avant de reproduire une réduction numpy, regarder la disposition en mémoire du tableau (`a.flags`) : un tableau né d'une
+  indexation avancée sur un axe autre que le premier se somme dans l'ordre. Une ligne `m[k]` ou une copie contiguë se somme par paires.
+- **Preuve** — `rust/otb-analysis/src/stats.rs` (moyennes des moteurs en vol), `tests/flight_stats.rs::flight_stats_identique`.
+
+### L-053 : outil de mutation — restaurer avec une date de modification neuve, sinon cargo garde le binaire muté
+- **Symptôme** — 2026-10-30 (4c-1) : `datasets_identiques` échouait sans raison après une batterie de mutations, puis repassait ; la référence
+  « saine » d'un autre essai échouait aussi (journal `debug_1` : le jeu `debug` manquait).
+- **Cause** — mesurée : `shutil.copy2` restaure le fichier **avec l'ancienne date** ; cargo juge le fichier inchangé et ne recompile pas : le
+  binaire reste celui de la dernière mutation (`log.debug.k > 1`). Les résultats de la batterie restent valables (chaque mutation réécrit le
+  fichier, donc recompile tout le crate avec les autres fichiers sains), seul l'état laissé après coup était périmé.
+- **Règle** — l'outil de mutation restaure avec `copyfile` puis `os.utime` (date neuve), vérifie par `cmp`, et la référence est relancée
+  **par son code de sortie** (jamais derrière `| tail`, L-022) avant et après la batterie. Ne jamais lancer `pkill -f MOTIF` dans une commande
+  qui contient ce motif (elle se tue elle-même).
+- **Preuve** — `mut.py` (dossier temporaire de la session), référence relancée après `touch` : code 0.
+
+### L-051 : le produit complexe de numpy utilise le FMA du processeur ; en Rust, `mul_add` redonne ses bits, mais pas sur toute machine
+- **Symptôme** — 2026-10-30 (4c-0) : `Σ conj(X)·Y` (spectres croisés de `loop_spectra`) recalculé en Rust avec `a*b + c*d` n'est identique à
+  numpy que pour 1 176 valeurs sur 2 002 (écart relatif jusqu'à 5,8e-14 après les sommes).
+- **Cause** — mesurée sur ce poste (banc `rust/otb-dsp/examples/banc_4c0.rs`) : avec `re = a.re.mul_add(b.re, a.im*b.im)` et
+  `im = a.re.mul_add(b.im, -(a.im*b.re))`, les 2 002 valeurs sont identiques. NumPy multiplie donc les complexes avec des opérations
+  fusionnées ici. Que ce soit le cas sur un processeur sans FMA n'est **pas vérifié** : traiter ces bits comme dépendants du poste (L-048).
+- **Règle** — reproduire le produit complexe de numpy avec `mul_add` (fusion exacte, y compris sans instruction matérielle), mais ne jamais
+  exiger plus qu'une tolérance sur ce qui en dépend ; exiger l'égalité exacte des décisions discrètes en aval (L-050).
+  Autres primitives mesurées au même banc : division complexe (Smith) identique si le diviseur est réel (écart ≤ 1,7e-15 relatif sinon),
+  `np.cumsum` complexe et `np.gradient(f, x)` (formule à pas variable) identiques au bit près, `|z|` (`hypot`), `|z|²` et `angle`
+  (`atan2`) à ≤ 6,3e-16 relatif près (1 à 33 % de valeurs diffèrent du dernier bit).
+- **Preuve** — `cargo run --release -p otb-dsp --example banc_4c0 -- DOSSIER` (entrées et attendus : script numpy du dossier temporaire).
+
 ### L-050 : une batterie de mutations n'est lisible qu'avec les vraies tolérances, des données qui atteignent chaque branche et un outil sûr
 - **Symptôme** — 2026-10-30 (4b-4) : 14 mutations « survivaient » dont des erreurs franches (plafond du rapport, fenêtre minimale) ;
   plus tard, un chemin de sauvegarde mal recopié a **empilé** plusieurs mutations dans `bf_filters.rs`.
@@ -635,6 +707,12 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-056 | Un résidu d'arrondi de zéro exact (centre d'un notch) ne se compare pas en relatif : absolu pour |H|, plancher pour les spectres ; une comparaison durcie passe par la CI Windows | Outillage |
+| L-055 | Largeur de raie sur spectre plat = fonction discontinue du dernier bit : rejouer la fonction seule sur l'entrée exacte de Python, exempter et compter | Analyses |
+| L-054 | Retard d'intercorrélation : écart en périodes d'échantillonnage ; tolérance mesurée sur les cas écrits ET sur le corpus (pic plat = division mal conditionnée) | Analyses |
+| L-053 | Outil de mutation : restaurer avec une date neuve (`utime`), sinon cargo garde le binaire muté ; référence relancée par code de sortie | Outillage |
+| L-052 | `a[:, masque].mean(axis=1)` est rangé « Fortran » : somme dans l'ordre, pas par paires (`a.flags` avant de reproduire une réduction) | Analyses |
+| L-051 | Produit complexe de numpy = FMA du processeur : `mul_add` en Rust, tolérance sur l'aval, décisions discrètes exactes | Outillage |
 | L-050 | Batterie de mutations : tolérances finales d'abord, données qui atteignent chaque branche, outil de mutation qui refuse sans sauvegarde | Outillage |
 | L-049 | Parité Rust contre un étalon qui appelle déjà le noyau Rust : 0 écart ne prouve que la colle ; frontières exactes épinglées par un test unitaire | Outillage |
 | L-048 | Étalon numpy dépendant du processeur (`exp` AVX-512 ≠ `math.exp` pour 4,5 %) : `exp`, `cos`, `log10`, FFT à tolérance, jamais bit pour bit | Outillage |
