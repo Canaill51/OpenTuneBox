@@ -96,6 +96,12 @@ pub fn equal(expected: &Value, got: &Value, tol: Tol) -> Result<(), String> {
             }
             Ok(())
         }
+        (Slice(a), Slice(b)) => {
+            for (i, (x, y)) in a.iter().zip(b.iter()).enumerate() {
+                at(&format!("tranche[{i}]"), equal(x, y, tol))?;
+            }
+            Ok(())
+        }
         (FlightLog(p, s), FlightLog(q, t)) if p == q && s == t => Ok(()),
         (a, b) => Err(format!(
             "valeurs de natures ou de contenus différents : {} ≠ {}",
@@ -155,6 +161,17 @@ mod tests {
         assert!(equal(&arr(&[f64::NAN]), &arr(&[f64::NAN]), EXACT).is_ok());
         assert!(equal(&arr(&[1.0]), &arr(&[1.0, 1.0]), EXACT).is_err());
         assert!(equal(&Value::Int(1), &F(1.0), EXACT).is_err());
+    }
+
+    #[test]
+    fn les_tranches_se_comparent_borne_par_borne() {
+        let sl = |a: i64, b: i64| Value::Slice(Box::new([Value::Int(a), Value::Int(b), Value::Null]));
+        assert!(equal(&sl(1, 5), &sl(1, 5), EXACT).is_ok());
+        assert!(
+            equal(&sl(1, 5), &sl(1, 6), EXACT)
+                .unwrap_err()
+                .starts_with("tranche[1]")
+        );
     }
 
     #[test]

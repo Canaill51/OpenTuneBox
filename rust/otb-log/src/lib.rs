@@ -6,6 +6,7 @@
 //! conversion entier → float32 arrondie au plus proche, division float32), pas celles « naturelles » de Rust.
 
 pub mod debug_tables;
+pub mod flightlog;
 pub mod modes;
 pub mod settings;
 

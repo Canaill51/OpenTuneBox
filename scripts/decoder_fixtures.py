@@ -8,6 +8,11 @@ tableaux `main main_kind slow gps gps_at events`, noms de champs, statistiques ;
 Python, couverte par `golden.py record-header`). Les cas reprennent `tests/test_bbl_decode.py` (fabrique `tests/bbl_factory.py`),
 plus des copies abîmées d'un vrai log (octets changés, bits inversés, octets retirés ou insérés, fichier coupé ; graine
 fixe). `OTB_BACKEND=python` impose le décodeur numba (l'étalon) : sans lui, ce serait le Rust qui s'attesterait lui-même.
+
+Chaque entrée de `expected.json` est `{"sessions": [empreintes du décodeur], "flightlog": [enregistrements de
+`golden_flightlog.flightlog_record`]}` : les mêmes fichiers servent à prouver `decode_file` (4a-3) et `FlightLog` (4a-5, phase
+de `from_session`). Les scénarios « fl_… » existent pour `FlightLog` : haute résolution, DShot ou PWM, eRPM, repli du debug,
+chirp, voies absentes, trames aberrantes, entiers 32 bits, trous, noms de champs répétés.
 """
 import json
 import os
@@ -21,6 +26,7 @@ sys.path[:0] = [str(HERE), str(HERE.parent / "tests")]
 
 import bbl_factory as bf  # noqa: E402
 from golden import decode_digest  # noqa: E402
+from golden_flightlog import flightlog_file  # noqa: E402
 
 FIELDS = bf.gyro_fields()
 REAL = HERE.parent / "tests" / "data" / "jeno5_5s.bbl"
@@ -91,6 +97,92 @@ def scenarios() -> dict[str, bytes]:
     return out
 
 
+FULL = (["setpoint[0]", "setpoint[1]", "setpoint[2]", "setpoint[3]", "rcCommand[0]", "rcCommand[1]", "rcCommand[2]",
+         "rcCommand[3]", "axisP[0]", "axisP[1]", "axisP[2]", "axisI[0]", "axisI[1]", "axisI[2]", "axisD[0]", "axisD[1]",
+         "axisD[2]", "axisF[0]", "axisF[1]", "axisF[2]", "motor[0]", "motor[1]", "motor[2]", "motor[3]", "eRPM[0]", "eRPM[1]",
+         "eRPM[2]", "eRPM[3]", "gyroUnfilt[0]", "gyroUnfilt[1]", "gyroUnfilt[2]", "debug[0]", "debug[1]", "debug[2]",
+         "debug[3]", "vbatLatest", "amperageLatest", "accSmooth[0]", "accSmooth[1]", "accSmooth[2]"])
+BASE_RAW = {"Firmware revision": "Betaflight 4.5.1 (abc) STM32F7X2", "motor_poles": "14", "motor_pwm_protocol": "6",
+            "acc_1G": "2048", "vbatref": "1680", "rollPID": "45,80,40", "pitchPID": "47,84,46", "yawPID": "45,80,0",
+            "ff_weight": "120,125,120", "debug_mode": "0"}
+
+
+def fl_session(extra, n=300, raw=None, gain=1, slow=(), slow_rows=None, tweak=None, dt=125, seed=1):
+    """Session aux valeurs déterministes pour tous les champs de `gyro_fields(extra)` ; `tweak(k, name, v)` les retouche."""
+    fields = bf.gyro_fields(extra)
+    rng = random.Random(seed)
+    rows = []
+    for k in range(n):
+        row = [k, 1_000_000 + k * dt]
+        for i, f in enumerate(fields[2:]):
+            v = int(80 * gain * __import__("math").sin(k / 9 + i)) + rng.randint(-3, 3)
+            if f.name.startswith(("motor[", "eRPM[")):
+                v = abs(v) * 10 + 100
+            if tweak:
+                v = tweak(k, f.name, v)
+            row.append(v)
+        rows.append(row)
+    return bf.session(fields, rows, raw={**BASE_RAW, **(raw or {})}, slow=list(slow), slow_rows=slow_rows)
+
+
+def flightlog_scenarios() -> dict[str, bytes]:
+    out = {}
+    flags = {0: [0, 0], 40: [1, 1], 120: [3, 1], 200: [7, 1], 260: [1, 1]}
+    out["fl_complet"] = fl_session(FULL, slow=["flightModeFlags", "stateFlags"], slow_rows=flags)
+    out["fl_haute_resolution"] = fl_session(FULL, raw={"blackbox_high_resolution": "1"}, gain=10)
+    out["fl_pwm"] = fl_session(FULL, raw={"motor_pwm_protocol": "0", "motorOutput": "1000,2000"})
+    out["fl_pwm_sortie_haute"] = fl_session(FULL, raw={"motor_pwm_protocol": "0", "motorOutput": "1000,2500"})
+    gyro_only = ["debug[0]", "debug[1]", "debug[2]"]
+    out["fl_gyro_scaled"] = fl_session(gyro_only, raw={"Firmware revision": "Betaflight 4.4.3 (abc) STM32F7X2",
+                                                       "debug_mode": "6"})
+    out["fl_dshot_telemetrie_debug"] = fl_session(["motor[0]", "motor[1]", "motor[2]", "motor[3]", "debug[0]", "debug[1]",
+                                                   "debug[2]", "debug[3]"], raw={"debug_mode_name": "DSHOT_RPM_TELEMETRY"})
+    chirp = ["debug[0]", "debug[1]", "debug[2]", "debug[3]", "rcCommand[0]", "rcCommand[1]", "rcCommand[2]", "rcCommand[3]"]
+    out["fl_chirp_en_mode_angle"] = fl_session(chirp, raw={"debug_mode_name": "CHIRP", "chirp_amplitude_roll": "50",
+                                                           "chirp_amplitude_pitch": "20.5"},
+                                               slow=["flightModeFlags"], slow_rows={0: [3]},
+                                               tweak=lambda k, n, v: (k // 20) % 4 - 1 if n == "debug[1]" else v)
+    out["fl_sans_gaz_du_mixeur"] = fl_session(["setpoint[0]", "setpoint[1]", "setpoint[2]", "rcCommand[0]", "rcCommand[1]",
+                                               "rcCommand[2]", "rcCommand[3]"], tweak=lambda k, n, v: 1500 + v if n == "rcCommand[3]" else v)
+    out["fl_gaz_de_repli_hors_bornes"] = fl_session(
+        ["rcCommand[0]", "rcCommand[1]", "rcCommand[2]", "rcCommand[3]"],
+        tweak=lambda k, n, v: (900, 2100, 1500, 1995, 1004)[k % 5] if n == "rcCommand[3]" else v)
+    out["fl_voies_absentes"] = fl_session([])
+    out["fl_un_axe_pid"] = fl_session(["axisP[1]", "axisD[0]", "axisD[1]", "axisF[2]"])
+    out["fl_une_voie_de_chaque_groupe"] = fl_session(["setpoint[2]", "rcCommand[1]", "debug[2]", "motor[0]", "accSmooth[1]",
+                                                      "gyroUnfilt[2]", "eRPM[0]"])
+    out["fl_erpm_incomplet"] = fl_session(["motor[0]", "motor[1]", "motor[2]", "eRPM[0]", "eRPM[1]"])
+    out["fl_aberrant_minoritaire"] = fl_session(FULL[:12], tweak=lambda k, n, v: 5000 if n == "gyroUnfilt[0]" or (
+        k % 7 == 0 and n == "setpoint[1]") else v)
+    out["fl_aberrant_avec_trames_lentes"] = fl_session(
+        ["setpoint[0]", "setpoint[1]", "setpoint[2]", "setpoint[3]"], slow=["flightModeFlags", "stateFlags"],
+        slow_rows={0: [1, 0], 30: [3, 1], 31: [5, 1], 90: [2, 2], 200: [7, 3]},
+        tweak=lambda k, n, v: 5000 if n == "setpoint[0]" and k in (10, 31, 32, 150) else v)
+    out["fl_aberrant_pid"] = fl_session(FULL[:20], tweak=lambda k, n, v: 70000 if k % 11 == 0 and n == "axisP[0]" else v)
+    out["fl_corrompu_majoritaire"] = fl_session(FULL[:4], tweak=lambda k, n, v: 9000 if n == "setpoint[0]" and k % 3 else v)
+    out["fl_moitie_exacte"] = fl_session(FULL[:4], n=100, tweak=lambda k, n, v: 9000 if n == "setpoint[0]" and k % 2 else v)
+    out["fl_entiers_32_bits"] = fl_session(["motor[0]", "eRPM[0]", "debug[0]", "accSmooth[0]"],
+                                           tweak=lambda k, n, v: (2**31 + 5 + v if k % 4 else -(2**31) - 9 + v) if n == "debug[0]" else v)
+    out["fl_trou_denregistrement"] = fl_session(FULL[:8], n=260, tweak=None).replace(b"", b"")
+    gap = bf.session(bf.gyro_fields(FULL[:8]), [[k, 1_000_000 + k * 125 + (60_000 if k >= 120 else 0), *([k % 17] * 3), 1, 2, 3, 4,
+                                                  5, 6, 7, 8] for k in range(260)], raw=BASE_RAW)
+    out["fl_trou_denregistrement"] = gap
+    out["fl_une_ligne"] = fl_session(FULL[:4], n=1)
+    out["fl_deux_lignes_meme_temps"] = bf.session(bf.gyro_fields(FULL[:4]), [[0, 1_000_000, 1, 2, 3, 4, 5, 6, 7],
+                                                                           [1, 1_000_000, 1, 2, 3, 4, 5, 6, 7],
+                                                                           [2, 1_000_125, 1, 2, 3, 4, 5, 6, 7]], raw=BASE_RAW)
+    out["fl_noms_repetes"] = fl_session(["gyroADC[0]", "setpoint[0]", "setpoint[0]", "setpoint[1]", "setpoint[2]"])
+    out["fl_sans_vbatref_tension_lue"] = fl_session(["vbatLatest", "amperageLatest"], raw={"vbatref": "0"},
+                                                    tweak=lambda k, n, v: 1260 + (v // 40 if n == "vbatLatest" else 0) if n == "vbatLatest" else v)
+    out["fl_batterie_6s_personnalisee"] = fl_session(["vbatLatest"], raw={"vbatref": "2520", "vbatcellvoltage": "330,350,440"})
+    out["fl_mode_horizon"] = fl_session(["rcCommand[0]", "rcCommand[1]", "rcCommand[2]", "rcCommand[3]"],
+                                        slow=["flightModeFlags"], slow_rows={0: [1], 10: [5], 250: [1]})
+    out["fl_indicateurs_negatifs"] = fl_session(["debug[0]"], slow=["flightModeFlags"], slow_rows={0: [2**32 - 1], 60: [2**31 + 1],
+                                                                                           150: [0]})
+    out["fl_deux_sessions"] = fl_session(FULL[:12], n=120) + fl_session(FULL[:12], n=150, seed=2)
+    return out
+
+
 def damaged() -> dict[str, bytes]:
     real = REAL.read_bytes()
     start = real.find(b"\nI", real.find(b"H Product")) + 1  # première trame I après l'en-tête
@@ -121,17 +213,20 @@ def main():
     target = Path(sys.argv[1])
     target.mkdir(parents=True, exist_ok=True)
     expected = {}
-    for name, data in {**scenarios(), **damaged()}.items():
+    for name, data in {**scenarios(), **flightlog_scenarios(), **damaged()}.items():
         path = target / f"{name}.bbl"
         path.write_bytes(data)
         digests = decode_digest(str(path))
         for d in digests:
             d.pop("header")
-        expected[name] = digests
+        expected[name] = {"sessions": digests, "flightlog": flightlog_file(str(path))}
     # le vrai log entier, resté dans tests/data/ (non recopié)
-    expected["@tests/data/jeno5_5s.bbl"] = [{k: v for k, v in d.items() if k != "header"} for d in decode_digest(str(REAL))]
+    expected["@tests/data/jeno5_5s.bbl"] = {
+        "sessions": [{k: v for k, v in d.items() if k != "header"} for d in decode_digest(str(REAL))],
+        "flightlog": flightlog_file(str(REAL))}
     json.dump(expected, open(target / "expected.json", "w", encoding="utf-8"), indent=0, sort_keys=True)
-    print(len(expected), "fichiers,", sum(len(v) for v in expected.values()), "sessions décodées")
+    print(len(expected), "fichiers,", sum(len(v["sessions"]) for v in expected.values()), "sessions décodées,",
+          sum(len(v["flightlog"]) for v in expected.values()), "FlightLog")
 
 
 if __name__ == "__main__":

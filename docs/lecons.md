@@ -60,6 +60,17 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-047 : une mutation « survivante » peut être équivalente, ou ne rien avoir muté
+- **Symptôme** — 2026-10-30 (4a-5) : changer le signe du gradient de `d_term_prefilter` ou le plancher de sa largeur de lissage
+  laissait `check-flightlog` à 0 écart ; deux mutations de la batterie ne changeaient aucun fichier (motif absent après
+  `cargo fmt`), donc comptées « vues » à tort si on lit seulement la sortie.
+- **Cause** — mesurée : le gain `k` de `d_term_prefilter` est ajusté par moindres carrés, donc `raw·k` ne dépend pas du signe de
+  `raw` ; la largeur vaut `max(3, int(fs/60))` ≈ 33, le plancher 3 n'intervient pas.
+- **Règle** — après une mutation, `cmp` le fichier à sa sauvegarde (« PATRON ABSENT » sinon) ; une mutation qui survit se
+  raisonne d'abord (équivalente ?) puis se couvre par un cas ou se note équivalente. Un seuil ou un plafond ne se prouve que
+  par une valeur qui le franchit (gaz de repli : `fl_gaz_de_repli_hors_bornes`), l'égalité exacte aussi (`fl_moitie_exacte`).
+- **Preuve** — `rust/otb-parity/tests/decode_fixtures.rs` ; `scripts/decoder_fixtures.py` (scénarios `fl_…`).
+
 ### L-046 : une couche de parité sur le corpus ne prouve pas les valeurs par défaut
 - **Symptôme** — 2026-10-30 (4a-4) : changer le défaut de `looptime`, `motor_poles` ou `rpm_filter_q` dans `parse_settings` laissait
   `otb-parity check-settings` à 0 différence sur les 680 sessions ; seule la lecture d'une clé (`looptim`) échouait (69 sessions).
@@ -573,6 +584,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-047 | Mutation survivante : équivalente (gain ajusté, plancher inactif) ou motif absent ; seuils prouvés par une valeur qui les franchit | Décodeur et logs |
 | L-046 | Parité sur le corpus : ne prouve pas les défauts, il faut des cas écrits en plus | Décodeur et logs |
 | L-045 | En-tête Blackbox lu comme Python : `strip` (U+001C…), `0x` sans signe, soulignés entre chiffres seulement (`header.rs`) | Décodeur et logs |
 | L-044 | Textes de nombres Python en Rust : `round` au pair, `%g` et `repr` à refaire (`otb-format`) | Analyses |

@@ -207,3 +207,70 @@ pub fn check_settings(dossier: &Path, logs_root: &Path) -> Result<LayerReport, S
     }
     Ok(rep)
 }
+
+/// Tolérance sur `d_term_prefilter` (écart maximal rapporté au plus grand échantillon de l'axe) : ≈ 2 ulp de `f32`. Mesuré
+/// sur le corpus : 0 (identique au bit près) ; BLAS peut différer d'une machine à l'autre. Voir
+/// `docs/migration-rust.md` (phase 4a-5).
+pub const PREFILTER_TOLERANCE: f64 = 1e-7;
+
+pub struct FlightlogReport {
+    pub sessions: usize,
+    pub failures: Vec<String>,
+    /// Plus grand écart relatif de `d_term_prefilter` vu sur le corpus.
+    pub prefilter_worst: f64,
+}
+
+/// Compare `FlightLog` (Rust) à `dossier/flightlog.json` : bits identiques partout, `d_term_prefilter` à tolérance.
+pub fn check_flightlog(dossier: &Path, logs_root: &Path, threads: usize) -> Result<FlightlogReport, String> {
+    let text = std::fs::read_to_string(dossier.join("flightlog.json")).map_err(|e| format!("flightlog.json : {e}"))?;
+    let reference: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let files: Vec<(&String, &Value)> = reference.as_object().ok_or("flightlog.json")?.iter().collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let report = std::sync::Mutex::new(FlightlogReport {
+        sessions: 0,
+        failures: vec![],
+        prefilter_worst: 0.0,
+    });
+    std::thread::scope(|scope| {
+        for _ in 0..threads.max(1) {
+            scope.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some((rel, want)) = files.get(i) else { break };
+                    let want = want.as_array().unwrap();
+                    let mut problems: Vec<String> = Vec::new();
+                    let mut worst = 0.0f64;
+                    match otb_log::flightlog::load(&logs_root.join(rel)) {
+                        Err(e) => problems.push(format!("lecture : {e}")),
+                        Ok(logs) if logs.len() != want.len() => {
+                            problems.push(format!("{} sessions (Python {})", logs.len(), want.len()))
+                        }
+                        Ok(logs) => {
+                            for (lg, w) in logs.iter().zip(want) {
+                                let d =
+                                    crate::flightlog_digest::diff(w, &crate::flightlog_digest::flightlog_digest(lg));
+                                if !d.is_empty() {
+                                    problems.push(format!("session {} : {}", lg.session, d.join(" ; ")));
+                                }
+                                match crate::flightlog_digest::prefilter_deviation(&w["d_term_prefilter"], lg) {
+                                    Ok(x) if x <= PREFILTER_TOLERANCE => worst = worst.max(x),
+                                    Ok(x) => {
+                                        problems.push(format!("session {} : d_term_prefilter écart {x:e}", lg.session))
+                                    }
+                                    Err(e) => problems.push(format!("session {} : d_term_prefilter {e}", lg.session)),
+                                }
+                            }
+                        }
+                    }
+                    let mut r = report.lock().unwrap();
+                    r.sessions += want.len();
+                    r.prefilter_worst = r.prefilter_worst.max(worst);
+                    for p in problems {
+                        r.failures.push(format!("{rel} : {p}"));
+                    }
+                }
+            });
+        }
+    });
+    Ok(report.into_inner().unwrap())
+}

@@ -7,6 +7,7 @@
 
 pub mod compare;
 pub mod decoded;
+pub mod flightlog_digest;
 pub mod layers;
 pub mod registry;
 pub mod settings_json;

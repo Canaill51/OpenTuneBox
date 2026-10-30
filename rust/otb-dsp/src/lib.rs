@@ -21,6 +21,34 @@ pub const MIN_STAGE_GAIN: f64 = 1e-15;
 const CLAMP_SURE_SQ: f64 = 2.5e-31;
 const UNCLAMP_SURE_SQ: f64 = 4e-30;
 
+/// Somme par paires de numpy (`DOUBLE_pairwise_sum`) : blocs de 8 accumulateurs jusqu'à 128 valeurs, coupure en
+/// deux moitiés (multiple de 8) au-delà.
+pub fn pairwise_sum(a: &[f64]) -> f64 {
+    let n = a.len();
+    if n < 8 {
+        return a.iter().fold(-0.0, |s, &v| s + v);
+    }
+    if n <= 128 {
+        let mut r = [a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]];
+        let body = n - (n % 8);
+        let mut i = 8;
+        while i < body {
+            for (j, rj) in r.iter_mut().enumerate() {
+                *rj += a[i + j];
+            }
+            i += 8;
+        }
+        let mut res = ((r[0] + r[1]) + (r[2] + r[3])) + ((r[4] + r[5]) + (r[6] + r[7]));
+        for &v in &a[i..] {
+            res += v;
+        }
+        return res;
+    }
+    let mut n2 = n / 2;
+    n2 -= n2 % 8;
+    pairwise_sum(&a[..n2]) + pairwise_sum(&a[n2..])
+}
+
 /// Gain k du PT1 Betaflight : ω/(ω+1) avec ω = 2π·fc/fs (`bf_filters.pt1_gain`, même ordre des opérations).
 pub fn pt1_gain(f_cut: f64, fs: f64) -> f64 {
     let omega = 2.0 * PI * f_cut / fs;
