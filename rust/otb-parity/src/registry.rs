@@ -5,10 +5,11 @@
 
 use crate::value::{Array, Case, Value};
 use otb_analysis::bf_filters::{self, Chain, ChainItem, FilterSpec, Kind, Matrix64, Target, WhatIfCache};
+use otb_analysis::sliders;
 use otb_analysis::spectral::{self, Mode};
 use otb_dsp::numeric;
 use otb_log::flightlog::{FlightLog, PidTerms, Rows};
-use otb_log::settings::{Lowpass, Settings};
+use otb_log::settings::{AxisPid, Lowpass, Settings};
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -1047,6 +1048,150 @@ fn result_is_db(c: &Case) -> bool {
     }
 }
 
+// ---------------------------------------------------------------- sliders (phase 4b-5)
+
+fn axis_pid_value(p: &AxisPid) -> Value {
+    Value::Obj(
+        "AxisPID".into(),
+        vec![
+            ("P".into(), Value::Int(p.p)),
+            ("I".into(), Value::Int(p.i)),
+            ("D".into(), Value::Int(p.d)),
+            ("Dmax".into(), Value::Int(p.dmax)),
+            ("F".into(), Value::Int(p.f)),
+        ],
+    )
+}
+
+fn axis_pids_value(pids: &[AxisPid]) -> Value {
+    Value::List(pids.iter().map(axis_pid_value).collect())
+}
+
+fn axis_pids_arg(v: &Value) -> Result<Vec<AxisPid>, String> {
+    let Value::List(items) = v else {
+        return Err(format!("liste de AxisPID attendue, reçu {v:?}"));
+    };
+    items
+        .iter()
+        .map(|item| {
+            let f = obj_fields(Some(item), "AxisPID")?;
+            let n = |k: &str| int(Some(field(f, k)?), k);
+            Ok(AxisPid {
+                p: n("P")?,
+                i: n("I")?,
+                d: n("D")?,
+                dmax: n("Dmax")?,
+                f: n("F")?,
+            })
+        })
+        .collect()
+}
+
+/// Dictionnaire de curseurs : les valeurs `None` (absentes) sont retirées, comme le fait l'appelant Python de chaque fonction.
+fn sliders_arg(v: Option<&Value>) -> Result<Vec<(String, f64)>, String> {
+    let Some(Value::Dict(items)) = v else {
+        return Err(format!("dict de curseurs attendu, reçu {v:?}"));
+    };
+    let mut out = Vec::new();
+    for (k, val) in items {
+        let Value::Str(k) = k else {
+            return Err(format!("clé de curseur : {k:?}"));
+        };
+        if !matches!(val, Value::Null) {
+            out.push((k.clone(), float(val)?));
+        }
+    }
+    Ok(out)
+}
+
+fn family_arg(c: &Case, pos: usize) -> Result<String, String> {
+    match c.arg(pos, "family") {
+        Some(Value::Str(s)) => Ok(s.clone()),
+        other => Err(format!("family : chaîne attendue, reçu {other:?}")),
+    }
+}
+
+fn s_default_pids(c: &Case) -> Result<Value, String> {
+    Ok(axis_pids_value(&sliders::default_pids(&family_arg(c, 0)?)))
+}
+
+fn s_pids_from_sliders(c: &Case) -> Result<Value, String> {
+    let sl = sliders_arg(c.arg(0, "sliders"))?;
+    let borrowed: Vec<(&str, f64)> = sl.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+    let base = match c.arg(2, "base") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(axis_pids_arg(v)?),
+    };
+    sliders::pids_from_sliders(&borrowed, &family_arg(c, 1)?, base.as_deref()).map(|p| axis_pids_value(&p))
+}
+
+fn s_filters_from_sliders(c: &Case) -> Result<Value, String> {
+    let s = optional_settings(c.arg(3, "settings"))?;
+    let out = sliders::filters_from_sliders(
+        int(c.arg(0, "gyro_mult"), "gyro_mult")?,
+        int(c.arg(1, "dterm_mult"), "dterm_mult")?,
+        s.as_ref(),
+    );
+    Ok(Value::Dict(
+        out.into_iter()
+            .map(|(k, v)| (Value::Str(k.into()), Value::Int(v)))
+            .collect(),
+    ))
+}
+
+fn s_sliders_from_pids(c: &Case) -> Result<Value, String> {
+    let pids = axis_pids_arg(c.arg(0, "pids").ok_or("pids")?)?;
+    let out = sliders::sliders_from_pids(&pids, &family_arg(c, 1)?);
+    Ok(Value::Dict(
+        out.into_iter()
+            .map(|(k, v)| (Value::Str(k.into()), Value::F64(v)))
+            .collect(),
+    ))
+}
+
+/// En-tête (`raw`) d'un `Settings` enregistré : le journal Rust relit tout depuis lui, comme `parse_settings`.
+fn raw_of_settings(v: Option<&Value>) -> Result<BTreeMap<String, String>, String> {
+    let fields = obj_fields(v, "Settings")?;
+    let Value::Dict(items) = field(fields, "raw")? else {
+        return Err("settings.raw : dict attendu".into());
+    };
+    Ok(items
+        .iter()
+        .filter_map(|(k, v)| match (k, v) {
+            (Value::Str(k), Value::Str(v)) => Some((k.clone(), v.clone())),
+            _ => None,
+        })
+        .collect())
+}
+
+fn s_slider_view(c: &Case) -> Result<Value, String> {
+    let st = otb_log::settings::parse_settings(&raw_of_settings(c.arg(0, "settings"))?);
+    let v = sliders::slider_view(&st)?;
+    Ok(Value::Obj(
+        "SliderView".into(),
+        vec![
+            (
+                "values".into(),
+                Value::Dict(
+                    v.values
+                        .into_iter()
+                        .map(|(k, x)| (Value::Str(k.into()), Value::F64(x)))
+                        .collect(),
+                ),
+            ),
+            ("from_header".into(), Value::Bool(v.from_header)),
+            ("consistent".into(), Value::Bool(v.consistent)),
+        ],
+    ))
+}
+
+fn s_cli_commands(c: &Case) -> Result<Value, String> {
+    let sl = sliders_arg(c.arg(0, "sliders"))?;
+    let borrowed: Vec<(&str, f64)> = sl.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+    sliders::cli_commands(&borrowed, &family_arg(c, 1)?)
+        .map(|lines| Value::List(lines.into_iter().map(Value::Str).collect()))
+}
+
 /// Tolérance relative (au plus grand élément) de chaque fonction portée ; 0 = identique au bit près. Fixée en 4b-0, précisée
 /// en 4b-1 à 4b-3 (docs/migration-rust.md) : ce qui passe par `cos`, `exp` ou une FFT s'écarte de numpy au dernier bit.
 pub fn tolerance(function: &str, c: &Case) -> f64 {
@@ -1062,6 +1207,9 @@ pub fn tolerance(function: &str, c: &Case) -> f64 {
         "bf_filters.chain_delay_ms" => 1e-9,
         // filtres récursifs (coefficients sin / cos), puis FFT et dB : voir tests/bf_sim.rs
         "bf_filters.simulate_gyro" | "bf_filters.simulate_dterm" | "bf_filters.whatif_spectrum" => 1e-9,
+        // SVD de Jacobi au lieu de LAPACK, `ln` et `exp` (mesure de 4b-5 dans docs/migration-rust.md)
+        "sliders.sliders_from_pids" => 1e-11,
+        "sliders.slider_view" => 1e-12,
         "spectral.to_db" => 1e-14,
         "spectral.smooth_map" => 1e-14,
         // FFT : amplitude ≈ 4e-16 du plus grand élément (mesuré en 4b-2) ; en dB la dynamique du spectre amplifie l'écart
@@ -1109,6 +1257,12 @@ pub fn lookup(function: &str) -> Option<Port> {
         "bf_filters.whatif_spectrum" => bf_whatif_spectrum,
         "bf_filters.pt1_gain" => pt1_gain,
         "bf_filters.notch_q" => notch_q,
+        "sliders.default_pids" => s_default_pids,
+        "sliders.pids_from_sliders" => s_pids_from_sliders,
+        "sliders.filters_from_sliders" => s_filters_from_sliders,
+        "sliders.sliders_from_pids" => s_sliders_from_pids,
+        "sliders.slider_view" => s_slider_view,
+        "sliders.cli_commands" => s_cli_commands,
         "debug_tables.family" => family,
         "debug_tables.debug_mode_name" => debug_mode_name,
         "modes.mode_names" => mode_names,

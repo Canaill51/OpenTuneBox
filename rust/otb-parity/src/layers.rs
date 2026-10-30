@@ -274,3 +274,134 @@ pub fn check_flightlog(dossier: &Path, logs_root: &Path, threads: usize) -> Resu
     });
     Ok(report.into_inner().unwrap())
 }
+
+/// Tolérances de la couche « curseurs » : mêmes valeurs que `registry::tolerance` (SVD de Jacobi au lieu de LAPACK, `ln`, `exp`).
+const ESTIMATE_RTOL: f64 = 1e-11;
+const VIEW_RTOL: f64 = 1e-12;
+
+fn f64_from_bits(v: &Value) -> Result<f64, String> {
+    let h = v
+        .as_str()
+        .and_then(|s| s.strip_prefix("f64:"))
+        .ok_or("flottant en bits attendu")?;
+    Ok(f64::from_bits(u64::from_str_radix(h, 16).map_err(|e| e.to_string())?))
+}
+
+/// Paires (clé, flottant) de Python comparées à celles de Rust : mêmes clés dans le même ordre, valeurs à `rtol` près.
+fn compare_pairs(what: &str, want: &Value, got: &[(&str, f64)], rtol: f64, worst: &mut f64) -> Result<(), String> {
+    let want = want.as_array().ok_or(format!("{what} : liste attendue"))?;
+    if want.len() != got.len() {
+        return Err(format!("{what} : {} entrées (Python {})", got.len(), want.len()));
+    }
+    for (w, (key, g)) in want.iter().zip(got) {
+        if w[0].as_str() != Some(key) {
+            return Err(format!("{what} : clé {key} (Python {})", w[0]));
+        }
+        let x = f64_from_bits(&w[1])?;
+        let err = (x - g).abs() / x.abs().max(g.abs()).max(1e-300);
+        if x.to_bits() != g.to_bits() && !(x.is_nan() && g.is_nan()) {
+            *worst = worst.max(if x.is_finite() && g.is_finite() {
+                err
+            } else {
+                f64::INFINITY
+            });
+            if err.is_nan() || err > rtol {
+                return Err(format!(
+                    "{what} {key} : Python {x:e}, Rust {g:e} (écart relatif {err:e})"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub struct SlidersReport {
+    pub checked: usize,
+    pub failures: Vec<String>,
+    /// Plus grand écart relatif vu sur l'estimation (`sliders_from_pids`) et sur les valeurs de `slider_view`.
+    pub estimate_worst: f64,
+    pub view_worst: f64,
+}
+
+/// Compare `slider_view`, `sliders_from_pids` et `pids_from_sliders` (Rust) à `dossier/sliders.jsonl`, sur l'en-tête de
+/// chaque session du corpus lu et analysé par Rust.
+pub fn check_sliders(dossier: &Path, logs_root: &Path) -> Result<SlidersReport, String> {
+    use otb_analysis::sliders;
+    let text = std::fs::read_to_string(dossier.join("sliders.jsonl")).map_err(|e| format!("sliders.jsonl : {e}"))?;
+    let mut rep = SlidersReport {
+        checked: 0,
+        failures: vec![],
+        estimate_worst: 0.0,
+        view_worst: 0.0,
+    };
+    let mut cache: Option<(String, Vec<u8>, Vec<usize>)> = None;
+    for line in text.lines() {
+        let rec: Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
+        if rec.get("error").is_some() {
+            continue;
+        }
+        let file = rec["file"].as_str().unwrap().to_string();
+        if cache.as_ref().map(|c| &c.0) != Some(&file) {
+            let data = std::fs::read(logs_root.join(&file)).map_err(|e| format!("{file} : {e}"))?;
+            let starts = find_log_starts(&data);
+            cache = Some((file.clone(), data, starts));
+        }
+        let (_, data, starts) = cache.as_ref().unwrap();
+        let k = rec["session"].as_u64().unwrap() as usize - 1;
+        let end = starts.get(k + 1).copied().unwrap_or(data.len());
+        let st = otb_log::settings::parse_settings(&parse_header(data, starts[k], end).raw);
+        rep.checked += 1;
+        let mut check = || -> Result<(), String> {
+            let view = sliders::slider_view(&st)?;
+            let want = &rec["view"];
+            if want["from_header"].as_bool() != Some(view.from_header)
+                || want["consistent"].as_bool() != Some(view.consistent)
+            {
+                return Err(format!(
+                    "slider_view : origine / cohérence Python {} {}, Rust {} {}",
+                    want["from_header"], want["consistent"], view.from_header, view.consistent
+                ));
+            }
+            compare_pairs(
+                "slider_view",
+                &want["values"],
+                &view.values,
+                VIEW_RTOL,
+                &mut rep.view_worst,
+            )?;
+            let est = sliders::sliders_from_pids(&st.pids, st.family());
+            compare_pairs(
+                "sliders_from_pids",
+                &rec["estimate"],
+                &est,
+                ESTIMATE_RTOL,
+                &mut rep.estimate_worst,
+            )?;
+            let sl: Vec<(&str, f64)> = st.sliders().into_iter().map(|(k, v)| (k, v as f64)).collect();
+            let mode = sl.iter().find(|(k, _)| *k == "mode").map_or(0.0, |(_, v)| *v);
+            let calc = (mode > 0.0)
+                .then(|| sliders::pids_from_sliders(&sl, st.family(), Some(&st.pids)))
+                .transpose()?;
+            let want_calc = rec["calc"].as_array().map(|a| {
+                a.iter()
+                    .map(|p| {
+                        p.as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|x| x.as_i64().unwrap())
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            });
+            let got_calc = calc.map(|c| c.iter().map(|p| vec![p.p, p.i, p.d, p.dmax, p.f]).collect::<Vec<_>>());
+            if want_calc != got_calc {
+                return Err(format!("pids_from_sliders : Python {want_calc:?}, Rust {got_calc:?}"));
+            }
+            Ok(())
+        };
+        if let Err(e) = check() {
+            rep.failures.push(format!("{file} session {} : {e}", rec["session"]));
+        }
+    }
+    Ok(rep)
+}
