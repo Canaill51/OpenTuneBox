@@ -43,15 +43,20 @@ pub const PORTED: [&str; 6] = ["period", "datasets", "stats", "delay", "motors",
 /// Sections portées en partie seulement : une clé de Python que Rust ne produit pas encore n'est pas un écart. `step` : 4c-B(a) rejoue
 /// les marges des boucles mesurées (les spectres, `T`, `std`… viennent aux étapes (b) et (c)) et toute la boucle approchée ; les
 /// métriques et les réponses viennent avec `step` et `step_series`.
-fn in_scope(section: &str, key: &str) -> bool {
+fn in_scope(section: &str, key: &str, py: &HashMap<String, Array>) -> bool {
     if section != "step" {
         return true;
     }
     let Some((_, field)) = key.split_once("].") else {
         return false;
     };
-    // `notes` : ajoutées par `step` et `loop_from_terms` (repli seulement), pas par `loop_from_T`
-    key.starts_with("step.loops[") && !field.starts_with("notes[")
+    // une boucle mesurée garde la bande passante et le pic de suivi de `step_response`, pas encore porté (relus de la référence, non comparés)
+    let measured = key
+        .split_once("].")
+        .and_then(|(lk, _)| py.get(&format!("{lk}].method")))
+        .and_then(|m| m.as_string())
+        .is_some_and(|m| m == open_loop::MEASURED);
+    key.starts_with("step.loops[") && !(measured && matches!(field, "bandwidth_hz" | "tracking_peak_db"))
 }
 
 /// Tolérance des marges et des courbes de la boucle ouverte (`log`, `atan2`, `exp` : L-048). **Mesurée sur les 668 sessions** : 1,9e-15
@@ -174,9 +179,12 @@ fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>, py: &HashMap<String
         // elle ne trouve aucune fenêtre de réponse : la décision n'est alors pas comparée
         let empty = method == open_loop::APPROX && ref_freqs.is_empty();
         let mut measured = None;
+        let mut notes: Vec<String> = Vec::new();
         if !empty && i < 3 {
             let terms = lg.pid_terms(i, sel.clone());
-            if terms.note.is_empty() {
+            if !terms.note.is_empty() {
+                notes.push(terms.note.clone()); // `step_response` ajoute la raison de `PidTerms` : repli sans mesure
+            } else {
                 let (r, y) = (up(&lg.setpoint.row(i)[sel.clone()]), up(&lg.gyro.row(i)[sel.clone()]));
                 let (tp, ti, td, tf) = (up(&terms.p), up(&terms.i), up(&terms.d), up(&terms.f));
                 let inst = terms.instrument.as_ref().map(|v| up(v));
@@ -199,8 +207,13 @@ fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>, py: &HashMap<String
                 let lm = open_loop::loop_from_terms(&r, &y, &tm, lg.fs, approx, 2.0, 20.0, None, br)?;
                 if lm.method == open_loop::MEASURED {
                     measured = Some(lm);
+                } else {
+                    notes = lm.notes.clone(); // la raison du repli, ajoutée par `loop_from_terms`
                 }
             }
+        }
+        for (k, n) in notes.iter().enumerate() {
+            f.insert(format!("{p}.notes[{k}]"), Item::S(n.clone()));
         }
         let m = if measured.is_some() {
             open_loop::MEASURED
@@ -211,8 +224,7 @@ fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>, py: &HashMap<String
         if let Some(lm) = measured {
             f.insert(format!("{p}.band_hz[0]"), Item::F(lm.band_hz.0));
             f.insert(format!("{p}.band_hz[1]"), Item::F(lm.band_hz.1));
-            f.insert(format!("{p}.bandwidth_hz"), Item::F(lm.bandwidth_hz));
-            f.insert(format!("{p}.tracking_peak_db"), Item::F(lm.tracking_peak_db));
+            // `bandwidth_hz` et `tracking_peak_db` viennent de `step_response` (relus de la référence plus haut) : pas comparés ici
             f.insert(format!("{p}.freqs"), Item::A(lm.freqs.clone()));
             f.insert(format!("{p}.T"), Item::C(lm.t.clone(), SPECTRA_LOOP_TOL));
             f.insert(
@@ -737,7 +749,8 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AnalysisReport
             }
         }
         for k in py.keys() {
-            if section_of(k) == section && in_scope(section, k) && !k.ends_with("|_error") && !got.contains_key(k) {
+            if section_of(k) == section && in_scope(section, k, &py) && !k.ends_with("|_error") && !got.contains_key(k)
+            {
                 rep.failures.push(format!("{who} : {k} absente de Rust"));
             }
         }

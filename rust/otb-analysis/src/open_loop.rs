@@ -82,6 +82,9 @@ fn py_max(a: f64, b: f64) -> f64 {
     if b > a { b } else { a }
 }
 
+/// ⚠️ Les fonctions de cette page supposent des entrées que `loop_spectra` produit : grille de fréquences strictement croissante, `valid` de la
+/// longueur de la grille (W-027).
+///
 /// `margins` : marges de phase et de gain, et pic de sensibilité, de la boucle ouverte `l` sur les points `valid`.
 pub fn margins(freqs: &[f64], l: &[C], valid: Option<&[bool]>) -> Result<Margins, String> {
     if l.len() != freqs.len() || valid.is_some_and(|v| v.len() != freqs.len()) {
@@ -327,15 +330,13 @@ impl LoopSpectra {
         self.blocks
             .iter()
             .map(|pair| {
-                let mut kept = pair
+                let kept = pair
                     .iter()
                     .enumerate()
                     .filter(|(b, _)| Some(*b) != leave_out)
                     .map(|(_, v)| v);
-                let Some(first) = kept.next() else {
-                    return vec![(0.0, 0.0); nf];
-                };
-                let mut acc = first.clone();
+                // `v[keep].sum(axis=0)` part de +0,0 (un −0,0 de la partie imaginaire des cases DC et Nyquist devient +0,0)
+                let mut acc = vec![(0.0, 0.0); nf];
                 for v in kept {
                     for (a, x) in acc.iter_mut().zip(v) {
                         *a = cadd(*a, *x);
@@ -477,8 +478,8 @@ pub fn loop_spectra(
         for (k, name) in PAIRS.iter().enumerate() {
             let (a, b) = (sig(name.as_bytes()[0] as char), sig(name.as_bytes()[1] as char));
             // np.sum(conj(X) · Y, axis=0) : produit fusionné par case, puis somme séquentielle sur les fenêtres
-            let mut acc: Vec<C> = (0..nf).map(|j| conj_mul_fma(a[j], b[j])).collect();
-            for wi in 1..nw {
+            let mut acc: Vec<C> = vec![(0.0, 0.0); nf]; // somme de numpy : part de +0,0
+            for wi in 0..nw {
                 for j in 0..nf {
                     acc[j] = cadd(acc[j], conj_mul_fma(a[wi * nf + j], b[wi * nf + j]));
                 }
@@ -779,4 +780,27 @@ pub fn loop_from_terms(
         lm.std = jackknife(&spec, &lm)?;
     }
     Ok(lm)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Python : `LoopSpectra.total()` de blocs valant tous −0,0 rend +0,0 (la somme de numpy part de +0,0) ; mesuré avec numpy 2.
+    #[test]
+    fn la_somme_des_blocs_part_de_plus_zero() {
+        let block = vec![(0.0, -0.0); 4];
+        let spec = LoopSpectra {
+            freqs: vec![0.0, 1.0, 2.0, 3.0],
+            fs: 1000.0,
+            blocks: vec![vec![block.clone(), block.clone(), block]],
+            n_windows: 5,
+            has_d: true,
+        };
+        for leave_out in [None, Some(1)] {
+            for z in spec.total(leave_out).concat() {
+                assert!(z.0.is_sign_positive() && z.1.is_sign_positive(), "{z:?}");
+            }
+        }
+    }
 }
