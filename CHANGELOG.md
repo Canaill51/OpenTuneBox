@@ -10,6 +10,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Les lissages, la fenêtre de Hann et l'intercorrélation ne passent plus par scipy mais par `analysis/_numeric.py` (numpy seul, écart à scipy ≈ 1e-14 relatif) ; les 4 noyaux numba des filtres Betaflight sont réécrits en Rust (`rust/otb-dsp`, identiques à numba au bit près, sauf la réponse en fréquence : 1e-15 relatif). scipy, numba et llvmlite (≈ 350 Mo installés) ne sont plus nécessaires à l'application (dossier de l'exécutable Linux : 206 Mo au lieu de 463 Mo) : ils passent dans l'extra `dev`, comme références des tests (D-032).
 
 ### Ajouté
+- `PidTerms` déplacé de `analysis/loop.py` vers `log/pid_terms.py` (réexporté par `loop.py`, comportement inchangé) : prépare le noyau Rust autonome (D-035).
 - `rust/otb-format` : formats de nombres de Python reproduits en Rust (`{:.2f}`, `%g`, `repr`, `round`), identiques sur 12 M de cas ; générateur `scripts/format_cases.py` (D-035, L-044).
 - Prototype d'interface egui (`rust/otb-spike-egui`, jetable, hors CI) sur un vrai log : verdict de l'étape E1 de la migration, aucun point bloquant (D-035, L-043).
 - Boucles par fenêtre de l'analyse du bruit moteur (hauteur des harmoniques, spectres sans les raies moteur, réponse du filtre RPM) en Rust (`rust/otb-analysis`) : l'assistant est 1,29 fois plus rapide à un fil (666 → 515 ms par session), avec exactement les mêmes constats sur les 630 sessions du corpus (D-034, L-041, L-042).

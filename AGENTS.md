@@ -48,7 +48,7 @@ est unique et que chaque numéro cité existe.
 ```
 src/opentunebox/
   decoder/    décodage binaire BBL (numba, cache=True) → DecodedSession (valeurs brutes) . Moteur par défaut : extension Rust (`OTB_BACKEND=python` : numba, le temps de la migration). L-032
-  log/        FlightLog (unités physiques, courbes en float32 : D-029), settings.py (en-tête normalisé par version), debug_tables.py, modes.py
+  log/        FlightLog (unités physiques, courbes en float32 : D-029), settings.py (en-tête normalisé par version), debug_tables.py, modes.py, pid_terms.py (`PidTerms`)
   analysis/   calculs purs numpy (plus de scipy : `_numeric.py`, D-032 ; filtres Betaflight en Rust, `rust/otb-dsp`) : spectral, step (Wiener), step_series (séries de vols), loop (marges de
               stabilité), delay, bf_filters, sliders, motors, stats, period, datasets (jeux de données analysables)
   advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py),
