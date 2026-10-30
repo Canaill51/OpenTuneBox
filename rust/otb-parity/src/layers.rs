@@ -122,3 +122,52 @@ pub fn check_header(dossier: &Path, logs_root: &Path) -> Result<LayerReport, Str
     }
     Ok(rep)
 }
+
+/// Compare le décodeur Rust (`decode_file`) aux empreintes de `dossier/decoder.json` (sans la clé `header`, voir
+/// `decoded.rs`) ; les fichiers sont cherchés sous `logs_root`, décodés par `threads` fils.
+pub fn check_decoder(dossier: &Path, logs_root: &Path, threads: usize) -> Result<LayerReport, String> {
+    let text = std::fs::read_to_string(dossier.join("decoder.json")).map_err(|e| format!("decoder.json : {e}"))?;
+    let reference: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let files: Vec<(&String, &Value)> = reference.as_object().ok_or("decoder.json")?.iter().collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let report = std::sync::Mutex::new(LayerReport {
+        checked: 0,
+        skipped: 0,
+        failures: vec![],
+    });
+    std::thread::scope(|scope| {
+        for _ in 0..threads.max(1) {
+            scope.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some((rel, want)) = files.get(i) else { break };
+                    let want = want.as_array().unwrap();
+                    let result = match std::fs::read(logs_root.join(rel)) {
+                        Err(e) => Err(format!("lecture : {e}")),
+                        Ok(data) => {
+                            let got = otb_decoder::file::decode_bytes(&data, None);
+                            if got.len() != want.len() {
+                                Err(format!("{} sessions décodées (Python {})", got.len(), want.len()))
+                            } else {
+                                got.iter().zip(want).try_for_each(|(g, w)| {
+                                    let d = crate::decoded::diff(w, g);
+                                    if d.is_empty() {
+                                        Ok(())
+                                    } else {
+                                        Err(format!("session {} : {}", g.index, d.join(" ; ")))
+                                    }
+                                })
+                            }
+                        }
+                    };
+                    let mut r = report.lock().unwrap();
+                    r.checked += want.len();
+                    if let Err(e) = result {
+                        r.failures.push(format!("{rel} : {e}"));
+                    }
+                }
+            });
+        }
+    });
+    Ok(report.into_inner().unwrap())
+}

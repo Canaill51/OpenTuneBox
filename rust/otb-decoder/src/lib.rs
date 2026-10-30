@@ -6,6 +6,7 @@
 //! - une trame I valide resynchronise le flux principal ; les trames P ne sont acceptées que si le flux
 //!   est valide et que le temps / l'itération n'ont pas sauté trop loin.
 
+pub mod file;
 mod frame;
 pub mod header;
 mod reader;
