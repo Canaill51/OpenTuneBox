@@ -136,7 +136,18 @@ maximal 2,4e-10 (inchangé). `tests/test_native_log.py` (245 cas, six mutations 
 Le premier critère visait « moins de mémoire » : atteint seulement après correction (L-040) ; le gain vient d'une
 **seule passe** sur la matrice (L-039).
 
-**Ouvert.** 3b ; W-015 ; W-019.
+**3b, résultats** (2026-10-29, 15 sessions tirées au hasard, 818 s de vol, un fil) : assistant **666 → 515 ms par
+session (1,29×)**, critère ≥ 1,25× atteint. Le gain vient de `harmonic_prominence` (1,9 s → 0,28 s sur le lot), de
+`_masked_spectrum` (0,41 → 0,10 s) et de `rpm_attenuation` (z⁻¹ calculé une fois pour toutes les fenêtres, et plus
+d'appel à `hypot` par case : même décision de plancher de gain, testée dans la zone ambiguë). Sorties **identiques au
+bit près** à l'ancien code (étalon `tests/ref_motors.py`) : 80 comparaisons sur de vrais logs, float32 et float64.
+Parité sur le corpus (`golden.py`) : décodeur 0 différence (499 fichiers), assistant **0 session aux constats
+différents** sur 630, outils 0 différence à `rtol=1e-9` (écart scipy→numpy connu). `tests/test_native_motors.py`
+(675 cas) et huit mutations vues en échec (L-034). Deux pièges coûteux : les fréquences moteur sont en float32 dans de
+vrais logs, et l'ancien code calculait les bandes dans cette précision (L-041) ; `np.abs` complexe et `np.mean` ne se
+reproduisent pas avec `hypot` et une somme naïve (L-042). `FFT` et découpage restent en numpy.
+
+**Ouvert.** 3c (`whatif_spectrum`, 1,4 s sur les 11 s du lot avant 3b : décider d'après cette mesure) ; W-015 ; W-019.
 
 ### D-033 : phase 2b réduite à un pilote : le noyau de `step_response` en Rust ; porter la FFT seule est écarté
 

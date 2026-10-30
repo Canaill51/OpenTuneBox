@@ -126,6 +126,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "otb-analysis"
+version = "0.8.0"
+dependencies = [
+ "otb-dsp",
+ "rayon",
+]
+
+[[package]]
 name = "otb-decoder"
 version = "0.8.0"
 
@@ -146,6 +154,7 @@ name = "otb-py"
 version = "0.8.0"
 dependencies = [
  "numpy",
+ "otb-analysis",
  "otb-decoder",
  "otb-dsp",
  "otb-log",

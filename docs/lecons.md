@@ -60,6 +60,36 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-042 : reproduire numpy au bit près : `np.abs` complexe et `np.mean` ne font pas ce qu'on croit
+- **Symptôme** — 2026-10-29 (phase 3b, D-034) : le port Rust de `rpm_attenuation` différait de 1 ulp de l'ancien code
+  sur 4 811 valeurs de 12 040 (écart max 2,2e-16), puis celui de `harmonic_prominence` de 1 ulp sur 298 fenêtres de 471,
+  alors que chaque étage de calcul était identique.
+- **Cause** — mesurée : (1) `np.abs` d'un tableau complexe ≠ `np.hypot` ≠ `math.hypot` (libm) sur la même entrée ; numpy
+  y emploie une version SIMD (cause **supposée** : `plus grand · √(1 + rapport²)` avec FMA), donc dépendante du
+  processeur ; (2) `np.mean` d'un tableau 1D = `+0,0` plus la somme par paires de **tous** les éléments
+  (blocs de 8 jusqu'à 128 valeurs, coupure en deux au-delà), et non « premier élément + somme par paires du reste ».
+- **Règle** — ne pas refaire en Rust ce que numpy fait avec du SIMD : le noyau rend la réponse complexe et `np.abs`
+  reste en Python (`motors.rpm_attenuation`). Pour une moyenne, reproduire la somme par paires de numpy
+  (`otb-analysis:numpy_mean`) ; la vérifier sur toutes les longueurs, pas sur quelques-unes. Une somme sur l'axe 0
+  d'une matrice, elle, est séquentielle ligne après ligne : plus simple à reproduire.
+  Vérifié avec numpy 2.5.4 sur un processeur AVX-512 : une autre version ou un autre processeur peut changer ces bits
+  (le test de `numpy_mean` échouerait alors bruyamment).
+- **Preuve** — `tests/test_native_motors.py` (`numpy_mean` égal à `a.mean()` pour les longueurs 0 à 2000, trois échelles).
+
+### L-041 : sur de vrais logs, `motor_hz` est en float32 : l'ancien code calculait les bandes en float32 (NumPy 2)
+- **Symptôme** — 2026-10-29 (phase 3b) : en lisant l'ancien code avant de le porter, `h * lo_m[k]`, `marge * lo_m[k]`,
+  `fs - b`, `1.3 * fc` et `b // fs` portent sur des `np.float32` ; un port tout float64 aurait échoué silencieusement.
+- **Cause** — mesurée : `FlightLog.motor_hz` est en float32 (courbes en float32, D-029) ; avec NumPy 2 (NEP 50) un scalaire
+  Python prend la précision du tableau, dans les opérations **et dans les comparaisons** (`np.float32(0,1) == 0,1` est vrai),
+  alors que `float32 − float64` donne du float64. Effet réel faible mais non nul : sur 21 sessions du corpus, l'étalon
+  rend un `_masked_spectrum` différent selon qu'on lui donne `motor_hz` en float32 ou converti en float64 (1 session sur 21).
+- **Règle** — un noyau qui reprend une expression numpy suit la **précision des tableaux d'entrée**, pas celle de Python :
+  `otb-analysis` est générique (`Real`, f32 et f64) et `motors._mhz_args` ne convertit jamais ces tableaux en float64.
+  Avant de porter, afficher le `dtype` réel des entrées sur un vrai log, pas sur les logs synthétiques (ils n'ont pas
+  d'eRPM : `motor_hz` y est estimé en float64).
+- **Preuve** — `tests/test_native_motors.py` (cas float32 = principal, trois tests dont les bords tombent à quelques ulps
+  d'une case, vérifiant que l'étalon float32 ≠ float64 puis que le noyau suit chacun).
+
 ### L-040 : des vues d'un même lot gardent en vie toutes ses lignes, même celles que plus rien n'utilise
 - **Symptôme** — relu avant la fusion (phase 3a, D-034) : `from_session` lisait les 47 colonnes utiles en une passe et
   rendait des VUES du lot (gyro, PID, debug…) : les 14 lignes déjà recopiées ailleurs (consigne, moteurs, eRPM, tension,
@@ -498,6 +528,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-042 | Reproduire numpy au bit près : `np.abs` complexe est SIMD (module pris en Python) ; `np.mean` = +0,0 + somme par paires de tous les éléments | Analyses |
+| L-041 | `motor_hz` est en float32 sur de vrais logs : les noyaux suivent la précision des tableaux d'entrée (NEP 50), jamais float64 d'office | Analyses |
 | L-040 | Vues d'un lot lu en une passe : elles gardent toutes ses lignes vivantes ; lot 1 = ce que l'objet garde, lot 2 = temporaire | Décodeur et logs |
 | L-039 | Mesure d'un noyau Rust : `tracemalloc` ne voit pas ses tableaux ; un chargement par processus, `VmRSS`/`VmHWM`, temps sans profileur | Outillage |
 | L-038 | Rayon : un enfant créé par `fork` se bloque ; `RAYON_NUM_THREADS=1` par `Pool(initializer=…)`, pas dans le parent | Outillage |

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass
 
 import numpy as np
 
+from .. import _native
 from ..log.flightlog import FlightLog
-from .bf_filters import _K_NOTCH, _sections_response, rpm_notch_freq_weight
+from .bf_filters import rpm_notch_freq_weight
 from .spectral import _seg_spectra, _segments, to_db
 
 
@@ -111,23 +111,27 @@ def harmonic_prominence(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int =
     if segs.shape[0] == 0:
         return np.full(n_harm, np.nan)
     f, P = _seg_spectra(segs, fs, "psd")
-    df = f[1] - f[0]
     lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].mean(axis=1)
     hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].mean(axis=1)
     mean_m = _segments(mhz.mean(axis=0), L, hop, breaks)[0].mean(axis=1)
+    # boucle fenêtres × harmoniques en Rust (moyennes de la raie et du bruit voisin) ; dB et médiane restent ici
+    line, floor, used = _native.harmonic_levels(f, P, *_mhz_args(lo_m, hi_m, mean_m), n_harm, min_hz, float(fs))
     out = []
-    for h in range(1, n_harm + 1):
-        vals = []
-        for k in range(P.shape[0]):
-            fc = h * mean_m[k]
-            if fc < min_hz or 1.3 * fc > 0.95 * fs / 2:
-                continue
-            line = (f >= h * lo_m[k] - df) & (f <= h * hi_m[k] + df)
-            floor = ((f >= 0.7 * fc) & (f <= 0.85 * fc)) | ((f >= 1.15 * fc) & (f <= 1.3 * fc))
-            if line.any() and floor.sum() >= 2:
-                vals.append(to_db(P[k, line].mean()) - to_db(P[k, floor].mean()))
-        out.append(float(np.median(vals)) if vals else np.nan)
+    for h in range(n_harm):
+        vals = to_db(line[h][used[h]]) - to_db(floor[h][used[h]])
+        out.append(float(np.median(vals)) if vals.size else np.nan)
     return np.array(out)
+
+
+def _mhz_args(*arrays: np.ndarray) -> list[np.ndarray]:
+    """Fréquences moteur par fenêtre pour les noyaux Rust : float32 ou float64 **tels quels**, jamais convertis.
+    ⚠️ Les vrais logs les ont en float32 et l'ancien code calculait les bandes dans cette précision (NEP 50) ;
+    les convertir en float64 décalerait les bandes de quelques bits (L-041). Autre type : float64.
+    `fs` doit être un flottant Python (comme `log.fs`) : les noyaux le convertissent à la précision de ces tableaux,
+    ce que fait NumPy 2 d'un scalaire Python mais pas d'un `np.float64`."""
+    if all(a.dtype in (np.float32, np.float64) for a in arrays) and len({a.dtype for a in arrays}) == 1:
+        return [np.ascontiguousarray(a) for a in arrays]
+    return [np.ascontiguousarray(a, dtype=np.float64) for a in arrays]
 
 
 def rpm_weight_needed(prominence_db: float) -> float:
@@ -152,20 +156,18 @@ def rpm_attenuation(f: np.ndarray, motor_hz: np.ndarray, settings) -> np.ndarray
     """|H| des notchs RPM du firmware aux fréquences f, forme (fenêtres, len(f)) ; motor_hz (moteurs, fenêtres)."""
     q, rate = settings.rpm_q / 100.0, settings.pid_rate_hz
     f = np.ascontiguousarray(f, dtype=np.float64)
-    out = np.ones((motor_hz.shape[1], len(f)))
     # fréquence et poids de chaque notch, (harmoniques, moteurs, fenêtres), calculés en une fois
     fw = [rpm_notch_freq_weight(motor_hz, h, settings, rate) for h in range(settings.rpm_harmonics)]
     fr = np.stack([x[0] for x in fw])
     w = np.broadcast_to(np.stack([x[1] for x in fw]), fr.shape)
-    for k in range(motor_hz.shape[1]):
-        # même ordre d'étages que l'ancien produit (moteur puis harmonique) ; poids nul = étage omis
-        fk, wk = fr[:, :, k].T.ravel(), w[:, :, k].T.ravel()
-        on = wk > 0
-        n = int(on.sum())
-        if n:
-            out[k] = np.abs(_sections_response(np.full(n, _K_NOTCH, np.int64), fk[on], np.full(n, q), wk[on],
-                                               np.full(n, float(rate)), f))
-    return out
+    # (fenêtres, moteurs × harmoniques), moteur puis harmonique : l'ordre d'étages de l'ancien produit ; un poids nul
+    # omet l'étage (fait par le noyau)
+    n_win, n_stage = motor_hz.shape[1], fr.shape[0] * fr.shape[1]
+    fk = np.ascontiguousarray(fr.transpose(2, 1, 0).reshape(n_win, n_stage), dtype=np.float64)
+    wk = np.ascontiguousarray(w.transpose(2, 1, 0).reshape(n_win, n_stage), dtype=np.float64)
+    # ⚠️ noyau parallèle (rayon) : un processus créé par `fork` APRÈS cet appel se bloque (L-038)
+    # ⚠️ module pris par numpy ici, pas en Rust : `np.abs` complexe est SIMD et dépend du processeur (L-042)
+    return np.abs(_native.rpm_response(f, fk, wk, float(q), float(rate)))
 
 
 def rpm_filtered_spectrum(x: np.ndarray, mhz: np.ndarray | None, fs: float, rpm_settings=None, seg_ms: float = 300.0,
@@ -187,13 +189,11 @@ def rpm_filtered_spectrum(x: np.ndarray, mhz: np.ndarray | None, fs: float, rpm_
         lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].min(axis=1)  # étendue parcourue pendant la fenêtre
         hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].max(axis=1)
         lobe = 2 * fs / L  # demi-largeur du lobe principal de la fenêtre de Hann
-        for k in range(P.shape[0]):
-            for h in range(1, rpm_settings.rpm_harmonics + 1):
-                a, b = h * lo_m[k] - lobe, h * hi_m[k] + lobe
-                P[k, (f >= fs - b) & (f <= fs - a)] = np.nan  # image repliée si le log est trop lent
-    with np.errstate(all="ignore"), warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        return f, np.nanmean(P, axis=0)
+        # images repliées des harmoniques (log plus lent que la boucle) retirées, puis moyenne des fenêtres : Rust
+        return f, _native.fold_mean(f, np.ascontiguousarray(P), *_mhz_args(lo_m, hi_m), rpm_settings.rpm_harmonics,
+                                    float(lobe), float(fs))
+    return f, _native.fold_mean(f, np.ascontiguousarray(P), np.zeros(P.shape[0]), np.zeros(P.shape[0]), 0, 0.0,
+                                float(fs))
 
 
 def dyn_notch_targets(x: np.ndarray, mhz: np.ndarray | None, fs: float, band: tuple[float, float],
@@ -268,21 +268,13 @@ def _masked_spectrum(x: np.ndarray, mhz: np.ndarray, fs: float, n_harm: int, seg
     f, P = _seg_spectra(segs, fs, "psd")
     lo_m = _segments(mhz.min(axis=0), L, hop, breaks)[0].min(axis=1)
     hi_m = _segments(mhz.max(axis=0), L, hop, breaks)[0].max(axis=1)
-    P = P.copy()
-    for k in range(P.shape[0]):
-        for h in range(1, n_harm + 1):
-            # marge : 5 % de la fréquence moteur pour toutes les harmoniques. Raies ≥ 6 dB de 119 vols stationnaires
-            # du corpus comparées au hasard (2026-10-13) : flancs de la fondamentale jusqu'à 3 % au moins, de la 2e
-            # jusqu'à 1 %, aucun pour la 3e ; l'ancienne marge (5 % de l'harmonique : 10 et 15 % pour la 2e et
-            # la 3e) cachait des raies hors moteurs (docs/assistant.md, « Stratégie de filtrage et vol stationnaire »)
-            a, b = h * lo_m[k] - MOTOR_LINE_MARGIN * lo_m[k], h * hi_m[k] + MOTOR_LINE_MARGIN * hi_m[k]
-            P[k, (f >= a) & (f <= b)] = np.nan
-            for j in range(1, int(b // fs) + 2):  # images repliées |h·f − j·fs| (log plus lent que la boucle)
-                P[k, (f >= j * fs - b) & (f <= j * fs - a)] = np.nan
-                P[k, (f >= a - j * fs) & (f <= b - j * fs)] = np.nan
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        return f, np.nanmean(P, axis=0)
+    # bandes des harmoniques et images repliées retirées, puis moyenne des fenêtres : Rust. Marge : 5 % de la
+    # fréquence moteur pour toutes les harmoniques. Raies ≥ 6 dB de 119 vols stationnaires du corpus comparées au
+    # hasard (2026-10-13) : flancs de la fondamentale jusqu'à 3 % au moins, de la 2e jusqu'à 1 %, aucun pour la 3e ;
+    # l'ancienne marge (5 % de l'harmonique : 10 et 15 % pour la 2e et la 3e) cachait des raies hors moteurs
+    # (docs/assistant.md, « Stratégie de filtrage et vol stationnaire »)
+    return f, _native.masked_mean(f, np.ascontiguousarray(P), *_mhz_args(lo_m, hi_m), n_harm, MOTOR_LINE_MARGIN,
+                                  float(fs))
 
 
 def _line_height(f: np.ndarray, S: np.ndarray, f0: float) -> float:

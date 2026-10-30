@@ -58,7 +58,7 @@ fichier .bbl/.bfl
 | `bf_filters.py` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si », passe-bas relevé ou coupé ; noyaux de calcul en Rust (`rust/otb-dsp`, D-032) |
 | `_numeric.py` | Primitives numpy qui remplacent scipy : fenêtre de Hann, moyenne glissante, flou gaussien, intercorrélation (D-032) |
 | `sliders.py` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |
-| `motors.py` | Fréquences moteur depuis l'eRPM, harmoniques, centres des notchs dynamiques, bruit moteur, hauteur des harmoniques et poids RPM juste suffisant, pics à suivre par le notch dynamique, raies hors moteurs (vol stationnaire) |
+| `motors.py` | Fréquences moteur depuis l'eRPM, harmoniques, centres des notchs dynamiques, bruit moteur, hauteur des harmoniques et poids RPM juste suffisant, pics à suivre par le notch dynamique, raies hors moteurs (vol stationnaire) ; boucles par fenêtre en Rust (`rust/otb-analysis`, D-034), FFT et découpage restent en numpy |
 | `stats.py`, `period.py` | Statistiques de vol, erreur PID robuste, période automatique, détection de crash |
 | `datasets.py` | Jeux de données analysables (gyro, gyro préfiltre, terme D…, comme les listes de PIDtoolbox) |
 
