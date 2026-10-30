@@ -60,6 +60,18 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-054 : un retard par intercorrélation se compare en périodes d'échantillonnage, et sa tolérance se fixe aussi sur le corpus
+- **Symptôme** — 2026-10-30 (4c-2) : sur les cas écrits, l'écart de `xcorr_delay_ms` montait à 100 % (« impulsions identiques », vrai retard nul :
+  Python 2,2e-19 ms, Rust 4,3e-19 ms, du bruit d'arrondi) ; sur le corpus, un retard consigne → gyro du lacet de `HORUS/stock.bbl` dépassait la
+  tolérance de 1e-10 posée d'après les seuls cas écrits (2,6e-10).
+- **Cause** — mesurée : (1) l'écart *relatif* d'un nombre proche de zéro ne veut rien dire ; (2) l'interpolation parabolique divise par
+  `a − 2b + d`, différence de trois valeurs voisines quand le pic est plat, qui amplifie l'arrondi de la FFT (≈ ×1e5 ici) ; les cas écrits sont
+  bien conditionnés, le corpus non.
+- **Règle** — comparer un retard à l'étalon en **périodes d'échantillonnage** (`1000 / fs` ms) avec le plancher d'une période, mesurer l'écart sur les
+  cas écrits **et** sur le corpus avant de fixer la tolérance (ici 1e-8 : un saut d'indice du pic vaut ≥ 1 période, six ordres de grandeur de plus), et
+  vérifier par sabotage que la couche corpus voit encore un changement d'échelle de 1e-7.
+- **Preuve** — `rust/otb-analysis/tests/delay.rs` (`close_samples`), `rust/otb-parity/src/analysis_layer.rs` (`DELAY_TOL`), 5 sabotages vus en échec.
+
 ### L-052 : `a[:, masque].mean(axis=1)` additionne dans l'ordre, pas par paires : l'indexation avancée range le résultat « Fortran »
 - **Symptôme** — 2026-10-30 (4c-1) : le déséquilibre des moteurs de `flight_stats` calculé en Rust diffère de 2e-4 relatif (0,08872 contre
   0,08874 %), bien au-delà d'un dernier bit : la différence `max − moyenne` de deux `float32` voisins amplifie un bit de chaque moyenne.
@@ -669,6 +681,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-054 | Retard d'intercorrélation : écart en périodes d'échantillonnage ; tolérance mesurée sur les cas écrits ET sur le corpus (pic plat = division mal conditionnée) | Analyses |
 | L-053 | Outil de mutation : restaurer avec une date neuve (`utime`), sinon cargo garde le binaire muté ; référence relancée par code de sortie | Outillage |
 | L-052 | `a[:, masque].mean(axis=1)` est rangé « Fortran » : somme dans l'ordre, pas par paires (`a.flags` avant de reproduire une réduction) | Analyses |
 | L-051 | Produit complexe de numpy = FMA du processeur : `mul_add` en Rust, tolérance sur l'aval, décisions discrètes exactes | Outillage |

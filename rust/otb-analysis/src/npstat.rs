@@ -193,3 +193,77 @@ pub fn clip_f32(x: f32, lo: f32, hi: f32) -> f32 {
         x
     }
 }
+
+// ---------------------------------------------------------------- float64 et complexes (phase 4c-2)
+
+/// `np.argmax` d'un tableau `float64` : le premier NaN l'emporte, sinon le premier maximum. `None` si vide.
+pub fn argmax_f64(a: &[f64]) -> Option<usize> {
+    let mut best = 0;
+    if a.is_empty() {
+        return None;
+    }
+    for (i, &v) in a.iter().enumerate() {
+        if a[best].is_nan() {
+            break;
+        }
+        if v.is_nan() || v > a[best] {
+            best = i;
+        }
+    }
+    Some(best)
+}
+
+/// `np.mod(a, b)` : reste du signe du diviseur.
+pub fn np_mod(a: f64, b: f64) -> f64 {
+    let m = a % b;
+    if b == 0.0 {
+        return m;
+    }
+    if m != 0.0 {
+        if (b < 0.0) != (m < 0.0) { m + b } else { m }
+    } else {
+        0.0_f64.copysign(b)
+    }
+}
+
+/// `np.unwrap(p)` (période 2π, saut toléré π) : corrections cumulées ajoutées aux points suivants.
+pub fn unwrap(p: &[f64]) -> Vec<f64> {
+    let period = 2.0 * std::f64::consts::PI;
+    let (high, low) = (period / 2.0, -(period / 2.0));
+    let mut out = p.to_vec();
+    let mut cum = 0.0f64;
+    for i in 1..p.len() {
+        let dd = p[i] - p[i - 1];
+        let mut ddmod = np_mod(dd - low, period) + low;
+        if ddmod == low && dd > 0.0 {
+            ddmod = high;
+        }
+        let corr = if dd.abs() < high { 0.0 } else { ddmod - dd };
+        cum += corr;
+        out[i] = p[i] + cum;
+    }
+    out
+}
+
+/// Division complexe de numpy (algorithme de Smith ; un diviseur réel `(b, 0)` revient à multiplier par `1 / b`).
+pub fn cdiv(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+    let (ar, ai, br, bi) = (a.0, a.1, b.0, b.1);
+    let (abs_br, abs_bi) = (br.abs(), bi.abs());
+    if abs_br >= abs_bi {
+        if abs_br == 0.0 && abs_bi == 0.0 {
+            return (ar / abs_br, ai / abs_bi);
+        }
+        let rat = bi / br;
+        let scl = 1.0 / (br + bi * rat);
+        ((ar + ai * rat) * scl, (ai - ar * rat) * scl)
+    } else {
+        let rat = br / bi;
+        let scl = 1.0 / (bi + br * rat);
+        ((ar * rat + ai) * scl, (ai * rat - ar) * scl)
+    }
+}
+
+/// `conj(a) · b` comme numpy le fait sur ce poste : opérations fusionnées (FMA), voir L-051.
+pub fn conj_mul_fma(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+    (a.0.mul_add(b.0, a.1 * b.1), a.0.mul_add(b.1, -(a.1 * b.0)))
+}

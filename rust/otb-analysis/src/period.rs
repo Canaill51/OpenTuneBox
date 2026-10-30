@@ -10,8 +10,7 @@ use std::ops::Range;
 
 /// Un vol stationnaire ou avec mouvements retenu doit durer au moins 5 s.
 pub const MIN_PART_S: f64 = 5.0;
-/// `delay.MOVING_SETPOINT_DPS` : la consigne dépasse 30 °/s (D-026, L-007).
-pub const MOVING_SETPOINT_DPS: f64 = 30.0;
+pub use crate::delay::MOVING_SETPOINT_DPS;
 
 /// `(début, fin)` en secondes. `Err` si le journal est vide (Python lève `IndexError`).
 pub fn auto_period(log: &FlightLog, takeoff_throttle: f64, margin_s: f64) -> Result<(f64, f64), String> {

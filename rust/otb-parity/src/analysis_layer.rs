@@ -6,7 +6,7 @@
 //! Python (`<section>|_error`) aussi. Une clé présente d'un côté seulement est un écart.
 
 use crate::value::{Array, load_arrays};
-use otb_analysis::{datasets, period, stats};
+use otb_analysis::{datasets, delay, period, stats};
 use otb_log::flightlog::FlightLog;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -15,6 +15,8 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 enum Item {
     F(f64),
+    /// Flottant comparé à une tolérance : `(valeur, tolérance, unité)` ; écart = |Rust − Python| / max(|Python|, unité).
+    T(f64, f64, f64),
     I(i64),
     B(bool),
     S(String),
@@ -24,7 +26,14 @@ enum Item {
 type Flat = BTreeMap<String, Item>;
 
 /// Sections de la couche déjà portées en Rust (les autres sont ignorées).
-pub const PORTED: [&str; 3] = ["period", "datasets", "stats"];
+pub const PORTED: [&str; 4] = ["period", "datasets", "stats", "delay"];
+
+/// Tolérance des retards (FFT, `hypot`, `atan2`, produits complexes en FMA : L-048, L-051), relative à la valeur ou, si elle est
+/// plus petite, à une période d'échantillonnage. **Mesurée sur les 668 sessions** : 2,6e-10 au pire (retard consigne → gyro du lacet
+/// de `HORUS/stock.bbl`, pic d'intercorrélation plat : l'interpolation parabolique divise par `a − 2b + d`, différence de trois
+/// valeurs voisines qui amplifie l'arrondi de la FFT). Marge ×40. Un saut d'indice du pic vaudrait au moins une période
+/// d'échantillonnage (≥ 0,1 ms), six ordres de grandeur au-dessus : la tolérance le refuse.
+pub const DELAY_TOL: f64 = 1e-8;
 
 fn put_opt(f: &mut Flat, key: &str, v: Option<f64>) {
     f.insert(key.to_string(), v.map_or(Item::S("None".into()), Item::F));
@@ -57,10 +66,25 @@ fn put_pair(f: &mut Flat, key: &str, v: &Option<(f64, f64)>) {
     }
 }
 
-/// Résultats des modules portés pour une session, sous les noms de Python.
-fn ported(lg: &FlightLog) -> Result<Flat, String> {
+type Section = (&'static str, Result<Flat, String>);
+
+/// Résultats des modules portés pour une session, par section et sous les noms de Python.
+fn ported(lg: &FlightLog) -> Vec<Section> {
+    let period = period_section(lg);
+    // la période de vol ; si `auto_period` échoue, Python garde `slice(None)` pour les sections suivantes
+    let sel = period::auto_period(lg, 8.0, 0.5)
+        .map(|(t0, t1)| lg.slice_time(t0, t1))
+        .unwrap_or(0..lg.n());
+    vec![
+        ("period", period),
+        ("datasets", datasets_section(lg)),
+        ("stats", Ok(stats_section(lg, sel.clone()))),
+        ("delay", delay_section(lg, sel)),
+    ]
+}
+
+fn period_section(lg: &FlightLog) -> Result<Flat, String> {
     let mut f = Flat::new();
-    // period
     let (t0, t1) = period::auto_period(lg, 8.0, 0.5)?;
     let sel = lg.slice_time(t0, t1);
     f.insert("period|auto_period[0]".into(), Item::F(t0));
@@ -71,7 +95,11 @@ fn ported(lg: &FlightLog) -> Result<Flat, String> {
     put_pair(&mut f, "period|flight_parts|moving", &parts.moving);
     f.insert("period|sel[0]".into(), Item::I(sel.start as i64));
     f.insert("period|sel[1]".into(), Item::I(sel.end as i64));
-    // datasets
+    Ok(f)
+}
+
+fn datasets_section(lg: &FlightLog) -> Result<Flat, String> {
+    let mut f = Flat::new();
     for (i, k) in datasets::available(lg).iter().enumerate() {
         f.insert(format!("datasets|available[{i}]"), Item::S((*k).to_string()));
     }
@@ -83,7 +111,24 @@ fn ported(lg: &FlightLog) -> Result<Flat, String> {
             );
         }
     }
-    // stats
+    Ok(f)
+}
+
+fn delay_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, String> {
+    let d = delay::compute_delays(lg, sel)?;
+    let unit = 1000.0 / lg.fs; // une période d'échantillonnage, en ms
+    let mut f = Flat::new();
+    f.insert("delay.gyro_ms".into(), Item::T(d.gyro_ms, DELAY_TOL, unit));
+    f.insert("delay.dterm_ms".into(), Item::T(d.dterm_ms, DELAY_TOL, unit));
+    for (a, v) in d.sp_gyro_ms.iter().enumerate() {
+        f.insert(format!("delay.sp_gyro_ms[{a}]"), Item::T(*v, DELAY_TOL, unit));
+    }
+    f.insert("delay.stick_p95_dps".into(), Item::F(d.stick_p95_dps));
+    Ok(f)
+}
+
+fn stats_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Flat {
+    let mut f = Flat::new();
     let s = stats::flight_stats(lg, sel.clone());
     f.insert("stats|flight.duration_s".into(), Item::F(s.duration_s));
     for (name, centres, hist) in &s.stick_hist {
@@ -123,14 +168,14 @@ fn ported(lg: &FlightLog) -> Result<Flat, String> {
             Item::A(e.err_vs_stick[a].clone()),
         );
     }
-    Ok(f)
+    f
 }
 
 fn same_bits(a: f64, b: f64) -> bool {
     a.to_bits() == b.to_bits() || (a.is_nan() && b.is_nan())
 }
 
-fn compare_item(key: &str, got: &Item, want: &Array) -> Option<String> {
+fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<String> {
     let bad = |what: String| Some(format!("{key} : {what}"));
     match got {
         Item::F(g) => {
@@ -139,6 +184,18 @@ fn compare_item(key: &str, got: &Item, want: &Array) -> Option<String> {
             }
             let w = want.get_f64(0);
             (!same_bits(*g, w)).then(|| format!("{key} : Rust {g:e} / Python {w:e}"))
+        }
+        Item::T(g, tol, unit) => {
+            if want.kind != 'f' || want.size != 8 || want.len() != 1 {
+                return bad(format!("Rust {g:e}, Python {}{} ×{}", want.kind, want.size, want.len()));
+            }
+            let w = want.get_f64(0);
+            if !g.is_finite() || !w.is_finite() {
+                return (!same_bits(*g, w)).then(|| format!("{key} : Rust {g:e} / Python {w:e}"));
+            }
+            let err = (g - w).abs() / w.abs().max(*unit);
+            *worst = worst.max(err);
+            (err > *tol).then(|| format!("{key} : Rust {g:e} / Python {w:e} (écart {err:e} > {tol:e})"))
         }
         Item::I(g) => {
             let ok = matches!(want.kind, 'i' | 'u') && want.len() == 1 && want.get_f64(0) == *g as f64;
@@ -177,8 +234,10 @@ pub struct AnalysisReport {
     pub sessions: usize,
     /// Clés comparées au bit près.
     pub keys: usize,
-    /// Sections de Python en erreur (non comparées).
+    /// Sections où Python lève (Rust doit lever aussi).
     pub python_errors: usize,
+    /// Plus grand écart normalisé des valeurs comparées à une tolérance (`Item::T`).
+    pub worst: f64,
     pub failures: Vec<String>,
 }
 
@@ -187,47 +246,46 @@ fn stem(rel: &str, session: i64) -> String {
 }
 
 fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AnalysisReport) {
+    let who = format!("{rel} session {}", lg.session);
     let file = dossier.join("analysis").join(stem(rel, lg.session as i64));
     let py: HashMap<String, Array> = match load_arrays(&file) {
         Ok(a) => a,
-        Err(e) => return rep.failures.push(format!("{rel} session {} : {e}", lg.session)),
+        Err(e) => return rep.failures.push(format!("{who} : {e}")),
     };
-    let got = match ported(lg) {
-        Ok(g) => g,
-        Err(e) => {
-            return rep
-                .failures
-                .push(format!("{rel} session {} : Rust échoue : {e}", lg.session));
-        }
-    };
-    let broken: Vec<&str> = PORTED
-        .iter()
-        .copied()
-        .filter(|s| py.contains_key(&format!("{s}|_error")))
-        .collect();
-    rep.python_errors += broken.len();
     rep.sessions += 1;
-    for (k, item) in &got {
-        if broken.contains(&section_of(k)) {
+    for (section, result) in ported(lg) {
+        // Python a levé dans cette section : Rust doit lever aussi (et réciproquement)
+        if py.contains_key(&format!("{section}|_error")) {
+            rep.python_errors += 1;
+            if result.is_ok() {
+                rep.failures
+                    .push(format!("{who} : {section} : Python lève, Rust rend un résultat"));
+            }
             continue;
         }
-        match py.get(&k.replace('/', "|")) {
-            None => rep
-                .failures
-                .push(format!("{rel} session {} : {k} absente de Python", lg.session)),
-            Some(w) => {
-                rep.keys += 1;
-                if let Some(m) = compare_item(k, item, w) {
-                    rep.failures.push(format!("{rel} session {} : {m}", lg.session));
+        let got = match result {
+            Ok(g) => g,
+            Err(e) => {
+                rep.failures
+                    .push(format!("{who} : {section} : Rust lève ({e}), Python rend un résultat"));
+                continue;
+            }
+        };
+        for (k, item) in &got {
+            match py.get(k) {
+                None => rep.failures.push(format!("{who} : {k} absente de Python")),
+                Some(w) => {
+                    rep.keys += 1;
+                    if let Some(m) = compare_item(k, item, w, &mut rep.worst) {
+                        rep.failures.push(format!("{who} : {m}"));
+                    }
                 }
             }
         }
-    }
-    for k in py.keys() {
-        let s = section_of(k);
-        if PORTED.contains(&s) && !broken.contains(&s) && !k.ends_with("|_error") && !got.contains_key(k) {
-            rep.failures
-                .push(format!("{rel} session {} : {k} absente de Rust", lg.session));
+        for k in py.keys() {
+            if section_of(k) == section && !k.ends_with("|_error") && !got.contains_key(k) {
+                rep.failures.push(format!("{who} : {k} absente de Rust"));
+            }
         }
     }
 }
@@ -242,6 +300,7 @@ pub fn check_analysis(dossier: &Path, logs_root: &Path, threads: usize) -> Resul
         sessions: 0,
         keys: 0,
         python_errors: 0,
+        worst: 0.0,
         failures: vec![],
     });
     std::thread::scope(|scope| {
@@ -254,6 +313,7 @@ pub fn check_analysis(dossier: &Path, logs_root: &Path, threads: usize) -> Resul
                         sessions: 0,
                         keys: 0,
                         python_errors: 0,
+                        worst: 0.0,
                         failures: vec![],
                     };
                     match otb_log::flightlog::load(&logs_root.join(rel)) {
@@ -268,6 +328,7 @@ pub fn check_analysis(dossier: &Path, logs_root: &Path, threads: usize) -> Resul
                     r.sessions += local.sessions;
                     r.keys += local.keys;
                     r.python_errors += local.python_errors;
+                    r.worst = r.worst.max(local.worst);
                     r.failures.extend(local.failures);
                 }
             });

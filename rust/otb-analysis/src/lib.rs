@@ -6,6 +6,7 @@
 
 pub mod bf_filters;
 pub mod datasets;
+pub mod delay;
 pub mod npstat;
 pub mod period;
 pub mod sliders;

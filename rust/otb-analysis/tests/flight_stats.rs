@@ -7,70 +7,15 @@
 use otb_analysis::datasets::{self, DATASETS};
 use otb_analysis::period::{self, FlightParts};
 use otb_analysis::stats::{self, MeanSd};
-use otb_decoder::file::{Matrix, Stats};
-use otb_log::flightlog::{FlightLog, Rows};
-use otb_log::settings::Settings;
+use otb_log::flightlog::FlightLog;
 use serde_json::Value;
-use std::collections::BTreeSet;
 use std::ops::Range;
 
 mod common;
 use common::*;
 
-fn f32s(h: &str) -> Vec<f32> {
-    (0..h.len() / 8)
-        .map(|i| f32::from_bits(u32::from_str_radix(&h[8 * i..8 * i + 8], 16).unwrap().swap_bytes()))
-        .collect()
-}
-
-/// Entrée d'un cas : « s… » = float32 (8 caractères par valeur), « i… » = float64.
-fn inp32(c: &Value, id: &Value) -> Vec<f32> {
-    f32s(c["inputs"][id.as_str().unwrap()].as_str().unwrap())
-}
-
-fn rows(c: &Value, o: &Value, n: usize) -> Rows {
-    Rows {
-        k: o["k"].as_u64().unwrap() as usize,
-        n,
-        data: inp32(c, &o["x"]),
-    }
-}
-
-fn log(c: &Value, v: &Value) -> FlightLog {
-    let n = v["n"].as_u64().unwrap() as usize;
-    let opt32 = |k: &str| (!v[k].is_null()).then(|| inp32(c, &v[k]));
-    FlightLog {
-        path: Default::default(),
-        session: 1,
-        settings: Settings::default(),
-        t: input(c, &v["t"]),
-        fs: f1(&v["fs"]),
-        gyro: rows(c, &v["gyro"], n),
-        gyro_unfilt: None,
-        setpoint: rows(c, &v["setpoint"], n),
-        rc_command: rows(c, &v["rc_command"], n),
-        p_term: rows(c, &v["p_term"], n),
-        i_term: rows(c, &v["i_term"], n),
-        d_term: rows(c, &v["d_term"], n),
-        f_term: rows(c, &v["f_term"], n),
-        throttle: inp32(c, &v["throttle"]),
-        motors: rows(c, &v["motors"], n),
-        motor_hz: None,
-        debug: rows(c, &v["debug"], n),
-        vbat: opt32("vbat"),
-        current: opt32("current"),
-        acc: None,
-        mode_flags: (!v["mode_flags"].is_null())
-            .then(|| input(c, &v["mode_flags"]).iter().map(|&x| x as i32).collect()),
-        events: Matrix::default(),
-        stats: Stats::default(),
-        implausible_frames: 0,
-        pid_columns: BTreeSet::new(),
-    }
-}
-
 fn logs(c: &Value) -> Vec<FlightLog> {
-    c["logs"].as_array().unwrap().iter().map(|v| log(c, v)).collect()
+    c["logs"].as_array().unwrap().iter().map(|v| flight_log(c, v)).collect()
 }
 
 fn sel_of(k: &Value, n: usize) -> Range<usize> {

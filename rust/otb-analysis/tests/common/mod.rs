@@ -2,9 +2,11 @@
 //! partagées, comparaison au bit près ou à une tolérance (avec l'écart maximal observé), décodage des réglages.
 #![allow(dead_code)]
 
+use otb_decoder::file::{Matrix, Stats};
+use otb_log::flightlog::{FlightLog, Rows};
 use otb_log::settings::{Lowpass, Settings};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 /// Écart maximal observé par catégorie (affiché avec `--nocapture`, pour fixer les tolérances sur une mesure).
@@ -149,4 +151,58 @@ pub fn settings(v: &Value) -> Settings {
 
 pub fn all_settings(c: &Value) -> Vec<Settings> {
     c["settings"].as_array().unwrap().iter().map(settings).collect()
+}
+
+// ---------------------------------------------------------------- journaux de vol fabriqués (flight_stats_cases.py, delay_cases.py)
+
+pub fn f32s(h: &str) -> Vec<f32> {
+    (0..h.len() / 8)
+        .map(|i| f32::from_bits(u32::from_str_radix(&h[8 * i..8 * i + 8], 16).unwrap().swap_bytes()))
+        .collect()
+}
+
+/// Entrée d'un cas : « s… » = float32 (8 caractères par valeur), « i… » = float64.
+pub fn inp32(c: &Value, id: &Value) -> Vec<f32> {
+    f32s(c["inputs"][id.as_str().unwrap()].as_str().unwrap())
+}
+
+pub fn rows32(c: &Value, o: &Value, n: usize) -> Rows {
+    Rows {
+        k: o["k"].as_u64().unwrap() as usize,
+        n,
+        data: inp32(c, &o["x"]),
+    }
+}
+
+pub fn flight_log(c: &Value, v: &Value) -> FlightLog {
+    let n = v["n"].as_u64().unwrap() as usize;
+    let opt32 = |k: &str| (!v[k].is_null()).then(|| inp32(c, &v[k]));
+    FlightLog {
+        path: Default::default(),
+        session: 1,
+        settings: Settings::default(),
+        t: input(c, &v["t"]),
+        fs: f1(&v["fs"]),
+        gyro: rows32(c, &v["gyro"], n),
+        gyro_unfilt: (!v["gyro_unfilt"].is_null()).then(|| rows32(c, &v["gyro_unfilt"], n)),
+        setpoint: rows32(c, &v["setpoint"], n),
+        rc_command: rows32(c, &v["rc_command"], n),
+        p_term: rows32(c, &v["p_term"], n),
+        i_term: rows32(c, &v["i_term"], n),
+        d_term: rows32(c, &v["d_term"], n),
+        f_term: rows32(c, &v["f_term"], n),
+        throttle: inp32(c, &v["throttle"]),
+        motors: rows32(c, &v["motors"], n),
+        motor_hz: None,
+        debug: rows32(c, &v["debug"], n),
+        vbat: opt32("vbat"),
+        current: opt32("current"),
+        acc: None,
+        mode_flags: (!v["mode_flags"].is_null())
+            .then(|| input(c, &v["mode_flags"]).iter().map(|&x| x as i32).collect()),
+        events: Matrix::default(),
+        stats: Stats::default(),
+        implausible_frames: 0,
+        pid_columns: BTreeSet::new(),
+    }
 }

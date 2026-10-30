@@ -60,6 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ouvert (à voir en phase 7) |
 | W-023 | `FlightLog::d_term_prefilter` (Rust) ne lève pas pour un journal d'un point au terme D non nul, Python lève `ValueError` (`np.gradient`) | ouvert (à voir en phase 5c / 7) |
 | W-022 | `otb-parity check` : une seule tolérance par fonction, y compris pour les champs exacts (`freqs`, `bins`) | ouvert (à voir en phase 7) |
 | W-021 | Écarts connus Rust / Python sur entrées irréalistes (`nbins = 0`, `fs = 0`, `astype(int)` sur ARM, message d'erreur) | ouvert (à voir au premier test macOS ARM) |
@@ -412,3 +413,10 @@ Règles d'écriture :
   **Pourquoi reporté** : découvert en 4c-1, hors sujet de la branche ; sans effet sur le corpus.
   **Reprise** : quand la ligne de commande Rust (5c) devra rendre les mêmes erreurs que Python, ou si un journal vide ou à un point
   devient possible.
+- **W-024** — `analysis/delay.py:xcorr_delay_ms(..., smooth)` lisse x et y par `np.convolve(..., mode="same")` quand `smooth > 1`. Le port Rust
+  (`otb-analysis/src/delay.rs`) rend une erreur dans ce cas : `np.convolve` passe par BLAS (ordre de sommation propre à la bibliothèque), le
+  décalage de la sortie « same » change la longueur si `smooth > n`, et **aucun appelant** de l'application (`step_series`, `log_check`,
+  `_step_common`, `compute_delays`) ne fournit `smooth`.
+  **Pourquoi reporté** : code mort côté application ; le porter demanderait une tolérance de plus sans rien protéger.
+  **Reprise** : si un outil de la phase 6 veut lisser les signaux avant l'intercorrélation (alors porter la convolution avec sa tolérance), ou à
+  la suppression du Python en phase 7 (retirer le paramètre).
