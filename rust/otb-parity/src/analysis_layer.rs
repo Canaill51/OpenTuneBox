@@ -43,38 +43,15 @@ pub const PORTED: [&str; 6] = ["period", "datasets", "stats", "delay", "motors",
 /// Sections portées en partie seulement : une clé de Python que Rust ne produit pas encore n'est pas un écart. `step` : 4c-B(a) rejoue
 /// les marges des boucles mesurées (les spectres, `T`, `std`… viennent aux étapes (b) et (c)) et toute la boucle approchée ; les
 /// métriques et les réponses viennent avec `step` et `step_series`.
-fn in_scope(section: &str, key: &str, py: &HashMap<String, Array>) -> bool {
+fn in_scope(section: &str, key: &str) -> bool {
     if section != "step" {
         return true;
     }
-    let Some((loop_key, field)) = key.split_once("].") else {
+    let Some((_, field)) = key.split_once("].") else {
         return false;
     };
-    let measured = py
-        .get(&format!("{loop_key}].method"))
-        .and_then(|m| m.as_string())
-        .is_some_and(|m| m == open_loop::MEASURED);
-    // `notes` : ajoutées par `step` et `loop_from_terms`, pas par `loop_from_T`
-    key.starts_with("step.loops[")
-        && !field.starts_with("notes[")
-        && (!measured
-            || matches!(
-                field,
-                "method"
-                    | "freqs"
-                    | "T"
-                    | "coherence"
-                    | "L"
-                    | "valid"
-                    | "band_hz[0]"
-                    | "band_hz[1]"
-                    | "crossover_hz"
-                    | "phase_margin_deg"
-                    | "gain_margin_db"
-                    | "sensitivity_peak_db"
-                    | "sensitivity_peak_hz"
-                    | "sensitivity_peak_at_edge"
-            ))
+    // `notes` : ajoutées par `step` et `loop_from_terms` (repli seulement), pas par `loop_from_T`
+    key.starts_with("step.loops[") && !field.starts_with("notes[")
 }
 
 /// Tolérance des marges et des courbes de la boucle ouverte (`log`, `atan2`, `exp` : L-048). **Mesurée sur les 668 sessions** : 1,9e-15
@@ -154,6 +131,11 @@ fn ported(lg: &FlightLog, py: &HashMap<String, Array>) -> Vec<Section> {
 /// sur les spectres, 2,2e-15 sur `estimate` seul). Marge ×50. Un saut d'indice (croisement, pic) ou une case mal comptée vaut ≥ 1e-3.
 pub const SPECTRA_LOOP_TOL: f64 = 1e-5;
 
+/// Tolérance des écarts-types jackknife des marges mesurées depuis le journal (différences entre 8 sous-ensembles). **Mesurée sur les 668
+/// sessions par balayage** : échec à 1e-12 (premiers écarts 5,9e-12), aucun écart à 1e-9 ; tolérance retenue 1e-8. Un point valide qui change
+/// dans un sous-ensemble déplace un écart-type de plusieurs ordres de grandeur.
+pub const STD_LOOP_TOL: f64 = 1e-8;
+
 /// Boucles ouvertes de `step`. Une boucle **mesurée** est refaite depuis le journal (4c-B(b) : `loop_spectra` et `estimate` ; l'étape (c)
 /// y ajoutera `loop_from_terms`) : les mêmes décisions (mesurée ou approchée, points valides) et les mêmes fonctions de transfert que
 /// Python. Une boucle **approchée** est rejouée depuis les entrées de la référence (`loop_from_T(freqs, T, coherence)`, 4c-B(a)).
@@ -210,12 +192,13 @@ fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>, py: &HashMap<String
                 } else {
                     Some(breaks.as_slice())
                 };
-                if let Some(spec) = open_loop::loop_spectra(&r, &y, &tm, lg.fs, 2.0, 20.0, None, open_loop::BLOCKS, br)?
-                {
-                    let est = open_loop::estimate(&spec, None);
-                    if est.valid.iter().filter(|&&v| v).count() >= 5 {
-                        measured = Some((spec, est));
-                    }
+                // `approx` : bande passante et pic de suivi de la méthode approchée, venus de `step_response` (pas encore porté : relus)
+                let mut approx = open_loop::LoopMetrics::new(&[], &[], &[]);
+                approx.bandwidth_hz = floats(get(&format!("{p}.bandwidth_hz"))?)[0];
+                approx.tracking_peak_db = floats(get(&format!("{p}.tracking_peak_db"))?)[0];
+                let lm = open_loop::loop_from_terms(&r, &y, &tm, lg.fs, approx, 2.0, 20.0, None, br)?;
+                if lm.method == open_loop::MEASURED {
+                    measured = Some(lm);
                 }
             }
         }
@@ -225,24 +208,34 @@ fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>, py: &HashMap<String
             open_loop::APPROX
         };
         f.insert(format!("{p}.method"), Item::S(m.to_string()));
-        if let Some((spec, est)) = measured {
-            let fv: Vec<f64> = spec
-                .freqs
-                .iter()
-                .zip(&est.valid)
-                .filter(|(_, v)| **v)
-                .map(|(f, _)| *f)
-                .collect();
-            f.insert(format!("{p}.band_hz[0]"), Item::F(fv[0]));
-            f.insert(format!("{p}.band_hz[1]"), Item::F(fv[fv.len() - 1]));
-            f.insert(format!("{p}.freqs"), Item::A(spec.freqs.clone()));
-            f.insert(format!("{p}.T"), Item::C(est.t.clone(), SPECTRA_LOOP_TOL));
-            f.insert(format!("{p}.coherence"), Item::TR(est.coh_zy.clone(), SPECTRA_LOOP_TOL));
-            f.insert(format!("{p}.L"), Item::C(est.l.clone(), SPECTRA_LOOP_TOL));
-            f.insert(format!("{p}.valid"), Item::AB(est.valid.clone()));
+        if let Some(lm) = measured {
+            f.insert(format!("{p}.band_hz[0]"), Item::F(lm.band_hz.0));
+            f.insert(format!("{p}.band_hz[1]"), Item::F(lm.band_hz.1));
+            f.insert(format!("{p}.bandwidth_hz"), Item::F(lm.bandwidth_hz));
+            f.insert(format!("{p}.tracking_peak_db"), Item::F(lm.tracking_peak_db));
+            f.insert(format!("{p}.freqs"), Item::A(lm.freqs.clone()));
+            f.insert(format!("{p}.T"), Item::C(lm.t.clone(), SPECTRA_LOOP_TOL));
+            f.insert(
+                format!("{p}.coherence"),
+                Item::TR(lm.coherence.clone(), SPECTRA_LOOP_TOL),
+            );
+            f.insert(format!("{p}.L"), Item::C(lm.l.clone(), SPECTRA_LOOP_TOL));
+            f.insert(format!("{p}.valid"), Item::AB(lm.valid.clone()));
+            f.insert(format!("{p}.d_ratio"), Item::T(lm.d_ratio, SPECTRA_LOOP_TOL, 1.0));
+            for (key, v) in &lm.std {
+                f.insert(format!("{p}.std|{key}"), Item::T(*v, STD_LOOP_TOL, 1.0));
+            }
             put_margins(
                 &mut f,
-                &open_loop::margins(&spec.freqs, &est.l, Some(&est.valid))?,
+                &open_loop::Margins {
+                    crossover_hz: lm.crossover_hz,
+                    phase_margin_deg: lm.phase_margin_deg,
+                    gain_margin_db: lm.gain_margin_db,
+                    phase_crossover_hz: f64::NAN,
+                    sensitivity_peak_db: lm.sensitivity_peak_db,
+                    sensitivity_peak_hz: lm.sensitivity_peak_hz,
+                    sensitivity_peak_at_edge: lm.sensitivity_peak_at_edge,
+                },
                 SPECTRA_LOOP_TOL,
             );
         } else if method == open_loop::MEASURED {
@@ -744,8 +737,7 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AnalysisReport
             }
         }
         for k in py.keys() {
-            if section_of(k) == section && in_scope(section, k, &py) && !k.ends_with("|_error") && !got.contains_key(k)
-            {
+            if section_of(k) == section && in_scope(section, k) && !k.ends_with("|_error") && !got.contains_key(k) {
                 rep.failures.push(format!("{who} : {k} absente de Rust"));
             }
         }

@@ -165,6 +165,8 @@ pub struct LoopMetrics {
     pub phase_margin_deg: f64,
     pub gain_margin_db: f64,
     pub d_ratio: f64,
+    /// Écarts-types jackknife des marges (mesurée, au moins 3 blocs) : clé et valeur, dans l'ordre de [`STD_KEYS`].
+    pub std: Vec<(&'static str, f64)>,
     pub freqs: Vec<f64>,
     pub t: Vec<C>,
     pub coherence: Vec<f64>,
@@ -187,6 +189,7 @@ impl LoopMetrics {
             phase_margin_deg: f64::NAN,
             gain_margin_db: f64::NAN,
             d_ratio: f64::NAN,
+            std: Vec::new(),
             freqs: freqs.to_vec(),
             t: t.to_vec(),
             coherence: coh.to_vec(),
@@ -659,4 +662,121 @@ pub fn estimate(spec: &LoopSpectra, leave_out: Option<usize>) -> LoopEstimate {
         l_c,
         err_g,
     }
+}
+
+// ---------------------------------------------------------------- boucle mesurée et jackknife (étape (c))
+
+/// Marges dont on mesure l'écart-type par jackknife.
+pub const STD_KEYS: [&str; 4] = [
+    "sensitivity_peak_db",
+    "crossover_hz",
+    "phase_margin_deg",
+    "gain_margin_db",
+];
+
+fn margin_of(m: &Margins, key: &str) -> f64 {
+    match key {
+        "sensitivity_peak_db" => m.sensitivity_peak_db,
+        "crossover_hz" => m.crossover_hz,
+        "phase_margin_deg" => m.phase_margin_deg,
+        _ => m.gain_margin_db,
+    }
+}
+
+/// `_jackknife` : écart-type de chaque marge, un bloc de fenêtres retiré à chaque fois.
+fn jackknife(spec: &LoopSpectra, lm: &LoopMetrics) -> Result<Vec<(&'static str, f64)>, String> {
+    let nb = spec.n_blocks();
+    let mut vals: Vec<Vec<f64>> = vec![Vec::with_capacity(nb); STD_KEYS.len()];
+    for b in 0..nb {
+        let est = estimate(spec, Some(b));
+        let mg = margins(&spec.freqs, &est.l, Some(&est.valid))?;
+        for (k, key) in STD_KEYS.iter().enumerate() {
+            vals[k].push(margin_of(&mg, key));
+        }
+    }
+    let own = Margins {
+        crossover_hz: lm.crossover_hz,
+        phase_margin_deg: lm.phase_margin_deg,
+        gain_margin_db: lm.gain_margin_db,
+        phase_crossover_hz: f64::NAN,
+        sensitivity_peak_db: lm.sensitivity_peak_db,
+        sensitivity_peak_hz: lm.sensitivity_peak_hz,
+        sensitivity_peak_at_edge: lm.sensitivity_peak_at_edge,
+    };
+    Ok(STD_KEYS
+        .iter()
+        .zip(vals)
+        .map(|(key, v)| {
+            let out = if margin_of(&own, key).is_finite() && v.iter().all(|x| x.is_finite()) {
+                let n = v.len() as f64;
+                let mean = (0.0 + otb_dsp::pairwise_sum(&v)) / n;
+                let sq: Vec<f64> = v.iter().map(|x| (x - mean) * (x - mean)).collect();
+                // `np.sqrt((nb - 1) / nb * np.sum(...))`
+                ((nb as f64 - 1.0) / nb as f64 * (0.0 + otb_dsp::pairwise_sum(&sq))).sqrt()
+            } else {
+                f64::NAN // la mesure n'existe pas dans tous les sous-ensembles
+            };
+            (*key, out)
+        })
+        .collect())
+}
+
+/// `loop_from_terms` : boucle ouverte mesurée. `approx` (méthode approchée, même période) fournit la bande passante et le pic de suivi,
+/// et sert de repli, avec une note, si la mesure est impossible.
+#[allow(clippy::too_many_arguments)]
+pub fn loop_from_terms(
+    r: &[f64],
+    y: &[f64],
+    terms: &Terms,
+    fs: f64,
+    approx: LoopMetrics,
+    seg_s: f64,
+    min_input: f64,
+    max_input: Option<f64>,
+    breaks: Option<&[i64]>,
+) -> Result<LoopMetrics, String> {
+    let mut approx = approx;
+    let Some(spec) = loop_spectra(r, y, terms, fs, seg_s, min_input, max_input, BLOCKS, breaks)? else {
+        approx
+            .notes
+            .push("pas assez de fenêtres pour mesurer la boucle ouverte".into());
+        return Ok(approx);
+    };
+    let est = estimate(&spec, None);
+    if est.valid.iter().filter(|&&v| v).count() < 5 {
+        approx
+            .notes
+            .push("cohérence insuffisante pour mesurer la boucle ouverte".into());
+        return Ok(approx);
+    }
+    let mut lm = LoopMetrics::new(&spec.freqs, &est.t, &est.coh_zy);
+    lm.method = MEASURED;
+    lm.bandwidth_hz = approx.bandwidth_hz;
+    lm.tracking_peak_db = approx.tracking_peak_db;
+    lm.l = est.l.clone();
+    lm.valid = est.valid.clone();
+    let fv: Vec<f64> = spec
+        .freqs
+        .iter()
+        .zip(&est.valid)
+        .filter(|(_, v)| **v)
+        .map(|(f, _)| *f)
+        .collect();
+    lm.band_hz = (fv[0], fv[fv.len() - 1]);
+    lm.fill(&margins(&spec.freqs, &est.l, Some(&est.valid))?);
+    if lm.crossover_hz.is_finite() {
+        // np.argmin(np.abs(freqs − crossover)) : premier minimum ; un NaN l'emporterait mais les fréquences sont finies
+        let k = (0..spec.freqs.len()).fold(0, |best, i| {
+            if (spec.freqs[i] - lm.crossover_hz).abs() < (spec.freqs[best] - lm.crossover_hz).abs() {
+                i
+            } else {
+                best
+            }
+        });
+        lm.d_ratio = abs(cdiv(est.cd[k], est.ce[k]));
+    }
+    if spec.n_blocks() >= 3 {
+        lm.std = jackknife(&spec, &lm)?;
+    }
+    Ok(lm)
 }
