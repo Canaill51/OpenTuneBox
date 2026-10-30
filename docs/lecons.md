@@ -60,6 +60,27 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-052 : `a[:, masque].mean(axis=1)` additionne dans l'ordre, pas par paires : l'indexation avancée range le résultat « Fortran »
+- **Symptôme** — 2026-10-30 (4c-1) : le déséquilibre des moteurs de `flight_stats` calculé en Rust diffère de 2e-4 relatif (0,08872 contre
+  0,08874 %), bien au-delà d'un dernier bit : la différence `max − moyenne` de deux `float32` voisins amplifie un bit de chaque moyenne.
+- **Cause** — mesurée : `m[:, flying]` (masque sur le 2e axe) a pour drapeaux `c_contiguous = False`, `f_contiguous = True`, pas
+  `(4, 16)` ; `mean(axis=1)` y fait une somme **séquentielle** par ligne (identique au bit près à une boucle `s += x[j]`, différente
+  de la somme par paires d'une ligne contiguë).
+- **Règle** — avant de reproduire une réduction numpy, regarder la disposition en mémoire du tableau (`a.flags`) : un tableau né d'une
+  indexation avancée sur un axe autre que le premier se somme dans l'ordre. Une ligne `m[k]` ou une copie contiguë se somme par paires.
+- **Preuve** — `rust/otb-analysis/src/stats.rs` (moyennes des moteurs en vol), `tests/flight_stats.rs::flight_stats_identique`.
+
+### L-053 : outil de mutation — restaurer avec une date de modification neuve, sinon cargo garde le binaire muté
+- **Symptôme** — 2026-10-30 (4c-1) : `datasets_identiques` échouait sans raison après une batterie de mutations, puis repassait ; la référence
+  « saine » d'un autre essai échouait aussi (journal `debug_1` : le jeu `debug` manquait).
+- **Cause** — mesurée : `shutil.copy2` restaure le fichier **avec l'ancienne date** ; cargo juge le fichier inchangé et ne recompile pas : le
+  binaire reste celui de la dernière mutation (`log.debug.k > 1`). Les résultats de la batterie restent valables (chaque mutation réécrit le
+  fichier, donc recompile tout le crate avec les autres fichiers sains), seul l'état laissé après coup était périmé.
+- **Règle** — l'outil de mutation restaure avec `copyfile` puis `os.utime` (date neuve), vérifie par `cmp`, et la référence est relancée
+  **par son code de sortie** (jamais derrière `| tail`, L-022) avant et après la batterie. Ne jamais lancer `pkill -f MOTIF` dans une commande
+  qui contient ce motif (elle se tue elle-même).
+- **Preuve** — `mut.py` (dossier temporaire de la session), référence relancée après `touch` : code 0.
+
 ### L-051 : le produit complexe de numpy utilise le FMA du processeur ; en Rust, `mul_add` redonne ses bits, mais pas sur toute machine
 - **Symptôme** — 2026-10-30 (4c-0) : `Σ conj(X)·Y` (spectres croisés de `loop_spectra`) recalculé en Rust avec `a*b + c*d` n'est identique à
   numpy que pour 1 176 valeurs sur 2 002 (écart relatif jusqu'à 5,8e-14 après les sommes).
@@ -648,6 +669,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-053 | Outil de mutation : restaurer avec une date neuve (`utime`), sinon cargo garde le binaire muté ; référence relancée par code de sortie | Outillage |
+| L-052 | `a[:, masque].mean(axis=1)` est rangé « Fortran » : somme dans l'ordre, pas par paires (`a.flags` avant de reproduire une réduction) | Analyses |
 | L-051 | Produit complexe de numpy = FMA du processeur : `mul_add` en Rust, tolérance sur l'aval, décisions discrètes exactes | Outillage |
 | L-050 | Batterie de mutations : tolérances finales d'abord, données qui atteignent chaque branche, outil de mutation qui refuse sans sauvegarde | Outillage |
 | L-049 | Parité Rust contre un étalon qui appelle déjà le noyau Rust : 0 écart ne prouve que la colle ; frontières exactes épinglées par un test unitaire | Outillage |

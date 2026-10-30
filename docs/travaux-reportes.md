@@ -60,6 +60,7 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-023 | `FlightLog::d_term_prefilter` (Rust) ne lève pas pour un journal d'un point au terme D non nul, Python lève `ValueError` (`np.gradient`) | ouvert (à voir en phase 5c / 7) |
 | W-022 | `otb-parity check` : une seule tolérance par fonction, y compris pour les champs exacts (`freqs`, `bins`) | ouvert (à voir en phase 7) |
 | W-021 | Écarts connus Rust / Python sur entrées irréalistes (`nbins = 0`, `fs = 0`, `astype(int)` sur ARM, message d'erreur) | ouvert (à voir au premier test macOS ARM) |
 | W-020 | `LogHeader.raw` et `Settings.raw` du Rust sont triés par clé, le dict Python garde l'ordre du fichier | ouvert (à voir en phase 5c / 6) |
@@ -405,3 +406,9 @@ Règles d'écriture :
   **Pourquoi reporté** : demande une tolérance par champ dans `registry::tolerance` ; les fréquences sont identiques
   partout où on les a comparées.
   **Reprise** : quand on resserre la couche corpus (phase 7), ou si un écart sur ces champs est soupçonné.
+- **W-023** — pour un journal d'**un seul point** dont le terme D n'est pas nul, `FlightLog.d_term_prefilter` de Python lève
+  `ValueError` (`np.gradient` demande au moins 2 points) alors que le Rust (4a-5) rend des zéros ; `datasets.available` en hérite
+  (`flight_stats_cases.py`, journal `n1`, le test l'écarte explicitement). Aucun vrai log n'a un point.
+  **Pourquoi reporté** : découvert en 4c-1, hors sujet de la branche ; sans effet sur le corpus.
+  **Reprise** : quand la ligne de commande Rust (5c) devra rendre les mêmes erreurs que Python, ou si un journal vide ou à un point
+  devient possible.
