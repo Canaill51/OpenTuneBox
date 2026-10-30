@@ -142,9 +142,7 @@ pub fn flight_step(log: &FlightLog, sel: Range<usize>, label: &str) -> Result<Fl
     let s = &log.settings;
     let mut f = FlightStep {
         label: if label.is_empty() {
-            log.path
-                .file_name()
-                .map_or(String::new(), |n| n.to_string_lossy().into_owned())
+            log.name()
         } else {
             label.to_string()
         },
@@ -210,7 +208,7 @@ impl Series {
     /// Écarts entre valeurs successives distinctes (arrondis à 3 décimales).
     pub fn steps(&self) -> Vec<f64> {
         let mut v = self.values.clone();
-        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v.sort_by(f64::total_cmp); // un NaN passe en dernier au lieu de faire paniquer (Python en rend un pas NaN)
         v.dedup();
         v.windows(2).map(|w| round_digits(w[1] - w[0], 3)).collect()
     }

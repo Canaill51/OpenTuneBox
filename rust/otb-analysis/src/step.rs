@@ -206,8 +206,9 @@ fn sum_rows(m: &[f64], rows: usize, len: usize) -> Vec<f64> {
     if len == 1 {
         return vec![0.0 + pairwise_sum(&m[..rows])];
     }
-    let mut acc = m[..len].to_vec();
-    for r in 1..rows {
+    // numpy part de +0,0 (un −0,0 de toute une colonne devient +0,0, mesuré : afd8968)
+    let mut acc = vec![0.0; len];
+    for r in 0..rows {
         for j in 0..len {
             acc[j] += m[r * len + j];
         }
@@ -313,6 +314,9 @@ pub fn window_starts(
     max_input: Option<f64>,
     breaks: Option<&[i64]>,
 ) -> Result<Vec<i64>, String> {
+    if l < 0 {
+        return Err("`window_shape` cannot contain negative values".into()); // sliding_window_view de Python
+    }
     if (sp.len() as i64) < l {
         return Ok(Vec::new());
     }
@@ -323,6 +327,9 @@ pub fn window_starts(
     let starts: Vec<i64> = all.iter().zip(&keep).filter(|(_, k)| **k).map(|(s, _)| *s).collect();
     if starts.is_empty() {
         return Ok(starts);
+    }
+    if l == 0 {
+        return Err("zero-size array to reduction operation maximum which has no identity".into()); // max d'une fenêtre vide
     }
     Ok(starts
         .into_iter()
@@ -512,4 +519,25 @@ pub fn step_response(
         loop_: lp,
         max_inputs: out.maxin,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Python : `np.full((3, 4), -0.0).sum(axis=0)` et `.mean(axis=0)` rendent +0,0 (la somme part de +0,0) ; mesuré avec numpy 2.
+    #[test]
+    fn la_somme_des_lignes_part_de_plus_zero() {
+        for (rows, len) in [(3, 4), (1, 4), (5, 1)] {
+            let m = vec![-0.0; rows * len];
+            assert!(
+                sum_rows(&m, rows, len).iter().all(|v| v.is_sign_positive()),
+                "{rows}×{len}"
+            );
+            assert!(
+                mean_rows(&m, rows, len).iter().all(|v| v.is_sign_positive()),
+                "{rows}×{len}"
+            );
+        }
+    }
 }

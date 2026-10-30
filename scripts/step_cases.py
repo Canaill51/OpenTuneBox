@@ -191,6 +191,9 @@ def main():
         ws(sp0[:n], 1000.0, 0.5, f"n={n}")
     ws(sp0, NAN, 0.5, "fs NaN")
     ws(sp0, 1000.0, NAN, "seg_s NaN")
+    ws(sp0, 1000.0, 0.0, "seg_s nul (fenêtre vide : Python lève)")
+    ws(sp0, 1000.0, -0.5, "seg_s négatif (Python lève)")
+    ws(sp0, 1000.0, 0.0, "seg_s nul, seuil 0", min_input=0.0)
     ws(np.full(3000, 25.0), 1000.0, 0.5, "consigne constante à 25 °/s")
     ws(np.full(3000, 20.0), 1000.0, 0.5, "consigne constante à 20 °/s (frontière >=)")
     ws(np.full(3000, -20.0), 1000.0, 0.5, "consigne constante à −20 °/s")
@@ -241,6 +244,8 @@ def main():
     for nn in (500, 501, 499, 563):  # n = L à 2 s et fs = 250 : une seule fenêtre possible
         sr(simulate(rng, nn, fs, amp=400.0), f"n={nn} (fenêtre de 2 s)", min_input=5.0)
     sr(tuple(a[:500] for a in sig), "n = L exactement, signal de la boucle a", min_input=5.0)
+    sr(sig, "seg_s négatif", seg_s=-0.5)
+    sr(sig, "seg_s nul", seg_s=0.0)
     sr(sig, "smooth = 1", seg_s=0.5, smooth=1)
     sr(sig, "smooth = 5 (non porté)", seg_s=0.5, smooth=5)
     sr(sig, "réponse 0 ms", seg_s=0.5, resp_ms=0.0)

@@ -111,3 +111,25 @@ fn conditions_du_protocole_conformes() {
     }
     assert!(angle >= 8 && active >= 8, "{angle} {active}");
 }
+
+/// `flight_step(log, sel, "")` : le nom du vol est celui du journal, sans extension (`label or log.name` de Python, mesuré : « jeno5_5s »).
+#[test]
+fn flight_step_nomme_le_vol_comme_python() {
+    let path = format!("{}/../../tests/data/jeno5_5s.bbl", env!("CARGO_MANIFEST_DIR"));
+    let logs = otb_log::flightlog::load(std::path::Path::new(&path)).unwrap();
+    let lg = &logs[0];
+    let fl = step_series::flight_step(lg, 0..lg.n(), "").unwrap();
+    assert_eq!(fl.label, "jeno5_5s");
+    assert_eq!(step_series::flight_step(lg, 0..lg.n(), "essai").unwrap().label, "essai");
+}
+
+/// `Series::steps` d'une série à valeur NaN ne panique plus (Python rend un pas NaN).
+#[test]
+fn steps_ne_panique_pas_sur_un_nan() {
+    let s = step_series::Series {
+        key: "Damping",
+        flights: vec![0, 1],
+        values: vec![f64::NAN, 1.0],
+    };
+    assert!(s.steps().iter().all(|v| v.is_nan()));
+}
