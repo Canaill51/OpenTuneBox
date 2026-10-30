@@ -60,6 +60,63 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-047 : une mutation « survivante » peut être équivalente, ou ne rien avoir muté
+- **Symptôme** — 2026-10-30 (4a-5) : changer le signe du gradient de `d_term_prefilter` ou le plancher de sa largeur de lissage
+  laissait `check-flightlog` à 0 écart ; deux mutations de la batterie ne changeaient aucun fichier (motif absent après
+  `cargo fmt`), donc comptées « vues » à tort si on lit seulement la sortie.
+- **Cause** — mesurée : le gain `k` de `d_term_prefilter` est ajusté par moindres carrés, donc `raw·k` ne dépend pas du signe de
+  `raw` ; la largeur vaut `max(3, int(fs/60))` ≈ 33, le plancher 3 n'intervient pas.
+- **Règle** — après une mutation, `cmp` le fichier à sa sauvegarde (« PATRON ABSENT » sinon) ; une mutation qui survit se
+  raisonne d'abord (équivalente ?) puis se couvre par un cas ou se note équivalente. Un seuil ou un plafond ne se prouve que
+  par une valeur qui le franchit (gaz de repli : `fl_gaz_de_repli_hors_bornes`), l'égalité exacte aussi (`fl_moitie_exacte`).
+- **Preuve** — `rust/otb-parity/tests/decode_fixtures.rs` ; `scripts/decoder_fixtures.py` (scénarios `fl_…`).
+- **Suite** — la relecture indépendante (agent `relecteur`) a trouvé ce que ni les 668 sessions du corpus ni les 62 fixtures ne
+  couvraient : `np.convolve` échange ses arguments quand le signal est plus court que le noyau (`n < w`, sessions de moins de
+  133 trames à 8 kHz avec un terme D : gain `k` faux de 1,6e-3), `trim` de Rust au lieu de `strip` de Python dans
+  `debug_mode_name`, un débordement de `+ 1` après un `as i64` saturé. Corrigés avec leurs tests (`fl_courte_avec_terme_d_*`,
+  `settings_cases.py`, tests de `flightlog.rs`), chacun vu en échec sans le correctif. **Le corpus ne contient pas les cas
+  courts** : toute branche numpy qui dépend de la longueur d'un tableau demande une fixture courte.
+
+### L-046 : une couche de parité sur le corpus ne prouve pas les valeurs par défaut
+- **Symptôme** — 2026-10-30 (4a-4) : changer le défaut de `looptime`, `motor_poles` ou `rpm_filter_q` dans `parse_settings` laissait
+  `otb-parity check-settings` à 0 différence sur les 680 sessions ; seule la lecture d'une clé (`looptim`) échouait (69 sessions).
+- **Cause** — mesurée : les logs du corpus contiennent ces clés, donc le défaut n'y est jamais utilisé.
+- **Règle** — les défauts et les formes absurdes se prouvent par des cas écrits (`scripts/settings_cases.py`, aussi `{}`), le
+  corpus prouve les valeurs réelles ; toujours les deux couches, et une mutation par couche.
+- **Preuve** — `rust/otb-parity/tests/settings_cases.rs` (cas 0 : en-tête vide) contre `check-settings`.
+
+### L-045 : lire un en-tête comme Python : espaces, hexadécimal, soulignés
+- **Symptôme** — 2026-10-30 (4a-2) : le port Rust de `parse_header` acceptait `0x-1` (Python : valeur par défaut) ; `trim` de
+  Rust gardait U+001C là où `str.strip()` de Python l'enlève ; un nombre `1__0` ou `0x1__f` n'est pas à traiter comme `10`.
+- **Cause** — mesurée : `i64::from_str_radix` accepte un signe ; `str::trim` suit la propriété White_Space d'Unicode (sans U+001C
+  à U+001F), `str.strip()` de Python inclut ces quatre séparateurs ; `float()` et `int(…, 0)` de Python n'acceptent un souligné
+  qu'entre deux chiffres (ou juste après `0x`).
+- **Règle** — passer par `header::py_strip`, `py_float` et `py_hex` ; ajouter un cas dans `scripts/header_cases.py` pour toute
+  nouvelle forme de valeur, et laisser une mutation du port échouer avant de la croire couverte (le premier jeu de cas laissait
+  survivre la mutation « soulignés doubles en hexa »).
+- **Preuve** — `rust/otb-decoder/tests/header.rs` (477 cas), `otb-parity check-header` (680 sessions du corpus).
+
+### L-044 : reproduire les textes de nombres de Python en Rust : `round`, `%g`, `repr`
+- **Symptôme** — 2026-10-30 (E2) : sur 12 M de cas, `f64::round` et la sortie courte `{:e}` de Rust différaient de Python.
+- **Cause** — mesurée : (1) `f64::round` arrondit les moitiés vers l'extérieur, `round` de Python vers le pair ; (2) Rust n'a pas
+  de `%g` ; (3) sur une égalité exacte à 16 chiffres (ex. 696994262879799.25, valeurs ≥ 5·10¹⁴), Rust écrit …799.3, Python
+  …799.2 (chiffre pair) ; (4) `round` de Python rend un entier sans limite, pas un `i64`.
+- **Règle** — passer par `rust/otb-format` (`fixed`, `percent`, `general`, `repr`, `round_half_even`, `round_digits`), jamais
+  `format!` ni `round` directement dans un texte comparé à l'étalon. `{:.N}` seul (décimales fixes) est identique à Python.
+- **Preuve** — `rust/otb-format/tests/cas.rs` : `cas.tsv` (4 320 cas, CI) ; `OTB_FORMAT_CASES` pour 12 M de cas
+  (`scripts/format_cases.py SORTIE.tsv 12000000`).
+
+### L-043 : egui 0.37 : trois pièges vus pendant le prototype d'interface (E1)
+- **Symptôme** — 2026-10-30 : (1) le thème « clair » s'affichait sombre dans la capture ; (2) la ligne d'un graphique ne se
+  laissait pas saisir à la souris (le test de glisser échouait, coupure inchangée) ; (3) `TopBottomPanel` et
+  `CentralPanel::show(ctx, …)` ne compilent plus.
+- **Cause** — mesurée : (1) `set_visuals` ne vaut qu'au cadre suivant, et rien ne le redemandait ; (2) egui annonce `drag_started`
+  après un déplacement : le curseur est déjà loin de la ligne quand on la cherche ; (3) egui 0.37 a fusionné les panneaux en
+  `egui::Panel` et `show` prend un `Ui` (`show_inside` est déprécié).
+- **Règle** — après `set_visuals`, appeler `request_repaint` ; chercher l'objet à glisser à `pointer.press_origin()`, pas à la
+  position courante ; en test, ne pas se fier à « ne panique pas » : regarder la capture.
+- **Preuve** — `rust/otb-spike-egui` (`rust/otb-spike-egui/tests/interaction.rs` échouait avant la correction, `rust/otb-spike-egui/tests/tabs.rs` produit les captures).
+
 ### L-042 : reproduire numpy au bit près : `np.abs` complexe et `np.mean` ne font pas ce qu'on croit
 - **Symptôme** — 2026-10-29 (phase 3b, D-034) : le port Rust de `rpm_attenuation` différait de 1 ulp de l'ancien code
   sur 4 811 valeurs de 12 040 (écart max 2,2e-16), puis celui de `harmonic_prominence` de 1 ulp sur 298 fenêtres de 471,
@@ -533,6 +590,11 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-047 | Mutation survivante : équivalente (gain ajusté, plancher inactif) ou motif absent ; seuils prouvés par une valeur qui les franchit | Décodeur et logs |
+| L-046 | Parité sur le corpus : ne prouve pas les défauts, il faut des cas écrits en plus | Décodeur et logs |
+| L-045 | En-tête Blackbox lu comme Python : `strip` (U+001C…), `0x` sans signe, soulignés entre chiffres seulement (`header.rs`) | Décodeur et logs |
+| L-044 | Textes de nombres Python en Rust : `round` au pair, `%g` et `repr` à refaire (`otb-format`) | Analyses |
+| L-043 | egui 0.37 : thème appliqué au cadre suivant, glisser cherché au point pressé, panneaux fusionnés en `Panel` | Interface |
 | L-042 | Reproduire numpy au bit près : `np.abs` complexe est SIMD (module pris en Python) ; `np.mean` = +0,0 + somme par paires de tous les éléments | Analyses |
 | L-041 | `motor_hz` est en float32 sur de vrais logs : les noyaux suivent la précision des tableaux d'entrée (NEP 50), jamais float64 d'office | Analyses |
 | L-040 | Vues d'un lot lu en une passe : elles gardent toutes ses lignes vivantes ; lot 1 = ce que l'objet garde, lot 2 = temporaire | Décodeur et logs |

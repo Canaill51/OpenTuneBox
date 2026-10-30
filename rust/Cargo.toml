@@ -1,7 +1,8 @@
 # Espace de travail Cargo de la migration vers Rust (D-031, docs/migration-rust.md).
 [workspace]
 resolver = "3"
-members = ["otb-analysis", "otb-decoder", "otb-dsp", "otb-log", "otb-py"]
+members = ["otb-analysis", "otb-decoder", "otb-dsp", "otb-format", "otb-log", "otb-parity", "otb-py"]
+exclude = ["otb-spike-egui"]
 
 [workspace.package]
 version = "0.8.0"

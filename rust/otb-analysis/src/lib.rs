@@ -4,7 +4,7 @@
 //! même ordre (pas de réécriture algébrique, Rust ne fusionne pas en FMA), mêmes sommes (voir [`numpy_mean`] et
 //! [`nan_mean_rows`]). La FFT et le découpage en fenêtres restent côté Python (numpy, déjà en C).
 
-use otb_dsp::{K_NOTCH, apply_stage, biquad, unit_delays};
+use otb_dsp::{K_NOTCH, apply_stage, biquad, pairwise_sum, unit_delays};
 use rayon::prelude::*;
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
@@ -55,34 +55,6 @@ const MAX_HARMONICS: usize = 1000;
 
 /// Plafond du nombre d'images repliées par bande : au-delà, l'étalon ne finirait pratiquement jamais.
 const MAX_ALIASES: usize = 1_000_000;
-
-/// Somme par paires de numpy (`DOUBLE_pairwise_sum`) : blocs de 8 accumulateurs jusqu'à 128 valeurs, coupure en
-/// deux moitiés (multiple de 8) au-delà.
-fn pairwise_sum(a: &[f64]) -> f64 {
-    let n = a.len();
-    if n < 8 {
-        return a.iter().fold(-0.0, |s, &v| s + v);
-    }
-    if n <= 128 {
-        let mut r = [a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]];
-        let body = n - (n % 8);
-        let mut i = 8;
-        while i < body {
-            for (j, rj) in r.iter_mut().enumerate() {
-                *rj += a[i + j];
-            }
-            i += 8;
-        }
-        let mut res = ((r[0] + r[1]) + (r[2] + r[3])) + ((r[4] + r[5]) + (r[6] + r[7]));
-        for &v in &a[i..] {
-            res += v;
-        }
-        return res;
-    }
-    let mut n2 = n / 2;
-    n2 -= n2 % 8;
-    pairwise_sum(&a[..n2]) + pairwise_sum(&a[n2..])
-}
 
 /// `np.mean` d'un tableau 1D contigu de float64 : +0,0 (identité de l'addition) plus la somme par paires de **tous** les
 /// éléments (NumPy 2.5 ne traite pas le premier à part), divisés par leur nombre. Vide → NaN. Le +0,0 donne +0,0 pour

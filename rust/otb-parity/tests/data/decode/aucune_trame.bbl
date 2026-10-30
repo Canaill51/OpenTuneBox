@@ -1,0 +1,10 @@
+H Product:Blackbox flight data recorder by Nicholas Sherlock
+H Data version:2
+H I interval:32
+H P interval:1/1
+H Field I name:loopIteration,time,gyroADC[0],gyroADC[1],gyroADC[2]
+H Field I signed:0,0,1,1,1
+H Field I predictor:0,0,0,0,0
+H Field I encoding:1,1,0,0,0
+H Field P predictor:6,2,1,1,1
+H Field P encoding:9,0,0,0,0

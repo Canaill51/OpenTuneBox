@@ -4,3 +4,6 @@ description = "Décodeur binaire des trames Blackbox Betaflight (Rust pur, sans 
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+
+[dev-dependencies]
+serde_json = "1"

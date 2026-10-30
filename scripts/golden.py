@@ -3,6 +3,11 @@
 
 Usage : golden.py record DOSSIER [--limit N] [--sample N] [-j PROCESSUS]
         golden.py check  DOSSIER [--limit N] [--sample N] [-j PROCESSUS] [--rtol X]
+        golden.py record-modules DOSSIER [--limit N] [--sample N]   (références par module, D-035 : golden_modules.py)
+        golden.py record-header  DOSSIER [--limit N]   (en-têtes de toutes les sessions : golden_header.py)
+        golden.py record-settings DOSSIER [--limit N]   (réglages de toutes les sessions : golden_settings.py)
+        golden.py record-flightlog DOSSIER [--limit N] [-j PROCESSUS]   (journaux de vol : golden_flightlog.py)
+        golden.py check-modules  DOSSIER [--limit N] [--sample N]   (réenregistre dans DOSSIER.new, compare le contenu)
 
 DOSSIER : où ranger les références, hors du dépôt (par exemple `$OTB_LOGS/golden`). Trois couches :
   - décodeur  : empreinte (SHA-256) de chaque tableau de chaque session du corpus, exacte au bit près ;
@@ -180,7 +185,7 @@ def check_tools(files, root, out_dir, sample, rtol):
 # ------------------------------------------------------------------ assistant et commande
 def main():
     argv = sys.argv[1:]
-    if len(argv) < 2 or argv[0] not in ("record", "check"):
+    if len(argv) < 2 or argv[0] not in ("record", "check", "record-modules", "check-modules", "record-header", "record-settings", "record-flightlog"):
         sys.exit(__doc__)
     mode, out_dir = argv[0], argv[1]
     opt = lambda name, default, cast: cast(argv[argv.index(name) + 1]) if name in argv else default  # noqa: E731
@@ -189,6 +194,31 @@ def main():
     root = logs_root()
     files = log_files(root)[:limit]
     os.makedirs(out_dir, exist_ok=True)
+    if mode == "record-flightlog":
+        from golden_flightlog import record_flightlog
+        record_flightlog(files, root, out_dir, jobs)
+        from opentunebox.gui.app import hard_exit  # L-019
+        hard_exit(0)
+    if mode == "record-settings":
+        from golden_settings import record_settings
+        record_settings(files, root, out_dir)
+        return
+    if mode == "record-header":
+        from golden_header import record_header
+        record_header(files, root, out_dir)
+        return
+    if mode in ("record-modules", "check-modules"):
+        from golden_modules import digest_dir, record_modules
+        from opentunebox.gui.app import hard_exit  # L-019
+        if mode == "record-modules":
+            record_modules(files, root, out_dir, sample)
+            hard_exit(0)
+        new_dir = out_dir.rstrip("/") + ".new"
+        record_modules(files, root, new_dir, sample)
+        old, new = digest_dir(out_dir), digest_dir(new_dir)
+        diff = sorted(k for k in old.keys() | new.keys() if old.get(k) != new.get(k))
+        print(f"modules : {len(old)} fichiers de référence, {len(diff)} différents", *diff[:10], sep="\n  ")
+        hard_exit(1 if diff else 0)
     rates = os.path.join(out_dir, "advisor.json")
     advisor = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "advisor_rates.py")]
     extra = (["--limit", str(limit)] if limit else []) + (["-j", str(jobs)] if jobs else [])
