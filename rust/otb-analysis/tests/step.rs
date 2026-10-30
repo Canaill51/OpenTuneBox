@@ -328,15 +328,35 @@ fn step_response_conforme() {
         let w = &k["out"];
         assert_eq!(got.n as i64, w["n"].as_i64().unwrap(), "{what} : nombre de fenêtres");
         assert_bits(&got.t_ms, &input(&c, &w["t"]), &format!("{what} : t_ms"));
-        assert_bits(&got.responses, &input(&c, &w["R"]), &format!("{what} : réponses"));
-        assert_bits(&got.mean, &input(&c, &w["mean"]), &format!("{what} : moyenne"));
-        assert_bits(&got.std, &input(&c, &w["std"]), &format!("{what} : écart-type"));
+        // ⚠️ les réponses sortent d'une FFT (`realfft`) : identiques à Python sur ce poste, pas d'une plateforme à l'autre (CI Windows : 1,8e-12 ;
+        // L-048, L-059). La consigne max (valeur absolue, sans FFT) reste exacte.
+        assert_close(
+            "réponses",
+            &got.responses,
+            &input(&c, &w["R"]),
+            RESPONSE_RTOL,
+            &format!("{what} : réponses"),
+        );
+        assert_close(
+            "moyenne",
+            &got.mean,
+            &input(&c, &w["mean"]),
+            RESPONSE_RTOL,
+            &format!("{what} : moyenne"),
+        );
+        assert_close(
+            "écart-type",
+            &got.std,
+            &input(&c, &w["std"]),
+            RESPONSE_RTOL,
+            &format!("{what} : écart-type"),
+        );
         assert_bits(
             &got.max_inputs,
             &input(&c, &w["max_inputs"]),
             &format!("{what} : consignes max"),
         );
-        assert_metrics(&got.metrics, &metrics_of(&w["metrics"]), &format!("{what} : métriques"));
+        assert_metrics_close(&got.metrics, &metrics_of(&w["metrics"]), &format!("{what} : métriques"));
         check_loop(&got.loop_, &w["lm"], &c, &what);
         if got.n == 0 {
             empty += 1;
