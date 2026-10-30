@@ -6,7 +6,7 @@
 //! Python (`<section>|_error`) aussi. Une clé présente d'un côté seulement est un écart.
 
 use crate::value::{Array, load_arrays};
-use otb_analysis::{datasets, delay, motors, open_loop, period, stats};
+use otb_analysis::{datasets, delay, motors, open_loop, period, stats, step_series};
 use otb_log::flightlog::{FlightLog, Rows, clamp_range};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -38,26 +38,7 @@ enum Item {
 type Flat = BTreeMap<String, Item>;
 
 /// Sections de la couche déjà portées en Rust (les autres sont ignorées).
-pub const PORTED: [&str; 6] = ["period", "datasets", "stats", "delay", "motors", "step"];
-
-/// Sections portées en partie seulement : une clé de Python que Rust ne produit pas encore n'est pas un écart. `step` : 4c-B(a) rejoue
-/// les marges des boucles mesurées (les spectres, `T`, `std`… viennent aux étapes (b) et (c)) et toute la boucle approchée ; les
-/// métriques et les réponses viennent avec `step` et `step_series`.
-fn in_scope(section: &str, key: &str, py: &HashMap<String, Array>) -> bool {
-    if section != "step" {
-        return true;
-    }
-    let Some((_, field)) = key.split_once("].") else {
-        return false;
-    };
-    // une boucle mesurée garde la bande passante et le pic de suivi de `step_response`, pas encore porté (relus de la référence, non comparés)
-    let measured = key
-        .split_once("].")
-        .and_then(|(lk, _)| py.get(&format!("{lk}].method")))
-        .and_then(|m| m.as_string())
-        .is_some_and(|m| m == open_loop::MEASURED);
-    key.starts_with("step.loops[") && !(measured && matches!(field, "bandwidth_hz" | "tracking_peak_db"))
-}
+pub const PORTED: [&str; 7] = ["period", "datasets", "stats", "delay", "motors", "step", "series"];
 
 /// Tolérance des marges et des courbes de la boucle ouverte (`log`, `atan2`, `exp` : L-048). **Mesurée sur les 668 sessions** : 1,9e-15
 /// au pire (cas écrits : 2,0e-15). Marge ×5 000 ; un saut d'indice (croisement, passage par −180°, pic) vaut un pas de grille.
@@ -115,7 +96,7 @@ fn put_pair(f: &mut Flat, key: &str, v: &Option<(f64, f64)>) {
 type Section = (&'static str, Result<Flat, String>);
 
 /// Résultats des modules portés pour une session, par section et sous les noms de Python.
-fn ported(lg: &FlightLog, py: &HashMap<String, Array>) -> Vec<Section> {
+fn ported(lg: &FlightLog) -> Vec<Section> {
     let period = period_section(lg);
     // la période de vol ; si `auto_period` échoue, Python garde `slice(None)` pour les sections suivantes
     let sel = period::auto_period(lg, 8.0, 0.5)
@@ -127,7 +108,8 @@ fn ported(lg: &FlightLog, py: &HashMap<String, Array>) -> Vec<Section> {
         ("stats", Ok(stats_section(lg, sel.clone()))),
         ("delay", delay_section(lg, sel.clone())),
         ("motors", motors_section(lg, sel.clone())),
-        ("step", step_section(lg, sel.clone(), py)),
+        ("step", step_section(lg, sel.clone())),
+        ("series", series_section(lg, sel.clone())),
     ]
 }
 
@@ -141,145 +123,121 @@ pub const SPECTRA_LOOP_TOL: f64 = 1e-5;
 /// dans un sous-ensemble déplace un écart-type de plusieurs ordres de grandeur.
 pub const STD_LOOP_TOL: f64 = 1e-8;
 
-/// Boucles ouvertes de `step`. Une boucle **mesurée** est refaite depuis le journal (4c-B(b) : `loop_spectra` et `estimate` ; l'étape (c)
-/// y ajoutera `loop_from_terms`) : les mêmes décisions (mesurée ou approchée, points valides) et les mêmes fonctions de transfert que
-/// Python. Une boucle **approchée** est rejouée depuis les entrées de la référence (`loop_from_T(freqs, T, coherence)`, 4c-B(a)).
-fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>, py: &HashMap<String, Array>) -> Result<Flat, String> {
-    if py.contains_key("step|_error") {
-        return Err("référence en erreur".into());
+/// Curseurs estimés depuis les PID quand l'en-tête n'en donne pas (`sliders_from_pids` : SVD de Jacobi à la place de `lstsq`, 4b-5) :
+/// mesuré à 1,6e-15 sur les 680 sessions, tolérance 1e-11 (comme `check-sliders`).
+pub const SLIDERS_TOL: f64 = 1e-11;
+
+fn put_sig(f: &mut Flat, key: &str, sig: &step_series::Sig) {
+    match sig {
+        step_series::Sig::I(v) => {
+            f.insert(key.to_string(), Item::I(*v));
+        }
+        step_series::Sig::T(items) => {
+            for (i, it) in items.iter().enumerate() {
+                put_sig(f, &format!("{key}[{i}]"), it);
+            }
+        }
     }
-    let get = |k: &str| py.get(k).ok_or_else(|| format!("{k} absente de la référence"));
-    let floats = |a: &Array| (0..a.len()).map(|i| a.get_f64(i)).collect::<Vec<f64>>();
-    let cplx =
-        |a: &Array| -> Vec<open_loop::C> { (0..a.len()).map(|i| (a.get_f64(2 * i), a.get_f64(2 * i + 1))).collect() };
-    let up = |v: &[f32]| v.iter().map(|&x| x as f64).collect::<Vec<f64>>();
-    let breaks: Vec<i64> = lg.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect();
+}
+
+/// Une boucle ouverte de `step` (clés `step.loops[i].*`). Une boucle mesurée vient de spectres par FFT : tolérance `SPECTRA_LOOP_TOL` ;
+/// une boucle approchée vient des sommes du noyau de déconvolution (les mêmes des deux côtés) : `LOOP_TOL`.
+fn put_loop(f: &mut Flat, p: &str, lm: &open_loop::LoopMetrics) {
+    let tol = if lm.method == open_loop::MEASURED {
+        SPECTRA_LOOP_TOL
+    } else {
+        LOOP_TOL
+    };
+    f.insert(format!("{p}.method"), Item::S(lm.method.to_string()));
+    for (k, n) in lm.notes.iter().enumerate() {
+        f.insert(format!("{p}.notes[{k}]"), Item::S(n.clone()));
+    }
+    f.insert(format!("{p}.band_hz[0]"), Item::F(lm.band_hz.0));
+    f.insert(format!("{p}.band_hz[1]"), Item::F(lm.band_hz.1));
+    f.insert(format!("{p}.bandwidth_hz"), Item::F(lm.bandwidth_hz));
+    f.insert(
+        format!("{p}.tracking_peak_db"),
+        Item::T(lm.tracking_peak_db, LOOP_TOL, 1.0),
+    );
+    f.insert(format!("{p}.crossover_hz"), Item::T(lm.crossover_hz, tol, 1.0));
+    f.insert(
+        format!("{p}.phase_margin_deg"),
+        Item::T(lm.phase_margin_deg, tol, 180.0),
+    );
+    f.insert(format!("{p}.gain_margin_db"), Item::T(lm.gain_margin_db, tol, 1.0));
+    f.insert(
+        format!("{p}.sensitivity_peak_db"),
+        Item::T(lm.sensitivity_peak_db, tol, 1.0),
+    );
+    f.insert(format!("{p}.sensitivity_peak_hz"), Item::F(lm.sensitivity_peak_hz));
+    f.insert(
+        format!("{p}.sensitivity_peak_at_edge"),
+        Item::B(lm.sensitivity_peak_at_edge),
+    );
+    f.insert(format!("{p}.d_ratio"), Item::T(lm.d_ratio, tol, 1.0));
+    for (key, v) in &lm.std {
+        f.insert(format!("{p}.std|{key}"), Item::T(*v, STD_LOOP_TOL, 1.0));
+    }
+    f.insert(format!("{p}.freqs"), Item::A(lm.freqs.clone()));
+    f.insert(format!("{p}.T"), Item::C(lm.t.clone(), tol));
+    f.insert(format!("{p}.coherence"), Item::TR(lm.coherence.clone(), tol));
+    f.insert(format!("{p}.L"), Item::C(lm.l.clone(), tol));
+    f.insert(format!("{p}.valid"), Item::AB(lm.valid.clone()));
+}
+
+/// Section `step` : `flight_step` entier refait depuis le journal (4c-B(d) et (e)) : curseurs, signature des filtres, conditions, métriques,
+/// fenêtres retenues, retards consigne → gyro et boucles ouvertes. Les métriques, moyennes et écarts-types viennent du noyau de
+/// déconvolution (le même des deux côtés) et de sommes dans l'ordre de numpy : **identiques au bit près**.
+fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, String> {
+    let fl = step_series::flight_step(lg, sel, "essai")?;
     let mut f = Flat::new();
-    for i in 0.. {
-        let p = format!("step.loops[{i}]");
-        let Some(method) = py.get(&format!("{p}.method")) else {
-            break;
-        };
-        let method = method.as_string().ok_or("méthode illisible")?;
-        let ref_freqs = floats(get(&format!("{p}.freqs"))?);
-        let t = |v: f64, unit: f64| Item::T(v, LOOP_TOL, unit);
-        let put_margins = |f: &mut Flat, m: &open_loop::Margins, tol: f64| {
-            let t = |v: f64, unit: f64| Item::T(v, tol, unit);
-            f.insert(format!("{p}.crossover_hz"), t(m.crossover_hz, 1.0));
-            f.insert(format!("{p}.phase_margin_deg"), t(m.phase_margin_deg, 180.0));
-            f.insert(format!("{p}.gain_margin_db"), t(m.gain_margin_db, 1.0));
-            f.insert(format!("{p}.sensitivity_peak_db"), t(m.sensitivity_peak_db, 1.0));
-            f.insert(format!("{p}.sensitivity_peak_hz"), Item::F(m.sensitivity_peak_hz));
-            f.insert(
-                format!("{p}.sensitivity_peak_at_edge"),
-                Item::B(m.sensitivity_peak_at_edge),
-            );
-        };
-        // la mesure depuis le journal (axes roll et pitch : boucle i) ; `step_response` rend une boucle vide (sans fréquences) quand
-        // elle ne trouve aucune fenêtre de réponse : la décision n'est alors pas comparée
-        let empty = method == open_loop::APPROX && ref_freqs.is_empty();
-        let mut measured = None;
-        let mut notes: Vec<String> = Vec::new();
-        if !empty && i < 3 {
-            let terms = lg.pid_terms(i, sel.clone());
-            if !terms.note.is_empty() {
-                notes.push(terms.note.clone()); // `step_response` ajoute la raison de `PidTerms` : repli sans mesure
-            } else {
-                let (r, y) = (up(&lg.setpoint.row(i)[sel.clone()]), up(&lg.gyro.row(i)[sel.clone()]));
-                let (tp, ti, td, tf) = (up(&terms.p), up(&terms.i), up(&terms.d), up(&terms.f));
-                let inst = terms.instrument.as_ref().map(|v| up(v));
-                let tm = open_loop::Terms {
-                    p: &tp,
-                    i: &ti,
-                    d: &td,
-                    f: &tf,
-                    instrument: inst.as_deref(),
-                };
-                let br = if breaks.is_empty() {
-                    None
-                } else {
-                    Some(breaks.as_slice())
-                };
-                // `approx` : bande passante et pic de suivi de la méthode approchée, venus de `step_response` (pas encore porté : relus)
-                let mut approx = open_loop::LoopMetrics::new(&[], &[], &[]);
-                approx.bandwidth_hz = floats(get(&format!("{p}.bandwidth_hz"))?)[0];
-                approx.tracking_peak_db = floats(get(&format!("{p}.tracking_peak_db"))?)[0];
-                let lm = open_loop::loop_from_terms(&r, &y, &tm, lg.fs, approx, 2.0, 20.0, None, br)?;
-                if lm.method == open_loop::MEASURED {
-                    measured = Some(lm);
-                } else {
-                    notes = lm.notes.clone(); // la raison du repli, ajoutée par `loop_from_terms`
-                }
-            }
+    f.insert("step.label".into(), Item::S(fl.label.clone()));
+    for (cat, v) in &fl.sliders {
+        f.insert(format!("step.sliders|{cat}"), Item::T(*v, SLIDERS_TOL, 1.0));
+    }
+    put_sig(&mut f, "step.filters", &fl.filters);
+    f.insert("step.conditions.ff[0]".into(), Item::I(fl.conditions.ff.0));
+    f.insert("step.conditions.ff[1]".into(), Item::I(fl.conditions.ff.1));
+    f.insert("step.conditions.angle_share".into(), Item::F(fl.conditions.angle_share));
+    f.insert(
+        "step.conditions.i_slider".into(),
+        Item::T(fl.conditions.i_slider, SLIDERS_TOL, 1.0),
+    );
+    let unit = 1000.0 / lg.fs; // une période d'échantillonnage, en ms
+    for ax in 0..fl.metrics.len() {
+        let m = &fl.metrics[ax];
+        for (name, v) in [
+            ("peak", m.peak),
+            ("peak_ms", m.peak_ms),
+            ("latency_ms", m.latency_ms),
+            ("rise_ms", m.rise_ms),
+            ("settling_ms", m.settling_ms),
+            ("overshoot_pct", m.overshoot_pct),
+            ("ripple", m.ripple),
+            ("ripple_std", m.ripple_std),
+            ("ripple_ms", m.ripple_ms),
+            ("waves", m.waves),
+            ("waves_ratio", m.waves_ratio),
+        ] {
+            f.insert(format!("step.metrics[{ax}].{name}"), Item::F(v));
         }
-        for (k, n) in notes.iter().enumerate() {
-            f.insert(format!("{p}.notes[{k}]"), Item::S(n.clone()));
-        }
-        let m = if measured.is_some() {
-            open_loop::MEASURED
-        } else {
-            open_loop::APPROX
-        };
-        f.insert(format!("{p}.method"), Item::S(m.to_string()));
-        if let Some(lm) = measured {
-            f.insert(format!("{p}.band_hz[0]"), Item::F(lm.band_hz.0));
-            f.insert(format!("{p}.band_hz[1]"), Item::F(lm.band_hz.1));
-            // `bandwidth_hz` et `tracking_peak_db` viennent de `step_response` (relus de la référence plus haut) : pas comparés ici
-            f.insert(format!("{p}.freqs"), Item::A(lm.freqs.clone()));
-            f.insert(format!("{p}.T"), Item::C(lm.t.clone(), SPECTRA_LOOP_TOL));
-            f.insert(
-                format!("{p}.coherence"),
-                Item::TR(lm.coherence.clone(), SPECTRA_LOOP_TOL),
-            );
-            f.insert(format!("{p}.L"), Item::C(lm.l.clone(), SPECTRA_LOOP_TOL));
-            f.insert(format!("{p}.valid"), Item::AB(lm.valid.clone()));
-            f.insert(format!("{p}.d_ratio"), Item::T(lm.d_ratio, SPECTRA_LOOP_TOL, 1.0));
-            for (key, v) in &lm.std {
-                f.insert(format!("{p}.std|{key}"), Item::T(*v, STD_LOOP_TOL, 1.0));
-            }
-            put_margins(
-                &mut f,
-                &open_loop::Margins {
-                    crossover_hz: lm.crossover_hz,
-                    phase_margin_deg: lm.phase_margin_deg,
-                    gain_margin_db: lm.gain_margin_db,
-                    phase_crossover_hz: f64::NAN,
-                    sensitivity_peak_db: lm.sensitivity_peak_db,
-                    sensitivity_peak_hz: lm.sensitivity_peak_hz,
-                    sensitivity_peak_at_edge: lm.sensitivity_peak_at_edge,
-                },
-                SPECTRA_LOOP_TOL,
-            );
-        } else if method == open_loop::MEASURED {
-            // la référence est mesurée mais Rust ne l'a pas mesurée : la clé `method` ci-dessus l'a déjà signalé ; rien d'autre à comparer
-        } else {
-            let (tt, coh) = (cplx(get(&format!("{p}.T"))?), floats(get(&format!("{p}.coherence"))?));
-            let lm = open_loop::loop_from_t(&ref_freqs, &tt, &coh, 150.0, 0.5)?;
-            f.insert(format!("{p}.band_hz[0]"), Item::F(lm.band_hz.0));
-            f.insert(format!("{p}.band_hz[1]"), Item::F(lm.band_hz.1));
-            f.insert(format!("{p}.bandwidth_hz"), Item::F(lm.bandwidth_hz));
-            f.insert(format!("{p}.tracking_peak_db"), t(lm.tracking_peak_db, 1.0));
-            f.insert(format!("{p}.d_ratio"), Item::F(lm.d_ratio));
-            put_margins(
-                &mut f,
-                &open_loop::Margins {
-                    crossover_hz: lm.crossover_hz,
-                    phase_margin_deg: lm.phase_margin_deg,
-                    gain_margin_db: lm.gain_margin_db,
-                    phase_crossover_hz: f64::NAN,
-                    sensitivity_peak_db: lm.sensitivity_peak_db,
-                    sensitivity_peak_hz: lm.sensitivity_peak_hz,
-                    sensitivity_peak_at_edge: lm.sensitivity_peak_at_edge,
-                },
-                LOOP_TOL,
-            );
-            // les entrées conservées dans le résultat (relues de la référence : recopiées telles quelles)
-            f.insert(format!("{p}.freqs"), Item::A(lm.freqs.clone()));
-            f.insert(format!("{p}.T"), Item::C(lm.t.clone(), LOOP_TOL));
-            f.insert(format!("{p}.coherence"), Item::A(lm.coherence.clone()));
-            f.insert(format!("{p}.L"), Item::C(lm.l.clone(), LOOP_TOL));
-            f.insert(format!("{p}.valid"), Item::AB(lm.valid.clone()));
-        }
+        f.insert(format!("step.n[{ax}]"), Item::I(fl.n[ax] as i64));
+        f.insert(
+            format!("step.sp_delay_ms[{ax}]"),
+            Item::T(fl.sp_delay_ms[ax], DELAY_TOL, unit),
+        );
+        put_loop(&mut f, &format!("step.loops[{ax}]"), &fl.loops[ax]);
+    }
+    Ok(f)
+}
+
+/// Section `series` : `find_series` d'un seul vol ne rend jamais de série.
+fn series_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, String> {
+    let fl = step_series::flight_step(lg, sel, "essai")?;
+    let series = step_series::find_series(&[fl])?;
+    let mut f = Flat::new();
+    for (i, s) in series.iter().enumerate() {
+        f.insert(format!("series[{i}].key"), Item::S(s.key.to_string()));
     }
     Ok(f)
 }
@@ -708,7 +666,7 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AnalysisReport
         Err(e) => return rep.failures.push(format!("{who} : {e}")),
     };
     rep.sessions += 1;
-    for (section, result) in ported(lg, &py) {
+    for (section, result) in ported(lg) {
         // Python a levé dans cette section : Rust doit lever aussi (et réciproquement)
         if py.contains_key(&format!("{section}|_error")) {
             rep.python_errors += 1;
@@ -749,8 +707,7 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AnalysisReport
             }
         }
         for k in py.keys() {
-            if section_of(k) == section && in_scope(section, k, &py) && !k.ends_with("|_error") && !got.contains_key(k)
-            {
+            if section_of(k) == section && !k.ends_with("|_error") && !got.contains_key(k) {
                 rep.failures.push(format!("{who} : {k} absente de Rust"));
             }
         }

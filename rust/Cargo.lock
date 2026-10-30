@@ -301,6 +301,7 @@ version = "0.8.0"
 dependencies = [
  "otb-decoder",
  "otb-dsp",
+ "otb-format",
  "otb-log",
  "rayon",
  "serde_json",

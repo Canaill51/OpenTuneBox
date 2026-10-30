@@ -8,6 +8,7 @@ publish.workspace = true
 [dependencies]
 otb-dsp = { path = "../otb-dsp" }
 otb-log = { path = "../otb-log" }
+otb-format = { path = "../otb-format" }
 rayon = "1.12.0"
 
 [dev-dependencies]

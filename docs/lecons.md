@@ -60,6 +60,16 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-058 : la disposition mémoire décide de l'ordre des sommes de numpy : masque sur le dernier axe et matrice d'une colonne
+- **Symptôme** — 2026-10-30 (4c-B(d), `shape_metrics`) : `waves_ratio` diffère d'un dernier bit entre Rust et Python dès 39 réponses (9 blocs de jackknife), pas
+  avant ; puis la moyenne d'une réponse d'**un seul point** (`resp_ms = 0`) diffère aussi.
+- **Cause** — mesurée (`flags` du tableau) : `x[..., w]` avec un masque booléen rend un tableau rangé « Fortran » : `mean(axis=0)` et `sum(axis=0)` somment alors
+  chaque colonne **par paires** (identique à la somme dans l'ordre jusqu'à 7 valeurs, différent à partir de 8). Une matrice `(k, 1)` est aussi « Fortran » :
+  sa somme sur l'axe 0 est par paires. Une matrice C ordinaire à plus d'une colonne somme ligne après ligne (L-052).
+- **Règle** — avant de reproduire une réduction sur l'axe 0, afficher `a.flags` ; un cas écrit doit dépasser 8 valeurs sommées (ici 8 blocs ou plus) et
+  couvrir la matrice d'une colonne.
+- **Preuve** — `rust/otb-analysis/src/step.rs` (`sum_rows`, colonnes de `shape_metrics`), cas `shape_metrics 39 réponses` et `réponse 0 ms` de `scripts/step_cases.py`.
+
 ### L-057 : des cas aléatoires qui n'atteignent jamais le régime « valide » laissent les seuils libres ; les mutations le montrent
 - **Symptôme** — 2026-10-30 (4c-B(b), `estimate`) : les mutations du seuil `f ≤ 0,4 × fs`, de `isfinite(L)` et de la fin de `first_run` survivent, alors que les
   spectres tirés au hasard devaient les atteindre.
@@ -718,6 +728,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-058 | Ordre des sommes de numpy : `x[..., masque]` et matrice d'une colonne sont « Fortran », somme par paires sur l'axe 0 (≥ 8 valeurs) | Analyses |
 | L-057 | Cas aléatoires qui n'atteignent jamais le régime valide : seuils libres ; phases lentes, puissances voisines, compter les cas non vides | Outillage |
 | L-056 | Un résidu d'arrondi de zéro exact (centre d'un notch) ne se compare pas en relatif : absolu pour |H|, plancher pour les spectres ; une comparaison durcie passe par la CI Windows | Outillage |
 | L-055 | Largeur de raie sur spectre plat = fonction discontinue du dernier bit : rejouer la fonction seule sur l'entrée exacte de Python, exempter et compter | Analyses |

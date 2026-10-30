@@ -14,6 +14,8 @@ pub mod period;
 pub mod sliders;
 pub mod spectral;
 pub mod stats;
+pub mod step;
+pub mod step_series;
 
 use otb_dsp::{K_NOTCH, apply_stage, biquad, pairwise_sum, unit_delays};
 use rayon::prelude::*;
