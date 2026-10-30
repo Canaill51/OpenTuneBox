@@ -4,9 +4,11 @@
 //! est comptée « non portée » (ce n'est pas un échec) : les phases 4 et 5 la remplissent module par module.
 
 use crate::value::{Array, Case, Value};
+use otb_analysis::bf_filters::{self, Chain, ChainItem, FilterSpec, Kind};
 use otb_analysis::spectral::{self, Mode};
 use otb_dsp::numeric;
 use otb_log::flightlog::{FlightLog, PidTerms};
+use otb_log::settings::{Lowpass, Settings};
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -560,8 +562,298 @@ fn freq_time(c: &Case) -> Result<Value, String> {
     ))
 }
 
-/// Tolérance relative (au plus grand élément) de chaque fonction portée ; 0 = identique au bit près. Fixée en 4b-0 puis
-/// précisée en 4b-1 (docs/migration-rust.md) : ce qui passe par `cos`, `exp` ou une FFT s'écarte de numpy au dernier bit.
+// ---------------------------------------------------------------- bf_filters : chaînes et réponses (phase 4b-3)
+
+fn obj_fields<'a>(v: Option<&'a Value>, name: &str) -> Result<&'a [(String, Value)], String> {
+    match v {
+        Some(Value::Obj(n, f)) if n == name => Ok(f),
+        other => Err(format!("{name} attendu, reçu {other:?}")),
+    }
+}
+
+fn field<'a>(fields: &'a [(String, Value)], key: &str) -> Result<&'a Value, String> {
+    fields
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v)
+        .ok_or_else(|| format!("champ {key} absent"))
+}
+
+fn int_field(fields: &[(String, Value)], key: &str) -> Result<i64, String> {
+    int(Some(field(fields, key)?), key)
+}
+
+fn pair_of(v: &Value) -> Result<(i64, i64), String> {
+    match v {
+        Value::Tuple(p) | Value::List(p) if p.len() == 2 => {
+            Ok((int(Some(&p[0]), "paire")?, int(Some(&p[1]), "paire")?))
+        }
+        other => Err(format!("paire attendue, reçu {other:?}")),
+    }
+}
+
+fn lowpass_from(v: Option<&Value>) -> Result<Lowpass, String> {
+    let f = obj_fields(v, "LowpassSetting")?;
+    let kind = match field(f, "type")? {
+        Value::Str(s) if s == "PT1" => "PT1",
+        Value::Str(s) if s == "BIQUAD" => "BIQUAD",
+        Value::Str(s) if s == "PT2" => "PT2",
+        Value::Str(s) if s == "PT3" => "PT3",
+        other => return Err(format!("type de passe-bas : {other:?}")),
+    };
+    Ok(Lowpass {
+        kind,
+        static_hz: int_field(f, "static_hz")?,
+        dyn_min_hz: int_field(f, "dyn_min_hz")?,
+        dyn_max_hz: int_field(f, "dyn_max_hz")?,
+        expo: int_field(f, "expo")?,
+    })
+}
+
+fn lowpass_value(lp: &Lowpass) -> Value {
+    Value::Obj(
+        "LowpassSetting".into(),
+        vec![
+            ("type".into(), Value::Str(lp.kind.to_string())),
+            ("static_hz".into(), Value::Int(lp.static_hz)),
+            ("dyn_min_hz".into(), Value::Int(lp.dyn_min_hz)),
+            ("dyn_max_hz".into(), Value::Int(lp.dyn_max_hz)),
+            ("expo".into(), Value::Int(lp.expo)),
+        ],
+    )
+}
+
+/// `Settings` enregistré → réglages Rust, **champ par champ** (pas par `raw`) : les réglages « modifiés » du simulateur sont
+/// faits par `dataclasses.replace` et `raw` ne les reflète pas. Seuls les champs que lisent les chaînes de filtres sont repris.
+fn settings_for_filters(v: Option<&Value>) -> Result<Settings, String> {
+    let f = obj_fields(v, "Settings")?;
+    let notches = match field(f, "gyro_notches")? {
+        Value::List(l) | Value::Tuple(l) => l.iter().map(pair_of).collect::<Result<Vec<_>, _>>()?,
+        other => return Err(format!("gyro_notches : {other:?}")),
+    };
+    let weights = match field(f, "rpm_weights")? {
+        Value::List(l) | Value::Tuple(l) => l
+            .iter()
+            .map(|x| int(Some(x), "rpm_weights"))
+            .collect::<Result<Vec<_>, _>>()?,
+        other => return Err(format!("rpm_weights : {other:?}")),
+    };
+    Ok(Settings {
+        looptime_us: int_field(f, "looptime_us")?,
+        pid_denom: int_field(f, "pid_denom")?,
+        gyro_lpf1: lowpass_from(Some(field(f, "gyro_lpf1")?))?,
+        gyro_lpf2: lowpass_from(Some(field(f, "gyro_lpf2")?))?,
+        dterm_lpf1: lowpass_from(Some(field(f, "dterm_lpf1")?))?,
+        dterm_lpf2: lowpass_from(Some(field(f, "dterm_lpf2")?))?,
+        gyro_notches: notches,
+        dterm_notch: pair_of(field(f, "dterm_notch")?)?,
+        dyn_notch_count: int_field(f, "dyn_notch_count")?,
+        dyn_notch_q: int_field(f, "dyn_notch_q")?,
+        dyn_notch_min_hz: int_field(f, "dyn_notch_min_hz")?,
+        dyn_notch_max_hz: int_field(f, "dyn_notch_max_hz")?,
+        rpm_harmonics: int_field(f, "rpm_harmonics")?,
+        rpm_weights: weights,
+        rpm_q: int_field(f, "rpm_q")?,
+        rpm_min_hz: int_field(f, "rpm_min_hz")?,
+        rpm_fade_hz: int_field(f, "rpm_fade_hz")?,
+        ..Settings::default()
+    })
+}
+
+fn spec_from(v: &Value) -> Result<FilterSpec, String> {
+    let f = obj_fields(Some(v), "FilterSpec")?;
+    let kind = match field(f, "kind")? {
+        Value::Str(s) => Kind::parse(s)?,
+        other => return Err(format!("kind : {other:?}")),
+    };
+    Ok(FilterSpec::with(
+        kind,
+        float(field(f, "f_hz")?)?,
+        float(field(f, "q")?)?,
+        float(field(f, "weight")?)?,
+    ))
+}
+
+fn spec_value(sp: &FilterSpec) -> Value {
+    Value::Obj(
+        "FilterSpec".into(),
+        vec![
+            ("kind".into(), Value::Str(sp.kind.name().to_string())),
+            ("f_hz".into(), Value::F64(sp.f_hz)),
+            ("q".into(), Value::F64(sp.q)),
+            ("weight".into(), Value::F64(sp.weight)),
+        ],
+    )
+}
+
+/// Éléments `FilterSpec` ou `(FilterSpec, cadence)` d'une liste.
+fn items_from(v: Option<&Value>) -> Result<Vec<ChainItem>, String> {
+    let Some(Value::List(items) | Value::Tuple(items)) = v else {
+        return Err(format!("liste de filtres attendue, reçu {v:?}"));
+    };
+    items
+        .iter()
+        .map(|it| match it {
+            Value::Tuple(p) | Value::List(p) if p.len() == 2 => {
+                Ok(ChainItem::WithRate(spec_from(&p[0])?, float(&p[1])?))
+            }
+            other => Ok(ChainItem::Spec(spec_from(other)?)),
+        })
+        .collect()
+}
+
+fn chain_value(chain: &Chain) -> Value {
+    Value::List(
+        chain
+            .iter()
+            .map(|(sp, rate)| Value::Tuple(vec![spec_value(sp), Value::F64(*rate)]))
+            .collect(),
+    )
+}
+
+/// Tableau complexe (parties réelle et imaginaire entrelacées) de forme `shape`.
+fn array_c128(shape: Vec<usize>, re: &[f64], im: &[f64]) -> Value {
+    Value::Array(Array {
+        shape,
+        kind: 'c',
+        size: 16,
+        bytes: re
+            .iter()
+            .zip(im)
+            .flat_map(|(r, i)| r.to_le_bytes().into_iter().chain(i.to_le_bytes()))
+            .collect(),
+    })
+}
+
+fn bf_coefficients(c: &Case) -> Result<Value, String> {
+    let (b, a) = bf_filters::coefficients(
+        &spec_from(c.arg(0, "spec").ok_or("spec")?)?,
+        float(c.arg(1, "fs").ok_or("fs")?)?,
+    );
+    Ok(Value::Tuple(vec![array_f64(&b), array_f64(&a)]))
+}
+
+fn bf_freq_response(c: &Case) -> Result<Value, String> {
+    let specs = items_from(c.arg(0, "specs"))?
+        .into_iter()
+        .map(|it| match it {
+            ChainItem::Spec(s) => Ok(s),
+            ChainItem::WithRate(..) => Err("FilterSpec attendu".to_string()),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (shape, freqs, _) = floats(c.arg(1, "freqs"), "freqs")?;
+    let (re, im) = bf_filters::freq_response(&specs, &freqs, float(c.arg(2, "fs").ok_or("fs")?)?)?;
+    Ok(array_c128(shape, &re, &im))
+}
+
+fn bf_chain_response(c: &Case) -> Result<Value, String> {
+    let chain = bf_filters::as_chain(items_from(c.arg(0, "chain"))?, None)?;
+    let (shape, freqs, _) = floats(c.arg(1, "freqs"), "freqs")?;
+    let (re, im) = bf_filters::chain_response(&chain, &freqs)?;
+    Ok(array_c128(shape, &re, &im))
+}
+
+fn bf_chain_delay_ms(c: &Case) -> Result<Value, String> {
+    let fs = match c.arg(1, "fs") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(float(v)?),
+    };
+    let chain = bf_filters::as_chain(items_from(c.arg(0, "specs"))?, fs)?;
+    let d = bf_filters::chain_delay_ms(&chain, float_or(c, 2, "f_hz", 10.0)?)?;
+    Ok(Value::Obj(
+        "ChainDelay".into(),
+        vec![
+            ("group_ms".into(), Value::F64(d.group_ms)),
+            ("phase_ms".into(), Value::F64(d.phase_ms)),
+        ],
+    ))
+}
+
+fn bf_dyn_lpf_cutoff(c: &Case) -> Result<Value, String> {
+    let g = |pos: usize, name: &str| float(c.arg(pos, name).ok_or(name.to_string())?);
+    let (mn, mx, ex) = (g(0, "min_hz")?, g(1, "max_hz")?, g(2, "expo")?);
+    match c.arg(3, "throttle_frac") {
+        Some(Value::Array(_)) => {
+            let (shape, t, _) = floats(c.arg(3, "throttle_frac"), "throttle_frac")?;
+            let out: Vec<f64> = t.iter().map(|&x| bf_filters::dyn_lpf_cutoff(mn, mx, ex, x)).collect();
+            Ok(array_nd(shape, &out, false))
+        }
+        Some(v) => Ok(Value::F64(bf_filters::dyn_lpf_cutoff(mn, mx, ex, float(v)?))),
+        None => Err("throttle_frac".into()),
+    }
+}
+
+fn bf_scale_lowpass(c: &Case) -> Result<Value, String> {
+    let lp = lowpass_from(c.arg(0, "lp"))?;
+    Ok(lowpass_value(&bf_filters::scale_lowpass(
+        &lp,
+        float(c.arg(1, "factor").ok_or("factor")?)?,
+    )?))
+}
+
+fn bf_lowpass_off(c: &Case) -> Result<Value, String> {
+    Ok(lowpass_value(&bf_filters::lowpass_off(&lowpass_from(c.arg(0, "lp"))?)))
+}
+
+fn bf_rpm_notch_freq_weight(c: &Case) -> Result<Value, String> {
+    let (shape, motor, _) = floats(c.arg(0, "motor_hz"), "motor_hz")?;
+    let s = settings_for_filters(c.arg(2, "settings"))?;
+    let (f, w) = bf_filters::rpm_notch_freq_weight(
+        &motor,
+        int(c.arg(1, "harmonic"), "harmonic")?,
+        &s,
+        float(c.arg(3, "rate_hz").ok_or("rate_hz")?)?,
+    )?;
+    Ok(Value::Tuple(vec![
+        array_nd(shape.clone(), &f, false),
+        array_nd(shape, &w, false),
+    ]))
+}
+
+fn bf_dyn_notch_enabled(c: &Case) -> Result<Value, String> {
+    Ok(Value::Bool(bf_filters::dyn_notch_enabled(&settings_for_filters(
+        c.arg(0, "settings"),
+    )?)))
+}
+
+fn bf_dyn_notch_initial_centres(c: &Case) -> Result<Value, String> {
+    let centres = bf_filters::dyn_notch_initial_centres(&settings_for_filters(c.arg(0, "settings"))?);
+    Ok(Value::List(centres.into_iter().map(Value::F64).collect()))
+}
+
+/// Liste de nombres d'un argument facultatif : tuple, liste, tableau 0-d ou 1-d, ou nombre seul (`np.atleast_1d`).
+/// Un tableau à plus d'une dimension est refusé (Python ne l'accepte que s'il a une seule colonne).
+fn numbers_arg(v: Option<&Value>, name: &str) -> Result<Option<Vec<f64>>, String> {
+    match v {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Tuple(l) | Value::List(l)) => Ok(Some(l.iter().map(float).collect::<Result<Vec<_>, _>>()?)),
+        Some(Value::Array(a)) if a.shape.len() <= 1 => Ok(Some(floats(v, name)?.1)),
+        Some(Value::Array(a)) => Err(format!("{name} : tableau à {} dimensions", a.shape.len())),
+        Some(x) => Ok(Some(vec![float(x)?])),
+    }
+}
+
+fn bf_gyro_chain(c: &Case) -> Result<Value, String> {
+    let s = settings_for_filters(c.arg(0, "settings"))?;
+    let motor = numbers_arg(c.arg(2, "motor_hz"), "motor_hz")?;
+    let dynh = numbers_arg(c.arg(3, "dyn_notch_hz"), "dyn_notch_hz")?;
+    let chain = bf_filters::gyro_chain(
+        &s,
+        float_or(c, 1, "throttle_frac", 0.5)?,
+        motor.as_deref(),
+        dynh.as_deref(),
+    )?;
+    Ok(chain_value(&chain))
+}
+
+fn bf_dterm_chain(c: &Case) -> Result<Value, String> {
+    let s = settings_for_filters(c.arg(0, "settings"))?;
+    Ok(chain_value(&bf_filters::dterm_chain(
+        &s,
+        float_or(c, 1, "throttle_frac", 0.5)?,
+    )))
+}
+
 /// Le résultat enregistré est en dB : objet de mode `psd`, ou spectrogramme (toujours en dB).
 fn result_is_db(c: &Case) -> bool {
     match &c.result {
@@ -575,6 +867,8 @@ fn result_is_db(c: &Case) -> bool {
     }
 }
 
+/// Tolérance relative (au plus grand élément) de chaque fonction portée ; 0 = identique au bit près. Fixée en 4b-0, précisée
+/// en 4b-1 à 4b-3 (docs/migration-rust.md) : ce qui passe par `cos`, `exp` ou une FFT s'écarte de numpy au dernier bit.
 pub fn tolerance(function: &str, c: &Case) -> f64 {
     let out_f32 = matches!(&c.result, Ok(Value::Array(a)) if a.kind == 'f' && a.size == 4);
     match function {
@@ -582,6 +876,10 @@ pub fn tolerance(function: &str, c: &Case) -> f64 {
         "_numeric.gaussian_filter" if out_f32 => 2e-7,
         "_numeric.gaussian_filter" => 1e-14,
         "_numeric.xcorr_full" => 1e-12,
+        // sin / cos (libm), np.convolve (BLAS), atan2 : mesures de 4b-3 dans docs/migration-rust.md
+        "bf_filters.coefficients" => 1e-14,
+        "bf_filters.freq_response" | "bf_filters.chain_response" => 1e-12,
+        "bf_filters.chain_delay_ms" => 1e-9,
         "spectral.to_db" => 1e-14,
         "spectral.smooth_map" => 1e-14,
         // FFT : amplitude ≈ 4e-16 du plus grand élément (mesuré en 4b-2) ; en dB la dynamique du spectre amplifie l'écart
@@ -611,6 +909,18 @@ pub fn lookup(function: &str) -> Option<Port> {
         "spectral.freq_throttle" => freq_throttle,
         "spectral.smooth_map" => smooth_map,
         "spectral.freq_time" => freq_time,
+        "bf_filters.coefficients" => bf_coefficients,
+        "bf_filters.freq_response" => bf_freq_response,
+        "bf_filters.chain_response" => bf_chain_response,
+        "bf_filters.chain_delay_ms" => bf_chain_delay_ms,
+        "bf_filters.dyn_lpf_cutoff" => bf_dyn_lpf_cutoff,
+        "bf_filters.scale_lowpass" => bf_scale_lowpass,
+        "bf_filters.lowpass_off" => bf_lowpass_off,
+        "bf_filters.rpm_notch_freq_weight" => bf_rpm_notch_freq_weight,
+        "bf_filters.dyn_notch_enabled" => bf_dyn_notch_enabled,
+        "bf_filters.dyn_notch_initial_centres" => bf_dyn_notch_initial_centres,
+        "bf_filters.gyro_chain" => bf_gyro_chain,
+        "bf_filters.dterm_chain" => bf_dterm_chain,
         "bf_filters.pt1_gain" => pt1_gain,
         "bf_filters.notch_q" => notch_q,
         "debug_tables.family" => family,

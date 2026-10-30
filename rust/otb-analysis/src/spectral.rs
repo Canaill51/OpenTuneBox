@@ -12,7 +12,7 @@ pub const EPS: f64 = 1e-12;
 pub const PTB_PSD_OFFSET_DB: f64 = 6.5;
 
 /// `round()` de Python : au pair le plus proche sur les demi-entiers. Erreur pour NaN et infini (Python lève).
-fn py_round(x: f64) -> Result<i64, String> {
+pub fn py_round(x: f64) -> Result<i64, String> {
     if !x.is_finite() || x.abs() >= 9.0e18 {
         return Err(format!("round({x}) : hors entiers"));
     }

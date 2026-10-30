@@ -60,6 +60,19 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-049 : un test de parité qui compare Rust à Rust ne prouve que la colle
+- **Symptôme** — 2026-10-30 (4b-3) : `coefficients` et `chain_response` ressortaient à 0 écart, exactement, dès le premier essai.
+- **Cause** — mesurée : l'étalon Python appelle déjà le noyau Rust d'`otb-dsp` (`_native.biquad`, `_native.sections_response`). Le
+  test compare donc ce noyau à lui-même ; il prouve seulement que la construction des étages (`_sections`, ordre, cadences,
+  reshape) est la même, pas que le noyau est juste. Le noyau a été prouvé contre l'ancien code numba en 2a.
+- **Règle** — avant de lire « 0 écart » comme une preuve, regarder si l'étalon passe par la fonction testée. Dans ce cas, noter
+  ce que le test couvre vraiment (la colle) et d'où vient la preuve du noyau. Ne pas en tirer de tolérance « mesurée à 0 » :
+  la tolérance se justifie par ce que peut changer une autre plate-forme (libm, BLAS), pas par ce nombre.
+- **Aussi** — une frontière exacte (`|dd| = π` de `np.unwrap`) n'est jamais atteinte par de vraies données : une mutation de
+  ce test survivait sur les 4 749 cas et le corpus. Elle est épinglée par un test unitaire dont les réponses viennent de numpy
+  (`unwrap3_comme_numpy`), pas par un jeu de données.
+- **Preuve** — `rust/otb-analysis/tests/bf_filters.rs`, `rust/otb-analysis/src/bf_filters.rs` (module `tests`).
+
 ### L-048 : l'étalon numpy dépend du processeur (`exp` AVX-512) ; un test « bit pour bit » sur `exp`, `cos`, `log10` est faux
 - **Symptôme** — 2026-10-30 (4b-1) : `gaussian_filter` de Rust différait de Python de 2 ulp pour σ = 2, 5, 6,25 alors que les
   autres σ étaient identiques bit pour bit ; le noyau ne différait qu'à quelques indices symétriques (±1…).
@@ -607,6 +620,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-049 | Parité Rust contre un étalon qui appelle déjà le noyau Rust : 0 écart ne prouve que la colle ; frontières exactes épinglées par un test unitaire | Outillage |
 | L-048 | Étalon numpy dépendant du processeur (`exp` AVX-512 ≠ `math.exp` pour 4,5 %) : `exp`, `cos`, `log10`, FFT à tolérance, jamais bit pour bit | Outillage |
 | L-047 | Mutation survivante : équivalente (gain ajusté, plancher inactif) ou motif absent ; seuils prouvés par une valeur qui les franchit | Décodeur et logs |
 | L-046 | Parité sur le corpus : ne prouve pas les défauts, il faut des cas écrits en plus | Décodeur et logs |

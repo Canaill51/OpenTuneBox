@@ -300,6 +300,7 @@ name = "otb-analysis"
 version = "0.8.0"
 dependencies = [
  "otb-dsp",
+ "otb-log",
  "rayon",
  "serde_json",
 ]
