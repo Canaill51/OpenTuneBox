@@ -253,6 +253,9 @@ dependencies = [
 [[package]]
 name = "otb-decoder"
 version = "0.8.0"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "otb-dsp"
@@ -277,6 +280,7 @@ dependencies = [
 name = "otb-parity"
 version = "0.8.0"
 dependencies = [
+ "otb-decoder",
  "otb-dsp",
  "otb-log",
  "serde_json",

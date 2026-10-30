@@ -4,6 +4,7 @@
 Usage : golden.py record DOSSIER [--limit N] [--sample N] [-j PROCESSUS]
         golden.py check  DOSSIER [--limit N] [--sample N] [-j PROCESSUS] [--rtol X]
         golden.py record-modules DOSSIER [--limit N] [--sample N]   (références par module, D-035 : golden_modules.py)
+        golden.py record-header  DOSSIER [--limit N]   (en-têtes de toutes les sessions : golden_header.py)
         golden.py check-modules  DOSSIER [--limit N] [--sample N]   (réenregistre dans DOSSIER.new, compare le contenu)
 
 DOSSIER : où ranger les références, hors du dépôt (par exemple `$OTB_LOGS/golden`). Trois couches :
@@ -182,7 +183,7 @@ def check_tools(files, root, out_dir, sample, rtol):
 # ------------------------------------------------------------------ assistant et commande
 def main():
     argv = sys.argv[1:]
-    if len(argv) < 2 or argv[0] not in ("record", "check", "record-modules", "check-modules"):
+    if len(argv) < 2 or argv[0] not in ("record", "check", "record-modules", "check-modules", "record-header"):
         sys.exit(__doc__)
     mode, out_dir = argv[0], argv[1]
     opt = lambda name, default, cast: cast(argv[argv.index(name) + 1]) if name in argv else default  # noqa: E731
@@ -191,6 +192,10 @@ def main():
     root = logs_root()
     files = log_files(root)[:limit]
     os.makedirs(out_dir, exist_ok=True)
+    if mode == "record-header":
+        from golden_header import record_header
+        record_header(files, root, out_dir)
+        return
     if mode in ("record-modules", "check-modules"):
         from golden_modules import digest_dir, record_modules
         from opentunebox.gui.app import hard_exit  # L-019

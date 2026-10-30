@@ -60,6 +60,17 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-045 : lire un en-tête comme Python : espaces, hexadécimal, soulignés
+- **Symptôme** — 2026-10-30 (4a-2) : le port Rust de `parse_header` acceptait `0x-1` (Python : valeur par défaut) ; `trim` de
+  Rust gardait U+001C là où `str.strip()` de Python l'enlève ; un nombre `1__0` ou `0x1__f` n'est pas à traiter comme `10`.
+- **Cause** — mesurée : `i64::from_str_radix` accepte un signe ; `str::trim` suit la propriété White_Space d'Unicode (sans U+001C
+  à U+001F), `str.strip()` de Python inclut ces quatre séparateurs ; `float()` et `int(…, 0)` de Python n'acceptent un souligné
+  qu'entre deux chiffres (ou juste après `0x`).
+- **Règle** — passer par `header::py_strip`, `py_float` et `py_hex` ; ajouter un cas dans `scripts/header_cases.py` pour toute
+  nouvelle forme de valeur, et laisser une mutation du port échouer avant de la croire couverte (le premier jeu de cas laissait
+  survivre la mutation « soulignés doubles en hexa »).
+- **Preuve** — `rust/otb-decoder/tests/header.rs` (477 cas), `otb-parity check-header` (680 sessions du corpus).
+
 ### L-044 : reproduire les textes de nombres de Python en Rust : `round`, `%g`, `repr`
 - **Symptôme** — 2026-10-30 (E2) : sur 12 M de cas, `f64::round` et la sortie courte `{:e}` de Rust différaient de Python.
 - **Cause** — mesurée : (1) `f64::round` arrondit les moitiés vers l'extérieur, `round` de Python vers le pair ; (2) Rust n'a pas
@@ -554,6 +565,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-045 | En-tête Blackbox lu comme Python : `strip` (U+001C…), `0x` sans signe, soulignés entre chiffres seulement (`header.rs`) | Décodeur et logs |
 | L-044 | Textes de nombres Python en Rust : `round` au pair, `%g` et `repr` à refaire (`otb-format`) | Analyses |
 | L-043 | egui 0.37 : thème appliqué au cadre suivant, glisser cherché au point pressé, panneaux fusionnés en `Panel` | Interface |
 | L-042 | Reproduire numpy au bit près : `np.abs` complexe est SIMD (module pris en Python) ; `np.mean` = +0,0 + somme par paires de tous les éléments | Analyses |

@@ -7,6 +7,7 @@
 //!   est valide et que le temps / l'itération n'ont pas sauté trop loin.
 
 mod frame;
+pub mod header;
 mod reader;
 
 pub use frame::*;

@@ -1,0 +1,124 @@
+//! Couches d'étalon propres à un fichier du corpus (hors des appels de fonctions de `value.rs`) : en-têtes, et plus tard
+//! réglages et journaux de vol. Chaque couche relit un `.jsonl` écrit par `scripts/golden.py record-…`.
+
+use otb_decoder::header::{find_log_starts, parse_header};
+use serde_json::Value;
+use std::path::Path;
+
+pub struct LayerReport {
+    pub checked: usize,
+    pub skipped: usize,
+    pub failures: Vec<String>,
+}
+
+fn ints(v: &Value) -> Vec<i64> {
+    v.as_array()
+        .map(|a| a.iter().filter_map(Value::as_i64).collect())
+        .unwrap_or_default()
+}
+
+fn compare_header(rec: &Value, data: &[u8], starts: &[usize]) -> Result<(), String> {
+    let k = rec["session"].as_u64().unwrap() as usize - 1;
+    let start = *starts.get(k).ok_or("session absente du fichier")?;
+    let end = starts.get(k + 1).copied().unwrap_or(data.len());
+    if (rec["start"].as_u64(), rec["end"].as_u64()) != (Some(start as u64), Some(end as u64)) {
+        return Err(format!(
+            "bornes de session : Python {}-{}, Rust {start}-{end}",
+            rec["start"], rec["end"]
+        ));
+    }
+    let h = parse_header(data, start, end);
+    let raw = rec["raw"].as_object().ok_or("raw")?;
+    if raw.len() != h.raw.len() {
+        return Err(format!("{} clés d'en-tête (Python {})", h.raw.len(), raw.len()));
+    }
+    for (key, v) in raw {
+        if h.raw.get(key).map(String::as_str) != v.as_str() {
+            return Err(format!("clé {key:?} : Python {v}, Rust {:?}", h.raw.get(key)));
+        }
+    }
+    let frames = rec["frames"].as_object().ok_or("frames")?;
+    if frames.len() != h.frames.len() {
+        return Err(format!("{} types de trames (Python {})", h.frames.len(), frames.len()));
+    }
+    for (t, f) in frames {
+        let d = h
+            .frames
+            .get(&t.chars().next().unwrap())
+            .ok_or(format!("trame {t} absente"))?;
+        let names: Vec<&str> = f["names"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        if d.names != names
+            || d.signed != ints(&f["signed"])
+            || d.predictor != ints(&f["predictor"])
+            || d.encoding != ints(&f["encoding"])
+        {
+            return Err(format!("définition de la trame {t} différente"));
+        }
+    }
+    if (rec["data_start"].as_u64(), rec["data_end"].as_u64()) != (Some(h.data_start as u64), Some(h.data_end as u64)) {
+        return Err(format!(
+            "data_start/end : Python {}/{}, Rust {}/{}",
+            rec["data_start"], rec["data_end"], h.data_start, h.data_end
+        ));
+    }
+    let p = &rec["props"];
+    let got = [
+        h.data_version(),
+        h.i_interval(),
+        h.p_interval().0,
+        h.p_interval().1,
+        h.minthrottle(),
+        h.motor_output().0,
+        h.motor_output().1,
+        h.vbatref(),
+    ];
+    let want = [
+        p["data_version"].as_i64(),
+        p["i_interval"].as_i64(),
+        ints(&p["p_interval"]).first().copied(),
+        ints(&p["p_interval"]).get(1).copied(),
+        p["minthrottle"].as_i64(),
+        ints(&p["motor_output"]).first().copied(),
+        ints(&p["motor_output"]).get(1).copied(),
+        p["vbatref"].as_i64(),
+    ];
+    if want.iter().map(|x| x.unwrap_or(i64::MIN)).collect::<Vec<_>>() != got {
+        return Err(format!("propriétés : Python {p}, Rust {got:?}"));
+    }
+    Ok(())
+}
+
+/// Compare l'analyse Rust des en-têtes à `dossier/header.jsonl` ; les fichiers sont cherchés sous `logs_root`.
+pub fn check_header(dossier: &Path, logs_root: &Path) -> Result<LayerReport, String> {
+    let text = std::fs::read_to_string(dossier.join("header.jsonl")).map_err(|e| format!("header.jsonl : {e}"))?;
+    let mut rep = LayerReport {
+        checked: 0,
+        skipped: 0,
+        failures: vec![],
+    };
+    let mut cache: Option<(String, Vec<u8>, Vec<usize>)> = None;
+    for line in text.lines() {
+        let rec: Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
+        if rec.get("error").is_some() {
+            rep.skipped += 1; // Python plante sur ce fichier : non comparé
+            continue;
+        }
+        let file = rec["file"].as_str().unwrap().to_string();
+        if cache.as_ref().map(|c| &c.0) != Some(&file) {
+            let data = std::fs::read(logs_root.join(&file)).map_err(|e| format!("{file} : {e}"))?;
+            let starts = find_log_starts(&data);
+            cache = Some((file.clone(), data, starts));
+        }
+        let (_, data, starts) = cache.as_ref().unwrap();
+        rep.checked += 1;
+        if let Err(e) = compare_header(&rec, data, starts) {
+            rep.failures.push(format!("{file} session {} : {e}", rec["session"]));
+        }
+    }
+    Ok(rep)
+}
