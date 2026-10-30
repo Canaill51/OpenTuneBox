@@ -314,6 +314,24 @@ def main():
                                  "out": None if e else [[hx(l.freq_hz), hx(l.raw_db), hx(l.left_db)] for l in r]})
 
 
+    # entrées dégénérées : Python lève (NaN dans la bande, pas nul, n_harm négatif sur un signal trop court)
+    x1, mh1 = sc[0][3], sc[0][4]
+    xd1 = np.asarray(x1, np.float64)
+    nan_ = float("nan")
+    for band, bin_hz in (((50.0, nan_), 18.5), ((nan_, 800.0), 18.5), ((50.0, 800.0), 0.0), ((50.0, 800.0), -18.5), ((50.0, float("inf")), 18.5)):
+        r, e = call(motors.dyn_notch_targets, xd1, mh1, 2000.0, band, None, 300.0, bin_hz, None)
+        out["targets"].append({"scene": 0, "rpm": None, "use_m": True, "breaks": None, "seg_ms": hx(300.0),
+                               "band": [hx(band[0]), hx(band[1])], "bin_hz": hx(bin_hz), "error": e, "out": None if e else {
+            "f": f64r(r.freqs), "db": f64r(r.ratios_db), "band": [hx(r.band[0]), hx(r.band[1])]}})
+    r, e = call(motors.spectrum_lines, xd1, xd1 * 0.5, mh1, 2000.0, (20.0, nan_), 1.0, 3, 300.0, None)
+    out["lines"].append({"scene": 0, "n_harm": 3, "xf": hx(0.5), "seg_ms": hx(300.0), "min_db": hx(1.0), "band": [hx(20.0), hx(nan_)],
+                         "error": e, "out": None if e else [[hx(l.freq_hz), hx(l.raw_db), hx(l.left_db)] for l in r]})
+    short = next(i for i, c in enumerate(sc) if c[0] == "court")
+    for n_harm in (-1, -3):
+        args = (np.asarray(sc[short][3], np.float64), sc[short][4], sc[short][1], n_harm, 300.0, 20.0, None)
+        r, e = call(motors.motor_noise, *args)
+        out["noise"].append({"scene": short, "n_harm": n_harm, "seg_ms": hx(300.0), "min_hz": hx(20.0), "breaks": None, "error": e,
+                             "out": None if e else {"h": [int(v) for v in r.harmonics], "mean": f64r(r.mean_db), "std": f64r(r.std_db)}})
     # fenêtres de 16 points au minimum (`max(16, ...)`) : 2, 5, 8 et 8,5 ms à 2 kHz donnent 4, 10, 16 et 17 points
     x0, mh0 = sc[0][3], sc[0][4]
     xd0 = np.asarray(x0, np.float64)

@@ -69,9 +69,9 @@ est celle du commit qui les a introduites.
   le port est correct, c'est l'entrée qui est dégénérée (raie de hauteur −1e-15 dB : elle n'existe pas).
 - **Règle** — devant un écart franc sur une décision discrète, ne pas relâcher la tolérance : rejouer la **fonction seule sur l'entrée exacte de
   Python** (spectre sauvegardé) ; si elle concorde, l'écart vient du bruit de l'entrée. Dans la couche corpus, exempter **explicitement et
-  compter** les largeurs de raies dont la hauteur de référence est < 1e-6 dB (ici 1 sur 413 sessions à raies). ⚠️ Conséquence pour l'assistant (phase
+  compter** les largeurs de raies dont la hauteur de référence est < 1e-6 dB (ici 1 largeur sur 6 482, dans 667 sessions ; la hauteur suivante vaut 1,9e-4 dB, 190 fois le seuil). ⚠️ Conséquence pour l'assistant (phase
   5a) : `dyn_notch_q_need` ignore une largeur nulle (`w > 0`) mais accepterait 4,45 Hz et rendrait `inf` au lieu de `None` pour une raie inexistante :
-  la parité des conseils (0 session différente sur 630) tranchera.
+  la parité des conseils (0 session différente sur 630) tranchera. Le nombre d'exemptions est borné (`MAX_EXEMPT` = 1) : au-delà, la vérification échoue. Le test unitaire `largeur_sur_spectre_plat_comme_python` (`motors.rs`, spectre sauvegardé dans `rust/otb-analysis/tests/data/flat_spectrum.json`) rend la preuve vérifiable dans le dépôt.
 - **Preuve** — `rust/otb-parity/src/analysis_layer.rs` (`exempt`), spectre de la session rejoué en Rust : 0 Hz.
 
 ### L-054 : un retard par intercorrélation se compare en périodes d'échantillonnage, et sa tolérance se fixe aussi sur le corpus

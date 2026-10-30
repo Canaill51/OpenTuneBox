@@ -21,6 +21,8 @@ enum Item {
     AI(Vec<i64>),
     /// Tableau de flottants comparé à une tolérance relative au plus grand élément fini de la référence.
     TA(Vec<f64>, f64),
+    /// Tableau de flottants comparé **case par case**, en relatif à chaque valeur de référence (spectres : les petites cases comptent).
+    TR(Vec<f64>, f64),
     /// Flottant comparé à une tolérance : `(valeur, tolérance, unité)` ; écart = |Rust − Python| / max(|Python|, unité).
     T(f64, f64, f64),
     I(i64),
@@ -38,6 +40,9 @@ pub const PORTED: [&str; 5] = ["period", "datasets", "stats", "delay", "motors"]
 /// les 668 sessions** : 1,5e-11 au pire (cas écrits : 7,1e-12, écart-type de valeurs en dB, qui amplifie l'arrondi de la FFT). Marge ×70 ;
 /// les erreurs de logique que l'on veut voir (mauvaise bande, mauvais seuil) dépassent 1e-6.
 pub const MOTORS_TOL: f64 = 1e-9;
+
+/// Nombre maximal de largeurs de raies exemptées (L-055) : une seule est attendue sur le corpus ; davantage est un écart à examiner.
+pub const MAX_EXEMPT: usize = 1;
 
 /// Tolérance des retards (FFT, `hypot`, `atan2`, produits complexes en FMA : L-048, L-051), relative à la valeur ou, si elle est
 /// plus petite, à une période d'échantillonnage. **Mesurée sur les 668 sessions** : 2,6e-10 au pire (retard consigne → gyro du lacet
@@ -101,7 +106,7 @@ fn period_section(lg: &FlightLog) -> Result<Flat, String> {
     let sel = lg.slice_time(t0, t1);
     f.insert("period|auto_period[0]".into(), Item::F(t0));
     f.insert("period|auto_period[1]".into(), Item::F(t1));
-    put_opt(&mut f, "period|crash_time", period::crash_time(lg, 300.0, 60.0));
+    put_opt(&mut f, "period|crash_time", period::crash_time(lg, 300.0, 60.0)?);
     let parts = period::flight_parts(lg, t0, t1, 1.0, period::MOVING_SETPOINT_DPS)?;
     put_pair(&mut f, "period|flight_parts|hover", &parts.hover);
     put_pair(&mut f, "period|flight_parts|moving", &parts.moving);
@@ -112,7 +117,7 @@ fn period_section(lg: &FlightLog) -> Result<Flat, String> {
 
 fn datasets_section(lg: &FlightLog) -> Result<Flat, String> {
     let mut f = Flat::new();
-    for (i, k) in datasets::available(lg).iter().enumerate() {
+    for (i, k) in datasets::available(lg)?.iter().enumerate() {
         f.insert(format!("datasets|available[{i}]"), Item::S((*k).to_string()));
     }
     for (i, (key, _)) in datasets::DATASETS.iter().enumerate() {
@@ -198,10 +203,15 @@ fn motors_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, S
         let key = format!("motors|targets[{a}]");
         f.insert(format!("{key}.freqs"), Item::A(t.freqs.clone()));
         f.insert(format!("{key}.ratios_db"), Item::TA(t.ratios_db.clone(), tol));
-        f.insert(format!("{key}.band[0]"), Item::I(lo_i));
+        // la bande RENDUE par Rust, convertie en entier là où Python garde un entier
+        f.insert(format!("{key}.band[0]"), Item::I(t.band.0 as i64));
         f.insert(
             format!("{key}.band[1]"),
-            if hi_is_int { Item::I(hi_i) } else { Item::F(t.band.1) },
+            if hi_is_int {
+                Item::I(t.band.1 as i64)
+            } else {
+                Item::F(t.band.1)
+            },
         );
         targets.push(t);
     }
@@ -237,7 +247,7 @@ fn motors_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, S
         }
         let (ff, ss) = motors::rpm_filtered_spectrum(&raw[a], Some(&mh), fs, Some(st), 300.0, Some(&br))?;
         f.insert(format!("motors|filtered[{a}][0]"), Item::A(ff));
-        f.insert(format!("motors|filtered[{a}][1]"), Item::TA(ss, tol));
+        f.insert(format!("motors|filtered[{a}][1]"), Item::TR(ss, tol));
     }
     Ok(f)
 }
@@ -371,6 +381,38 @@ fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<
                 if err > *tol {
                     return Some(format!(
                         "{key} : élément {i} : Rust {gi:e} / Python {w:e} (écart {err:e} > {tol:e})"
+                    ));
+                }
+            }
+            None
+        }
+        Item::TR(g, tol) => {
+            if want.kind != 'f' || want.size != 8 || want.len() != g.len() {
+                return bad(format!(
+                    "{} valeurs (Python {}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                ));
+            }
+            for (i, gi) in g.iter().enumerate() {
+                let w = want.get_f64(i);
+                if !gi.is_finite() || !w.is_finite() {
+                    if !same_bits(*gi, w) {
+                        return Some(format!("{key} : élément {i} : Rust {gi:e} / Python {w:e}"));
+                    }
+                    continue;
+                }
+                let err = if w == 0.0 {
+                    (gi - w).abs()
+                } else {
+                    (gi - w).abs() / w.abs()
+                };
+                *worst = worst.max(err);
+                if err > *tol {
+                    return Some(format!(
+                        "{key} : élément {i} : Rust {gi:e} / Python {w:e} (écart relatif {err:e} > {tol:e})"
                     ));
                 }
             }
@@ -533,5 +575,26 @@ pub fn check_analysis(dossier: &Path, logs_root: &Path, threads: usize) -> Resul
             });
         }
     });
-    Ok(report.into_inner().unwrap())
+    let mut report = report.into_inner().unwrap();
+    if report.exempt > MAX_EXEMPT {
+        report.failures.push(format!(
+            "{} largeurs de raies exemptées (au plus {MAX_EXEMPT} attendue : L-055)",
+            report.exempt
+        ));
+    }
+    // chaque référence doit avoir été rejouée : une session absente du côté Rust ne doit pas passer en silence
+    let refs = std::fs::read_dir(dossier.join("analysis"))
+        .map_err(|e| format!("analysis/ : {e}"))?
+        .filter(|e| {
+            e.as_ref()
+                .is_ok_and(|e| e.path().extension().is_some_and(|x| x == "npz"))
+        })
+        .count();
+    if refs != report.sessions {
+        report.failures.push(format!(
+            "{refs} références dans analysis/, {} sessions rejouées",
+            report.sessions
+        ));
+    }
+    Ok(report)
 }

@@ -62,6 +62,8 @@ pub fn std_f32(a: &[f32]) -> f32 {
 }
 
 /// `np.max` d'un tableau `float32` : un NaN le rend NaN (contrairement à `f32::max`). `None` si vide (numpy lève).
+/// ⚠️ Zéros de signes opposés : numpy rend le dernier (`max([-0.0, 0.0])` = +0, `max([0.0, -0.0])` = −0, ordre de réduction), ici le
+/// premier. Inatteignable aujourd'hui (les valeurs passent par `abs`, aucun −0 ne sort du décodeur) : W-026.
 pub fn max_f32(a: &[f32]) -> Option<f32> {
     let mut it = a.iter();
     let mut m = *it.next()?;
@@ -297,34 +299,47 @@ pub fn median_f64(a: &[f64]) -> f64 {
     }
 }
 
-/// `np.nanargmax` : indice du premier maximum parmi les valeurs qui ne sont pas NaN ; `None` si tout est NaN ou vide.
+/// `np.nanargmax` : indice du premier maximum, les NaN comptant pour −∞ ; `None` si tout est NaN ou vide (numpy lève).
 pub fn nanargmax_f64(a: &[f64]) -> Option<usize> {
-    let mut best: Option<usize> = None;
-    for (i, &v) in a.iter().enumerate() {
-        if v.is_nan() {
-            continue;
-        }
-        if best.is_none_or(|b| v > a[b]) {
-            best = Some(i);
+    if a.iter().all(|v| v.is_nan()) {
+        return None;
+    }
+    let v = |i: usize| if a[i].is_nan() { f64::NEG_INFINITY } else { a[i] };
+    let mut best = 0;
+    for i in 1..a.len() {
+        if v(i) > v(best) {
+            best = i;
         }
     }
-    best
+    Some(best)
+}
+
+/// `min(a, b)` de Python : `a` sauf si `b < a` (un NaN en `a` reste, un NaN en `b` ne remplace rien), contrairement à `f64::min`.
+pub fn py_min(a: f64, b: f64) -> f64 {
+    if b < a { b } else { a }
 }
 
 /// `np.arange(start, stop, step)` pour des flottants : longueur `ceil((stop − start) / step)`, valeurs `début + i × delta` avec
-/// `delta = (début + pas) − début` (c'est ainsi que numpy remplit le tableau, pas `début + i × pas`).
-pub fn arange_f64(start: f64, stop: f64, step: f64) -> Vec<f64> {
+/// `delta = (début + pas) − début` (c'est ainsi que numpy remplit le tableau, pas `début + i × pas`). `Err` comme numpy : pas nul
+/// (`ZeroDivisionError`), longueur NaN ou infinie.
+pub fn arange_f64(start: f64, stop: f64, step: f64) -> Result<Vec<f64>, String> {
+    if step == 0.0 {
+        return Err("ZeroDivisionError : Maximum allowed size exceeded".into());
+    }
     let len = ((stop - start) / step).ceil();
-    if len.is_nan() || len <= 0.0 || !len.is_finite() {
-        return Vec::new();
+    if len.is_nan() || len.is_infinite() {
+        return Err("ValueError : arange: cannot compute length".into());
+    }
+    if len <= 0.0 {
+        return Ok(Vec::new());
     }
     let n = len as usize;
     let delta = (start + step) - start;
-    (0..n)
+    Ok((0..n)
         .map(|i| match i {
             0 => start,
             1 => start + step,
             _ => start + i as f64 * delta,
         })
-        .collect()
+        .collect())
 }

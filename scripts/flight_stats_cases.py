@@ -211,6 +211,8 @@ def main():
     add("courant_constant", with_(make_log(rng, 800), current=np.full(800, 7.5, np.float32)))
     add("courant_nan", with_(make_log(rng, 800), current=np.where(np.arange(800) == 100, np.nan, 3.0).astype(np.float32)))
     add("gros_manche", make_log(rng, 1200, scale=9.0))
+    add("fs_nan", with_(make_log(rng, 800), fs=float("nan")))  # int(min_ms × fs / 1000) lève dans crash_time
+    add("fs_inf", with_(make_log(rng, 800), fs=float("inf")))
 
     # ---- seuils exacts (float32) : chaque valeur est EXACTEMENT sur le seuil comparé
     def edge_log(n, over):

@@ -46,14 +46,16 @@ pub fn xcorr_delay_ms(x: &[f64], y: &[f64], fs: f64, max_ms: f64, smooth: i64) -
         .unzip();
     let i = argmax_f64(&cw).ok_or("fenêtre de retards vide")?;
     let mut shift = lw[i] as f64;
+    let mut interpolated = false; // `shift` devient un `np.float64` : une division par 0 rend ±inf au lieu de lever
     if 0 < i && i < cw.len() - 1 {
         let (a, b, d) = (cw[i - 1], cw[i], cw[i + 1]);
         let den = a - 2.0 * b + d;
         if den != 0.0 {
             shift += 0.5 * (a - d) / den;
+            interpolated = true;
         }
     }
-    if fs == 0.0 {
+    if fs == 0.0 && !interpolated {
         return Err("ZeroDivisionError : float division by zero".into());
     }
     Ok(shift * 1000.0 / fs)
@@ -235,7 +237,7 @@ pub fn compute_delays(log: &FlightLog, sel: Range<usize>) -> Result<Delays, Stri
     }
     let mut dterm_ms = f64::NAN;
     if log.d_term.row(0).iter().any(|&v| v != 0.0) {
-        let pre = log.d_term_prefilter();
+        let pre = log.d_term_prefilter()?;
         let v = [
             phase(&pre.row(0)[sel.clone()], &log.d_term.row(0)[sel.clone()])?,
             phase(&pre.row(1)[sel.clone()], &log.d_term.row(1)[sel.clone()])?,

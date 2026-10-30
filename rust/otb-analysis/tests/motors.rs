@@ -281,7 +281,13 @@ fn rpm_attenuation_conforme() {
             continue;
         }
         let g = got.unwrap_or_else(|e| panic!("{what} : Rust lève ({e})"));
-        assert_close("rpm_attenuation", &g, &input(&c, &k["out"]), ATT_RTOL, &what);
+        assert_close_rel(
+            "rpm_attenuation (case par case)",
+            &g,
+            &input(&c, &k["out"]),
+            ATT_RTOL,
+            &what,
+        );
         ok += 1;
     }
     assert!(ok > 15 && errs == 3, "{ok} {errs}");
@@ -305,8 +311,8 @@ fn spectre_apres_filtre_rpm_conforme() {
         assert!(!is_error(k), "{what}");
         let (f, p) = got.unwrap_or_else(|e| panic!("{what} : Rust lève ({e})"));
         assert_bits(&f, &input(&c, &k["out"]["f"]), &format!("{what} fréquences"));
-        assert_close(
-            "rpm_filtered_spectrum",
+        assert_close_rel(
+            "rpm_filtered_spectrum (case par case)",
             &p,
             &input(&c, &k["out"]["s"]),
             SPEC_RTOL,
@@ -338,7 +344,7 @@ fn targets_eq(g: &NotchTargets, want: &Value, c: &Value, what: &str) {
 fn notch_dynamique_conforme() {
     let c = cas("motors");
     let sc = scenes(&c);
-    let (mut with_peaks, mut none) = (0, 0);
+    let (mut with_peaks, mut none, mut target_errors) = (0, 0, 0);
     for k in c["targets"].as_array().unwrap() {
         let s = &sc[k["scene"].as_u64().unwrap() as usize];
         let what = format!(
@@ -358,12 +364,19 @@ fn notch_dynamique_conforme() {
             f1(&k["bin_hz"]),
             b.as_deref(),
         );
-        assert!(!is_error(k), "{what}");
+        if is_error(k) {
+            assert!(got.is_err(), "{what} : Python lève, Rust rend {got:?}");
+            target_errors += 1;
+            continue;
+        }
         let g = got.unwrap_or_else(|e| panic!("{what} : Rust lève ({e})"));
         targets_eq(&g, &k["out"], &c, &what);
         if g.freqs.is_empty() { none += 1 } else { with_peaks += 1 }
     }
-    assert!(with_peaks > 60 && none > 30, "{with_peaks} {none}");
+    assert!(
+        with_peaks > 60 && none > 30 && target_errors >= 3,
+        "{with_peaks} {none} {target_errors}"
+    );
     report();
 }
 

@@ -29,7 +29,7 @@ pub fn auto_period(log: &FlightLog, takeoff_throttle: f64, margin_s: f64) -> Res
         return Ok((t[0], t[n - 1]));
     };
     let i1 = flying.iter().rposition(|&f| f).unwrap();
-    let crash = crash_time(log, 300.0, 60.0);
+    let crash = crash_time(log, 300.0, 60.0)?;
     let t0 = t[i0] + margin_s;
     let mut t1 = t[i1] - margin_s;
     if let Some(c) = crash {
@@ -45,7 +45,8 @@ pub fn auto_period(log: &FlightLog, takeoff_throttle: f64, margin_s: f64) -> Res
 }
 
 /// Instant du premier crash détecté, ou `None`.
-pub fn crash_time(log: &FlightLog, err_dps: f64, min_ms: f64) -> Option<f64> {
+/// `Err` si `min_ms × fs / 1000` n'est pas fini (`int()` de Python lève).
+pub fn crash_time(log: &FlightLog, err_dps: f64, min_ms: f64) -> Result<Option<f64>, String> {
     let n = log.n();
     let err = log.pid_error();
     let (e_thr, hi_thr, lo_thr, g_thr) = (err_dps as f32, 98.0f32, 8.0f32, 1900.0f32);
@@ -62,9 +63,13 @@ pub fn crash_time(log: &FlightLog, err_dps: f64, min_ms: f64) -> Option<f64> {
         let g = max_f32(&(0..log.gyro.k).map(|a| log.gyro.row(a)[i].abs()).collect::<Vec<_>>());
         *b = (e.is_some_and(|e| e > e_thr) && sat && low) || g.is_some_and(|g| g > g_thr);
     }
-    let w = ((min_ms * log.fs / 1000.0) as i64).max(1) as usize;
+    let wf = min_ms * log.fs / 1000.0;
+    if !wf.is_finite() {
+        return Err("ValueError : cannot convert float NaN or infinity to integer".into());
+    }
+    let w = (wf as i64).max(1) as usize;
     if bad.iter().filter(|&&b| b).count() < w {
-        return None;
+        return Ok(None);
     }
     // `np.convolve(bad, ones(w), "valid")` : sommes de w valeurs 0 / 1, exactes
     let need = 0.8 * w as f64;
@@ -72,10 +77,10 @@ pub fn crash_time(log: &FlightLog, err_dps: f64, min_ms: f64) -> Option<f64> {
     let mut k = 0;
     loop {
         if run as f64 >= need {
-            return Some(log.t[k]);
+            return Ok(Some(log.t[k]));
         }
         if k + w >= n {
-            return None;
+            return Ok(None);
         }
         run = run + usize::from(bad[k + w]) - usize::from(bad[k]);
         k += 1;

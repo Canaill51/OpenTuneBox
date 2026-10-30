@@ -552,7 +552,10 @@ fn convolve_same(a: &[f64], v: &[f64]) -> Vec<f64> {
 }
 
 /// Gain k minimisant |d − k·raw| sur les composantes < ~30 Hz (moyenne glissante).
-fn slow_gain(raw: &[f32], d: &[f32], fs: f64) -> f64 {
+fn slow_gain(raw: &[f32], d: &[f32], fs: f64) -> Result<f64, String> {
+    if !(fs / 60.0).is_finite() {
+        return Err("ValueError : cannot convert float NaN or infinity to integer".into());
+    }
     let w = 3.max((fs / 60.0) as usize);
     let kern = vec![1.0 / w as f64; w]; // `np.ones(w) / w`
     let a = convolve_same(&raw.iter().map(|&v| v as f64).collect::<Vec<_>>(), &kern);
@@ -560,9 +563,9 @@ fn slow_gain(raw: &[f32], d: &[f32], fs: f64) -> f64 {
     let dot = |x: &[f64], y: &[f64]| x.iter().zip(y).fold(0.0, |s, (p, q)| s + p * q);
     let den = dot(&a, &a);
     if den <= 0.0 {
-        return 0.0;
+        return Ok(0.0);
     }
-    dot(&a, &b) / den
+    Ok(dot(&a, &b) / den)
 }
 
 /// Nombre de cellules par la formule du firmware (`sensors/battery.c` : tension / vbatmaxcellvoltage + 1), avec la tension
@@ -630,21 +633,25 @@ impl FlightLog {
 
     /// Terme D avant ses filtres passe-bas, reconstruit à partir du gyro filtré : D = Kd · (−dgyro/dt), gain ajusté par
     /// moindres carrés sur les composantes lentes. Comparé à Python avec une tolérance, pas au bit près (BLAS).
-    pub fn d_term_prefilter(&self) -> Rows {
+    /// `Err` pour un journal d'un seul point au terme D non nul : `np.gradient` exige au moins 2 points (W-023).
+    pub fn d_term_prefilter(&self) -> Result<Rows, String> {
         let mut out = Rows::zeros(self.d_term.k, self.d_term.n);
         for ax in 0..3 {
             let d = self.d_term.row(ax);
             if !d.iter().any(|&v| v != 0.0) {
                 continue;
             }
+            if self.gyro.n < 2 {
+                return Err("ValueError : Shape of array too small to calculate a numerical gradient, at least (edge_order + 1) elements are required.".into());
+            }
             let fs32 = self.fs as f32;
             let raw: Vec<f32> = gradient(self.gyro.row(ax)).into_iter().map(|g| -g * fs32).collect();
-            let k = slow_gain(&raw, d, self.fs) as f32;
+            let k = slow_gain(&raw, d, self.fs)? as f32;
             for (o, r) in out.row_mut(ax).iter_mut().zip(&raw) {
                 *o = r * k;
             }
         }
-        out
+        Ok(out)
     }
 
     pub fn cells(&self) -> Option<i64> {

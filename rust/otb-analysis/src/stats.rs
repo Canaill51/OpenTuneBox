@@ -103,7 +103,8 @@ pub fn flight_stats(log: &FlightLog, sel: Range<usize>) -> FlightStats {
         let flying: Vec<usize> = sel.clone().filter(|&i| armed[i] && log.throttle[i] > 5.0f32).collect();
         let imb = if flying.len() > 10 {
             // ⚠️ `m[:, flying]` (indexation avancée sur le 2e axe) est rangé « Fortran » : `mean(axis=1)` y additionne
-            // séquentiellement, pas par paires (L-052)
+            // séquentiellement, pas par paires (L-052). Avec un seul moteur le tableau est aussi contigu en C et numpy somme par paires,
+            // mais le déséquilibre vaut alors 0 dans les deux cas (`max − moyenne` d'un seul moteur).
             let means: Vec<f32> = (0..km)
                 .map(|k| {
                     let row = log.motors.row(k);

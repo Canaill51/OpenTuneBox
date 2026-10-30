@@ -60,9 +60,10 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
+| W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
 | W-025 | `motors` (Rust) n'accepte que des vitesses moteur `float32` (journaux) ; Python accepte aussi `float64` et choisit alors la précision des noyaux | ouvert (à voir en phase 6) |
 | W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ouvert (à voir en phase 7) |
-| W-023 | `FlightLog::d_term_prefilter` (Rust) ne lève pas pour un journal d'un point au terme D non nul, Python lève `ValueError` (`np.gradient`) | ouvert (à voir en phase 5c / 7) |
+| W-023 | `FlightLog::d_term_prefilter` (Rust) planteait (index hors limites) pour un journal d'un point au terme D non nul, Python lève `ValueError` (`np.gradient`) | TRAITÉ le 2026-10-30 (4c-A : `Err`, relecture) |
 | W-022 | `otb-parity check` : une seule tolérance par fonction, y compris pour les champs exacts (`freqs`, `bins`) | ouvert (à voir en phase 7) |
 | W-021 | Écarts connus Rust / Python sur entrées irréalistes (`nbins = 0`, `fs = 0`, `astype(int)` sur ARM, message d'erreur) | ouvert (à voir au premier test macOS ARM) |
 | W-020 | `LogHeader.raw` et `Settings.raw` du Rust sont triés par clé, le dict Python garde l'ordre du fichier | ouvert (à voir en phase 5c / 6) |
@@ -408,12 +409,11 @@ Règles d'écriture :
   **Pourquoi reporté** : demande une tolérance par champ dans `registry::tolerance` ; les fréquences sont identiques
   partout où on les a comparées.
   **Reprise** : quand on resserre la couche corpus (phase 7), ou si un écart sur ces champs est soupçonné.
-- **W-023** — pour un journal d'**un seul point** dont le terme D n'est pas nul, `FlightLog.d_term_prefilter` de Python lève
-  `ValueError` (`np.gradient` demande au moins 2 points) alors que le Rust (4a-5) rend des zéros ; `datasets.available` en hérite
-  (`flight_stats_cases.py`, journal `n1`, le test l'écarte explicitement). Aucun vrai log n'a un point.
-  **Pourquoi reporté** : découvert en 4c-1, hors sujet de la branche ; sans effet sur le corpus.
-  **Reprise** : quand la ligne de commande Rust (5c) devra rendre les mêmes erreurs que Python, ou si un journal vide ou à un point
-  devient possible.
+- **W-023** — **TRAITÉ le 2026-10-30 (relecture de la 4c-A).** Pour un journal d'un **seul point** dont le terme D n'est pas nul, `FlightLog.d_term_prefilter`
+  de Python lève `ValueError` (`np.gradient` demande au moins 2 points). Le Rust (4a-5) **plantait** (`index out of bounds` dans `gradient`, et non
+  « rendait des zéros » comme écrit d'abord) ; `datasets.available` et `delay.compute_delays` en héritaient. Depuis, `d_term_prefilter` rend un
+  `Result` (`Err` pour n < 2, et aussi pour `fs` NaN ou infini : `int(fs / 60)` de `_slow_gain`), propagé par `datasets` et `delay` ; les cas écrits
+  (`n1`, `fs_nan`, `fs_inf`, `un_point`, `deux_points`) exigent que Rust lève comme Python.
 - **W-024** — `analysis/delay.py:xcorr_delay_ms(..., smooth)` lisse x et y par `np.convolve(..., mode="same")` quand `smooth > 1`. Le port Rust
   (`otb-analysis/src/delay.rs`) rend une erreur dans ce cas : `np.convolve` passe par BLAS (ordre de sommation propre à la bibliothèque), le
   décalage de la sortie « same » change la longueur si `smooth > n`, et **aucun appelant** de l'application (`step_series`, `log_check`,
@@ -426,3 +426,11 @@ Règles d'écriture :
   l'application ne fournit du `float64`.
   **Pourquoi reporté** : double chemin de test sans appelant réel.
   **Reprise** : si un outil de la phase 6 passe des vitesses moteur calculées en `float64` (alors rendre les fonctions génériques `Real`).
+- **W-026** — écarts de détail connus entre le Rust et numpy, **inatteignables** depuis l'application, relevés par la relecture de la 4c-A :
+  (1) `npstat::max_f32` / `min_f32` gardent le premier de deux zéros de signes opposés alors que numpy rend le dernier (`max([-0.0, 0.0])` = +0,
+  `max([0.0, -0.0])` = −0, selon l'ordre de réduction) : les valeurs passent par `abs` et aucun −0 ne sort du décodeur ; (2) `crash_time`, `phase_delay_ms`,
+  `rpm_filtered_spectrum` : non fini ou NaN dans des arguments que les appelants ne passent jamais ne sont pas tous reproduits (seuls ceux de la liste
+  des cas écrits le sont) ; (3) les valeurs en dB (`motor_noise`, `harmonic_prominence`, `dyn_notch_targets`) sont comparées relativement au plus grand
+  élément, pas case par case (leurs valeurs sont peu nombreuses et proches de la dizaine de dB).
+  **Pourquoi reporté** : aucun appelant ne les atteint ; les corriger sans cas réel serait deviner la règle de numpy.
+  **Reprise** : si un outil de la phase 6 passe des valeurs à zéros signés ou des arguments non finis, ou à la suppression du Python (phase 7).

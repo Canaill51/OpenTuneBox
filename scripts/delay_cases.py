@@ -107,6 +107,10 @@ def main():
         xc(a, b, 1000.0, 30.0, sm, label=f"smooth {sm}")
     for fs in (0.0, -1000.0, 1e-3, 1e12):
         xc(a, b, fs, label=f"fs {fs}")
+    # fs = 0 : Python lève si `shift` est resté un float, mais rend ±inf après l'interpolation (shift devient un np.float64)
+    z0 = rng.normal(0, 100, 2000)
+    for lag, nm in ((0, "pic au centre : interpolé"), (5, "pic hors fenêtre : non interpolé")):
+        xc(z0, np.roll(z0, lag) * 0.9 + rng.normal(0, 5, 2000), 0.0, 1.0, label=f"fs 0, {nm}")
 
     # ---- phase_delay_ms
     def ph(x, y, fs, band=(10.0, 100.0), coh=0.6, breaks=None, label=""):
@@ -173,7 +177,8 @@ def main():
         sp = np.vstack([x, x * 0.7, x * 0.3]).astype(np.float32) if moving else np.vstack([x, x, x]).astype(np.float32)
         gu = np.vstack([x + rng.normal(0, 5, n), x + rng.normal(0, 5, n), x]).astype(np.float32)
         gy = np.vstack([lowpass(gu[0], 90, fs), lowpass(gu[1], 90, fs), y]).astype(np.float32)
-        dt = np.vstack([np.gradient(gy[0]), np.gradient(gy[1]), np.zeros(n)]).astype(np.float32) * -3.0
+        dt = (np.vstack([np.gradient(gy[0]), np.gradient(gy[1]), np.zeros(n)]).astype(np.float32) * -3.0 if n >= 2
+              else rng.normal(0, 1, (3, n)).astype(np.float32))  # np.gradient exige 2 points
         dt = lowpass(dt, 70, fs).astype(np.float32) if dterm else np.zeros((3, n), np.float32)
         t = lg.t.copy()
         if gap is not None:
@@ -223,6 +228,7 @@ def main():
             break
     else:
         sys.exit("aucun bruit n'a donné de cohérence entre 0,5 et 0,6")
+    named += [("un_point", mk(1, 1000.0, "x")), ("deux_points", mk(2, 1000.0, "x"))]  # np.gradient exige 2 points (W-023)
     out["names"] = [n for n, _ in named]
     logs = [lg for _, lg in named]
     for i, lg in enumerate(logs):

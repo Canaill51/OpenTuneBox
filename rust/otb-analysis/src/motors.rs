@@ -8,7 +8,7 @@
 //! `(moteurs, n)` additionne dans l'ordre des moteurs (L-042, L-052).
 
 use crate::bf_filters::rpm_notch_freq_weight;
-use crate::npstat::{arange_f64, clip_f32, max_f32, mean_f32, median_f64, min_f32, nanargmax_f64, std_f64};
+use crate::npstat::{arange_f64, clip_f32, max_f32, mean_f32, median_f64, min_f32, nanargmax_f64, py_min, std_f64};
 use crate::spectral::{Mode, clear_of_breaks, py_round, row_mean, seg_spectra, segments, to_db};
 use crate::{fold_mean, harmonic_levels, masked_mean, numpy_mean, rpm_response};
 use otb_log::flightlog::{FlightLog, Rows};
@@ -187,6 +187,9 @@ pub fn motor_noise(
     let harm: Vec<i64> = (1..=n_harm.max(0)).collect();
     let segs = segments(x, l, hop, breaks);
     if segs.nseg == 0 {
+        if n_harm < 0 {
+            return Err("ValueError : negative dimensions are not allowed".into());
+        }
         let nan = vec![f64::NAN; harm.len()];
         return Ok(MotorNoise {
             harmonics: harm,
@@ -375,7 +378,7 @@ pub fn dyn_notch_targets(
     bin_hz: f64,
     breaks: Option<&[i64]>,
 ) -> Result<NotchTargets, String> {
-    let (lo, hi) = (band.0, band.1.min(0.95 * fs / 2.0));
+    let (lo, hi) = (band.0, py_min(band.1, 0.95 * fs / 2.0));
     let empty = NotchTargets {
         freqs: Vec::new(),
         ratios_db: Vec::new(),
@@ -386,7 +389,7 @@ pub fn dyn_notch_targets(
         return Ok(empty);
     }
     // regroupement en cases de la largeur de celles de la SDFT
-    let edges = arange_f64(lo, hi + bin_hz, bin_hz);
+    let edges = arange_f64(lo, hi + bin_hz, bin_hz)?;
     let (mut centres, mut power) = (Vec::new(), Vec::new());
     for w in edges.windows(2) {
         let (a, b) = (w[0], w[1]);
@@ -610,7 +613,7 @@ pub fn spectrum_lines(
         return Ok(Vec::new());
     }
     let (_, sf) = masked_spectrum(x_filt, mhz, fs, nh, seg_ms, breaks)?;
-    let (lo, hi) = (band.0, band.1.min(0.9 * fs / 2.0 / 1.2));
+    let (lo, hi) = (band.0, py_min(band.1, 0.9 * fs / 2.0 / 1.2));
     let mut cands: Vec<(f64, f64)> = Vec::new();
     for i in 1..f.len() - 1 {
         if lo <= f[i] && f[i] <= hi && s[i].is_finite() {
@@ -660,4 +663,40 @@ pub fn hover_motor_hz(log: &FlightLog) -> Option<f64> {
         return None;
     }
     Some(crate::npstat::median_f32(&flying) as f64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// L-055 : sur le spectre EXACT de Python (plat à 1e-22 près, `S[k]` dépasse la moyenne du bruit d'un ulp, `level == S[k]`), la largeur
+    /// d'une raie inexistante vaut 0,0 comme en Python : le port est correct, l'écart vu sur le corpus vient du bruit de la FFT.
+    #[test]
+    fn largeur_sur_spectre_plat_comme_python() {
+        let text =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/flat_spectrum.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let f: Vec<f64> = v["f"].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect();
+        let s: Vec<f64> = v["S"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap_or(f64::NAN))
+            .collect();
+        assert!(
+            s.iter().any(|x| x.is_nan()),
+            "le spectre contient des bandes retirées (NaN)"
+        );
+        let w = half_power_width(&f, &s, v["f0"].as_f64().unwrap());
+        assert_eq!(w.to_bits(), v["want"].as_f64().unwrap().to_bits(), "largeur {w:e}");
+        assert_eq!(w, 0.0);
+        // un ulp de moins sur le sommet (le bruit de la FFT) suffit à changer la décision : la largeur n'est pas continue
+        let mut t = s.clone();
+        let k = 125;
+        t[k] = f64::from_bits(t[k].to_bits() - 1);
+        assert_ne!(
+            half_power_width(&f, &t, v["f0"].as_f64().unwrap()).to_bits(),
+            w.to_bits()
+        );
+    }
 }

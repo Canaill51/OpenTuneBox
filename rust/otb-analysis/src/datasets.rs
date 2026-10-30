@@ -25,7 +25,7 @@ pub fn get<'a>(log: &'a FlightLog, key: &str) -> Result<Option<Cow<'a, Rows>>, S
         "gyro" => Some(Cow::Borrowed(&log.gyro)),
         "gyro_prefilt" => log.gyro_unfilt.as_ref().map(Cow::Borrowed),
         "dterm" => Some(Cow::Borrowed(&log.d_term)),
-        "dterm_prefilt" => Some(Cow::Owned(log.d_term_prefilter())),
+        "dterm_prefilt" => Some(Cow::Owned(log.d_term_prefilter()?)),
         "pterm" => Some(Cow::Borrowed(&log.p_term)),
         "pid_error" => Some(Cow::Owned(log.pid_error())),
         "setpoint" => Some(Cow::Borrowed(&log.setpoint)),
@@ -37,13 +37,16 @@ pub fn get<'a>(log: &'a FlightLog, key: &str) -> Result<Option<Cow<'a, Rows>>, S
     })
 }
 
-/// Clés des jeux de données présents, dans l'ordre de `DATASETS`.
-pub fn available(log: &FlightLog) -> Vec<&'static str> {
-    DATASETS
-        .iter()
-        .filter(|(k, _)| matches!(get(log, k), Ok(Some(_))))
-        .map(|(k, _)| *k)
-        .collect()
+/// Clés des jeux de données présents, dans l'ordre de `DATASETS`. `Err` si l'un d'eux ne peut pas être calculé (terme D préfiltre d'un
+/// journal d'un point : Python lève aussi).
+pub fn available(log: &FlightLog) -> Result<Vec<&'static str>, String> {
+    let mut out = Vec::new();
+    for (k, _) in DATASETS.iter() {
+        if get(log, k)?.is_some() {
+            out.push(*k);
+        }
+    }
+    Ok(out)
 }
 
 /// Le jeu existe-t-il sur cet axe avec au moins une valeur non nulle (un NaN compte : `NaN != 0`) ? Le terme D du yaw (0 par

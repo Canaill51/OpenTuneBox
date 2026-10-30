@@ -61,7 +61,7 @@ pub fn flightlog_digest(lg: &FlightLog) -> Value {
 /// Écart maximal des échantillons de `d_term_prefilter` (rapporté au plus grand échantillon de l'axe) entre Python et Rust.
 pub fn prefilter_deviation(want: &Value, lg: &FlightLog) -> Result<f64, String> {
     let stride = want["stride"].as_u64().ok_or("stride")? as usize;
-    let got = lg.d_term_prefilter();
+    let got = lg.d_term_prefilter()?;
     if want["shape"] != json!([got.k, got.n]) {
         return Err(format!("forme {} ≠ [{}, {}]", want["shape"], got.k, got.n));
     }

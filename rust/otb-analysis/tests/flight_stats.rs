@@ -63,38 +63,39 @@ fn arr(c: &Value, id: &Value, got: &[f64], what: &str) {
 fn datasets_identiques() {
     let c = cas("flight_stats");
     let ls = logs(&c);
-    let (mut skipped, mut checked) = (0, 0);
+    let (mut errors, mut checked) = (0, 0);
     for k in c["datasets"].as_array().unwrap() {
         let lg = &ls[k["log"].as_u64().unwrap() as usize];
         let what = format!("datasets {}", c["names"][k["log"].as_u64().unwrap() as usize]);
-        // ⚠️ Python lève (np.gradient exige 2 points) pour un journal d'un point au terme D non nul ; Rust (4a) ne lève pas :
-        // écart de robustesse assumé, travail reporté W-023
+        // Python lève (np.gradient exige 2 points) pour un journal d'un point au terme D non nul : Rust doit lever aussi (W-023)
         if k["error"].as_bool().unwrap() {
-            assert_eq!(
-                c["names"][k["log"].as_u64().unwrap() as usize],
-                "n1",
-                "seul le journal d'un point lève"
+            let name = c["names"][k["log"].as_u64().unwrap() as usize].as_str().unwrap();
+            assert!(
+                ["n1", "fs_nan", "fs_inf"].contains(&name),
+                "seuls le journal d'un point et fs non fini lèvent : {name}"
             );
-            skipped += 1;
-            continue;
+            assert!(
+                datasets::available(lg).is_err(),
+                "{what} : Python lève, Rust rend {:?}",
+                datasets::available(lg)
+            );
+            errors += 1;
+        } else {
+            let want: Vec<&str> = k["available"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect();
+            assert_eq!(datasets::available(lg).unwrap(), want, "{what} : jeux présents");
         }
-        let want: Vec<&str> = k["available"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v.as_str().unwrap())
-            .collect();
-        assert_eq!(datasets::available(lg), want, "{what} : jeux présents");
         for (i, key) in DATASETS.iter().map(|(k, _)| *k).chain(["inconnu"]).enumerate() {
             for ax in 0..4 {
                 let want = &k["has_axis"][i][ax];
-                if want == "E" {
-                    skipped += 1;
-                    continue;
-                }
                 let got = datasets::has_axis(lg, key, ax);
-                if key == "inconnu" {
-                    assert!(got.is_err(), "{what} : clé inconnue");
+                if want == "E" {
+                    assert!(got.is_err(), "{what} {key} axe {ax} : Python lève, Rust rend {got:?}");
+                    errors += 1;
                 } else {
                     assert_eq!(got.unwrap(), want.as_bool().unwrap(), "{what} {key} axe {ax}");
                 }
@@ -102,7 +103,7 @@ fn datasets_identiques() {
             }
         }
     }
-    assert!(skipped > 0, "le journal d'un point doit être rencontré");
+    assert!(errors >= 5, "le journal d'un point doit être rencontré : {errors}");
     assert!(checked > 1000);
 }
 
@@ -188,7 +189,7 @@ fn pid_error_stats_identique() {
 fn auto_period_identique() {
     let c = cas("flight_stats");
     let ls = logs(&c);
-    let (mut full, mut part) = (0, 0);
+    let (mut full, mut part, mut errors) = (0, 0, 0);
     for k in c["auto_period"].as_array().unwrap() {
         let lg = &ls[k["log"].as_u64().unwrap() as usize];
         let w = format!(
@@ -196,10 +197,15 @@ fn auto_period_identique() {
             c["names"][k["log"].as_u64().unwrap() as usize],
             k["args"]
         );
-        assert!(!is_error(k), "{w}");
         let a: Vec<f64> = k["args"].as_array().unwrap().iter().map(f1).collect();
         let (take, margin) = (a.first().copied().unwrap_or(8.0), a.get(1).copied().unwrap_or(0.5));
-        let (t0, t1) = period::auto_period(lg, take, margin).unwrap();
+        let got = period::auto_period(lg, take, margin);
+        if is_error(k) {
+            assert!(got.is_err(), "{w} : Python lève, Rust rend {got:?}");
+            errors += 1;
+            continue;
+        }
+        let (t0, t1) = got.unwrap_or_else(|e| panic!("{w} : Rust lève ({e})"));
         bits(t0, &k["out"][0], &format!("{w} début"));
         bits(t1, &k["out"][1], &format!("{w} fin"));
         if t0 == lg.t[0] && t1 == lg.t[lg.n() - 1] {
@@ -208,15 +214,16 @@ fn auto_period_identique() {
             part += 1;
         }
     }
-    // les deux branches (période entière / période restreinte) sont atteintes
+    // les deux branches (période entière / période restreinte) sont atteintes, et `fs` non fini fait lever comme Python
     assert!(full > 20 && part > 20, "pleine {full}, restreinte {part}");
+    assert!(errors >= 1, "erreurs {errors}");
 }
 
 #[test]
 fn crash_time_identique() {
     let c = cas("flight_stats");
     let ls = logs(&c);
-    let (mut some, mut none) = (0, 0);
+    let (mut some, mut none, mut errors) = (0, 0, 0);
     for k in c["crash_time"].as_array().unwrap() {
         let lg = &ls[k["log"].as_u64().unwrap() as usize];
         let w = format!(
@@ -227,7 +234,12 @@ fn crash_time_identique() {
         let a: Vec<f64> = k["args"].as_array().unwrap().iter().map(f1).collect();
         let (e, m) = (a.first().copied().unwrap_or(300.0), a.get(1).copied().unwrap_or(60.0));
         let got = period::crash_time(lg, e, m);
-        match (&k["out"], got) {
+        if is_error(k) {
+            assert!(got.is_err(), "{w} : Python lève, Rust rend {got:?}");
+            errors += 1;
+            continue;
+        }
+        match (&k["out"], got.unwrap_or_else(|e| panic!("{w} : Rust lève ({e})"))) {
             (Value::Null, None) => none += 1,
             (o, Some(g)) if !o.is_null() => {
                 some += 1;
@@ -236,7 +248,10 @@ fn crash_time_identique() {
             (o, g) => panic!("{w} : Python {o}, Rust {g:?}"),
         }
     }
-    assert!(some > 20 && none > 20, "avec crash {some}, sans {none}");
+    assert!(
+        some > 20 && none > 20 && errors >= 2,
+        "avec crash {some}, sans {none}, erreurs {errors}"
+    );
 }
 
 fn parts_eq(got: &FlightParts, want: &Value, w: &str) {
@@ -266,13 +281,17 @@ fn flight_parts_identique() {
             f1(&k["t1"]),
             k["args"]
         );
-        assert!(!is_error(k), "{w}");
         let a: Vec<f64> = k["args"].as_array().unwrap().iter().map(f1).collect();
         let (block, dps) = (
             a.first().copied().unwrap_or(1.0),
             a.get(1).copied().unwrap_or(period::MOVING_SETPOINT_DPS),
         );
-        let got = period::flight_parts(lg, f1(&k["t0"]), f1(&k["t1"]), block, dps).unwrap();
+        let got = period::flight_parts(lg, f1(&k["t0"]), f1(&k["t1"]), block, dps);
+        if is_error(k) {
+            assert!(got.is_err(), "{w} : Python lève, Rust rend {got:?}");
+            continue;
+        }
+        let got = got.unwrap_or_else(|e| panic!("{w} : Rust lève ({e})"));
         parts_eq(&got, &k["out"], &w);
         hover += usize::from(got.hover.is_some());
         moving += usize::from(got.moving.is_some());

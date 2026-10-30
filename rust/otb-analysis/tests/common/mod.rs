@@ -88,6 +88,34 @@ pub fn assert_close(cat: &'static str, got: &[f64], want: &[f64], rtol: f64, wha
     );
 }
 
+/// Écart **case par case**, relatif à la valeur de référence (`|g − w| / |w|`) : pour des spectres dont les petites cases comptent
+/// (creux d'un notch RPM, hautes fréquences), une tolérance rapportée au plus grand élément les laisserait libres (relecture 4c-A).
+/// Une référence nulle exige un résultat nul ; NaN et infinis aux mêmes endroits.
+pub fn assert_close_rel(cat: &'static str, got: &[f64], want: &[f64], rtol: f64, what: &str) {
+    assert_eq!(got.len(), want.len(), "{what} : longueur");
+    let mut worst = 0.0f64;
+    for (i, (g, w)) in got.iter().zip(want).enumerate() {
+        if w.is_finite() && g.is_finite() {
+            let e = if *w == 0.0 {
+                (g - w).abs()
+            } else {
+                (g - w).abs() / w.abs()
+            };
+            worst = worst.max(e);
+        } else {
+            assert!(same(*g, *w), "{what} : élément {i} : Rust {g:e} / Python {w:e}");
+        }
+    }
+    let mut m = WORST.lock().unwrap();
+    let e = m.entry(cat).or_insert(0.0);
+    *e = e.max(worst);
+    drop(m);
+    assert!(
+        worst <= rtol,
+        "{what} : écart relatif case par case {worst:e} > {rtol:e}"
+    );
+}
+
 pub fn report() {
     for (k, v) in WORST.lock().unwrap().iter() {
         eprintln!("écart max {k:<22} {v:.3e}");
