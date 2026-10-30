@@ -6,7 +6,9 @@
 //! Décisions discrètes (indice du croisement, de la phase à −180°, du pic de sensibilité, bord de bande, nombre de points
 //! valides) : à exiger **identiques** à Python ; valeurs continues (logs, atan2, exp) à tolérance mesurée (L-048, L-051).
 
-use crate::npstat::{argmax_f64, cdiv, unwrap};
+use crate::npstat::{argmax_f64, cdiv, conj_mul_fma, py_min, unwrap};
+use crate::spectral::{clear_of_breaks, py_round, rfftfreq, row_mean};
+use otb_dsp::numeric::{hann, rfft_rows};
 use otb_log::settings::Settings;
 use std::f64::consts::PI;
 
@@ -18,6 +20,16 @@ pub const APPROX: &str = "approchée";
 pub const F_MIN: f64 = 2.0;
 /// Lissage des spectres (points), méthode approchée.
 pub const SMOOTH: i64 = 5;
+/// Bande de la mesure (Hz), plafonnée à 0,4 × fréquence du log.
+pub const F_MAX: f64 = 200.0;
+/// Erreur aléatoire relative de Ĝ tolérée.
+pub const MAX_ERR_G: f64 = 0.2;
+/// Cohérences erreur → P+I et gyro → D minimales.
+pub const MIN_COH_PID: f64 = 0.8;
+/// Lissage de la mesure : largeur = 20 % de la fréquence (au moins `SMOOTH` points).
+pub const SMOOTH_REL: f64 = 0.2;
+/// Blocs du jackknife.
+pub const BLOCKS: i64 = 8;
 /// flight/pid.h : Kd = DTERM_SCALE × D.
 pub const DTERM_SCALE: f64 = 0.000529;
 
@@ -268,4 +280,383 @@ pub fn dterm_model(s: &Settings, freqs: &[f64], d_gain: f64, throttle_frac: f64)
             (d.0.mul_add(hr[i], -(d.1 * hi[i])), d.0.mul_add(hi[i], d.1 * hr[i]))
         })
         .collect())
+}
+
+// ---------------------------------------------------------------- spectres croisés et fonctions de transfert (étape (b))
+
+/// Produit complexe de numpy sur ce poste (opérations fusionnées : L-051).
+fn cmul(a: C, b: C) -> C {
+    (a.0.mul_add(b.0, -(a.1 * b.1)), a.0.mul_add(b.1, a.1 * b.0))
+}
+
+fn cadd(a: C, b: C) -> C {
+    (a.0 + b.0, a.1 + b.1)
+}
+
+/// Paires de spectres croisés S(x, y) = Σ conj(X)·Y : r consigne, y gyro, p = P + I, u = P + I + D + F, e = r − y, z instrument.
+pub const PAIRS: [&str; 16] = [
+    "rr", "yy", "ee", "uu", "pp", "dd", "zz", "ry", "rf", "zy", "zu", "zp", "zd", "ze", "ep", "yd",
+];
+
+fn pair_index(name: &str) -> usize {
+    PAIRS.iter().position(|p| *p == name).expect("paire connue")
+}
+
+/// `LoopSpectra` : spectres croisés sommés par bloc de fenêtres consécutives (pour le jackknife).
+#[derive(Debug, Clone)]
+pub struct LoopSpectra {
+    pub freqs: Vec<f64>,
+    pub fs: f64,
+    /// `blocks[paire][bloc][fréquence]`, paires dans l'ordre de [`PAIRS`].
+    pub blocks: Vec<Vec<Vec<C>>>,
+    pub n_windows: usize,
+    pub has_d: bool,
+}
+
+impl LoopSpectra {
+    pub fn n_blocks(&self) -> usize {
+        self.blocks.first().map_or(0, |b| b.len())
+    }
+
+    /// `total(leave_out)` : somme des blocs conservés, dans l'ordre (somme de numpy sur l'axe 0 : séquentielle).
+    pub fn total(&self, leave_out: Option<usize>) -> Vec<Vec<C>> {
+        let nf = self.freqs.len();
+        self.blocks
+            .iter()
+            .map(|pair| {
+                let mut kept = pair
+                    .iter()
+                    .enumerate()
+                    .filter(|(b, _)| Some(*b) != leave_out)
+                    .map(|(_, v)| v);
+                let Some(first) = kept.next() else {
+                    return vec![(0.0, 0.0); nf];
+                };
+                let mut acc = first.clone();
+                for v in kept {
+                    for (a, x) in acc.iter_mut().zip(v) {
+                        *a = cadd(*a, *x);
+                    }
+                }
+                acc
+            })
+            .collect()
+    }
+}
+
+/// Entrées de `loop_spectra` autres que la consigne et le gyro : les termes PID (en `float64`, comme Python les convertit).
+pub struct Terms<'a> {
+    pub p: &'a [f64],
+    pub i: &'a [f64],
+    pub d: &'a [f64],
+    pub f: &'a [f64],
+    /// Signal extérieur à la boucle pour estimer G ; `None` : la consigne.
+    pub instrument: Option<&'a [f64]>,
+}
+
+/// `np.array_split(starts, k)` : les `n % k` premiers morceaux ont un élément de plus.
+fn array_split(n: usize, k: usize) -> Vec<(usize, usize)> {
+    let (q, r) = (n / k, n % k);
+    let mut out = Vec::with_capacity(k);
+    let mut at = 0;
+    for g in 0..k {
+        let len = q + usize::from(g < r);
+        out.push((at, at + len));
+        at += len;
+    }
+    out
+}
+
+/// `loop_spectra` : spectres croisés sur les fenêtres où la consigne dépasse `min_input` (et reste sous `max_input`).
+/// `None` quand il n'y a pas assez de fenêtres (Python rend `None`).
+#[allow(clippy::too_many_arguments)]
+pub fn loop_spectra(
+    r: &[f64],
+    y: &[f64],
+    terms: &Terms,
+    fs: f64,
+    seg_s: f64,
+    min_input: f64,
+    max_input: Option<f64>,
+    blocks: i64,
+    breaks: Option<&[i64]>,
+) -> Result<Option<LoopSpectra>, String> {
+    let z = terms.instrument.unwrap_or(r);
+    // `p + i` de numpy : tailles égales, ou l'une vaut 1 (diffusée) ; sinon Python lève une erreur de diffusion
+    let (np_, ni) = (terms.p.len(), terms.i.len());
+    if np_ != ni && np_ != 1 && ni != 1 {
+        return Err(format!(
+            "operands could not be broadcast together with shapes ({np_},) ({ni},)"
+        ));
+    }
+    let len = if np_ == ni || ni == 1 { np_ } else { ni };
+    let pi: Vec<f64> = (0..len)
+        .map(|k| terms.p[if np_ == 1 { 0 } else { k }] + terms.i[if ni == 1 { 0 } else { k }])
+        .collect();
+    let n = [r.len(), y.len(), pi.len(), terms.d.len(), terms.f.len(), z.len()]
+        .into_iter()
+        .min()
+        .unwrap();
+    let l = py_round(seg_s * fs)?;
+    if (n as i64) < l || l < 8 {
+        return Ok(None);
+    }
+    let l = l as usize;
+    let hop = l / 2;
+    let all: Vec<i64> = (0..=n - l).step_by(hop).map(|s| s as i64).collect();
+    let keep = clear_of_breaks(&all, l as i64, breaks);
+    let starts: Vec<usize> = all
+        .iter()
+        .zip(&keep)
+        .filter(|(_, k)| **k)
+        .map(|(s, _)| *s as usize)
+        .collect();
+    if starts.len() < 2 {
+        return Ok(None);
+    }
+    // crête de la consigne par fenêtre (np.max d'un |r| : un NaN la rend NaN, la comparaison est alors fausse)
+    let peak = |s: usize| {
+        r[s..s + l].iter().map(|v| v.abs()).fold(
+            0.0f64,
+            |m, v| if m.is_nan() || v.is_nan() { f64::NAN } else { m.max(v) },
+        )
+    };
+    let starts: Vec<usize> = starts
+        .into_iter()
+        .filter(|&s| {
+            let pk = peak(s);
+            pk >= min_input && max_input.is_none_or(|m| pk < m)
+        })
+        .collect();
+    if starts.len() < 2 {
+        return Ok(None);
+    }
+    if blocks < 1 {
+        return Err("array_split : le nombre de morceaux doit être positif".into());
+    }
+    let w = hann(l as i64, true);
+    let freqs = rfftfreq(l, fs);
+    let nf = freqs.len();
+    let groups = array_split(starts.len(), (blocks as usize).min(starts.len()));
+    let mut out: Vec<Vec<Vec<C>>> = vec![Vec::with_capacity(groups.len()); PAIRS.len()];
+    for &(g0, g1) in &groups {
+        let st = &starts[g0..g1];
+        let nw = st.len();
+        let spec = |x: &[f64]| -> Vec<(f64, f64)> {
+            let mut data = Vec::with_capacity(nw * l);
+            for &s in st {
+                let seg = &x[s..s + l];
+                let m = row_mean(seg);
+                data.extend(seg.iter().zip(&w).map(|(v, wv)| (v - m) * wv));
+            }
+            rfft_rows(&data, nw, l).into_iter().map(|c| (c.re, c.im)).collect()
+        };
+        let (sr, sy, sp, sd, sf, sz) = (spec(r), spec(y), spec(&pi), spec(terms.d), spec(terms.f), spec(z));
+        let se: Vec<C> = sr.iter().zip(&sy).map(|(a, b)| (a.0 - b.0, a.1 - b.1)).collect();
+        let su: Vec<C> = sp
+            .iter()
+            .zip(&sd)
+            .zip(&sf)
+            .map(|((a, b), c)| cadd(cadd(*a, *b), *c))
+            .collect();
+        let sig = |c: char| -> &Vec<C> {
+            match c {
+                'r' => &sr,
+                'y' => &sy,
+                'p' => &sp,
+                'd' => &sd,
+                'f' => &sf,
+                'z' => &sz,
+                'e' => &se,
+                _ => &su,
+            }
+        };
+        for (k, name) in PAIRS.iter().enumerate() {
+            let (a, b) = (sig(name.as_bytes()[0] as char), sig(name.as_bytes()[1] as char));
+            // np.sum(conj(X) · Y, axis=0) : produit fusionné par case, puis somme séquentielle sur les fenêtres
+            let mut acc: Vec<C> = (0..nf).map(|j| conj_mul_fma(a[j], b[j])).collect();
+            for wi in 1..nw {
+                for j in 0..nf {
+                    acc[j] = cadd(acc[j], conj_mul_fma(a[wi * nf + j], b[wi * nf + j]));
+                }
+            }
+            out[k].push(acc);
+        }
+    }
+    let has_d = terms.d.iter().any(|&v| v != 0.0);
+    Ok(Some(LoopSpectra {
+        freqs,
+        fs,
+        blocks: out,
+        n_windows: starts.len(),
+        has_d,
+    }))
+}
+
+/// `LoopEstimate` : fonctions de transfert estimées (toutes sur `freqs`) et masque des points valides.
+#[derive(Debug, Clone)]
+pub struct LoopEstimate {
+    pub freqs: Vec<f64>,
+    pub ce: Vec<C>,
+    pub cd: Vec<C>,
+    pub cf: Vec<C>,
+    pub g: Vec<C>,
+    pub t: Vec<C>,
+    pub l: Vec<C>,
+    /// Cohérences « zy », « zu » (instrument → gyro, → u), « ep », « yd ».
+    pub coh_zy: Vec<f64>,
+    pub coh_zu: Vec<f64>,
+    pub coh_ep: Vec<f64>,
+    pub coh_yd: Vec<f64>,
+    pub valid: Vec<bool>,
+    /// Contrôle, variante A : S = 1 − T·(Ce + Cd)/(Ce + Cf).
+    pub s_a: Vec<C>,
+    /// Contrôle, variante C : Ce et Cd estimés eux aussi par l'instrument.
+    pub l_c: Vec<C>,
+    pub err_g: Vec<f64>,
+}
+
+/// `_smooth_variable` : moyenne glissante de largeur variable (impaire, centrée), tronquée aux bords (somme cumulée).
+fn smooth_variable(z: &[C], widths: &[i64]) -> Vec<C> {
+    let n = z.len();
+    let mut c: Vec<C> = Vec::with_capacity(n + 1);
+    c.push((0.0, 0.0));
+    let mut run = (0.0, 0.0);
+    for (k, &v) in z.iter().enumerate() {
+        run = if k == 0 { v } else { cadd(run, v) }; // np.cumsum recopie le premier élément
+        c.push(run);
+    }
+    (0..n)
+        .map(|i| {
+            let half = widths[i] / 2;
+            let lo = (i as i64 - half).clamp(0, n as i64) as usize;
+            let hi = (i as i64 + half + 1).clamp(0, n as i64) as usize;
+            cdiv((c[hi].0 - c[lo].0, c[hi].1 - c[lo].1), ((hi - lo) as f64, 0.0))
+        })
+        .collect()
+}
+
+/// `_rand_err` : erreur aléatoire relative du module d'une fonction de transfert estimée (cohérence γ², n moyennes).
+fn rand_err(coh: f64, n_avg: f64) -> f64 {
+    let nan_to_num = |v: f64| {
+        if v.is_nan() {
+            0.0
+        } else if v == f64::INFINITY {
+            f64::MAX
+        } else if v == f64::NEG_INFINITY {
+            f64::MIN
+        } else {
+            v
+        }
+    };
+    let c = nan_to_num(coh).clamp(1e-12, 1.0);
+    ((1.0 - c) / (2.0 * n_avg * c)).sqrt()
+}
+
+/// `_coh` : |S(x, y)|² / (Re S(x, x) · Re S(y, y)).
+fn coh_of(xy: &[C], xx: &[C], yy: &[C]) -> Vec<f64> {
+    (0..xy.len())
+        .map(|i| {
+            let a = abs(xy[i]);
+            a * a / (xx[i].0 * yy[i].0)
+        })
+        .collect()
+}
+
+/// `_first_run` : points valides contigus à partir du premier point valide.
+fn first_run(ok: &[bool]) -> Vec<bool> {
+    let mut out = vec![false; ok.len()];
+    if let Some(i) = ok.iter().position(|&v| v) {
+        let stop = ok[i..].iter().position(|&v| !v).unwrap_or(ok.len() - i);
+        for v in &mut out[i..i + stop] {
+            *v = true;
+        }
+    }
+    out
+}
+
+/// `estimate` : fonctions de transfert de la boucle depuis les spectres croisés (`leave_out` : bloc retiré, jackknife).
+pub fn estimate(spec: &LoopSpectra, leave_out: Option<usize>) -> LoopEstimate {
+    let f = &spec.freqs;
+    let df = if f.len() > 1 { f[1] - f[0] } else { 1.0 };
+    let widths: Vec<i64> = f
+        .iter()
+        .map(|&v| {
+            let w = (SMOOTH as f64).max(2.0 * (SMOOTH_REL * v / df / 2.0).round_ties_even() + 1.0);
+            w as i64
+        })
+        .collect();
+    let s: Vec<Vec<C>> = spec
+        .total(leave_out)
+        .iter()
+        .map(|v| smooth_variable(v, &widths))
+        .collect();
+    let sp = |name: &str| &s[pair_index(name)];
+    let n = f.len();
+    let div = |a: &[C], b: &[C]| -> Vec<C> { (0..n).map(|i| cdiv(a[i], b[i])).collect() };
+    let neg = |a: &[C]| -> Vec<C> { a.iter().map(|z| (-z.0, -z.1)).collect() };
+    let zeros = vec![(0.0, 0.0); n];
+    let ce = div(sp("ep"), sp("ee"));
+    let cd = if spec.has_d {
+        div(&neg(sp("yd")), sp("yy"))
+    } else {
+        zeros.clone()
+    };
+    let g = div(sp("zy"), sp("zu"));
+    let t = div(sp("ry"), sp("rr"));
+    let cf = div(sp("rf"), sp("rr"));
+    let l: Vec<C> = (0..n).map(|i| cmul(g[i], cadd(ce[i], cd[i]))).collect();
+    let coh_zy = coh_of(sp("zy"), sp("zz"), sp("yy"));
+    let coh_zu = coh_of(sp("zu"), sp("zz"), sp("uu"));
+    let coh_ep = coh_of(sp("ep"), sp("ee"), sp("pp"));
+    let coh_yd = coh_of(sp("yd"), sp("yy"), sp("dd"));
+    let s_a: Vec<C> = (0..n)
+        .map(|i| {
+            let q = cdiv(cmul(t[i], cadd(ce[i], cd[i])), cadd(ce[i], cf[i]));
+            (1.0 - q.0, 0.0 - q.1)
+        })
+        .collect();
+    let cd_c = if spec.has_d {
+        div(&neg(sp("zd")), sp("zy"))
+    } else {
+        zeros
+    };
+    let zp_ze = div(sp("zp"), sp("ze"));
+    let l_c: Vec<C> = (0..n).map(|i| cmul(g[i], cadd(zp_ze[i], cd_c[i]))).collect();
+    let err_g: Vec<f64> = (0..n)
+        .map(|i| {
+            let n_avg = (spec.n_windows as f64 * widths[i] as f64) / 2.0;
+            let (a, b) = (rand_err(coh_zy[i], n_avg), rand_err(coh_zu[i], n_avg));
+            (a * a + b * b).sqrt()
+        })
+        .collect();
+    let f_top = py_min(F_MAX, 0.4 * spec.fs);
+    let ok: Vec<bool> = (0..n)
+        .map(|i| {
+            f[i] >= F_MIN
+                && f[i] <= f_top
+                && l[i].0.is_finite()
+                && l[i].1.is_finite()
+                && err_g[i] <= MAX_ERR_G
+                && coh_ep[i] >= MIN_COH_PID
+                && (!spec.has_d || coh_yd[i] >= MIN_COH_PID)
+        })
+        .collect();
+    LoopEstimate {
+        freqs: f.clone(),
+        ce,
+        cd,
+        cf,
+        g,
+        t,
+        l,
+        coh_zy,
+        coh_zu,
+        coh_ep,
+        coh_yd,
+        valid: first_run(&ok),
+        s_a,
+        l_c,
+        err_g,
+    }
 }

@@ -6,7 +6,7 @@
 //! (L-048, L-051) : les valeurs qui passent par `log`, `atan2`, `exp`, `cos` et les produits complexes. Un saut d'indice (croisement,
 //! passage par −180°, pic) donnerait un écart de l'ordre d'un pas de grille, très au-dessus de la tolérance.
 
-use otb_analysis::open_loop::{self, C, LoopMetrics, Margins};
+use otb_analysis::open_loop::{self, LoopMetrics, Margins};
 use serde_json::Value;
 
 mod common;
@@ -15,36 +15,6 @@ use common::*;
 /// Tolérance sur les valeurs continues (marges, fonctions de transfert). Mesuré le 2026-10-30 : 2,0e-15 au plus (`log`, `atan2`, `exp`) ;
 /// `L` et `dterm_model` identiques au bit près. Marge ×5 000 pour une autre libm (Windows : L-048).
 const RTOL: f64 = 1e-11;
-
-fn cx(c: &Value, v: &Value) -> Vec<C> {
-    let (re, im) = (input(c, &v["re"]), input(c, &v["im"]));
-    re.into_iter().zip(im).collect()
-}
-
-/// Écart relatif de chaque élément complexe : `|g − w| / |w|` (plancher : `CELL_FLOOR` fois le plus grand module de la référence).
-fn assert_close_cx(cat: &'static str, got: &[C], want: &[C], rtol: f64, what: &str) {
-    assert_eq!(got.len(), want.len(), "{what} : longueur");
-    let flat = |z: &[C]| -> Vec<f64> { z.iter().flat_map(|c| [c.0, c.1]).collect() };
-    // NaN et infinis aux mêmes endroits (partie réelle et imaginaire)
-    let (g, w) = (flat(got), flat(want));
-    let top = want
-        .iter()
-        .filter(|c| c.0.is_finite() && c.1.is_finite())
-        .fold(0.0f64, |m, c| m.max(c.0.hypot(c.1)));
-    let mut worst = 0.0f64;
-    for i in 0..got.len() {
-        let (a, b) = (got[i], want[i]);
-        if b.0.is_finite() && b.1.is_finite() && a.0.is_finite() && a.1.is_finite() {
-            let d = (a.0 - b.0).hypot(a.1 - b.1);
-            worst = worst.max(d / (b.0.hypot(b.1) + CELL_FLOOR * top).max(1e-300));
-        } else {
-            for k in [2 * i, 2 * i + 1] {
-                assert!(same(g[k], w[k]), "{what} : élément {i} : Rust {a:?} / Python {b:?}");
-            }
-        }
-    }
-    assert_close(cat, &[worst, 1.0], &[0.0, 1.0], rtol, what);
-}
 
 fn margins_of(k: &Value) -> Margins {
     let o = &k["out"];

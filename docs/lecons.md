@@ -60,6 +60,17 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-057 : des cas aléatoires qui n'atteignent jamais le régime « valide » laissent les seuils libres ; les mutations le montrent
+- **Symptôme** — 2026-10-30 (4c-B(b), `estimate`) : les mutations du seuil `f ≤ 0,4 × fs`, de `isfinite(L)` et de la fin de `first_run` survivent, alors que les
+  spectres tirés au hasard devaient les atteindre.
+- **Cause** — mesurée : le masque `valid` des spectres aléatoires était presque toujours vide (0 à 1 point sur 40). La phase du spectre croisé était tirée **au
+  hasard à chaque case** : le lissage sur 5 points ou plus les moyenne et la cohérence tombe à ~0,3 ; des puissances `xx`, `yy` tirées sur [0,5 ; 5] par case
+  suffisent aussi à la faire passer sous 0,8. Sans point valide, aucun seuil de `valid` ne change le résultat.
+- **Règle** — un cas fabriqué pour un seuil doit **atteindre le régime où ce seuil décide** : compter (dans le script de cas) les cas où le masque n'est pas
+  vide, et exiger ce nombre dans le test ; phases lentes (le lissage les garde) et puissances voisines. Un zéro censé rendre `L` infini doit couvrir au moins la
+  largeur du lissage, sinon les cases voisines le comblent.
+- **Preuve** — `scripts/loop_spectra_cases.py` (`rnd`), `rust/otb-analysis/tests/open_loop_spectra.rs` (`with_valid >= 40`) ; les trois mutations sont maintenant tuées.
+
 ### L-056 : comparer en relatif une valeur qui est le résidu d'arrondi d'un zéro exact échoue sur une autre libm (CI Windows)
 - **Symptôme** — 2026-10-30 (PR 4c-A) : la CI Windows échoue sur `rpm_attenuation "3h" k=1 nwin=3` : écart relatif case par case 0,93 ; le même test passe
   sous Linux (écart 2e-16).
@@ -707,6 +718,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-057 | Cas aléatoires qui n'atteignent jamais le régime valide : seuils libres ; phases lentes, puissances voisines, compter les cas non vides | Outillage |
 | L-056 | Un résidu d'arrondi de zéro exact (centre d'un notch) ne se compare pas en relatif : absolu pour |H|, plancher pour les spectres ; une comparaison durcie passe par la CI Windows | Outillage |
 | L-055 | Largeur de raie sur spectre plat = fonction discontinue du dernier bit : rejouer la fonction seule sur l'entrée exacte de Python, exempter et compter | Analyses |
 | L-054 | Retard d'intercorrélation : écart en périodes d'échantillonnage ; tolérance mesurée sur les cas écrits ET sur le corpus (pic plat = division mal conditionnée) | Analyses |

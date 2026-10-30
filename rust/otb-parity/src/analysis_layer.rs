@@ -60,7 +60,15 @@ fn in_scope(section: &str, key: &str, py: &HashMap<String, Array>) -> bool {
         && (!measured
             || matches!(
                 field,
-                "crossover_hz"
+                "method"
+                    | "freqs"
+                    | "T"
+                    | "coherence"
+                    | "L"
+                    | "valid"
+                    | "band_hz[0]"
+                    | "band_hz[1]"
+                    | "crossover_hz"
                     | "phase_margin_deg"
                     | "gain_margin_db"
                     | "sensitivity_peak_db"
@@ -136,20 +144,29 @@ fn ported(lg: &FlightLog, py: &HashMap<String, Array>) -> Vec<Section> {
         ("datasets", datasets_section(lg)),
         ("stats", Ok(stats_section(lg, sel.clone()))),
         ("delay", delay_section(lg, sel.clone())),
-        ("motors", motors_section(lg, sel)),
-        ("step", step_section(py)),
+        ("motors", motors_section(lg, sel.clone())),
+        ("step", step_section(lg, sel.clone(), py)),
     ]
 }
 
-/// Boucles ouvertes de `step` rejouées **depuis les entrées de la référence** (4c-B(a) : `margins` et `loop_from_T`). Une boucle
-/// mesurée : marges de `(freqs, L, valid)` ; une boucle approchée : `loop_from_T(freqs, T, coherence)` entière. Les étapes (b) et (c)
-/// refont la boucle mesurée depuis le journal.
-fn step_section(py: &HashMap<String, Array>) -> Result<Flat, String> {
+/// Tolérance des fonctions de transfert mesurées **depuis le journal** (spectres croisés par FFT de `realfft` contre pocketfft : L-048,
+/// puis `L = G·(Ce + Cd)` qui amplifie les annulations). **Mesurée sur les 668 sessions** : 1,9e-7 au pire (les cas écrits : 8,3e-11
+/// sur les spectres, 2,2e-15 sur `estimate` seul). Marge ×50. Un saut d'indice (croisement, pic) ou une case mal comptée vaut ≥ 1e-3.
+pub const SPECTRA_LOOP_TOL: f64 = 1e-5;
+
+/// Boucles ouvertes de `step`. Une boucle **mesurée** est refaite depuis le journal (4c-B(b) : `loop_spectra` et `estimate` ; l'étape (c)
+/// y ajoutera `loop_from_terms`) : les mêmes décisions (mesurée ou approchée, points valides) et les mêmes fonctions de transfert que
+/// Python. Une boucle **approchée** est rejouée depuis les entrées de la référence (`loop_from_T(freqs, T, coherence)`, 4c-B(a)).
+fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>, py: &HashMap<String, Array>) -> Result<Flat, String> {
     if py.contains_key("step|_error") {
         return Err("référence en erreur".into());
     }
     let get = |k: &str| py.get(k).ok_or_else(|| format!("{k} absente de la référence"));
     let floats = |a: &Array| (0..a.len()).map(|i| a.get_f64(i)).collect::<Vec<f64>>();
+    let cplx =
+        |a: &Array| -> Vec<open_loop::C> { (0..a.len()).map(|i| (a.get_f64(2 * i), a.get_f64(2 * i + 1))).collect() };
+    let up = |v: &[f32]| v.iter().map(|&x| x as f64).collect::<Vec<f64>>();
+    let breaks: Vec<i64> = lg.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect();
     let mut f = Flat::new();
     for i in 0.. {
         let p = format!("step.loops[{i}]");
@@ -157,12 +174,10 @@ fn step_section(py: &HashMap<String, Array>) -> Result<Flat, String> {
             break;
         };
         let method = method.as_string().ok_or("méthode illisible")?;
-        let freqs = floats(get(&format!("{p}.freqs"))?);
-        let cplx = |a: &Array| -> Vec<open_loop::C> {
-            (0..a.len()).map(|i| (a.get_f64(2 * i), a.get_f64(2 * i + 1))).collect()
-        };
+        let ref_freqs = floats(get(&format!("{p}.freqs"))?);
         let t = |v: f64, unit: f64| Item::T(v, LOOP_TOL, unit);
-        let put_margins = |f: &mut Flat, m: &open_loop::Margins| {
+        let put_margins = |f: &mut Flat, m: &open_loop::Margins, tol: f64| {
+            let t = |v: f64, unit: f64| Item::T(v, tol, unit);
             f.insert(format!("{p}.crossover_hz"), t(m.crossover_hz, 1.0));
             f.insert(format!("{p}.phase_margin_deg"), t(m.phase_margin_deg, 180.0));
             f.insert(format!("{p}.gain_margin_db"), t(m.gain_margin_db, 1.0));
@@ -173,14 +188,68 @@ fn step_section(py: &HashMap<String, Array>) -> Result<Flat, String> {
                 Item::B(m.sensitivity_peak_at_edge),
             );
         };
-        if method == open_loop::MEASURED {
-            let l = cplx(get(&format!("{p}.L"))?);
-            let valid: Vec<bool> = floats(get(&format!("{p}.valid"))?).iter().map(|&v| v != 0.0).collect();
-            put_margins(&mut f, &open_loop::margins(&freqs, &l, Some(&valid))?);
+        // la mesure depuis le journal (axes roll et pitch : boucle i) ; `step_response` rend une boucle vide (sans fréquences) quand
+        // elle ne trouve aucune fenêtre de réponse : la décision n'est alors pas comparée
+        let empty = method == open_loop::APPROX && ref_freqs.is_empty();
+        let mut measured = None;
+        if !empty && i < 3 {
+            let terms = lg.pid_terms(i, sel.clone());
+            if terms.note.is_empty() {
+                let (r, y) = (up(&lg.setpoint.row(i)[sel.clone()]), up(&lg.gyro.row(i)[sel.clone()]));
+                let (tp, ti, td, tf) = (up(&terms.p), up(&terms.i), up(&terms.d), up(&terms.f));
+                let inst = terms.instrument.as_ref().map(|v| up(v));
+                let tm = open_loop::Terms {
+                    p: &tp,
+                    i: &ti,
+                    d: &td,
+                    f: &tf,
+                    instrument: inst.as_deref(),
+                };
+                let br = if breaks.is_empty() {
+                    None
+                } else {
+                    Some(breaks.as_slice())
+                };
+                if let Some(spec) = open_loop::loop_spectra(&r, &y, &tm, lg.fs, 2.0, 20.0, None, open_loop::BLOCKS, br)?
+                {
+                    let est = open_loop::estimate(&spec, None);
+                    if est.valid.iter().filter(|&&v| v).count() >= 5 {
+                        measured = Some((spec, est));
+                    }
+                }
+            }
+        }
+        let m = if measured.is_some() {
+            open_loop::MEASURED
+        } else {
+            open_loop::APPROX
+        };
+        f.insert(format!("{p}.method"), Item::S(m.to_string()));
+        if let Some((spec, est)) = measured {
+            let fv: Vec<f64> = spec
+                .freqs
+                .iter()
+                .zip(&est.valid)
+                .filter(|(_, v)| **v)
+                .map(|(f, _)| *f)
+                .collect();
+            f.insert(format!("{p}.band_hz[0]"), Item::F(fv[0]));
+            f.insert(format!("{p}.band_hz[1]"), Item::F(fv[fv.len() - 1]));
+            f.insert(format!("{p}.freqs"), Item::A(spec.freqs.clone()));
+            f.insert(format!("{p}.T"), Item::C(est.t.clone(), SPECTRA_LOOP_TOL));
+            f.insert(format!("{p}.coherence"), Item::TR(est.coh_zy.clone(), SPECTRA_LOOP_TOL));
+            f.insert(format!("{p}.L"), Item::C(est.l.clone(), SPECTRA_LOOP_TOL));
+            f.insert(format!("{p}.valid"), Item::AB(est.valid.clone()));
+            put_margins(
+                &mut f,
+                &open_loop::margins(&spec.freqs, &est.l, Some(&est.valid))?,
+                SPECTRA_LOOP_TOL,
+            );
+        } else if method == open_loop::MEASURED {
+            // la référence est mesurée mais Rust ne l'a pas mesurée : la clé `method` ci-dessus l'a déjà signalé ; rien d'autre à comparer
         } else {
             let (tt, coh) = (cplx(get(&format!("{p}.T"))?), floats(get(&format!("{p}.coherence"))?));
-            let lm = open_loop::loop_from_t(&freqs, &tt, &coh, 150.0, 0.5)?;
-            f.insert(format!("{p}.method"), Item::S(lm.method.to_string()));
+            let lm = open_loop::loop_from_t(&ref_freqs, &tt, &coh, 150.0, 0.5)?;
             f.insert(format!("{p}.band_hz[0]"), Item::F(lm.band_hz.0));
             f.insert(format!("{p}.band_hz[1]"), Item::F(lm.band_hz.1));
             f.insert(format!("{p}.bandwidth_hz"), Item::F(lm.bandwidth_hz));
@@ -197,6 +266,7 @@ fn step_section(py: &HashMap<String, Array>) -> Result<Flat, String> {
                     sensitivity_peak_hz: lm.sensitivity_peak_hz,
                     sensitivity_peak_at_edge: lm.sensitivity_peak_at_edge,
                 },
+                LOOP_TOL,
             );
             // les entrées conservées dans le résultat (relues de la référence : recopiées telles quelles)
             f.insert(format!("{p}.freqs"), Item::A(lm.freqs.clone()));
