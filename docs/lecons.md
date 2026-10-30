@@ -111,6 +111,11 @@ est celle du commit qui les a introduites.
   `/proc/self/clear_refs`), **un chargement par processus**, plusieurs processus ; temps : `perf_counter` sans profileur,
   médiane de plusieurs essais, ancien et nouveau code dans le même banc.
 - **Preuve** — mesures de D-034 ; banc dans le répertoire temporaire de la session.
+- **⚠️ RÉCIDIVE le 2026-10-30** — pour décider de la 3c, le profil a été pris sous `cProfile` : `gyro_chain` y pesait
+  0,51 s (« environ 1 s » avec ce qui l'entoure), contre 0,31 s mesurés avec de simples chronomètres sur les mêmes sessions.
+  Une recommandation fondée sur ces chiffres était fausse. Règle précisée : aucune décision de vitesse sur un profil
+  `cProfile` ; chronomètres autour des fonctions, plusieurs essais, et chaque affirmation sur la répartition du temps
+  mesurée, pas déduite par soustraction.
 
 ### L-038 : rayon et les processus : un enfant créé par `fork` se bloque ; la variable de fils se pose dans chaque processus
 - **Symptôme** — relu avant la fusion (2026-10-29, noyau de `step_response`, D-033) : un processus parent appelle

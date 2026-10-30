@@ -66,7 +66,7 @@ Le filet a été éprouvé : une valeur altérée à la main est détectée (dé
 | 2b | Pilote : noyau de `step_response` en Rust (la FFT seule ne rapporte que 5 %, D-033) | moyen | parité à tolérance mesurée ; gain ≥ 1,5× |
 | 3a | Ouverture des logs en Rust (`_drop_implausible`, conversions float32) : une seule passe sur la matrice (D-034) | faible | sorties identiques au bit près ; chargement ≥ 1,5× |
 | 3b | `motors.py` et `sections_response` en Rust (boucles par fenêtre entières) | moyen | parité mesurée ; assistant ≥ 1,25× à un fil |
-| 3c | `whatif_spectrum` (filter_sim), si 3b le justifie | moyen | idem |
+| 3c | ~~`whatif_spectrum` (filter_sim)~~ ABANDONNÉE le 2026-10-30 : gain plafonné à 1,04× à un fil (D-034) | — | — |
 | 4 | Assistant (`advisor/`) sans changer un seuil | faible | `advisor_rates.py --compare` |
 | 5 | Ligne de commande en binaire Rust | faible | rapports identiques caractère par caractère |
 | 6 | Interface (bibliothèque choisie alors : egui, Slint, cxx-qt) | très élevé | captures, thèmes, Windows |
@@ -88,4 +88,5 @@ Après la phase 2, **mesurer le poids réel des installateurs** (objectif n° 1)
 | 2b | Pilote `step_response` en Rust (branche `feat/rust-fft`, D-033) : noyau fait, 1,70× à un fil et 4,9× avec tous les cœurs ; parité sur le corpus : assistant 0 différence (630 sessions), outils 2,4e-10, relu par un agent indépendant (L-038). `_seg_spectra`, `loop_spectra`, `xcorr` : décidés après ce pilote (phase 3) |
 | 3a | Fait le 2026-10-29 (branche `feat/rust-log-open`, D-034) : ouverture des logs en Rust (`rust/otb-log`). Chargement 838 → ≈ 530 ms (1,6×) sur 33,6 Mo, sorties identiques au bit près, mémoire conservée −10 %. Parité : assistant 0 différence (630 sessions), outils 2,4e-10. Relu par un agent indépendant (L-039, L-040) |
 | 3b | Fait le 2026-10-29 (branche `feat/rust-motors`, D-034) : boucles par fenêtre de `motors.py` en Rust (`rust/otb-analysis`, génériques f32 / f64). Assistant 666 → 515 ms par session à un fil (1,29×), sorties identiques au bit près. Parité : assistant 0 différence (630 sessions), outils 0 à `rtol=1e-9`, décodeur 0 (499 fichiers). Huit mutations vues en échec (L-041, L-042) |
-| 3c, 4 à 6 | à faire ; 3c (`whatif_spectrum`) décidée après 3b ; le reste de `analysis/` et `log/` repoussé (W-019) |
+| 3c | Abandonnée le 2026-10-30 (D-034) : la construction des chaînes de filtres pèse 4,0 % de l'assistant à un fil (mesure sans profileur), gain maximal 1,04× ; mémorisation essayée en prototype : 1,06× |
+| 4 à 6 | à faire ; le reste de `analysis/` et `log/` repoussé (W-019) |
