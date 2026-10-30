@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-035 | Migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome | 2026-10-30 |
 | D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé | 2026-10-29 |
 | D-033 | Phase 2b limitée à un pilote : le noyau de `step_response` en Rust (FFT seule écartée : gain ≤ 5 %) | 2026-10-29 |
 | D-032 | Phase 2 de la migration en deux temps : scipy remplacé par numpy, noyaux de filtres en Rust, scipy et numba réservés aux tests | 2026-10-29 |
@@ -107,9 +108,51 @@ ici, jamais dans le code.
 
 ---
 
+## 2026-10-30 — Migration complète vers Rust
+
+### D-035 : migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome
+
+Amende D-031 (méthode : plus de pont PyO3 module par module à partir de la phase 4), D-034 (le reste de `analysis/` et
+`log/` n'est plus repoussé) et D-001 (la technologie Python + PySide6 + pyqtgraph est remplacée à la phase 6 ; le reste de D-001, projet
+privé et interface en français, reste en vigueur). D-002 et D-006 sont aussi amendées (plus de Python, dépendances compilées permises).
+
+**Contexte.** Après les phases 3a et 3b (D-034), porter le reste de `analysis/` et de `log/` rapporte peu en vitesse (W-019),
+mais Cédric veut un binaire autonome, sans Python. Mesuré le 2026-10-30 : ≈ 13 800 lignes de Python d'application (interface
+5 637, assistant 3 346, analyses 2 749, décodeur et logs ≈ 2 000), ≈ 9 900 lignes de tests, ≈ 960 lignes de scripts,
+contre ≈ 2 900 lignes de Rust. Le poste a `gcc` et `g++`.
+
+**Décision.**
+- **Périmètre : tout.** Application, tests, scripts du corpus, outils d'icônes et de packaging passent en Rust. À la fin,
+  `git ls-files '*.py'` est vide. L'ancien Python reste seulement sur `main` et dans un tag figé `python-etalon`.
+- **Interface : egui + egui_plot**, sous réserve d'un prototype d'essai (« spike ») sur de vraies données qui doit établir pour
+  chaque point : axe logarithmique, barre de couleurs de heatmap, lignes et régions déplaçables, barres d'erreur, second axe Y,
+  séries de 10⁶ points, Markdown/HTML riche, thèmes clair et sombre, fenêtres de fichiers, test d'interface sans écran. Un point
+  bloquant sans contournement raisonnable revient devant Cédric avant d'aller plus loin sur l'interface.
+- **Méthode : noyau Rust autonome.** Bibliothèques `otb-log`, `otb-analysis`, `otb-advisor`, binaires `otb-cli` et `otb-gui`,
+  outil de parité `otb-parity`. Pas de pont PyO3 module par module : le Python de la branche reste intact et sert d'étalon, par
+  des références enregistrées sur le corpus (`golden.py record-modules`).
+- **Preuve.** Tolérance de chaque module fixée avant d'écrire le code ; assistant : 0 session aux constats différents sur 630 ;
+  rapports de la ligne de commande identiques au caractère ; recette de la 3b pour chaque module (audit des dtypes, tests avant le
+  code, mutations vues en échec, relecture indépendante, parité sur le corpus).
+- **Ordre.** Décision, prototype d'interface, filet de parité, phase 4 (journaux et analyses), phase 5 (assistant et ligne de
+  commande), phase 6 (interface), phase 7 (basculement et suppression du Python). Plan : [migration-rust.md](migration-rust.md).
+
+**Options écartées.** Slint (la documentation consultée ne décrit aucun composant de graphiques : les exemples dessinent dans un
+tampon de pixels, toute l'interaction serait à écrire) ; cxx-qt (garde Qt, à installer et à embarquer, et `qmake` est absent du
+poste : ce n'est pas du « tout Rust ») ; pont PyO3 module par module (adaptateurs jetables pour `FlightLog`, `Settings`, `Report`) ;
+périmètre « application seulement » (le dépôt aurait gardé du Python).
+
+**Choix de Cédric** (2026-10-30, parmi : egui / Slint / cxx-qt ; tout / application seulement ; noyau Rust autonome / pont
+PyO3 module par module).
+
+**Ouvert.** Verdict du prototype d'interface ; tolérance de chaque module ; reproduction exacte des formats de nombres de Python
+par `format!` (à tester sur des valeurs enregistrées) ; W-019 repris.
+
 ## 2026-10-29 — Migration vers Rust
 
 ### D-034 : phase 3 « par le gain mesuré » : ouverture des logs, puis `motors.py` ; le reste de `analysis/` et `log/` est repoussé
+
+✏️ AMENDÉE par D-035 (le reste de `analysis/` et `log/` n'est plus repoussé).
 
 **Contexte.** Exploration du 2026-10-29 (carte des 16 modules, profilage sur une session de 72 s et trois gros logs) :
 porter tout `analysis/` et `log/` rapporterait peu en vitesse. Le reste est de la FFT numpy (déjà en C), ou de la
@@ -227,6 +270,8 @@ constats différents sur 630, outils : 20 logs, aucune différence de structure,
 **Ouvert.** Poids des installateurs compressés des trois systèmes ; phase 2b ; W-015.
 
 ### D-031 : migration vers Rust sur une branche d'intégration, `main` reste en Python
+
+✏️ AMENDÉE par D-035 (méthode à partir de la phase 4 : noyau Rust autonome, sans pont PyO3 module par module).
 
 **Contexte.** Numba impose `llvmlite` (≈ 37 % des installateurs) et une compilation au premier lancement
 (W-015) ; Cédric veut des installateurs plus légers, plus de rapidité et, à terme, un binaire autonome. Le
@@ -731,7 +776,7 @@ retomber exactement sur ce spectre quand rien ne change.
 
 ### D-006 : aucune dépendance à compiler
 
-✏️ AMENDÉE par D-031 (sur `feat/rust-migration` seulement).
+✏️ AMENDÉE par D-031 et D-035 (sur `feat/rust-migration` seulement).
 
 **Contexte.** Pas de compilateur C sur le poste de développement ; les exécutables se fabriquent sur trois
 systèmes.
@@ -771,7 +816,7 @@ référence de résultats, pas de source.
 
 ### D-002 : décodeur Python accéléré par numba
 
-✏️ AMENDÉE par D-031 (sur `feat/rust-migration` seulement).
+✏️ AMENDÉE par D-031 et D-035 (sur `feat/rust-migration` seulement).
 
 **Contexte.** `blackbox_decode` n'existe pas sur toutes les plateformes et a ses propres défauts (L-001).
 
@@ -781,6 +826,8 @@ référence de résultats, pas de source.
 **Témoins.** [validation.md](validation.md#décodeur) ; commit `28c709c`.
 
 ### D-001 : Python + PySide6 + pyqtgraph, projet privé, interface en français
+
+✏️ AMENDÉE par D-035 (la technologie, à la phase 6 ; le reste reste en vigueur).
 
 **Contexte.** Un seul code pour Windows, macOS et Linux, maintenable par un débutant aidé d'agents IA,
 pour un pilote francophone.
