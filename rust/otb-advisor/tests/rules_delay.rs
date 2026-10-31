@@ -1,7 +1,7 @@
 //! Règles de retard de `advisor/rules.py` en Rust (phase 5a-3a) sur des journaux fabriqués : cas écrits par `scripts/rules_delay_cases.py`
 //! (régénérer `tests/data/rules_delay.json` avec ce script si `rules.py` change).
 //!
-//! Deux familles : `cases` (`analyze` complet, on ne garde que les constats de `_delay_rules`) et `direct` (appel direct de
+//! Deux familles : `cases` (`analyze` complet : tous les constats et toutes les mesures, `support::check_report`) et `direct` (appel direct de
 //! `predict_filter_change`, `_gyro_lpf1_off`, `_dterm_lift`, `_dterm_lift_noise`, `filter_strategy`). Exigé : textes identiques au caractère
 //! près, mêmes constats dans le même ordre, mêmes erreurs. Les prévisions du simulateur (FFT) sont comparées avec une tolérance mesurée.
 
@@ -9,37 +9,20 @@ use otb_advisor::profiles::{CraftProfile, profile};
 use otb_advisor::rules::{self, Finding};
 use otb_analysis::bf_filters::{lowpass_off, scale_lowpass};
 use otb_log::flightlog::FlightLog;
-use otb_log::settings::{Settings, parse_settings};
+use otb_log::settings::Settings;
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 #[path = "../../otb-analysis/tests/common/mod.rs"]
 mod common;
 use common::*;
+#[path = "support/mod.rs"]
+mod support;
+use support::*;
 
 /// Tolérance absolue des prévisions (dB, ms) : les niveaux viennent de spectres `realfft` / pocketfft (L-048). **Mesurée** : voir la ligne
 /// « écart max prévisions » affichée avec `--nocapture`.
 const PRED_ATOL: f64 = 1e-9;
-
-fn strings(v: &Value) -> Vec<String> {
-    v.as_array()
-        .unwrap()
-        .iter()
-        .map(|s| s.as_str().unwrap().to_string())
-        .collect()
-}
-
-fn check_finding(what: &str, got: &Finding, want: &Value) {
-    let s = |k: &str| want[k].as_str().unwrap().to_string();
-    assert_eq!(got.key, s("key"), "{what} : clé");
-    assert_eq!(got.category, s("category"), "{what} : catégorie");
-    assert_eq!(got.severity, s("severity"), "{what} : gravité");
-    assert_eq!(got.title, s("title"), "{what} : titre");
-    assert_eq!(got.detail, s("detail"), "{what} : détail");
-    assert_eq!(got.actions, strings(&want["actions"]), "{what} : actions");
-    assert_eq!(got.axis, want["axis"].as_str().map(str::to_string), "{what} : axe");
-    assert_eq!(got.settings, strings(&want["settings"]), "{what} : réglages déclarés");
-}
 
 fn check_opt_finding(what: &str, got: Option<&Finding>, want: &Value) {
     match (got, want.is_null()) {
@@ -48,20 +31,6 @@ fn check_opt_finding(what: &str, got: Option<&Finding>, want: &Value) {
         (Some(g), true) => panic!("{what} : Rust rend « {} », Python rien", g.key),
         (None, false) => panic!("{what} : Python rend « {} », Rust rien", want["key"].as_str().unwrap()),
     }
-}
-
-/// Journal fabriqué : courbes et temps du fichier, réglages relus depuis l'en-tête brut.
-fn log_of(c: &Value, v: &Value) -> FlightLog {
-    let mut lg = flight_log(c, v);
-    let raw: BTreeMap<String, String> = v["raw"]
-        .as_object()
-        .unwrap()
-        .iter()
-        .map(|(k, x)| (k.clone(), x.as_str().unwrap().to_string()))
-        .collect();
-    lg.settings = parse_settings(&raw);
-    lg.pid_columns = strings(&v["columns"]).into_iter().collect::<BTreeSet<_>>();
-    lg
 }
 
 fn profile_of(p: &Value) -> CraftProfile {
@@ -103,18 +72,9 @@ fn analyze_rend_les_constats_de_retard_de_python() {
             continue;
         }
         let rep = got.unwrap_or_else(|e| panic!("{label} : Rust lève ({e}), Python rend un rapport"));
-        let kept: Vec<&Finding> = rep.findings.iter().filter(|f| keys.contains(&f.key)).collect();
-        let want_f = case["out"]["findings"].as_array().unwrap();
-        assert_eq!(
-            kept.iter().map(|f| f.key.as_str()).collect::<Vec<_>>(),
-            want_f.iter().map(|f| f["key"].as_str().unwrap()).collect::<Vec<_>>(),
-            "{label} : liste des constats"
-        );
-        for (g, w) in kept.iter().zip(want_f) {
-            check_finding(label, g, w);
-            *seen.entry(g.key.clone()).or_insert(0) += 1;
-        }
+        check_report(label, &lg, &rep, &case["out"], &mut seen);
     }
+    report();
     for k in &keys {
         assert!(seen.contains_key(k), "le constat {k} n'est produit par aucun cas");
     }

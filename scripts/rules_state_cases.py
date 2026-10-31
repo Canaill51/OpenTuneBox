@@ -5,9 +5,9 @@ Usage : rules_state_cases.py SORTIE.json    (à exécuter avec `.venv/bin/python
 
 Complète `rules_cases.py` (fonctions sans état) et la couche corpus (`otb-parity check-advisor`) : des vols courts fabriqués
 (signal lisse, bruit réglable) font atteindre les branches que le corpus ne couvre pas ou mal. Chaque cas appelle l'étalon Python
-`analyze(log, sel, profile)` et garde, de son rapport, **seulement** les constats produits par les parties portées en 5a-2b
-(`KEYS`) : `delay_rules`, `filter_rules` et `filter_strategy` (5a-3) sont comparés ailleurs (corpus : `otb-parity check-advisor`, appels
-directs : `rules_delay_cases.py`, `rules_rpm_cases.py`, `rules_notch_cases.py`).
+`analyze(log, sel, profile)` et garde **tout** son rapport (depuis la phase 5a-3c, `analyze` est complet) : tous les constats, dans
+l'ordre, avec leurs textes, actions et réglages déclarés, l'ordre trié, et toutes les mesures. `KEYS` ne filtre plus rien : c'est la liste
+des constats que l'ensemble des cas doit produire au moins une fois (`REQUIRED`).
 
 Familles de cas :
 - enregistrement : `log_rate_low` / `log_rate_low_filters` / `log_rate_harmonics` (deux actions), `gyro_unfilt_missing`, `rpm_missing`,
@@ -45,11 +45,13 @@ from opentunebox.advisor.rules import analyze  # noqa: E402
 from opentunebox.log.flightlog import ANGLE_MODE_MASK, FlightLog  # noqa: E402
 from opentunebox.log.settings import parse_settings  # noqa: E402
 
-# Constats des parties portées en 5a-2b
+# Constats que les cas doivent produire (la sortie les contient tous, pas seulement ceux-ci)
 KEYS = ("profile_provisional", "log_rate_low", "log_rate_low_filters", "log_rate_harmonics", "gyro_unfilt_missing", "rpm_missing",
         "recording_gaps", "crash", "step_ff_overshoot", "step_overshoot_strong", "step_overshoot_light", "step_soft", "step_ok",
         "loop_sensitivity_high", "loop_phase_margin_low", "step_few_windows", "step_roll_pitch_gap", "setpoint_delay", "dterm_noisy",
-        "gyro_noisy", "gyro_noise_level", "dterm_noise_level", "motor_saturation", "motor_imbalance", "iterm_offset", "sliders_off")
+        "gyro_noisy", "gyro_noise_level", "dterm_noise_level", "motor_saturation", "motor_imbalance", "iterm_offset", "sliders_off",
+        # 5a-3 : assemblés ensemble par le cas « combiné »
+        "motor_noise_left", "low_band_oscillation", "dyn_notch_fewer", "filter_strategy")
 
 INF = float("inf")
 
@@ -149,11 +151,23 @@ def hxl(v) -> list:
     return [hx(x) for x in v]
 
 
+def enc_opt(m, key):
+    """Mesure facultative (clé absente de `measures` : `None`)."""
+    return None if key not in m else hx(m[key])
+
+
 def enc_measures(r, lg) -> dict:
     m = r.measures
     d = m["delays"]
     s = m["stats"]
+    fr, dn = m["frame_resonance"], m["dyn_notch"]
     return {
+        "motor_harmonic_left_db": enc_opt(m, "motor_harmonic_left_db"), "motor_harmonic_raw_db": enc_opt(m, "motor_harmonic_raw_db"),
+        "hover_lines": None if "hover_lines" not in m else [hxl([ln.freq_hz, ln.raw_db, ln.left_db]) for ln in m["hover_lines"]],
+        "frame_resonance": None if fr is None else {"freq": hx(fr[0]), "excess": hx(fr[1]), "near": bool(fr[2])},
+        "dyn_notch": None if dn is None else {"count": int(dn["count"]), "min_hz": int(dn["min_hz"]), "max_hz": int(dn["max_hz"]),
+                                             "peaks": hxl(dn["peaks"]), "widths": hxl(dn["widths"]), "heights": hxl(dn["heights"]),
+                                             "left": hxl(dn["left"]), "q_need": None if dn["q_need"] is None else hx(dn["q_need"])},
         "hover_motor_hz": None if m["hover_motor_hz"] is None else hx(m["hover_motor_hz"]),
         "log_rate_needed_hz": hxl(m["log_rate_needed_hz"]), "aliased": bool(m["aliased"]),
         "steps": {ax: hxl([getattr(mt, k) for k in ("peak", "peak_ms", "latency_ms", "rise_ms", "settling_ms", "overshoot_pct", "ripple",
@@ -174,6 +188,14 @@ CASES: list = []
 SEEN: dict[str, int] = {}
 
 
+def encode_out(r, lg) -> dict:
+    """Le rapport entier de `analyze` : profil, période, TOUS les constats, leur ordre trié, axes de la réponse indicielle, mesures."""
+    srt = [next(i for i, g in enumerate(r.findings) if g is f) for f in r.sorted()]  # rang dans `findings`
+    return {"profile": r.profile.key, "reason": r.profile_reason, "period": [hx(r.period[0]), hx(r.period[1])],
+            "findings": [fd(f) for f in r.findings], "sorted": srt, "steps": [st.axis for st in r.steps],
+            "measures": enc_measures(r, lg)}
+
+
 def case(label, lg, sel=None, base=None, over=None):
     """Un cas : `analyze(lg, sel, profil)` de l'étalon. `base` : clé du profil imposé (sinon détecté) ; `over` : seuils remplacés."""
     over = over or {}
@@ -191,15 +213,10 @@ def case(label, lg, sel=None, base=None, over=None):
         print(f"  {label} : Python lève {type(e).__name__}", file=sys.stderr)
         CASES.append(rec)
         return None
-    kept = [f for f in r.findings if f.key in KEYS]
-    print(f"  {label} : " + ", ".join(f"{f.key}" for f in kept if f.key not in ("step_ok", "setpoint_delay")), file=sys.stderr)
-    srt = [next(i for i, g in enumerate(kept) if g is f) for f in r.sorted() if f.key in KEYS]  # rang dans `findings`
-    for f in kept:
+    print(f"  {label} : " + ", ".join(f"{f.key}" for f in r.findings if f.key not in ("step_ok", "setpoint_delay")), file=sys.stderr)
+    for f in r.findings:
         SEEN[f.key] = SEEN.get(f.key, 0) + 1
-    rec |= {"error": False, "out": {
-        "profile": r.profile.key, "reason": r.profile_reason, "period": [hx(r.period[0]), hx(r.period[1])],
-        "findings": [fd(f) for f in kept], "sorted": srt, "steps": [st.axis for st in r.steps],
-        "measures": enc_measures(r, lg)}}
+    rec |= {"error": False, "out": encode_out(r, lg)}
     CASES.append(rec)
     return r
 
@@ -215,6 +232,26 @@ def up(x):
 
 def down(x):
     return math.nextafter(x, -INF)
+
+
+def combined(count="3", sigma=3.0, h_unf=1.0, h_filt=0.2, motor_hz=43.0) -> FlightLog:
+    """Vol à 2 kHz (boucle PID à 2 kHz : notch dynamique en service, log assez rapide) dont la 1re harmonique moteur reste dans le gyro
+    filtré (`motor_noise_left`), avec du bruit de bande 20–80 Hz (`low_band_oscillation`) et `count` notchs dynamiques sans pic à suivre
+    (`dyn_notch_fewer` si count > 1) ; l'un d'eux au moins conseille un réglage, d'où `filter_strategy`."""
+    lg = build(fs=2000.0, seconds=3.0, motor_hz=motor_hz, looptime="500", dyn_notch_count=count)
+    mhz = motor_hz * (0.7 + 0.6 * lg.throttle.astype(np.float64) / 100.0)
+    ph = 2 * np.pi * np.cumsum(mhz) / lg.fs
+    g, u = lg.gyro.astype(np.float64), lg.gyro_unfilt.astype(np.float64)
+    u -= 6.0 * 0.05 * np.sin(2 * ph)  # la 2e harmonique de `build` est retirée : seule la 1re est posée
+    r = np.random.default_rng(11)
+    for ax in (0, 1):
+        u[ax] += h_unf * np.sin(ph)
+        g[ax] += h_filt * np.sin(ph)
+        spec = np.fft.rfft(r.normal(0, 1, lg.n))
+        spec[(np.fft.rfftfreq(lg.n, 1 / lg.fs) < 20) | (np.fft.rfftfreq(lg.n, 1 / lg.fs) > 80)] = 0  # bruit de bande 20–80 Hz
+        y = np.fft.irfft(spec, lg.n)
+        g[ax] += sigma * y / y.std()
+    return with_(lg, gyro=g.astype(np.float32), gyro_unfilt=u.astype(np.float32))
 
 
 def main():
@@ -390,6 +427,12 @@ def main():
     case("retard consigne → gyro en Acro", base, base=five)
     case("retard consigne → gyro, journal en mode Angle", angle, base=five)
 
+    # ---- les constats de filter_rules assemblés avec la stratégie de filtrage : le rapport complet, y compris l'insertion de
+    # `filter_strategy` en tête (Python : `F.insert(0, …)`) et l'ordre relatif des constats du filtre RPM, des oscillations et du notch
+    case("combiné : bruit moteur, oscillations 20–80 Hz, notch dynamique, stratégie", combined(), base=five)
+    case("combiné, sans eRPM : ni bruit moteur ni notch dynamique", with_(combined(), motor_hz=None), base=five)
+    case("combiné, notchs dynamiques à 1 : pas de constat « moins de notchs »", combined(count="1"), base=five)
+
     out = {"keys": list(KEYS), "cases": CASES, "inputs": INPUTS}
     text = json.dumps(out, separators=(",", ":"))
     Path(sys.argv[1]).write_text(text)
@@ -399,6 +442,13 @@ def main():
     # étudiés par `rules_cases.py` (textes) et par le corpus (taux) : un vol fabriqué ne vise pas leurs seuils de réponse indicielle
     absent_ok = {"step_ff_overshoot", "step_overshoot_strong", "step_overshoot_light", "step_soft", "loop_phase_margin_low"}
     missing = [k for k in KEYS if k not in SEEN and k not in absent_ok]
+    # les quatre constats du cas combiné doivent y figurer ensemble (le test Rust vérifie leur ordre)
+    comb = next(c for c in CASES if c["label"].startswith("combiné : "))
+    ck = [f["key"] for f in comb["out"]["findings"]]
+    print("cas combiné :", ck, file=sys.stderr)
+    missing += [k for k in ("motor_noise_left", "low_band_oscillation", "dyn_notch_fewer", "filter_strategy") if k not in ck]
+    if ck[0] != "filter_strategy":
+        missing.append("filter_strategy en tête")
     print("constats jamais produits :", missing, file=sys.stderr)
     if missing:
         sys.exit(1)

@@ -826,14 +826,33 @@ pub struct Prediction {
 
 /// `np.convolve(v, np.ones(5) / 5, mode="same")` : `v` non vide. Pour au moins 5 valeurs, même longueur que `v` ; en dessous, numpy échange
 /// les deux tableaux et rend 5 valeurs (décalage `(len − 1) / 2` dans la convolution complète).
-fn smooth5(v: &[f64]) -> Vec<f64> {
+///
+/// Pour au moins 5 valeurs, **identique au bit près** à numpy (mesuré : 0 écart sur 52 240 valeurs de longueurs 5 à 1 001, et sur 10 000
+/// valeurs aléatoires ; `scripts/smooth_cases.py`) : au centre, somme **croissante sans FMA** (`acc + x × 0,2`) ; sur les deux premières et les
+/// deux dernières valeurs (fenêtre tronquée à 3 ou 4 termes), somme croissante **avec** FMA, comme le produit scalaire de numpy (OpenBLAS) pour
+/// les fenêtres courtes. Pour 15 valeurs, [`smooth15`] fusionne partout (L-061). En dessous de 5 valeurs, aucune variante essayée (ordre
+/// croissant / décroissant, avec ou sans FMA) ne rend les bits de numpy : somme décroissante sans FMA, juste à la tolérance près.
+/// ⚠️ Un autre ordre de somme ou un FMA mal placé diffère au dernier bit, invisible à la tolérance du corpus (L-061).
+pub fn smooth5(v: &[f64]) -> Vec<f64> {
     let k = 5; // largeur du noyau
     let kern = 1.0f64 / 5.0; // np.ones(5) / 5 : cinq fois 0,2 (1/5 arrondi)
     let n = v.len();
+    if n >= k {
+        return (0..n)
+            .map(|i| {
+                let window = &v[i.saturating_sub(2)..(i + 3).min(n)];
+                if i < 2 || i >= n - 2 {
+                    window.iter().fold(0.0f64, |acc, &x| x.mul_add(kern, acc))
+                } else {
+                    window.iter().fold(0.0f64, |acc, &x| acc + x * kern)
+                }
+            })
+            .collect();
+    }
     let full_len = n + k - 1;
     let full: Vec<f64> = (0..full_len)
         .map(|i| {
-            // somme de v[i - j] × kern pour j = 0..5, dans l'ordre des termes de la convolution
+            // somme de v[i - j] × kern pour j = 0..5, dans l'ordre des termes de la convolution complète (v décroissant)
             let mut acc = 0.0f64;
             for j in 0..k {
                 if i >= j && i - j < n {
@@ -843,9 +862,8 @@ fn smooth5(v: &[f64]) -> Vec<f64> {
             acc
         })
         .collect();
-    let out_len = n.max(k);
     let off = (n.min(k) - 1) / 2;
-    full[off..off + out_len].to_vec()
+    full[off..off + k].to_vec()
 }
 
 /// `np.max` : un NaN l'emporte. Vide : `None` (numpy lève).
@@ -2259,6 +2277,14 @@ pub fn rpm_harmonic_levels(log: &FlightLog, sel: &Range<usize>) -> Result<(Vec<f
     Ok((f(&raw), f(&left)))
 }
 
+/// Poids allégé d'une harmonique de rang 2 ou 3 (`_rpm_weight_rules`) : `np.ceil(10 x - 1e-9) / 10` pour le besoin `x` de la raie (marge
+/// comprise), si le gain `cur - need` atteint `RPM_WEIGHT_GAIN_MIN` à 1e-9 près. Les deux tolérances de 1e-9 absorbent l'arrondi des flottants :
+/// 0,7 − 0,2 vaut 0,49999999999999994, et `10 x` peut dépasser 2 d'un rien. ⚠️ Tolérances à garder, comme en Python (L-061).
+pub fn lighten_weight(cur: f64, prominence_db: f64) -> Option<f64> {
+    let need = (10.0 * otb_analysis::motors::rpm_weight_needed(prominence_db) - 1e-9).ceil() / 10.0;
+    (cur - need >= RPM_WEIGHT_GAIN_MIN - 1e-9).then_some(need)
+}
+
 /// `_rpm_weight_rules` : poids du filtre RPM : raie restée visible avec un poids réduit, ou poids plus fort que nécessaire (seulement si
 /// `lighten`, c'est-à-dire si le bruit moteur est bien éliminé).
 pub fn rpm_weight_rules(
@@ -2383,9 +2409,8 @@ reste visible.",
         if !(raw[k].is_finite() && left[k] <= HARMONIC_VISIBLE_DB) {
             continue;
         }
-        let need = (10.0 * otb_analysis::motors::rpm_weight_needed(raw[k] + RPM_WEIGHT_MARGIN_DB) - 1e-9).ceil() / 10.0;
-        if cur[k] - need >= RPM_WEIGHT_GAIN_MIN - 1e-9 {
-            new[k] = need;
+        if let Some(w) = lighten_weight(cur[k], raw[k] + RPM_WEIGHT_MARGIN_DB) {
+            new[k] = w;
         }
     }
     if new != cur {
@@ -2713,6 +2738,20 @@ les filtres actuels ne la traitent pas.{caveat}",
     Ok(f)
 }
 
+/// Fusion d'une raie du vol stationnaire avec celles déjà gardées (`_hover_noise` : `near = [o for o in lines if …]`, puis `near[0]`) : la
+/// **première** raie voisine (à 10 % de sa fréquence) est remplacée si la nouvelle est plus haute avant filtres, sinon rien ; sans voisine, la
+/// nouvelle s'ajoute. Deux raies déjà gardées peuvent être voisines de la nouvelle (le voisinage se mesure à la fréquence de la raie gardée).
+pub fn merge_hover_line(lines: &mut Vec<SpectrumLine>, ln: SpectrumLine) {
+    let near = lines
+        .iter()
+        .position(|o| (o.freq_hz - ln.freq_hz).abs() <= 0.1 * o.freq_hz);
+    match near {
+        None => lines.push(ln),
+        Some(i) if ln.raw_db > lines[i].raw_db => lines[i] = ln,
+        Some(_) => {}
+    }
+}
+
 /// `_hover_noise` : vol stationnaire : régime stable, le meilleur log pour identifier le bruit. Bilan des harmoniques moteur, des raies qui
 /// n'en viennent pas (résonances, bruit résiduel) et du bruit restant ; conseil pour chaque raie encore visible après filtrage. Écrit
 /// `meas.hover_lines`. (Le paramètre `profile` de Python n'est pas lu : il n'est pas repris.) Python lève sans gyro non filtré ou sans eRPM.
@@ -2752,14 +2791,7 @@ pub fn hover_noise(
             Some(&br),
         )?;
         for ln in found {
-            let near = lines
-                .iter()
-                .position(|o| (o.freq_hz - ln.freq_hz).abs() <= 0.1 * o.freq_hz);
-            match near {
-                None => lines.push(ln),
-                Some(i) if ln.raw_db > lines[i].raw_db => lines[i] = ln,
-                Some(_) => {}
-            }
+            merge_hover_line(&mut lines, ln);
         }
     }
     // `lines.sort(key=-raw_db)` : tri stable
@@ -2905,7 +2937,7 @@ pub struct DynNotch {
 /// (FMA), comme le produit scalaire de numpy (OpenBLAS) ; mesuré identique au bit près sur 3 000 valeurs. En dessous de 15 valeurs, numpy
 /// échange les tableaux et rend 15 valeurs : la soustraction qui suit lève (`ValueError`), d'où l'erreur.
 /// ⚠️ Un autre ordre de somme ou sans FMA diffère au dernier bit, invisible à la tolérance du corpus (L-061).
-fn smooth15(v: &[f64]) -> Result<Vec<f64>, String> {
+pub fn smooth15(v: &[f64]) -> Result<Vec<f64>, String> {
     let n = v.len();
     if n < 15 {
         return Err("ValueError : operands could not be broadcast together".into());

@@ -6,8 +6,9 @@ Usage : rules_delay_cases.py SORTIE.json    (à exécuter avec `.venv/bin/python
 Porté en 5a-3a : `_delay_rules` (retards des filtres gyro et D), `_dterm_lift`, `_dterm_lift_noise`, `predict_filter_change`,
 `_noise_after`, `_gyro_lpf1_off`, `main_action` et `filter_strategy`. Deux familles de cas, rejouées par
 `rust/otb-advisor/tests/rules_delay.rs` :
-- `analyze` : l'étalon Python `analyze(log, sel, profil)` sur un vol fabriqué (1 kHz, 3 s : `build` de `rules_state_cases.py`) ; on garde de
-  son rapport **seulement** les constats de `KEYS` (ceux de `_delay_rules`). Les retards d'un vol fabriqué sont minuscules (0,03 ms) :
+- `analyze` : l'étalon Python `analyze(log, sel, profil)` sur un vol fabriqué (1 kHz, 3 s : `build` de `rules_state_cases.py`) ; on garde
+  son rapport **entier** (`encode_out` de `rules_state_cases.py` : tous les constats, leur ordre, leurs textes, les mesures). `KEYS`, les constats
+  de `_delay_rules`, sont ceux que ces cas doivent produire au moins une fois. Les retards d'un vol fabriqué sont minuscules (0,03 ms) :
   les repères du profil sont remplacés (`over`) pour tomber de part et d'autre de la mesure ; les seuils de bruit sont posés à mi-chemin
   entre deux prévisions du simulateur (jamais à l'égalité : les niveaux viennent d'une FFT, Rust et Python diffèrent de ~1e-12 dB) ;
 - `direct` : appel direct de la fonction (`gyro_lpf1_off`, `dterm_lift`, `dterm_lift_noise`, `predict`, `strategy`) pour les branches que
@@ -25,7 +26,7 @@ from pathlib import Path
 import numpy as np
 from bf_filters_cases import hx
 from flight_stats_cases import INPUTS, enc_log
-from rules_state_cases import build, fd, hxl, noisy, rows, with_
+from rules_state_cases import build, encode_out, fd, hxl, noisy, rows, with_
 
 from opentunebox.advisor import rules as RU
 from opentunebox.advisor.profiles import PROFILES
@@ -72,13 +73,12 @@ def case(label, lg, base="five", sel=None, **over):
         print(f"  {label} : Python lève {type(e).__name__}", file=sys.stderr)
         CASES.append(rec)
         return None
-    kept = [f for f in r.findings if f.key in KEYS]
-    for f in kept:
+    for f in r.findings:
         SEEN[f.key] = SEEN.get(f.key, 0) + 1
     d = r.measures["delays"]
-    print(f"  {label} : " + ", ".join(f"{f.key}/{f.severity}" for f in kept) +
+    print(f"  {label} : " + ", ".join(f"{f.key}/{f.severity}" for f in r.findings if f.key in KEYS) +
           f"  [mouv {d.moving}, gyro {d.gyro_ms:.3f}, D {d.dterm_ms:.3f}, replié {r.measures['aliased']}]", file=sys.stderr)
-    rec |= {"error": False, "out": {"findings": [fd(f) for f in kept]}}
+    rec |= {"error": False, "out": encode_out(r, lg)}
     CASES.append(rec)
     return r
 

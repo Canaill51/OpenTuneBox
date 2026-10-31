@@ -4,7 +4,8 @@
 //!
 //! Les textes (titres, détails, actions, explications) sont comparés au caractère près. Depuis la phase 5a-3c, `analyze` est complet :
 //! **tous** les constats (`report|findings|…`, `report|sorted|…`) et toutes les mesures (`report|measures|…`) sont comparés. Seules les
-//! clés d'une autre partie de l'assistant (`noise|…`, `tuning|…`, phases suivantes) sont ignorées et comptées.
+//! clés du bruit (`noise|…`, 5a-4) et de la réponse indicielle (`tuning|…`, 5a-5) sont ignorées et comptées ; toute autre clé de Python doit
+//! exister côté Rust.
 
 use crate::analysis_layer::{DELAY_TOL, Flat, Item, SLIDERS_TOL, compare_item, put_flight_stats, put_opt, stem};
 use crate::value::{Array, load_arrays};
@@ -276,6 +277,12 @@ fn is_filter_measure(key: &str) -> bool {
         .any(|p| key.starts_with(&format!("report|measures|{p}")))
 }
 
+/// Clés des parties de l'assistant pas encore portées (le bruit de Spectre : 5a-4, la réponse indicielle : 5a-5) et clés d'identification
+/// de la session : les seules que la couche ignore (en les comptant).
+fn is_later_phase(key: &str) -> bool {
+    key.starts_with("noise|") || key.starts_with("tuning|") || matches!(key, "_session" | "_n" | "_sel")
+}
+
 /// `report|<liste>|items[i]|…` : l'indice `i` d'une clé de constat de Python.
 fn finding_index(key: &str, list: &str) -> Option<usize> {
     let rest = key.strip_prefix(&format!("report|{list}|items["))?;
@@ -413,12 +420,20 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AdvisorReport)
             }
         } else if k == "report|findings|n" || k == "report|sorted|n" {
             rep.skipped += 1;
-        } else if PORTED.iter().any(|p| k.starts_with(p)) || is_ported_measure(k) {
-            if !got.contains_key(k) {
+        } else if k.starts_with("report|") {
+            // toute autre clé du rapport doit être classée (PORTED / PORTED_MEASURES) ET produite par Rust : jamais de saut silencieux
+            if !(PORTED.iter().any(|p| k.starts_with(p)) || is_ported_measure(k)) {
+                rep.failures.push(format!(
+                    "{who} : {k} : clé du rapport de Python non classée parmi les clés portées"
+                ));
+            } else if !got.contains_key(k) {
                 rep.failures.push(format!("{who} : {k} absente de Rust"));
             }
-        } else {
+        } else if is_later_phase(k) {
             rep.skipped += 1;
+        } else {
+            rep.failures
+                .push(format!("{who} : {k} : clé de Python inconnue de la couche"));
         }
     }
 }

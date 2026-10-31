@@ -279,3 +279,69 @@ fn appels_directs_identiques_a_python() {
         assert!(by_key.contains_key(k), "le constat {k} n'est produit par aucun cas");
     }
 }
+
+/// Poids dont le besoin `x` vaut `x` : prominence `p = −20 log10(1 − x)` (inverse de `rpm_weight_needed`).
+fn prominence_for(x: f64) -> f64 {
+    -20.0 * (1.0 - x).log10()
+}
+
+/// Les deux tolérances de 1e-9 de `_rpm_weight_rules` (aucun journal n'atteint ces frontières : les courbes sont des float32, le niveau varie
+/// de ~1e-6 dB par pas ; Python : `need = np.ceil(10 * x - 1e-9) / 10`, puis `cur - need >= 0.5 - 1e-9`).
+#[test]
+fn lighten_weight_garde_les_deux_tolerances_de_1e_9() {
+    // 10 x = 2 + 5e-10 : sans la tolérance du ceil, le besoin serait 0,3 (et 0,7 − 0,3 < 0,5 : aucun allègement)
+    let p = prominence_for(0.2 + 5e-11);
+    let need_raw = otb_analysis::motors::rpm_weight_needed(p);
+    assert!(
+        10.0 * need_raw > 2.0 && 10.0 * need_raw - 2.0 < 1e-9,
+        "10 x = {}",
+        10.0 * need_raw
+    );
+    // 0,7 − 0,2 = 0,49999999999999994 : sans la tolérance du gain, aucun allègement
+    let (cur, need) = (std::hint::black_box(0.7f64), std::hint::black_box(0.2f64));
+    assert!(cur - need < 0.5);
+    assert_eq!(rules::lighten_weight(0.7, p), Some(0.2));
+    // besoin 0,2 exact (10 x = 1,5 → ceil 2), gain 0,49999999999999994 : allégé
+    assert_eq!(rules::lighten_weight(0.7, prominence_for(0.15)), Some(0.2));
+    // gain trop faible : 0,6 − 0,2 = 0,4
+    assert_eq!(rules::lighten_weight(0.6, prominence_for(0.15)), None);
+    // gain juste suffisant : 1 − 0,5
+    assert_eq!(rules::lighten_weight(1.0, prominence_for(0.45)), Some(0.5));
+    // raie sous le bruit voisin : besoin 0, tout le poids est inutile
+    assert_eq!(rules::lighten_weight(0.9, -3.0), Some(0.0));
+}
+
+fn line(freq_hz: f64, raw_db: f64) -> SpectrumLine {
+    SpectrumLine {
+        freq_hz,
+        raw_db,
+        left_db: 0.0,
+    }
+}
+
+/// `_hover_noise` : `near = [o for o in lines if abs(o.freq - ln.freq) <= 0.1 * o.freq]` puis `near[0]` : la **première** voisine, pas la
+/// dernière. Deux raies gardées (100 et 115 Hz : 15 % d'écart) sont voisines de 108 Hz. Aucun spectre fabriqué ne les produit ensemble (la
+/// hauteur de chacune se mesure sur un plancher de 10 à 20 % de sa fréquence, qui contient l'autre), d'où ce test sur la fusion seule.
+#[test]
+fn merge_hover_line_remplace_la_premiere_voisine() {
+    let base = || vec![line(100.0, 10.0), line(115.0, 20.0)];
+    // plus haute que la 1re voisine, plus basse que la 2e : la 1re est remplacée (avec « dernière voisine » : rien ne change)
+    let mut l = base();
+    rules::merge_hover_line(&mut l, line(108.0, 15.0));
+    assert_eq!(l.iter().map(|x| x.freq_hz).collect::<Vec<_>>(), [108.0, 115.0]);
+    // plus haute que les deux : toujours la 1re
+    let mut l = base();
+    rules::merge_hover_line(&mut l, line(108.0, 25.0));
+    assert_eq!(
+        l.iter().map(|x| (x.freq_hz, x.raw_db)).collect::<Vec<_>>(),
+        [(108.0, 25.0), (115.0, 20.0)]
+    );
+    // plus basse que la 1re : rien ne change (avec « dernière voisine » : rien non plus ; ici c'est la 1re qui compte)
+    let mut l = base();
+    rules::merge_hover_line(&mut l, line(108.0, 5.0));
+    assert_eq!(l.iter().map(|x| x.freq_hz).collect::<Vec<_>>(), [100.0, 115.0]);
+    // aucune voisine : ajoutée à la fin
+    let mut l = base();
+    rules::merge_hover_line(&mut l, line(200.0, 1.0));
+    assert_eq!(l.iter().map(|x| x.freq_hz).collect::<Vec<_>>(), [100.0, 115.0, 200.0]);
+}

@@ -60,14 +60,21 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
-### L-061 : `np.convolve(x, np.ones(15) / 15, "same")` somme dans l'ordre croissant avec des FMA ; seule la comparaison au bit près le montre
+### L-061 : `np.convolve(x, np.ones(K) / K, "same")` : pour K = 15, somme croissante avec FMA ; pour K = 5, centre sans FMA et bords avec FMA ; seule la comparaison au bit près le montre
 - **Symptôme** — 2026-10-31 (5a-3c, `frame_resonance`) : les trois autres façons de sommer le lissage par 15 valeurs (croissant sans FMA, décroissant avec ou sans FMA) diffèrent de numpy
   sur 1 772 à 2 222 valeurs sur 3 000 (dernier bit seulement).
 - **Cause** — `np.convolve` passe par le produit scalaire de la bibliothèque BLAS de numpy ; sur ce poste la boucle de queue (moins de 16 valeurs) fusionne le produit et la somme
-  (`acc = fma(x[j], 1/15, acc)`) en partant de la fenêtre la plus ancienne. Python 3.14 : `math.fma`.
-- **Règle** — pour une convolution courte, mesurer les quatre variantes (ordre croissant ou décroissant, avec ou sans FMA) sur des signaux aléatoires avant de choisir ; ici seule
-  « croissant + FMA » donne 0 écart sur 3 000 valeurs (`f64::mul_add` en Rust). Dépend du poste (BLAS) : à relire si la tolérance des mesures de raies (`FILTER_TOL`) est un jour trop juste.
-- **Preuve** — `rust/otb-advisor/src/rules.rs:smooth15` ; corpus : 630 sessions, écart maximal 2,3e-13 sur les mesures de filtres. (Avec un lissage « simple », l'écart serait de l'ordre de 1e-16 :
+  (`acc = fma(x[j], 1/15, acc)`) en partant de la fenêtre la plus ancienne. Python 3.14 : `math.fma`. **Pour 5 valeurs** (relecture, 2026-10-31, mesuré sur 10 000 valeurs
+  aléatoires puis sur 52 240 valeurs de longueurs 5 à 1 001) : le **centre** se somme dans l'ordre croissant **sans** FMA (`acc + x × 0,2`), les **deux premières et les deux dernières**
+  valeurs (fenêtre tronquée à 3 ou 4 termes) **avec** FMA, toujours dans l'ordre croissant : 0 écart. « Croissant avec FMA » partout donne 4 181 écarts sur 10 000, « décroissant sans
+  FMA » (le premier essai de Rust) 4 738. Pourquoi les bords seuls fusionnent n'est pas élucidé (non vérifié : chemin de calcul différent de la bibliothèque pour les fenêtres tronquées).
+  Moins de 5 valeurs (numpy échange alors les tableaux) : aucune des quatre variantes ne rend les bits de numpy ; seule la tolérance est vérifiée.
+- **Règle** — pour une convolution courte, mesurer les quatre variantes (ordre croissant ou décroissant, avec ou sans FMA) sur des signaux aléatoires avant de choisir, **séparément pour
+  le centre et pour les bords** ; pour 15 valeurs seule « croissant + FMA » donne 0 écart sur 3 000 valeurs (`f64::mul_add` en Rust). Dépend du poste (BLAS) : à relire si la tolérance des
+  mesures de raies (`FILTER_TOL`) est un jour trop juste ; la CI (Windows en particulier) peut différer d'un bit : le test compare à 1e-15 de la fenêtre et n'exige le bit près que
+  si `OTB_BITEXACT=1` (L-059).
+- **Preuve** — `rust/otb-advisor/src/rules.rs:smooth15` et `smooth5`, `rust/otb-advisor/tests/smooth.rs` (sorties de numpy dans `rust/otb-advisor/tests/data/smooth.json`, écrites par `scripts/smooth_cases.py` ;
+  `OTB_BITEXACT=1 cargo test -p otb-advisor --test smooth` : 32 328 et 33 376 valeurs identiques au bit près) ; corpus : 630 sessions, écart maximal 2,3e-13 sur les mesures de filtres. (Avec un lissage « simple », l'écart serait de l'ordre de 1e-16 :
   invisible à la tolérance du corpus. L'ordre exact n'est donc pas prouvé par le corpus, seulement par la mesure ci-dessus.)
 
 ### L-060 : `\w`, `\d` et `\s` de Python ne sont pas `is_alphanumeric`, `is_numeric` ni `is_whitespace` de Rust
@@ -758,7 +765,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
-| L-061 | `np.convolve(x, ones(15)/15, "same")` : somme croissante avec FMA (mesuré, 4 variantes essayées) ; l'ordre « évident » diffère au dernier bit | Outillage |
+| L-061 | `np.convolve(x, ones(K)/K, "same")` : K = 15 somme croissante avec FMA ; K = 5 centre sans FMA, 2 premières et 2 dernières valeurs avec FMA (mesuré, 4 variantes essayées) ; l'ordre « évident » diffère au dernier bit | Outillage |
 | L-060 | `\w`, `\d`, `\s` de Python ≠ `is_alphanumeric`, `is_numeric`, `is_whitespace` de Rust : table générée depuis Python, vérifiée sur tous les points de code | Outillage |
 | L-059 | « Identique au bit près » après une FFT : vrai sur le poste des références seulement ; tolérance dans les tests de la CI, relire toute la sortie Windows (cargo s'arrête au 1er échec) | Outillage |
 | L-058 | Ordre des sommes de numpy : `x[..., masque]` et matrice d'une colonne sont « Fortran », somme par paires sur l'axe 0 (≥ 8 valeurs) | Analyses |

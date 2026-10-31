@@ -31,7 +31,7 @@ from rules_state_cases import build, fd, hxl, with_
 
 from opentunebox.advisor import rules as RU
 from opentunebox.advisor.rules import Finding
-from opentunebox.analysis.motors import SpectrumLine
+from opentunebox.analysis.motors import SpectrumLine, rpm_weight_needed
 from opentunebox.log.settings import parse_settings
 
 DIRECT: list = []
@@ -240,6 +240,33 @@ def shape(label, lg, f0, sel=None):
 
 # ---------------------------------------------------------------- cas
 
+def weight_need_02(q, k=1):
+    """Journal dont la `k`e harmonique (0 : 1re) a un besoin de poids `x` avec `10 x = 1,5` : `np.ceil(10 x - 1e-9) / 10` vaut alors 0,2 (marge
+    de 0,5 de part et d'autre : aucune sensibilité aux FFT). Bissection sur l'amplitude de la raie dans le gyro non filtré. La frontière
+    10 x = 2 + 5e-10 (effet du `- 1e-9` du `ceil`) n'est pas atteignable par un journal : les courbes sont des float32, le niveau varie de
+    ~1e-6 dB par pas ; elle est testée sur la fonction de calcul seule (`rules_rpm.rs`, `lighten_weight`)."""
+    sel = slice(0, q.n)
+
+    def tenx(a):
+        amp = [0.0, 0.0, 0.0]
+        amp[k] = a
+        raw, _ = RU.rpm_harmonic_levels(lined(q, harm_unf=tuple(amp)), sel)
+        return 10 * rpm_weight_needed(raw[k] + RU.RPM_WEIGHT_MARGIN_DB)
+
+    lo, hi = 0.01, 0.5
+    assert tenx(lo) < 1.5 < tenx(hi), (tenx(lo), tenx(hi))
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if tenx(mid) < 1.5:
+            lo = mid
+        else:
+            hi = mid
+    amp = [0.0, 0.0, 0.0]
+    amp[k] = lo
+    print(f"  amplitude {lo!r} : 10 x = {tenx(lo)!r}", file=sys.stderr)
+    return lined(q, harm_unf=tuple(amp))
+
+
 def main():
     q = base_log()  # bruit seul, 4 kHz de boucle... (en-tête de BASE_HEADER : boucle PID à 8 kHz)
     t0 = tiny()
@@ -297,6 +324,13 @@ def main():
     weights("... poids 100,100,90 : seule la 3e est allégée ou non", raw_with(mid, rpm_filter_weights="100,100,90"))
     weights("... poids 100 seul (complétés à trois)", raw_with(mid, rpm_filter_weights="100"))
     weights("... poids 100,100,100,100,100 (longueur 5)", raw_with(mid, rpm_filter_weights="100,100,100,100,100"))
+    # besoin de 0,2 (10 x = 1,5 → ceil = 2) et poids actuel 0,7 : 0,7 − 0,2 = 0,49999999999999994 < 0,5, mais ≥ 0,5 − 1e-9 (sans la tolérance du
+    # gain, aucun allègement)
+    need02 = weight_need_02(q)
+    weights("besoin 0,2, poids 100,70,40 : allégé grâce à la tolérance du gain (0,7 − 0,2 < 0,5 d'un ulp)",
+            raw_with(need02, rpm_filter_weights="100,70,40"))
+    weights("... poids 100,80,40 : gain 0,6, allégé", raw_with(need02, rpm_filter_weights="100,80,40"))
+    weights("... poids 100,60,40 : gain 0,4, pas allégé", raw_with(need02, rpm_filter_weights="100,60,40"))
     weights("... une seule harmonique filtrée (n=1) : rpm_harmonic_missing, pas d'allègement", raw_with(mid, rpm_filter_harmonics="1"))
     weights("... deux harmoniques filtrées (n=2)", raw_with(mid, rpm_filter_harmonics="2"))
     weights("... aucune harmonique filtrée (n=0)", raw_with(mid, rpm_filter_harmonics="0"))
@@ -515,6 +549,9 @@ def main():
     hover("raie dans le non filtré seul : effacée par les filtres", lined(q, lines=[(0, 105.0, 0.5, 0.0)]))
     hover("raie qui passe les filtres", lined(q, lines=[(0, 105.0, 0.5, 0.5)]))
     hover("raie un peu plus forte après filtres que mesurée avant", lined(q, lines=[(0, 105.0, 0.3, 0.6)]))
+    # filtré nul : la hauteur après filtres est NaN (moyenne de la raie ≤ 0) ; la raie n'est pas « encore visible » (`not left > 4`)
+    hover("raie dans le non filtré, gyro filtré nul : hauteur après filtres NaN, aucun constat de raie résiduelle",
+          with_(lined(q, lines=[(0, 150.0, 0.5, 0.0)]), gyro=np.zeros_like(q.gyro)))
     # fusion de raies proches entre le roll et le pitch : la plus haute remplace la plus basse, sinon la 1re reste
     hover("fusion : pitch plus haut (113 Hz) remplace roll (105 Hz)", lined(q, lines=[(0, 105.0, 0.3, 0.2), (1, 113.0, 0.6, 0.2)]))
     hover("fusion : pitch plus bas (113 Hz) : roll reste", lined(q, lines=[(0, 105.0, 0.6, 0.2), (1, 113.0, 0.3, 0.2)]))
