@@ -4,8 +4,10 @@
 //! modules déjà prouvés de `otb-analysis` et `otb-log`.
 
 pub mod drone_card;
+pub mod log_check;
 pub mod noise;
 pub mod profiles;
 mod pyclasses;
 pub mod rules;
 pub mod step_tuning;
+pub mod tuning_path;
