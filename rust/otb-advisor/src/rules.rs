@@ -634,7 +634,7 @@ impl Analysis<'_> {
 }
 
 /// Ligne `ax` d'un tableau, sur `sel` (une tranche Python borne ses indices).
-fn sel_row<'r>(r: &'r Rows, ax: usize, sel: &Range<usize>) -> &'r [f32] {
+pub(crate) fn sel_row<'r>(r: &'r Rows, ax: usize, sel: &Range<usize>) -> &'r [f32] {
     let row = r.row(ax);
     &row[clamp_range(sel.start, sel.end, row.len())]
 }
@@ -644,7 +644,7 @@ fn wide(v: &[f32]) -> Vec<f64> {
 }
 
 /// `np.any(row)` d'une ligne `float32` : un NaN compte comme non nul.
-fn any_nonzero(row: &[f32]) -> bool {
+pub(crate) fn any_nonzero(row: &[f32]) -> bool {
     row.iter().any(|&v| v != 0.0)
 }
 
@@ -2121,7 +2121,7 @@ fn breaks_of(log: &FlightLog, sel: &Range<usize>) -> Vec<i64> {
 }
 
 /// `log.motor_hz[:, sel]`.
-fn sel_rows(r: &Rows, sel: &Range<usize>) -> Rows {
+pub(crate) fn sel_rows(r: &Rows, sel: &Range<usize>) -> Rows {
     let rg = clamp_range(sel.start, sel.end, r.n);
     let mut data = Vec::with_capacity(r.k * rg.len());
     for k in 0..r.k {

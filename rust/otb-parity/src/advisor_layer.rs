@@ -3,12 +3,15 @@
 //! session est rouverte par le décodeur Rust, refaite par `otb-advisor`, puis comparée **clé par clé**.
 //!
 //! Les textes (titres, détails, actions, explications) sont comparés au caractère près. Depuis la phase 5a-3c, `analyze` est complet :
-//! **tous** les constats (`report|findings|…`, `report|sorted|…`) et toutes les mesures (`report|measures|…`) sont comparés. Seules les
-//! clés du bruit (`noise|…`, 5a-4) et de la réponse indicielle (`tuning|…`, 5a-5) sont ignorées et comptées ; toute autre clé de Python doit
-//! exister côté Rust.
+//! **tous** les constats (`report|findings|…`, `report|sorted|…`) et toutes les mesures (`report|measures|…`) sont comparés. Depuis la
+//! phase 5a-4, le diagnostic du bruit (`noise::noise_report`, clés `noise|…` : bande, niveaux par axe, harmoniques, constats rangés par partie,
+//! blocs de filtres avec observations, réglages et verdicts, stratégie) l'est aussi, textes au caractère près ; une clé `noise|…` de Python
+//! absente de Rust, ou l'inverse, est un échec. Seules les clés de la réponse indicielle (`tuning|…`, 5a-5) sont ignorées et comptées ; toute
+//! autre clé de Python doit exister côté Rust.
 
 use crate::analysis_layer::{DELAY_TOL, Flat, Item, SLIDERS_TOL, compare_item, put_flight_stats, put_opt, stem};
 use crate::value::{Array, load_arrays};
+use otb_advisor::noise::{self, AxisNoise, FilterBlock};
 use otb_advisor::rules::{self, Finding};
 use otb_analysis::period;
 use otb_log::flightlog::FlightLog;
@@ -17,8 +20,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 /// Préfixes des clés de Python déjà portées (une clé de Python qui commence par l'un d'eux doit exister côté Rust, et réciproquement).
-/// Les constats (`report|findings|…`, `report|sorted|…`) ont leur propre règle : tous sont comparés.
-pub const PORTED: [&str; 8] = [
+/// Les constats (`report|findings|…`, `report|sorted|…`) ont leur propre règle : tous sont comparés. `noise|` : tout le diagnostic du bruit.
+pub const PORTED: [&str; 9] = [
+    "noise|",
     "report|profile",
     "report|reason",
     "report|period",
@@ -152,10 +156,87 @@ fn put_filter_measures(f: &mut Flat, m: &rules::Measures) {
     }
 }
 
+/// Niveaux de bruit d'une liste d'axes (`noise|gyro[i]|…`, `noise|dterm[i]|…`) sous les noms de Python (`vars(AxisNoise)`).
+fn put_axes(f: &mut Flat, name: &str, v: &[AxisNoise]) {
+    f.insert(format!("noise|n_{name}"), Item::I(v.len() as i64));
+    for (i, x) in v.iter().enumerate() {
+        let p = format!("noise|{name}[{i}]");
+        f.insert(format!("{p}|axis"), Item::S(x.axis.clone()));
+        f.insert(format!("{p}|before_db"), Item::T(x.before_db, NOISE_TOL, 1.0));
+        f.insert(format!("{p}|after_db"), Item::T(x.after_db, NOISE_TOL, 1.0));
+        f.insert(format!("{p}|peak_hz"), Item::F(x.peak_hz));
+        f.insert(format!("{p}|reduction_db"), Item::T(x.reduction_db, NOISE_TOL, 1.0));
+    }
+}
+
+/// `findings_list` de Python : `<prefix>|n`, puis `<prefix>|items[i]|…`.
+fn put_findings(f: &mut Flat, prefix: &str, v: &[Finding]) {
+    f.insert(format!("{prefix}|n"), Item::I(v.len() as i64));
+    for (i, x) in v.iter().enumerate() {
+        put_finding(f, &format!("{prefix}|items[{i}]"), x);
+    }
+}
+
+/// `block_dict` de Python (`None` s'écrit « None »).
+fn put_block(f: &mut Flat, prefix: &str, b: Option<&FilterBlock>) {
+    let Some(b) = b else {
+        f.insert(prefix.to_string(), Item::S("None".into()));
+        return;
+    };
+    f.insert(format!("{prefix}|title"), Item::S(b.title.clone()));
+    f.insert(format!("{prefix}|settings"), Item::S(b.settings.clone()));
+    f.insert(format!("{prefix}|n_observations"), Item::I(b.observations.len() as i64));
+    for (j, o) in b.observations.iter().enumerate() {
+        f.insert(format!("{prefix}|observations[{j}]"), Item::S(o.clone()));
+    }
+    put_findings(f, &format!("{prefix}|findings"), &b.findings);
+    match &b.verdict {
+        Some(v) => put_finding(f, &format!("{prefix}|verdict"), v),
+        None => {
+            f.insert(format!("{prefix}|verdict"), Item::S("None".into()));
+        }
+    }
+}
+
+/// Le diagnostic du bruit sous les noms de Python (`noise_dict` de `scripts/golden_advisor.py`, aplati par `golden.flatten`).
+fn put_noise(f: &mut Flat, nr: &noise::NoiseReport) {
+    f.insert("noise|band[0]".into(), Item::F(nr.band.0));
+    f.insert("noise|band[1]".into(), Item::F(nr.band.1));
+    f.insert("noise|moving".into(), Item::B(nr.moving));
+    f.insert("noise|has_unfiltered".into(), Item::B(nr.has_unfiltered));
+    put_axes(f, "gyro", &nr.gyro);
+    put_axes(f, "dterm", &nr.dterm);
+    match &nr.harmonics {
+        Some((raw, left)) => {
+            // même grandeur que `motor_harmonic_*_db` (hauteur d'une harmonique au-dessus du bruit voisin, proche de 0 dB où `log10`
+            // amplifie l'arrondi de la FFT) : même tolérance. **Mesuré** : 1,3e-12 au pire sur les 630 sessions (un élément dépasse
+            // NOISE_TOL, faite pour les moyennes de bande et les sommets).
+            f.insert("noise|harmonics[0]".into(), Item::TU(raw.clone(), FILTER_TOL, 1.0));
+            f.insert("noise|harmonics[1]".into(), Item::TU(left.clone(), FILTER_TOL, 1.0));
+        }
+        None => {
+            f.insert("noise|harmonics".into(), Item::S("None".into()));
+        }
+    }
+    put_findings(f, "noise|conditions", &nr.conditions);
+    put_findings(f, "noise|gyro_findings", &nr.gyro_findings);
+    put_findings(f, "noise|dterm_findings", &nr.dterm_findings);
+    put_findings(f, "noise|strategy", &nr.strategy);
+    f.insert("noise|n_blocks".into(), Item::I(nr.gyro_blocks.len() as i64));
+    for (i, b) in nr.gyro_blocks.iter().enumerate() {
+        put_block(f, &format!("noise|gyro_blocks[{i}]"), Some(b));
+    }
+    put_findings(f, "noise|gyro_other", &nr.gyro_other);
+    put_block(f, "noise|dterm_block", nr.dterm_block.as_ref());
+}
+
 /// Ce que produit l'assistant pour une session, sous les noms de Python, et le rapport lui-même (ses constats sont rangés à part).
 fn ported(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<(Flat, rules::Report), String> {
     let mut f = Flat::new();
-    let rep = rules::analyze(lg, Some(sel), None)?;
+    // le diagnostic du bruit refait `analyze` (profil détecté) : son rapport est celui qu'on compare
+    let nr = noise::noise_report(lg, Some(sel), None)?;
+    let rep = nr.report.clone();
+    put_noise(&mut f, &nr);
     f.insert("report|profile".into(), Item::S(rep.profile.key.into()));
     f.insert("report|reason".into(), Item::S(rep.profile_reason.clone()));
     f.insert("report|period[0]".into(), Item::F(rep.period.0));
@@ -277,10 +358,10 @@ fn is_filter_measure(key: &str) -> bool {
         .any(|p| key.starts_with(&format!("report|measures|{p}")))
 }
 
-/// Clés des parties de l'assistant pas encore portées (le bruit de Spectre : 5a-4, la réponse indicielle : 5a-5) et clés d'identification
-/// de la session : les seules que la couche ignore (en les comptant).
+/// Clés des parties de l'assistant pas encore portées (la réponse indicielle : 5a-5) et clés d'identification de la session : les seules que
+/// la couche ignore (en les comptant).
 fn is_later_phase(key: &str) -> bool {
-    key.starts_with("noise|") || key.starts_with("tuning|") || matches!(key, "_session" | "_n" | "_sel")
+    key.starts_with("tuning|") || matches!(key, "_session" | "_n" | "_sel")
 }
 
 /// `report|<liste>|items[i]|…` : l'indice `i` d'une clé de constat de Python.
@@ -360,6 +441,12 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AdvisorReport)
             .push(format!("{who} : Python lève dans l'assistant (cas non prévu)"));
         return;
     }
+    if py.contains_key("noise|_error") {
+        rep.failures.push(format!(
+            "{who} : Python lève dans le diagnostic du bruit (cas non prévu)"
+        ));
+        return;
+    }
     let (mut got, report) = match ported(lg, sel) {
         Ok(g) => g,
         Err(e) => {
@@ -427,6 +514,11 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AdvisorReport)
                     "{who} : {k} : clé du rapport de Python non classée parmi les clés portées"
                 ));
             } else if !got.contains_key(k) {
+                rep.failures.push(format!("{who} : {k} absente de Rust"));
+            }
+        } else if k.starts_with("noise|") {
+            // tout le diagnostic du bruit est porté : une clé de Python que Rust n'écrit pas est un écart
+            if !got.contains_key(k) {
                 rep.failures.push(format!("{who} : {k} absente de Rust"));
             }
         } else if is_later_phase(k) {

@@ -23,6 +23,9 @@ pub(crate) enum Item {
     TA(Vec<f64>, f64),
     /// Tableau de flottants comparé **case par case**, en relatif à chaque valeur de référence (spectres : les petites cases comptent).
     TR(Vec<f64>, f64),
+    /// Tableau de flottants dont chaque élément se compare comme un [`Item::T`] : `(valeurs, tolérance, unité)`, écart de chaque élément =
+    /// |Rust − Python| / max(|Python|, unité) (niveaux en dB proches de 0, où l'erreur de la FFT ne dépend pas de la taille de la valeur).
+    TU(Vec<f64>, f64, f64),
     /// Flottant comparé à une tolérance : `(valeur, tolérance, unité)` ; écart = |Rust − Python| / max(|Python|, unité).
     T(f64, f64, f64),
     I(i64),
@@ -496,6 +499,34 @@ pub(crate) fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64)
             (0..g.len())
                 .find(|&i| want.get_f64(i) != g[i] as f64)
                 .map(|i| format!("{key} : élément {i} : Rust {}", g[i]))
+        }
+        Item::TU(g, tol, unit) => {
+            if want.kind != 'f' || want.size != 8 || want.len() != g.len() {
+                return bad(format!(
+                    "{} valeurs (Python {}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                ));
+            }
+            for (i, gi) in g.iter().enumerate() {
+                let w = want.get_f64(i);
+                if !gi.is_finite() || !w.is_finite() {
+                    if !same_bits(*gi, w) {
+                        return Some(format!("{key} : élément {i} : Rust {gi:e} / Python {w:e}"));
+                    }
+                    continue;
+                }
+                let err = (gi - w).abs() / w.abs().max(*unit);
+                *worst = worst.max(err);
+                if err > *tol {
+                    return Some(format!(
+                        "{key} : élément {i} : Rust {gi:e} / Python {w:e} (écart {err:e} > {tol:e})"
+                    ));
+                }
+            }
+            None
         }
         Item::TA(g, tol) => {
             if want.kind != 'f' || want.size != 8 || want.len() != g.len() {

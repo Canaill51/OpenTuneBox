@@ -56,7 +56,7 @@ fn main() {
             println!("≠ {f}");
         }
         println!(
-            "assistant ({}) : {} sessions, {} clés comparées, {} clés du bruit et de la réponse indicielle (portées en 5a-4 et 5a-5) ignorées, {} écarts",
+            "assistant ({}) : {} sessions, {} clés comparées, {} clés de la réponse indicielle (portée en 5a-5) ignorées, {} écarts",
             otb_parity::advisor_layer::PORTED.join(", "),
             rep.sessions,
             rep.keys,
