@@ -42,9 +42,11 @@ pub const PORTED_MEASURES: [&str; 10] = [
 ];
 
 /// Constats produits par les parties de `rules.analyze` portées en 5a-2b : `profile_provisional`, `recording_rules`, `step_section`,
-/// `noise_rules` (dont `setpoint_delay`), `motor_rules`, `slider_rules`. Seuls ceux-là sont comparés (Python filtré par ces clés, dans leur ordre
-/// relatif, contre Rust). Tous les autres (`delay_rules`, `filter_rules`, `filter_strategy` : 5a-3) sont **exclus et comptés** dans le résumé.
-pub const KEYS_5A2B: [&str; 26] = [
+/// `noise_rules` (dont `setpoint_delay`), `motor_rules`, `slider_rules`, et en 5a-3a `delay_rules` (retards des filtres, relèvement du D). Seuls
+/// ceux-là sont comparés (Python filtré par ces clés, dans leur ordre relatif, contre Rust). Tous les autres (`filter_rules`, 5a-3b/c) sont
+/// **exclus et comptés** dans le résumé. ⚠️ `gyro_lpf1_off` (produit par `filter_rules`, fonction portée mais pas encore branchée) et
+/// `filter_strategy` (dépend des constats de filtres non portés) n'y sont pas : à ajouter quand `filter_rules` sera branché.
+pub const KEYS_5A2B: [&str; 32] = [
     "profile_provisional",
     "log_rate_low",
     "log_rate_low_filters",
@@ -71,6 +73,12 @@ pub const KEYS_5A2B: [&str; 26] = [
     "motor_imbalance",
     "iterm_offset",
     "sliders_off",
+    "delay_not_representative",
+    "gyro_filter_cautious",
+    "gyro_delay",
+    "dterm_delay",
+    "dterm_filter_too_strong",
+    "dterm_lift",
 ];
 
 /// Tolérance des mesures de bruit en dB (moyennes de bande, sommets lissés : spectres de `realfft` contre pocketfft, L-048), écart absolu

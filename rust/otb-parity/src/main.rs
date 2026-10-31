@@ -76,7 +76,7 @@ fn main() {
                 .join(", ")
         );
         println!(
-            "  constats EXCLUS (5a-3, non portés) : {}",
+            "  constats EXCLUS (5a-3b/c, non portés) : {}",
             rep.excluded
                 .iter()
                 .map(|(k, n)| format!("{k} ×{n}"))

@@ -6,14 +6,17 @@
 //! Les comparaisons avec NaN restent fausses (`not x > y` est vrai pour NaN) : les conditions sont recopiées dans le même sens que Python.
 //!
 //! Phase 5a-2b : `Report`, `Analysis` (= `_Analysis`) et `analyze`, avec les règles qui lisent un `FlightLog` : enregistrement, réponse
-//! indicielle, retard consigne → gyro, niveaux de bruit, moteurs, curseurs. **Pas portés (5a-3)** : `delay_rules`, `filter_rules` et
-//! `filter_strategy` existent ici sans effet (marqués `// 5a-3`) pour que `analyze` s'exécute de bout en bout : leurs constats et leurs
-//! mesures (`frame_resonance`, `dyn_notch`, `motor_harmonic_*`, `hover_lines`) manquent, aucune parité n'est prétendue pour eux.
+//! indicielle, retard consigne → gyro, niveaux de bruit, moteurs, curseurs. **Phase 5a-3a** : `delay_rules` (retards des filtres,
+//! relèvement des filtres du D), `predict_filter_change`, `gyro_lpf1_off` (pas encore appelée : elle sert à `filter_rules`) et `filter_strategy`.
+//! **Pas porté (5a-3b/c)** : `filter_rules`, qui existe ici sans effet pour que `analyze` s'exécute de bout en bout : ses constats et ses
+//! mesures (`frame_resonance`, `dyn_notch`, `motor_harmonic_*`, `hover_lines`) manquent, aucune parité n'est prétendue pour eux ; la
+//! stratégie de filtrage rendue par `analyze` ne voit donc que les constats déjà portés.
 
 use crate::profiles::{CraftProfile, detect_profile};
-use otb_analysis::delay::{Delays, compute_delays};
+use otb_analysis::bf_filters::{self, Target, WhatIfCache, WhatIfSpectrum};
+use otb_analysis::delay::{Delays, MOVING_SETPOINT_DPS, compute_delays};
 use otb_analysis::motors::hover_motor_hz;
-use otb_analysis::npstat::{argmax_f64, mean_f32, py_min};
+use otb_analysis::npstat::{argmax_f64, mean_f32, median_f32, py_min};
 use otb_analysis::numpy_mean;
 use otb_analysis::open_loop::{LoopMetrics, MEASURED, Terms};
 use otb_analysis::period::crash_time;
@@ -22,8 +25,9 @@ use otb_analysis::spectral::{self, Mode, PTB_PSD_OFFSET_DB};
 use otb_analysis::stats::{FlightStats, flight_stats, pid_error_stats};
 use otb_analysis::step::{LoopInput, StepMetrics, StepOptions, StepResult, step_response};
 use otb_analysis::step_series::{FF_KEY, flight_conditions};
-use otb_format::fixed;
+use otb_format::{fixed, general};
 use otb_log::flightlog::{FlightLog, Rows, clamp_range};
+use otb_log::settings::Settings;
 use std::ops::Range;
 
 // Stabilité (boucle ouverte mesurée), en conseil : 7 dB et 35° retenus sur le corpus du 2026-10-05.
@@ -538,7 +542,7 @@ fn py_max_list(v: &[f64]) -> Option<f64> {
 
 /// Mesures du rapport (`Report.measures`, un dict en Python) sous les noms de Python. `None` : la section n'a pas tourné (toutes sont `Some`
 /// dans un rapport rendu par `analyze`), sauf `hover_motor_hz` où `None` est la valeur `None` de Python.
-/// 5a-3 y ajoutera `frame_resonance`, `dyn_notch`, `motor_harmonic_left_db`, `motor_harmonic_raw_db` et `hover_lines`.
+/// 5a-3b/c y ajoutera `frame_resonance`, `dyn_notch`, `motor_harmonic_left_db`, `motor_harmonic_raw_db` et `hover_lines`.
 #[derive(Debug, Clone, Default)]
 pub struct Measures {
     pub hover_motor_hz: Option<f64>,
@@ -668,7 +672,7 @@ pub fn band_peak_ptb_db(x: &[f32], fs: f64, lo: f64, hi: f64, breaks: Option<&[i
 }
 
 /// `analyze` : le diagnostic complet d'un vol. `sel` : période (tout le journal si absente) ; `profile` : taille choisie (détectée si absente).
-/// ⚠️ 5a-3 : `delay_rules`, `filter_rules` et `filter_strategy` ne produisent encore rien ; le rapport n'a donc pas leurs constats.
+/// ⚠️ 5a-3b/c : `filter_rules` ne produit encore rien ; le rapport n'a donc pas ses constats (ni, par suite, ceux de la stratégie qui en dépendent).
 pub fn analyze(log: &FlightLog, sel: Option<Range<usize>>, profile: Option<&CraftProfile>) -> Result<Report, String> {
     let sel = sel.unwrap_or(0..log.n());
     let (profile, reason) = match profile {
@@ -720,12 +724,12 @@ pub fn analyze(log: &FlightLog, sel: Option<Range<usize>>, profile: Option<&Craf
     recording_rules(&mut a, t1 - t0)?;
     step_section(&mut a)?;
     noise_rules(&mut a)?;
-    delay_rules(&mut a)?; // 5a-3
-    filter_rules(&mut a)?; // 5a-3
+    delay_rules(&mut a)?;
+    filter_rules(&mut a)?; // 5a-3b/c
     motor_rules(&mut a)?;
     slider_rules(&mut a)?;
     let moving = !a.hover()?;
-    if let Some(strategy) = filter_strategy(&a.f, moving) {
+    if let Some(strategy) = filter_strategy(&a.f, moving)? {
         a.f.insert(0, strategy);
     }
     Ok(Report {
@@ -738,21 +742,784 @@ pub fn analyze(log: &FlightLog, sel: Option<Range<usize>>, profile: Option<&Craf
     })
 }
 
-/// 5a-3 : retards des filtres gyro et D, relèvement des filtres du D (`_delay_rules`, avec `_dterm_lift` et `_dterm_lift_noise`).
-/// Sans effet en attendant : aucun constat, aucune mesure.
-fn delay_rules(_a: &mut Analysis) -> Result<(), String> {
+// ---------------------------------------------------------------- phase 5a-3a : retards des filtres, relèvement du D, stratégie
+
+/// Terme D « idéalement sous −20 dB » PIDtoolbox : en dessous, le simulateur cherche jusqu'où relever ses filtres.
+pub const DTERM_PTB_IDEAL_DB: f64 = -20.0;
+/// Borne du curseur « filtre D » hors mode expert du configurateur.
+pub const DTERM_SLIDER_BASIC_MAX: i64 = 120;
+/// Sans curseur, ou au-delà de 1,2 : nombre de pas au plus (coupures × 1,1 par pas).
+pub const DTERM_LIFT_MAX_STEPS: i64 = 2;
+/// Filtre RPM : `rpm_filter_q` monte par pas de 100 jusqu'à 1000 au plus.
+pub const RPM_Q_STEP: i64 = 100;
+pub const RPM_Q_MAX: i64 = 1000;
+
+/// Étapes de la stratégie de filtrage : (étape, clés des constats qui en relèvent), dans l'ordre d'affichage.
+pub const FILTER_STAGES: [(&str, &[&str]); 7] = [
+    (
+        "Enregistrement",
+        &["log_rate_low", "log_rate_low_filters", "log_rate_harmonics"],
+    ),
+    (
+        "À corriger d'abord",
+        &["gyro_lpf2_off", "dterm_filter_weak", "gyro_noisy", "dterm_noisy"],
+    ),
+    ("Mécanique", &["frame_line_fixed"]),
+    (
+        "Filtre RPM",
+        &[
+            "rpm_q_raise",
+            "rpm_harmonic_missing",
+            "rpm_weight_low",
+            "rpm_line_visible",
+            "motor_noise_left",
+            "rpm_weight_lighten",
+        ],
+    ),
+    (
+        "Notch dynamique",
+        &[
+            "hover_line_residual",
+            "dyn_notch_q_lower",
+            "dyn_notch_q_raise",
+            "dyn_notch_more",
+            "dyn_notch_fewer",
+        ],
+    ),
+    (
+        "Passe-bas du gyro",
+        &["gyro_lpf1_off", "gyro_filter_cautious", "gyro_lpf_biquad"],
+    ),
+    (
+        "Passe-bas du D",
+        &["dterm_lpf1_static", "dterm_filter_too_strong", "dterm_lift"],
+    ),
+];
+/// Raies qui passent les filtres (mécanique ou stationnaire).
+pub const LINE_KEYS: [&str; 2] = ["frame_line_fixed", "hover_line_residual"];
+/// Stratégie affichée à partir de 2 étapes.
+pub const STRATEGY_MIN_STAGES: usize = 2;
+
+/// Effet prévu de réglages de filtres modifiés (`predict_filter_change`) : variation du bruit moyen et du sommet (dB, par axe roll / pitch)
+/// du gyro filtré et du terme D, et gain de retard (ms) des chaînes gyro et D.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Prediction {
+    pub gyro_mean: Vec<f64>,
+    pub gyro_peak: Vec<f64>,
+    pub d_mean: Vec<f64>,
+    pub d_peak: Vec<f64>,
+    pub gyro_delay_gain_ms: f64,
+    pub d_delay_gain_ms: f64,
+}
+
+/// `np.convolve(v, np.ones(5) / 5, mode="same")` : `v` non vide. Pour au moins 5 valeurs, même longueur que `v` ; en dessous, numpy échange
+/// les deux tableaux et rend 5 valeurs (décalage `(len − 1) / 2` dans la convolution complète).
+fn smooth5(v: &[f64]) -> Vec<f64> {
+    let k = 5; // largeur du noyau
+    let kern = 1.0f64 / 5.0; // np.ones(5) / 5 : cinq fois 0,2 (1/5 arrondi)
+    let n = v.len();
+    let full_len = n + k - 1;
+    let full: Vec<f64> = (0..full_len)
+        .map(|i| {
+            // somme de v[i - j] × kern pour j = 0..5, dans l'ordre des termes de la convolution
+            let mut acc = 0.0f64;
+            for j in 0..k {
+                if i >= j && i - j < n {
+                    acc += v[i - j] * kern;
+                }
+            }
+            acc
+        })
+        .collect();
+    let out_len = n.max(k);
+    let off = (n.min(k) - 1) / 2;
+    full[off..off + out_len].to_vec()
+}
+
+/// `np.max` : un NaN l'emporte. Vide : `None` (numpy lève).
+fn np_max_nan(v: &[f64]) -> Option<f64> {
+    let (first, rest) = v.split_first()?;
+    let mut m = *first;
+    for &x in rest {
+        if m.is_nan() {
+            break;
+        }
+        if x.is_nan() || x > m {
+            m = x;
+        }
+    }
+    Some(m)
+}
+
+/// `deltas` de `predict_filter_change` : (variation du niveau moyen, variation du sommet du spectre lissé) entre 80 Hz et `hi`.
+fn whatif_deltas(w: &WhatIfSpectrum, hi: f64) -> Result<(f64, f64), String> {
+    let idx: Vec<usize> = (0..w.freqs.len())
+        .filter(|&i| w.freqs[i] >= 80.0 && w.freqs[i] <= hi)
+        .collect();
+    let cur: Vec<f64> = idx.iter().map(|&i| w.current_db[i]).collect();
+    let new: Vec<f64> = idx.iter().map(|&i| w.modified_db[i]).collect();
+    if idx.is_empty() {
+        return Err("ValueError : object of too small depth for desired array".into()); // np.convolve d'un tableau vide
+    }
+    let peak = |v: &[f64]| np_max_nan(&smooth5(v)).ok_or("ValueError : max() d'une liste vide".to_string());
+    Ok((numpy_mean(&new) - numpy_mean(&cur), peak(&new)? - peak(&cur)?))
+}
+
+fn widen_row(r: &Rows, ax: usize) -> Vec<f64> {
+    wide(r.row(ax))
+}
+
+/// `predict_filter_change` : effet de réglages de filtres `modf` (simulateur `whatif_spectrum`, exact quand rien ne change) sur le bruit
+/// et sur les retards des chaînes gyro et D (au gaz médian).
+pub fn predict_filter_change(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    modf: &Settings,
+    hi: f64,
+) -> Result<Prediction, String> {
+    let s = &log.settings;
+    let mut out = Prediction {
+        gyro_mean: Vec::new(),
+        gyro_peak: Vec::new(),
+        d_mean: Vec::new(),
+        d_peak: Vec::new(),
+        gyro_delay_gain_ms: 0.0,
+        d_delay_gain_ms: 0.0,
+    };
+    let mut cache = WhatIfCache::default(); // réponses des filtres par fenêtre, communes aux deux axes et au gyro / D
+    let mut prefilter: Option<Rows> = None; // `log.d_term_prefilter` (propriété mise en cache en Python)
+    for a in 0..2 {
+        if let Some(unf) = &log.gyro_unfilt {
+            let w = bf_filters::whatif_spectrum(
+                &widen_row(&log.gyro, a),
+                Some(&widen_row(unf, a)),
+                log,
+                sel.clone(),
+                s,
+                modf,
+                Target::Gyro,
+                300.0,
+                &mut cache,
+            )?;
+            let g = whatif_deltas(&w, hi)?;
+            out.gyro_mean.push(g.0);
+            out.gyro_peak.push(g.1);
+        }
+        if any_nonzero(log.d_term.row(a)) {
+            if prefilter.is_none() {
+                prefilter = Some(log.d_term_prefilter()?);
+            }
+            let pre = prefilter.as_ref().unwrap_or(&log.d_term);
+            let w = bf_filters::whatif_spectrum(
+                &widen_row(&log.d_term, a),
+                Some(&widen_row(pre, a)),
+                log,
+                sel.clone(),
+                s,
+                modf,
+                Target::Dterm,
+                300.0,
+                &mut cache,
+            )?;
+            let d = whatif_deltas(&w, hi)?;
+            out.d_mean.push(d.0);
+            out.d_peak.push(d.1);
+        }
+    }
+    let thr = median_f32(&log.throttle[clamp_range(sel.start, sel.end, log.throttle.len())]) as f64 / 100.0;
+    let delay =
+        |chain: &bf_filters::Chain| -> Result<f64, String> { Ok(bf_filters::chain_delay_ms(chain, 10.0)?.phase_ms) };
+    out.gyro_delay_gain_ms = delay(&bf_filters::gyro_chain(s, thr, None, Some(&[]))?)?
+        - delay(&bf_filters::gyro_chain(modf, thr, None, Some(&[]))?)?;
+    out.d_delay_gain_ms = delay(&bf_filters::dterm_chain(s, thr))? - delay(&bf_filters::dterm_chain(modf, thr))?;
+    Ok(out)
+}
+
+/// `_noise_after` : bruits prévus (maximum roll / pitch) : gyro moyen, D moyen, sommet du D (échelle PIDtoolbox). `None` si la mesure manque.
+pub fn noise_after(
+    pred: &Prediction,
+    d_db: &[f64],
+    d_ptb: f64,
+    g_db: Option<&[f64]>,
+) -> (Option<f64>, Option<f64>, Option<f64>) {
+    let sum_max = |base: &[f64], delta: &[f64]| -> Option<f64> {
+        let v: Vec<f64> = base.iter().zip(delta).map(|(x, dx)| x + dx).collect();
+        py_max_list(&v)
+    };
+    let g = g_db.and_then(|g| sum_max(g, &pred.gyro_mean));
+    let d = sum_max(d_db, &pred.d_mean);
+    let dp = if d_ptb.is_finite() {
+        py_max_list(&pred.d_peak).map(|m| d_ptb + m)
+    } else {
+        None
+    };
+    (g, d, dp)
+}
+
+/// Un curseur de l'en-tête (`Settings.sliders().get(clé)`).
+fn slider_of(s: &Settings, key: &str) -> Option<i64> {
+    s.sliders().into_iter().find(|(k, _)| *k == key).map(|(_, v)| v)
+}
+
+/// Multiplicateur du curseur « filtre D » s'il est actif, sinon -1.
+fn dterm_mult(s: &Settings) -> i64 {
+    if slider_of(s, "dterm_filter").unwrap_or(0) > 0 {
+        slider_of(s, "dterm_mult").unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Copie des réglages avec les passe-bas du D multipliés par `factor`.
+fn scaled_dterm(s: &Settings, factor: f64) -> Result<Settings, String> {
+    let mut m = s.clone();
+    m.dterm_lpf1 = bf_filters::scale_lowpass(&s.dterm_lpf1, factor)?;
+    m.dterm_lpf2 = bf_filters::scale_lowpass(&s.dterm_lpf2, factor)?;
+    Ok(m)
+}
+
+/// `_gyro_lpf1_off` : LPF1 du gyro superflu avec le filtre RPM, si le simulateur prévoit un bruit encore sous les repères.
+#[allow(clippy::too_many_arguments)]
+pub fn gyro_lpf1_off(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    hi: f64,
+    profile: &CraftProfile,
+    g_db: &[f64],
+    d_db: &[f64],
+    d_ptb: f64,
+    hover: bool,
+) -> Result<Option<Finding>, String> {
+    let s = &log.settings;
+    let mut modf = s.clone();
+    modf.gyro_lpf1 = bf_filters::lowpass_off(&s.gyro_lpf1);
+    let pred = predict_filter_change(log, sel, &modf, hi)?;
+    let (g, d, dp) = noise_after(&pred, d_db, d_ptb, Some(g_db));
+    let (Some(g), Some(d), Some(dp)) = (g, d, dp) else {
+        return Ok(None);
+    };
+    if g > profile.gyro_noise_high_db || d > profile.dterm_noise_high_db || dp > DTERM_PTB_MAX_DB {
+        return Ok(None);
+    }
+    let lp = &s.gyro_lpf1;
+    let now = if lp.dynamic() {
+        format!("{}–{} Hz dynamique", lp.dyn_min_hz, lp.dyn_max_hz)
+    } else {
+        format!("{} Hz", lp.static_hz)
+    };
+    let hover_note = if hover {
+        " Vol stationnaire : bruit vu à un seul régime, à confirmer sur un vol avec des gaz plus hauts."
+    } else {
+        ""
+    };
+    Ok(Some(Finding::new(
+        "gyro_lpf1_off",
+        "Filtres",
+        CONSEIL,
+        "Le LPF1 du gyro peut être coupé",
+        &format!(
+            "Avec le filtre RPM, le LPF1 du gyro ({} {now}) est souvent superflu. Sans lui, le simulateur \
+             prévoit {} ms de retard en moins, un gyro filtré à {} dB \
+             (seuil {}), un terme D à {} dB (seuil {}) \
+             et un sommet du D à {} dB PIDtoolbox (repère {}). Retard calculé \
+             d'après les réglages des filtres.{hover_note}",
+            lp.kind,
+            fx(pred.gyro_delay_gain_ms, 2),
+            fx(g, 1),
+            fx(profile.gyro_noise_high_db, 1),
+            fx(d, 1),
+            fx(profile.dterm_noise_high_db, 1),
+            fx(dp, 0),
+            fx(DTERM_PTB_MAX_DB, 0),
+        ),
+        vec![
+            "gyro_lpf1_static_hz = 0 et gyro_lpf1_dyn_min_hz = 0 (le curseur « filtre gyro » ne rallume pas un \
+             filtre coupé)."
+                .to_string(),
+            "Vol d'essai court, puis vérifiez la température des moteurs et le spectre du log suivant.".to_string(),
+        ],
+        None,
+    )))
+}
+
+/// `_dterm_lift` : retard du D au-dessus du repère avec un D peu bruité : relever ses filtres seulement si le simulateur prévoit un D encore
+/// sous les repères avec le curseur « filtre D » +0,1.
+#[allow(clippy::too_many_arguments)]
+pub fn dterm_lift(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    hi: f64,
+    profile: &CraftProfile,
+    delay_ms: f64,
+    d_db: &[f64],
+    d_ptb: f64,
+    d_goal: &str,
+) -> Result<Finding, String> {
+    let s = &log.settings;
+    let mult = dterm_mult(s);
+    // curseur +0,1 = multiplicateur +10 (simplified_tuning.c)
+    let factor = if mult > 0 {
+        (mult + 10) as f64 / mult as f64
+    } else {
+        1.1
+    };
+    let modf = scaled_dterm(s, factor)?;
+    let pred = if any_nonzero(log.d_term.row(0)) {
+        Some(predict_filter_change(log, sel, &modf, hi)?)
+    } else {
+        None
+    };
+    let head = format!(
+        "Retard des filtres D {} ms (repère {} ms) avec un D peu bruité.",
+        fx(delay_ms, 2),
+        fx(profile.dterm_delay_max_ms, 1)
+    );
+    let Some(pred) = pred else {
+        return Ok(Finding::new(
+            "dterm_filter_too_strong",
+            "Filtres",
+            CONSEIL,
+            "Filtrage du D peut-être trop fort",
+            &format!("{head}{d_goal}"),
+            vec!["Curseur « filtre D » : +0,1.".to_string()],
+            None,
+        ));
+    };
+    let (_, d, dp) = noise_after(&pred, d_db, d_ptb, None);
+    // `{d:.1f}` d'un `None` fait lever Python (TypeError) ; seule la branche de repli du `if` plus bas lit `d` et `dp` sans les tester
+    let (d_txt, dp_txt) = match (d, dp) {
+        (Some(d), Some(dp)) => (fx(d, 1), fx(dp, 0)),
+        _ => return Err("TypeError : unsupported format string passed to NoneType.__format__".into()),
+    };
+    let forecast = format!(
+        " Avec le curseur « filtre D » +0,1 (coupures ×{}), le simulateur prévoit {} ms de retard en moins, un terme D à {} dB (seuil {}) \
+         et un sommet à {} dB PIDtoolbox (repère {}).",
+        fx(factor, 2),
+        fx(pred.d_delay_gain_ms, 2),
+        d_txt,
+        fx(profile.dterm_noise_high_db, 1),
+        dp_txt,
+        fx(DTERM_PTB_MAX_DB, 0)
+    );
+    let (d, dp) = (d.unwrap_or(f64::NAN), dp.unwrap_or(f64::NAN));
+    if d <= profile.dterm_noise_high_db && dp <= DTERM_PTB_MAX_DB {
+        return Ok(Finding::new(
+            "dterm_filter_too_strong",
+            "Filtres",
+            CONSEIL,
+            "Filtrage du D peut-être trop fort",
+            &format!("{head}{forecast}{d_goal}"),
+            vec![
+                "Curseur « filtre D » : +0,1.".to_string(),
+                "Vol d'essai court, puis vérifiez la température des moteurs : moins de filtrage du D les fait \
+                 chauffer plus vite que tout autre réglage."
+                    .to_string(),
+            ],
+            None,
+        ));
+    }
+    Ok(Finding::new(
+        "dterm_delay",
+        "Filtres",
+        INFO,
+        "Retard des filtres D",
+        &format!("{head}{forecast} Le D dépasserait les repères : mieux vaut ne pas relever ses filtres.{d_goal}"),
+        Vec::new(),
+        None,
+    ))
+}
+
+/// `x:.1f` avec la virgule à la française (`f1` des actions de `_dterm_lift_noise`).
+fn fr1(x: f64) -> String {
+    fx(x, 1).replace('.', ",")
+}
+
+/// `_dterm_lift_noise` : terme D sous −20 dB PIDtoolbox : plus grand relèvement de ses filtres (pas de +0,1 du curseur « filtre D », ou
+/// coupures × 1,1 sans curseur) pour lequel le simulateur prévoit un D encore sous les repères.
+#[allow(clippy::too_many_arguments)]
+pub fn dterm_lift_noise(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    hi: f64,
+    profile: &CraftProfile,
+    d_db: &[f64],
+    d_ptb: f64,
+    hover: bool,
+    delay_ms: f64,
+) -> Result<Option<Finding>, String> {
+    let s = &log.settings;
+    let mult = dterm_mult(s);
+    let k_max: i64 = if mult > 0 {
+        (if mult < DTERM_SLIDER_BASIC_MAX {
+            (DTERM_SLIDER_BASIC_MAX - mult).max(0)
+        } else {
+            10 * DTERM_LIFT_MAX_STEPS
+        })
+        .div_euclid(10)
+    } else {
+        DTERM_LIFT_MAX_STEPS
+    };
+    struct Best {
+        k: i64,
+        lpf: (otb_log::settings::Lowpass, otb_log::settings::Lowpass),
+        d: f64,
+        dp: f64,
+        gain: f64,
+    }
+    let mut best: Option<Best> = None;
+    // du plus grand pas au plus petit : le plus souvent une seule simulation
+    for k in (1..=k_max).rev() {
+        let factor = if mult > 0 {
+            (mult + 10 * k) as f64 / mult as f64
+        } else {
+            1.1f64.powf(k as f64)
+        };
+        let modf = scaled_dterm(s, factor)?;
+        if (&modf.dterm_lpf1, &modf.dterm_lpf2) == (&s.dterm_lpf1, &s.dterm_lpf2) {
+            continue; // coupures plafonnées à 1000 Hz : rien ne change
+        }
+        let pred = predict_filter_change(log, sel, &modf, hi)?;
+        let (_, d, dp) = noise_after(&pred, d_db, d_ptb, None);
+        if let (Some(d), Some(dp)) = (d, dp)
+            && d <= profile.dterm_noise_high_db
+            && dp <= DTERM_PTB_MAX_DB
+        {
+            best = Some(Best {
+                k,
+                lpf: (modf.dterm_lpf1.clone(), modf.dterm_lpf2.clone()),
+                d,
+                dp,
+                gain: pred.d_delay_gain_ms,
+            });
+            break;
+        }
+    }
+    let Some(best) = best else {
+        return Ok(None);
+    };
+    let k = best.k;
+    let action = if mult > 0 {
+        let (now, new) = (mult as f64 / 100.0, (mult + 10 * k) as f64 / 100.0);
+        let mut a = format!("Curseur « filtre D » : {} → {}", fr1(now), fr1(new));
+        if k > 1 {
+            let steps: Vec<String> = (1..k).map(|i| fr1(now + 0.1 * i as f64)).collect();
+            a += &format!(
+                ", en passant par {} avec un vol d'essai à chaque pas.",
+                steps.join(", ")
+            );
+        } else {
+            a += ".";
+        }
+        if mult + 10 * k > DTERM_SLIDER_BASIC_MAX {
+            a += " Au-delà de 1,2, le configurateur demande le mode expert.";
+        }
+        a
+    } else {
+        let (lp1, lp2) = &best.lpf;
+        let p1 = if lp1.dynamic() {
+            format!(
+                "dterm_lpf1_dyn_min_hz = {}, dterm_lpf1_dyn_max_hz = {}",
+                lp1.dyn_min_hz, lp1.dyn_max_hz
+            )
+        } else if lp1.enabled() {
+            format!("dterm_lpf1_static_hz = {}", lp1.static_hz)
+        } else {
+            String::new()
+        };
+        let p2 = if lp2.enabled() {
+            format!("dterm_lpf2_static_hz = {}", lp2.static_hz)
+        } else {
+            String::new()
+        };
+        let parts: Vec<String> = [p1, p2].into_iter().filter(|p| !p.is_empty()).collect();
+        format!("Coupures du D (sans curseur) : {} (× 1,1 par pas).", parts.join(" ; "))
+    };
+    let delay = if delay_ms.is_finite() {
+        format!(" Retard mesuré du D : {} ms.", fx(delay_ms, 2))
+    } else {
+        String::new()
+    };
+    let hover_note = if hover {
+        " Vol stationnaire : bruit vu à un seul régime, à confirmer sur un vol avec des gaz plus hauts."
+    } else {
+        ""
+    };
+    Ok(Some(Finding::new(
+        "dterm_lift",
+        "Filtres",
+        CONSEIL,
+        "Terme D propre : ses filtres peuvent être relevés",
+        &format!(
+            "Sommet du terme D à {} dB sur l'échelle de PIDtoolbox, sous l'idéal de {} dB de Brian White.{delay} En relevant ses filtres de \
+             {k} pas, le simulateur prévoit {} ms de retard en moins, un terme D à {} dB (seuil {}) et un sommet à {} dB PIDtoolbox (repère \
+             {}).{hover_note}",
+            fx(d_ptb, 1),
+            fx(DTERM_PTB_IDEAL_DB, 0),
+            fx(best.gain, 2),
+            fx(best.d, 1),
+            fx(profile.dterm_noise_high_db, 1),
+            fx(best.dp, 0),
+            fx(DTERM_PTB_MAX_DB, 0)
+        ),
+        vec![
+            action,
+            "Après chaque vol d'essai, touchez les moteurs : moins de filtrage du D les fait chauffer plus vite que tout autre réglage ; \
+             tièdes = OK, chauds = revenir au pas précédent."
+                .to_string(),
+        ],
+        None,
+    )))
+}
+
+/// `_delay_rules` (3b) : retards des filtres gyro et D (vol avec mouvements seulement, D-010) et relèvement des filtres du D.
+fn delay_rules(a: &mut Analysis) -> Result<(), String> {
+    let (log, sel, profile) = (a.log, a.sel.clone(), a.profile);
+    let s = &log.settings;
+    let delays = a.delays.clone().ok_or("AttributeError : delays n'est pas calculé")?;
+    let (hi, d_ptb) = (a.hi, a.d_ptb);
+    let hover = a.hover()?;
+    let moving = delays.moving();
+    let target = crate::profiles::filter_delay_target_ms(profile.nominal_inch);
+    // `nominal_inch:g` n'est lu que si `target` existe (donc la taille aussi)
+    let inch = |t: &Option<(f64, f64)>| t.map(|_| general(profile.nominal_inch.unwrap_or(f64::NAN), 6));
+    let g_goal = match (&target, inch(&target)) {
+        (Some(t), Some(i)) => format!(
+            " Objectif de Brian White pour un {i} pouces : environ {} ms.",
+            fx(t.0, 2)
+        ),
+        _ => String::new(),
+    };
+    if !moving && (delays.gyro_ms.is_finite() || delays.dterm_ms.is_finite()) {
+        let vals: Vec<String> = [("gyro", delays.gyro_ms), ("D", delays.dterm_ms)]
+            .iter()
+            .filter(|(_, v)| v.is_finite())
+            .map(|(name, v)| format!("{name} {} ms", fx(*v, 2)))
+            .collect();
+        a.f.push(Finding::new(
+            "delay_not_representative",
+            "Filtres",
+            INFO,
+            "Retard des filtres peu représentatif",
+            &format!(
+                "Retards mesurés : {}. Le vol contient trop peu de mouvements (consigne au-delà de {} °/s moins de 5 % du temps, 95e centile \
+                 {} °/s) : en vol stationnaire, les filtres dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne travaillent qu'à un \
+                 régime, et le retard ne se mesure pas bien. Aucun conseil fondé sur le retard mesuré ; le vol stationnaire sert en revanche \
+                 à identifier le bruit (harmoniques, résonances, bruit résiduel).{g_goal}",
+                vals.join(" ; "),
+                fx(MOVING_SETPOINT_DPS, 0),
+                fx(delays.stick_p95_dps, 0)
+            ),
+            vec![
+                "Pour juger le retard des filtres : log avec des mouvements francs (flips, rolls, wobbles), pas seulement du vol \
+                 stationnaire."
+                    .to_string(),
+            ],
+            None,
+        ));
+    }
+    if moving && delays.gyro_ms.is_finite() {
+        let max_ms = profile.gyro_delay_max_ms;
+        if delays.gyro_ms > max_ms && !a.gyro_noisy && !a.dterm_noisy {
+            let mut actions = vec![
+                "Curseur « filtre gyro » : +0,2 (moins de retard → meilleure réactivité, moins de propwash)."
+                    .to_string(),
+            ];
+            let mut settings: Vec<String> = Vec::new();
+            if s.rpm_harmonics > 0 && s.rpm_q < RPM_Q_MAX {
+                actions.push(format!(
+                    "Filtre RPM : rpm_filter_q {} → {} (notchs plus étroits, moins de retard), puis par pas de {RPM_Q_STEP} jusqu'à \
+                     {RPM_Q_MAX} au plus, en vérifiant à chaque pas que les raies moteur ne réapparaissent pas.",
+                    s.rpm_q,
+                    (s.rpm_q + RPM_Q_STEP).min(RPM_Q_MAX)
+                ));
+                settings.push("rpm_filter_q".to_string());
+            }
+            actions.push("Contrôlez la température des moteurs après chaque changement.".to_string());
+            let mut f = Finding::new(
+                "gyro_filter_cautious",
+                "Filtres",
+                CONSEIL,
+                "Filtrage gyro peut-être trop prudent",
+                &format!(
+                    "Retard des filtres gyro {} ms (repère {} ms pour {}, plus que 90 % des drones du corpus) alors que le bruit est \
+                     faible.{g_goal}",
+                    fx(delays.gyro_ms, 2),
+                    fx(max_ms, 1),
+                    profile.label
+                ),
+                actions,
+                None,
+            );
+            f.settings = settings;
+            a.f.push(f);
+        } else if delays.gyro_ms > max_ms {
+            a.f.push(Finding::new(
+                "gyro_delay",
+                "Filtres",
+                INFO,
+                "Retard des filtres gyro",
+                &format!(
+                    "{} ms, au-dessus du repère ({} ms pour {}), mais le bruit ne permet pas de filtrer moins.{g_goal}",
+                    fx(delays.gyro_ms, 2),
+                    fx(max_ms, 1),
+                    profile.label
+                ),
+                Vec::new(),
+                None,
+            ));
+        } else {
+            a.f.push(Finding::new(
+                "gyro_delay",
+                "Filtres",
+                OK,
+                "Retard des filtres gyro",
+                &format!(
+                    "{} ms (repère ≤ {} ms pour {}).{g_goal}",
+                    fx(delays.gyro_ms, 2),
+                    fx(max_ms, 1),
+                    profile.label
+                ),
+                Vec::new(),
+                None,
+            ));
+        }
+    }
+    if moving && delays.dterm_ms.is_finite() {
+        let max_ms = profile.dterm_delay_max_ms;
+        let d_goal = match (&target, inch(&target)) {
+            (Some(t), Some(i)) => format!(
+                " Objectif de Brian White pour un {i} pouces : environ {} ms lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms \
+                 plus court qu'ici.",
+                fx(t.1, 2)
+            ),
+            _ => String::new(),
+        };
+        if delays.dterm_ms > max_ms && !a.dterm_noisy {
+            let f = if !a.aliased {
+                dterm_lift(log, &sel, hi, profile, delays.dterm_ms, &a.d_db, d_ptb, &d_goal)?
+            } else {
+                Finding::new(
+                    "dterm_delay",
+                    "Filtres",
+                    INFO,
+                    "Retard des filtres D",
+                    &format!(
+                        "{} ms, au-dessus du repère ({} ms), mais le log est trop lent pour juger le bruit : pas de relèvement proposé.{d_goal}",
+                        fx(delays.dterm_ms, 2),
+                        fx(max_ms, 1)
+                    ),
+                    Vec::new(),
+                    None,
+                )
+            };
+            a.f.push(f);
+        } else if delays.dterm_ms <= max_ms {
+            a.f.push(Finding::new(
+                "dterm_delay",
+                "Filtres",
+                OK,
+                "Retard des filtres D",
+                &format!(
+                    "{} ms (repère ≤ {} ms pour {}).{d_goal}",
+                    fx(delays.dterm_ms, 2),
+                    fx(max_ms, 1),
+                    profile.label
+                ),
+                Vec::new(),
+                None,
+            ));
+        }
+    }
+    if !a.aliased
+        && !a.dterm_noisy
+        && !a.gyro_noisy
+        && d_ptb.is_finite()
+        && d_ptb < DTERM_PTB_IDEAL_DB
+        && any_nonzero(log.d_term.row(0))
+    {
+        let delay_ms = if moving { delays.dterm_ms } else { f64::NAN };
+        if let Some(f) = dterm_lift_noise(log, &sel, hi, profile, &a.d_db, d_ptb, hover, delay_ms)? {
+            // remplace le conseil +0,1 fondé sur le retard, qui en dit moins
+            a.f.retain(|x| !(x.key == "dterm_filter_too_strong" && x.severity == CONSEIL));
+            a.f.push(f);
+        }
+    }
     Ok(())
 }
 
-/// 5a-3 : réglages des filtres (`_filter_rules`) : passe-bas, LPF1 du gyro, filtre RPM, raie fixe, vol stationnaire, notch dynamique.
+/// 5a-3b/c : réglages des filtres (`_filter_rules`) : passe-bas, LPF1 du gyro, filtre RPM, raie fixe, vol stationnaire, notch dynamique.
 /// Sans effet en attendant : aucun constat, aucune mesure.
 fn filter_rules(_a: &mut Analysis) -> Result<(), String> {
     Ok(())
 }
 
-/// 5a-3 : synthèse ordonnée des constats de filtrage (`filter_strategy`). Rend toujours `None` en attendant.
-fn filter_strategy(_findings: &[Finding], _moving: bool) -> Option<Finding> {
-    None
+/// `main_action` : l'action qui change un réglage, sinon la première. Python lève (`IndexError`) si le constat n'a aucune action.
+pub fn main_action(f: &Finding) -> Result<String, String> {
+    f.actions
+        .iter()
+        .find(|a| a.contains('=') || a.contains('→') || a.contains("Curseur"))
+        .or_else(|| f.actions.first())
+        .cloned()
+        .ok_or_else(|| "IndexError : list index out of range".to_string())
+}
+
+/// `filter_strategy` : synthèse ordonnée des constats de filtrage : quelles étapes modifier, dans quel ordre. `None` sous
+/// `STRATEGY_MIN_STAGES` étapes : une seule étape, le constat seul dit déjà quoi faire.
+pub fn filter_strategy(findings: &[Finding], moving: bool) -> Result<Option<Finding>, String> {
+    let mut steps: Vec<(&str, Vec<&Finding>)> = Vec::new();
+    for (stage, keys) in FILTER_STAGES.iter() {
+        let hits: Vec<&Finding> = findings
+            .iter()
+            .filter(|f| {
+                !f.actions.is_empty()
+                    && (f.severity == ATTENTION || f.severity == CONSEIL)
+                    && keys.contains(&f.key.as_str())
+            })
+            .collect();
+        if !hits.is_empty() {
+            steps.push((stage, hits));
+        }
+    }
+    if steps.len() < STRATEGY_MIN_STAGES {
+        return Ok(None);
+    }
+    let detail: Vec<String> = steps
+        .iter()
+        .enumerate()
+        .map(|(i, (stage, hits))| {
+            let titles: Vec<String> = hits.iter().map(|f| format!("« {} »", f.title)).collect();
+            format!("{}. {stage} : {}", i + 1, titles.join(", "))
+        })
+        .collect();
+    let mut actions = Vec::new();
+    for (i, (stage, hits)) in steps.iter().enumerate() {
+        let more = if hits.len() > 1 {
+            format!(" (+ {} autre(s) constat(s))", hits.len() - 1)
+        } else {
+            String::new()
+        };
+        actions.push(format!("{}. {stage} — {}{more}", i + 1, main_action(hits[0])?));
+    }
+    actions.push(format!(
+        "Un seul changement à la fois, vol d'essai court, puis température des moteurs ; nouveau log {}",
+        if !moving {
+            "avec mouvements pour juger le retard."
+        } else {
+            "après chaque étape."
+        }
+    ));
+    Ok(Some(Finding::new(
+        "filter_strategy",
+        "Filtres",
+        CONSEIL,
+        "Stratégie de filtrage",
+        &format!(
+            "Ordre conseillé des réglages de filtres d'après les constats ci-dessous : {}.",
+            detail.join(" ; ")
+        ),
+        actions,
+        None,
+    )))
 }
 
 /// 1. Qualité de l'enregistrement : fréquence du log, champs manquants, trous, crash.
