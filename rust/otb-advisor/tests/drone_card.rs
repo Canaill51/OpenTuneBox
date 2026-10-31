@@ -142,12 +142,12 @@ fn les_fiches_donnent_les_memes_valeurs_conseillees() {
 }
 
 /// Python ne vérifie pas les types de `from_dict` (`name` = 3 passe) ; Rust les refuse : ces entrées-là, et elles seules
-/// (`Value::to_string` trie les clés : motifs écrits dans l'ordre alphabétique).
+/// (`preserve_order` : motifs écrits dans l'ordre du fichier).
 const REFUSEES_PAR_RUST: [&str; 4] = [
     r#"{"name":3}"#,
     r#"{"name":"A","pid_khz":"4"}"#,
-    r#"{"done":[1],"name":"A"}"#,
-    r#"{"bf":null,"name":"A"}"#,
+    r#"{"name":"A","done":[1]}"#,
+    r#"{"name":"A","bf":null}"#,
 ];
 
 #[test]
@@ -181,8 +181,10 @@ fn les_cases_cochees_gardent_l_ordre_du_fichier() {
     let d = json!({"name": "A", "done": {"b": true, "a": false, "c": true}});
     let card = DroneCard::from_value(&d).unwrap();
     let keys: Vec<&str> = card.done.iter().map(|(k, _)| k.as_str()).collect();
-    assert_eq!(keys.len(), 3);
-    assert!(keys.contains(&"b") && keys.contains(&"a") && keys.contains(&"c"));
+    assert_eq!(keys, ["b", "a", "c"]);
+    // et la réécriture garde cet ordre (le dictionnaire de Python)
+    let back: Vec<String> = card.to_value()["done"].as_object().unwrap().keys().cloned().collect();
+    assert_eq!(back, ["b", "a", "c"]);
 }
 
 #[test]

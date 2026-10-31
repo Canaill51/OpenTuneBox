@@ -159,18 +159,30 @@ impl LogCheck {
     }
 
     /// Points utiles pour ce rôle (par défaut, celui du log) : sans ceux propres à l'autre rôle.
+    /// Points utiles pour ce rôle (par défaut, celui du log ; un rôle vide vaut « par défaut », comme `role or self.role`) : sans ceux
+    /// propres aux autres rôles (un rôle inconnu écarte ceux des deux).
     pub fn items_for(&self, role: Option<&str>) -> Vec<&CheckItem> {
-        let role = role.unwrap_or(self.role);
-        let other = role_items(if role == FILTERS { PID } else { FILTERS });
-        // Python : les points de tous les rôles autres que `role` (deux rôles seulement)
+        let role = self.role_or(role);
+        let other: Vec<&str> = [FILTERS, PID]
+            .into_iter()
+            .filter(|r| *r != role)
+            .flat_map(|r| role_items(r).iter().copied())
+            .collect();
         self.items
             .iter()
             .filter(|it| !other.contains(&it.key.as_str()))
             .collect()
     }
 
+    fn role_or<'a>(&'a self, role: Option<&'a str>) -> &'a str {
+        match role {
+            Some(r) if !r.is_empty() => r,
+            _ => self.role,
+        }
+    }
+
     pub fn usages_for(&self, role: Option<&str>) -> Vec<&Usage> {
-        let role = role.unwrap_or(self.role);
+        let role = self.role_or(role);
         self.usages
             .iter()
             .filter(|u| u.shown && usage_role(&u.key).unwrap_or(role) == role)
@@ -182,11 +194,14 @@ impl LogCheck {
         for it in self.items_for(None) {
             if it.status == WARN || it.status == BLOCK {
                 for f in &it.fixes {
-                    for c in f.cli.lines() {
-                        if !c.is_empty() && !out.iter().any(|o| o == c) {
-                            out.push(c.to_string());
-                        }
-                    }
+                    // `out += [c for c in … if c and c not in out]` : la liste entière est évaluée avant d'être ajoutée
+                    let fresh: Vec<String> = f
+                        .cli
+                        .lines()
+                        .filter(|c| !c.is_empty() && !out.iter().any(|o| o == c))
+                        .map(str::to_string)
+                        .collect();
+                    out.extend(fresh);
                 }
             }
         }

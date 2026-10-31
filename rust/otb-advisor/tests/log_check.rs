@@ -410,3 +410,43 @@ fn les_tables_sont_celles_de_python() {
         assert_eq!(roles[k].as_str().unwrap(), v);
     }
 }
+
+fn warn_item(key: &str, cli: &[&str]) -> CheckItem {
+    CheckItem {
+        key: key.into(),
+        title: "t".into(),
+        status: log_check::WARN,
+        detail: "d".into(),
+        fixes: cli
+            .iter()
+            .map(|c| log_check::Fix {
+                where_: "w".into(),
+                cli: c.to_string(),
+            })
+            .collect(),
+    }
+}
+
+/// Relecture 5b : valeurs de Python (`cli_commands`, `items_for("")`, `items_for("x")`), mesurées avec l'étalon.
+#[test]
+fn cli_commands_et_roles_comme_python() {
+    let ck = LogCheck {
+        label: "l".into(),
+        moving: true,
+        hover: None,
+        moving_part: None,
+        items: vec![warn_item("rates", &["a\na\nb", "b\nc"]), warn_item("log_rate", &["a"])],
+        usages: vec![],
+        windows: vec![],
+        exact: false,
+        sliders: vec![],
+        role: log_check::PID,
+        sp_delay_ms: vec![],
+    };
+    // une ligne répétée dans une même correction est gardée deux fois ; elle n'est ajoutée qu'une fois entre corrections
+    assert_eq!(ck.cli_commands(), ["a", "a", "b", "c"]);
+    let keys = |role| ck.items_for(role).iter().map(|i| i.key.clone()).collect::<Vec<_>>();
+    assert_eq!(keys(Some("")), ["rates"]); // « role or self.role »
+    assert_eq!(keys(Some("x")), ["rates"]); // rôle inconnu : les points des deux rôles sont écartés (log_rate aussi)
+    assert_eq!(keys(Some(log_check::FILTERS)), ["rates", "log_rate"]);
+}
