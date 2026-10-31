@@ -8,14 +8,17 @@
 //! Phase 5a-2b : `Report`, `Analysis` (= `_Analysis`) et `analyze`, avec les règles qui lisent un `FlightLog` : enregistrement, réponse
 //! indicielle, retard consigne → gyro, niveaux de bruit, moteurs, curseurs. **Phase 5a-3a** : `delay_rules` (retards des filtres,
 //! relèvement des filtres du D), `predict_filter_change`, `gyro_lpf1_off` (pas encore appelée : elle sert à `filter_rules`) et `filter_strategy`.
-//! **Pas porté (5a-3b/c)** : `filter_rules`, qui existe ici sans effet pour que `analyze` s'exécute de bout en bout : ses constats et ses
+//! **Phase 5a-3b** : `lowpass_setup_rules`, `rpm_harmonic_levels`, `rpm_weight_rules`, `rpm_q_raise`, les raies du vol stationnaire
+//! (`hover_noise`, `residual_line`, `line_shape`) et le notch statique (`static_notch_cutoff`, `static_notch_case`, `dyn_notch_line_actions`) :
+//! `pub` et appelées seulement par les tests d'appel direct tant que `filter_rules` n'est pas porté.
+//! **Pas porté (5a-3c)** : `filter_rules`, qui existe ici sans effet pour que `analyze` s'exécute de bout en bout : ses constats et ses
 //! mesures (`frame_resonance`, `dyn_notch`, `motor_harmonic_*`, `hover_lines`) manquent, aucune parité n'est prétendue pour eux ; la
 //! stratégie de filtrage rendue par `analyze` ne voit donc que les constats déjà portés.
 
 use crate::profiles::{CraftProfile, detect_profile};
 use otb_analysis::bf_filters::{self, Target, WhatIfCache, WhatIfSpectrum};
 use otb_analysis::delay::{Delays, MOVING_SETPOINT_DPS, compute_delays};
-use otb_analysis::motors::hover_motor_hz;
+use otb_analysis::motors::{SpectrumLine, hover_motor_hz};
 use otb_analysis::npstat::{argmax_f64, mean_f32, median_f32, py_min};
 use otb_analysis::numpy_mean;
 use otb_analysis::open_loop::{LoopMetrics, MEASURED, Terms};
@@ -542,7 +545,7 @@ fn py_max_list(v: &[f64]) -> Option<f64> {
 
 /// Mesures du rapport (`Report.measures`, un dict en Python) sous les noms de Python. `None` : la section n'a pas tourné (toutes sont `Some`
 /// dans un rapport rendu par `analyze`), sauf `hover_motor_hz` où `None` est la valeur `None` de Python.
-/// 5a-3b/c y ajoutera `frame_resonance`, `dyn_notch`, `motor_harmonic_left_db`, `motor_harmonic_raw_db` et `hover_lines`.
+/// 5a-3b y a ajouté `hover_lines` ; 5a-3c y ajoutera `frame_resonance`, `dyn_notch`, `motor_harmonic_left_db` et `motor_harmonic_raw_db`.
 #[derive(Debug, Clone, Default)]
 pub struct Measures {
     pub hover_motor_hz: Option<f64>,
@@ -560,6 +563,8 @@ pub struct Measures {
     pub pid_error_sd: Option<Vec<f64>>,
     pub iterm_mean: Option<Vec<f64>>,
     pub sliders: Option<SliderView>,
+    /// Raies hors moteurs du vol stationnaire (`_hover_noise`, 5a-3b), la plus haute d'abord.
+    pub hover_lines: Option<Vec<SpectrumLine>>,
 }
 
 /// `Report` : le diagnostic d'un vol.
@@ -2027,4 +2032,835 @@ fn slider_rules(a: &mut Analysis) -> Result<(), String> {
     }
     a.meas.sliders = Some(sv);
     Ok(())
+}
+
+// ---------------------------------------------------------------- phase 5a-3b : passe-bas, filtre RPM, raies du vol stationnaire
+
+/// Filtre RPM : plus petit `rpm_filter_q` du firmware (`cli/settings.c`).
+pub const RPM_Q_MIN: i64 = 250;
+/// Poids RPM : marge (dB) au-dessus du bruit voisin, et gain minimal du poids pour le conseiller.
+pub const RPM_WEIGHT_MARGIN_DB: f64 = 3.0;
+pub const RPM_WEIGHT_GAIN_MIN: f64 = 0.5;
+/// Au-delà de cette hauteur (dB) au-dessus du bruit voisin, une raie est « encore visible » (calibration du 2026-10-12).
+pub const HARMONIC_VISIBLE_DB: f64 = 4.0;
+/// Notch dynamique : marge autour d'une raie, bornes de `dyn_notch_min_hz` et de `dyn_notch_max_hz`, pas et plancher du Q.
+pub const DYN_NOTCH_MARGIN_HZ: i64 = 20;
+pub const DYN_NOTCH_MIN_HZ: i64 = 20;
+pub const DYN_NOTCH_MAX_MIN_HZ: i64 = 200;
+pub const DYN_NOTCH_MAX_MAX_HZ: i64 = 1000;
+pub const DYN_NOTCH_Q_STEP: i64 = 50;
+pub const DYN_NOTCH_Q_LOW: i64 = 250;
+/// Notch statique : bornes du Q (× 100), repli de la coupure (× la fréquence) sans mesure de la raie.
+pub const STATIC_NOTCH_Q_LOW: i64 = 100;
+pub const STATIC_NOTCH_Q_HIGH: i64 = 450;
+pub const STATIC_NOTCH_FALLBACK: f64 = 0.7;
+/// Vol stationnaire : raies listées dès 6 dB ; sous 100 Hz, prudence avant de les filtrer.
+pub const HOVER_LINE_MIN_DB: f64 = 6.0;
+pub const HOVER_LOW_LINE_HZ: f64 = 100.0;
+/// Notch dynamique : boucle PID minimale (Hz) et nombre maximal de notchs.
+pub const DYN_NOTCH_PID_MIN_HZ: i64 = 2000;
+pub const DYN_NOTCH_COUNT_MAX: i64 = 7;
+
+/// `int(x)` de Python : tronque vers zéro ; NaN → `ValueError`, infini → `OverflowError`. (Au-delà de i64, la conversion sature : aucun
+/// appelant n'y arrive, et un Q saturé est de toute façon ramené à 450.)
+fn py_int(x: f64) -> Result<i64, String> {
+    if x.is_nan() {
+        return Err("ValueError : cannot convert float NaN to integer".into());
+    }
+    if x.is_infinite() {
+        return Err("OverflowError : cannot convert float infinity to integer".into());
+    }
+    Ok(x.trunc() as i64)
+}
+
+/// `a // b` de Python sur des flottants (`float_floor_div`, identique à `np.floor_divide`) : passe par `fmod`, d'où le NaN de `inf // b`.
+fn py_floordiv(a: f64, b: f64) -> f64 {
+    let m = a % b;
+    let mut div = (a - m) / b;
+    if m != 0.0 && (b < 0.0) != (m < 0.0) {
+        div -= 1.0;
+    }
+    if div != 0.0 {
+        let mut fl = div.floor();
+        if div - fl > 0.5 {
+            fl += 1.0;
+        }
+        fl
+    } else {
+        0.0f64.copysign(a / b)
+    }
+}
+
+/// `np.fmax(a, b)` : un NaN d'un côté laisse l'autre.
+fn fmax(a: f64, b: f64) -> f64 {
+    if a >= b || b.is_nan() { a } else { b }
+}
+
+/// Raccords de `sel` pour les analyses à fenêtres (`log.breaks(sel)`).
+fn breaks_of(log: &FlightLog, sel: &Range<usize>) -> Vec<i64> {
+    log.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect()
+}
+
+/// `log.motor_hz[:, sel]`.
+fn sel_rows(r: &Rows, sel: &Range<usize>) -> Rows {
+    let rg = clamp_range(sel.start, sel.end, r.n);
+    let mut data = Vec::with_capacity(r.k * rg.len());
+    for k in 0..r.k {
+        data.extend_from_slice(&r.row(k)[rg.clone()]);
+    }
+    Rows {
+        k: r.k,
+        n: rg.len(),
+        data,
+    }
+}
+
+/// `list[k]` de Python pour un indice entier relatif (négatif : depuis la fin ; hors bornes : `IndexError`).
+fn at(v: &[f64], k: i64) -> Result<f64, String> {
+    let i = if k < 0 { k + v.len() as i64 } else { k };
+    if i < 0 || i >= v.len() as i64 {
+        return Err("IndexError : list index out of range".into());
+    }
+    Ok(v[i as usize])
+}
+
+/// `_lowpass_setup_rules` : réglages de passe-bas déconseillés par Betaflight (notes de réglage 4.2 / 4.3, aide du configurateur).
+pub fn lowpass_setup_rules(s: &Settings) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let order = |kind: &str| match kind {
+        "PT1" => 1,
+        "PT2" => 2,
+        "PT3" => 3,
+        "BIQUAD" => 2,
+        _ => 1,
+    };
+    if s.pid_rate_hz() < 0.99 * s.gyro_rate_hz() && !s.gyro_lpf2.enabled() {
+        let slow = s.pid_rate_hz() < 3000.0;
+        out.push(Finding::new(
+            "gyro_lpf2_off",
+            "Filtres",
+            if slow { ATTENTION } else { CONSEIL },
+            "LPF2 du gyro coupé : risque de repliement",
+            &format!(
+                "La boucle PID ({} kHz) est plus lente que le gyro ({} kHz) : le LPF2 du gyro sert de filtre anti-repliement avant ce \
+sous-échantillonnage. Sans lui, du bruit haute fréquence se replie dans la bande utile.",
+                fx(s.pid_rate_hz() / 1000.0, 1),
+                fx(s.gyro_rate_hz() / 1000.0, 1)
+            ),
+            vec![format!(
+                "gyro_lpf2_type = PT1, gyro_lpf2_static_hz = {} ({}).",
+                if slow { 500 } else { 1000 },
+                if slow {
+                    "indispensable à 2 kHz"
+                } else {
+                    "à 4 kHz : de 500 à 1000 Hz"
+                }
+            )],
+            None,
+        ));
+    }
+    let d_order: i64 = [&s.dterm_lpf1, &s.dterm_lpf2]
+        .iter()
+        .filter(|lp| lp.enabled())
+        .map(|lp| order(lp.kind))
+        .sum();
+    if d_order < 2 {
+        out.push(Finding::new(
+            "dterm_filter_weak",
+            "Filtres",
+            ATTENTION,
+            "Filtrage du D insuffisant",
+            "Le terme D n'a qu'un filtre du premier ordre (ou aucun) : Betaflight demande au moins deux PT1 ou un filtre du second ordre. \
+Risque de moteurs brûlants ou de départ incontrôlé à l'armement.",
+            vec![
+                "Réactivez le LPF2 du D (dterm_lpf2_type = PT1, dterm_lpf2_static_hz = valeur haute de la plage dynamique du LPF1), ou \
+passez le LPF1 du D en PT2."
+                    .to_string(),
+            ],
+            None,
+        ));
+    }
+    if s.dterm_lpf1.static_hz != 0 && !s.dterm_lpf1.dynamic() {
+        let f = s.dterm_lpf1.static_hz;
+        out.push(Finding::new(
+            "dterm_lpf1_static",
+            "Filtres",
+            INFO,
+            "LPF1 du D en mode statique",
+            &format!(
+                "Le LPF1 du D est fixe à {f} Hz. Betaflight déconseille le mode statique pour le D : en mode dynamique, il filtre plus \
+à bas régime (grondement moteur, armement) et moins en vol (moins de retard, moins de propwash)."
+            ),
+            vec![format!(
+                "dterm_lpf1_dyn_min_hz = {f}, dterm_lpf1_dyn_max_hz = {} (rapport des valeurs par défaut 75–150 Hz, gardé par le curseur \
+« filtre D »).",
+                2 * f
+            )],
+            None,
+        ));
+    }
+    for (name, lp) in [("LPF1", &s.gyro_lpf1), ("LPF2", &s.gyro_lpf2)] {
+        if lp.enabled() && lp.kind == "BIQUAD" {
+            out.push(Finding::new(
+                "gyro_lpf_biquad",
+                "Filtres",
+                INFO,
+                &format!("Biquad sur le {name} du gyro"),
+                "Le biquad peut osciller sur les variations brusques et dépasser près de sa coupure ; Betaflight recommande le PT2, qui \
+filtre presque autant avec moins de retard.",
+                vec![format!("gyro_{}_type = PT2.", name.to_lowercase())],
+                None,
+            ));
+        }
+    }
+    out
+}
+
+/// `rpm_harmonic_levels` : hauteur de chaque harmonique moteur au-dessus du bruit voisin (dB, maximum du roll et du pitch), avant filtres
+/// (gyro non filtré) puis après (gyro filtré). Python lève (`TypeError`) sans gyro non filtré ou sans eRPM.
+pub fn rpm_harmonic_levels(log: &FlightLog, sel: &Range<usize>) -> Result<(Vec<f64>, Vec<f64>), String> {
+    let unf = log
+        .gyro_unfilt
+        .as_ref()
+        .ok_or("TypeError : 'NoneType' object is not subscriptable")?;
+    let mhz = sel_rows(
+        log.motor_hz
+            .as_ref()
+            .ok_or("TypeError : 'NoneType' object is not subscriptable")?,
+        sel,
+    );
+    let br = breaks_of(log, sel);
+    let mut raw = Vec::new();
+    for a in 0..2 {
+        raw.push(otb_analysis::motors::harmonic_prominence(
+            &wide(sel_row(unf, a, sel)),
+            &mhz,
+            log.fs,
+            3,
+            300.0,
+            20.0,
+            Some(&br),
+        )?);
+    }
+    let mut left = Vec::new();
+    for a in 0..2 {
+        left.push(otb_analysis::motors::harmonic_prominence(
+            &wide(sel_row(&log.gyro, a, sel)),
+            &mhz,
+            log.fs,
+            3,
+            300.0,
+            20.0,
+            Some(&br),
+        )?);
+    }
+    let f = |v: &[Vec<f64>]| -> Vec<f64> { v[0].iter().zip(&v[1]).map(|(&a, &b)| fmax(a, b)).collect() };
+    Ok((f(&raw), f(&left)))
+}
+
+/// `_rpm_weight_rules` : poids du filtre RPM : raie restée visible avec un poids réduit, ou poids plus fort que nécessaire (seulement si
+/// `lighten`, c'est-à-dire si le bruit moteur est bien éliminé).
+pub fn rpm_weight_rules(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    lighten: bool,
+    h1_flagged: bool,
+) -> Result<Vec<Finding>, String> {
+    let s = &log.settings;
+    let (raw, left) = rpm_harmonic_levels(log, sel)?;
+    let n = s.rpm_harmonics.min(3);
+    let nu = n.max(0) as usize; // `range(n)` est vide pour n ≤ 0
+    let mut w: Vec<i64> = s.rpm_weights.clone();
+    w.extend([100, 100, 100]);
+    let cur: Vec<f64> = w[..3].iter().map(|&x| x as f64 / 100.0).collect();
+    let mut out = Vec::new();
+    let low: Vec<usize> = (0..nu)
+        .filter(|&k| left[k] > HARMONIC_VISIBLE_DB && cur[k] < 1.0)
+        .collect();
+    if !low.is_empty() {
+        let mut f = Finding::new(
+            "rpm_weight_low",
+            "Filtres",
+            CONSEIL,
+            "Poids du filtre RPM trop bas",
+            &format!(
+                "Raie moteur encore visible après filtrage : {}.",
+                low.iter()
+                    .map(|&k| format!(
+                        "{}e harmonique {} dB au-dessus du bruit voisin, poids {}",
+                        k + 1,
+                        fx(left[k], 1),
+                        fx(cur[k] * 100.0, 0)
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(" ; ")
+            ),
+            vec![
+                "rpm_filter_weights : remontez le poids de cette harmonique (vers 100) avant de toucher à rpm_filter_q.".to_string(),
+            ],
+            None,
+        );
+        f.settings = vec!["rpm_filter_q".to_string()]; // Q attend les poids : rpm_q_raise se tait
+        out.push(f);
+    }
+    // `range(n, 3)` : un n négatif (jamais vu) y compterait des indices relatifs, comme Python
+    let mut missing: Vec<i64> = Vec::new();
+    for k in n..3 {
+        let l = at(&left, k)?;
+        if l.is_finite() && l > HARMONIC_VISIBLE_DB {
+            missing.push(k);
+        }
+    }
+    if !missing.is_empty() {
+        let mx = *missing.iter().max().unwrap();
+        let mut parts = Vec::new();
+        for &k in &missing {
+            parts.push(format!(
+                "la {}e reste {} dB au-dessus du bruit voisin après filtrage",
+                k + 1,
+                fx(at(&left, k)?, 0)
+            ));
+        }
+        out.push(Finding::new(
+            "rpm_harmonic_missing",
+            "Filtres",
+            CONSEIL,
+            "Harmonique moteur hors du filtre RPM",
+            &format!("Le filtre RPM ne traite que {n} harmonique(s) ; {}.", parts.join(" ; ")),
+            vec![format!(
+                "rpm_filter_harmonics = {} (actuellement {n}), en réglant son poids avec rpm_filter_weights (4.5 et plus).",
+                mx + 1
+            )],
+            None,
+        ));
+    }
+    // 1re harmonique déjà signalée par « Bruit moteur mal éliminé » : pas de doublon
+    let full: Vec<usize> = (0..nu)
+        .filter(|&k| left[k] > HARMONIC_VISIBLE_DB && cur[k] >= 1.0 && !(k == 0 && h1_flagged))
+        .collect();
+    if !full.is_empty() {
+        let q_new = RPM_Q_MIN.max(s.rpm_q - RPM_Q_STEP); // comme « Bruit moteur mal éliminé »
+        let mut f = Finding::new(
+            "rpm_line_visible",
+            "Filtres",
+            CONSEIL,
+            "Raie moteur encore visible après le filtre RPM",
+            &format!(
+                "Malgré un poids de 100 : {}. Les notchs RPM sont trop étroits pour la raie, ou mal placés.",
+                full.iter()
+                    .map(|&k| format!(
+                        "{}e harmonique {} dB avant filtres, {} dB après (au-dessus du bruit voisin)",
+                        k + 1,
+                        fx(raw[k], 0),
+                        fx(left[k], 0)
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(" ; ")
+            ),
+            vec![
+                "Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs) : un mauvais nombre de pôles \
+décale tous les notchs."
+                    .to_string(),
+                format!(
+                    "rpm_filter_q {} → {q_new} (notchs plus larges, un peu plus de retard), puis par pas de {RPM_Q_STEP} tant que la raie \
+reste visible.",
+                    s.rpm_q
+                ),
+            ],
+            None,
+        );
+        f.settings = vec!["rpm_filter_q".to_string()];
+        out.push(f);
+    }
+    // rpm_filter_weights n'existe qu'à partir de Betaflight 4.5
+    if !lighten || (!s.version.is_empty() && s.version[..] < [4, 5][..]) {
+        return Ok(out);
+    }
+    let mut new = cur.clone();
+    for k in 1..nu {
+        // 2e et 3e harmoniques, comme la documentation de Betaflight
+        if !(raw[k].is_finite() && left[k] <= HARMONIC_VISIBLE_DB) {
+            continue;
+        }
+        let need = (10.0 * otb_analysis::motors::rpm_weight_needed(raw[k] + RPM_WEIGHT_MARGIN_DB) - 1e-9).ceil() / 10.0;
+        if cur[k] - need >= RPM_WEIGHT_GAIN_MIN - 1e-9 {
+            new[k] = need;
+        }
+    }
+    if new != cur {
+        let fmt = |w: &[f64]| {
+            w[..(n.max(1) as usize).min(3)]
+                .iter()
+                .map(|x| fx(x * 100.0, 0))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let changed: Vec<usize> = (0..nu).filter(|&k| new[k] != cur[k]).collect();
+        out.push(Finding::new(
+            "rpm_weight_lighten",
+            "Filtres",
+            CONSEIL,
+            "Filtre RPM plus fort que nécessaire",
+            &format!(
+                "Avant filtrage, {} : un poids de {} suffit à l'effacer (marge de {} dB). Moins de filtrage = moins de retard.",
+                changed
+                    .iter()
+                    .map(|&k| if raw[k] > 0.0 {
+                        format!("la {}e harmonique ne dépasse le bruit voisin que de {} dB", k + 1, fx(raw[k], 1))
+                    } else {
+                        format!("la {}e harmonique ne dépasse pas le bruit voisin", k + 1)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ; "),
+                changed
+                    .iter()
+                    .map(|&k| fx(new[k] * 100.0, 0))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                fx(RPM_WEIGHT_MARGIN_DB, 0)
+            ),
+            vec![
+                format!("rpm_filter_weights = {} (actuellement {}).", fmt(&new), fmt(&cur)),
+                "Vérifiez sur le log suivant que les raies moteur restent invisibles dans le spectre du gyro filtré et du terme D."
+                    .to_string(),
+            ],
+            None,
+        ));
+    }
+    Ok(out)
+}
+
+/// `_rpm_q_raise` : toutes les harmoniques traitées effacées avec le Q actuel et bruit sous les repères : des notchs plus étroits suffiraient
+/// (moins de retard). Pas de 100 jusqu'à 1000 ; décision de Cédric (2026-10-10). `findings` : les constats déjà posés (`F`).
+pub fn rpm_q_raise(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    findings: &[Finding],
+    hover: bool,
+) -> Result<Option<Finding>, String> {
+    let s = &log.settings;
+    let (_raw, left) = rpm_harmonic_levels(log, sel)?;
+    let treated: Vec<usize> = (0..s.rpm_harmonics.clamp(0, 3) as usize)
+        .filter(|&k| left[k].is_finite())
+        .collect();
+    if treated.is_empty() || treated.iter().any(|&k| left[k] > HARMONIC_VISIBLE_DB) {
+        return Ok(None);
+    }
+    let levels = treated
+        .iter()
+        .map(|&k| format!("{}e {} dB", k + 1, fx(left[k], 0)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let then = if findings.iter().any(|f| f.key == "rpm_weight_lighten") {
+        " Un réglage à la fois : d'abord les poids (« Filtre RPM plus fort que nécessaire »), puis Q."
+    } else {
+        ""
+    };
+    let hover_note = if hover {
+        " Vol stationnaire : bruit vu à un seul régime, à confirmer sur un vol avec des gaz plus hauts."
+    } else {
+        ""
+    };
+    let mut f = Finding::new(
+        "rpm_q_raise",
+        "Filtres",
+        CONSEIL,
+        "Filtre RPM : Q peut monter",
+        &format!(
+            "Les harmoniques traitées sont effacées après filtres (au-dessus du bruit voisin : {levels} ; visible au-delà de {} dB) et le \
+bruit du gyro et du D est sous les repères : des notchs plus étroits suffiraient, avec moins de retard.{then}{hover_note}",
+            fx(HARMONIC_VISIBLE_DB, 0)
+        ),
+        vec![
+            format!(
+                "rpm_filter_q {} → {}, puis par pas de {RPM_Q_STEP} jusqu'à {RPM_Q_MAX} au plus, en vérifiant à chaque pas que les raies \
+moteur ne réapparaissent pas dans le gyro filtré.",
+                s.rpm_q,
+                (s.rpm_q + RPM_Q_STEP).min(RPM_Q_MAX)
+            ),
+            "Température des moteurs après chaque vol d'essai.".to_string(),
+        ],
+        None,
+    );
+    f.settings = vec!["rpm_filter_q".to_string()];
+    Ok(Some(f))
+}
+
+/// `dyn_notch_active` : notch dynamique en service : au moins un notch et boucle PID ≥ 2 kHz.
+pub fn dyn_notch_active(s: &Settings) -> bool {
+    s.dyn_notch_count > 0 && s.dyn_notch_max_hz > 0 && s.pid_rate_hz() >= DYN_NOTCH_PID_MIN_HZ as f64
+}
+
+/// `static_notch_case` : raison de conseiller un notch statique pour une raie fixe à `f0` (cas exceptionnel : le notch dynamique ne peut pas
+/// la traiter), ou `None`. Jamais sous `HOVER_LOW_LINE_HZ`.
+pub fn static_notch_case(s: &Settings, f0: f64) -> Option<String> {
+    if f0 < HOVER_LOW_LINE_HZ {
+        return None;
+    }
+    if s.pid_rate_hz() < DYN_NOTCH_PID_MIN_HZ as f64 {
+        return Some(format!(
+            "boucle PID sous {} kHz : le notch dynamique ne peut pas fonctionner",
+            fx(DYN_NOTCH_PID_MIN_HZ as f64 / 1000.0, 0)
+        ));
+    }
+    if f0 + DYN_NOTCH_MARGIN_HZ as f64 > DYN_NOTCH_MAX_MAX_HZ as f64 {
+        return Some(format!(
+            "raie au-delà de la portée du notch dynamique ({DYN_NOTCH_MAX_MAX_HZ} Hz au plus, à {DYN_NOTCH_MARGIN_HZ} Hz près)"
+        ));
+    }
+    if s.dyn_notch_count >= DYN_NOTCH_COUNT_MAX && dyn_notch_active(s) {
+        return Some(format!(
+            "les {DYN_NOTCH_COUNT_MAX} notchs dynamiques sont déjà en service"
+        ));
+    }
+    None
+}
+
+/// `_dyn_notch_line_actions` : réglages du notch dynamique pour qu'il traite une raie à `f0` (plage, nombre de notchs, mise en service) :
+/// (actions, réglages de `TRACKED_SETTINGS` cités). `Err` si `f0` n'est pas fini (`int()` lève en Python).
+pub fn dyn_notch_line_actions(s: &Settings, f0: f64, fixed: bool) -> Result<(Vec<String>, Vec<String>), String> {
+    let count = vec!["dyn_notch_count".to_string()];
+    let margin = DYN_NOTCH_MARGIN_HZ as f64;
+    if !dyn_notch_active(s) {
+        if s.pid_rate_hz() < DYN_NOTCH_PID_MIN_HZ as f64 {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        let lo = DYN_NOTCH_MIN_HZ.max(py_int(py_floordiv(f0 - margin, 10.0) * 10.0)?);
+        let hi = DYN_NOTCH_MAX_MAX_HZ.min(DYN_NOTCH_MAX_MIN_HZ.max(py_int(-py_floordiv(-(f0 + margin), 10.0) * 10.0)?));
+        return Ok((
+            vec![format!(
+                "Mettez en service le notch dynamique : dyn_notch_count = 1, dyn_notch_min_hz ≤ {lo}, dyn_notch_max_hz ≥ {hi}."
+            )],
+            count,
+        ));
+    }
+    let (lo, hi) = (f0 - margin, f0 + margin);
+    if lo < s.dyn_notch_min_hz as f64 || hi > s.dyn_notch_max_hz as f64 {
+        let new_lo = DYN_NOTCH_MIN_HZ.max(s.dyn_notch_min_hz.min(py_int(py_floordiv(lo, 10.0) * 10.0)?));
+        let new_hi = DYN_NOTCH_MAX_MAX_HZ.min(s.dyn_notch_max_hz.max(py_int(-py_floordiv(-hi, 10.0) * 10.0)?));
+        return Ok((
+            vec![format!(
+                "Notch dynamique : plage {}–{} Hz → dyn_notch_min_hz = {new_lo}, dyn_notch_max_hz = {new_hi} ({DYN_NOTCH_MARGIN_HZ} Hz de \
+marge autour de la raie).",
+                s.dyn_notch_min_hz, s.dyn_notch_max_hz
+            )],
+            Vec::new(),
+        ));
+    }
+    if fixed {
+        return Ok((
+            vec![format!(
+                "Elle est dans la plage du notch dynamique ({}–{} Hz), qui peut la suivre si un notch est libre.",
+                s.dyn_notch_min_hz, s.dyn_notch_max_hz
+            )],
+            Vec::new(),
+        ));
+    }
+    Ok((
+        vec![format!(
+            "La raie est dans la plage du notch dynamique mais passe quand même : dyn_notch_count {} → {} (si le Q est trop haut pour \
+elle, le constat « Notch dynamique : Q trop haut » le dit).",
+            s.dyn_notch_count,
+            (s.dyn_notch_count + 1).min(DYN_NOTCH_COUNT_MAX)
+        )],
+        count,
+    ))
+}
+
+/// `_static_notch_action` : notch statique, seulement dans un cas exceptionnel (`static_notch_case`).
+pub fn static_notch_action(s: &Settings, f0: f64, cutoff: (i64, bool), lead: &str) -> Vec<String> {
+    match static_notch_case(s, f0) {
+        Some(why) => vec![format!(
+            "{lead} notch statique ({why}) : {}.",
+            static_notch_text(f0, cutoff)
+        )],
+        None => Vec::new(),
+    }
+}
+
+/// `dyn_notch_q_need` : plus haut Q du notch dynamique (× 100, comme Betaflight) qui ramène chaque raie à `HARMONIC_VISIBLE_DB` au plus du
+/// bruit voisin sur sa demi-largeur : `Q = f0·h / (2d·√(1 − h²))` pour une atténuation `h`. `None` sans raie mesurable ; `inf` si aucune
+/// n'en a besoin.
+pub fn dyn_notch_q_need(peaks: &[f64], widths: &[f64], heights: &[f64]) -> Option<f64> {
+    let mut qs = Vec::new();
+    for ((&f0, &w), &ht) in peaks.iter().zip(widths).zip(heights) {
+        if !(w.is_finite() && w > 0.0 && ht.is_finite()) {
+            continue;
+        }
+        let need_db = ht - HARMONIC_VISIBLE_DB;
+        if need_db <= 0.0 {
+            qs.push(f64::INFINITY);
+            continue;
+        }
+        let h = 10f64.powf(-need_db / 20.0);
+        qs.push(100.0 * f0 * h / (w * (1.0 - h * h).sqrt())); // 2d = w
+    }
+    py_min_list(&qs)
+}
+
+/// `_q_round` : `int(max(low, q // 50 * 50))`. `Err` si le résultat n'est pas fini (`int()` lève) ; `inf // 50` vaut NaN en Python, donc `low`.
+pub fn q_round(q: f64, low: i64) -> Result<i64, String> {
+    py_int(py_max(
+        low as f64,
+        py_floordiv(q, DYN_NOTCH_Q_STEP as f64) * DYN_NOTCH_Q_STEP as f64,
+    ))
+}
+
+/// `static_notch_cutoff` : coupure (Hz) de `gyro_notch1` pour une raie de largeur à mi-puissance `width` et de hauteur `height` (dB) : Q
+/// nécessaire (arrondi comme le notch dynamique, de 100 à 450), puis `c = f0·(√(1 + 4Q²) − 1) / (2Q)`, arrondie vers le bas. Renvoie aussi
+/// si la raie a été mesurée (sinon repli à 0,7 × la fréquence).
+pub fn static_notch_cutoff(f0: f64, width: f64, height: f64) -> Result<(i64, bool), String> {
+    let q = dyn_notch_q_need(&[f0], &[width], &[height]);
+    let Some(q) = q.filter(|q| q.is_finite()) else {
+        return Ok((py_int(f0 * STATIC_NOTCH_FALLBACK)?, false));
+    };
+    let qq = q_round(q, STATIC_NOTCH_Q_LOW)?.min(STATIC_NOTCH_Q_HIGH) as f64 / 100.0;
+    Ok((py_int(f0 * ((1.0 + 4.0 * qq * qq).sqrt() - 1.0) / (2.0 * qq))?, true))
+}
+
+/// `_line_shape` : largeur et hauteur d'une raie dans le gyro non filtré, la plus large et la plus haute du roll et du pitch ; NaN sans gyro
+/// non filtré ou sans eRPM.
+pub fn line_shape(log: &FlightLog, sel: &Range<usize>, f0: f64) -> Result<(f64, f64), String> {
+    let (Some(unf), Some(mhz)) = (&log.gyro_unfilt, &log.motor_hz) else {
+        return Ok((f64::NAN, f64::NAN));
+    };
+    let mhz = sel_rows(mhz, sel);
+    let br = breaks_of(log, sel);
+    let mut sh = Vec::new();
+    for a in 0..2 {
+        let r = otb_analysis::motors::line_shapes(
+            &wide(sel_row(unf, a, sel)),
+            &mhz,
+            log.fs,
+            &[f0],
+            log.settings.rpm_harmonics,
+            300.0,
+            Some(&br),
+            Some(&log.settings),
+        )?;
+        sh.push(r[0]);
+    }
+    // `worst` : np.nanmax si une valeur est finie, sinon NaN
+    let worst = |vals: [f64; 2]| {
+        if vals.iter().any(|v| v.is_finite()) {
+            vals.iter()
+                .copied()
+                .filter(|v| !v.is_nan())
+                .fold(f64::NEG_INFINITY, f64::max)
+        } else {
+            f64::NAN
+        }
+    };
+    Ok((worst([sh[0].0, sh[1].0]), worst([sh[0].1, sh[1].1])))
+}
+
+/// `_static_notch_text`.
+pub fn static_notch_text(f0: f64, cutoff: (i64, bool)) -> String {
+    let how = if cutoff.1 {
+        "calculée d'après la largeur de la raie"
+    } else {
+        "0,7 × la fréquence : raie trop faible ou absente dans le spectre moyen du gyro non filtré"
+    };
+    format!(
+        "gyro_notch1_hz = {}, gyro_notch1_cutoff = {} (coupure {how})",
+        fx(f0, 0),
+        cutoff.0
+    )
+}
+
+/// `_low_line_caveat` : mise en garde pour une raie sous `HOVER_LOW_LINE_HZ` (bande de travail du PID).
+pub fn low_line_caveat(f0: f64) -> String {
+    if f0 >= HOVER_LOW_LINE_HZ {
+        return String::new();
+    }
+    format!(
+        " Sous {} Hz, un notch ajoute du retard là où le PID travaille, et la raie peut venir d'une oscillation de réglage (P ou D) \
+plutôt que de la mécanique : vérifiez la réponse sur un vol avec mouvements avant de filtrer.",
+        fx(HOVER_LOW_LINE_HZ, 0)
+    )
+}
+
+/// `_residual_line` : raie hors moteurs encore visible après filtrage : où la traiter.
+pub fn residual_line(s: &Settings, ln: &SpectrumLine, cutoff: Option<(i64, bool)>) -> Result<Finding, String> {
+    let f0 = ln.freq_hz;
+    let mut actions = vec![
+        "Cherchez d'abord une cause mécanique : vis, antennes, câbles, caméra, pile de cartes, hélices.".to_string(),
+    ];
+    let (notch, settings) = dyn_notch_line_actions(s, f0, false)?;
+    actions.extend(notch);
+    let cutoff = match cutoff {
+        Some(c) => c,
+        None => (py_int(f0 * STATIC_NOTCH_FALLBACK)?, false),
+    };
+    actions.extend(static_notch_action(s, f0, cutoff, "Cas exceptionnel,"));
+    let caveat = low_line_caveat(f0);
+    let mut f = Finding::new(
+        "hover_line_residual",
+        "Filtres",
+        CONSEIL,
+        &format!("Raie à {} Hz encore visible après filtrage", fx(f0, 0)),
+        &format!(
+            "En vol stationnaire, une raie qui ne vient pas des moteurs dépasse le bruit voisin de {} dB avant filtres et de {} dB après : \
+les filtres actuels ne la traitent pas.{caveat}",
+            fx(ln.raw_db, 0),
+            fx(ln.left_db, 0)
+        ),
+        actions,
+        None,
+    );
+    f.settings = settings;
+    Ok(f)
+}
+
+/// `_hover_noise` : vol stationnaire : régime stable, le meilleur log pour identifier le bruit. Bilan des harmoniques moteur, des raies qui
+/// n'en viennent pas (résonances, bruit résiduel) et du bruit restant ; conseil pour chaque raie encore visible après filtrage. Écrit
+/// `meas.hover_lines`. (Le paramètre `profile` de Python n'est pas lu : il n'est pas repris.) Python lève sans gyro non filtré ou sans eRPM.
+pub fn hover_noise(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    g_ptb: f64,
+    d_ptb: f64,
+    fixed_hz: Option<f64>,
+    meas: &mut Measures,
+    aliased: bool,
+) -> Result<Vec<Finding>, String> {
+    let s = &log.settings;
+    let hz = hover_motor_hz(log);
+    let mut lines: Vec<SpectrumLine> = Vec::new();
+    let unf = log
+        .gyro_unfilt
+        .as_ref()
+        .ok_or("TypeError : 'NoneType' object is not subscriptable")?;
+    let mhz = sel_rows(
+        log.motor_hz
+            .as_ref()
+            .ok_or("TypeError : 'NoneType' object is not subscriptable")?,
+        sel,
+    );
+    let br = breaks_of(log, sel);
+    for a in 0..2 {
+        let found = otb_analysis::motors::spectrum_lines(
+            &wide(sel_row(unf, a, sel)),
+            &wide(sel_row(&log.gyro, a, sel)),
+            &mhz,
+            log.fs,
+            (20.0, 900.0),
+            HOVER_LINE_MIN_DB,
+            8,
+            300.0,
+            Some(&br),
+        )?;
+        for ln in found {
+            let near = lines
+                .iter()
+                .position(|o| (o.freq_hz - ln.freq_hz).abs() <= 0.1 * o.freq_hz);
+            match near {
+                None => lines.push(ln),
+                Some(i) if ln.raw_db > lines[i].raw_db => lines[i] = ln,
+                Some(_) => {}
+            }
+        }
+    }
+    // `lines.sort(key=-raw_db)` : tri stable
+    lines.sort_by(|a, b| (-a.raw_db).total_cmp(&(-b.raw_db)));
+    meas.hover_lines = Some(lines.clone());
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(hz) = hz {
+        parts.push(format!(
+            "moteurs à {} Hz (harmoniques {} Hz)",
+            fx(hz, 0),
+            [1.0, 2.0, 3.0]
+                .iter()
+                .map(|h| fx(h * hz, 0))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if s.rpm_harmonics > 0 {
+        let (raw, left) = rpm_harmonic_levels(log, sel)?;
+        let harm: Vec<String> = (0..3)
+            .filter(|&k| raw[k].is_finite() && left[k].is_finite())
+            .map(|k| format!("{}e {} → {} dB", k + 1, fx(raw[k], 0), fx(left[k], 0)))
+            .collect();
+        if !harm.is_empty() {
+            parts.push(format!(
+                "hauteur des harmoniques avant → après filtres : {}",
+                harm.join(", ")
+            ));
+        }
+    }
+    parts.push(format!(
+        "autres raies : {}",
+        if lines.is_empty() {
+            format!("aucune au-dessus de {} dB", fx(HOVER_LINE_MIN_DB, 0))
+        } else {
+            lines
+                .iter()
+                .take(5)
+                .map(|o| {
+                    format!(
+                        "{} Hz ({} → {} dB)",
+                        fx(o.freq_hz, 0),
+                        fx(o.raw_db, 0),
+                        fx(o.left_db, 0)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        }
+    ));
+    parts.push(if d_ptb.is_finite() {
+        format!(
+            "bruit restant : gyro {} dB (repère {}), D {} dB (repère {}) sur l'échelle de PIDtoolbox",
+            fx(g_ptb, 0),
+            fx(GYRO_PTB_MAX_DB, 0),
+            fx(d_ptb, 0),
+            fx(DTERM_PTB_MAX_DB, 0)
+        )
+    } else {
+        format!(
+            "bruit restant : gyro {} dB (repère {}) sur l'échelle de PIDtoolbox",
+            fx(g_ptb, 0),
+            fx(GYRO_PTB_MAX_DB, 0)
+        )
+    });
+    let mut out = vec![Finding::new(
+        "hover_noise_summary",
+        "Filtres",
+        INFO,
+        "Vol stationnaire : bruit identifié",
+        &format!(
+            "Régime stable, raies moteur repérées par l'eRPM : {}.{}",
+            parts.join(" ; "),
+            if aliased {
+                " Log trop lent : certaines raies peuvent être des repliements."
+            } else {
+                ""
+            }
+        ),
+        Vec::new(),
+        None,
+    )];
+    if aliased {
+        return Ok(out);
+    }
+    for ln in &lines {
+        if ln.left_db.is_nan() || ln.left_db <= HARMONIC_VISIBLE_DB {
+            continue;
+        }
+        if let Some(fh) = fixed_hz
+            && (ln.freq_hz - fh).abs() <= 0.1 * fh
+        {
+            continue; // déjà traitée par le constat « Raie fixe »
+        }
+        // notch statique : cas exceptionnel seulement
+        let cutoff = if static_notch_case(s, ln.freq_hz).is_some() {
+            let (w, h) = line_shape(log, sel, ln.freq_hz)?;
+            Some(static_notch_cutoff(ln.freq_hz, w, h)?)
+        } else {
+            None
+        };
+        out.push(residual_line(s, ln, cutoff)?);
+    }
+    Ok(out)
 }
