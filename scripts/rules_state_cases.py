@@ -12,8 +12,7 @@ des constats que l'ensemble des cas doit produire au moins une fois (`REQUIRED`)
 Familles de cas :
 - enregistrement : `log_rate_low` / `log_rate_low_filters` / `log_rate_harmonics` (deux actions), `gyro_unfilt_missing`, `rpm_missing`,
   `recording_gaps` (1 puis plusieurs trous, période qui exclut le trou), `crash` ;
-- réponse indicielle : `step_few_windows` (aucun axe, un seul axe lu), `step_roll_pitch_gap` (écart > 0, < 0, égal au seuil, juste
-  sous le seuil), mode Angle (gain F coupé) ;
+- réponse indicielle : `step_few_windows` (aucun axe, un seul axe lu), `step_roll_pitch_gap` (écart > 0, < 0, seuil 1e-9 de part et d'autre de l'écart), mode Angle (gain F coupé) ;
 - bruit : `dterm_noisy` (corpus seul, PTB seul, les deux), `gyro_noisy`, `gyro_noise_level` OK et INFO, `dterm_noise_level`, terme D nul
   (liste `d_db` vide), nul sur un seul axe, nul seulement dans la période, bande vide (NaN), seuils posés 1e-9 dB de part et d'autre de la mesure (les niveaux viennent d'une FFT : Rust et Python diffèrent de ~1e-14 dB, l'égalité exacte n'a pas de sens) ;
 - moteurs : `motor_saturation` (et égalité), `motor_imbalance` (6 géométries, sous le seuil, égalité), `iterm_offset` roll / pitch / les deux
@@ -323,8 +322,9 @@ def main():
     gap = abs(d0)
     print(f"  écart pitch − roll de la base : {d0!r}", file=sys.stderr)
     case("écart roll / pitch, seuil 0", base, base=five, over={"roll_pitch_gap_high": 0.0})
-    case("écart roll / pitch, seuil = écart (pas de constat)", base, base=five, over={"roll_pitch_gap_high": gap})
-    case("écart roll / pitch, juste sous l'écart", base, base=five, over={"roll_pitch_gap_high": down(gap)})
+    # le pic vient d'une FFT (`step_response`) : Rust, Python et Windows diffèrent de quelques ulp, un seuil posé à l'ulp n'a pas de sens (L-059)
+    case("écart roll / pitch, seuil 1e-9 au-dessus de l'écart (pas de constat)", base, base=five, over={"roll_pitch_gap_high": gap + 1e-9})
+    case("écart roll / pitch, seuil 1e-9 sous l'écart", base, base=five, over={"roll_pitch_gap_high": gap - 1e-9})
     case("écart roll / pitch, seuil du profil", base, base=five)
 
     def swap01(a):
@@ -334,7 +334,7 @@ def main():
     for nm in ("setpoint", "gyro", "rc_command", "p_term", "i_term", "d_term", "f_term"):
         sw = rows(sw, nm, swap01)
     case("axes échangés (écart de signe contraire), seuil 0", sw, base=five, over={"roll_pitch_gap_high": 0.0})
-    case("axes échangés, seuil = écart", sw, base=five, over={"roll_pitch_gap_high": gap})
+    case("axes échangés, seuil 1e-9 au-dessus de l'écart", sw, base=five, over={"roll_pitch_gap_high": gap + 1e-9})
     angle = build(flags=1 | ANGLE_MODE_MASK)
     case("journal en mode Angle", angle, base=five)
     case("modes de vol non enregistrés", build(flags=None), base=five)

@@ -82,6 +82,7 @@ est celle du commit qui les a introduites.
 - **Preuve** — `rust/otb-advisor/src/rules.rs:smooth15` et `smooth5`, `rust/otb-advisor/tests/smooth.rs` (sorties de numpy dans `rust/otb-advisor/tests/data/smooth.json`, écrites par `scripts/smooth_cases.py` ;
   `OTB_BITEXACT=1 cargo test -p otb-advisor --test smooth` : 32 328 et 33 376 valeurs identiques au bit près) ; corpus : 630 sessions, écart maximal 2,3e-13 sur les mesures de filtres. (Avec un lissage « simple », l'écart serait de l'ordre de 1e-16 :
   invisible à la tolérance du corpus. L'ordre exact n'est donc pas prouvé par le corpus, seulement par la mesure ci-dessus.)
+- **Complément (2026-10-31, PR de la 5a)** — deux autres formes du même piège, vues par la CI Windows : (1) un test d'`analyze` qui comparait au bit près les mesures de réponse indicielle (`steps`, 4 ulp d'écart) ; (2) un cas dont le **seuil était posé à un ulp** de la mesure (`down(gap)`) : l'écart venant d'une FFT, la décision bascule d'une plate-forme à l'autre. Règle : tout seuil de cas écrit qui touche une mesure issue d'une FFT se pose à ±1e-9 de la mesure, jamais à l'ulp ; `cargo test --no-fail-fast` dans le job Windows pour voir tous les échecs d'un coup.
 
 ### L-060 : `\w`, `\d` et `\s` de Python ne sont pas `is_alphanumeric`, `is_numeric` ni `is_whitespace` de Rust
 - **Symptôme** — 2026-10-30 (5a-1, `profiles.py`) : le premier essai de `\w` par `c == '_' || c.is_alphanumeric()` diffère de Python pour **6 167 caractères** sur 1,1 M de points
