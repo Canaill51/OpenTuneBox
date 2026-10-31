@@ -13,4 +13,5 @@ pub mod flightlog_digest;
 pub mod layers;
 pub mod registry;
 pub mod settings_json;
+pub mod tuning_layer;
 pub mod value;

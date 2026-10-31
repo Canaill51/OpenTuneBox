@@ -6,8 +6,10 @@
 //! **tous** les constats (`report|findings|…`, `report|sorted|…`) et toutes les mesures (`report|measures|…`) sont comparés. Depuis la
 //! phase 5a-4, le diagnostic du bruit (`noise::noise_report`, clés `noise|…` : bande, niveaux par axe, harmoniques, constats rangés par partie,
 //! blocs de filtres avec observations, réglages et verdicts, stratégie) l'est aussi, textes au caractère près ; une clé `noise|…` de Python
-//! absente de Rust, ou l'inverse, est un échec. Seules les clés de la réponse indicielle (`tuning|…`, 5a-5) sont ignorées et comptées ; toute
-//! autre clé de Python doit exister côté Rust.
+//! absente de Rust, ou l'inverse, est un échec. La réponse indicielle par séries (`step_tuning`, 5a-5) a sa propre couche, un fichier par
+//! dossier (`tuning_layer.rs`, `DOSSIER/advisor_tuning/`) : une clé `tuning|…` dans un fichier de session est donc un échec ici. Seules les clés
+//! d'identification (`_session`, `_n`, `_sel`) et les nombres de constats (comparés par la longueur des listes) sont comptées sans comparaison ;
+//! toute autre clé de Python doit exister côté Rust.
 
 use crate::analysis_layer::{DELAY_TOL, Flat, Item, SLIDERS_TOL, compare_item, put_flight_stats, put_opt, stem};
 use crate::value::{Array, load_arrays};
@@ -64,7 +66,7 @@ pub const NOISE_TOL: f64 = 1e-12;
 pub const FILTER_TOL: f64 = 1e-11;
 
 /// L'assistant analyse-t-il cette session ? (mêmes critères que `golden_advisor.advisor_record` : au moins 8 s, période d'au moins 5 s.)
-fn analysed(lg: &FlightLog) -> Option<std::ops::Range<usize>> {
+pub(crate) fn analysed(lg: &FlightLog) -> Option<std::ops::Range<usize>> {
     if lg.duration() < 8.0 {
         return None;
     }
@@ -80,7 +82,7 @@ fn put_list(f: &mut Flat, key: &str, v: &[f64], tol: f64) {
 }
 
 /// Les champs d'un constat sous les noms de Python (`<prefix>|key`, `|actions[j]`…).
-fn put_finding(f: &mut Flat, prefix: &str, x: &Finding) {
+pub(crate) fn put_finding(f: &mut Flat, prefix: &str, x: &Finding) {
     let s = |v: &str| Item::S(v.to_string());
     f.insert(format!("{prefix}|key"), s(&x.key));
     f.insert(format!("{prefix}|category"), s(&x.category));
@@ -358,10 +360,10 @@ fn is_filter_measure(key: &str) -> bool {
         .any(|p| key.starts_with(&format!("report|measures|{p}")))
 }
 
-/// Clés des parties de l'assistant pas encore portées (la réponse indicielle : 5a-5) et clés d'identification de la session : les seules que
-/// la couche ignore (en les comptant).
-fn is_later_phase(key: &str) -> bool {
-    key.starts_with("tuning|") || matches!(key, "_session" | "_n" | "_sel")
+/// Clés d'identification de la session : les seules que la couche ne compare pas (elle les compte). Depuis 5a-5, plus aucune partie de
+/// l'assistant n'est ignorée : la réponse indicielle est jugée par `tuning_layer.rs`.
+fn is_identification(key: &str) -> bool {
+    matches!(key, "_session" | "_n" | "_sel")
 }
 
 /// `report|<liste>|items[i]|…` : l'indice `i` d'une clé de constat de Python.
@@ -376,7 +378,7 @@ pub struct AdvisorReport {
     pub sessions: usize,
     /// Clés comparées.
     pub keys: usize,
-    /// Clés de Python pas encore portées (ignorées).
+    /// Clés non comparées une à une : identification de la session et nombres de constats (comparés par la longueur des listes).
     pub skipped: usize,
     /// Plus grand écart normalisé des valeurs comparées à une tolérance.
     pub worst: f64,
@@ -521,7 +523,7 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AdvisorReport)
             if !got.contains_key(k) {
                 rep.failures.push(format!("{who} : {k} absente de Rust"));
             }
-        } else if is_later_phase(k) {
+        } else if is_identification(k) {
             rep.skipped += 1;
         } else {
             rep.failures

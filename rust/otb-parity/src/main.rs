@@ -56,7 +56,7 @@ fn main() {
             println!("≠ {f}");
         }
         println!(
-            "assistant ({}) : {} sessions, {} clés comparées, {} clés de la réponse indicielle (portée en 5a-5) ignorées, {} écarts",
+            "assistant ({}) : {} sessions, {} clés comparées, {} clés d'identification ou de comptage non comparées, {} écarts",
             otb_parity::advisor_layer::PORTED.join(", "),
             rep.sessions,
             rep.keys,
@@ -80,7 +80,45 @@ fn main() {
             "  dont mesures de filtres (raie fixe, notch dynamique, vol stationnaire) : {:e}",
             rep.worst_filter
         );
-        std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });
+        // réponse indicielle par séries de vols (5a-5) : un fichier par dossier, refaite depuis les vols recalculés en Rust
+        let tun = otb_parity::tuning_layer::check_tuning(&PathBuf::from(dir), &PathBuf::from(&root), threads)
+            .unwrap_or_else(|e| {
+                eprintln!("{e}");
+                std::process::exit(2)
+            });
+        for f in tun.failures.iter().take(15) {
+            println!("≠ {f}");
+        }
+        println!(
+            "réponse indicielle par séries (tuning) : {} dossiers rejoués ({} sessions du premier niveau), {} avec au moins une série, {} où Python et Rust lèvent, {} clés comparées, {} écarts",
+            tun.groups,
+            tun.sessions,
+            tun.with_series,
+            tun.errors_replayed,
+            tun.keys,
+            tun.failures.len()
+        );
+        println!(
+            "  blocs de série : {}",
+            tun.series
+                .iter()
+                .map(|(k, n)| format!("{k} ×{n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        println!(
+            "  constats comparés : {}",
+            tun.findings
+                .iter()
+                .map(|(k, n)| format!("{k} ×{n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        std::process::exit(if rep.failures.is_empty() && tun.failures.is_empty() {
+            0
+        } else {
+            1
+        });
     }
     if mode == "check-analysis" {
         let root = std::env::var("OTB_LOGS")
