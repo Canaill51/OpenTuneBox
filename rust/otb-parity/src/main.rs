@@ -68,22 +68,18 @@ fn main() {
             otb_parity::advisor_layer::PORTED_MEASURES.join(", ")
         );
         println!(
-            "  constats comparés (KEYS_5A2B, Python filtré contre Rust) : {}",
+            "  constats comparés (tous) : {}",
             rep.compared_findings
                 .iter()
                 .map(|(k, n)| format!("{k} ×{n}"))
                 .collect::<Vec<_>>()
                 .join(", ")
         );
-        println!(
-            "  constats EXCLUS (5a-3b/c, non portés) : {}",
-            rep.excluded
-                .iter()
-                .map(|(k, n)| format!("{k} ×{n}"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
         println!("  écart maximal aux tolérances : {:e}", rep.worst);
+        println!(
+            "  dont mesures de filtres (raie fixe, notch dynamique, vol stationnaire) : {:e}",
+            rep.worst_filter
+        );
         std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });
     }
     if mode == "check-analysis" {

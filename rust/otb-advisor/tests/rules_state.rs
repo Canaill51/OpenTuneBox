@@ -5,8 +5,9 @@
 //!
 //! Exigé : textes identiques au caractère près, mêmes constats dans le même ordre, mêmes gravités après le tri stable, mesures identiques au
 //! bit près (écart mesuré et affiché pour les retards et les niveaux de bruit, qui passent par des FFT).
-//! **Seuls les constats de `KEYS`** (parties portées en 5a-2b) sont comparés : `delay_rules`, `filter_rules` et `filter_strategy` (5a-3)
-//! n'existent pas encore côté Rust.
+//! **Seuls les constats de `KEYS`** (parties portées en 5a-2b) sont comparés ici ; `delay_rules`, `filter_rules` et `filter_strategy` (5a-3) le
+//! sont sur le corpus par `otb-parity check-advisor` (tous les constats, toutes les mesures) et par les appels directs de `rules_delay.rs`,
+//! `rules_rpm.rs` et `rules_notch.rs`.
 
 use otb_advisor::profiles::{CraftProfile, profile};
 use otb_advisor::rules::{self, Finding};

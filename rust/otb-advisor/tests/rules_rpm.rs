@@ -1,8 +1,8 @@
 //! Règles de passe-bas, de filtre RPM et de raies du vol stationnaire de `advisor/rules.py` en Rust (phase 5a-3b) sur des journaux fabriqués :
 //! cas écrits par `scripts/rules_rpm_cases.py` (régénérer `tests/data/rules_rpm.json` avec ce script si `rules.py` change).
 //!
-//! **Appels directs seulement** : ces règles ne sont appelées que par `filter_rules`, pas encore porté (5a-3c). `analyze` ne les atteint pas
-//! côté Rust, donc la couche corpus (`otb-parity check-advisor`) ne les compare pas. Exigé : textes identiques au caractère près, mêmes
+//! **Appels directs** : ces règles ne sont appelées que par `filter_rules` (porté en 5a-3c, comparé sur le corpus par `otb-parity
+//! check-advisor`) ; les appels directs atteignent les branches que le corpus n'atteint pas. Exigé : textes identiques au caractère près, mêmes
 //! constats dans le même ordre, mêmes erreurs ; nombres issus de FFT (niveaux d'harmoniques, raies, forme d'une raie) à une tolérance
 //! mesurée ; nombres de pure arithmétique (`dyn_notch_q_need`) identiques au bit près.
 

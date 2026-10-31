@@ -60,6 +60,16 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-061 : `np.convolve(x, np.ones(15) / 15, "same")` somme dans l'ordre croissant avec des FMA ; seule la comparaison au bit près le montre
+- **Symptôme** — 2026-10-31 (5a-3c, `frame_resonance`) : les trois autres façons de sommer le lissage par 15 valeurs (croissant sans FMA, décroissant avec ou sans FMA) diffèrent de numpy
+  sur 1 772 à 2 222 valeurs sur 3 000 (dernier bit seulement).
+- **Cause** — `np.convolve` passe par le produit scalaire de la bibliothèque BLAS de numpy ; sur ce poste la boucle de queue (moins de 16 valeurs) fusionne le produit et la somme
+  (`acc = fma(x[j], 1/15, acc)`) en partant de la fenêtre la plus ancienne. Python 3.14 : `math.fma`.
+- **Règle** — pour une convolution courte, mesurer les quatre variantes (ordre croissant ou décroissant, avec ou sans FMA) sur des signaux aléatoires avant de choisir ; ici seule
+  « croissant + FMA » donne 0 écart sur 3 000 valeurs (`f64::mul_add` en Rust). Dépend du poste (BLAS) : à relire si la tolérance des mesures de raies (`FILTER_TOL`) est un jour trop juste.
+- **Preuve** — `rust/otb-advisor/src/rules.rs:smooth15` ; corpus : 630 sessions, écart maximal 2,3e-13 sur les mesures de filtres. (Avec un lissage « simple », l'écart serait de l'ordre de 1e-16 :
+  invisible à la tolérance du corpus. L'ordre exact n'est donc pas prouvé par le corpus, seulement par la mesure ci-dessus.)
+
 ### L-060 : `\w`, `\d` et `\s` de Python ne sont pas `is_alphanumeric`, `is_numeric` ni `is_whitespace` de Rust
 - **Symptôme** — 2026-10-30 (5a-1, `profiles.py`) : le premier essai de `\w` par `c == '_' || c.is_alphanumeric()` diffère de Python pour **6 167 caractères** sur 1,1 M de points
   de code (premier : U+0345, un signe combinant) ; `\s` diffère par U+001C à U+001F (`str.isspace` les compte, pas `White_Space`).
@@ -748,6 +758,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-061 | `np.convolve(x, ones(15)/15, "same")` : somme croissante avec FMA (mesuré, 4 variantes essayées) ; l'ordre « évident » diffère au dernier bit | Outillage |
 | L-060 | `\w`, `\d`, `\s` de Python ≠ `is_alphanumeric`, `is_numeric`, `is_whitespace` de Rust : table générée depuis Python, vérifiée sur tous les points de code | Outillage |
 | L-059 | « Identique au bit près » après une FFT : vrai sur le poste des références seulement ; tolérance dans les tests de la CI, relire toute la sortie Windows (cargo s'arrête au 1er échec) | Outillage |
 | L-058 | Ordre des sommes de numpy : `x[..., masque]` et matrice d'une colonne sont « Fortran », somme par paires sur l'axe 0 (≥ 8 valeurs) | Analyses |

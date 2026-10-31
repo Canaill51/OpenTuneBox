@@ -6,7 +6,8 @@ Usage : rules_state_cases.py SORTIE.json    (à exécuter avec `.venv/bin/python
 Complète `rules_cases.py` (fonctions sans état) et la couche corpus (`otb-parity check-advisor`) : des vols courts fabriqués
 (signal lisse, bruit réglable) font atteindre les branches que le corpus ne couvre pas ou mal. Chaque cas appelle l'étalon Python
 `analyze(log, sel, profile)` et garde, de son rapport, **seulement** les constats produits par les parties portées en 5a-2b
-(`KEYS`, mêmes clés que `advisor_layer.KEYS_5A2B`) : `delay_rules`, `filter_rules` et `filter_strategy` (5a-3) ne sont pas encore en Rust.
+(`KEYS`) : `delay_rules`, `filter_rules` et `filter_strategy` (5a-3) sont comparés ailleurs (corpus : `otb-parity check-advisor`, appels
+directs : `rules_delay_cases.py`, `rules_rpm_cases.py`, `rules_notch_cases.py`).
 
 Familles de cas :
 - enregistrement : `log_rate_low` / `log_rate_low_filters` / `log_rate_harmonics` (deux actions), `gyro_unfilt_missing`, `rpm_missing`,
@@ -44,7 +45,7 @@ from opentunebox.advisor.rules import analyze  # noqa: E402
 from opentunebox.log.flightlog import ANGLE_MODE_MASK, FlightLog  # noqa: E402
 from opentunebox.log.settings import parse_settings  # noqa: E402
 
-# Constats des parties portées en 5a-2b (même liste que `advisor_layer.KEYS_5A2B`)
+# Constats des parties portées en 5a-2b
 KEYS = ("profile_provisional", "log_rate_low", "log_rate_low_filters", "log_rate_harmonics", "gyro_unfilt_missing", "rpm_missing",
         "recording_gaps", "crash", "step_ff_overshoot", "step_overshoot_strong", "step_overshoot_light", "step_soft", "step_ok",
         "loop_sensitivity_high", "loop_phase_margin_low", "step_few_windows", "step_roll_pitch_gap", "setpoint_delay", "dterm_noisy",

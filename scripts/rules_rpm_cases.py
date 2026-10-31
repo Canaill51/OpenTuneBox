@@ -8,8 +8,8 @@ Porté en 5a-3b : `_lowpass_setup_rules`, `rpm_harmonic_levels`, `_rpm_weight_ru
 `_residual_line`, `_line_shape`, `static_notch_cutoff`, `static_notch_case`, `dyn_notch_active`, `_dyn_notch_line_actions`,
 `_static_notch_action`, `_static_notch_text`, `_low_line_caveat`, `dyn_notch_q_need`, `_q_round`.
 
-**Appels directs seulement** : ces règles ne sont appelées que par `_filter_rules`, qui n'est pas encore en Rust (5a-3c) ; `analyze` ne les
-atteint donc pas côté Rust, et aucune comparaison de corpus n'est possible pour elles. Chaque cas appelle la fonction de Python et garde
+**Appels directs** : ces règles ne sont appelées que par `_filter_rules` (porté en 5a-3c, comparé sur le corpus par `otb-parity
+check-advisor`) ; les appels directs atteignent les branches que le corpus n'atteint pas. Chaque cas appelle la fonction de Python et garde
 sa sortie (`Finding`, liste, nombre, exception) ; `rust/otb-advisor/tests/rules_rpm.rs` rejoue l'appel en Rust.
 
 Journaux fabriqués (`rules_state_cases.build`, 1 kHz, 3 s, moteurs à ~43 Hz) auxquels `lined` ajoute des raies sinusoïdales : dans le gyro

@@ -2,8 +2,9 @@
 //! l'assistant (`DOSSIER/advisor/<fichier>.<session>.npz`, mêmes noms de clés que `golden.flatten`, `/` écrit `|`) ; ici chaque
 //! session est rouverte par le décodeur Rust, refaite par `otb-advisor`, puis comparée **clé par clé**.
 //!
-//! Les textes (titres, détails, actions, explications) sont comparés au caractère près. Les clés pas encore portées sont ignorées
-//! et comptées : [`PORTED`] liste les préfixes déjà rejoués, à étendre à chaque étape de la phase 5a.
+//! Les textes (titres, détails, actions, explications) sont comparés au caractère près. Depuis la phase 5a-3c, `analyze` est complet :
+//! **tous** les constats (`report|findings|…`, `report|sorted|…`) et toutes les mesures (`report|measures|…`) sont comparés. Seules les
+//! clés d'une autre partie de l'assistant (`noise|…`, `tuning|…`, phases suivantes) sont ignorées et comptées.
 
 use crate::analysis_layer::{DELAY_TOL, Flat, Item, SLIDERS_TOL, compare_item, put_flight_stats, put_opt, stem};
 use crate::value::{Array, load_arrays};
@@ -15,7 +16,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 /// Préfixes des clés de Python déjà portées (une clé de Python qui commence par l'un d'eux doit exister côté Rust, et réciproquement).
-/// Les constats (`report|findings|…`, `report|sorted|…`) ont leur propre règle : voir [`KEYS_5A2B`].
+/// Les constats (`report|findings|…`, `report|sorted|…`) ont leur propre règle : tous sont comparés.
 pub const PORTED: [&str; 8] = [
     "report|profile",
     "report|reason",
@@ -27,8 +28,8 @@ pub const PORTED: [&str; 8] = [
     "report|measures|steps|",
 ];
 
-/// Autres mesures portées en 5a-2b (une seule liste pour que le résumé les nomme).
-pub const PORTED_MEASURES: [&str; 10] = [
+/// Autres mesures portées en 5a-2b, puis en 5a-3b / 5a-3c (une seule liste pour que le résumé les nomme).
+pub const PORTED_MEASURES: [&str; 15] = [
     "delays",
     "gyro_noise_db",
     "dterm_noise_db",
@@ -39,52 +40,23 @@ pub const PORTED_MEASURES: [&str; 10] = [
     "pid_error_sd",
     "iterm_mean",
     "sliders",
-];
-
-/// Constats produits par les parties de `rules.analyze` portées en 5a-2b : `profile_provisional`, `recording_rules`, `step_section`,
-/// `noise_rules` (dont `setpoint_delay`), `motor_rules`, `slider_rules`, et en 5a-3a `delay_rules` (retards des filtres, relèvement du D). Seuls
-/// ceux-là sont comparés (Python filtré par ces clés, dans leur ordre relatif, contre Rust). Tous les autres (`filter_rules`, 5a-3b/c) sont
-/// **exclus et comptés** dans le résumé. ⚠️ `gyro_lpf1_off` (produit par `filter_rules`, fonction portée mais pas encore branchée) et
-/// `filter_strategy` (dépend des constats de filtres non portés) n'y sont pas : à ajouter quand `filter_rules` sera branché.
-pub const KEYS_5A2B: [&str; 32] = [
-    "profile_provisional",
-    "log_rate_low",
-    "log_rate_low_filters",
-    "log_rate_harmonics",
-    "gyro_unfilt_missing",
-    "rpm_missing",
-    "recording_gaps",
-    "crash",
-    "step_ff_overshoot",
-    "step_overshoot_strong",
-    "step_overshoot_light",
-    "step_soft",
-    "step_ok",
-    "loop_sensitivity_high",
-    "loop_phase_margin_low",
-    "step_few_windows",
-    "step_roll_pitch_gap",
-    "setpoint_delay",
-    "dterm_noisy",
-    "gyro_noisy",
-    "gyro_noise_level",
-    "dterm_noise_level",
-    "motor_saturation",
-    "motor_imbalance",
-    "iterm_offset",
-    "sliders_off",
-    "delay_not_representative",
-    "gyro_filter_cautious",
-    "gyro_delay",
-    "dterm_delay",
-    "dterm_filter_too_strong",
-    "dterm_lift",
+    "hover_lines",
+    "frame_resonance",
+    "dyn_notch",
+    "motor_harmonic_left_db",
+    "motor_harmonic_raw_db",
 ];
 
 /// Tolérance des mesures de bruit en dB (moyennes de bande, sommets lissés : spectres de `realfft` contre pocketfft, L-048), écart absolu
 /// rapporté à max(|valeur|, 1). **Mesurée sur les 630 sessions** : 2,2e-14 au pire (sommets proches de 0 dB, où `log10` amplifie l'arrondi
 /// de la FFT) ; échecs à 1e-14 (2 clés), aucun à 3e-14. Marge ×45. Une mauvaise bande ou un mauvais lissage dépasse 1e-3.
 pub const NOISE_TOL: f64 = 1e-12;
+
+/// Tolérance des mesures de `filter_rules` et du vol stationnaire (niveaux et largeurs de raies, excès de la raie fixe, Q nécessaire :
+/// spectres de `realfft` contre pocketfft, L-048), écart absolu rapporté à max(|valeur|, 1). **Mesurée sur les 630 sessions** : 2,3e-13 au
+/// pire (hauteur d'une raie dans le gyro filtré, proche de 0 dB où `log10` amplifie l'arrondi de la FFT). Marge ×43. Une mauvaise bande ou
+/// un mauvais lissage dépasse 1e-6.
+pub const FILTER_TOL: f64 = 1e-11;
 
 /// L'assistant analyse-t-il cette session ? (mêmes critères que `golden_advisor.advisor_record` : au moins 8 s, période d'au moins 5 s.)
 fn analysed(lg: &FlightLog) -> Option<std::ops::Range<usize>> {
@@ -118,6 +90,64 @@ fn put_finding(f: &mut Flat, prefix: &str, x: &Finding) {
     f.insert(format!("{prefix}|n_settings"), Item::I(x.settings.len() as i64));
     for (j, t) in x.settings.iter().enumerate() {
         f.insert(format!("{prefix}|settings[{j}]"), s(t));
+    }
+}
+
+/// Mesures de `filter_rules` (5a-3c) et du vol stationnaire (5a-3b) sous les noms de Python. Une clé absente de Python (eRPM absent,
+/// pas de vol stationnaire) est absente ici aussi : `None` n'insère rien, sauf `frame_resonance` et `dyn_notch` où `None` est la valeur
+/// `None` de Python (écrite « None »). Une liste vide n'écrit aucune clé, des deux côtés.
+fn put_filter_measures(f: &mut Flat, m: &rules::Measures) {
+    let k = "report|measures";
+    for (name, v) in [
+        ("motor_harmonic_left_db", m.motor_harmonic_left_db),
+        ("motor_harmonic_raw_db", m.motor_harmonic_raw_db),
+    ] {
+        if let Some(v) = v {
+            f.insert(format!("{k}|{name}"), Item::T(v, FILTER_TOL, 1.0));
+        }
+    }
+    match &m.frame_resonance {
+        Some(r) => {
+            f.insert(format!("{k}|frame_resonance[0]"), Item::F(r.freq_hz));
+            f.insert(format!("{k}|frame_resonance[1]"), Item::T(r.excess_db, FILTER_TOL, 1.0));
+            f.insert(format!("{k}|frame_resonance[2]"), Item::B(r.near_motor));
+        }
+        None => {
+            f.insert(format!("{k}|frame_resonance"), Item::S("None".into()));
+        }
+    }
+    match &m.dyn_notch {
+        Some(d) => {
+            f.insert(format!("{k}|dyn_notch|count"), Item::I(d.count));
+            f.insert(format!("{k}|dyn_notch|min_hz"), Item::I(d.min_hz));
+            f.insert(format!("{k}|dyn_notch|max_hz"), Item::I(d.max_hz));
+            for (i, v) in d.peaks.iter().enumerate() {
+                f.insert(format!("{k}|dyn_notch|peaks[{i}]"), Item::F(*v));
+            }
+            put_list(f, &format!("{k}|dyn_notch|widths"), &d.widths, FILTER_TOL);
+            put_list(f, &format!("{k}|dyn_notch|heights"), &d.heights, FILTER_TOL);
+            put_list(f, &format!("{k}|dyn_notch|left"), &d.left, FILTER_TOL);
+            match d.q_need {
+                Some(q) => f.insert(format!("{k}|dyn_notch|q_need"), Item::T(q, FILTER_TOL, 1.0)),
+                None => f.insert(format!("{k}|dyn_notch|q_need"), Item::S("None".into())),
+            };
+        }
+        None => {
+            f.insert(format!("{k}|dyn_notch"), Item::S("None".into()));
+        }
+    }
+    if let Some(lines) = &m.hover_lines {
+        for (i, ln) in lines.iter().enumerate() {
+            f.insert(format!("{k}|hover_lines[{i}].freq_hz"), Item::F(ln.freq_hz));
+            f.insert(
+                format!("{k}|hover_lines[{i}].raw_db"),
+                Item::T(ln.raw_db, FILTER_TOL, 1.0),
+            );
+            f.insert(
+                format!("{k}|hover_lines[{i}].left_db"),
+                Item::T(ln.left_db, FILTER_TOL, 1.0),
+            );
+        }
     }
 }
 
@@ -197,6 +227,7 @@ fn ported(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<(Flat, rules::R
             Item::T(v.ok_or_else(|| miss(name))?, NOISE_TOL, 1.0),
         );
     }
+    put_filter_measures(&mut f, m);
     put_flight_stats(
         &mut f,
         "report|measures|stats",
@@ -238,6 +269,13 @@ fn is_ported_measure(key: &str) -> bool {
         .is_some_and(|rest| PORTED_MEASURES.iter().any(|p| rest.starts_with(p)))
 }
 
+/// Mesure écrite par `put_filter_measures` ?
+fn is_filter_measure(key: &str) -> bool {
+    ["hover_lines", "frame_resonance", "dyn_notch", "motor_harmonic"]
+        .iter()
+        .any(|p| key.starts_with(&format!("report|measures|{p}")))
+}
+
 /// `report|<liste>|items[i]|…` : l'indice `i` d'une clé de constat de Python.
 fn finding_index(key: &str, list: &str) -> Option<usize> {
     let rest = key.strip_prefix(&format!("report|{list}|items["))?;
@@ -254,10 +292,10 @@ pub struct AdvisorReport {
     pub skipped: usize,
     /// Plus grand écart normalisé des valeurs comparées à une tolérance.
     pub worst: f64,
+    /// Plus grand écart normalisé des seules mesures de `filter_rules` et du vol stationnaire (tolérance [`FILTER_TOL`]).
+    pub worst_filter: f64,
     pub failures: Vec<String>,
-    /// Constats de Python exclus de la comparaison (clé hors de [`KEYS_5A2B`], donc produits par 5a-3), par clé : nombre d'occurrences.
-    pub excluded: BTreeMap<String, usize>,
-    /// Constats comparés (Python filtré par [`KEYS_5A2B`] contre Rust), par clé.
+    /// Constats comparés (tous ceux de Python contre ceux de Rust), par clé.
     pub compared_findings: BTreeMap<String, usize>,
 }
 
@@ -267,17 +305,15 @@ impl AdvisorReport {
         self.keys += o.keys;
         self.skipped += o.skipped;
         self.worst = self.worst.max(o.worst);
+        self.worst_filter = self.worst_filter.max(o.worst_filter);
         self.failures.extend(o.failures);
-        for (k, n) in o.excluded {
-            *self.excluded.entry(k).or_insert(0) += n;
-        }
         for (k, n) in o.compared_findings {
             *self.compared_findings.entry(k).or_insert(0) += n;
         }
     }
 }
 
-/// Indices (dans la liste `list` de Python) des constats comparés ; les autres sont comptés dans `excluded` (liste `findings` seulement).
+/// Indices (dans la liste `list` de Python) des constats : tous sont comparés ; la liste `findings` les compte par clé.
 fn kept_indices(py: &HashMap<String, Array>, list: &str, rep: &mut AdvisorReport) -> Result<Vec<usize>, String> {
     let n = py
         .get(&format!("report|{list}|n"))
@@ -289,13 +325,9 @@ fn kept_indices(py: &HashMap<String, Array>, list: &str, rep: &mut AdvisorReport
             .get(&format!("report|{list}|items[{i}]|key"))
             .and_then(Array::as_string)
             .ok_or_else(|| format!("report|{list}|items[{i}]|key illisible"))?;
-        if KEYS_5A2B.contains(&key.as_str()) {
-            kept.push(i);
-            if list == "findings" {
-                *rep.compared_findings.entry(key).or_insert(0) += 1;
-            }
-        } else if list == "findings" {
-            *rep.excluded.entry(key).or_insert(0) += 1;
+        kept.push(i);
+        if list == "findings" {
+            *rep.compared_findings.entry(key).or_insert(0) += 1;
         }
     }
     Ok(kept)
@@ -329,21 +361,17 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AdvisorReport)
                 .push(format!("{who} : Rust lève ({e}), Python rend un résultat"));
         }
     };
-    // constats : Python filtré par KEYS_5A2B, dans l'ordre, contre Rust ; les éléments de Rust prennent l'indice de Python (mêmes noms de clés)
+    // constats : ceux de Python, dans l'ordre, contre ceux de Rust ; les éléments de Rust prennent l'indice de Python (mêmes noms de clés)
     let mut handled: Vec<String> = Vec::new();
     for (list, rust) in [("findings", report.findings.clone()), ("sorted", report.sorted())] {
         let kept = match kept_indices(&py, list, rep) {
             Ok(k) => k,
             Err(e) => return rep.failures.push(format!("{who} : {e}")),
         };
-        let rust: Vec<Finding> = rust
-            .into_iter()
-            .filter(|x| KEYS_5A2B.contains(&x.key.as_str()))
-            .collect();
         if rust.len() != kept.len() {
             let keys = |it: Vec<&str>| it.join(", ");
             rep.failures.push(format!(
-                "{who} : {list} : {} constats comparés côté Rust ({}), {} côté Python",
+                "{who} : {list} : {} constats côté Rust ({}), {} côté Python",
                 rust.len(),
                 keys(rust.iter().map(|x| x.key.as_str()).collect()),
                 kept.len()
@@ -364,6 +392,9 @@ fn check_one(dossier: &Path, rel: &str, lg: &FlightLog, rep: &mut AdvisorReport)
                 let mut e = 0.0;
                 let m = compare_item(k, item, w, &mut e);
                 rep.worst = rep.worst.max(e);
+                if is_filter_measure(k) {
+                    rep.worst_filter = rep.worst_filter.max(e);
+                }
                 if let Some(m) = m {
                     rep.failures.push(format!("{who} : {m}"));
                 }

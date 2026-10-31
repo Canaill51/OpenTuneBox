@@ -107,7 +107,7 @@ fn window_starts(n: usize, length: usize, hop: usize, breaks: Option<&[i64]>) ->
 }
 
 /// `mhz.mean(axis=0)` en float32 : somme dans l'ordre des moteurs, divisée en float64 par leur nombre.
-fn mean_axis0(m: &Rows) -> Vec<f32> {
+pub fn mean_axis0(m: &Rows) -> Vec<f32> {
     (0..m.n)
         .map(|i| {
             let s = (1..m.k).fold(m.row(0)[i], |s, k| s + m.row(k)[i]);

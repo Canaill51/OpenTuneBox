@@ -12,7 +12,7 @@ Porté en 5a-3a : `_delay_rules` (retards des filtres gyro et D), `_dterm_lift`,
   entre deux prévisions du simulateur (jamais à l'égalité : les niveaux viennent d'une FFT, Rust et Python diffèrent de ~1e-12 dB) ;
 - `direct` : appel direct de la fonction (`gyro_lpf1_off`, `dterm_lift`, `dterm_lift_noise`, `predict`, `strategy`) pour les branches que
   `analyze` n'atteint pas (D sans pente sur le roll avec retard fini, constat sans action, filtres plafonnés, `filter_strategy` sur des constats
-  fabriqués ; `filter_rules` n'est pas encore en Rust, `gyro_lpf1_off` n'est donc testé qu'en direct).
+  fabriqués ; `gyro_lpf1_off` est aussi appelée par `filter_rules`, comparée sur le corpus par `otb-parity check-advisor`).
 
 Un flottant s'écrit en hexadécimal ; les courbes sont des float32 (D-029). `"error": true` = Python a levé une exception.
 """

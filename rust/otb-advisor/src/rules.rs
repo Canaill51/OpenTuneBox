@@ -7,13 +7,12 @@
 //!
 //! Phase 5a-2b : `Report`, `Analysis` (= `_Analysis`) et `analyze`, avec les règles qui lisent un `FlightLog` : enregistrement, réponse
 //! indicielle, retard consigne → gyro, niveaux de bruit, moteurs, curseurs. **Phase 5a-3a** : `delay_rules` (retards des filtres,
-//! relèvement des filtres du D), `predict_filter_change`, `gyro_lpf1_off` (pas encore appelée : elle sert à `filter_rules`) et `filter_strategy`.
+//! relèvement des filtres du D), `predict_filter_change`, `gyro_lpf1_off` et `filter_strategy`.
 //! **Phase 5a-3b** : `lowpass_setup_rules`, `rpm_harmonic_levels`, `rpm_weight_rules`, `rpm_q_raise`, les raies du vol stationnaire
-//! (`hover_noise`, `residual_line`, `line_shape`) et le notch statique (`static_notch_cutoff`, `static_notch_case`, `dyn_notch_line_actions`) :
-//! `pub` et appelées seulement par les tests d'appel direct tant que `filter_rules` n'est pas porté.
-//! **Pas porté (5a-3c)** : `filter_rules`, qui existe ici sans effet pour que `analyze` s'exécute de bout en bout : ses constats et ses
-//! mesures (`frame_resonance`, `dyn_notch`, `motor_harmonic_*`, `hover_lines`) manquent, aucune parité n'est prétendue pour eux ; la
-//! stratégie de filtrage rendue par `analyze` ne voit donc que les constats déjà portés.
+//! (`hover_noise`, `residual_line`, `line_shape`) et le notch statique (`static_notch_cutoff`, `static_notch_case`, `dyn_notch_line_actions`).
+//! **Phase 5a-3c** : `frame_resonance`, `line_follows_motors`, `frame_resonance_finding`, `dyn_notch_view`, `dyn_notch_q_n_rules` et
+//! `filter_rules`, qui assemble toutes les règles de filtres : `analyze` est complet et ses constats, ses mesures et sa stratégie de
+//! filtrage sont comparés à Python sur tout le corpus (`otb-parity check-advisor`).
 
 use crate::profiles::{CraftProfile, detect_profile};
 use otb_analysis::bf_filters::{self, Target, WhatIfCache, WhatIfSpectrum};
@@ -545,7 +544,9 @@ fn py_max_list(v: &[f64]) -> Option<f64> {
 
 /// Mesures du rapport (`Report.measures`, un dict en Python) sous les noms de Python. `None` : la section n'a pas tourné (toutes sont `Some`
 /// dans un rapport rendu par `analyze`), sauf `hover_motor_hz` où `None` est la valeur `None` de Python.
-/// 5a-3b y a ajouté `hover_lines` ; 5a-3c y ajoutera `frame_resonance`, `dyn_notch`, `motor_harmonic_left_db` et `motor_harmonic_raw_db`.
+/// Exceptions : `frame_resonance` et `dyn_notch` valent `None` comme en Python quand il n'y a pas de raie ou pas de notch dynamique à
+/// juger ; `motor_harmonic_left_db` et `motor_harmonic_raw_db` n'existent en Python que si le journal a l'eRPM, le gyro non filtré et un
+/// filtre RPM (clé absente = `None`), de même que `hover_lines` (écrit par `hover_noise`, seulement en vol stationnaire).
 #[derive(Debug, Clone, Default)]
 pub struct Measures {
     pub hover_motor_hz: Option<f64>,
@@ -565,6 +566,13 @@ pub struct Measures {
     pub sliders: Option<SliderView>,
     /// Raies hors moteurs du vol stationnaire (`_hover_noise`, 5a-3b), la plus haute d'abord.
     pub hover_lines: Option<Vec<SpectrumLine>>,
+    /// Raie la plus marquée quel que soit le gaz (`frame_resonance`) ; `None` : le journal ne couvre pas assez de tranches de gaz.
+    pub frame_resonance: Option<FrameResonance>,
+    /// Pics que le notch dynamique a à suivre (`dyn_notch_view`) ; `None` : pas de notch dynamique en service avec le filtre RPM.
+    pub dyn_notch: Option<DynNotch>,
+    /// Niveau de la fréquence de rotation des moteurs dans le gyro filtré, puis non filtré (dB, maximum du roll et du pitch).
+    pub motor_harmonic_left_db: Option<f64>,
+    pub motor_harmonic_raw_db: Option<f64>,
 }
 
 /// `Report` : le diagnostic d'un vol.
@@ -677,7 +685,6 @@ pub fn band_peak_ptb_db(x: &[f32], fs: f64, lo: f64, hi: f64, breaks: Option<&[i
 }
 
 /// `analyze` : le diagnostic complet d'un vol. `sel` : période (tout le journal si absente) ; `profile` : taille choisie (détectée si absente).
-/// ⚠️ 5a-3b/c : `filter_rules` ne produit encore rien ; le rapport n'a donc pas ses constats (ni, par suite, ceux de la stratégie qui en dépendent).
 pub fn analyze(log: &FlightLog, sel: Option<Range<usize>>, profile: Option<&CraftProfile>) -> Result<Report, String> {
     let sel = sel.unwrap_or(0..log.n());
     let (profile, reason) = match profile {
@@ -730,7 +737,7 @@ pub fn analyze(log: &FlightLog, sel: Option<Range<usize>>, profile: Option<&Craf
     step_section(&mut a)?;
     noise_rules(&mut a)?;
     delay_rules(&mut a)?;
-    filter_rules(&mut a)?; // 5a-3b/c
+    filter_rules(&mut a)?;
     motor_rules(&mut a)?;
     slider_rules(&mut a)?;
     let moving = !a.hover()?;
@@ -1449,12 +1456,6 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
             a.f.push(f);
         }
     }
-    Ok(())
-}
-
-/// 5a-3b/c : réglages des filtres (`_filter_rules`) : passe-bas, LPF1 du gyro, filtre RPM, raie fixe, vol stationnaire, notch dynamique.
-/// Sans effet en attendant : aucun constat, aucune mesure.
-fn filter_rules(_a: &mut Analysis) -> Result<(), String> {
     Ok(())
 }
 
@@ -2863,4 +2864,736 @@ pub fn hover_noise(
         out.push(residual_line(s, ln, cutoff)?);
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------- phase 5a-3c : raie fixe, notch dynamique, `filter_rules`
+
+/// Q du notch dynamique avec filtre RPM : de 300 à 500 (décision de Cédric, 2026-10-13).
+pub const DYN_NOTCH_Q_RPM: (i64, i64) = (300, 500);
+/// « Raie fixe » : harmoniques 2 et 3 écartées à ± 8 % de l'harmonique de la vitesse en stationnaire, fondamentale à ± 15 % (test des
+/// deux trajets : raie moteur si le trajet moteur est plus haut de plus de −2 dB en moyenne, D-027).
+pub const RESONANCE_HARMONIC_MARGIN: f64 = 0.08;
+pub const RESONANCE_FUND_MARGIN: f64 = 0.15;
+pub const RESONANCE_MOTOR_SCORE_DB: f64 = -2.0;
+
+/// `meas["frame_resonance"]` : raie la plus marquée au-dessus du bruit voisin, quel que soit le gaz.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FrameResonance {
+    pub freq_hz: f64,
+    /// Excès au-dessus du bruit voisin (dB), `-inf` si la raie est collée au bord bas.
+    pub excess_db: f64,
+    /// La raie suit les moteurs (fondamentale ou harmonique 2 ou 3 de la vitesse en stationnaire).
+    pub near_motor: bool,
+}
+
+/// `meas["dyn_notch"]` (dict en Python) : ce que le notch dynamique a à suivre.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DynNotch {
+    pub count: i64,
+    pub min_hz: i64,
+    pub max_hz: i64,
+    pub peaks: Vec<f64>,
+    pub widths: Vec<f64>,
+    pub heights: Vec<f64>,
+    /// Hauteur de chaque pic dans le gyro filtré.
+    pub left: Vec<f64>,
+    /// `None` : aucune raie mesurable ; `inf` : aucune n'a besoin d'un Q plus bas.
+    pub q_need: Option<f64>,
+}
+
+/// `np.convolve(v, np.ones(15) / 15, mode="same")` pour au moins 15 valeurs : somme **croissante** des produits, chacun fusionné à la somme
+/// (FMA), comme le produit scalaire de numpy (OpenBLAS) ; mesuré identique au bit près sur 3 000 valeurs. En dessous de 15 valeurs, numpy
+/// échange les tableaux et rend 15 valeurs : la soustraction qui suit lève (`ValueError`), d'où l'erreur.
+/// ⚠️ Un autre ordre de somme ou sans FMA diffère au dernier bit, invisible à la tolérance du corpus (L-061).
+fn smooth15(v: &[f64]) -> Result<Vec<f64>, String> {
+    let n = v.len();
+    if n < 15 {
+        return Err("ValueError : operands could not be broadcast together".into());
+    }
+    let kern = 1.0f64 / 15.0;
+    Ok((0..n)
+        .map(|i| {
+            let lo = i.saturating_sub(7);
+            let hi = (i + 8).min(n);
+            v[lo..hi].iter().fold(0.0f64, |acc, &x| x.mul_add(kern, acc))
+        })
+        .collect())
+}
+
+/// `20 * np.log10(np.maximum(x, 1e-9))` : un NaN reste NaN.
+fn db_of(x: f64) -> f64 {
+    20.0 * (if x.is_nan() { x } else { x.max(1e-9) }).log10()
+}
+
+/// `np.nanmedian` d'une colonne : NaN si tout est NaN.
+fn nanmedian(v: &[f64]) -> f64 {
+    let k: Vec<f64> = v.iter().copied().filter(|x| !x.is_nan()).collect();
+    otb_analysis::npstat::median_f64(&k)
+}
+
+/// `np.argmin` : le premier NaN l'emporte, sinon le premier minimum. Tableau non vide.
+fn argmin_first(v: &[f64]) -> usize {
+    let mut best = 0;
+    for (i, &x) in v.iter().enumerate() {
+        if v[best].is_nan() {
+            break;
+        }
+        if x.is_nan() || x < v[best] {
+            best = i;
+        }
+    }
+    best
+}
+
+/// `np.floor(t).astype(int)` puis `np.clip(·, 0, nb - 1)` : NaN et valeurs hors de i64 donnent `i64::MIN` (x86), donc la tranche 0.
+fn throttle_bin(t: f32, nb: usize) -> usize {
+    let fl = (t as f64).floor();
+    let k = if fl.is_nan() || fl >= i64::MAX as f64 || fl < i64::MIN as f64 {
+        i64::MIN
+    } else {
+        fl as i64
+    };
+    k.clamp(0, nb as i64 - 1) as usize
+}
+
+/// `log.throttle[sel]`.
+fn throttle_sel(log: &FlightLog, sel: &Range<usize>) -> Vec<f64> {
+    let t = &log.throttle;
+    t[clamp_range(sel.start, sel.end, t.len())]
+        .iter()
+        .map(|&v| v as f64)
+        .collect()
+}
+
+/// `frame_resonance` : raie la plus marquée au-dessus du bruit voisin, quel que soit le gaz. `None` si le journal ne couvre pas assez de
+/// tranches de gaz. `Err` comme Python lève (spectres, ou moins de 15 fréquences dans la bande : `ValueError` du lissage).
+pub fn frame_resonance(log: &FlightLog, sel: &Range<usize>, lo_hz: f64) -> Result<Option<FrameResonance>, String> {
+    let x = log.gyro_unfilt.as_ref().unwrap_or(&log.gyro);
+    let (lo, hi) = (lo_hz, py_min(0.9 * log.fs / 2.0, 900.0));
+    let br = breaks_of(log, sel);
+    let thr = throttle_sel(log, sel);
+    let (mut maps, mut prof): (Vec<Vec<f64>>, Vec<Vec<f64>>) = (Vec::new(), Vec::new());
+    let (mut f, mut ok) = (Vec::new(), Vec::new());
+    for a in 0..2 {
+        let ft = spectral::freq_throttle(
+            &wide(sel_row(x, a, sel)),
+            &thr,
+            log.fs,
+            Mode::Amp,
+            300.0,
+            100,
+            (0.0, 100.0),
+            Some(&br),
+        )?;
+        let nb = ft.bins.len();
+        ok = ft.counts.iter().map(|&c| c > 3).collect();
+        if ok.iter().filter(|&&o| o).count() < 8 {
+            return Ok(None);
+        }
+        prof.push(
+            (0..ft.freqs.len())
+                .map(|fi| {
+                    let col: Vec<f64> = (0..nb).filter(|&b| ok[b]).map(|b| ft.z[fi * nb + b]).collect();
+                    nanmedian(&col)
+                })
+                .collect(),
+        );
+        f = ft.freqs;
+        maps.push(ft.z);
+    }
+    let p: Vec<f64> = (0..f.len()).map(|i| db_of((prof[0][i] + prof[1][i]) / 2.0)).collect();
+    let (fm, pm): (Vec<f64>, Vec<f64>) = f
+        .iter()
+        .zip(&p)
+        .filter(|(fi, _)| **fi >= lo && **fi <= hi)
+        .map(|(fi, pi)| (*fi, *pi))
+        .unzip();
+    if pm.len() < 10 {
+        return Ok(None);
+    }
+    let base = smooth15(&pm)?;
+    // dès 20 Hz, sans les 5 premiers Hz : une raie collée au bord vient des mouvements du drone ou d'un test d'excitation
+    let excess: Vec<f64> = (0..pm.len())
+        .map(|i| {
+            if fm[i] < lo + 5.0 {
+                f64::NEG_INFINITY
+            } else {
+                pm[i] - base[i]
+            }
+        })
+        .collect();
+    let k = argmax_f64(&excess).ok_or("ValueError : argmax d'un tableau vide")?;
+    let f0 = fm[k];
+    // une raie moteur se déplace avec le gaz : harmoniques 2 et 3 écartées autour de la vitesse en stationnaire, fondamentale jugée par le
+    // test des deux trajets (D-027)
+    let mut near_motor = false;
+    if let Some(hz) = hover_motor_hz(log) {
+        if (f0 - hz).abs() < RESONANCE_FUND_MARGIN * hz {
+            let z: Vec<f64> = maps[0].iter().zip(&maps[1]).map(|(a, b)| (a + b) / 2.0).collect();
+            let score = line_follows_motors(log, sel, f0, &z, &f, &ok)?;
+            near_motor = !(score.is_finite() && score <= RESONANCE_MOTOR_SCORE_DB);
+        } else {
+            near_motor = [2.0, 3.0]
+                .iter()
+                .any(|h| (f0 - h * hz).abs() < RESONANCE_HARMONIC_MARGIN * h * hz);
+        }
+    }
+    Ok(Some(FrameResonance {
+        freq_hz: f0,
+        excess_db: excess[k],
+        near_motor,
+    }))
+}
+
+/// `line_follows_motors` : test des deux trajets pour une raie à `f0` près de la fondamentale : dans chaque tranche de gaz (carte `z`
+/// fréquence × tranche, `nf × ok.len()` à plat, tranches `ok`), excès de la raie au-dessus du bruit voisin à la vitesse moyenne des moteurs
+/// de la tranche, moins son excès à `f0`. Moyenne en dB sur les tranches où les deux trajets se séparent : > 0 raie moteur, < 0 raie fixe ;
+/// NaN sous 3 tranches (D-027).
+pub fn line_follows_motors(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    f0: f64,
+    z: &[f64],
+    f: &[f64],
+    ok: &[bool],
+) -> Result<f64, String> {
+    let Some(mhz) = &log.motor_hz else {
+        return Ok(f64::NAN);
+    };
+    let nb = ok.len();
+    let nf = f.len();
+    if z.len() != nf * nb {
+        return Err("ValueError : carte et fréquences incohérentes".into());
+    }
+    let mm = otb_analysis::motors::mean_axis0(&sel_rows(mhz, sel));
+    // vitesse moyenne des moteurs par tranche de gaz de 1 %, avec ses deux voisines comme freq_throttle
+    let thr = &log.throttle[clamp_range(sel.start, sel.end, log.throttle.len())];
+    let (mut sums, mut cnt) = (vec![0.0f64; nb], vec![0i64; nb]);
+    for (i, &t) in thr.iter().enumerate() {
+        let k = throttle_bin(t, nb);
+        sums[k] += mm[i] as f64;
+        cnt[k] += 1;
+    }
+    let s3 = |b: usize| {
+        let l = if b > 0 { sums[b - 1] } else { 0.0 };
+        let r = if b + 1 < nb { sums[b + 1] } else { 0.0 };
+        (sums[b] + l) + r
+    };
+    let c3 = |b: usize| cnt[b] + if b > 0 { cnt[b - 1] } else { 0 } + if b + 1 < nb { cnt[b + 1] } else { 0 };
+    if nf < 2 {
+        return Err("IndexError : index 1 is out of bounds".into());
+    }
+    let df = f[1] - f[0];
+    let win: Vec<usize> = (0..nf).filter(|&i| f[i] >= 0.6 * f0 && f[i] <= 1.6 * f0).collect();
+    let fw: Vec<f64> = win.iter().map(|&i| f[i]).collect();
+    let mut d = Vec::new();
+    for b in (0..nb).filter(|&b| ok[b]) {
+        if c3(b) == 0 {
+            continue;
+        }
+        let mb = s3(b) / c3(b) as f64;
+        if (mb - f0).abs() < py_max(3.0 * df, 0.04 * f0) {
+            continue; // trajets confondus dans cette tranche
+        }
+        let (Some(&first), Some(&last)) = (fw.first(), fw.last()) else {
+            return Err("IndexError : index 0 is out of bounds".into());
+        };
+        if !(first <= mb && mb <= last) {
+            continue; // raie moteur hors de la fenêtre
+        }
+        let pdb: Vec<f64> = (0..nf).map(|i| db_of(z[i * nb + b])).collect();
+        let sm = smooth15(&pdb)?;
+        let ex: Vec<f64> = win.iter().map(|&i| pdb[i] - sm[i]).collect();
+        let at_hz = |x: f64| {
+            let dist: Vec<f64> = fw.iter().map(|v| (v - x).abs()).collect();
+            let j = argmin_first(&dist);
+            np_max_nan(&ex[j.saturating_sub(1)..(j + 2).min(ex.len())]).unwrap_or(f64::NAN) // raie entre deux cases
+        };
+        d.push(at_hz(mb) - at_hz(f0));
+    }
+    Ok(if d.len() >= 3 { numpy_mean(&d) } else { f64::NAN })
+}
+
+/// `_frame_resonance` : raie de fréquence fixe quel que soit le gaz (résonance du châssis ou pièce desserrée) ; `res` vient de
+/// `frame_resonance`. `sel` absente : tout le journal.
+pub fn frame_resonance_finding(
+    log: &FlightLog,
+    res: Option<&FrameResonance>,
+    profile: &CraftProfile,
+    sel: Option<&Range<usize>>,
+) -> Result<Option<Finding>, String> {
+    let Some(res) = res else {
+        return Ok(None);
+    };
+    let (f0, excess) = (res.freq_hz, res.excess_db);
+    if excess < profile.resonance_high_db || res.near_motor {
+        return Ok(None);
+    }
+    let mut actions =
+        vec!["Resserrez les vis, fixez antennes et câbles, vérifiez la caméra et la pile de cartes.".to_string()];
+    let s = &log.settings;
+    let (notch, settings) = dyn_notch_line_actions(s, f0, true)?;
+    actions.extend(notch);
+    if static_notch_case(s, f0).is_some() {
+        let whole = 0..log.n();
+        let (w, h) = line_shape(log, sel.unwrap_or(&whole), f0)?;
+        let cutoff = static_notch_cutoff(f0, w, h)?;
+        actions.extend(static_notch_action(
+            s,
+            f0,
+            cutoff,
+            "Si elle persiste, cas exceptionnel :",
+        ));
+    }
+    let mut f = Finding::new(
+        "frame_line_fixed",
+        "Mécanique",
+        CONSEIL,
+        &format!("Raie fixe vers {} Hz", fx(f0, 0)),
+        &format!(
+            "Une vibration à ~{} Hz reste présente quel que soit le gaz (+{} dB au-dessus du bruit voisin) : résonance du châssis, d'une \
+antenne, d'une caméra ou pièce desserrée.{}",
+            fx(f0, 0),
+            fx(excess, 0),
+            low_line_caveat(f0)
+        ),
+        actions,
+        None,
+    );
+    f.settings = settings;
+    Ok(Some(f))
+}
+
+/// `worst` de `dyn_notch_view` : `np.nanmax` si une valeur est finie, sinon NaN.
+fn worst_of(vals: &[f64]) -> f64 {
+    if vals.iter().any(|v| v.is_finite()) {
+        vals.iter()
+            .copied()
+            .filter(|v| !v.is_nan())
+            .fold(f64::NEG_INFINITY, f64::max)
+    } else {
+        f64::NAN
+    }
+}
+
+/// `dyn_notch_view` : pics que le notch dynamique a à suivre (roll ou pitch, celui qui en compte le plus, plus la raie fixe signalée
+/// `fixed_hz`), avec filtre RPM actif et gyro non filtré ; `None` sinon. La recherche déborde de deux cases SDFT de chaque côté de la plage.
+pub fn dyn_notch_view(log: &FlightLog, sel: &Range<usize>, fixed_hz: Option<f64>) -> Result<Option<DynNotch>, String> {
+    let s = &log.settings;
+    let (Some(unf), Some(mhz_all)) = (&log.gyro_unfilt, &log.motor_hz) else {
+        return Ok(None);
+    };
+    if !dyn_notch_active(s) || s.rpm_harmonics == 0 {
+        return Ok(None);
+    }
+    let band = (
+        (s.dyn_notch_min_hz - 37).max(DYN_NOTCH_MIN_HZ) as f64,
+        (s.dyn_notch_max_hz + 37) as f64,
+    );
+    let mhz = sel_rows(mhz_all, sel);
+    let br = breaks_of(log, sel);
+    let mut t = Vec::new();
+    for a in 0..2 {
+        t.push(otb_analysis::motors::dyn_notch_targets(
+            &wide(sel_row(unf, a, sel)),
+            Some(&mhz),
+            log.fs,
+            band,
+            Some(s),
+            300.0,
+            18.5,
+            Some(&br),
+        )?);
+    }
+    // `max(t, key=…)` : le premier des plus longs
+    let best = if t[1].freqs.len() > t[0].freqs.len() {
+        &t[1]
+    } else {
+        &t[0]
+    };
+    let mut peaks: Vec<f64> = best.freqs.clone();
+    if let Some(fh) = fixed_hz
+        && peaks.iter().all(|f| (f - fh).abs() > 37.0)
+    {
+        peaks.push(fh);
+    }
+    peaks.sort_by(f64::total_cmp);
+    // forme de chaque raie : la plus large et la plus haute du roll et du pitch (côté prudent)
+    let mut sh = Vec::new();
+    for a in 0..2 {
+        sh.push(otb_analysis::motors::line_shapes(
+            &wide(sel_row(unf, a, sel)),
+            &mhz,
+            log.fs,
+            &peaks,
+            s.rpm_harmonics,
+            300.0,
+            Some(&br),
+            Some(s),
+        )?);
+    }
+    let widths: Vec<f64> = (0..peaks.len()).map(|i| worst_of(&[sh[0][i].0, sh[1][i].0])).collect();
+    let heights: Vec<f64> = (0..peaks.len()).map(|i| worst_of(&[sh[0][i].1, sh[1][i].1])).collect();
+    // hauteur de chaque raie dans le gyro filtré (après tous les filtres, notch dynamique compris)
+    let left = if peaks.is_empty() {
+        Vec::new()
+    } else {
+        let mut lh = Vec::new();
+        for a in 0..2 {
+            lh.push(otb_analysis::motors::line_heights(
+                &wide(sel_row(&log.gyro, a, sel)),
+                log.fs,
+                &peaks,
+                300.0,
+                Some(&br),
+            )?);
+        }
+        (0..peaks.len()).map(|i| worst_of(&[lh[0][i], lh[1][i]])).collect()
+    };
+    let q_need = dyn_notch_q_need(&peaks, &widths, &heights);
+    Ok(Some(DynNotch {
+        count: s.dyn_notch_count,
+        min_hz: s.dyn_notch_min_hz,
+        max_hz: s.dyn_notch_max_hz,
+        peaks,
+        widths,
+        heights,
+        left,
+        q_need,
+    }))
+}
+
+/// `_dyn_notch_q_n_rules` : Q et nombre de notchs du notch dynamique (avec filtre RPM) d'après les raies à suivre (décision de Cédric,
+/// 2026-10-10) : Q baissé si une raie est trop large ou trop haute pour le Q actuel et qu'une raie à suivre dépasse encore
+/// `HARMONIC_VISIBLE_DB` dans le gyro filtré, monté (500 au plus) si rien ne passe et que le bruit est faible ; un notch de plus par pic à
+/// suivre quand une raie passe ou que le gyro est bruité. `findings` : les constats déjà posés (`F`).
+pub fn dyn_notch_q_n_rules(
+    s: &Settings,
+    dn: &DynNotch,
+    lines_pass: bool,
+    gyro_noisy: bool,
+    dterm_noisy: bool,
+    findings: &[Finding],
+    hover: bool,
+) -> Result<Vec<Finding>, String> {
+    let mut out = Vec::new();
+    let (q, need) = (s.dyn_notch_q, dn.q_need);
+    let shapes = dn
+        .peaks
+        .iter()
+        .zip(&dn.widths)
+        .zip(&dn.heights)
+        .filter(|((_, w), h)| w.is_finite() && h.is_finite())
+        .map(|((f0, w), h)| {
+            format!(
+                "{} Hz ({} Hz de large, {} dB)",
+                fx(*f0, 0),
+                fx(*w, 0),
+                fixed(*h, 0, true)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let passing: Vec<(f64, f64)> = dn
+        .peaks
+        .iter()
+        .zip(&dn.left)
+        .filter(|(_, h)| **h > HARMONIC_VISIBLE_DB)
+        .map(|(f0, h)| (*f0, *h))
+        .collect();
+    let lower = match need {
+        Some(n) if n.is_finite() && q_round(n, DYN_NOTCH_Q_LOW)? < q && !passing.is_empty() => Some(n),
+        _ => None,
+    };
+    if let Some(need) = lower {
+        let new = q_round(need, DYN_NOTCH_Q_LOW)?;
+        let seen = passing
+            .iter()
+            .map(|(f0, h)| format!("{} Hz ({} dB)", fx(*f0, 0), fixed(*h, 0, true)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let floor = need < DYN_NOTCH_Q_LOW as f64; // raie trop large ou trop haute pour un notch dynamique raisonnable
+        let why = if floor {
+            format!(
+                "le calcul (forme du notch de Betaflight) demanderait un Q de {}, sous {DYN_NOTCH_Q_LOW}, le plus bas Q utilisé avec filtre \
+RPM : un notch aussi large ajouterait beaucoup de retard.",
+                fx(need, 0)
+            )
+        } else {
+            format!("il faut un Q de {new} au plus (calculé d'après la forme du notch de Betaflight).")
+        };
+        let mut actions = vec![format!(
+            "dyn_notch_q {q} → {new} (notchs plus larges, un peu plus de retard)."
+        )];
+        if floor {
+            actions.push(
+                "Si la raie reste visible : cherchez sa cause mécanique (vis, hélices, roulements, antenne, caméra, pile de cartes) plutôt \
+que d'élargir encore le notch."
+                    .to_string(),
+            );
+        }
+        out.push(Finding::new(
+            "dyn_notch_q_lower",
+            "Filtres",
+            CONSEIL,
+            "Notch dynamique : Q trop haut pour les raies à suivre",
+            &format!(
+                "Raies à suivre après le filtre RPM (largeur à mi-puissance, hauteur au-dessus du bruit voisin) : {shapes}. Encore visible \
+dans le gyro filtré : {seen}. Avec dyn_notch_q {q}, le notch est trop étroit pour ramener la plus exigeante à {} dB du bruit voisin sur \
+toute sa largeur ; {why}",
+                fx(HARMONIC_VISIBLE_DB, 0)
+            ),
+            actions,
+            None,
+        ));
+    } else if !(lines_pass || gyro_noisy || dterm_noisy) && q < DYN_NOTCH_Q_RPM.1 {
+        let (new, why) = match need {
+            None => (
+                // aucune raie mesurable : pas de calcul, petit pas
+                (q + DYN_NOTCH_Q_STEP).min(DYN_NOTCH_Q_RPM.1),
+                "aucune raie à suivre n'est mesurable".to_string(),
+            ),
+            Some(n) => {
+                let new = if !n.is_finite() {
+                    DYN_NOTCH_Q_RPM.1
+                } else {
+                    q_round(n, DYN_NOTCH_Q_LOW)?.min(DYN_NOTCH_Q_RPM.1)
+                };
+                let why = if shapes.is_empty() {
+                    "les raies à suivre dépassent à peine le bruit voisin".to_string()
+                } else {
+                    format!("raies à suivre : {shapes} ; un Q de {new} suffit encore à les effacer")
+                };
+                (new, why)
+            }
+        };
+        if new > q {
+            let seen = if hover {
+                "aucune raie ne passe les filtres en vol stationnaire"
+            } else {
+                "aucune raie fixe n'est signalée"
+            };
+            out.push(Finding::new(
+                "dyn_notch_q_raise",
+                "Filtres",
+                CONSEIL,
+                "Notch dynamique : Q peut monter",
+                &format!(
+                    "Avec le filtre RPM, le notch dynamique ne traite que les résonances qui ne viennent pas des moteurs ; {seen} et le \
+bruit du gyro et du D est sous les repères ({why}). Un Q plus haut donne des notchs plus étroits, avec moins de retard."
+                ),
+                vec![format!(
+                    "dyn_notch_q {q} → {new} ({} au plus avec filtre RPM), puis vérifiez que les raies de résonance ne réapparaissent pas \
+dans le gyro filtré.",
+                    DYN_NOTCH_Q_RPM.1
+                )],
+                None,
+            ));
+        }
+    }
+    let n_peaks = dn.peaks.len() as i64;
+    let said = findings
+        .iter()
+        .any(|f| f.settings.iter().any(|x| x == "dyn_notch_count")); // une raie qui passe demande déjà un notch de plus
+    if n_peaks > dn.count && (lines_pass || gyro_noisy) && !said {
+        let n = n_peaks.min(7);
+        let list = dn.peaks.iter().map(|f| fx(*f, 0)).collect::<Vec<_>>().join(", ");
+        let mut f = Finding::new(
+            "dyn_notch_more",
+            "Filtres",
+            CONSEIL,
+            "Notch dynamique : plus de notchs",
+            &format!(
+                "{n_peaks} pics à suivre après le filtre RPM ({list} Hz) pour {} notch(s), et {}",
+                dn.count,
+                if lines_pass {
+                    "une raie passe les filtres."
+                } else {
+                    "le gyro filtré est bruité."
+                }
+            ),
+            vec![format!(
+                "dyn_notch_count {} → {n} (un notch par pic à suivre).",
+                dn.count
+            )],
+            None,
+        );
+        f.settings = vec!["dyn_notch_count".to_string()];
+        out.push(f);
+    }
+    Ok(out)
+}
+
+/// `np.nanmax` de deux valeurs (NaN si les deux le sont).
+fn nanmax2(a: f64, b: f64) -> f64 {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => f64::NAN,
+        (true, false) => b,
+        (false, true) => a,
+        _ => a.max(b),
+    }
+}
+
+/// `_filter_rules` : réglages des filtres : passe-bas déconseillés, LPF1 du gyro, filtre RPM, oscillations 20–80 Hz, raie fixe, bilan du
+/// vol stationnaire, notch dynamique. Écrit `frame_resonance`, `dyn_notch`, `motor_harmonic_*` et `hover_lines` dans les mesures.
+fn filter_rules(a: &mut Analysis) -> Result<(), String> {
+    let (log, sel, profile) = (a.log, a.sel.clone(), a.profile);
+    let s = &log.settings;
+    let (fs, br, hi, aliased) = (log.fs, a.br.clone(), a.hi, a.aliased);
+    let fr = frame_resonance(log, &sel, 20.0)?;
+    let fixed_hz = fr
+        .filter(|r| r.excess_db >= profile.resonance_high_db && !r.near_motor)
+        .map(|r| r.freq_hz);
+    let dn = dyn_notch_view(log, &sel, fixed_hz)?;
+    a.meas.frame_resonance = fr;
+    a.meas.dyn_notch = dn.clone();
+    a.f.extend(lowpass_setup_rules(s));
+    if !aliased
+        && s.gyro_lpf1.enabled()
+        && log.gyro_unfilt.is_some()
+        && log.motor_hz.is_some()
+        && s.rpm_harmonics > 0
+        && !a.gyro_noisy
+        && !a.dterm_noisy
+    {
+        let hover = a.hover()?;
+        if let Some(f) = gyro_lpf1_off(log, &sel, hi, profile, &a.g_db, &a.d_db, a.d_ptb, hover)? {
+            a.f.push(f);
+        }
+    }
+    if let (Some(mhz_all), Some(unf)) = (&log.motor_hz, &log.gyro_unfilt)
+        && s.rpm_harmonics > 0
+    {
+        let mhz = sel_rows(mhz_all, &sel);
+        let (mut mn, mut mp) = (Vec::new(), Vec::new());
+        for x in 0..2 {
+            mn.push(otb_analysis::motors::motor_noise(
+                &wide(sel_row(&log.gyro, x, &sel)),
+                &mhz,
+                fs,
+                3,
+                300.0,
+                20.0,
+                Some(&br),
+            )?);
+        }
+        for x in 0..2 {
+            mp.push(otb_analysis::motors::motor_noise(
+                &wide(sel_row(unf, x, &sel)),
+                &mhz,
+                fs,
+                3,
+                300.0,
+                20.0,
+                Some(&br),
+            )?);
+        }
+        let left = nanmax2(mn[0].mean_db[0], mn[1].mean_db[0]);
+        let raw = nanmax2(mp[0].mean_db[0], mp[1].mean_db[0]);
+        a.meas.motor_harmonic_left_db = Some(left);
+        a.meas.motor_harmonic_raw_db = Some(raw);
+        if left > profile.motor_left_high_db {
+            let mut f = Finding::new(
+                "motor_noise_left",
+                "Filtres",
+                CONSEIL,
+                "Bruit moteur mal éliminé",
+                &format!(
+                    "Il reste {} dB sur la fréquence de rotation des moteurs après filtrage (avant filtrage : {} dB).",
+                    fx(left, 1),
+                    fx(raw, 1)
+                ),
+                vec![
+                    "Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs)."
+                        .to_string(),
+                    format!(
+                        "Filtre RPM : rpm_filter_q {} → {} (notchs plus larges), puis par pas de {RPM_Q_STEP} tant que la raie reste visible.",
+                        s.rpm_q,
+                        RPM_Q_MIN.max(s.rpm_q - RPM_Q_STEP)
+                    ),
+                ],
+                None,
+            );
+            f.settings = vec!["rpm_filter_q".to_string()];
+            a.f.push(f);
+        }
+        let lighten = left <= profile.motor_left_high_db && !aliased;
+        let weights = rpm_weight_rules(log, &sel, lighten, left > profile.motor_left_high_db)?;
+        a.f.extend(weights);
+        let q_said = a.f.iter().any(|f| f.settings.iter().any(|x| x == "rpm_filter_q")); // retard, raie visible : déjà conseillé
+        if !aliased && !a.gyro_noisy && !a.dterm_noisy && s.rpm_q < RPM_Q_MAX && !q_said {
+            let hover = a.hover()?;
+            if let Some(f) = rpm_q_raise(log, &sel, &a.f, hover)? {
+                a.f.push(f);
+            }
+        }
+    }
+    let low_max = py_max_list(&a.low_db).ok_or("ValueError : max() arg is an empty sequence")?;
+    if low_max > profile.low_band_high_db {
+        a.f.push(Finding::new(
+            "low_band_oscillation",
+            "Réponse",
+            CONSEIL,
+            "Oscillations basses fréquences (20–80 Hz)",
+            &format!(
+                "Énergie du gyro filtré entre 20 et 80 Hz : {} dB (seuil {} dB, 90 % des drones de cette taille font mieux). C'est la zone \
+du propwash et des oscillations de réglage.",
+                fx(low_max, 1),
+                fx(profile.low_band_high_db, 1)
+            ),
+            vec![
+                "Si cela arrive en descente/gaz coupés : propwash → plus de D (Damping +0,1) ou D max.".to_string(),
+                "Si cela arrive en vol stable : oscillation → Master −0,1 à −0,2.".to_string(),
+                "Regardez l'outil Fréquence × gaz pour voir à quel gaz le phénomène apparaît.".to_string(),
+            ],
+            None,
+        ));
+    }
+    let res = frame_resonance_finding(log, fr.as_ref(), profile, Some(&sel))?;
+    if let Some(r) = &res {
+        a.f.push(r.clone());
+    }
+    if a.hover()? && log.motor_hz.is_some() && log.gyro_unfilt.is_some() {
+        let fixed = if res.is_some() { fr.map(|r| r.freq_hz) } else { None };
+        let found = hover_noise(log, &sel, a.g_ptb, a.d_ptb, fixed, &mut a.meas, aliased)?;
+        a.f.extend(found);
+    }
+    let lines_pass = a.f.iter().any(|f| LINE_KEYS.contains(&f.key.as_str()));
+    if !aliased && let Some(dn) = &dn {
+        let hover = a.hover()?;
+        let more = dyn_notch_q_n_rules(s, dn, lines_pass, a.gyro_noisy, a.dterm_noisy, &a.f, hover)?;
+        a.f.extend(more);
+        if dn.count > (dn.peaks.len() as i64).max(1) {
+            let n = (dn.peaks.len() as i64).max(1);
+            let found = if dn.peaks.is_empty() {
+                "aucun pic à suivre".to_string()
+            } else {
+                format!(
+                    "{} pic(s) à suivre ({} Hz)",
+                    dn.peaks.len(),
+                    dn.peaks.iter().map(|f| fx(*f, 0)).collect::<Vec<_>>().join(", ")
+                )
+            };
+            let mut f = Finding::new(
+                "dyn_notch_fewer",
+                "Filtres",
+                INFO,
+                "Notch dynamique : moins de notchs suffiraient",
+                &format!(
+                    "Entre {} et {} Hz, après le filtre RPM, {found} pour {} notchs. Chaque notch filtre en permanence, même sans pic à \
+suivre (il reste à sa dernière fréquence), et ajoute du retard.",
+                    dn.min_hz, dn.max_hz, dn.count
+                ),
+                vec![format!(
+                    "dyn_notch_count = {n} (actuellement {}), puis vérifiez sur le log suivant que les raies de résonance ne réapparaissent \
+pas dans le gyro filtré.",
+                    dn.count
+                )],
+                None,
+            );
+            f.settings = vec!["dyn_notch_count".to_string()];
+            a.f.push(f);
+        }
+    }
+    Ok(())
 }
