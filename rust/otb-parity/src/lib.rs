@@ -5,6 +5,7 @@
 
 #![recursion_limit = "512"] // le grand `json!` des réglages
 
+pub mod advisor_layer;
 pub mod analysis_layer;
 pub mod compare;
 pub mod decoded;
@@ -12,4 +13,5 @@ pub mod flightlog_digest;
 pub mod layers;
 pub mod registry;
 pub mod settings_json;
+pub mod tuning_layer;
 pub mod value;

@@ -16,7 +16,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (Some(mode), Some(dir)) = (args.first(), args.get(1)) else {
         eprintln!(
-            "usage : otb-parity list|check|check-header|check-settings|check-sliders|check-decoder|check-flightlog|check-analysis DOSSIER [--rtol X]"
+            "usage : otb-parity list|check|check-header|check-settings|check-sliders|check-decoder|check-flightlog|check-analysis|check-advisor DOSSIER [--rtol X]"
         );
         std::process::exit(2);
     };
@@ -42,6 +42,83 @@ fn main() {
             rep.failures.len()
         );
         std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });
+    }
+    if mode == "check-advisor" {
+        let root = std::env::var("OTB_LOGS")
+            .unwrap_or_else(|_| format!("{}/Documents/Drones/Logs", std::env::var("HOME").unwrap()));
+        let threads = std::thread::available_parallelism().map_or(4, |n| n.get().min(6));
+        let rep = otb_parity::advisor_layer::check_advisor(&PathBuf::from(dir), &PathBuf::from(&root), threads)
+            .unwrap_or_else(|e| {
+                eprintln!("{e}");
+                std::process::exit(2)
+            });
+        for f in rep.failures.iter().take(15) {
+            println!("≠ {f}");
+        }
+        println!(
+            "assistant ({}) : {} sessions, {} clés comparées, {} clés d'identification ou de comptage non comparées, {} écarts",
+            otb_parity::advisor_layer::PORTED.join(", "),
+            rep.sessions,
+            rep.keys,
+            rep.skipped,
+            rep.failures.len()
+        );
+        println!(
+            "  mesures portées en plus : {}",
+            otb_parity::advisor_layer::PORTED_MEASURES.join(", ")
+        );
+        println!(
+            "  constats comparés (tous) : {}",
+            rep.compared_findings
+                .iter()
+                .map(|(k, n)| format!("{k} ×{n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        println!("  écart maximal aux tolérances : {:e}", rep.worst);
+        println!(
+            "  dont mesures de filtres (raie fixe, notch dynamique, vol stationnaire) : {:e}",
+            rep.worst_filter
+        );
+        // réponse indicielle par séries de vols (5a-5) : un fichier par dossier, refaite depuis les vols recalculés en Rust
+        let tun = otb_parity::tuning_layer::check_tuning(&PathBuf::from(dir), &PathBuf::from(&root), threads)
+            .unwrap_or_else(|e| {
+                eprintln!("{e}");
+                std::process::exit(2)
+            });
+        for f in tun.failures.iter().take(15) {
+            println!("≠ {f}");
+        }
+        println!(
+            "réponse indicielle par séries (tuning) : {} dossiers rejoués ({} sessions du premier niveau), {} avec au moins une série, {} où Python et Rust lèvent, {} clés comparées, {} écarts",
+            tun.groups,
+            tun.sessions,
+            tun.with_series,
+            tun.errors_replayed,
+            tun.keys,
+            tun.failures.len()
+        );
+        println!(
+            "  blocs de série : {}",
+            tun.series
+                .iter()
+                .map(|(k, n)| format!("{k} ×{n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        println!(
+            "  constats comparés : {}",
+            tun.findings
+                .iter()
+                .map(|(k, n)| format!("{k} ×{n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        std::process::exit(if rep.failures.is_empty() && tun.failures.is_empty() {
+            0
+        } else {
+            1
+        });
     }
     if mode == "check-analysis" {
         let root = std::env::var("OTB_LOGS")

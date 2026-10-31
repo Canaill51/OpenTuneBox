@@ -30,7 +30,7 @@ jobs:
         run: |
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
-          cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-parity
+          cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-parity
       - name: Tests
         # --cov-report= : la couverture est seulement mesurée ici, le rapport est affiché plus bas
         run: python -m pytest -q --cov=opentunebox --cov-report=
@@ -60,7 +60,7 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Tests Rust
         working-directory: rust
-        run: cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-parity
+        run: cargo test --no-fail-fast -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-parity
       - name: Dépendances
         run: python -m pip install -e '.[dev]'
       - name: Tests du décodeur et des noyaux de calcul (numba et Rust)

@@ -60,6 +60,39 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-062 : une couche de contrôle qui ne part que de ce que les références déclarent ne voit pas une référence manquante
+- **Symptôme** — relecture de la 5a-5 (2026-10-31) : avec un seul `.npz` sur un `flightlog.json` filtré, ou avec `advisor_tuning/` vide, `otb-parity check-advisor` rendait 0 échec et le code de sortie 0.
+- **Cause** — `tuning_layer.rs` calculait les vols des seuls fichiers que les références déclaraient (`tuning|files`), puis cherchait parmi eux les sessions « analysées mais absentes d'une référence » : l'ensemble cherché était vide par construction, et seul le dossier du premier niveau était testé.
+- **Règle** — un contrôle de complétude part de la **liste attendue** (ici `flightlog.json`), jamais de ce que les fichiers à contrôler annoncent. Pour tout nouveau contrôle : le casser exprès (supprimer une référence, vider le dossier) et voir l'échec. Les commentaires « chaque référence est rejouée » se vérifient de la même façon.
+- **Preuve** — `rust/otb-parity/src/tuning_layer.rs:check_tuning` (tous les fichiers de `flightlog.json`, tous leurs dossiers, échec si aucune référence) ; essai à la main : `Davy.npz` seul → « Charly/btfl_009.bbl : session analysée absente de la référence Charly.npz », dossier vide → « aucune référence ».
+
+### L-061 : `np.convolve(x, np.ones(K) / K, "same")` : pour K = 15, somme croissante avec FMA ; pour K = 5, centre sans FMA et bords avec FMA ; seule la comparaison au bit près le montre
+- **Symptôme** — 2026-10-31 (5a-3c, `frame_resonance`) : les trois autres façons de sommer le lissage par 15 valeurs (croissant sans FMA, décroissant avec ou sans FMA) diffèrent de numpy
+  sur 1 772 à 2 222 valeurs sur 3 000 (dernier bit seulement).
+- **Cause** — `np.convolve` passe par le produit scalaire de la bibliothèque BLAS de numpy ; sur ce poste la boucle de queue (moins de 16 valeurs) fusionne le produit et la somme
+  (`acc = fma(x[j], 1/15, acc)`) en partant de la fenêtre la plus ancienne. Python 3.14 : `math.fma`. **Pour 5 valeurs** (relecture, 2026-10-31, mesuré sur 10 000 valeurs
+  aléatoires puis sur 52 240 valeurs de longueurs 5 à 1 001) : le **centre** se somme dans l'ordre croissant **sans** FMA (`acc + x × 0,2`), les **deux premières et les deux dernières**
+  valeurs (fenêtre tronquée à 3 ou 4 termes) **avec** FMA, toujours dans l'ordre croissant : 0 écart. « Croissant avec FMA » partout donne 4 181 écarts sur 10 000, « décroissant sans
+  FMA » (le premier essai de Rust) 4 738. Pourquoi les bords seuls fusionnent n'est pas élucidé (non vérifié : chemin de calcul différent de la bibliothèque pour les fenêtres tronquées).
+  Moins de 5 valeurs (numpy échange alors les tableaux) : aucune des quatre variantes ne rend les bits de numpy ; seule la tolérance est vérifiée.
+- **Règle** — pour une convolution courte, mesurer les quatre variantes (ordre croissant ou décroissant, avec ou sans FMA) sur des signaux aléatoires avant de choisir, **séparément pour
+  le centre et pour les bords** ; pour 15 valeurs seule « croissant + FMA » donne 0 écart sur 3 000 valeurs (`f64::mul_add` en Rust). Dépend du poste (BLAS) : à relire si la tolérance des
+  mesures de raies (`FILTER_TOL`) est un jour trop juste ; la CI (Windows en particulier) peut différer d'un bit : le test compare à 1e-15 de la fenêtre et n'exige le bit près que
+  si `OTB_BITEXACT=1` (L-059).
+- **Preuve** — `rust/otb-advisor/src/rules.rs:smooth15` et `smooth5`, `rust/otb-advisor/tests/smooth.rs` (sorties de numpy dans `rust/otb-advisor/tests/data/smooth.json`, écrites par `scripts/smooth_cases.py` ;
+  `OTB_BITEXACT=1 cargo test -p otb-advisor --test smooth` : 32 328 et 33 376 valeurs identiques au bit près) ; corpus : 630 sessions, écart maximal 2,3e-13 sur les mesures de filtres. (Avec un lissage « simple », l'écart serait de l'ordre de 1e-16 :
+  invisible à la tolérance du corpus. L'ordre exact n'est donc pas prouvé par le corpus, seulement par la mesure ci-dessus.)
+- **Complément (2026-10-31, PR de la 5a)** — deux autres formes du même piège, vues par la CI Windows : (1) un test d'`analyze` qui comparait au bit près les mesures de réponse indicielle (`steps`, 4 ulp d'écart) ; (2) un cas dont le **seuil était posé à un ulp** de la mesure (`down(gap)`) : l'écart venant d'une FFT, la décision bascule d'une plate-forme à l'autre. Règle : tout seuil de cas écrit qui touche une mesure issue d'une FFT se pose à ±1e-9 de la mesure, jamais à l'ulp ; `cargo test --no-fail-fast` dans le job Windows pour voir tous les échecs d'un coup.
+
+### L-060 : `\w`, `\d` et `\s` de Python ne sont pas `is_alphanumeric`, `is_numeric` ni `is_whitespace` de Rust
+- **Symptôme** — 2026-10-30 (5a-1, `profiles.py`) : le premier essai de `\w` par `c == '_' || c.is_alphanumeric()` diffère de Python pour **6 167 caractères** sur 1,1 M de points
+  de code (premier : U+0345, un signe combinant) ; `\s` diffère par U+001C à U+001F (`str.isspace` les compte, pas `White_Space`).
+- **Cause** — Rust prend la propriété Unicode `Alphabetic` (qui contient des signes combinants) et `Numeric` (qui contient `No` et `Nl`) ; Python prend les catégories `L*` et `Nd`
+  (`isalnum`), et sa version d'Unicode (16.0 pour Python 3.14) n'est pas celle de Rust.
+- **Règle** — une classe de caractères d'expression régulière se reproduit par **table générée depuis Python** (`scripts/profiles_cases.py TABLES.rs` → `src/pyclasses.rs`) et se
+  vérifie sur tous les points de code ; jamais par une fonction de la bibliothèque standard « qui a l'air pareille ». `\d` sert aussi à `float()` : un chiffre Unicode se lit.
+- **Preuve** — `rust/otb-advisor/tests/profiles.rs` (`classes_de_caracteres_de_python` : `\d`, `\s`, `\w` sur les 1 114 112 points ; `minuscules_comme_python`).
+
 ### L-059 : « identique au bit près » après une FFT n'est vrai que sur le poste qui a écrit la référence ; la CI Windows est la seule preuve
 - **Symptôme** — 2026-10-30 (PR 4c-B) : la CI Windows échoue sur `step_response "a : termes PID, fenêtres de 2 s" : réponses : élément 0` : Rust −4,654068096933931e-4,
   Python −4,6540680969330825e-4 (écart relatif 1,8e-12) ; Linux : 0 écart.
@@ -739,6 +772,9 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-062 | Contrôle de complétude de la couche corpus : partir de la liste attendue (`flightlog.json`), pas des fichiers que les références déclarent ; le casser exprès (référence supprimée) | Outillage |
+| L-061 | `np.convolve(x, ones(K)/K, "same")` : K = 15 somme croissante avec FMA ; K = 5 centre sans FMA, 2 premières et 2 dernières valeurs avec FMA (mesuré, 4 variantes essayées) ; l'ordre « évident » diffère au dernier bit | Outillage |
+| L-060 | `\w`, `\d`, `\s` de Python ≠ `is_alphanumeric`, `is_numeric`, `is_whitespace` de Rust : table générée depuis Python, vérifiée sur tous les points de code | Outillage |
 | L-059 | « Identique au bit près » après une FFT : vrai sur le poste des références seulement ; tolérance dans les tests de la CI, relire toute la sortie Windows (cargo s'arrête au 1er échec) | Outillage |
 | L-058 | Ordre des sommes de numpy : `x[..., masque]` et matrice d'une colonne sont « Fortran », somme par paires sur l'axe 0 (≥ 8 valeurs) | Analyses |
 | L-057 | Cas aléatoires qui n'atteignent jamais le régime valide : seuils libres ; phases lentes, puissances voisines, compter les cas non vides | Outillage |

@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
-enum Item {
+pub(crate) enum Item {
     F(f64),
     /// Tableau `float32` (bits `f32`).
     A32(Vec<f32>),
@@ -23,6 +23,9 @@ enum Item {
     TA(Vec<f64>, f64),
     /// Tableau de flottants comparé **case par case**, en relatif à chaque valeur de référence (spectres : les petites cases comptent).
     TR(Vec<f64>, f64),
+    /// Tableau de flottants dont chaque élément se compare comme un [`Item::T`] : `(valeurs, tolérance, unité)`, écart de chaque élément =
+    /// |Rust − Python| / max(|Python|, unité) (niveaux en dB proches de 0, où l'erreur de la FFT ne dépend pas de la taille de la valeur).
+    TU(Vec<f64>, f64, f64),
     /// Flottant comparé à une tolérance : `(valeur, tolérance, unité)` ; écart = |Rust − Python| / max(|Python|, unité).
     T(f64, f64, f64),
     I(i64),
@@ -35,7 +38,7 @@ enum Item {
     C(Vec<(f64, f64)>, f64),
 }
 
-type Flat = BTreeMap<String, Item>;
+pub(crate) type Flat = BTreeMap<String, Item>;
 
 /// Sections de la couche déjà portées en Rust (les autres sont ignorées).
 pub const PORTED: [&str; 7] = ["period", "datasets", "stats", "delay", "motors", "step", "series"];
@@ -62,7 +65,7 @@ pub const CELL_FLOOR: f64 = 1e-12;
 /// d'échantillonnage (≥ 0,1 ms), six ordres de grandeur au-dessus : la tolérance le refuse.
 pub const DELAY_TOL: f64 = 1e-8;
 
-fn put_opt(f: &mut Flat, key: &str, v: Option<f64>) {
+pub(crate) fn put_opt(f: &mut Flat, key: &str, v: Option<f64>) {
     f.insert(key.to_string(), v.map_or(Item::S("None".into()), Item::F));
 }
 
@@ -394,35 +397,37 @@ fn motors_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, S
     Ok(f)
 }
 
-fn stats_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Flat {
-    let mut f = Flat::new();
-    let s = stats::flight_stats(lg, sel.clone());
-    f.insert("stats|flight.duration_s".into(), Item::F(s.duration_s));
+/// Les clés de `FlightStats` sous `prefix` (`stats|flight` ou `report|measures|stats`), mêmes noms que `golden.flatten`.
+pub(crate) fn put_flight_stats(f: &mut Flat, prefix: &str, s: &stats::FlightStats) {
+    f.insert(format!("{prefix}.duration_s"), Item::F(s.duration_s));
     for (name, centres, hist) in &s.stick_hist {
-        f.insert(format!("stats|flight.stick_hist|{name}[0]"), Item::A(centres.clone()));
-        f.insert(format!("stats|flight.stick_hist|{name}[1]"), Item::A(hist.clone()));
+        f.insert(format!("{prefix}.stick_hist|{name}[0]"), Item::A(centres.clone()));
+        f.insert(format!("{prefix}.stick_hist|{name}[1]"), Item::A(hist.clone()));
     }
     for (name, v) in &s.terms {
         for (a, m) in v.iter().enumerate() {
-            put_ms(&mut f, &format!("stats|flight.terms|{name}[{a}]"), m);
+            put_ms(f, &format!("{prefix}.terms|{name}[{a}]"), m);
         }
     }
     for (k, m) in s.motors.iter().enumerate() {
-        put_ms(&mut f, &format!("stats|flight.motors[{k}]"), m);
+        put_ms(f, &format!("{prefix}.motors[{k}]"), m);
     }
     f.insert(
-        "stats|flight.motor_saturation_pct".into(),
+        format!("{prefix}.motor_saturation_pct"),
         Item::F(s.motor_saturation_pct),
     );
-    f.insert(
-        "stats|flight.motor_imbalance_pct".into(),
-        Item::F(s.motor_imbalance_pct),
-    );
-    put_ms(&mut f, "stats|flight.throttle", &s.throttle);
-    put_opt_ms(&mut f, "stats|flight.vbat", &s.vbat);
-    put_opt(&mut f, "stats|flight.vbat_min", s.vbat_min);
-    put_opt_ms(&mut f, "stats|flight.current", &s.current);
-    put_opt(&mut f, "stats|flight.mah", s.mah);
+    f.insert(format!("{prefix}.motor_imbalance_pct"), Item::F(s.motor_imbalance_pct));
+    put_ms(f, &format!("{prefix}.throttle"), &s.throttle);
+    put_opt_ms(f, &format!("{prefix}.vbat"), &s.vbat);
+    put_opt(f, &format!("{prefix}.vbat_min"), s.vbat_min);
+    put_opt_ms(f, &format!("{prefix}.current"), &s.current);
+    put_opt(f, &format!("{prefix}.mah"), s.mah);
+}
+
+fn stats_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Flat {
+    let mut f = Flat::new();
+    let s = stats::flight_stats(lg, sel.clone());
+    put_flight_stats(&mut f, "stats|flight", &s);
     let e = stats::pid_error_stats(lg, sel, 100.0, 50.0);
     f.insert("stats|pid_error.edges".into(), Item::A(e.edges.clone()));
     f.insert("stats|pid_error.stick_bins".into(), Item::A(e.stick_bins.clone()));
@@ -442,7 +447,7 @@ fn same_bits(a: f64, b: f64) -> bool {
     a.to_bits() == b.to_bits() || (a.is_nan() && b.is_nan())
 }
 
-fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<String> {
+pub(crate) fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<String> {
     let bad = |what: String| Some(format!("{key} : {what}"));
     match got {
         Item::F(g) => {
@@ -494,6 +499,34 @@ fn compare_item(key: &str, got: &Item, want: &Array, worst: &mut f64) -> Option<
             (0..g.len())
                 .find(|&i| want.get_f64(i) != g[i] as f64)
                 .map(|i| format!("{key} : élément {i} : Rust {}", g[i]))
+        }
+        Item::TU(g, tol, unit) => {
+            if want.kind != 'f' || want.size != 8 || want.len() != g.len() {
+                return bad(format!(
+                    "{} valeurs (Python {}{} ×{})",
+                    g.len(),
+                    want.kind,
+                    want.size,
+                    want.len()
+                ));
+            }
+            for (i, gi) in g.iter().enumerate() {
+                let w = want.get_f64(i);
+                if !gi.is_finite() || !w.is_finite() {
+                    if !same_bits(*gi, w) {
+                        return Some(format!("{key} : élément {i} : Rust {gi:e} / Python {w:e}"));
+                    }
+                    continue;
+                }
+                let err = (gi - w).abs() / w.abs().max(*unit);
+                *worst = worst.max(err);
+                if err > *tol {
+                    return Some(format!(
+                        "{key} : élément {i} : Rust {gi:e} / Python {w:e} (écart {err:e} > {tol:e})"
+                    ));
+                }
+            }
+            None
         }
         Item::TA(g, tol) => {
             if want.kind != 'f' || want.size != 8 || want.len() != g.len() {
@@ -654,7 +687,7 @@ pub struct AnalysisReport {
     pub failures: Vec<String>,
 }
 
-fn stem(rel: &str, session: i64) -> String {
+pub(crate) fn stem(rel: &str, session: i64) -> String {
     format!("{}.{session}.npz", rel.replace('/', "__"))
 }
 
