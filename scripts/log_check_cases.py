@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cas de test de `advisor/log_check.py` sur des journaux fabriqués, pour `rust/otb-advisor/src/log_check.rs` (phase 5b-2).
 
-Usage : log_check_cases.py SORTIE.json    (à exécuter avec `.venv/bin/python -I`)
+Usage : log_check_cases.py SORTIE.json[.gz]    (à exécuter avec `.venv/bin/python -I`)
 
 Complète la couche corpus (`otb-parity check-guide`) : des vols courts fabriqués (modèle de `rules_state_cases.py:build`) font atteindre les
 branches que le corpus ne couvre pas. Chaque cas appelle l'étalon `check_log(log, sel, label, exact)` et garde **tout** : points (clé, titre,
@@ -19,7 +19,9 @@ Familles de cas :
 - groupes de logs (`check_logs`) : chaque curseur en série, série Feedforward avec retards, vols identiques, hors série, noms et cartes ;
 - repères de la phase Filtres (`filter_targets`, `FilterTargets.checks` / `reached`).
 """
+import gzip
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -27,12 +29,28 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # -I retire le dossier du script de sys.path
 from bf_filters_cases import hx  # noqa: E402
-from flight_stats_cases import INPUTS, enc_log  # noqa: E402
+from flight_stats_cases import INPUTS  # noqa: E402
+from flight_stats_cases import enc_log as _enc_log  # noqa: E402
 from rules_state_cases import build, rows, with_  # noqa: E402
 
 from opentunebox.advisor import log_check as LC  # noqa: E402
 from opentunebox.advisor.log_check import FilterTargets, check_log, check_logs, filter_targets  # noqa: E402
 from opentunebox.analysis.period import flight_parts  # noqa: E402
+
+# Colonnes que ni `check_log` ni `filter_targets` ne lisent (vérifié : leurs sorties sont identiques avec ces colonnes à zéro) : écrites en
+# zéros, elles n'alourdissent pas le fichier (une même suite de zéros n'y figure qu'une fois)
+UNREAD = tuple(x for x in os.environ.get("OTB_ZERO", "p_term,i_term,f_term,rc_command,debug,motors").split(",") if x)
+
+
+def lite(lg):
+    """Le journal avec les colonnes `UNREAD` à zéro : appliqué AVANT de calculer la réponse de Python, pour que la réponse et les données
+    écrites dans le fichier correspondent."""
+    z = {k: np.zeros_like(getattr(lg, k)) for k in UNREAD if getattr(lg, k, None) is not None}
+    return with_(lg, **z)
+
+
+enc_log = _enc_log
+
 
 CASES: list = []
 SEEN: dict[str, int] = {}
@@ -58,6 +76,7 @@ def enc_check(ck) -> dict:
 
 
 def case(label, lg, sel=None, exact=False):
+    lg = lite(lg)
     rec = {"label": label, "log": {**enc_log(lg), "raw": dict(lg.settings.raw), "columns": sorted(lg.pid_columns)},
            "sel": None if sel is None else list(sel), "exact": exact}
     try:
@@ -117,7 +136,7 @@ def main():
     for fs, loop, denom in ((250.0, "125", "1"), (400.0, "125", "1"), (760.0, "125", "1"), (800.0, "125", "1"), (1000.0, "125", "1"),
                             (2000.0, "125", "1"), (2000.0, "250", "1"), (500.0, "250", "2"),
                             (4000.0, "250", "2"), (333.0, "125", "1"), (1000.0, "500", "1")):
-        case(f"fs {fs} looptime {loop} denom {denom}", build(fs=fs, seconds=1.0 if fs > 1500 else 1.5, looptime=loop, pid_process_denom=denom))
+        case(f"fs {fs} looptime {loop} denom {denom}", build(fs=fs, seconds=0.5 if fs > 1500 else 1.5, looptime=loop, pid_process_denom=denom))
     case("harmonique repliée", build(fs=1000.0, seconds=1.5, looptime="125", motor_hz=420.0))
     case("harmonique repliée fs 2000", build(fs=2000.0, seconds=1.5, looptime="125", motor_hz=700.0))
     case("moteurs lents", build(fs=1000.0, seconds=1.5, looptime="125", motor_hz=60.0))
@@ -146,8 +165,8 @@ def main():
             if c2 * 1.05 == target:
                 case(f"harm_hz pile à 1,05 fs {c2!r}", with_hz(build(fs=c2, seconds=0.5, looptime="125"), 330.0))
                 break
-    case("sans gyro non filtré mais log rapide", hover_only(build(fs=2000.0, seconds=3.0, looptime="125", unfilt=False)))
-    case("sans gyro non filtré en 4.4, log rapide", hover_only(build(fs=2000.0, seconds=3.0, looptime="125", unfilt=False,
+    case("sans gyro non filtré mais log rapide", hover_only(build(fs=2000.0, seconds=1.5, looptime="125", unfilt=False)))
+    case("sans gyro non filtré en 4.4, log rapide", hover_only(build(fs=2000.0, seconds=1.5, looptime="125", unfilt=False,
                                                                       **{"Firmware revision": "Betaflight 4.4.3 (abcd) STM32F7X2"})))
     short = lambda **kw: build(fs=250.0, seconds=3.0, looptime="250", **kw)  # noqa: E731
     for lvl in (29.9, 30.0, 30.5, 31.0, 40.0):
@@ -157,9 +176,9 @@ def main():
     case("F pitch seul à 0", L(seconds=3.0, flags=0b1, ff_weight="120,0,0"))
     case("rates : centre 100", hover_then_moving(L(seconds=3.0, rates_type="3", rc_rates="10,10,10", rates="20,20,20", rc_expo="0,0,0"), 0.1))
     case("rates : maximum 100", hover_then_moving(L(seconds=3.0, rates_type="3", rc_rates="20,20,20", rates="10,10,10", rc_expo="0,0,0"), 0.1))
-    case("trou de 3,5 trames", with_gap(L(seconds=5.0), 1000, 3.5))
-    case("trou de 2,5 trames", with_gap(L(seconds=5.0), 1000, 2.5))
-    case("trou de 4,5 trames", with_gap(L(seconds=5.0), 1000, 4.5))
+    case("trou de 3,5 trames", with_gap(L(seconds=3.0), 1000, 3.5))
+    case("trou de 2,5 trames", with_gap(L(seconds=3.0), 1000, 2.5))
+    case("trou de 4,5 trames", with_gap(L(seconds=3.0), 1000, 4.5))
     cr = build(fs=1000.0, seconds=2.0, looptime="125")
     for run in (59, 60, 61, 62):
         case(f"crash de {run} ms", rows(cr, "gyro", lambda a, r=run: a.__setitem__((1, slice(900, 900 + r)), 1901.0)))
@@ -208,16 +227,22 @@ def main():
                 break
         if not done:
             raise SystemExit(f"pas de journal à {w} fenêtres")
-    case("série lisible mais I trop haut", L(seconds=20.0, flags=0b10, angle_limit="30", **rates_ok))
+    case("série lisible mais I trop haut", L(seconds=8.0, flags=0b10, angle_limit="30", **rates_ok))
     gv = hover_then_moving(L(seconds=20.0, fs=500.0), 6.0)
     case("trou dans la partie avec mouvements (exact)", with_gap(gv, 7000, 40), exact=True)
     case("trou dans la partie avec mouvements (rapide)", with_gap(gv, 7000, 40))
 
     # --- usages qui réussissent
-    case("série lisible", L(seconds=20.0, flags=0b10, angle_limit="30", simplified_i_gain="25", **rates_ok), exact=True)
-    case("série lisible (rapide)", L(seconds=20.0, flags=0b10, angle_limit="30", simplified_i_gain="25", **rates_ok))
-    case("bruit lisible", hover_only(build(fs=2000.0, seconds=3.0, looptime="125")))
-    case("bruit et retard lisibles", hover_then_moving(build(fs=2000.0, seconds=4.0, looptime="125"), 2.0))
+    case("série lisible", L(seconds=8.0, flags=0b10, angle_limit="30", simplified_i_gain="25", **rates_ok), exact=True)
+    case("série lisible (rapide)", L(seconds=8.0, flags=0b10, angle_limit="30", simplified_i_gain="25", **rates_ok))
+    case("bruit lisible", hover_only(build(fs=2000.0, seconds=2.0, looptime="125")))
+    case("bruit et retard lisibles", hover_then_moving(build(fs=2000.0, seconds=3.0, looptime="125"), 1.0))
+
+    # --- roll et pitch aux nombres de fenêtres très différents : c'est le plus petit qui décide
+    no_pitch = rows(L(seconds=6.0), "setpoint", lambda a: a.__setitem__((1, slice(None)), 0.0))
+    ck = case("fenêtres : pitch sans consigne", no_pitch)
+    assert ck.windows[0] > 20 > ck.windows[1], ck.windows
+    case("fenêtres : pitch sans consigne (exact)", no_pitch, exact=True)
 
     # --- parties du vol
     hm = L(seconds=20.0, fs=500.0)
@@ -249,7 +274,7 @@ def main():
                                ("Angle + Horizon", 0b110, dict(angle_limit="30")), ("Acro, limite 30", 0b1, dict(angle_limit="30"))):
         case(f"mode {name}", L(seconds=3.0, flags=flags, **extra))
     # --- axes mêlés
-    mixed = L(seconds=4.0)
+    mixed = L(seconds=3.0)
     case("axes mêlés pitch coupé", rows(mixed, "setpoint", lambda a: a.__setitem__((1, slice(None)), 0.0)))
     case("axes mêlés pitch décalé", rows(mixed, "setpoint", lambda a: a.__setitem__((1, slice(None)), np.roll(a[0], 700))))
     # --- curseurs
@@ -265,6 +290,7 @@ def main():
     case("trou long", with_gap(gap, 1000, 80))
     case("deux trous", with_gap(with_gap(gap, 1000, 30), 2500, 30))
     n = gap.n
+    case("période stop 0, vol court (Python lève)", L(seconds=3.0), sel=[0, 0])
     for name, sel in (("début", [0, n // 2]), ("milieu", [n // 4, 3 * n // 4]), ("vide", [10, 10]), ("hors du journal", [n + 5, n + 9]),
                       ("tout", [0, n]), ("stop 0", [0, 0]), ("un point", [5, 6]), ("fin", [n - 3, n]), ("dépasse", [100, n + 500])):
         case(f"période {name}", gap, sel=sel)
@@ -278,6 +304,7 @@ def main():
     groups = []
 
     def group(label, logs, delays=None):
+        logs = [(lab, lite(lg)) for lab, lg in logs]
         d = delays or {}
         out = check_logs(logs, d)
         groups.append({"label": label, "logs": [[lab, {**enc_log(lg), "raw": dict(lg.settings.raw), "columns": sorted(lg.pid_columns)}]
@@ -316,6 +343,7 @@ def main():
     targets = []
 
     def tgt(label, lg, parts, inch):
+        lg = lite(lg)
         rec = {"label": label, "log": {**enc_log(lg), "raw": dict(lg.settings.raw), "columns": sorted(lg.pid_columns)},
                "hover": None if parts.get("hover") is None else [hx(parts["hover"][0]), hx(parts["hover"][1])],
                "moving": None if parts.get("moving") is None else [hx(parts["moving"][0]), hx(parts["moving"][1])],
@@ -351,7 +379,7 @@ def main():
     tgt("terme D sur le seul pitch", rows(vol, "d_term", lambda a: a.__setitem__((0, slice(None)), 0.0)), p, 5.0)
     tgt("terme D sur le seul roll", rows(vol, "d_term", lambda a: a.__setitem__((1, slice(None)), 0.0)), p, 5.0)
     tgt("trou dans la partie stationnaire", with_gap(vol, 1500, 40), p, 5.0)
-    tgt("bande vide (fs bas)", build(fs=120.0, seconds=24.0, looptime="500"), {"hover": (1.0, 20.0), "moving": None}, 5.0)
+    tgt("bande vide (fs bas)", build(fs=120.0, seconds=10.0, looptime="500"), {"hover": (1.0, 8.0), "moving": None}, 5.0)
     tgt("partie hors du journal", vol, {"hover": (100.0, 120.0), "moving": None}, 5.0)
 
     checks = []
@@ -378,7 +406,7 @@ def main():
                 r = LC.log_rates(s)
                 rates_units.append({"raw": {k: v for k, v in kw.items() if v is not None}, "out": r and [list(x) for x in r]})
     mixed_units = []
-    ml = L(seconds=4.0)
+    ml = lite(L(seconds=4.0))
     for sel in ((0, ml.n), (0, 0), (10, 11), (ml.n // 2, ml.n)):
         for thr in (0.0, 20.0, 100.0, 1e9):
             mixed_units.append({"sel": list(sel), "thr": hx(thr), "out": hx(LC.axes_mixed_share(ml, slice(*sel), thr))})
@@ -389,7 +417,11 @@ def main():
               "rates_fix": [fix.where, fix.cli], "inputs": INPUTS,
               "constants": {"configurator": LC.CONFIGURATOR_SLIDERS, "role_names": LC.ROLE_NAMES}}
     text = json.dumps(result, separators=(",", ":"))
-    Path(out_path).write_text(text)
+    if out_path.endswith(".gz"):  # mtime=0 : même contenu, mêmes octets d'une régénération à l'autre
+        with gzip.GzipFile(out_path, "wb", compresslevel=9, mtime=0) as fh:
+            fh.write(text.encode())
+    else:
+        Path(out_path).write_text(text)
     print(len(CASES), "cas,", sum(1 for c in CASES if c["error"]), "erreurs de Python,", len(groups), "groupes,", len(targets), "repères,",
           f"{len(text) / 1e6:.2f} Mo", file=sys.stderr)
     print("points vus :", dict(sorted(SEEN.items())), file=sys.stderr)

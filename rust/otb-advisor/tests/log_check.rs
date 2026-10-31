@@ -1,5 +1,5 @@
 //! `advisor/log_check.py` porté en Rust (phase 5b-2) sur des journaux fabriqués : cas écrits par `scripts/log_check_cases.py` (régénérer
-//! `tests/data/log_check.json` avec ce script si `log_check.py` ou ce qu'il appelle change).
+//! `tests/data/log_check.json.gz` avec ce script (`log_check_cases.py SORTIE.json.gz`) si `log_check.py` ou ce qu'il appelle change).
 //!
 //! - `check_log` : **tout** est comparé (points : clé, titre, état, texte, corrections ; usages ; parties du vol ; fenêtres ; curseurs ;
 //!   rôle ; retards ; vues `items_for` / `usages_for` / `cli_commands` des deux rôles) ; textes au caractère près ;

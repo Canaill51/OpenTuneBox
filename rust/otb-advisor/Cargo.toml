@@ -13,4 +13,5 @@ otb-log = { path = "../otb-log" }
 serde_json = { version = "1", features = ["preserve_order"] }
 
 [dev-dependencies]
+flate2 = "1"
 otb-decoder = { path = "../otb-decoder" }

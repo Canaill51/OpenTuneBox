@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-064 : réduire un fichier de cas en changeant les données écrites sans changer celles que Python a utilisées donne un « identique » qui ne prouve rien
+- **Symptôme** — 2026-10-31 (5b) : en mettant à zéro des colonnes du journal pour alléger `log_check.json`, la comparaison des réponses de Python « avant / après » rendait « tout identique », y compris en zérotant `gyro_unfilt`, dont dépendent pourtant les retards.
+- **Cause** — la mise à zéro n'était appliquée qu'à la copie **écrite** dans le fichier ; Python calculait ses réponses sur le journal d'origine. Les deux fichiers contenaient donc les mêmes réponses, et Rust aurait été jugé sur des données qui ne correspondaient plus.
+- **Règle** — transformer le journal **avant** de calculer la réponse de Python, puis comparer les réponses à celles de l'ancien fichier : identiques = colonne inutile, différentes = colonne lue. Mesuré ainsi : les gaz (`throttle`), `d_term` et `gyro_unfilt` sont lus ; termes P, I, F, commande radio, debug et moteurs ne le sont pas (pour ces cas). Puis relancer toutes les mutations : raccourcir des journaux a fait perdre une branche (`min` des fenêtres roll / pitch), rattrapée par un cas dirigé.
+- **Preuve** — `scripts/log_check_cases.py` (`lite`, `UNREAD`).
+
 ### L-063 : une batterie de mutations qui remplace du texte exact se périme au premier `cargo fmt` et classe les mutations « ratées » comme survivantes
 - **Symptôme** — 5b-2 (2026-10-31) : le script de mutations rendait 21 « survivantes » dont trois qui ne l'étaient pas : le motif cherché (`== LOG_RATE_DPS) && mx`) n'existait plus dans le fichier, que `cargo fmt` avait réécrit sur plusieurs lignes ; le script le notait « ne compile pas » au lieu de « motif absent ».
 - **Cause** — le classement lisait `error:` dans la sortie de `cargo test`, qui s'écrit aussi après un test en échec (`error: test failed`) ; et un motif écrit avant le formatage ne correspond plus après.
@@ -778,6 +784,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-064 | Alléger un fichier de cas : transformer le journal AVANT de calculer la réponse de Python, comparer aux anciennes réponses ; relancer les mutations (raccourcir perd des branches) | Outillage |
 | L-063 | Mutations par remplacement de texte : `cargo fmt` d'abord, motif absent = erreur du script, « tuée » seulement sur `FAILED` ; un seuil `>=` / `>` demande une valeur exactement dessus | Outillage |
 | L-062 | Contrôle de complétude de la couche corpus : partir de la liste attendue (`flightlog.json`), pas des fichiers que les références déclarent ; le casser exprès (référence supprimée) | Outillage |
 | L-061 | `np.convolve(x, ones(K)/K, "same")` : K = 15 somme croissante avec FMA ; K = 5 centre sans FMA, 2 premières et 2 dernières valeurs avec FMA (mesuré, 4 variantes essayées) ; l'ordre « évident » diffère au dernier bit | Outillage |

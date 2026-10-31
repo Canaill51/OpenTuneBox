@@ -14,8 +14,19 @@ use std::sync::Mutex;
 static WORST: Mutex<BTreeMap<&'static str, f64>> = Mutex::new(BTreeMap::new());
 
 pub fn cas(name: &str) -> Value {
+    // `<nom>.json`, ou `<nom>.json.gz` pour les gros fichiers (compressés sans perte par le script qui les écrit)
     let p = format!("{}/tests/data/{name}.json", env!("CARGO_MANIFEST_DIR"));
-    let c: Value = serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap();
+    let text = match std::fs::read_to_string(&p) {
+        Ok(t) => t,
+        Err(_) => {
+            use std::io::Read;
+            let f = std::fs::File::open(format!("{p}.gz")).unwrap_or_else(|e| panic!("{p}(.gz) : {e}"));
+            let mut t = String::new();
+            flate2::read::GzDecoder::new(f).read_to_string(&mut t).unwrap();
+            t
+        }
+    };
+    let c: Value = serde_json::from_str(&text).unwrap();
     // une liste de cas vide ferait passer sa boucle de test sans rien vérifier
     for (k, v) in c.as_object().unwrap() {
         if let Some(a) = v.as_array() {
