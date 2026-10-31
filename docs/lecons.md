@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-062 : une couche de contrôle qui ne part que de ce que les références déclarent ne voit pas une référence manquante
+- **Symptôme** — relecture de la 5a-5 (2026-10-31) : avec un seul `.npz` sur un `flightlog.json` filtré, ou avec `advisor_tuning/` vide, `otb-parity check-advisor` rendait 0 échec et le code de sortie 0.
+- **Cause** — `tuning_layer.rs` calculait les vols des seuls fichiers que les références déclaraient (`tuning|files`), puis cherchait parmi eux les sessions « analysées mais absentes d'une référence » : l'ensemble cherché était vide par construction, et seul le dossier du premier niveau était testé.
+- **Règle** — un contrôle de complétude part de la **liste attendue** (ici `flightlog.json`), jamais de ce que les fichiers à contrôler annoncent. Pour tout nouveau contrôle : le casser exprès (supprimer une référence, vider le dossier) et voir l'échec. Les commentaires « chaque référence est rejouée » se vérifient de la même façon.
+- **Preuve** — `rust/otb-parity/src/tuning_layer.rs:check_tuning` (tous les fichiers de `flightlog.json`, tous leurs dossiers, échec si aucune référence) ; essai à la main : `Davy.npz` seul → « Charly/btfl_009.bbl : session analysée absente de la référence Charly.npz », dossier vide → « aucune référence ».
+
 ### L-061 : `np.convolve(x, np.ones(K) / K, "same")` : pour K = 15, somme croissante avec FMA ; pour K = 5, centre sans FMA et bords avec FMA ; seule la comparaison au bit près le montre
 - **Symptôme** — 2026-10-31 (5a-3c, `frame_resonance`) : les trois autres façons de sommer le lissage par 15 valeurs (croissant sans FMA, décroissant avec ou sans FMA) diffèrent de numpy
   sur 1 772 à 2 222 valeurs sur 3 000 (dernier bit seulement).
@@ -765,6 +771,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-062 | Contrôle de complétude de la couche corpus : partir de la liste attendue (`flightlog.json`), pas des fichiers que les références déclarent ; le casser exprès (référence supprimée) | Outillage |
 | L-061 | `np.convolve(x, ones(K)/K, "same")` : K = 15 somme croissante avec FMA ; K = 5 centre sans FMA, 2 premières et 2 dernières valeurs avec FMA (mesuré, 4 variantes essayées) ; l'ordre « évident » diffère au dernier bit | Outillage |
 | L-060 | `\w`, `\d`, `\s` de Python ≠ `is_alphanumeric`, `is_numeric`, `is_whitespace` de Rust : table générée depuis Python, vérifiée sur tous les points de code | Outillage |
 | L-059 | « Identique au bit près » après une FFT : vrai sur le poste des références seulement ; tolérance dans les tests de la CI, relire toute la sortie Windows (cargo s'arrête au 1er échec) | Outillage |
