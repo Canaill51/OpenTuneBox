@@ -16,7 +16,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (Some(mode), Some(dir)) = (args.first(), args.get(1)) else {
         eprintln!(
-            "usage : otb-parity list|check|check-header|check-settings|check-sliders|check-decoder|check-flightlog|check-analysis|check-advisor DOSSIER [--rtol X]"
+            "usage : otb-parity list|check|check-header|check-settings|check-sliders|check-decoder|check-flightlog|check-analysis|check-advisor|check-guide DOSSIER [--rtol X]"
         );
         std::process::exit(2);
     };
@@ -40,6 +40,28 @@ fn main() {
             "décodeur : {} sessions comparées, {} fichiers différents",
             rep.checked,
             rep.failures.len()
+        );
+        std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });
+    }
+    if mode == "check-guide" {
+        let root = std::env::var("OTB_LOGS")
+            .unwrap_or_else(|_| format!("{}/Documents/Drones/Logs", std::env::var("HOME").unwrap()));
+        let threads = std::thread::available_parallelism().map_or(4, |n| n.get().min(6));
+        let rep = otb_parity::guide_layer::check_guide(&PathBuf::from(dir), &PathBuf::from(&root), threads)
+            .unwrap_or_else(|e| {
+                eprintln!("{e}");
+                std::process::exit(2)
+            });
+        for f in rep.failures.iter().take(15) {
+            println!("≠ {f}");
+        }
+        println!(
+            "guide : {} sessions, {} clés comparées, {} sections où Python et Rust lèvent, {} écarts (écart maximal aux tolérances {:e})",
+            rep.sessions,
+            rep.keys,
+            rep.python_errors,
+            rep.failures.len(),
+            rep.worst
         );
         std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });
     }

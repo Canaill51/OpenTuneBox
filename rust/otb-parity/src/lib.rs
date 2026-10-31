@@ -10,6 +10,7 @@ pub mod analysis_layer;
 pub mod compare;
 pub mod decoded;
 pub mod flightlog_digest;
+pub mod guide_layer;
 pub mod layers;
 pub mod registry;
 pub mod settings_json;
