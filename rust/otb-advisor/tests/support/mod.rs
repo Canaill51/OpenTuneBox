@@ -133,7 +133,14 @@ fn check_measures(label: &str, lg: &FlightLog, rep: &Report, wm: &Value) {
             sm.waves,
             sm.waves_ratio,
         ];
-        assert_bits(&got, &hexes(&ws[axis]), &format!("{label} : steps {axis}"));
+        // ⚠️ issues d'une FFT (`step_response`) : identiques au bit près sur le poste des références seulement, 4 ulp d'écart sous Windows (L-059)
+        assert_close_rel(
+            "steps",
+            &got,
+            &hexes(&ws[axis]),
+            1e-9,
+            &format!("{label} : steps {axis}"),
+        );
     }
     let d = m.delays.as_ref().unwrap();
     let wd = &wm["delays"];
