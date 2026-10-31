@@ -94,6 +94,16 @@ def case(label, lg, sel=None, base="five"):
     return nr
 
 
+def expect(nr, label, where, text):
+    """Le texte voulu doit figurer dans le verdict ou les observations du bloc `where` (sinon le cas n'atteint pas sa branche)."""
+    for b in [*nr.gyro_blocks, nr.dterm_block]:
+        if b.title == where:
+            if any(text in o for o in b.observations) or (b.verdict is not None and (text in b.verdict.detail or b.verdict.key == text)):
+                return
+    print(f"ERREUR : {label} n'atteint pas la branche « {text} »", file=sys.stderr)
+    sys.exit(1)
+
+
 def main():
     base = build()
     n0 = base.n
@@ -116,6 +126,27 @@ def main():
     slow = build(fs=1000.0, seconds=1.2, motor_hz=170.0, looptime="1000")
     case("journal trop lent : spectre replié", slow)
     case("journal trop lent, version 4.4", hdr(slow, **{"Firmware revision": "Betaflight 4.4.2 (abcd1234) STM32F7X2"}))
+
+    # journal à 2 kHz (non replié), sans constat actionnable sur le filtre RPM
+    def flat(**kw):
+        return build(**{**dict(fs=2000.0, seconds=3.0, motor_hz=43.0, looptime="500"), **kw})
+
+    # 4.4 non replié, rpm_filter_q au maximum : aucun constat, le verdict explique que les poids n'existent pas avant la 4.5
+    lbl = "Betaflight 4.4, journal rapide, rpm_filter_q au maximum"
+    nr = case(lbl, flat(rpm_filter_q="1000", **{"Firmware revision": "Betaflight 4.4.2 (abcd1234) STM32F7X2"}))
+    expect(nr, lbl, "Filtre RPM", "rpm_filter_weights n'existe qu'à partir de Betaflight 4.5")
+    # version inconnue (tuple vide, plus petit que (4, 5) mais sans rien à dire) : le texte des poids est celui d'une version récente
+    lbl = "version inconnue, journal rapide, rpm_filter_q au maximum, poids déjà allégés"
+    nr = case(lbl, flat(rpm_filter_q="1000", rpm_filter_weights="100,100,40", **{"Firmware revision": "Betaflight (abcd1234)"}))
+    expect(nr, lbl, "Filtre RPM", "aucun poids ne peut baisser")
+    # eRPM absent avec rpm_filter_harmonics = 3 et boucle PID à 1 kHz (notch inactif) : « rpm_on » faux à cause de l'eRPM seul
+    lbl = "sans eRPM, 3 harmoniques, boucle PID à 1 kHz"
+    nr = case(lbl, build(rpm=False, looptime="1000"))
+    expect(nr, lbl, "Notch dynamique", "notch_block_both_off")
+    # 1 harmonique traitée, 2e et 3e présentes dans le signal : observation « non traitée par le filtre RPM » avec des harmoniques finies
+    lbl = "1 harmonique, journal rapide, 2e harmonique présente"
+    nr = case(lbl, flat(rpm_filter_harmonics="1", rpm_filter_weights="100"))
+    expect(nr, lbl, "Filtre RPM", "non traitée par le filtre RPM")
 
     # ---- notch dynamique (la boucle PID à 2 kHz le met en service)
     comb = combined()

@@ -33,6 +33,7 @@ from opentunebox.analysis.step_series import FlightConditions, FlightStep, Serie
 
 CATS = list(PTB_CATEGORIES)
 NAN = float("nan")
+INF = float("inf")
 CASES: list = []
 SEEN: dict[str, int] = {}
 TEXTS: list[str] = []
@@ -232,6 +233,17 @@ def run(rng):
     direct("Pitch D. direct", "damping", fl3, "Pitch D.", [0, 1, 2], [1.0, 1.2, 1.4])
     direct("Master direct", "master", [mk("a", lat=(18.0, 18.5)), mk("b", lat=(16.0, 16.5), ripple=(0.01, 0.02)),
                                        mk("c", lat=(15.0, 15.5), ripple=(0.07, 0.01))], "Master", [0, 1, 2], [1.0, 1.2, 1.4])
+    # valeurs infinies : le gain (−inf si la latence est infinie) et l'écart-type de la cassure (inf) ne sont ni comptés ni écrits
+    direct("Master : latence infinie, gain −inf (pas de signe de plateau)", "master",
+           [mk("a", lat=(15.0, 15.0)), mk("b", lat=(INF, INF)), mk("c", lat=(14.0, 14.0))], "Master", [0, 1, 2], [1.0, 1.2, 1.4])
+    direct("Master : latence précédente infinie, gain nan", "master",
+           [mk("a", lat=(INF, INF)), mk("b", lat=(INF, INF)), mk("c", lat=(14.0, 14.0))], "Master", [0, 1, 2], [1.0, 1.2, 1.4])
+    direct("Master : latence −inf, gain +inf", "master", [mk("a", lat=(15.0, 15.0)), mk("b", lat=(-INF, -INF))], "Master", [0, 1], [1.0, 1.2])
+    direct("Master : écart-type de cassure infini à l'arrêt", "master",
+           [mk("a", lat=(18.0, 18.0)), mk("b", lat=(16.0, 16.0), ripple=(0.07, 0.0), rstd=(INF, 0.01))], "Master", [0, 1], [1.0, 1.2])
+    direct("Master : écart-type de cassure −inf à l'arrêt", "master",
+           [mk("a", lat=(18.0, 18.0)), mk("b", lat=(16.0, 16.0), ripple=(0.07, 0.0), rstd=(-INF, 0.01))], "Master", [0, 1], [1.0, 1.2])
+    direct("Master : vagues infinies", "master", [mk("a"), mk("b", waves=(INF, 1.0))], "Master", [0, 1], [1.0, 1.2])
     direct("Master : série vide", "master", fl3, "Master", [], [])
     direct("Master : un seul vol", "master", fl3, "Master", [0], [1.0])
     direct("Master : un seul vol avec signe", "master", [mk("a", ripple=(0.04, 0.01))], "Master", [0], [1.0])
@@ -285,13 +297,13 @@ def series_flights(rng, key, filt=0):
         else:
             v = start + step * j
         peak = (pick([1.0, 1.03, 1.045, 1.05, 1.055, 1.07, 1.09, 1.1, 1.105, 1.15, 1.25, NAN]), pick([1.0, 1.03, 1.05, 1.08, 1.12, 1.25, NAN]))
-        lat0 = pick([13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 20.0, 0.0, NAN, -1.0])
+        lat0 = pick([13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 20.0, 0.0, NAN, -1.0, INF, -INF])
         shrink = 1.0 - pick([0.0, 0.01, 0.03, 0.039999, 0.04, 0.05, 0.08, 0.12, -0.05]) * j
-        lat = (lat0 * shrink, lat0 * shrink + pick([-3.0, -1.0, -0.4, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, NAN]))
+        lat = (lat0 * shrink, lat0 * shrink + pick([-3.0, -1.0, -0.4, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, NAN, INF, -INF]))
         ripple = (pick([0.0, 0.01, 0.0299999, 0.03, 0.05, 0.0649999, 0.065, 0.07, 0.0999999, 0.1, 0.12, NAN]),
                   pick([0.0, 0.01, 0.04, 0.05, 0.065, 0.0649999, 0.08, NAN]))
-        rstd = (pick([0.01, 0.03, 0.0300001, 0.05, NAN]), pick([0.01, 0.031, NAN]))
-        waves = (pick([1.0, 1.5, 2.4999999, 2.5, 3.0, NAN]), pick([1.0, 2.0, 2.6, NAN]))
+        rstd = (pick([0.01, 0.03, 0.0300001, 0.05, NAN, INF, -INF]), pick([0.01, 0.031, NAN, INF, -INF]))
+        waves = (pick([1.0, 1.5, 2.4999999, 2.5, 3.0, NAN, INF, -INF]), pick([1.0, 2.0, 2.6, NAN, INF, -INF]))
         n = ns[int(rng.integers(0, len(ns)))] if rng.random() < 0.5 else (300, 300)
         # le curseur change de façon bruitée (flottants sales) ; les autres restent à 1,0
         fl.append(mk(f"{key}{filt}-{j}", filt=filt, peak=peak, lat=lat, ripple=ripple, rstd=rstd, waves=waves, n=n,

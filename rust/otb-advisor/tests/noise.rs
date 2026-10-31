@@ -265,6 +265,11 @@ fn noise_report_rend_le_diagnostic_de_python() {
     let c = data();
     let mut verdicts: BTreeMap<String, usize> = BTreeMap::new();
     let mut errors = 0;
+    let mut texts = [
+        ("rpm_filter_weights n'existe qu'à partir de Betaflight 4.5", false),
+        ("non traitée par le filtre RPM", false),
+        ("aucun poids ne peut baisser", false),
+    ];
     for case in c["cases"].as_array().unwrap() {
         let label = case["label"].as_str().unwrap();
         let lg = log_of(&c, &case["log"]);
@@ -284,6 +289,10 @@ fn noise_report_rend_le_diagnostic_de_python() {
         for b in nr.gyro_blocks.iter().chain(nr.dterm_block.iter()) {
             if let Some(v) = &b.verdict {
                 *verdicts.entry(v.key.clone()).or_insert(0) += 1;
+            }
+            for (t, seen) in texts.iter_mut() {
+                *seen |= b.observations.iter().any(|o| o.contains(*t))
+                    || b.verdict.as_ref().is_some_and(|v| v.detail.contains(*t));
             }
         }
         for f in &nr.strategy {
@@ -311,6 +320,9 @@ fn noise_report_rend_le_diagnostic_de_python() {
             verdicts.contains_key(k),
             "le verdict ou la stratégie {k} n'est produit par aucun cas"
         );
+    }
+    for (t, seen) in texts {
+        assert!(seen, "le texte « {t} » n'est produit par aucun cas");
     }
     eprintln!("verdicts comparés : {verdicts:?}");
 }

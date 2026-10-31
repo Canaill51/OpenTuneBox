@@ -165,7 +165,8 @@ fn files_of(py: &HashMap<String, Array>) -> Vec<String> {
 /// Rejoue la réponse indicielle par séries de chaque dossier et la compare aux références `dossier/advisor_tuning/`.
 ///
 /// Les fichiers d'un dossier sont ceux que sa référence déclare (`tuning|files[i]`) : la liste de `flightlog.json` peut être plus ancienne
-/// que le corpus. Elle sert à vérifier que toute session analysée y est rangée.
+/// que le corpus. Elle sert à vérifier que toute session analysée y est rangée, dans chacun de ses dossiers (une référence supprimée ou
+/// jamais écrite est un échec).
 pub fn check_tuning(dossier: &Path, logs_root: &Path, threads: usize) -> Result<TuningLayerReport, String> {
     let text = std::fs::read_to_string(dossier.join("flightlog.json")).map_err(|e| format!("flightlog.json : {e}"))?;
     let reference: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
@@ -189,18 +190,24 @@ pub fn check_tuning(dossier: &Path, logs_root: &Path, threads: usize) -> Result<
             Err(e) => failures.push(format!("{n} : {e}")),
         }
     }
-    // tous les fichiers déclarés par les références, calculés une fois
-    let mut files: Vec<String> = refs.values().flat_map(files_of).collect();
+    if refs.is_empty() {
+        failures.push("advisor_tuning/ : aucune référence".into());
+    }
+    // tous les fichiers de `flightlog.json` et tous ceux que les références déclarent, calculés une fois
+    let mut files: Vec<String> = refs.values().flat_map(files_of).chain(known.iter().cloned()).collect();
     files.sort();
     files.dedup();
     let by_file = compute_flights(&files, logs_root, threads, &mut failures);
-    // toute session analysée de `flightlog.json` est rangée dans la référence de son dossier du premier niveau
+    // toute session analysée de `flightlog.json` est rangée dans la référence de chacun de ses dossiers (premier niveau et drone)
     for rel in &known {
         let analysed_here = by_file.get(rel).is_some_and(|v| !v.is_empty());
-        for g in groups_of(rel).iter().take(1) {
+        if !analysed_here {
+            continue;
+        }
+        for g in groups_of(rel) {
             let n = format!("{}.npz", g.replace('/', "__"));
             let listed = refs.get(&n).is_some_and(|a| files_of(a).contains(rel));
-            if analysed_here && !listed {
+            if !listed {
                 failures.push(format!("{rel} : session analysée absente de la référence {n}"));
             }
         }

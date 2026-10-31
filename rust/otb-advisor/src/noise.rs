@@ -612,7 +612,7 @@ pub fn noise_report(
         }
     }
     let s = &log.settings;
-    // `pick` : indices dans `gyro_findings` (un même constat peut entrer dans plusieurs blocs : Python compare les identités)
+    // `pick` : indices dans `gyro_findings` (Python compare les identités : si les listes de clés des blocs se recoupaient un jour, un même constat entrerait dans plusieurs blocs)
     let pick = |keys: &[&str]| -> Vec<usize> {
         nr.gyro_findings
             .iter()
