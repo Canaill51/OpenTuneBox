@@ -108,6 +108,13 @@ pub fn cdf(sorted_vals: &[f64], freqs: &[f64]) -> Vec<f64> {
         .collect()
 }
 
+/// `np.percentile(a, q)` (méthode linéaire) d'un tableau **trié** non vide, `q` en pourcentage.
+pub fn percentile_linear(sorted: &[f64], q: f64) -> f64 {
+    let pos = q / 100.0 * (sorted.len() - 1) as f64;
+    let (lo, hi) = (pos.floor() as usize, pos.ceil() as usize);
+    sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo as f64)
+}
+
 /// Valeurs finies et positives de `row`, triées (fréquences moteur ou centres de notch utiles).
 pub fn sorted_positive(row: &[f64]) -> Vec<f64> {
     let mut v: Vec<f64> = row.iter().copied().filter(|x| x.is_finite() && *x > 0.0).collect();

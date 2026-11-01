@@ -71,8 +71,16 @@ pub fn error_bars(x: &[f64], mean: &[f64], err: &[f64], step: usize) -> Vec<Vec<
 // ------------------------------------------------------------------ carte et barre de couleurs
 
 /// Pixels d'une carte `valeurs[ligne * nt + colonne]` (ligne 0 = fréquence la plus basse), colorée entre `lo` et
-/// `hi`. Les NaN restent transparents. L'image est retournée : sa première ligne est le haut de l'écran.
-pub fn heatmap_pixels(values: &[f32], nf: usize, nt: usize, lo: f32, hi: f32, palette: Palette) -> Vec<Color32> {
+/// `hi`. Les NaN prennent la couleur `empty` (transparent, ou le gris de fond des cartes de fréquence). L'image est retournée : sa première ligne est le haut de l'écran.
+pub fn heatmap_pixels(
+    values: &[f32],
+    nf: usize,
+    nt: usize,
+    lo: f32,
+    hi: f32,
+    palette: Palette,
+    empty: Color32,
+) -> Vec<Color32> {
     assert_eq!(
         values.len(),
         nf * nt,
@@ -80,7 +88,7 @@ pub fn heatmap_pixels(values: &[f32], nf: usize, nt: usize, lo: f32, hi: f32, pa
         values.len()
     );
     let span = if hi > lo { hi - lo } else { 1.0 };
-    let mut pixels = vec![Color32::TRANSPARENT; nf * nt];
+    let mut pixels = vec![empty; nf * nt];
     for fi in 0..nf {
         for ti in 0..nt {
             let v = values[fi * nt + ti];
@@ -104,8 +112,9 @@ pub fn heatmap_texture(
     lo: f32,
     hi: f32,
     palette: Palette,
+    empty: Color32,
 ) -> TextureHandle {
-    let pixels = heatmap_pixels(values, nf, nt, lo, hi, palette);
+    let pixels = heatmap_pixels(values, nf, nt, lo, hi, palette, empty);
     let image = ColorImage {
         size: [nt, nf],
         source_size: egui::vec2(nt as f32, nf as f32),
@@ -148,10 +157,18 @@ pub fn colorbar(ui: &mut egui::Ui, palette: Palette, lo: f64, hi: f64, length: f
     };
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let painter = ui.painter_at(rect);
+    // marge aux extrémités : les étiquettes des bornes sont centrées sur elles et ne doivent pas être coupées
+    let pad = 14.0;
     let bar = if vertical {
-        egui::Rect::from_min_size(rect.min, egui::vec2(THICK, length))
+        egui::Rect::from_min_size(
+            rect.min + egui::vec2(0.0, pad / 2.0),
+            egui::vec2(THICK, (length - pad).max(1.0)),
+        )
     } else {
-        egui::Rect::from_min_size(rect.min, egui::vec2(length, THICK))
+        egui::Rect::from_min_size(
+            rect.min + egui::vec2(pad, 0.0),
+            egui::vec2((length - 2.0 * pad).max(1.0), THICK),
+        )
     };
     for i in 0..STEPS {
         let t = i as f32 / (STEPS - 1) as f32;
@@ -172,7 +189,7 @@ pub fn colorbar(ui: &mut egui::Ui, palette: Palette, lo: f64, hi: f64, length: f
     let span = hi - lo;
     for v in colorbar_ticks(lo, hi, if length > 160.0 { 5 } else { 3 }) {
         let f = ((v - lo) / span) as f32;
-        let label = format!("{v}").replace('.', ",").replace('-', "−");
+        let label = otb_format::general(v, 6).replace('.', ",").replace('-', "−");
         if vertical {
             let y = bar.bottom() - bar.height() * f;
             painter.text(
@@ -380,4 +397,49 @@ pub fn corner_text(ui: &egui::Ui, frame: egui::Rect, corner: egui::Align2, lines
     for ((g, p), (_, c)) in galleys.into_iter().zip(pos).zip(lines) {
         painter.galley(p, g, *c);
     }
+}
+
+// ------------------------------------------------------------------ grille linéaire
+
+fn nice_up(x: f64) -> f64 {
+    let e = 10f64.powf(x.log10().floor());
+    [1.0, 2.0, 5.0, 10.0]
+        .iter()
+        .map(|m| m * e)
+        .find(|v| *v >= x * (1.0 - 1e-9))
+        .unwrap_or(10.0 * e)
+}
+
+/// Grille linéaire à repères ronds (1, 2 ou 5 × 10^k). La grille par défaut d'egui_plot ne marque que les puissances de
+/// 10 : sur 0..100 elle ne donne que 0 et 100, et les axes restent sans graduation (egui_plot n'étiquette un repère que
+/// si deux repères de même rang sont écartés de 60 px sur X, 20 px sur Y). Ici, un repère fin tous les ≥ 8 px et un repère
+/// étiqueté tous les ≥ `8 × label_factor` px : `label_factor` = 8 sur un axe X (≥ 64 px), 3 sur un axe Y (≥ 24 px).
+pub fn nice_grid(input: GridInput, label_factor: f64) -> Vec<GridMark> {
+    let (lo, hi) = input.bounds;
+    let base = input.base_step_size;
+    if !lo.is_finite() || !hi.is_finite() || !base.is_finite() || base <= 0.0 || hi <= lo {
+        return Vec::new();
+    }
+    let fine = nice_up(base);
+    let coarse = nice_up(base * label_factor).max(fine);
+    let (k0, k1) = ((lo / fine - 1e-9).ceil(), (hi / fine + 1e-9).floor());
+    if k1 - k0 > 4000.0 {
+        return Vec::new();
+    }
+    (k0 as i64..=k1 as i64)
+        .map(|k| {
+            let v = k as f64 * fine;
+            let on_coarse = ((v / coarse).round() * coarse - v).abs() < 1e-9 * coarse;
+            GridMark {
+                value: v,
+                step_size: if on_coarse { coarse } else { fine },
+            }
+        })
+        .collect()
+}
+
+/// Un tracé avec la grille à repères ronds sur les deux axes (`nice_grid`).
+pub fn nice_axes(plot: egui_plot::Plot<'_>) -> egui_plot::Plot<'_> {
+    plot.x_grid_spacer(|i| nice_grid(i, 8.0))
+        .y_grid_spacer(|i| nice_grid(i, 3.0))
 }

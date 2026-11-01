@@ -21,7 +21,7 @@ use super::common::{
     sorted_positive, wide,
 };
 use super::report_ui::{REPORT_FOOTER, diagnosis_ui};
-use crate::plots::{corner_text, error_bars};
+use crate::plots::{corner_text, error_bars, nice_axes};
 use crate::state::AppState;
 use crate::theme::{AXIS_NAMES, Theme, motor_color, plot, with_alpha};
 use crate::tool::{LogInput, Tool};
@@ -412,7 +412,7 @@ impl SpectralTool {
             let name = AXIS_NAMES[ax];
             ui.horizontal(|ui| {
                 let y1 = if out.psd { ymax.min(0.0) } else { ymax };
-                let mut left = Plot::new(("spectre-g", ax))
+                let mut left = nice_axes(Plot::new(("spectre-g", ax)))
                     .width(w)
                     .height(h)
                     .auto_bounds(false)
@@ -435,7 +435,7 @@ impl SpectralTool {
                 let _ = resp;
                 match self.right {
                     RightMode::Sub100 => {
-                        let resp = Plot::new(("spectre-d", ax))
+                        let resp = nice_axes(Plot::new(("spectre-d", ax)))
                             .width(w)
                             .height(h)
                             .auto_bounds(false)
@@ -460,7 +460,7 @@ impl SpectralTool {
                         );
                     }
                     RightMode::MotorNoise => {
-                        let resp = Plot::new(("spectre-b", ax))
+                        let resp = nice_axes(Plot::new(("spectre-b", ax)))
                             .width(w)
                             .height(h)
                             .auto_bounds(false)
