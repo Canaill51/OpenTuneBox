@@ -60,6 +60,13 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-066 : un banc egui_kittest construit un premier cadre avant le code du test ; les icônes SVG y affichent « ⚠ » et la police panique
+- **Symptôme** — 2026-11-01 (6-0) : `Harness::build_ui_state` suivi de `egui_extras::install_image_loaders(&h.ctx)` : panique `No glyph for "⚠️" (U+26A0) in Proportional` au premier cadre dessinant la barre d'outils.
+- **Cause** — le banc dessine déjà un cadre en se construisant, avant toute ligne du test : les chargeurs d'images n'étaient pas encore installés, l'icône SVG échouait au chargement et egui la remplace par « ⚠️ », absent de ses polices embarquées. `main.rs` installait les chargeurs, pas le banc.
+- **Règle** — tout réglage du contexte (chargeurs d'images, polices, thème) passe par `Harness::builder().with_context_setup(otb_gui::app::setup)` ; une seule fonction `app::setup` sert à `main` et aux tests. Un « ⚠ » dans un rendu d'egui = une image qui n'a pas pu se charger, pas un problème de police.
+- **Précision** — la panique vient de la règle `MissingGlyphPolicy::Panic` de kittest ; dans l'application, la règle par défaut est `Tofu` (carré à la place de l'icône, sans plantage).
+- **Preuve** — `rust/otb-gui/tests/contracts.rs::la_fenetre_se_dessine_dans_les_deux_themes_sans_log` (échoue sans `with_context_setup`).
+
 ### L-065 : une couche de contrôle du corpus qui écarte les sessions courtes ne voit pas un plantage sur une session courte
 - **Symptôme** — 2026-11-01 : `opentunebox report` plantait (`ValueError: a cannot be empty`) sur 2 logs du dossier `cheussure`, et aucune comparaison de l'assistant sur le corpus ne l'avait vu : 631 sessions comparées, 0 écart, le Rust « identique » au Python qui plantait.
 - **Cause** — le plantage venait des sessions de 0,1 et 0,2 s (restes d'enregistrement après un rebranchement de la batterie, aucune fréquence entre 80 Hz et la limite des filtres), et `advisor_rates.py` comme `golden_advisor.py` écartent les sessions de moins de 8 s. Seule la couche de la ligne de commande (`record-cli`, tous les fichiers, toutes les sessions) les rejouait. Le test synthétique écrit d'abord passait **avant** le correctif : la session fabriquée n'atteignait pas `predict_filter_change`.
@@ -790,6 +797,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-066 | Banc kittest : un cadre est dessiné avant le code du test ; réglages du contexte par `with_context_setup`, sinon « ⚠ » et panique de police sur les icônes SVG | Tests |
 | L-065 | Couche corpus qui écarte les sessions courtes (< 8 s) : aveugle à leurs plantages ; garder la couche CLI sans filtre, et voir le test échouer avant le correctif | Tests |
 | L-064 | Alléger un fichier de cas : transformer le journal AVANT de calculer la réponse de Python, comparer aux anciennes réponses ; relancer les mutations (raccourcir perd des branches) | Outillage |
 | L-063 | Mutations par remplacement de texte : `cargo fmt` d'abord, motif absent = erreur du script, « tuée » seulement sur `FAILED` ; un seuil `>=` / `>` demande une valeur exactement dessus | Outillage |
