@@ -92,3 +92,53 @@ pub fn smooth(y: &[f32], w: usize) -> Vec<f64> {
         })
         .collect()
 }
+
+/// Résultat de la mesure entre deux points : écart en ms et fréquence correspondante (`measure_text`).
+/// Vide s'il manque un point. Virgule décimale française.
+pub fn measure_text(points: &[f64]) -> String {
+    let [a, b, ..] = points else { return String::new() };
+    let dt = (b - a).abs();
+    let ms = format!("{:.1}", dt * 1000.0).replace('.', ",");
+    let hz = if dt > 0.0 {
+        format!("{:.1}", 1.0 / dt).replace('.', ",")
+    } else {
+        "—".to_string()
+    };
+    format!("Δt {ms} ms · {hz} Hz")
+}
+
+/// Valeurs au curseur, une par ligne (`readout` du lecteur). `i` : indice de l'échantillon.
+pub fn readout_lines(log: &FlightLog, i: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let n = log.n_motors();
+    for k in (0..n.min(8)).step_by(2) {
+        let cells: Vec<String> = (k..n.min(k + 2))
+            .map(|j| format!("M{} : {:3.0} %", j + 1, log.motors.row(j)[i] as f64))
+            .collect();
+        lines.push(cells.join("   "));
+    }
+    for (a, name) in crate::theme::AXIS_NAMES.iter().enumerate() {
+        lines.push(format!("Gyro {name:<5} : {:6.0} °/s", log.gyro.row(a)[i] as f64));
+    }
+    lines.push(format!("Gaz : {:.0} %", log.throttle[i] as f64));
+    if let Some(v) = &log.vbat {
+        lines.push(format!("Batterie : {:.2} V", v[i] as f64));
+    }
+    lines
+}
+
+/// Position des deux manches au curseur, de −1 à 1 (y = +1 en haut) : (gauche : lacet / gaz, droite : roulis / tangage).
+pub fn stick_positions(log: &FlightLog, i: usize) -> ([f32; 2], [f32; 2]) {
+    let rc = |k: usize| {
+        if log.rc_command.k > k {
+            log.rc_command.row(k)[i]
+        } else {
+            0.0
+        }
+    };
+    let c = |v: f32| v.clamp(-1.0, 1.0);
+    (
+        [c(rc(2) / 500.0), c((rc(3) - 1500.0) / 500.0)],
+        [c(rc(0) / 500.0), c(rc(1) / 500.0)],
+    )
+}

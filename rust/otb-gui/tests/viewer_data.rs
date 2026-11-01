@@ -2,7 +2,8 @@
 
 mod support;
 
-use otb_gui::viewer::{TRACES, has_trace, smooth, trace_data};
+use otb_gui::viewer::{TRACES, has_trace, measure_text, readout_lines, smooth, stick_positions, trace_data};
+use otb_log::flightlog::Rows;
 use support::synthetic_log;
 
 fn hex(s: &str) -> f64 {
@@ -98,4 +99,55 @@ fn les_traces_nulles_sont_masquees_et_les_autres_gardees() {
 #[should_panic(expected = "trace inconnue")]
 fn une_trace_inconnue_est_une_faute_de_code() {
     trace_data(&synthetic_log("a", 5, 1000.0), "nimporte");
+}
+
+#[test]
+fn la_mesure_entre_deux_points() {
+    // chaînes produites par le Python de `measure_text`
+    assert_eq!(measure_text(&[]), "");
+    assert_eq!(measure_text(&[1.0]), "");
+    assert_eq!(measure_text(&[10.1, 10.125]), "Δt 25,0 ms · 40,0 Hz");
+    assert_eq!(measure_text(&[2.0, 2.0]), "Δt 0,0 ms · — Hz");
+    assert_eq!(
+        measure_text(&[3.0, 1.5]),
+        "Δt 1500,0 ms · 0,7 Hz",
+        "l'ordre des points n'a pas d'importance"
+    );
+}
+
+#[test]
+fn les_valeurs_au_curseur_ont_le_format_de_python() {
+    let mut log = synthetic_log("a", 3, 1000.0);
+    log.motors = Rows {
+        k: 5,
+        n: 3,
+        data: [12.5, 0.5, 99.6, 100.0, 3.49].iter().flat_map(|&v| [v, v, v]).collect(),
+    };
+    log.gyro.row_mut(0)[1] = -123.5;
+    log.gyro.row_mut(1)[1] = 7.25;
+    log.gyro.row_mut(2)[1] = 0.4;
+    log.throttle[1] = 37.5;
+    log.vbat = Some(vec![15.995; 3]);
+    // attendu : f-strings du Python (arrondi au pair : 12,5 → 12 ; −123,5 → −124 ; 37,5 → 38)
+    let attendu = "M1 :  12 %   M2 :   0 %\nM3 : 100 %   M4 : 100 %\nM5 :   3 %\nGyro Roll  :   -124 °/s\nGyro Pitch :      7 °/s\nGyro Yaw   :      0 °/s\nGaz : 38 %\nBatterie : 15.99 V";
+    assert_eq!(readout_lines(&log, 1).join("\n"), attendu);
+    log.vbat = None;
+    assert!(!readout_lines(&log, 1).last().unwrap().starts_with("Batterie"));
+}
+
+#[test]
+fn les_manches_suivent_rc_command_et_restent_dans_le_carre() {
+    let mut log = synthetic_log("a", 2, 1000.0);
+    // canaux : roulis, tangage, lacet, gaz (rangés canal après canal), deux instants
+    log.rc_command = Rows {
+        k: 4,
+        n: 2,
+        data: vec![250.0, 0.0, 0.0, 0.0, -500.0, 600.0, 1500.0, 2500.0],
+    };
+    // gauche : (lacet / 500, (gaz − 1500) / 500) ; droite : (roulis / 500, tangage / 500)
+    assert_eq!(stick_positions(&log, 0), ([-1.0, 0.0], [0.5, 0.0]));
+    assert_eq!(stick_positions(&log, 1), ([1.0, 1.0], [0.0, 0.0]), "borné à ±1");
+    // sans voies RC : gaz à 0 = (0 − 1500) / 500 = −3, borné à −1
+    log.rc_command = Rows::zeros(0, 2);
+    assert_eq!(stick_positions(&log, 0), ([0.0, -1.0], [0.0, 0.0]));
 }

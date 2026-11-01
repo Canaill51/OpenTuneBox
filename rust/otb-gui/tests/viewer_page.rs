@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use egui::Pos2;
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 use otb_gui::app::{App, Screen};
 
 fn banc() -> Harness<'static, App> {
@@ -159,4 +160,91 @@ fn changer_de_log_abandonne_le_glissement_de_periode_en_cours() {
     );
     let apres: Vec<_> = h.state().state.logs.iter().map(|l| l.period).collect();
     assert_eq!(avant, apres, "et ne doit être appliqué à aucun log");
+}
+
+/// Le centre vertical d'un graphique, et le temps `t` en pixels, pour cliquer dessus.
+fn clic(h: &mut Harness<'static, App>, ax: usize, t: f64) {
+    let p = Pos2::new(px(h, ax, t), centre_y(h, ax));
+    h.hover_at(p);
+    h.run();
+    h.drag_at(p); // appui puis relâchement au même endroit = un clic
+    h.run();
+    h.drop_at(p);
+    h.run();
+    h.run();
+}
+
+#[test]
+fn la_mesure_entre_deux_points() {
+    let mut h = banc();
+    let t0 = h.state().state.logs[0].log.t[0];
+    // curseur et bords de période écartés des points cliqués
+    h.state_mut().state.set_cursor(t0 + 4.5);
+    h.run();
+    clic(&mut h, 0, t0 + 1.0);
+    assert!(
+        h.state().viewer.measure.is_empty(),
+        "sans le mode mesure, un clic ne fait rien"
+    );
+    h.get_by_label("Mesurer").click();
+    h.run_steps(4); // la mise en page se stabilise avant de viser un pixel
+    clic(&mut h, 0, t0 + 1.0);
+    clic(&mut h, 2, t0 + 1.5); // 2e point sur un autre axe
+    let m = h.state().viewer.measure.clone();
+    assert_eq!(m.len(), 2, "{m:?}");
+    assert!(((m[1] - m[0]) - 0.5).abs() < 0.1, "points {m:?} (t0 = {t0})");
+    // tirer le 2e repère sur Pitch : la mesure suit
+    let (y, from, to) = (centre_y(&h, 1), px(&h, 1, m[1]), px(&h, 1, t0 + 2.0));
+    h.hover_at(Pos2::new(from, y));
+    h.run();
+    h.drag_at(Pos2::new(from, y));
+    h.run();
+    h.hover_at(Pos2::new(to, y));
+    h.run();
+    h.drop_at(Pos2::new(to, y));
+    h.run();
+    h.run();
+    let m = h.state().viewer.measure.clone();
+    assert!((m[1] - (t0 + 2.0)).abs() < 0.1 && m.len() == 2, "{m:?}");
+    // 3e clic : nouvelle mesure
+    clic(&mut h, 0, t0 + 3.0);
+    assert_eq!(h.state().viewer.measure.len(), 1);
+    // couper le mode efface la mesure
+    h.get_by_label("Mesurer").click();
+    h.run_steps(3);
+    assert!(!h.state().viewer.measure_on);
+    assert!(h.state().viewer.measure.is_empty(), "la mesure survit à la fin du mode");
+}
+
+#[test]
+fn le_lecteur_avance_s_arrete_a_la_fin_et_se_borne() {
+    let mut h = banc();
+    let log = h.state().state.logs[0].log.clone();
+    let (lo, hi) = (log.t[0], *log.t.last().unwrap());
+    let mut v = std::mem::take(&mut h.state_mut().viewer);
+    v.seek_rel(&mut h.state_mut().state, Some(-0.1), 0);
+    assert_eq!(h.state().state.cursor, lo, "borné au début");
+    v.seek_rel(&mut h.state_mut().state, Some(0.1), 0);
+    assert!((h.state().state.cursor - (lo + 0.1)).abs() < 1e-9);
+    v.seek_rel(&mut h.state_mut().state, Some(1e6), 0);
+    assert_eq!(h.state().state.cursor, hi, "borné à la fin");
+    let (p0, p1) = h.state().state.logs[0].period;
+    v.seek_rel(&mut h.state_mut().state, None, -1);
+    assert_eq!(h.state().state.cursor, p0);
+    v.seek_rel(&mut h.state_mut().state, None, 1);
+    assert_eq!(h.state().state.cursor, p1);
+    // lecture : le curseur avance, puis la lecture s'arrête d'elle-même à la fin
+    h.state_mut().state.set_cursor(lo);
+    v.playing = true;
+    h.state_mut().viewer = v;
+    h.run_steps(2);
+    assert!(h.state().state.cursor > lo, "le curseur n'avance pas en lecture");
+    for _ in 0..200 {
+        h.step();
+        if !h.state().viewer.playing {
+            break;
+        }
+    }
+    assert!(!h.state().viewer.playing, "la lecture ne s'arrête pas");
+    assert!(h.state().state.cursor >= hi - 1e-9 && h.state().state.cursor <= hi);
 }

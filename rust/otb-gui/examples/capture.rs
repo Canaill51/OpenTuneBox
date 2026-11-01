@@ -31,6 +31,15 @@ fn main() {
             h.run();
         }
         assert_eq!(h.state().screen, Screen::Viewer);
+        // une mesure et un curseur au milieu du vol, pour voir le lecteur et les repères
+        let (lo, hi) = {
+            let l = &h.state().state.logs[0].log;
+            (l.t[0], *l.t.last().unwrap())
+        };
+        h.state_mut().state.set_cursor(lo + (hi - lo) * 0.45);
+        h.state_mut().viewer.measure_on = true;
+        h.state_mut().viewer.measure = vec![lo + (hi - lo) * 0.30, lo + (hi - lo) * 0.33];
+        h.run_steps(4);
         let img = h.render().expect("rendu");
         img.save(out.join(format!("courbes-{}.png", th.name))).unwrap();
     }

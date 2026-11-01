@@ -10,10 +10,14 @@ use egui_plot::{AxisHints, HPlacement, Line, LineStyle, Plot, PlotPoint, PlotPoi
 use otb_log::flightlog::FlightLog;
 use otb_log::modes::mode_changes;
 
+use crate::icons::icon;
 use crate::plots::{VDrag, right_axis_scale, visible_points};
 use crate::state::AppState;
 use crate::theme::{self, AXIS_NAMES, Theme};
-use crate::viewer::{DEFAULT_TRACES, SMOOTHING, TRACE_GROUPS, has_trace, smooth, trace_data, trace_label};
+use crate::viewer::{
+    DEFAULT_TRACES, SMOOTHING, TRACE_GROUPS, has_trace, measure_text, readout_lines, smooth, stick_positions,
+    trace_data, trace_label,
+};
 
 /// Groupe des axes X liés (zoom et déplacement communs aux quatre graphiques).
 const LINK: &str = "otb-viewer-x";
@@ -38,6 +42,11 @@ pub struct ViewerPage {
     pub width: f32,
     /// 0 : les trois axes ; 1 à 3 : un seul.
     pub focus: usize,
+    /// Mode « Mesurer » : un clic sur Roll, Pitch ou Yaw place un point, deux points donnent Δt et la fréquence.
+    pub measure_on: bool,
+    pub measure: Vec<f64>,
+    /// Lecture en cours : le curseur avance à la vitesse du temps réel.
+    pub playing: bool,
     drags: [VDrag; 4],
     /// Période en cours de glissement (appliquée au relâchement : les calculs ne repartent pas à chaque pixel).
     pub period_edit: Option<(f64, f64)>,
@@ -64,6 +73,9 @@ impl Default for ViewerPage {
             smoothing: 0,
             width: 2.0,
             focus: 0,
+            measure_on: false,
+            measure: Vec::new(),
+            playing: false,
             drags: [VDrag::default(); 4],
             period_edit: None,
             shown: None,
@@ -191,6 +203,8 @@ impl ViewerPage {
             self.series.clear();
             self.present.clear();
             self.period_edit = None;
+            self.measure.clear();
+            self.playing = false;
             self.fit = true;
             self.modes = state
                 .current_log()
@@ -203,8 +217,14 @@ impl ViewerPage {
                 }
             }
         }
-        egui::Panel::left("viewer-traces").show(ui, |ui| self.traces_panel(ui, state, th));
-        egui::Panel::right("viewer-controls").show(ui, |ui| self.controls_panel(ui, state));
+        self.advance(ui, state);
+        egui::Panel::left("viewer-traces")
+            .default_size(190.0)
+            .show(ui, |ui| self.traces_panel(ui, state, th));
+        egui::Panel::right("viewer-controls")
+            .default_size(270.0)
+            .size_range(240.0..=420.0)
+            .show(ui, |ui| self.controls_panel(ui, state, th));
         egui::CentralPanel::default().show(ui, |ui| self.plots(ui, state, th));
     }
 
@@ -247,7 +267,7 @@ impl ViewerPage {
         ui.checkbox(&mut self.throttle, "Gaz (%)");
     }
 
-    fn controls_panel(&mut self, ui: &mut Ui, state: &mut AppState) {
+    fn controls_panel(&mut self, ui: &mut Ui, state: &mut AppState, th: &Theme) {
         let labels: Vec<String> = state.logs.iter().map(|l| l.label.clone()).collect();
         let mut cur = state.current;
         let label = ui.label("Log affiché");
@@ -296,6 +316,7 @@ impl ViewerPage {
                 self.fit = true;
             }
         });
+        self.measure_controls(ui, state, th);
         ui.collapsing("Affichage", |ui| {
             egui::ComboBox::from_label("Lissage")
                 .selected_text(SMOOTHING[self.smoothing].0)
@@ -310,6 +331,100 @@ impl ViewerPage {
                     .labelled_by(label.id);
             });
         });
+        self.player(ui, state, th);
+    }
+
+    fn measure_controls(&mut self, ui: &mut Ui, state: &AppState, th: &Theme) {
+        ui.horizontal(|ui| {
+            let was = self.measure_on;
+            ui.toggle_value(&mut self.measure_on, "Mesurer").on_hover_text(
+                "Mesure le temps entre deux points (ms) et la fréquence correspondante (Hz) : cliquez deux points sur un \
+                 graphique roll, pitch ou yaw. Les repères se déplacent à la souris ; un nouveau clic recommence la mesure.",
+            );
+            if was != self.measure_on {
+                self.measure.clear();
+            }
+            if !self.measure_on || state.current_log().is_none() {
+                return;
+            }
+            match self.measure.len() {
+                0 => ui.colored_label(th.ui.muted, "Cliquez un 1er point sur roll, pitch ou yaw."),
+                1 => ui.colored_label(th.ui.muted, "Cliquez le 2e point."),
+                _ => ui.colored_label(th.accent("purple"), measure_text(&self.measure)),
+            };
+        });
+    }
+
+    /// Lecture : le curseur avance en temps réel jusqu'à la fin du log.
+    fn advance(&mut self, ui: &Ui, state: &mut AppState) {
+        if !self.playing {
+            return;
+        }
+        let Some(end) = state.current_log().map(|l| *l.log.t.last().unwrap()) else {
+            self.playing = false;
+            return;
+        };
+        if state.cursor >= end {
+            self.playing = false;
+            return;
+        }
+        let dt = ui.input(|i| i.stable_dt.min(0.1)) as f64;
+        self.seek_rel(state, Some(dt), 0);
+        ui.ctx().request_repaint();
+    }
+
+    /// Déplace le curseur : de `dt` secondes, ou (`dt` vide) au début (`end` < 0) ou à la fin (`end` > 0) de la période.
+    pub fn seek_rel(&self, state: &mut AppState, dt: Option<f64>, end: i32) {
+        let Some(ll) = state.current_log() else { return };
+        let t = match dt {
+            None if end < 0 => ll.period.0,
+            None => ll.period.1,
+            Some(d) => state.cursor + d,
+        };
+        let (lo, hi) = (ll.log.t[0], *ll.log.t.last().unwrap());
+        state.set_cursor(t.clamp(lo, hi));
+    }
+
+    fn player(&mut self, ui: &mut Ui, state: &mut AppState, th: &Theme) {
+        ui.add_space(6.0);
+        ui.colored_label(th.ui.muted, "Lecteur");
+        let button = |ui: &mut Ui, name: &str, tip: &str| {
+            ui.add(egui::Button::image(
+                icon(name, 16.0).tint(th.ui.text).alt_text(tip.to_string()),
+            ))
+            .on_hover_text(tip.to_string())
+            .clicked()
+        };
+        ui.horizontal(|ui| {
+            if button(ui, "skip-back", "Début de la période") {
+                self.seek_rel(state, None, -1);
+            }
+            if button(ui, "chevron-left", "Reculer de 0,1 s") {
+                self.seek_rel(state, Some(-0.1), 0);
+            }
+            let play = if self.playing { "pause" } else { "play" };
+            if button(ui, play, "Lecture / pause") {
+                self.playing = !self.playing;
+            }
+            if button(ui, "chevron-right", "Avancer de 0,1 s") {
+                self.seek_rel(state, Some(0.1), 0);
+            }
+            if button(ui, "skip-forward", "Fin de la période") {
+                self.seek_rel(state, None, 1);
+            }
+        });
+        let Some(ll) = state.current_log() else {
+            ui.label("temps : —");
+            return;
+        };
+        let i = ll.log.index_of(state.cursor);
+        ui.label(format!("temps : {:.3} s", ll.log.t[i]));
+        let (left, right) = stick_positions(&ll.log, i);
+        ui.horizontal(|ui| {
+            stick(ui, th, "Y", "G", left);
+            stick(ui, th, "R", "P", right);
+        });
+        ui.label(egui::RichText::new(readout_lines(&ll.log, i).join("\n")).monospace());
     }
 
     fn plots(&mut self, ui: &mut Ui, state: &mut AppState, th: &Theme) {
@@ -331,7 +446,15 @@ impl ViewerPage {
             .collect();
         let sum: f32 = weights.iter().sum();
 
-        let mut xs = [state.cursor, p0, p1];
+        // repères glissables, par priorité : points de mesure (absents = NaN, jamais attrapés), curseur, bords de période
+        let m = |k: usize| {
+            if self.measure_on {
+                self.measure.get(k).copied().unwrap_or(f64::NAN)
+            } else {
+                f64::NAN
+            }
+        };
+        let mut xs = [m(0), m(1), state.cursor, p0, p1];
         let before = xs;
         let press = ui.input(|i| i.pointer.press_origin()).map(|p| p.x);
         let fit = std::mem::take(&mut self.fit);
@@ -341,6 +464,10 @@ impl ViewerPage {
         let mut transforms = self.transforms;
         let link = self.link;
         let t = &log.t;
+        let measuring = self.measure_on;
+        let result = measure_text(&self.measure);
+        let purple = th.accent("purple");
+        let mut clicks: Vec<f64> = Vec::new();
 
         let n_plots = shown.len() + 1;
         for (row, &ax) in shown.iter().chain(std::iter::once(&3)).enumerate() {
@@ -423,23 +550,70 @@ impl ViewerPage {
                     }
                     pu.vline(VLine::new("Début", p0).color(th.ui.highlight).width(2.0));
                     pu.vline(VLine::new("Fin", p1).color(th.ui.highlight).width(2.0));
+                    if measuring && !is_motor {
+                        for &x in xs.iter().take(self.measure.len().min(2)) {
+                            pu.vline(
+                                VLine::new("Mesure", x)
+                                    .color(purple)
+                                    .width(2.0)
+                                    .style(LineStyle::dashed_loose()),
+                            );
+                        }
+                        if self.measure.len() == 2 {
+                            let mid = (xs[0] + xs[1]) / 2.0;
+                            pu.text(
+                                Text::new("", PlotPoint::new(mid, ymax), result.as_str())
+                                    .color(purple)
+                                    .anchor(egui::Align2::CENTER_TOP),
+                            );
+                        }
+                        if !busy
+                            && pu.response().clicked()
+                            && let Some(p) = pu.pointer_coordinate()
+                        {
+                            clicks.push(p.x);
+                        }
+                    }
                     pu.vline(
-                        VLine::new("Curseur", xs[0])
+                        VLine::new("Curseur", xs[2])
                             .color(th.fg)
                             .style(LineStyle::dashed_loose()),
                     );
-                    drag.update(pu, press, &mut xs, &[(lo, hi), (lo, hi), (lo, hi)]);
+                    let limits = [(lo, hi); 5];
+                    if is_motor {
+                        // pas de repères de mesure sur ce graphique
+                        let mut tmp = xs;
+                        tmp[0] = f64::NAN;
+                        tmp[1] = f64::NAN;
+                        drag.update(pu, press, &mut tmp, &limits);
+                        xs[2..].copy_from_slice(&tmp[2..]);
+                    } else {
+                        drag.update(pu, press, &mut xs, &limits);
+                    }
                     *tr = Some(*pu.transform());
                 });
         }
         self.drags = drags;
         self.transforms = transforms;
 
-        if xs[0] != before[0] {
-            state.set_cursor(xs[0]);
+        for k in 0..self.measure.len().min(2) {
+            if self.measure_on && xs[k] != before[k] {
+                self.measure[k] = xs[k];
+            }
         }
-        if (xs[1], xs[2]) != (before[1], before[2]) {
-            self.period_edit = Some((xs[1], xs[2]));
+        // un clic place un point ; le 3e clic recommence la mesure
+        if let Some(&x) = clicks.first() {
+            if self.measure.len() == 1 {
+                self.measure.push(x);
+            } else {
+                self.measure = vec![x];
+            }
+        }
+        if xs[2] != before[2] {
+            state.set_cursor(xs[2]);
+        }
+        if (xs[3], xs[4]) != (before[3], before[4]) {
+            self.period_edit = Some((xs[3], xs[4]));
         }
         // relâché : la période est appliquée une seule fois (les outils recalculent)
         if self.drags.iter().all(|d| d.active.is_none())
@@ -448,4 +622,36 @@ impl ViewerPage {
             state.set_period(index, a.min(b), a.max(b));
         }
     }
+}
+
+/// Position d'un manche : carré avec un point, `pos` de −1 à 1 (y = +1 en haut).
+fn stick(ui: &mut Ui, th: &Theme, x_label: &str, y_label: &str, pos: [f32; 2]) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(96.0, 96.0), egui::Sense::hover());
+    let side = rect.width() - 20.0;
+    let sq = egui::Rect::from_min_size(rect.min + egui::vec2(14.0, 2.0), egui::vec2(side, side));
+    let p = ui.painter();
+    p.rect_stroke(sq, 0.0, egui::Stroke::new(1.0, th.ui.text), egui::StrokeKind::Inside);
+    let mid = egui::Stroke::new(1.0, th.grid_color());
+    p.line_segment([sq.center_top(), sq.center_bottom()], mid);
+    p.line_segment([sq.left_center(), sq.right_center()], mid);
+    let c = egui::pos2(
+        sq.left() + (pos[0] + 1.0) / 2.0 * side,
+        sq.top() + (1.0 - (pos[1] + 1.0) / 2.0) * side,
+    );
+    p.circle_stroke(c, 5.0, egui::Stroke::new(2.0, th.ui.text));
+    let font = egui::FontId::proportional(11.0);
+    p.text(
+        sq.left_center() - egui::vec2(4.0, 0.0),
+        egui::Align2::RIGHT_CENTER,
+        y_label,
+        font.clone(),
+        th.ui.text,
+    );
+    p.text(
+        sq.center_bottom() + egui::vec2(0.0, 2.0),
+        egui::Align2::CENTER_TOP,
+        x_label,
+        font,
+        th.ui.text,
+    );
 }
