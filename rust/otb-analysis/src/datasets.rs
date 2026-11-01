@@ -18,6 +18,14 @@ pub const DATASETS: [(&str, &str); 11] = [
     ("debug", "Debug"),
 ];
 
+/// Jeu filtré → son jeu préfiltre (`datasets.PREFILT_OF`) : les outils spectraux tracent le second en pointillés.
+pub const PREFILT_OF: [(&str, &str); 2] = [("gyro", "gyro_prefilt"), ("dterm", "dterm_prefilt")];
+
+/// La clé est-elle celle d'un jeu préfiltre (`_spectral_common.is_prefilt`) ?
+pub fn is_prefilt(key: &str) -> bool {
+    PREFILT_OF.iter().any(|(_, p)| *p == key)
+}
+
 /// Tableau `(k, n)` du jeu de données demandé ; `Ok(None)` s'il n'existe pas dans ce log, `Err` si la clé est inconnue
 /// (le `KeyError` de Python).
 pub fn get<'a>(log: &'a FlightLog, key: &str) -> Result<Option<Cow<'a, Rows>>, String> {

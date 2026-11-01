@@ -2710,8 +2710,10 @@ dependencies = [
  "egui_extras",
  "egui_kittest",
  "egui_plot",
+ "otb-advisor",
  "otb-analysis",
  "otb-decoder",
+ "otb-format",
  "otb-log",
  "rfd",
 ]

@@ -2,11 +2,13 @@
 //! `otb-advisor` : cette crate n'affiche que ce qu'ils calculent.
 
 pub mod app;
+pub mod colormaps;
 pub mod icons;
 pub mod plots;
 pub mod state;
 pub mod theme;
 pub mod tool;
+pub mod tools;
 pub mod viewer;
 pub mod viewer_page;
 pub mod worker;

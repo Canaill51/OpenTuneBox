@@ -45,6 +45,10 @@ pub trait Tool {
 
     /// Libellé de l'onglet.
     const TITLE: &'static str;
+    /// Outil ouvert depuis un autre (pas de bouton dans la barre) : `OTHER_TOOLS` de `main_window.py`.
+    const HIDDEN: bool = false;
+    /// Bouton de la barre qui reste mis en valeur quand cet outil est affiché (par défaut, le sien).
+    const TAB: Option<&'static str> = None;
 
     /// Copie les réglages de l'interface (appelé dans le thread de l'interface).
     fn options(&self) -> Self::Options;
@@ -56,11 +60,31 @@ pub trait Tool {
     fn controls(&mut self, ui: &mut Ui, state: &AppState, theme: &Theme);
     /// Affichage du dernier résultat.
     fn render(&mut self, ui: &mut Ui, output: &Self::Output, theme: &Theme);
+    /// Outil à ouvrir ensuite (son `TITLE`), demandé par un bouton de cet outil ; lu une fois par la fenêtre.
+    fn take_goto(&mut self) -> Option<&'static str> {
+        None
+    }
 }
 
 /// Une page d'outil, vue par la fenêtre principale.
 pub trait Page {
     fn title(&self) -> &'static str;
+    /// Pas de bouton dans la barre (outil ouvert depuis un autre).
+    fn hidden(&self) -> bool {
+        false
+    }
+    /// Titre du bouton de la barre mis en valeur quand cette page est affichée.
+    fn tab(&self) -> &'static str {
+        self.title()
+    }
+    /// Un calcul est en cours (captures et tests : attendre sa fin).
+    fn busy(&self) -> bool {
+        false
+    }
+    /// Page à ouvrir ensuite (son titre), demandée pendant le dernier affichage.
+    fn take_goto(&mut self) -> Option<&'static str> {
+        None
+    }
     fn ui(&mut self, ui: &mut Ui, state: &mut AppState, theme: &Theme);
 }
 
@@ -128,6 +152,22 @@ impl<T: Tool> ToolPage<T> {
 impl<T: Tool> Page for ToolPage<T> {
     fn title(&self) -> &'static str {
         T::TITLE
+    }
+
+    fn hidden(&self) -> bool {
+        T::HIDDEN
+    }
+
+    fn busy(&self) -> bool {
+        self.runner.busy()
+    }
+
+    fn tab(&self) -> &'static str {
+        T::TAB.unwrap_or(T::TITLE)
+    }
+
+    fn take_goto(&mut self) -> Option<&'static str> {
+        self.tool.take_goto()
     }
 
     fn ui(&mut self, ui: &mut Ui, state: &mut AppState, theme: &Theme) {

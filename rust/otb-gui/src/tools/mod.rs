@@ -1,0 +1,12 @@
+//! Les outils d'analyse, une page chacun (`gui/tools/` de Python). Les briques qu'ils partagent sont dans `common`.
+
+pub mod common;
+pub mod report_ui;
+pub mod spectral;
+
+use crate::tool::{Page, ToolPage};
+
+/// Les pages de tous les outils, dans l'ordre de la barre (`REGISTRY` de Python).
+pub fn all_pages() -> Vec<Box<dyn Page>> {
+    vec![Box::new(ToolPage::new(spectral::SpectralTool::new()))]
+}
