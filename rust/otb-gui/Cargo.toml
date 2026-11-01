@@ -1,0 +1,26 @@
+[package]
+name = "otb-gui"
+description = "Interface egui d'OpenTuneBox (phase 6, D-035) : socle commun (thème, état, calculs en arrière-plan, tracés), puis une page par outil"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "otb_gui"
+
+[[bin]]
+name = "opentunebox-gui"
+path = "src/main.rs"
+
+[dependencies]
+otb-analysis = { path = "../otb-analysis" }
+otb-log = { path = "../otb-log" }
+eframe = "0.37"
+egui = "0.37"
+egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
+egui_plot = "0.38"
+rfd = "0.17"
+
+[dev-dependencies]
+egui_kittest = "0.37"
+otb-decoder = { path = "../otb-decoder" }
