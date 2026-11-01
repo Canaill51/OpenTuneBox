@@ -6,7 +6,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use egui::Color32;
 use otb_analysis::period::auto_period;
@@ -26,13 +26,44 @@ pub fn default_period(log: &FlightLog) -> (f64, f64) {
     })
 }
 
+/// Cache des résultats de calcul d'un log (W-032 point 1 : `e.extras` de Python).
+///
+/// Partagé avec le thread de calcul (un clone voit le même contenu). La **clé** est écrite par l'outil et doit contenir tout ce qui change le
+/// résultat : réglages de calcul **et période** ; ainsi un calcul lancé avant un changement de période ne peut jamais servir après. Vidé quand la
+/// période change, pour borner la mémoire.
+#[derive(Clone, Default)]
+pub struct Cache(Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>);
+
+impl Cache {
+    fn map(&self) -> std::sync::MutexGuard<'_, HashMap<String, Arc<dyn Any + Send + Sync>>> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()) // un calcul qui a paniqué ne doit pas bloquer les suivants
+    }
+
+    /// Valeur rangée sous `key`, si elle existe **et** a le type `T`.
+    pub fn get<T: Any + Send + Sync>(&self, key: &str) -> Option<Arc<T>> {
+        self.map().get(key).cloned()?.downcast::<T>().ok()
+    }
+
+    pub fn put<T: Any + Send + Sync>(&self, key: impl Into<String>, value: Arc<T>) {
+        self.map().insert(key.into(), value);
+    }
+
+    pub fn clear(&self) {
+        self.map().clear();
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map().is_empty()
+    }
+}
+
 pub struct LoadedLog {
     pub log: Arc<FlightLog>,
     pub period: (f64, f64),
     pub color: Color32,
     pub label: String,
-    /// Caches de calculs par outil, vidés quand la période change.
-    pub extras: HashMap<&'static str, Arc<dyn Any + Send + Sync>>,
+    /// Résultats de calculs par outil, vidés quand la période change.
+    pub extras: Cache,
 }
 
 impl LoadedLog {
@@ -88,7 +119,7 @@ impl AppState {
             period,
             color,
             label,
-            extras: HashMap::new(),
+            extras: Cache::default(),
         });
         self.bump();
         self.current = Some(self.logs.len() - 1);

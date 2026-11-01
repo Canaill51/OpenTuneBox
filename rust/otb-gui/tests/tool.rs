@@ -136,3 +136,17 @@ fn recalcul_file_d_attente_et_erreur() {
     assert_eq!(page.result(), None);
     assert_eq!(page.status, "Sélectionnez au moins un log.");
 }
+
+#[test]
+fn un_message_d_erreur_trop_long_garde_ses_600_derniers_caracteres() {
+    use otb_gui::tool::{ERROR_CHARS, error_status};
+    assert_eq!(error_status("court"), "Erreur de calcul : court");
+    let long = format!("début{}fin é", "x".repeat(2000));
+    let s = error_status(&long);
+    let corps = s.strip_prefix("Erreur de calcul : ").unwrap();
+    assert_eq!(corps.chars().count(), ERROR_CHARS);
+    assert!(corps.ends_with("fin é") && !corps.contains("début"));
+    // exactement 600 : rien n'est coupé
+    let juste = "y".repeat(ERROR_CHARS);
+    assert_eq!(error_status(&juste), format!("Erreur de calcul : {juste}"));
+}

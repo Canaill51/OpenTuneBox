@@ -9,7 +9,7 @@ use std::sync::Arc;
 use egui::{Color32, Ui};
 use otb_log::flightlog::FlightLog;
 
-use crate::state::AppState;
+use crate::state::{AppState, Cache};
 use crate::theme::Theme;
 use crate::worker::Runner;
 
@@ -20,6 +20,8 @@ pub struct LogInput {
     pub period: (f64, f64),
     pub label: String,
     pub color: Color32,
+    /// Résultats déjà calculés pour ce log (voir `Cache` : la clé doit contenir réglages et période).
+    pub cache: Cache,
 }
 
 impl AppState {
@@ -33,9 +35,19 @@ impl AppState {
                 period: l.period,
                 label: l.label.clone(),
                 color: l.color,
+                cache: l.extras.clone(),
             })
             .collect()
     }
+}
+
+/// Longueur gardée d'un message d'erreur de calcul (`err[-600:]` de `ToolWindow`).
+pub const ERROR_CHARS: usize = 600;
+
+/// Texte de la barre d'état pour une erreur de calcul : les `ERROR_CHARS` derniers caractères (la fin d'une trace d'erreur dit le plus).
+pub fn error_status(e: &str) -> String {
+    let skip = e.chars().count().saturating_sub(ERROR_CHARS);
+    format!("Erreur de calcul : {}", e.chars().skip(skip).collect::<String>())
 }
 
 pub trait Tool {
@@ -132,7 +144,7 @@ impl<T: Tool> ToolPage<T> {
                     self.last = Some(out);
                     self.status.clear();
                 }
-                Err(e) => self.status = format!("Erreur de calcul : {e}"),
+                Err(e) => self.status = error_status(&e),
             }
         }
         let now = (self.tool.options(), self.tool.selected(state), state.revision());
