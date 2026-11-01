@@ -272,8 +272,11 @@ def main():
     d1 = rows(base, "d_term", lambda a: a.__setitem__((0, slice(None)), 0.0))
     direct("prévision, D nul sur le roll seulement", "predict", d1, {"mod": "dterm", "factor": hx(1.1), "hi": hx(hi)},
            pred_of(d1, mod_dterm(d1, 1.1)))
-    direct("prévision : bande vide (hi sous 80 Hz) : Python lève", "predict", base, {"mod": "dterm", "factor": hx(1.1), "hi": hx(60.0)},
+    # bande vide (session de 0,1 à 0,2 s, ou `hi` sous 80 Hz) : l'axe est ignoré, les listes sont vides (W-030, corrigé le 2026-11-01)
+    direct("prévision : bande vide (hi sous 80 Hz), D : pas de prévision", "predict", base, {"mod": "dterm", "factor": hx(1.1), "hi": hx(60.0)},
            lambda: RU.predict_filter_change(base, sel, mod_dterm(base, 1.1), 60.0))
+    direct("prévision : bande vide (hi sous 80 Hz), gyro : pas de prévision", "predict", base, {"mod": "gyro_lpf1_off", "hi": hx(60.0)},
+           lambda: RU.predict_filter_change(base, sel, mod_gyro_off(base), 60.0))
     # bande de 1 à 4 points (np.convolve échange alors ses arguments : 5 valeurs en sortie)
     for h, nm in ((80.0 + 3.3, "1 point"), (80.0 + 4.0, "2 points"), (80.0 + 7.0, "3 points"), (80.0 + 10.5, "4 points"), (80.0 + 14.0, "5 points")):
         direct(f"prévision : bande de {nm}", "predict", base, {"mod": "dterm", "factor": hx(1.1), "hi": hx(h)},

@@ -194,6 +194,7 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
   ne jamais les utiliser sans vérifier (voir `gui/app.py:hard_exit`). L-021
 - Vérifier avant un commit : lancer `pytest` sans tube (`| tail` masque son échec) ; le crochet de Claude Code
   (`.claude/hooks/check-docs.sh`) ne voit que `git commit` et `git -c … commit`. L-022
+- Les couches du corpus (`advisor_rates.py`, `golden_advisor.py`) écartent les sessions de moins de 8 s : elles ne voient pas un plantage sur une session courte ; seule la couche de la ligne de commande les rejoue. Voir le test échouer avant tout correctif. L-065
 - Tests du corpus : ouvrir un log par `tests/corpus_paths.py:corpus_log` (ignoré en le nommant s'il manque) ;
   après un changement du corpus, `pytest -rs` liste les logs à remplacer. L-023
 - Couverture : la CI n'a pas le corpus et `coverage` ne voit pas le code numba (`NUMBA_DISABLE_JIT=1`) ;

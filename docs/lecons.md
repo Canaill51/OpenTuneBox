@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-065 : une couche de contrôle du corpus qui écarte les sessions courtes ne voit pas un plantage sur une session courte
+- **Symptôme** — 2026-11-01 : `opentunebox report` plantait (`ValueError: a cannot be empty`) sur 2 logs du dossier `cheussure`, et aucune comparaison de l'assistant sur le corpus ne l'avait vu : 631 sessions comparées, 0 écart, le Rust « identique » au Python qui plantait.
+- **Cause** — le plantage venait des sessions de 0,1 et 0,2 s (restes d'enregistrement après un rebranchement de la batterie, aucune fréquence entre 80 Hz et la limite des filtres), et `advisor_rates.py` comme `golden_advisor.py` écartent les sessions de moins de 8 s. Seule la couche de la ligne de commande (`record-cli`, tous les fichiers, toutes les sessions) les rejouait. Le test synthétique écrit d'abord passait **avant** le correctif : la session fabriquée n'atteignait pas `predict_filter_change`.
+- **Règle** — une couche qui filtre les sessions (durée, période, présence d'un signal) ne prouve rien sur celles qu'elle écarte : le dire dans sa documentation et garder une couche sans filtre (la ligne de commande) ; un test de non-régression d'un plantage doit être vu **échouer** sur le code d'avant, et viser la fonction fautive plutôt que passer par `analyze`.
+- **Preuve** — `tests/test_advisor_synthetic.py::test_predict_filter_change_very_short_session` ; cas `bande vide` de `scripts/rules_delay_cases.py` ; `otb-parity check-cli` (2 fichiers qui donnaient `@@ERREUR`).
+
 ### L-064 : réduire un fichier de cas en changeant les données écrites sans changer celles que Python a utilisées donne un « identique » qui ne prouve rien
 - **Symptôme** — 2026-10-31 (5b) : en mettant à zéro des colonnes du journal pour alléger `log_check.json`, la comparaison des réponses de Python « avant / après » rendait « tout identique », y compris en zérotant `gyro_unfilt`, dont dépendent pourtant les retards.
 - **Cause** — la mise à zéro n'était appliquée qu'à la copie **écrite** dans le fichier ; Python calculait ses réponses sur le journal d'origine. Les deux fichiers contenaient donc les mêmes réponses, et Rust aurait été jugé sur des données qui ne correspondaient plus.
@@ -784,6 +790,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-065 | Couche corpus qui écarte les sessions courtes (< 8 s) : aveugle à leurs plantages ; garder la couche CLI sans filtre, et voir le test échouer avant le correctif | Tests |
 | L-064 | Alléger un fichier de cas : transformer le journal AVANT de calculer la réponse de Python, comparer aux anciennes réponses ; relancer les mutations (raccourcir perd des branches) | Outillage |
 | L-063 | Mutations par remplacement de texte : `cargo fmt` d'abord, motif absent = erreur du script, « tuée » seulement sur `FAILED` ; un seuil `>=` / `>` demande une valeur exactement dessus | Outillage |
 | L-062 | Contrôle de complétude de la couche corpus : partir de la liste attendue (`flightlog.json`), pas des fichiers que les références déclarent ; le casser exprès (référence supprimée) | Outillage |

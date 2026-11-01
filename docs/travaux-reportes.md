@@ -62,9 +62,9 @@ Règles d'écriture :
 |---|---|---|
 | W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
-| W-028 | Rust / Python : références `advisor/` et `analysis/` sans `Hover_Test5.bbl`, erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références) |
+| W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références) |
 | W-031 | Ligne de commande Rust : pas de texte d'aide détaillé, messages d'usage et d'erreur rédigés autrement que ceux d'argparse | ouvert (à voir en phase 7) |
-| W-030 | `rules.py:analyze` plante (`np.convolve` d'un tableau vide) sur 2 logs du corpus ; Rust échoue au même endroit avec un autre message | ouvert (défaut de l'étalon Python, à corriger avec l'accord de Cédric) |
+| W-030 | `rules.py:analyze` plantait (`np.convolve` d'un tableau vide) sur 2 logs du corpus | TRAITÉ le 2026-11-01 (Python sur `main`, PR #75 ; Rust sur `fix/rust-short-session`) |
 | W-029 | Rust / Python : types faux refusés par `DroneCard::from_value`, `pid_khz` toujours en flottant, `auto_status` en erreur si un usage manque, `log_rate` panique sur une taille inconnue, pas de crash réel dans le corpus du guide | ouvert (phase 6 / 7) |
 | W-025 | `motors` (Rust) n'accepte que des vitesses moteur `float32` (journaux) ; Python accepte aussi `float64` et choisit alors la précision des noyaux | ouvert (à voir en phase 6) |
 | W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ouvert (à voir en phase 7) |
@@ -450,6 +450,7 @@ Règles d'écriture :
 - **W-028** — trois écarts de couverture connus de la 5a-4 / 5a-5, relevés par la relecture : (1) `1. PTB/Moribot/Hover_Test5.bbl` est dans le corpus (500 fichiers) mais pas dans `flightlog.json` (499) ni dans `advisor/` ni dans `analysis/` : les références de ces couches sont plus anciennes que le corpus, seul le réglage par séries (`advisor_tuning/`) le couvre ; (2) `tuning_layer.rs` compare les erreurs par leur seule présence (Python lève ⇒ Rust lève), sans vérifier que c'est à la même étape, et le corpus actuel n'en contient aucune ; (3) `step_tuning` sur des curseurs contenant un NaN : Python trie sans erreur dans un ordre arbitraire, Rust rend une erreur (inatteignable depuis `find_series`).
   **Pourquoi reporté** : (1) demande de réenregistrer `advisor/` et `analysis/` (≈ 25 min) sans changer le code ; (2) et (3) n'ont aucun appelant réel.
   **Reprise** : (1) au prochain réenregistrement des références (`golden.py record-flightlog`, `record-analysis`, `record-advisor`) ; (2) et (3) si un cas d'erreur apparaît dans le corpus ou à la phase 7.
+  *Réglé le 2026-11-01 pour `flightlog.json` et `advisor/`* : `golden.py record-flightlog` et `record-advisor` refaits (669 journaux, 631 sessions de l'assistant, `Hover_Test5.bbl` comprise) ; `otb-parity check-advisor` : 631 sessions, 362 089 clés, 0 écart. Reste le point (1) pour `analysis/` (`record-analysis`, 337 Mo), à refaire au prochain besoin.
 
 - **W-029** — quatre limites connues de la 5b : (1) `DroneCard::from_value` (Rust) refuse un type faux (`name` = 3, `pid_khz` = "4", `done` = liste, `bf` = null) alors que `from_dict` de Python les accepte sans rien vérifier ; `pid_khz` s'écrit toujours en flottant (`4.0`), Python réécrit ce qu'il a lu (`4` si le fichier disait `4`) ; (2) `auto_status` rend une erreur si l'usage de la case manque dans un `LogCheck` (Python lève `AttributeError`), cas que `check_log` ne produit jamais ; (3) `DroneCard::log_rate` panique (Python : `KeyError`) si la taille est inconnue et la fiche construite à la main (`from_value` la ramène à `five`) ; (4) le corpus ne contient aucun crash au sens de `crash_time` dans les sessions rejouées par `check-guide` : la branche « crash » repose sur les cas fabriqués.
   **Pourquoi reporté** : (1) les fiches sont écrites par l'application avec des choix du menu (textes et flottants) ; (2) à (4) n'ont pas d'appelant réel.
@@ -458,15 +459,12 @@ Règles d'écriture :
 
 ## Origine : phase 5c, comparaison de la ligne de commande sur le corpus (2026-11-01)
 
-- **W-030** — `opentunebox report` (et donc l'onglet Assistant) plante sur 2 des 500 logs du corpus
+- **W-030** — **TRAITÉ le 2026-11-01.** `opentunebox report` (et donc l'onglet Assistant) plantait sur 2 des 500 logs du corpus
   (`1. PTB/cheussure/Dgain-1.0-1.2-1.4-1.6.bbl`, `1. PTB/cheussure/Q_750_(100_40_80)-fade30_DN2-500.bbl`) : `ValueError: a cannot be empty`
-  dans `advisor/rules.py` (ligne 709, `np.convolve(v, np.ones(5) / 5, mode="same")` sur un tableau vide). Le Rust échoue aussi
-  (`rules.rs:892`, `ValueError : object of too small depth for desired array`) : **message différent, même type d'exception**, et
-  `otb-parity check-cli` exige en plus le **même texte écrit avant l'échec** (Python a déjà écrit les sessions précédentes du fichier).
-  Le défaut est donc porté tel quel, pas ajouté.
-  **Pourquoi reporté** : défaut de l'assistant, hors du sujet de la 5c ; le corriger change des conseils (Python et Rust à la fois) et demande de
-  trouver quelle série est vide pour ces logs.
-  **Reprise** : avec l'accord de Cédric, avant la phase 7 (corriger Python puis Rust, ajouter ces deux logs aux cas de non-régression).
+  dans `advisor/rules.py`, `predict_filter_change`. Cause : les sessions de 0,1 et 0,2 s (restes d'enregistrement) n'ont aucune fréquence entre
+  80 Hz et la limite des filtres. Correction : l'axe sans fréquence dans la bande est ignoré, la prévision est absente, donc `gyro_lpf1_off` et
+  `dterm_filter_too_strong` ne sont pas émis ; Python sur `main` (PR #75, 0 conseil différent sur 631 sessions), puis Rust (`whatif_deltas` rend
+  `None`). Preuve sur les données : `otb-parity check-cli`, où ces 2 fichiers donnaient une erreur. L-065.
   [`advisor/rules.py`, `rust/otb-advisor/src/rules.rs`]
 
 - **W-031** — le binaire Rust `opentunebox` écrit à la main son analyse des arguments (aucune dépendance) en suivant `argparse` de Python 3.14.4 :
