@@ -2715,7 +2715,9 @@ dependencies = [
  "otb-decoder",
  "otb-format",
  "otb-log",
+ "otb-parity",
  "rfd",
+ "serde_json",
 ]
 
 [[package]]

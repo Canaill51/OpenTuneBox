@@ -293,3 +293,39 @@ fn sans_log_le_bouton_demande_d_en_ouvrir_un() {
     app.open_tool("Fréquence × gaz");
     assert_eq!(app.screen, Screen::Guide);
 }
+
+#[test]
+fn en_psd_les_cartes_sont_a_l_echelle_de_pidtoolbox() {
+    use otb_analysis::spectral::{Mode, freq_throttle, to_ptb_db};
+    let st = etat(1);
+    let mut t = tool_sur(&st);
+    t.set_psd(true);
+    let out = calcule(&t, &st);
+    let m = &out.columns[1].as_ref().unwrap().maps[&0]; // gyro, roll
+    // même carte, calculée directement : PSD en dB − 6,5 dB
+    let log = &st.logs[0].log;
+    let sel = st.logs[0].sel();
+    let x: Vec<f64> = log.gyro.row(0)[sel.clone()].iter().map(|&v| f64::from(v)).collect();
+    let thr: Vec<f64> = log.throttle[sel.clone()].iter().map(|&v| f64::from(v)).collect();
+    let br: Vec<i64> = log.breaks(sel, 4.0).iter().map(|&b| b as i64).collect();
+    let direct = freq_throttle(&x, &thr, log.fs, Mode::Psd, 300.0, NBINS, (0.0, 100.0), Some(&br)).unwrap();
+    let attendu = to_ptb_db(&direct.z);
+    assert_eq!(m.z.len(), attendu.len());
+    let mut compares = 0;
+    for (a, b) in m.z.iter().zip(&attendu) {
+        assert!(a.is_nan() == b.is_nan(), "NaN différents");
+        if a.is_finite() {
+            assert!((a - b).abs() < 1e-9, "{a} contre {b}");
+            compares += 1;
+        }
+    }
+    assert!(compares > 1000);
+    // et ce n'est pas l'amplitude
+    let amp = calcule(&tool_sur(&st), &st).columns[1].as_ref().unwrap().maps[&0]
+        .z
+        .clone();
+    assert_ne!(
+        amp.iter().position(|v| v.is_finite()).map(|i| amp[i]),
+        m.z.iter().position(|v| v.is_finite()).map(|i| m.z[i])
+    );
+}
