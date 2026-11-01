@@ -10,6 +10,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Les lissages, la fenêtre de Hann et l'intercorrélation ne passent plus par scipy mais par `analysis/_numeric.py` (numpy seul, écart à scipy ≈ 1e-14 relatif) ; les 4 noyaux numba des filtres Betaflight sont réécrits en Rust (`rust/otb-dsp`, identiques à numba au bit près, sauf la réponse en fréquence : 1e-15 relatif). scipy, numba et llvmlite (≈ 350 Mo installés) ne sont plus nécessaires à l'application (dossier de l'exécutable Linux : 206 Mo au lieu de 463 Mo) : ils passent dans l'extra `dev`, comme références des tests (D-032).
 
 ### Corrigé
+- CI Ubuntu à court de disque avec les tests de l'interface egui (`No space left on device`) : les infos de débogage du profil `dev` Rust sont réduites aux tables de lignes (binaires de test de 490 à 186 Mo, 6,7 Go pour toute la séquence) ; L-069.
 - L'assistant ne plante plus sur une session de 0,1 à 0,2 s (reste d'enregistrement après un rebranchement de la batterie) : trop
   courte pour avoir une fréquence entre 80 Hz et la limite des filtres, elle faisait échouer toute l'analyse (`ValueError: a cannot be
   empty`, vu sur 2 logs du corpus). La prévision des filtres est alors absente, donc aucun des deux conseils qui en dépendent (LPF1 du gyro

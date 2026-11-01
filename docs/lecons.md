@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-069 : chaque fichier de test de `otb-gui` lie egui et wgpu (≈ 490 Mo en debug) : la CI Ubuntu manque de disque
+- **Symptôme** — 2026-11-01 (PR #78, 6-2) : le travail `tests` échoue après 7 min : `No space left on device (os error 28)` puis `ld terminated with signal 7 [Bus error]` (éditeur de liens tué) sur `otb-cli` et `otb-parity` ; Windows et l'audit passent. La PR #77 (11 binaires de test d'`otb-gui`) passait.
+- **Cause** — chaque fichier de `rust/otb-gui/tests/` est un exécutable séparé qui lie egui, wgpu et leurs infos de débogage : 470 à 510 Mo chacun (mesuré). La 6-2 en a ajouté 6 et un exemple : 17 binaires ≈ 8 Go, plus les artefacts de clippy et des autres crates, au-delà des ≈ 14 Go libres d'un runner Ubuntu. Aucun test n'était en cause, rien à corriger dans le code.
+- **Règle** — `[profile.dev] debug = "line-tables-only"` dans `rust/Cargo.toml` : 186 Mo par binaire au lieu de 490, 6,7 Go pour toute la séquence de la CI (clippy puis tests, dossier neuf), les messages de panique gardent leurs numéros de ligne. Avant d'ajouter des fichiers de test à `otb-gui`, regrouper plutôt que multiplier si l'espace redevient juste ; en cas de nouvel échec « No space left », mesurer `du -sh rust/target` d'une séquence neuve avant de toucher au code.
+- **Preuve** — séquence `cargo clippy --all-targets -- -D warnings` puis `cargo test -p …` rejouée dans un dossier de compilation neuf : 6,7 Go, 0 échec ; la CI de la PR #78.
+
 ### L-068 : le contrôle d'accessibilité de kittest ne tourne qu'à la fin de `run()` ; et les polices d'egui n'ont pas « → »
 - **Symptôme** — 2026-11-01 (6-2) : les tests de l'outil Fréquence × temps échouaient (« 7 widget(s) lack accessible name ») alors que ceux du Spectre, qui ont les mêmes listes déroulantes, passaient. Autre cas : le rapport du diagnostic du bruit faisait paniquer le banc (`No glyph for "→"`), alors que l'application aurait dessiné un carré.
 - **Cause** — kittest vérifie que chaque champ a un nom accessible **seulement quand l'interface s'est stabilisée** (`run`, `run_ok`), pas dans `run_steps` ni `step` : les tests du Spectre n'appelaient jamais `run()` une fois la page affichée. Un `ComboBox` ou un `DragValue` sans libellé voisin n'a ni nom pour un lecteur d'écran, ni moyen d'être retrouvé par `get_by_label` (on les retrouve par `get_by_value`). Côté polices : « → ✔ ▲ ↑ ↓ ⚠ » sont absents des polices embarquées (mesure du 2026-11-01), tous les autres caractères des textes de l'assistant y sont ; le banc les refuse (`MissingGlyphPolicy::Panic`), l'application dessine un carré (`Tofu`).
@@ -809,6 +815,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-069 | CI Ubuntu à court de disque : chaque fichier de test d'`otb-gui` lie egui et wgpu (≈ 490 Mo) ; `debug = "line-tables-only"` dans le profil `dev` | Outillage |
 | L-068 | Banc kittest : le contrôle d'accessibilité ne tourne qu'à la fin de `run()` (listes et champs sans nom) ; « → ✔ ▲ ↑ ↓ ⚠ » absents des polices d'egui | Tests |
 | L-067 | egui_plot : axes sans graduation avec la grille par défaut (puissances de 10) ; l'ordre des éléments décide de ce qui recouvre l'image | Interface |
 | L-066 | Banc kittest : un cadre est dessiné avant le code du test ; réglages du contexte par `with_context_setup`, sinon « ⚠ » et panique de police sur les icônes SVG | Tests |
