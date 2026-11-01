@@ -12,6 +12,7 @@ use crate::icons::icon;
 use crate::state::AppState;
 use crate::theme::{self, Theme};
 use crate::tool::Page;
+use crate::viewer_page::ViewerPage;
 use crate::worker::Runner;
 
 /// À appeler une fois au démarrage (et dans chaque banc de test) : chargeurs d'images, pour les icônes SVG.
@@ -19,11 +20,22 @@ pub fn setup(ctx: &egui::Context) {
     egui_extras::install_image_loaders(ctx);
 }
 
+/// Écran affiché.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Screen {
+    Guide,
+    Viewer,
+    /// Index dans `App::pages`.
+    Tool(usize),
+}
+
 pub struct App {
     pub state: AppState,
     pub pages: Vec<Box<dyn Page>>,
     /// Page affichée (`None` : le Guide).
-    pub page: Option<usize>,
+    pub screen: Screen,
+    pub viewer: ViewerPage,
+    had_logs: bool,
     pub theme: Theme,
     applied: Option<&'static str>,
     opening: Runner<Vec<FlightLog>>,
@@ -39,7 +51,9 @@ impl App {
         Self {
             state: AppState::new(),
             pages,
-            page: None,
+            screen: Screen::Guide,
+            viewer: ViewerPage::new(),
+            had_logs: false,
             theme: theme::CLAIR,
             applied: None,
             opening: Runner::default(),
@@ -90,7 +104,17 @@ impl App {
             self.applied = Some(self.theme.name);
             ctx.request_repaint(); // le thème ne vaut qu'au cadre suivant
         }
+        // glisser-déposer de fichiers sur la fenêtre
+        let dropped: Vec<PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
+        if !dropped.is_empty() {
+            self.open(dropped);
+        }
         self.poll_opening(&ctx);
+        // premier log ouvert depuis l'accueil du guide : on passe aux courbes
+        if !self.state.logs.is_empty() && !self.had_logs && self.screen == Screen::Guide {
+            self.screen = Screen::Viewer;
+        }
+        self.had_logs = !self.state.logs.is_empty();
         let theme = self.theme;
         egui::Panel::top("barre").show(root, |ui| {
             ui.horizontal_wrapped(|ui| {
@@ -104,12 +128,15 @@ impl App {
                 }
                 ui.separator();
                 let guide = egui::Button::image_and_text(icon("book-open", 16.0).tint(theme.ui.text), "Guide");
-                if ui.add(guide.selected(self.page.is_none())).clicked() {
-                    self.page = None;
+                if ui.add(guide.selected(self.screen == Screen::Guide)).clicked() {
+                    self.screen = Screen::Guide;
+                }
+                if ui.selectable_label(self.screen == Screen::Viewer, "Courbes").clicked() {
+                    self.screen = Screen::Viewer;
                 }
                 for (i, p) in self.pages.iter().enumerate() {
-                    if ui.selectable_label(self.page == Some(i), p.title()).clicked() {
-                        self.page = Some(i);
+                    if ui.selectable_label(self.screen == Screen::Tool(i), p.title()).clicked() {
+                        self.screen = Screen::Tool(i);
                     }
                 }
                 ui.separator();
@@ -127,9 +154,10 @@ impl App {
             };
             ui.label(if self.status.is_empty() { busy } else { &self.status });
         });
-        egui::CentralPanel::default().show(root, |ui| match self.page.and_then(|i| self.pages.get_mut(i)) {
-            Some(page) => page.ui(ui, &mut self.state, &theme),
-            None => {
+        egui::CentralPanel::default().show(root, |ui| match self.screen {
+            Screen::Viewer => self.viewer.ui(ui, &mut self.state, &theme),
+            Screen::Tool(i) if i < self.pages.len() => self.pages[i].ui(ui, &mut self.state, &theme),
+            _ => {
                 ui.heading("Guide");
                 ui.label("Le guide intégré arrive à la sous-étape 6-5.");
             }

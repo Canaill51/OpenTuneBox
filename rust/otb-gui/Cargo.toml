@@ -22,5 +22,5 @@ egui_plot = "0.38"
 rfd = "0.17"
 
 [dev-dependencies]
-egui_kittest = "0.37"
+egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 otb-decoder = { path = "../otb-decoder" }

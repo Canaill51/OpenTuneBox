@@ -210,3 +210,45 @@ pub fn decimate_minmax(t: &[f64], y: &[f32], chunk: usize) -> Vec<[f64; 2]> {
     }
     out
 }
+
+/// Points d'une courbe visibles entre `x0` et `x1` (un point de marge de chaque côté), au plus `max_points`
+/// environ : au-delà, décimation min/max (`setDownsampling(mode="peak")` de pyqtgraph). `t` croissant.
+pub fn visible_points(t: &[f64], y: &[f64], x0: f64, x1: f64, max_points: usize) -> Vec<[f64; 2]> {
+    let n = t.len().min(y.len());
+    if n == 0 || x0.is_nan() || x1.is_nan() || x0 > x1 {
+        return Vec::new();
+    }
+    let i0 = t[..n].partition_point(|&v| v < x0).saturating_sub(1);
+    let i1 = (t[..n].partition_point(|&v| v <= x1) + 1).min(n);
+    let count = i1.saturating_sub(i0);
+    if count <= max_points.max(4) {
+        return (i0..i1).map(|i| [t[i], y[i]]).collect();
+    }
+    let chunk = (2 * count).div_ceil(max_points.max(4));
+    let mut out = Vec::with_capacity(max_points + 2);
+    for start in (i0..i1).step_by(chunk) {
+        let end = (start + chunk).min(i1);
+        let (mut lo, mut hi) = (start, start);
+        for i in start..end {
+            if y[i] < y[lo] {
+                lo = i;
+            }
+            if y[i] > y[hi] {
+                hi = i;
+            }
+        }
+        let (a, b) = if lo <= hi { (lo, hi) } else { (hi, lo) };
+        out.push([t[a], y[a]]);
+        if b != a {
+            out.push([t[b], y[b]]);
+        }
+    }
+    out
+}
+
+/// Petit trait de couleur devant un libellé (légende des traces), dessiné : les polices d'egui n'ont pas « ━ ».
+pub fn swatch(ui: &mut egui::Ui, color: Color32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(18.0, 12.0), egui::Sense::hover());
+    let bar = egui::Rect::from_center_size(rect.center(), egui::vec2(16.0, 4.0));
+    ui.painter().rect_filled(bar, 1.0, color);
+}

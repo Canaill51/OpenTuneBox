@@ -6,6 +6,7 @@ use egui_kittest::Harness;
 use egui_plot::{GridInput, Line, Plot, PlotPoints, VLine};
 use otb_gui::plots::{
     VDrag, decimate_minmax, error_bars, format_hz, heatmap_pixels, log_grid, log_points, right_axis_scale,
+    visible_points,
 };
 use otb_gui::theme::turbo;
 
@@ -246,4 +247,30 @@ fn glisser_loin_d_un_repere_ne_le_deplace_pas() {
     h.drop_at(Pos2::new(arrivee, 250.0));
     h.run();
     assert_eq!((h.state().coupure, h.state().bord), (150.0, 600.0));
+}
+
+#[test]
+fn les_points_visibles_sont_filtres_puis_decimes() {
+    let t: Vec<f64> = (0..1000).map(f64::from).collect();
+    let y: Vec<f64> = t.iter().map(|v| if *v == 500.0 { 9.0 } else { 0.0 }).collect();
+    // peu de points visibles : tous, avec un point de marge de chaque côté
+    let v = visible_points(&t, &y, 100.0, 110.0, 100);
+    assert_eq!(
+        (v.first().unwrap()[0], v.last().unwrap()[0], v.len()),
+        (99.0, 111.0, 13)
+    );
+    // beaucoup de points : décimés, mais le pic isolé reste
+    let v = visible_points(&t, &y, 0.0, 999.0, 100);
+    assert!(v.len() <= 110, "{}", v.len());
+    assert!(v.contains(&[500.0, 9.0]), "le pic est perdu");
+    assert!(v.windows(2).all(|w| w[0][0] <= w[1][0]), "ordre du temps");
+    // hors plage, plage inversée, NaN, courbe vide
+    assert_eq!(
+        visible_points(&t, &y, 2000.0, 3000.0, 100).len(),
+        1,
+        "dernier point seulement"
+    );
+    assert!(visible_points(&t, &y, 5.0, 1.0, 100).is_empty());
+    assert!(visible_points(&t, &y, f64::NAN, 1.0, 100).is_empty());
+    assert!(visible_points(&[], &[], 0.0, 1.0, 100).is_empty());
 }

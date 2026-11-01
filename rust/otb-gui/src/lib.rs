@@ -7,4 +7,6 @@ pub mod plots;
 pub mod state;
 pub mod theme;
 pub mod tool;
+pub mod viewer;
+pub mod viewer_page;
 pub mod worker;

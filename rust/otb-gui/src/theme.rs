@@ -154,6 +154,11 @@ impl Theme {
         if self.dark { *dark } else { *light }
     }
 
+    /// Fond translucide de la période d'analyse (zone claire déplaçable des graphiques).
+    pub fn region_fill(&self) -> Color32 {
+        self.ui.highlight.gamma_multiply(0.12)
+    }
+
     /// Couleur d'un trait de la grille (le texte, adouci par `grid`).
     pub fn grid_color(&self) -> Color32 {
         self.fg.gamma_multiply(self.grid)
@@ -267,7 +272,9 @@ pub fn apply(ctx: &Context, theme: &Theme) {
     v.widgets.noninteractive.fg_stroke.color = u.text;
     v.widgets.inactive.bg_fill = u.button;
     v.widgets.inactive.weak_bg_fill = u.button;
-    v.widgets.inactive.bg_stroke.color = u.mid;
+    // contour des cases à cocher et des boutons radio : assez sombre pour se voir (piège de Fusion sous Qt, L-014)
+    v.widgets.inactive.bg_stroke.color = u.muted;
+    v.widgets.inactive.bg_stroke.width = 1.0;
     v.widgets.inactive.fg_stroke.color = u.text;
     v.widgets.hovered.bg_fill = u.hover;
     v.widgets.hovered.weak_bg_fill = u.hover;

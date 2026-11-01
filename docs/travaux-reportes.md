@@ -63,6 +63,7 @@ Règles d'écriture :
 | W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références) |
+| W-033 | Visualiseur egui : lissage plus large que la courbe (numpy rend `w` valeurs, Rust `n`) ; échelle Y fixe (pas de zoom vertical) ; molette = défilement désactivé, zoom par Ctrl + molette | 6-1c |
 | W-032 | Socle egui (6-0) : écarts connus avec `ToolWindow.run` de Python | 6-3 |
 | W-031 | Ligne de commande Rust : pas de texte d'aide détaillé, messages d'usage et d'erreur rédigés autrement que ceux d'argparse | ouvert (à voir en phase 7) |
 | W-030 | `rules.py:analyze` plantait (`np.convolve` d'un tableau vide) sur 2 logs du corpus | TRAITÉ le 2026-11-01 (Python sur `main`, PR #75 ; Rust sur `fix/rust-short-session`) |
@@ -488,3 +489,5 @@ Règles d'écriture :
   (6) tailles en points écrites hors de `theme.rs` (icônes, barre de couleurs, `GRAB_PX`) : la règle d'AGENTS.md n'est vérifiée que pour les couleurs ;
   (7) le Guide reste affiché à l'ouverture d'un log (Python bascule vers les courbes) : avec le visualiseur, 6-1.
   **Reprise** : en 6-1 pour (5) à (7), en 6-3 pour (1) à (4).
+
+- **W-033** — Visualiseur egui (6-1), écarts connus avec `main_window.py` : (1) `smooth` rend `n` valeurs même si la largeur dépasse `n` (numpy `same` rend `max(n, w)`, ce qui désaccorde les longueurs en Python) ; (2) l'échelle Y est fixée par le champ « Échelle Y » (le zoom vertical à la souris est désactivé) ; (3) la molette ne zoome qu'avec Ctrl (egui_plot) ; (4) le thème se change dans la barre, pas dans « Affichage ». **Reprise** : à voir avec Cédric après essai à la main (6-1c).
