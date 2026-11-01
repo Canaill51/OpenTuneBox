@@ -11,7 +11,10 @@ use otb_analysis::datasets::{self, DATASETS};
 use otb_analysis::motors::dyn_notch_centres;
 use otb_analysis::spectral::{freq_time, to_ptb_db};
 
-use super::common::{AxisToggles, FileSelection, MotorToggles, decimate, harmonic_style, motor_freqs, sel_rows, wide};
+use super::common::{
+    AxisToggles, FileSelection, MotorToggles, decimate, harmonic_style, motor_freqs, nan_unless_positive, sel_rows,
+    wide,
+};
 use crate::plots::{VDrag, colorbar, heatmap_texture, nice_axes};
 use crate::state::AppState;
 use crate::theme::{AXIS_NAMES, Palette, Theme, motor_color, plot};
@@ -279,7 +282,7 @@ impl Tool for FreqTimeTool {
         if let Some(centres) = dyn_notch_centres(log) {
             for c in &centres {
                 let part = &c[sel.start.min(c.len())..sel.end.min(c.len())];
-                let masked: Vec<f64> = part.iter().map(|&v| if v > 0.0 { v } else { f64::NAN }).collect();
+                let masked = nan_unless_positive(part);
                 out.notches.push(decimate(t, &masked, MAX_TRACE_POINTS));
             }
         }

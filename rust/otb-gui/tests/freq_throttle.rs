@@ -288,10 +288,28 @@ fn le_bouton_du_spectre_ouvre_l_outil_sans_bouton_propre_dans_la_barre() {
 }
 
 #[test]
-fn sans_log_le_bouton_demande_d_en_ouvrir_un() {
-    let mut app = App::new(otb_gui::tools::all_pages());
-    app.open_tool("Fréquence × gaz");
-    assert_eq!(app.screen, Screen::Guide);
+fn sans_log_le_bouton_demande_d_en_ouvrir_un_sans_empiler_le_message() {
+    let mut h = Harness::builder()
+        .with_context_setup(otb_gui::app::setup)
+        .build_ui_state(|ui, a: &mut App| a.ui(ui), App::new(otb_gui::tools::all_pages()));
+    for _ in 0..3 {
+        h.state_mut().open_tool("Fréquence × gaz");
+        h.run_steps(2);
+    }
+    assert_eq!(h.state().screen, Screen::Guide);
+    assert_eq!(h.state().status, "Ouvrez d'abord un log Blackbox.");
+}
+
+#[test]
+fn un_jeu_de_donnees_absent_du_log_laisse_la_colonne_vide() {
+    // sans gyro non filtré, « Gyro préfiltre » n'existe pas : colonne vide (et non une colonne sans carte)
+    let mut log = log5s();
+    log.gyro_unfilt = None;
+    let mut st = AppState::new();
+    st.add(log);
+    let out = calcule(&tool_sur(&st), &st);
+    assert!(out.columns[0].is_none(), "gyro_prefilt absent");
+    assert!(out.columns[1].is_some() && out.columns[3].is_some());
 }
 
 #[test]

@@ -122,6 +122,18 @@ pub fn sorted_positive(row: &[f64]) -> Vec<f64> {
     v
 }
 
+/// Valeurs strictement positives de `row`, triées (centres des notchs dynamiques : `np.sort(c[c > 0])`).
+pub fn sorted_above_zero(row: &[f64]) -> Vec<f64> {
+    let mut v: Vec<f64> = row.iter().copied().filter(|x| *x > 0.0).collect();
+    v.sort_by(|a, b| a.total_cmp(b));
+    v
+}
+
+/// La ligne avec NaN à la place des valeurs nulles ou négatives (`np.where(c > 0, c, np.nan)`).
+pub fn nan_unless_positive(row: &[f64]) -> Vec<f64> {
+    row.iter().map(|&v| if v > 0.0 { v } else { f64::NAN }).collect()
+}
+
 // ------------------------------------------------------------------ widgets
 
 /// Liste des logs ouverts à cocher, avec la couleur de chaque fichier (`FileSelector`). La sélection est gardée par

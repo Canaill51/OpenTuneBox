@@ -69,6 +69,7 @@ impl Report {
     }
 
     /// Tableau de flottants : même forme (`shape`), mêmes NaN, écart ≤ `tol` × plus grand élément fini de la référence.
+    #[allow(clippy::too_many_arguments)]
     fn floats(&mut self, refs: &Refs, file: usize, key: &str, family: &str, shape: &[usize], got: &[f64], tol: f64) {
         let Some(a) = self.get(refs, file, key) else { return };
         let want: &[usize] = if shape.is_empty() { &[] } else { shape };
@@ -363,13 +364,14 @@ fn check_freq_time(rep: &mut Report, refs: &Refs, i: usize, out: &FreqTimeOutput
             t.trace,
         );
     }
-    for (n, c) in [("motor_hz", out.motor_hz.len())] {
-        let have = (0..64)
-            .filter(|k| refs.contains_key(&format!("freq_time.{n}[{k}]")))
-            .count();
-        if have != c {
-            rep.fail(i, format!("freq_time.{n} : {have} listes ≠ {c}"));
-        }
+    let have = (0..64)
+        .filter(|k| refs.contains_key(&format!("freq_time.motor_hz[{k}]")))
+        .count();
+    if have != out.motor_hz.len() {
+        rep.fail(
+            i,
+            format!("freq_time.motor_hz : {have} listes ≠ {}", out.motor_hz.len()),
+        );
     }
     let have = (0..64)
         .filter(|k| refs.contains_key(&format!("freq_time.notches[{k}][0]")))

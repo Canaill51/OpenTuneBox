@@ -152,6 +152,7 @@ fn centre_y(h: &Banc, ax: usize) -> f32 {
 fn le_curseur_se_deplace_en_glissant_son_trait_et_sur_un_clic() {
     let mut h = banc(FreqTimeTool::new());
     let (t0, t1) = h.state().1.logs[0].period;
+    let generation = h.state().0.result().unwrap().generation;
     h.state_mut().1.set_cursor(t0 + (t1 - t0) * 0.25);
     h.run_steps(2);
     for ax in 0..3 {
@@ -186,8 +187,8 @@ fn le_curseur_se_deplace_en_glissant_son_trait_et_sur_un_clic() {
         "curseur à {}",
         h.state().1.cursor
     );
-    // aucun recalcul : le curseur n'est pas un réglage de calcul
-    assert!(!h.state().0.busy());
+    // aucun recalcul : le curseur n'est pas un réglage de calcul (même résultat, même génération)
+    assert_eq!(h.state().0.result().unwrap().generation, generation);
 }
 
 #[test]
@@ -203,4 +204,23 @@ fn moins_de_100_hz_ramene_le_haut_de_la_vue_a_100() {
     let h = banc(FreqTimeTool::new());
     let nyq = log5s().fs / 2.0;
     assert!((h.state().0.tool.transforms[0].unwrap().bounds().max()[1] - nyq).abs() < 1e-6);
+}
+
+#[test]
+fn un_log_sans_moteurs_ni_notchs_donne_des_spectrogrammes_sans_traces() {
+    let mut log = log5s();
+    log.motor_hz = None;
+    log.motors = otb_log::flightlog::Rows::zeros(0, log.n());
+    log.settings.debug_mode = "NONE".into();
+    let mut st = AppState::new();
+    st.add(log);
+    let out = calcule(&FreqTimeTool::new(), &st);
+    assert_eq!(out.maps.len(), 3);
+    assert!(out.motor_t.is_none() && out.motor_hz.is_empty() && out.notches.is_empty());
+    // un jeu absent : pas de carte, pas d'erreur
+    let mut log = log5s();
+    log.gyro_unfilt = None;
+    let mut st = AppState::new();
+    st.add(log);
+    assert!(calcule(&FreqTimeTool::new(), &st).maps.is_empty());
 }

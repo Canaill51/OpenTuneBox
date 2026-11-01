@@ -18,7 +18,7 @@ use otb_analysis::spectral::{Mode, smooth_freq, spectrum, to_ptb_db};
 
 use super::common::{
     AxisToggles, FileSelection, MotorToggles, cdf, fmt_ms, harmonic_style, motor_freqs, rpm_filter_text, sel_rows,
-    sorted_positive, wide,
+    sorted_above_zero, sorted_positive, wide,
 };
 use super::report_ui::{REPORT_FOOTER, diagnosis_ui};
 use crate::plots::{corner_text, error_bars, nice_axes};
@@ -231,6 +231,10 @@ impl SpectralTool {
         self.right = r;
     }
 
+    pub fn y_range(&self) -> (f64, f64) {
+        (self.ymin, self.ymax)
+    }
+
     pub fn set_y_range(&mut self, lo: f64, hi: f64) {
         (self.ymin, self.ymax) = (lo, hi);
     }
@@ -408,6 +412,8 @@ impl SpectralTool {
             ui.add_sized([w, 18.0], egui::Label::new(RichText::new(t).strong()));
         });
         let (ymin, ymax) = (self.ymin, self.ymax);
+        // deux champs indépendants : Y min peut dépasser Y max, la vue prend les deux dans l'ordre
+        let (ylo, yhi) = (ymin.min(ymax), ymin.max(ymax));
         for (row, &ax) in axes.iter().enumerate() {
             let name = AXIS_NAMES[ax];
             ui.horizontal(|ui| {
@@ -425,7 +431,7 @@ impl SpectralTool {
                 let resp = left.show(ui, |pu| {
                     if fresh {
                         pu.set_plot_bounds_x(0.0..=nyq);
-                        pu.set_plot_bounds_y(ymin..=ymax);
+                        pu.set_plot_bounds_y(ylo..=yhi);
                     }
                     for l in self.spectra_lines(out, ax, row == 0) {
                         pu.line(l);
@@ -445,7 +451,7 @@ impl SpectralTool {
                             .show(ui, |pu| {
                                 if fresh {
                                     pu.set_plot_bounds_x(0.0..=100.0);
-                                    pu.set_plot_bounds_y(ymin..=ymax);
+                                    pu.set_plot_bounds_y(ylo..=yhi);
                                 }
                                 for l in self.spectra_lines(out, ax, false) {
                                     pu.line(l);
@@ -477,7 +483,7 @@ impl SpectralTool {
                                 if fresh {
                                     pu.set_plot_bounds_x(0.7..=3.3);
                                     if out.psd {
-                                        pu.set_plot_bounds_y(ymin..=ymax);
+                                        pu.set_plot_bounds_y(ylo..=yhi);
                                     } else {
                                         pu.set_plot_bounds_y(-50.0..=20.0);
                                     }
@@ -561,12 +567,7 @@ impl Tool for SpectralTool {
             if let Some(centres) = dyn_notch_centres(log) {
                 f.notch_sorted = centres
                     .iter()
-                    .map(|c| {
-                        let part = &c[sel.start.min(c.len())..sel.end.min(c.len())];
-                        let mut v: Vec<f64> = part.iter().copied().filter(|x| *x > 0.0).collect();
-                        v.sort_by(|a, b| a.total_cmp(b));
-                        v
-                    })
+                    .map(|c| sorted_above_zero(&c[sel.start.min(c.len())..sel.end.min(c.len())]))
                     .collect();
             }
             let br: Vec<i64> = log.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect();

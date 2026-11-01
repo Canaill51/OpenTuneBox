@@ -88,13 +88,17 @@ fn le_mode_amplitude_garde_l_echelle_physique_et_le_yaw_sans_terme_d_est_absent(
 #[test]
 fn passer_en_amplitude_change_l_echelle_y() {
     let mut t = SpectralTool::new();
+    assert_eq!(t.y_range(), (-50.0, 20.0));
     t.set_y_range(-10.0, 5.0);
     t.set_psd(false);
     assert!(!t.options().psd);
+    assert_eq!(t.y_range(), (0.0, 1.0));
+    t.set_y_range(0.2, 0.8);
+    t.set_psd(false); // déjà en amplitude : l'échelle de l'utilisateur reste
+    assert_eq!(t.y_range(), (0.2, 0.8));
     t.set_psd(true);
-    // retour en PSD : échelle par défaut de la PSD, comme `_on_mode_toggled`
-    let st = etat();
-    assert!(calcule(&t, &st).psd);
+    assert!(t.options().psd);
+    assert_eq!(t.y_range(), (-50.0, 20.0));
 }
 
 #[test]
@@ -214,7 +218,7 @@ fn la_page_affiche_les_deux_colonnes_et_bascule_vers_le_bruit_moteur() {
 }
 
 #[test]
-fn le_diagnostic_apparait_a_cote_des_courbes_et_disparait_sans_recalcul() {
+fn le_diagnostic_apparait_a_cote_des_courbes_et_disparait_quand_on_decoche() {
     let mut h = banc();
     assert!(h.query_by_label("1. Conditions du log").is_none());
     h.get_by_label("Diagnostic du bruit").click();
@@ -249,4 +253,75 @@ fn tous_les_choix_d_affichage_se_dessinent_sans_panique() {
     h.get_by_label("Notchs dynamiques").click();
     h.get_by_label("M1/5").click();
     h.run_steps(4);
+}
+
+#[test]
+fn un_log_sans_moteurs_sans_gyro_non_filtre_ni_notchs_se_calcule() {
+    let mut log = log5s();
+    log.motor_hz = None;
+    log.gyro_unfilt = None;
+    log.motors = otb_log::flightlog::Rows::zeros(0, log.n());
+    log.settings.debug_mode = "NONE".into();
+    let mut st = AppState::new();
+    st.add(log);
+    let mut t = SpectralTool::new();
+    t.set_diagnosis(true);
+    let out = SpectralTool::compute(t.options(), st.inputs(&[0])).unwrap();
+    let f = &out.files[0];
+    // seul le gyro filtré existe : 3 axes ; ni traces moteur, ni notchs, ni bruit moteur
+    assert_eq!(f.spectra.len(), 3);
+    assert!(f.spectra.keys().all(|(k, _)| *k == "gyro"));
+    assert!(f.motor_sorted.is_empty() && f.notch_sorted.is_empty() && f.noise.is_empty());
+    assert!(f.diagnosis.is_some());
+    assert!(
+        f.gyro_ms.is_nan(),
+        "pas de gyro non filtré : pas de retard des filtres du gyro"
+    );
+}
+
+#[test]
+fn une_session_plus_courte_qu_une_fenetre_de_2_s_ne_plante_pas() {
+    // le résultat (courbes absentes ou erreur affichée) n'est pas jugé ici : seulement l'absence de panique, 1 s à 0,5 Hz
+    let mut log = log5s();
+    let n = (log.fs as usize).min(log.n());
+    for r in [
+        &mut log.gyro,
+        &mut log.setpoint,
+        &mut log.p_term,
+        &mut log.i_term,
+        &mut log.d_term,
+        &mut log.f_term,
+        &mut log.motors,
+        &mut log.debug,
+    ] {
+        let k = r.k;
+        let mut nr = otb_log::flightlog::Rows::zeros(k, n);
+        for c in 0..k {
+            nr.row_mut(c).copy_from_slice(&r.row(c)[..n]);
+        }
+        *r = nr;
+    }
+    log.t.truncate(n);
+    log.throttle.truncate(n);
+    log.gyro_unfilt = None;
+    log.motor_hz = None;
+    let mut st = AppState::new();
+    st.add(log);
+    // une panique ferait échouer le test ; `Ok` ou `Err` sont tous deux acceptés
+    let r = SpectralTool::compute(SpectralTool::new().options(), st.inputs(&[0]));
+    println!("session courte : {:?}", r.map(|o| o.files[0].spectra.len()));
+}
+
+#[test]
+fn le_bruit_moteur_compte_les_harmoniques_des_20_hz() {
+    // moteurs à 25 Hz : la 1re harmonique n'est comptée que si la limite basse est ≤ 25 Hz (Python : 20 Hz)
+    let mut log = log5s();
+    let mut mhz = otb_log::flightlog::Rows::zeros(4, log.n());
+    mhz.data.iter_mut().for_each(|v| *v = 25.0);
+    log.motor_hz = Some(mhz);
+    let mut st = AppState::new();
+    st.add(log);
+    let out = calcule(&SpectralTool::new(), &st);
+    let (mean, _) = &out.files[0].noise[&("gyro", 0)];
+    assert!(mean[0].is_finite(), "1re harmonique à 25 Hz ignorée : {mean:?}");
 }

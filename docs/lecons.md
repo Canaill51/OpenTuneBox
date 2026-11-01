@@ -60,6 +60,18 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-068 : le contrôle d'accessibilité de kittest ne tourne qu'à la fin de `run()` ; et les polices d'egui n'ont pas « → »
+- **Symptôme** — 2026-11-01 (6-2) : les tests de l'outil Fréquence × temps échouaient (« 7 widget(s) lack accessible name ») alors que ceux du Spectre, qui ont les mêmes listes déroulantes, passaient. Autre cas : le rapport du diagnostic du bruit faisait paniquer le banc (`No glyph for "→"`), alors que l'application aurait dessiné un carré.
+- **Cause** — kittest vérifie que chaque champ a un nom accessible **seulement quand l'interface s'est stabilisée** (`run`, `run_ok`), pas dans `run_steps` ni `step` : les tests du Spectre n'appelaient jamais `run()` une fois la page affichée. Un `ComboBox` ou un `DragValue` sans libellé voisin n'a ni nom pour un lecteur d'écran, ni moyen d'être retrouvé par `get_by_label` (on les retrouve par `get_by_value`). Côté polices : « → ✔ ▲ ↑ ↓ ⚠ » sont absents des polices embarquées (mesure du 2026-11-01), tous les autres caractères des textes de l'assistant y sont ; le banc les refuse (`MissingGlyphPolicy::Panic`), l'application dessine un carré (`Tofu`).
+- **Règle** — chaque liste déroulante et chaque champ reçoit `.accessible_name("…")` (ou un libellé lié par `labelled_by`) ; un test d'interface appelle `h.run()` au moins une fois page affichée. Un texte de l'assistant passe par `tools::common::safe_text` (« → » devient « -> ») avant d'être affiché ; les « ✔ » et « ▲ » du guide (`tuning_path.rs`) seront remplacés par des icônes en 6-5.
+- **Preuve** — `rust/otb-gui/tests/freq_time.rs` (un `run()` après affichage), `tests/report_ui.rs::la_fleche_est_remplacee_car_les_polices_d_egui_ne_l_ont_pas`.
+
+### L-067 : egui_plot ne graduait pas les axes (grille en puissances de 10) ; un `Span` posé avant une image la recouvre
+- **Symptôme** — 2026-11-01 (6-2) : les cartes de Fréquence × gaz n'avaient pour tout repère qu'un « 0 » dans le coin, et les spectres de l'Analyse spectrale aucune graduation sur l'axe des fréquences (0 à 1000 Hz). Le fond gris des zones sans données, posé par un `Span` avant l'image, la cachait entièrement.
+- **Cause** — la grille par défaut d'egui_plot place des repères aux puissances de 10 et n'étiquette un repère que si deux repères du même rang sont écartés d'au moins 60 px (axe X) ou 20 px (axe Y) : sur 0 à 100 il ne reste que 0 et 100. Les bornes étaient pourtant bonnes (affichées par `plot_bounds`). Un `Span` ou une `Line` dessinés après (ou avant, selon l'ordre) l'image la recouvrent : l'ordre des éléments décide.
+- **Règle** — tout tracé linéaire passe par `plots::nice_axes` (repères en 1, 2, 5 × 10^k : fin tous les 8 px, étiqueté tous les 64 px sur X et 24 px sur Y). Le gris des cases vides est mis **dans la texture** (`heatmap_pixels(…, empty)`), pas par un élément posé dessous. Regarder la capture avant de croire un tracé fini.
+- **Preuve** — `tests/plots.rs::la_grille_lineaire_donne_des_repetes_ronds_et_etiquetables` ; captures des deux thèmes (`examples/capture.rs`).
+
 ### L-066 : un banc egui_kittest construit un premier cadre avant le code du test ; les icônes SVG y affichent « ⚠ » et la police panique
 - **Symptôme** — 2026-11-01 (6-0) : `Harness::build_ui_state` suivi de `egui_extras::install_image_loaders(&h.ctx)` : panique `No glyph for "⚠️" (U+26A0) in Proportional` au premier cadre dessinant la barre d'outils.
 - **Cause** — le banc dessine déjà un cadre en se construisant, avant toute ligne du test : les chargeurs d'images n'étaient pas encore installés, l'icône SVG échouait au chargement et egui la remplace par « ⚠️ », absent de ses polices embarquées. `main.rs` installait les chargeurs, pas le banc.
@@ -797,6 +809,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-068 | Banc kittest : le contrôle d'accessibilité ne tourne qu'à la fin de `run()` (listes et champs sans nom) ; « → ✔ ▲ ↑ ↓ ⚠ » absents des polices d'egui | Tests |
+| L-067 | egui_plot : axes sans graduation avec la grille par défaut (puissances de 10) ; l'ordre des éléments décide de ce qui recouvre l'image | Interface |
 | L-066 | Banc kittest : un cadre est dessiné avant le code du test ; réglages du contexte par `with_context_setup`, sinon « ⚠ » et panique de police sur les icônes SVG | Tests |
 | L-065 | Couche corpus qui écarte les sessions courtes (< 8 s) : aveugle à leurs plantages ; garder la couche CLI sans filtre, et voir le test échouer avant le correctif | Tests |
 | L-064 | Alléger un fichier de cas : transformer le journal AVANT de calculer la réponse de Python, comparer aux anciennes réponses ; relancer les mutations (raccourcir perd des branches) | Outillage |

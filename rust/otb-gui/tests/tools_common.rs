@@ -5,8 +5,8 @@ mod support;
 
 use otb_gui::state::AppState;
 use otb_gui::tools::common::{
-    AxisToggles, FileSelection, MotorToggles, cdf, decimate, fmt_ms, fmt3, motor_freqs, nice_ceil, rpm_filter_text,
-    sel_rows, sorted_positive,
+    AxisToggles, FileSelection, MotorToggles, cdf, decimate, fmt_ms, fmt3, motor_freqs, nan_unless_positive, nice_ceil,
+    rpm_filter_text, sel_rows, sorted_above_zero, sorted_positive,
 };
 use support::synthetic_log;
 
@@ -229,4 +229,14 @@ fn les_cases_d_axes_et_de_moteurs() {
     m.0[0] = false;
     m.0[3] = false;
     assert_eq!(m.enabled(), vec![1, 2]);
+}
+
+#[test]
+fn les_centres_de_notch_gardent_les_valeurs_strictement_positives() {
+    // `np.sort(c[c > 0])` : zéro, négatifs et NaN écartés, l'infini gardé (il est > 0)
+    let v = sorted_above_zero(&[3.0, 0.0, -1.0, f64::NAN, 1.0, f64::INFINITY, 2.0]);
+    assert_eq!(v, vec![1.0, 2.0, 3.0, f64::INFINITY]);
+    let m = nan_unless_positive(&[0.0, 5.0, -2.0, f64::NAN, 1.5]);
+    assert!(m[0].is_nan() && m[2].is_nan() && m[3].is_nan());
+    assert_eq!((m[1], m[4]), (5.0, 1.5));
 }

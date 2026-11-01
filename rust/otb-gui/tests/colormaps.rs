@@ -14,6 +14,8 @@ fn les_extremites_de_chaque_palette_sont_celles_de_l_interface_qt() {
         (Palette::Hot, [0, 0, 0], [255, 255, 255]),
         (Palette::Inferno, [0, 0, 4], [252, 255, 164]),
         (Palette::Viridis, [68, 1, 84], [253, 231, 37]),
+        // première couleur de turbo.csv (pyqtgraph) : 0,18995 / 0,07176 / 0,23217 × 255
+        (Palette::Turbo, [48, 18, 59], [122, 4, 3]),
         (Palette::Jet, [0, 0, 143], [128, 0, 0]),
     ];
     for (p, debut, fin) in attendu {

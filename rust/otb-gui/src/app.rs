@@ -181,7 +181,10 @@ impl App {
     pub fn open_tool(&mut self, title: &str) {
         if self.state.logs.is_empty() {
             // la barre d'état est recomposée à chaque cadre depuis `errors` (effacées à la prochaine ouverture)
-            self.errors.push("Ouvrez d'abord un log Blackbox.".into());
+            let msg = "Ouvrez d'abord un log Blackbox.".to_string();
+            if !self.errors.contains(&msg) {
+                self.errors.push(msg);
+            }
         } else if let Some(i) = self.pages.iter().position(|p| p.title() == title) {
             self.screen = Screen::Tool(i);
         }
