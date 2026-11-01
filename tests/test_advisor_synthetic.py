@@ -188,3 +188,36 @@ def test_recording_gaps_finding():
     f = next(f for f in analyze(log).findings if f.key == "recording_gaps")
     assert f.severity == rules.INFO and "1 trou dans la période analysée (0,2 s perdues" in f.detail
     assert check_log(log).item("gaps").status == INFO
+
+
+@pytest.mark.parametrize("seconds", [0.1, 0.2])
+def test_predict_filter_change_very_short_session(seconds):
+    """Reste d'enregistrement de 0,1 à 0,2 s (rebranchement de la batterie) : trop court pour avoir une fréquence entre
+    80 Hz et la limite des filtres. La prévision ne plante pas : l'axe est ignoré, comme sans gyro non filtré, et
+    `_noise_after` rend alors « pas de prévision »."""
+    import copy
+
+    from opentunebox.advisor.rules import _noise_after, predict_filter_change
+    from opentunebox.analysis import bf_filters
+
+    log = make_flightlog(seconds=seconds)
+    mod = copy.deepcopy(log.settings)
+    mod.gyro_lpf1 = bf_filters.lowpass_off(log.settings.gyro_lpf1)
+    pred = predict_filter_change(log, slice(None), mod, 500.0)
+    assert pred["gyro_mean"] == pred["gyro_peak"] == [] and pred["d_mean"] == pred["d_peak"] == []
+    assert _noise_after(pred, [-10.0, -10.0], -5.0, [-20.0, -20.0]) == (None, None, None)
+    assert "gyro_delay_gain_ms" in pred  # les retards viennent des chaînes de filtres, pas du spectre
+
+
+def test_predict_filter_change_normal_session_still_predicts():
+    """Garde-fou : sur un vol normal les prévisions restent là, pour roll et pitch."""
+    import copy
+
+    from opentunebox.advisor.rules import predict_filter_change
+    from opentunebox.analysis import bf_filters
+
+    log = make_flightlog(seconds=12.0)
+    mod = copy.deepcopy(log.settings)
+    mod.gyro_lpf1 = bf_filters.lowpass_off(log.settings.gyro_lpf1)
+    pred = predict_filter_change(log, slice(None), mod, 500.0)
+    assert len(pred["gyro_mean"]) == len(pred["gyro_peak"]) == 2

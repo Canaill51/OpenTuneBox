@@ -8,6 +8,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ### Modifié
 - Lint par `ruff check` (règles de pyflakes, mêmes contrôles) à la place de `pyflakes`, en local et en CI (D-030).
 
+### Corrigé
+- L'assistant ne plante plus sur une session de 0,1 à 0,2 s (reste d'enregistrement après un rebranchement de la batterie) : trop
+  courte pour avoir une fréquence entre 80 Hz et la limite des filtres, elle faisait échouer toute l'analyse (`ValueError: a cannot be
+  empty`, vu sur 2 logs du corpus). La prévision des filtres est alors absente, donc aucun des deux conseils qui en dépendent (LPF1 du gyro
+  superflu, filtre D trop fort). Aucun conseil ne change sur les 631 sessions du corpus (`advisor_rates.py --compare`).
+
 ### Ajouté
 - `tests/test_ci_audit.py` : le workflow d'audit garde sa forme (pip à jour, pip-audit dans un environnement à
   part, dirigé par `--path`) ; leçon L-031.
