@@ -882,17 +882,18 @@ fn np_max_nan(v: &[f64]) -> Option<f64> {
 }
 
 /// `deltas` de `predict_filter_change` : (variation du niveau moyen, variation du sommet du spectre lissé) entre 80 Hz et `hi`.
-fn whatif_deltas(w: &WhatIfSpectrum, hi: f64) -> Result<(f64, f64), String> {
+/// `None` si aucune fréquence n'est dans la bande (session de 0,1 à 0,2 s) : pas de prévision pour cet axe, comme Python.
+fn whatif_deltas(w: &WhatIfSpectrum, hi: f64) -> Result<Option<(f64, f64)>, String> {
     let idx: Vec<usize> = (0..w.freqs.len())
         .filter(|&i| w.freqs[i] >= 80.0 && w.freqs[i] <= hi)
         .collect();
     let cur: Vec<f64> = idx.iter().map(|&i| w.current_db[i]).collect();
     let new: Vec<f64> = idx.iter().map(|&i| w.modified_db[i]).collect();
     if idx.is_empty() {
-        return Err("ValueError : object of too small depth for desired array".into()); // np.convolve d'un tableau vide
+        return Ok(None);
     }
     let peak = |v: &[f64]| np_max_nan(&smooth5(v)).ok_or("ValueError : max() d'une liste vide".to_string());
-    Ok((numpy_mean(&new) - numpy_mean(&cur), peak(&new)? - peak(&cur)?))
+    Ok(Some((numpy_mean(&new) - numpy_mean(&cur), peak(&new)? - peak(&cur)?)))
 }
 
 fn widen_row(r: &Rows, ax: usize) -> Vec<f64> {
@@ -931,9 +932,10 @@ pub fn predict_filter_change(
                 300.0,
                 &mut cache,
             )?;
-            let g = whatif_deltas(&w, hi)?;
-            out.gyro_mean.push(g.0);
-            out.gyro_peak.push(g.1);
+            if let Some(g) = whatif_deltas(&w, hi)? {
+                out.gyro_mean.push(g.0);
+                out.gyro_peak.push(g.1);
+            }
         }
         if any_nonzero(log.d_term.row(a)) {
             if prefilter.is_none() {
@@ -951,9 +953,10 @@ pub fn predict_filter_change(
                 300.0,
                 &mut cache,
             )?;
-            let d = whatif_deltas(&w, hi)?;
-            out.d_mean.push(d.0);
-            out.d_peak.push(d.1);
+            if let Some(d) = whatif_deltas(&w, hi)? {
+                out.d_mean.push(d.0);
+                out.d_peak.push(d.1);
+            }
         }
     }
     let thr = median_f32(&log.throttle[clamp_range(sel.start, sel.end, log.throttle.len())]) as f64 / 100.0;

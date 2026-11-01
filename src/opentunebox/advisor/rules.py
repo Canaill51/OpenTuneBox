@@ -705,6 +705,8 @@ def predict_filter_change(log: FlightLog, sel: slice, mod, hi: float) -> dict:
 
     def deltas(w):
         m = (w.freqs >= 80) & (w.freqs <= hi)
+        if not m.any():
+            return None  # session trop courte (0,1 à 0,2 s) pour avoir une fréquence dans la bande : pas de prévision
         cur, new = w.current_db[m], w.modified_db[m]
         sm = lambda v: np.convolve(v, np.ones(5) / 5, mode="same")  # noqa: E731
         return float(np.mean(new) - np.mean(cur)), float(np.max(sm(new)) - np.max(sm(cur)))
@@ -713,13 +715,15 @@ def predict_filter_change(log: FlightLog, sel: slice, mod, hi: float) -> dict:
     for a in range(2):
         if log.gyro_unfilt is not None:
             g = deltas(bf_filters.whatif_spectrum(log.gyro[a], log.gyro_unfilt[a], log, sel, s, mod, "gyro", cache=cache))
-            out["gyro_mean"].append(g[0])
-            out["gyro_peak"].append(g[1])
+            if g is not None:
+                out["gyro_mean"].append(g[0])
+                out["gyro_peak"].append(g[1])
         if np.any(log.d_term[a]):
             d = deltas(bf_filters.whatif_spectrum(log.d_term[a], log.d_term_prefilter[a], log, sel, s, mod, "dterm",
                                                   cache=cache))
-            out["d_mean"].append(d[0])
-            out["d_peak"].append(d[1])
+            if d is not None:
+                out["d_mean"].append(d[0])
+                out["d_peak"].append(d[1])
     thr = float(np.median(log.throttle[sel])) / 100.0
     delay = lambda chain: bf_filters.chain_delay_ms(chain).phase_ms  # noqa: E731
     out["gyro_delay_gain_ms"] = delay(bf_filters.gyro_chain(s, thr, dyn_notch_hz=[])) - delay(
