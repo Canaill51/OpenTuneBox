@@ -8,7 +8,7 @@ use otb_gui::plots::{
     VDrag, decimate_minmax, error_bars, format_hz, heatmap_pixels, log_grid, log_points, right_axis_scale,
     visible_points,
 };
-use otb_gui::theme::turbo;
+use otb_gui::theme::Palette;
 
 fn marques(lo: f64, hi: f64) -> Vec<f64> {
     log_grid(GridInput {
@@ -99,18 +99,24 @@ fn les_barres_d_erreur_sont_verticales_et_espacees() {
 fn la_carte_est_retournee_et_garde_les_trous() {
     // 2 fréquences × 3 instants ; ligne 0 = fréquence basse, qui doit finir EN BAS de l'image
     let v = [0.0, 10.0, f32::NAN, 5.0, 5.0, 5.0];
-    let px = heatmap_pixels(&v, 2, 3, 0.0, 10.0);
+    let px = heatmap_pixels(&v, 2, 3, 0.0, 10.0, Palette::Turbo, Color32::TRANSPARENT);
     assert_eq!(px.len(), 6);
     // image : ligne 0 (haut) = fréquence haute = valeurs [5, 5, 5] ; ligne 1 (bas) = [0, 10, NaN]
-    assert_eq!(&px[..3], &[turbo(0.5); 3]);
-    assert_eq!(px[3], turbo(0.0));
-    assert_eq!(px[4], turbo(1.0));
+    assert_eq!(&px[..3], &[Palette::Turbo.color(0.5); 3]);
+    assert_eq!(px[3], Palette::Turbo.color(0.0));
+    assert_eq!(px[4], Palette::Turbo.color(1.0));
     assert_eq!(px[5], Color32::TRANSPARENT);
+    // couleur des cases vides au choix
+    let gris = Color32::from_rgb(9, 9, 9);
+    assert_eq!(
+        heatmap_pixels(&[f32::NAN], 1, 1, 0.0, 1.0, Palette::Hot, gris),
+        vec![gris]
+    );
     // hors échelle : bornes de la palette ; échelle nulle : pas de division par zéro
-    let px = heatmap_pixels(&[-5.0, 99.0], 1, 2, 0.0, 10.0);
-    assert_eq!(px, vec![turbo(0.0), turbo(1.0)]);
+    let px = heatmap_pixels(&[-5.0, 99.0], 1, 2, 0.0, 10.0, Palette::Turbo, Color32::TRANSPARENT);
+    assert_eq!(px, vec![Palette::Turbo.color(0.0), Palette::Turbo.color(1.0)]);
     assert!(
-        heatmap_pixels(&[1.0], 1, 1, 3.0, 3.0)
+        heatmap_pixels(&[1.0], 1, 1, 3.0, 3.0, Palette::Turbo, Color32::TRANSPARENT)
             .iter()
             .all(|c| *c != Color32::TRANSPARENT)
     );
@@ -119,7 +125,7 @@ fn la_carte_est_retournee_et_garde_les_trous() {
 #[test]
 #[should_panic(expected = "carte de 5 valeurs")]
 fn une_carte_de_mauvaise_taille_est_refusee() {
-    heatmap_pixels(&[0.0; 5], 2, 3, 0.0, 1.0);
+    heatmap_pixels(&[0.0; 5], 2, 3, 0.0, 1.0, Palette::Turbo, Color32::TRANSPARENT);
 }
 
 #[test]
@@ -273,4 +279,69 @@ fn les_points_visibles_sont_filtres_puis_decimes() {
     assert!(visible_points(&t, &y, 5.0, 1.0, 100).is_empty());
     assert!(visible_points(&t, &y, f64::NAN, 1.0, 100).is_empty());
     assert!(visible_points(&[], &[], 0.0, 1.0, 100).is_empty());
+}
+
+#[test]
+fn les_graduations_de_la_barre_de_couleurs_sont_rondes_et_dans_l_intervalle() {
+    use otb_gui::plots::colorbar_ticks;
+    assert_eq!(colorbar_ticks(0.0, 10.0, 5), vec![0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
+    assert_eq!(colorbar_ticks(-30.0, 10.0, 4), vec![-30.0, -20.0, -10.0, 0.0, 10.0]);
+    assert_eq!(
+        colorbar_ticks(0.0, 0.5, 5),
+        vec![0.0, 0.1, 0.2, 0.30000000000000004, 0.4, 0.5]
+    );
+    // intervalle vide, inversé, non fini ou sans graduation demandée : rien (pas de boucle infinie)
+    assert!(colorbar_ticks(1.0, 1.0, 5).is_empty());
+    assert!(colorbar_ticks(2.0, 1.0, 5).is_empty());
+    assert!(colorbar_ticks(0.0, f64::NAN, 5).is_empty());
+    assert!(colorbar_ticks(0.0, f64::INFINITY, 5).is_empty());
+    assert!(colorbar_ticks(0.0, 1.0, 0).is_empty());
+}
+
+#[test]
+fn la_grille_lineaire_donne_des_repetes_ronds_et_etiquetables() {
+    use egui_plot::GridInput;
+    use otb_gui::plots::nice_grid;
+    // 0..100 sur ~250 px : un repère toutes les 8 px = 3,2 unités → pas fin de 5, pas d'étiquette de 50 (≥ 64 px)
+    let g = nice_grid(
+        GridInput {
+            bounds: (0.0, 100.0),
+            base_step_size: 3.2,
+        },
+        8.0,
+    );
+    let valeurs: Vec<f64> = g.iter().map(|m| m.value).collect();
+    assert_eq!(valeurs, (0..=20).map(|k| f64::from(k) * 5.0).collect::<Vec<_>>());
+    for m in &g {
+        let attendu = if m.value % 50.0 == 0.0 { 50.0 } else { 5.0 };
+        assert_eq!(m.step_size, attendu, "repère {}", m.value);
+    }
+    // bornes négatives : -50..20 avec un repère toutes les 0,5 unité de base
+    let g = nice_grid(
+        GridInput {
+            bounds: (-50.0, 20.0),
+            base_step_size: 0.5,
+        },
+        3.0,
+    );
+    assert!(g.iter().any(|m| m.value == -50.0) && g.iter().any(|m| m.value == 20.0));
+    assert!(g.iter().all(|m| m.value >= -50.0 && m.value <= 20.0));
+    // dézoom extrême, NaN, pas nul : rien, et jamais des milliers de repères
+    for (b, s) in [
+        ((0.0, f64::NAN), 1.0),
+        ((0.0, 1.0), 0.0),
+        ((0.0, 1.0), f64::NAN),
+        ((0.0, 1e12), 1e-3),
+    ] {
+        assert!(
+            nice_grid(
+                GridInput {
+                    bounds: b,
+                    base_step_size: s
+                },
+                8.0
+            )
+            .is_empty()
+        );
+    }
 }

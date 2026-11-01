@@ -134,8 +134,14 @@ impl App {
                 if ui.selectable_label(self.screen == Screen::Viewer, "Courbes").clicked() {
                     self.screen = Screen::Viewer;
                 }
-                for (i, p) in self.pages.iter().enumerate() {
-                    if ui.selectable_label(self.screen == Screen::Tool(i), p.title()).clicked() {
+                // le bouton d'un outil reste mis en valeur quand on est sur un outil qui s'ouvre depuis lui
+                let shown = match self.screen {
+                    Screen::Tool(j) => self.pages.get(j).map(|p| p.tab()),
+                    _ => None,
+                };
+                for (i, p) in self.pages.iter().enumerate().filter(|(_, p)| !p.hidden()) {
+                    let on = self.screen == Screen::Tool(i) || shown == Some(p.title());
+                    if ui.selectable_label(on, p.title()).clicked() {
                         self.screen = Screen::Tool(i);
                     }
                 }
@@ -154,14 +160,34 @@ impl App {
             };
             ui.label(if self.status.is_empty() { busy } else { &self.status });
         });
+        let mut goto = None;
         egui::CentralPanel::default().show(root, |ui| match self.screen {
             Screen::Viewer => self.viewer.ui(ui, &mut self.state, &theme),
-            Screen::Tool(i) if i < self.pages.len() => self.pages[i].ui(ui, &mut self.state, &theme),
+            Screen::Tool(i) if i < self.pages.len() => {
+                self.pages[i].ui(ui, &mut self.state, &theme);
+                goto = self.pages[i].take_goto();
+            }
             _ => {
                 ui.heading("Guide");
                 ui.label("Le guide intégré arrive à la sous-étape 6-5.");
             }
         });
+        if let Some(title) = goto {
+            self.open_tool(title);
+        }
+    }
+
+    /// Affiche l'outil de ce titre (`MainWindow.open_tool`) ; sans log ouvert, un message d'état à la place.
+    pub fn open_tool(&mut self, title: &str) {
+        if self.state.logs.is_empty() {
+            // la barre d'état est recomposée à chaque cadre depuis `errors` (effacées à la prochaine ouverture)
+            let msg = "Ouvrez d'abord un log Blackbox.".to_string();
+            if !self.errors.contains(&msg) {
+                self.errors.push(msg);
+            }
+        } else if let Some(i) = self.pages.iter().position(|p| p.title() == title) {
+            self.screen = Screen::Tool(i);
+        }
     }
 }
 

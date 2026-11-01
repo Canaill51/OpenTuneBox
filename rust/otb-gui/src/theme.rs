@@ -29,6 +29,11 @@ pub const MOTOR_COLORS: [Color32; 4] = [hex(0xe6194b), hex(0xf58231), hex(0x2f6f
 
 pub const AXIS_NAMES: [&str; 3] = ["Roll", "Pitch", "Yaw"];
 
+/// La même couleur avec une opacité de `alpha` (0 à 255) : remplissages translucides posés sur un graphique.
+pub fn with_alpha(c: Color32, alpha: u8) -> Color32 {
+    Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha)
+}
+
 pub fn file_color(i: usize) -> Color32 {
     FILE_COLORS[i % FILE_COLORS.len()]
 }
@@ -220,6 +225,9 @@ pub mod plot {
     pub const OVERLAY_FILL: Color32 = Color32::from_rgba_unmultiplied_const(0, 0, 0, 110);
     /// Surlignage d'une ligne (Configuration : réglage qui diffère).
     pub const ROW_HIGHLIGHT: Color32 = Color32::from_rgba_unmultiplied_const(255, 200, 0, 90);
+    /// Fond des cartes de fréquence là où il n'y a pas de données : gris neutre, distinct du noir (faible) et du
+    /// blanc (saturé) des palettes (`MAP_BACKGROUND` de Python).
+    pub const MAP_BACKGROUND: Color32 = hex(0x808080);
     /// Texte ou icône sur un fond coloré (bouton principal, badges).
     pub const ON_ACCENT: Color32 = hex(0xffffff);
 }
@@ -249,6 +257,53 @@ pub fn turbo(t: f32) -> Color32 {
     let b = 0.1066733 + t * (12.64194 + t * (-60.58204 + t * (110.36277 + t * (-89.90310 + t * 27.34824))));
     let c = |x: f64| (x.clamp(0.0, 1.0) * 255.0) as u8;
     Color32::from_rgb(c(r), c(g), c(b))
+}
+
+/// Palettes des cartes de fréquence (`COLORMAP_NAMES` de Python, « hot » par défaut comme PIDtoolbox). Tables de
+/// `colormaps.rs`, générées depuis celles de l'interface Qt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Palette {
+    Hot,
+    Inferno,
+    Viridis,
+    Turbo,
+    Jet,
+}
+
+impl Palette {
+    pub const ALL: [Palette; 5] = [
+        Palette::Hot,
+        Palette::Inferno,
+        Palette::Viridis,
+        Palette::Turbo,
+        Palette::Jet,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Palette::Hot => "hot",
+            Palette::Inferno => "inferno",
+            Palette::Viridis => "viridis",
+            Palette::Turbo => "turbo",
+            Palette::Jet => "jet",
+        }
+    }
+
+    fn table(self) -> &'static [[u8; 3]; 256] {
+        match self {
+            Palette::Hot => &crate::colormaps::HOT,
+            Palette::Inferno => &crate::colormaps::INFERNO,
+            Palette::Viridis => &crate::colormaps::VIRIDIS,
+            Palette::Turbo => &crate::colormaps::TURBO,
+            Palette::Jet => &crate::colormaps::JET,
+        }
+    }
+
+    /// Couleur de la valeur normalisée `t` (bornée à 0..1 ; NaN → début de la palette).
+    pub fn color(self, t: f32) -> Color32 {
+        let [r, g, b] = self.table()[(t.clamp(0.0, 1.0) * 255.0).round() as usize];
+        Color32::from_rgb(r, g, b)
+    }
 }
 
 /// Taille du texte un peu plus grande que celle d'egui (`FONT_SCALE` de Python : 1,15).

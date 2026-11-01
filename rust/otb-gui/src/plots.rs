@@ -5,7 +5,7 @@
 use egui::{Color32, ColorImage, Context, TextureHandle, TextureOptions};
 use egui_plot::{GridInput, GridMark};
 
-use crate::theme;
+use crate::theme::Palette;
 
 // ------------------------------------------------------------------ axe logarithmique
 
@@ -71,8 +71,16 @@ pub fn error_bars(x: &[f64], mean: &[f64], err: &[f64], step: usize) -> Vec<Vec<
 // ------------------------------------------------------------------ carte et barre de couleurs
 
 /// Pixels d'une carte `valeurs[ligne * nt + colonne]` (ligne 0 = fréquence la plus basse), colorée entre `lo` et
-/// `hi`. Les NaN restent transparents. L'image est retournée : sa première ligne est le haut de l'écran.
-pub fn heatmap_pixels(values: &[f32], nf: usize, nt: usize, lo: f32, hi: f32) -> Vec<Color32> {
+/// `hi`. Les NaN prennent la couleur `empty` (transparent, ou le gris de fond des cartes de fréquence). L'image est retournée : sa première ligne est le haut de l'écran.
+pub fn heatmap_pixels(
+    values: &[f32],
+    nf: usize,
+    nt: usize,
+    lo: f32,
+    hi: f32,
+    palette: Palette,
+    empty: Color32,
+) -> Vec<Color32> {
     assert_eq!(
         values.len(),
         nf * nt,
@@ -80,12 +88,12 @@ pub fn heatmap_pixels(values: &[f32], nf: usize, nt: usize, lo: f32, hi: f32) ->
         values.len()
     );
     let span = if hi > lo { hi - lo } else { 1.0 };
-    let mut pixels = vec![Color32::TRANSPARENT; nf * nt];
+    let mut pixels = vec![empty; nf * nt];
     for fi in 0..nf {
         for ti in 0..nt {
             let v = values[fi * nt + ti];
             if !v.is_nan() {
-                pixels[(nf - 1 - fi) * nt + ti] = theme::turbo(((v - lo) / span).clamp(0.0, 1.0));
+                pixels[(nf - 1 - fi) * nt + ti] = palette.color(((v - lo) / span).clamp(0.0, 1.0));
             }
         }
     }
@@ -94,6 +102,7 @@ pub fn heatmap_pixels(values: &[f32], nf: usize, nt: usize, lo: f32, hi: f32) ->
 
 /// Texture d'une carte (voir `heatmap_pixels`), à afficher avec `PlotImage` : `Heatmap` d'egui_plot coûte 30 ms par
 /// cadre à 10⁵ cases (mesuré en 6-0, docs/migration-rust.md).
+#[allow(clippy::too_many_arguments)]
 pub fn heatmap_texture(
     ctx: &Context,
     name: &str,
@@ -102,8 +111,10 @@ pub fn heatmap_texture(
     nt: usize,
     lo: f32,
     hi: f32,
+    palette: Palette,
+    empty: Color32,
 ) -> TextureHandle {
-    let pixels = heatmap_pixels(values, nf, nt, lo, hi);
+    let pixels = heatmap_pixels(values, nf, nt, lo, hi, palette, empty);
     let image = ColorImage {
         size: [nt, nf],
         source_size: egui::vec2(nt as f32, nf as f32),
@@ -112,18 +123,95 @@ pub fn heatmap_texture(
     ctx.load_texture(name, image, TextureOptions::NEAREST)
 }
 
-/// Barre de couleurs verticale (haut = valeur la plus forte), `height` points de haut.
-pub fn colorbar(ui: &mut egui::Ui, height: f32) {
+/// Graduations « rondes » de `lo` à `hi` : `n` intervalles au plus, pas de 1, 2 ou 5 × 10^k (barre de couleurs).
+pub fn colorbar_ticks(lo: f64, hi: f64, n: usize) -> Vec<f64> {
+    if !lo.is_finite() || !hi.is_finite() || hi <= lo || n == 0 {
+        return Vec::new();
+    }
+    let raw = (hi - lo) / n as f64;
+    let e = 10f64.powf(raw.log10().floor());
+    let step = [1.0, 2.0, 5.0, 10.0]
+        .iter()
+        .map(|m| m * e)
+        .find(|s| *s >= raw * (1.0 - 1e-9))
+        .unwrap_or(10.0 * e);
+    let first = (lo / step - 1e-9).ceil();
+    (0..)
+        .map(|k| (first + k as f64) * step)
+        .take_while(|v| *v <= hi * (1.0 + 1e-12) + 1e-12 * step)
+        .collect()
+}
+
+/// Barre de couleurs graduée entre `lo` et `hi`, avec un titre. Verticale (haut = valeur la plus forte, `length` points
+/// de haut) ou horizontale (`length` points de large).
+pub fn colorbar(ui: &mut egui::Ui, palette: Palette, lo: f64, hi: f64, length: f32, vertical: bool, title: &str) {
     const STEPS: usize = 64;
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(24.0, height), egui::Sense::hover());
+    const THICK: f32 = 14.0;
+    let text = ui.visuals().text_color();
+    let font = egui::FontId::proportional(11.0);
+    let label_room = if vertical { 44.0 } else { 16.0 };
+    let size = if vertical {
+        egui::vec2(THICK + label_room, length)
+    } else {
+        egui::vec2(length, THICK + label_room)
+    };
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let painter = ui.painter_at(rect);
+    // marge aux extrémités : les étiquettes des bornes sont centrées sur elles et ne doivent pas être coupées
+    let pad = 14.0;
+    let bar = if vertical {
+        egui::Rect::from_min_size(
+            rect.min + egui::vec2(0.0, pad / 2.0),
+            egui::vec2(THICK, (length - pad).max(1.0)),
+        )
+    } else {
+        egui::Rect::from_min_size(
+            rect.min + egui::vec2(pad, 0.0),
+            egui::vec2((length - 2.0 * pad).max(1.0), THICK),
+        )
+    };
     for i in 0..STEPS {
-        let y0 = rect.top() + rect.height() * i as f32 / STEPS as f32;
-        let band = egui::Rect::from_min_max(
-            egui::pos2(rect.left(), y0),
-            egui::pos2(rect.right(), y0 + rect.height() / STEPS as f32 + 1.0),
-        );
-        painter.rect_filled(band, 0.0, theme::turbo(1.0 - i as f32 / (STEPS - 1) as f32));
+        let t = i as f32 / (STEPS - 1) as f32;
+        let (a, b) = (i as f32 / STEPS as f32, (i + 1) as f32 / STEPS as f32);
+        let band = if vertical {
+            egui::Rect::from_min_max(
+                egui::pos2(bar.left(), bar.bottom() - bar.height() * b),
+                egui::pos2(bar.right(), bar.bottom() - bar.height() * a + 1.0),
+            )
+        } else {
+            egui::Rect::from_min_max(
+                egui::pos2(bar.left() + bar.width() * a, bar.top()),
+                egui::pos2(bar.left() + bar.width() * b + 1.0, bar.bottom()),
+            )
+        };
+        painter.rect_filled(band, 0.0, palette.color(t));
+    }
+    let span = hi - lo;
+    for v in colorbar_ticks(lo, hi, if length > 160.0 { 5 } else { 3 }) {
+        let f = ((v - lo) / span) as f32;
+        let label = otb_format::general(v, 6).replace('.', ",").replace('-', "−");
+        if vertical {
+            let y = bar.bottom() - bar.height() * f;
+            painter.text(
+                egui::pos2(bar.right() + 4.0, y),
+                egui::Align2::LEFT_CENTER,
+                label,
+                font.clone(),
+                text,
+            );
+        } else {
+            let x = bar.left() + bar.width() * f;
+            painter.text(
+                egui::pos2(x, bar.bottom() + 2.0),
+                egui::Align2::CENTER_TOP,
+                label,
+                font.clone(),
+                text,
+            );
+        }
+    }
+    if !title.is_empty() {
+        ui.label(title);
     }
 }
 
@@ -251,4 +339,107 @@ pub fn swatch(ui: &mut egui::Ui, color: Color32) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(18.0, 12.0), egui::Sense::hover());
     let bar = egui::Rect::from_center_size(rect.center(), egui::vec2(16.0, 4.0));
     ui.painter().rect_filled(bar, 1.0, color);
+}
+
+// ------------------------------------------------------------------ texte ancré dans un coin
+
+/// Rectangle et position de chaque ligne d'un bloc de texte ancré dans un coin de `frame` (`CornerText` de Python :
+/// indépendant du zoom). `sizes` : taille de chaque ligne ; les lignes sont alignées du côté du coin.
+pub fn corner_layout(
+    frame: egui::Rect,
+    corner: egui::Align2,
+    sizes: &[egui::Vec2],
+    margin: f32,
+) -> (egui::Rect, Vec<egui::Pos2>) {
+    let w = sizes.iter().map(|s| s.x).fold(0.0, f32::max);
+    let h: f32 = sizes.iter().map(|s| s.y).sum();
+    let size = egui::vec2(w, h);
+    let min = egui::pos2(
+        match corner.x() {
+            egui::Align::Min => frame.left() + margin,
+            egui::Align::Center => frame.center().x - w / 2.0,
+            egui::Align::Max => frame.right() - margin - w,
+        },
+        match corner.y() {
+            egui::Align::Min => frame.top() + margin,
+            egui::Align::Center => frame.center().y - h / 2.0,
+            egui::Align::Max => frame.bottom() - margin - h,
+        },
+    );
+    let mut y = min.y;
+    let mut pos = Vec::with_capacity(sizes.len());
+    for s in sizes {
+        let x = match corner.x() {
+            egui::Align::Min => min.x,
+            egui::Align::Center => min.x + (w - s.x) / 2.0,
+            egui::Align::Max => min.x + w - s.x,
+        };
+        pos.push(egui::pos2(x, y));
+        y += s.y;
+    }
+    (egui::Rect::from_min_size(min, size), pos)
+}
+
+/// Dessine des lignes de texte colorées dans un coin du cadre d'un tracé, sur un fond translucide `fill`.
+pub fn corner_text(ui: &egui::Ui, frame: egui::Rect, corner: egui::Align2, lines: &[(String, Color32)], fill: Color32) {
+    if lines.is_empty() {
+        return;
+    }
+    let painter = ui.painter().with_clip_rect(frame);
+    let font = egui::FontId::proportional(12.5);
+    let galleys: Vec<_> = lines
+        .iter()
+        .map(|(t, c)| painter.layout_no_wrap(t.clone(), font.clone(), *c))
+        .collect();
+    let sizes: Vec<egui::Vec2> = galleys.iter().map(|g| g.size()).collect();
+    let (rect, pos) = corner_layout(frame, corner, &sizes, 6.0);
+    painter.rect_filled(rect.expand(3.0), 3.0, fill);
+    for ((g, p), (_, c)) in galleys.into_iter().zip(pos).zip(lines) {
+        painter.galley(p, g, *c);
+    }
+}
+
+// ------------------------------------------------------------------ grille linéaire
+
+fn nice_up(x: f64) -> f64 {
+    let e = 10f64.powf(x.log10().floor());
+    [1.0, 2.0, 5.0, 10.0]
+        .iter()
+        .map(|m| m * e)
+        .find(|v| *v >= x * (1.0 - 1e-9))
+        .unwrap_or(10.0 * e)
+}
+
+/// Grille linéaire à repères ronds (1, 2 ou 5 × 10^k). La grille par défaut d'egui_plot ne marque que les puissances de
+/// 10 : sur 0..100 elle ne donne que 0 et 100, et les axes restent sans graduation (egui_plot n'étiquette un repère que
+/// si deux repères de même rang sont écartés de 60 px sur X, 20 px sur Y). Ici, un repère fin tous les ≥ 8 px et un repère
+/// étiqueté tous les ≥ `8 × label_factor` px : `label_factor` = 8 sur un axe X (≥ 64 px), 3 sur un axe Y (≥ 24 px).
+pub fn nice_grid(input: GridInput, label_factor: f64) -> Vec<GridMark> {
+    let (lo, hi) = input.bounds;
+    let base = input.base_step_size;
+    if !lo.is_finite() || !hi.is_finite() || !base.is_finite() || base <= 0.0 || hi <= lo {
+        return Vec::new();
+    }
+    let fine = nice_up(base);
+    let coarse = nice_up(base * label_factor).max(fine);
+    let (k0, k1) = ((lo / fine - 1e-9).ceil(), (hi / fine + 1e-9).floor());
+    if k1 - k0 > 4000.0 {
+        return Vec::new();
+    }
+    (k0 as i64..=k1 as i64)
+        .map(|k| {
+            let v = k as f64 * fine;
+            let on_coarse = ((v / coarse).round() * coarse - v).abs() < 1e-9 * coarse;
+            GridMark {
+                value: v,
+                step_size: if on_coarse { coarse } else { fine },
+            }
+        })
+        .collect()
+}
+
+/// Un tracé avec la grille à repères ronds sur les deux axes (`nice_grid`).
+pub fn nice_axes(plot: egui_plot::Plot<'_>) -> egui_plot::Plot<'_> {
+    plot.x_grid_spacer(|i| nice_grid(i, 8.0))
+        .y_grid_spacer(|i| nice_grid(i, 3.0))
 }

@@ -1,7 +1,8 @@
 //! Capture d'écran sans fenêtre (rendu wgpu de egui_kittest) pour regarder l'interface : jamais dans la CI.
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE`
-//! Écrit `courbes-clair.png` et `courbes-sombre.png`.
+//! Écrit `courbes-clair.png` et `courbes-sombre.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
 use otb_gui::app::{App, Screen};
@@ -12,7 +13,7 @@ fn main() {
     let log = args.next().expect("chemin du log");
     let out = std::path::PathBuf::from(args.next().expect("dossier de sortie"));
     for th in [theme::CLAIR, theme::SOMBRE] {
-        let mut app = App::new(Vec::new());
+        let mut app = App::new(otb_gui::tools::all_pages());
         app.theme = th;
         let mut h = Harness::builder()
             .with_size(egui::vec2(1500.0, 900.0))
@@ -42,5 +43,25 @@ fn main() {
         h.run_steps(4);
         let img = h.render().expect("rendu");
         img.save(out.join(format!("courbes-{}.png", th.name))).unwrap();
+        // un outil après l'autre : on attend la fin de son calcul avant de regarder
+        for i in 0..h.state().pages.len() {
+            h.state_mut().screen = Screen::Tool(i);
+            for _ in 0..600 {
+                h.run_steps(2);
+                if !h.state().pages[i].busy() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            h.run_steps(6);
+            let title = h.state().pages[i].title();
+            let name: String = title
+                .to_lowercase()
+                .chars()
+                .map(|c| if c.is_alphanumeric() { c } else { '-' })
+                .collect();
+            let img = h.render().expect("rendu");
+            img.save(out.join(format!("{name}-{}.png", th.name))).unwrap();
+        }
     }
 }

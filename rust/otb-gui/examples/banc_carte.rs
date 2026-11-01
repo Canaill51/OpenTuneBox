@@ -106,7 +106,17 @@ fn main() {
         });
         let ctx = egui::Context::default();
         let debut = Instant::now();
-        let tex = heatmap_texture(&ctx, "carte", &z, nf, nt, lo, hi);
+        let tex = heatmap_texture(
+            &ctx,
+            "carte",
+            &z,
+            nf,
+            nt,
+            lo,
+            hi,
+            otb_gui::theme::Palette::Turbo,
+            egui::Color32::TRANSPARENT,
+        );
         let tex_ms = debut.elapsed().as_secs_f64() * 1e3;
         let tex_id = tex.id();
         mesure("PlotImage (texture, autre contexte)", nf * nt, |ui| {

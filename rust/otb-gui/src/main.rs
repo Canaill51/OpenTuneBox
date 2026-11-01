@@ -6,7 +6,7 @@ fn main() -> eframe::Result {
         eframe::NativeOptions::default(),
         Box::new(|cc| {
             otb_gui::app::setup(&cc.egui_ctx);
-            Ok(Box::new(App::new(Vec::new())))
+            Ok(Box::new(App::new(otb_gui::tools::all_pages())))
         }),
     )
 }

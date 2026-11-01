@@ -54,7 +54,7 @@ impl Tool for Essai {
     }
 
     fn controls(&mut self, _: &mut Ui, _: &AppState, _: &Theme) {}
-    fn render(&mut self, _: &mut Ui, _: &(u32, usize), _: &Theme) {}
+    fn render(&mut self, _: &mut Ui, _: &mut AppState, _: &(u32, usize), _: &Theme) {}
 }
 
 fn attendre(p: &mut ToolPage<Essai>, ctx: &egui::Context, s: &AppState) {

@@ -9,6 +9,12 @@ version = "0.8.0"
 edition = "2024"
 publish = false
 
+# Les tests de `otb-gui` lient chacun egui et wgpu : ≈ 490 Mo par binaire avec toutes les infos de débogage, 186 Mo avec les seules
+# tables de lignes (mesuré le 2026-11-01). Sans cela, `cargo test` remplissait le disque du runner Ubuntu de la CI (L-069).
+# Les messages de panique gardent leurs numéros de ligne.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.release]
 opt-level = 3
 lto = true
