@@ -1,0 +1,5 @@
+jeno5_5s — Betaflight 2026.6.0-rc3 (f625a9996) STM32F405
+  durée 5.1 s, 8262 trames, enregistrement 1618 Hz (PID 3205 Hz, gyro 3205 Hz)
+  debug FFT_FREQ, 4 moteurs, eRPM oui, gyro non filtré oui
+  PID (P,I,D,Dmax,F) : R 58,72,39,39,156 | P 67,84,48,48,178 | Y 58,72,0,0,156
+

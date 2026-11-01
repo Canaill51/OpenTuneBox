@@ -16,7 +16,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (Some(mode), Some(dir)) = (args.first(), args.get(1)) else {
         eprintln!(
-            "usage : otb-parity list|check|check-header|check-settings|check-sliders|check-decoder|check-flightlog|check-analysis|check-advisor|check-guide DOSSIER [--rtol X]"
+            "usage : otb-parity list|check|check-header|check-settings|check-sliders|check-decoder|check-flightlog|check-analysis|check-advisor|check-guide|check-cli DOSSIER [--rtol X]"
         );
         std::process::exit(2);
     };
@@ -39,6 +39,26 @@ fn main() {
         println!(
             "décodeur : {} sessions comparées, {} fichiers différents",
             rep.checked,
+            rep.failures.len()
+        );
+        std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });
+    }
+    if mode == "check-cli" {
+        let root = std::env::var("OTB_LOGS")
+            .unwrap_or_else(|_| format!("{}/Documents/Drones/Logs", std::env::var("HOME").unwrap()));
+        let threads = std::thread::available_parallelism().map_or(4, |n| n.get().min(6));
+        let rep =
+            otb_parity::cli_layer::check_cli(&PathBuf::from(dir), &PathBuf::from(&root), threads).unwrap_or_else(|e| {
+                eprintln!("{e}");
+                std::process::exit(2)
+            });
+        for f in rep.failures.iter().take(15) {
+            println!("≠ {f}");
+        }
+        println!(
+            "ligne de commande : {} textes comparés, {} lignes « illisible » comparées par leur préfixe, {} écarts",
+            rep.texts,
+            rep.unreadable_lines,
             rep.failures.len()
         );
         std::process::exit(if rep.failures.is_empty() { 0 } else { 1 });

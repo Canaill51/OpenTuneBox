@@ -7,6 +7,7 @@
 
 pub mod advisor_layer;
 pub mod analysis_layer;
+pub mod cli_layer;
 pub mod compare;
 pub mod decoded;
 pub mod flightlog_digest;

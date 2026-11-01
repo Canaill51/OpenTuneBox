@@ -1,0 +1,19 @@
+[package]
+name = "otb-cli"
+description = "Ligne de commande `opentunebox info|report` (cli.py de Python), phase 5c, D-035 ; Rust pur"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "otb_cli"
+
+[[bin]]
+name = "opentunebox"
+path = "src/main.rs"
+
+[dependencies]
+otb-advisor = { path = "../otb-advisor" }
+otb-analysis = { path = "../otb-analysis" }
+otb-format = { path = "../otb-format" }
+otb-log = { path = "../otb-log" }

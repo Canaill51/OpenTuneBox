@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris | 2026-11-01 |
 | D-035 | Migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome | 2026-10-30 |
 | D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé | 2026-10-29 |
 | D-033 | Phase 2b limitée à un pilote : le noyau de `step_response` en Rust (FFT seule écartée : gain ≤ 5 %) | 2026-10-29 |
@@ -107,6 +108,30 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-11-01 — Ordre et contrats de la phase 6
+
+### D-036 : 5c avant la phase 6 ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris
+
+Précise D-035 (phases 5c et 6) ; tranche le point 1 de W-029.
+
+**Contexte.** Les phases 4, 5a et 5b sont fusionnées (PR #73). La phase 6 remplace l'interface Qt (≈ 6 000 lignes) par egui ;
+la page Guide doit lire et écrire les fiches drone (`drones.json`), et l'interface Qt garde ses réglages dans `QSettings`.
+
+**Décision.**
+- **5c d'abord** : la ligne de commande (`opentunebox info` / `report`) devient le binaire Rust `otb-cli`, rapports identiques
+  caractère par caractère, avant d'écrire l'interface.
+- **Fiches drone tolérantes** : même fichier `drones.json`, même emplacement, même format que Python. Un champ de type faux
+  prend sa valeur par défaut, une fiche n'est jamais perdue ; `pid_khz` entier s'écrit `4`, pas `4.0`.
+- **Réglages d'interface** (thème, dernier dossier, courbes, tailles de fenêtres) : l'interface egui repart de zéro, sans lire
+  `QSettings`. Seules les fiches drone sont reprises.
+
+**Options écartées.** Fiches strictes (une fiche au champ faux disparaîtrait de la liste) ; lecture unique des `QSettings`
+au premier lancement (code en plus, à vérifier sur trois systèmes, pour des choix qui se refont en une minute).
+
+**Choix de Cédric** (2026-11-01, parmi : 5c d'abord / directement la 6 ; tolérante / stricte ; repartir à zéro / reprendre).
+
+**Témoins.** Plan : [migration-rust.md](migration-rust.md) ; W-029.
 
 ## 2026-10-30 — Migration complète vers Rust
 

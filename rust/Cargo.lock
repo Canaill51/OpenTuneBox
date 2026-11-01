@@ -346,6 +346,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "otb-cli"
+version = "0.8.0"
+dependencies = [
+ "otb-advisor",
+ "otb-analysis",
+ "otb-format",
+ "otb-log",
+]
+
+[[package]]
 name = "otb-decoder"
 version = "0.8.0"
 dependencies = [
@@ -380,6 +390,7 @@ version = "0.8.0"
 dependencies = [
  "otb-advisor",
  "otb-analysis",
+ "otb-cli",
  "otb-decoder",
  "otb-dsp",
  "otb-log",

@@ -1,0 +1,30 @@
+=== jeno5_5s — Betaflight 2026.6.0-rc3 (f625a9996) STM32F405
+    Tiny whoop / micro (≤ 75 mm, 1–2S) (choisi par l'utilisateur) ; période 0.0–5.1 s
+  [ATTENTION] Réponse — Pas assez de mouvements de manche
+      Seulement 0 fenêtres exploitables en roll et 9 en pitch (il faut des mouvements de plus de 20 °/s).
+      → Volez 20 à 30 s avec des mouvements francs et des flips/rolls rapides sur chaque axe.
+  [ATTENTION] Bruit — Terme D bruité
+      Terme D : bruit moyen -14.0 dB (80–500 Hz), plus que 90 % des drones de cette taille (seuil -14.7 dB) ; sommet du spectre à -1 dB sur l'échelle de PIDtoolbox, au-dessus du repère de -10 dB (idéal : sous −20 dB). Un D bruité fait chauffer les moteurs et use les ESC.
+      → Vérifiez d'abord la mécanique (hélices, roulements, vis du châssis).
+      → Curseur « filtre D » : −0,1 à −0,2 (filtrage plus fort), ou baisser le D (curseur Damping) si la réponse le permet.
+      → Après le vol : moteurs tièdes = OK ; chauds = réduire D ou filtrer plus.
+  [CONSEIL  ] Filtres — Stratégie de filtrage
+      Ordre conseillé des réglages de filtres d'après les constats ci-dessous : 1. À corriger d'abord : « Terme D bruité » ; 2. Filtre RPM : « Bruit moteur mal éliminé ».
+      → 1. À corriger d'abord — Curseur « filtre D » : −0,1 à −0,2 (filtrage plus fort), ou baisser le D (curseur Damping) si la réponse le permet.
+      → 2. Filtre RPM — Filtre RPM : rpm_filter_q 700 → 600 (notchs plus larges), puis par pas de 100 tant que la raie reste visible.
+      → Un seul changement à la fois, vol d'essai court, puis température des moteurs ; nouveau log après chaque étape.
+  [CONSEIL  ] Filtres — Bruit moteur mal éliminé
+      Il reste -23.7 dB sur la fréquence de rotation des moteurs après filtrage (avant filtrage : -18.4 dB).
+      → Vérifiez motor_poles (14 pour la plupart des moteurs, 12 pour certains micro-moteurs).
+      → Filtre RPM : rpm_filter_q 700 → 600 (notchs plus larges), puis par pas de 100 tant que la raie reste visible.
+  [INFO     ] Réglage — Seuils provisoires pour cette taille
+      Le corpus de calibration compte trop peu de drones « Tiny whoop / micro (≤ 75 mm, 1–2S) » : les seuils de bruit et de mécanique sont indicatifs.
+  [INFO     ] Réponse — Retard consigne → gyro
+      Pitch 0,0 ms (feedforward 1,0, Acro). Série Feedforward (0, 0,5, 1… en Acro) : comparez ce retard d'un vol à l'autre ; plus il est court, plus le drone suit le manche tôt.
+  [INFO     ] Bruit — Bruit du gyro filtré
+      Sommet du spectre à -16 dB sur l'échelle de PIDtoolbox (repère : sous -30 dB) ; bruit moyen -30.6 dB, dans les 90 % du corpus (seuil -28.0 dB).
+  [OK       ] Filtres — Retard des filtres gyro
+      1.18 ms (repère ≤ 1.5 ms pour Tiny whoop / micro (≤ 75 mm, 1–2S)).
+  [OK       ] Filtres — Retard des filtres D
+      1.96 ms (repère ≤ 2.5 ms pour Tiny whoop / micro (≤ 75 mm, 1–2S)).
+
