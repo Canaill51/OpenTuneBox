@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-070 : une liste déroulante d'egui est coupée à 200 px : les derniers choix sont hors de la zone cliquable
+- **Symptôme** — 2026-11-02 (6-3) : le test qui parcourt les 11 métriques de la Réponse indicielle échouait à la neuvième (« Marge de phase ») : le clic sur le choix ne changeait rien, la colonne gardait l'ancienne valeur, sans aucune erreur.
+- **Cause** — `egui::ComboBox` limite la hauteur de sa liste à 200 px par défaut et la rend défilante ; les choix du bas existent dans l'arbre d'accessibilité mais sont rognés par le cadre de défilement, le clic tombe à côté. Un utilisateur aurait dû faire défiler une liste de 11 choix que Qt affiche en entier.
+- **Règle** — une liste de plus de 8 choix reçoit `.height(…)` assez grand pour tout montrer (`.height(320.0)` pour 11 choix) ; un test qui parcourt les choix d'une liste vérifie que la valeur affichée a changé après le clic, pas seulement que le choix existe.
+- **Preuve** — `rust/otb-gui/tests/step_tools.rs::chaque_colonne_et_chaque_option_d_affichage_se_dessine` (échouait avant `.height(320.0)`).
+
 ### L-069 : chaque fichier de test de `otb-gui` lie egui et wgpu (≈ 490 Mo en debug) : la CI Ubuntu manque de disque
 - **Symptôme** — 2026-11-01 (PR #78, 6-2) : le travail `tests` échoue après 7 min : `No space left on device (os error 28)` puis `ld terminated with signal 7 [Bus error]` (éditeur de liens tué) sur `otb-cli` et `otb-parity` ; Windows et l'audit passent. La PR #77 (11 binaires de test d'`otb-gui`) passait.
 - **Cause** — chaque fichier de `rust/otb-gui/tests/` est un exécutable séparé qui lie egui, wgpu et leurs infos de débogage : 470 à 510 Mo chacun (mesuré). La 6-2 en a ajouté 6 et un exemple : 17 binaires ≈ 8 Go, plus les artefacts de clippy et des autres crates, au-delà des ≈ 14 Go libres d'un runner Ubuntu. Aucun test n'était en cause, rien à corriger dans le code.
@@ -69,7 +75,7 @@ est celle du commit qui les a introduites.
 ### L-068 : le contrôle d'accessibilité de kittest ne tourne qu'à la fin de `run()` ; et les polices d'egui n'ont pas « → »
 - **Symptôme** — 2026-11-01 (6-2) : les tests de l'outil Fréquence × temps échouaient (« 7 widget(s) lack accessible name ») alors que ceux du Spectre, qui ont les mêmes listes déroulantes, passaient. Autre cas : le rapport du diagnostic du bruit faisait paniquer le banc (`No glyph for "→"`), alors que l'application aurait dessiné un carré.
 - **Cause** — kittest vérifie que chaque champ a un nom accessible **seulement quand l'interface s'est stabilisée** (`run`, `run_ok`), pas dans `run_steps` ni `step` : les tests du Spectre n'appelaient jamais `run()` une fois la page affichée. Un `ComboBox` ou un `DragValue` sans libellé voisin n'a ni nom pour un lecteur d'écran, ni moyen d'être retrouvé par `get_by_label` (on les retrouve par `get_by_value`). Côté polices : « → ✔ ▲ ↑ ↓ ⚠ » sont absents des polices embarquées (mesure du 2026-11-01), tous les autres caractères des textes de l'assistant y sont ; le banc les refuse (`MissingGlyphPolicy::Panic`), l'application dessine un carré (`Tofu`).
-- **Règle** — chaque liste déroulante et chaque champ reçoit `.accessible_name("…")` (ou un libellé lié par `labelled_by`) ; un test d'interface appelle `h.run()` au moins une fois page affichée. Un texte de l'assistant passe par `tools::common::safe_text` (« → » devient « -> ») avant d'être affiché ; les « ✔ » et « ▲ » du guide (`tuning_path.rs`) seront remplacés par des icônes en 6-5.
+- **Règle** — chaque liste déroulante et chaque champ reçoit `.accessible_name("…")` (ou un libellé lié par `labelled_by`) ; un test d'interface appelle `h.run()` au moins une fois page affichée. Un texte de l'assistant passe par `tools::common::safe_text` (« → » devient « -> ») avant d'être affiché ; les « ✔ » et « ▲ » du guide (`tuning_path.rs`) seront remplacés par des icônes en 6-5. **Complément 2026-11-02 (6-3)** : sondés un à un, « ● ○ ◇ ■ □ △ ▼ ◆ ◯ ✓ ↔ » sont absents aussi (présents : « ≥ ≤ ° · ± × « » – — … • ≈ ÷ Δ Ω µ ») ; une légende de point plein ou creux se dessine (`step_common::dot`), les autres signes passent par des mots.
 - **Preuve** — `rust/otb-gui/tests/freq_time.rs` (un `run()` après affichage), `tests/report_ui.rs::la_fleche_est_remplacee_car_les_polices_d_egui_ne_l_ont_pas`.
 
 ### L-067 : egui_plot ne graduait pas les axes (grille en puissances de 10) ; un `Span` posé avant une image la recouvre
@@ -815,6 +821,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-070 | `ComboBox` d'egui : la liste est coupée à 200 px, les derniers choix d'une liste de 11 sortent de la zone cliquable (test : clic sans effet) | Interface |
 | L-069 | CI Ubuntu à court de disque : chaque fichier de test d'`otb-gui` lie egui et wgpu (≈ 490 Mo) ; `debug = "line-tables-only"` dans le profil `dev` | Outillage |
 | L-068 | Banc kittest : le contrôle d'accessibilité ne tourne qu'à la fin de `run()` (listes et champs sans nom) ; « → ✔ ▲ ↑ ↓ ⚠ » absents des polices d'egui | Tests |
 | L-067 | egui_plot : axes sans graduation avec la grille par défaut (puissances de 10) ; l'ordre des éléments décide de ce qui recouvre l'image | Interface |

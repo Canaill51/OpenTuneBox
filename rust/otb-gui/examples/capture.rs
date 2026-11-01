@@ -1,10 +1,12 @@
 //! Capture d'écran sans fenêtre (rendu wgpu de egui_kittest) pour regarder l'interface : jamais dans la CI.
 //!
-//! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE`
+//! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
+//! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
 //! Écrit `courbes-clair.png` et `courbes-sombre.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 use otb_gui::app::{App, Screen};
 use otb_gui::theme;
 
@@ -12,6 +14,7 @@ fn main() {
     let mut args = std::env::args().skip(1);
     let log = args.next().expect("chemin du log");
     let out = std::path::PathBuf::from(args.next().expect("dossier de sortie"));
+    let others: Vec<String> = args.collect();
     for th in [theme::CLAIR, theme::SOMBRE] {
         let mut app = App::new(otb_gui::tools::all_pages());
         app.theme = th;
@@ -20,10 +23,13 @@ fn main() {
             .with_context_setup(otb_gui::app::setup)
             .wgpu()
             .build_ui_state(|ui, a: &mut App| a.ui(ui), app);
-        h.state_mut().open(vec![log.clone().into()]);
-        for _ in 0..200 {
+        let mut all: Vec<std::path::PathBuf> = vec![log.clone().into()];
+        all.extend(others.iter().map(std::path::PathBuf::from));
+        let wanted = all.len();
+        h.state_mut().open(all);
+        for _ in 0..400 {
             h.run();
-            if !h.state().state.logs.is_empty() {
+            if h.state().state.logs.len() >= wanted {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(20));
@@ -54,6 +60,26 @@ fn main() {
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
             h.run_steps(6);
+            if wanted > 1 {
+                // coche les autres fichiers (le log courant est déjà pris) puis attend le nouveau calcul
+                let labels: Vec<String> = h.state().state.logs.iter().map(|l| l.label.clone()).collect();
+                let current = h.state().state.current;
+                for (k, l) in labels.iter().enumerate() {
+                    if Some(k) != current
+                        && let Some(n) = h.query_all_by_label(l.as_str()).next()
+                    {
+                        n.click();
+                    }
+                }
+                for _ in 0..600 {
+                    h.run_steps(2);
+                    if !h.state().pages[i].busy() {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                h.run_steps(6);
+            }
             let title = h.state().pages[i].title();
             let name: String = title
                 .to_lowercase()
@@ -62,6 +88,22 @@ fn main() {
                 .collect();
             let img = h.render().expect("rendu");
             img.save(out.join(format!("{name}-{}.png", th.name))).unwrap();
+            if title == "Réponse indicielle" {
+                // aussi avec les réponses brutes et la bande ± écart-type
+                for l in ["Brutes (toutes les fenêtres)", "± écart-type"] {
+                    h.get_by_label(l).click();
+                }
+                let t0 = std::time::Instant::now();
+                h.run_steps(8);
+                // temps CPU moyen d'un cadre avec les réponses brutes (mesure, jamais sous profileur)
+                eprintln!(
+                    "{name} brutes ({}) : {:.1} ms par cadre",
+                    th.name,
+                    t0.elapsed().as_secs_f64() * 1000.0 / 8.0
+                );
+                let img = h.render().expect("rendu");
+                img.save(out.join(format!("{name}-brutes-{}.png", th.name))).unwrap();
+            }
         }
     }
 }

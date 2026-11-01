@@ -316,11 +316,8 @@ fn step_response_conforme() {
             .as_array()
             .map(|a| a.iter().map(|v| v.as_i64().unwrap()).collect());
         let got = step::step_response(&r, &y, f1(&k["fs"]), &o, &terms, breaks.as_deref());
-        if is_error(k) || o.smooth > 1 {
-            assert!(
-                got.is_err(),
-                "{what} : Python lève (ou non porté), Rust rend un résultat"
-            );
+        if is_error(k) {
+            assert!(got.is_err(), "{what} : Python lève, Rust rend un résultat");
             errors += 1;
             continue;
         }
@@ -371,4 +368,60 @@ fn step_response_conforme() {
         "{errors} {empty} {full} {measured} {approx}"
     );
     report();
+}
+
+/// Lissage du gyro (`np.convolve(gy, ones(n)/n, mode="same")`, BLAS) : sommes dans un autre ordre que celui de numpy, donc pas au bit près (L-061).
+const BOX_RTOL: f64 = 1e-14; // mesuré le 2026-11-01 : 7,1e-16 au pire (marge ×14)
+
+#[test]
+fn box_smooth_same_conforme() {
+    let c = cas("step");
+    let (mut errors, mut done, mut longer) = (0, 0, 0);
+    for k in c["box"].as_array().unwrap() {
+        let what = format!("box_smooth_same {}", k["label"]);
+        let gy = input(&c, &k["gy"]);
+        let n = k["n"].as_u64().unwrap() as usize;
+        let got = step::box_smooth_same(&gy, n);
+        if is_error(k) {
+            assert!(got.is_err(), "{what} : Python lève, Rust rend {got:?}");
+            errors += 1;
+            continue;
+        }
+        let got = got.unwrap_or_else(|e| panic!("{what} : Rust lève ({e})"));
+        let want = input(&c, &k["out"]);
+        longer += (gy.len() < n) as usize;
+        assert_close("lissage du gyro", &got, &want, BOX_RTOL, &what);
+        done += 1;
+    }
+    assert!(errors >= 1 && done >= 70 && longer >= 20, "{errors} {done} {longer}");
+    report();
+}
+
+#[test]
+fn segment_metrics_conforme() {
+    let c = cas("step");
+    let (mut errors, mut done, mut finite_lat, mut nan_lat) = (0, 0, 0, 0);
+    for k in c["segment"].as_array().unwrap() {
+        let what = format!("segment_metrics {}", k["label"]);
+        let t = input(&c, &k["t"]);
+        let r = input(&c, &k["R"]);
+        let rows = k["rows"].as_u64().unwrap() as usize;
+        let got = step::segment_metrics(&t, &r, rows);
+        if is_error(k) {
+            assert!(got.is_err(), "{what} : Python lève, Rust rend {got:?}");
+            errors += 1;
+            continue;
+        }
+        let (peak, lat) = got.unwrap_or_else(|e| panic!("{what} : Rust lève ({e})"));
+        let w = &k["out"];
+        assert_bits(&peak, &input(&c, &w["peak"]), &format!("{what} : pic"));
+        assert_bits(&lat, &input(&c, &w["lat"]), &format!("{what} : latence"));
+        finite_lat += lat.iter().filter(|v| v.is_finite()).count();
+        nan_lat += lat.iter().filter(|v| v.is_nan()).count();
+        done += 1;
+    }
+    assert!(
+        done >= 20 && finite_lat >= 20 && nan_lat >= 4,
+        "{errors} {done} {finite_lat} {nan_lat}"
+    );
 }

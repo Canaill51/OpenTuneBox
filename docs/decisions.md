@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-037 | Outils egui : cache des résultats par log, partagé avec le thread de calcul, clé = réglages de calcul + période | 2026-11-02 |
 | D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris | 2026-11-01 |
 | D-035 | Migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome | 2026-10-30 |
 | D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé | 2026-10-29 |
@@ -110,6 +111,31 @@ ici, jamais dans le code.
 ---
 
 ## 2026-11-01 — Ordre et contrats de la phase 6
+
+### D-037 : cache des résultats des outils egui : un par log, partagé avec le thread de calcul, clé = réglages de calcul + période
+
+Précise D-035 (phase 6) ; tranche le point 1 de W-032.
+
+**Contexte.** En Python, `compute` d'une fenêtre d'outil range son résultat dans `entry.extras` du log, avec une clé qui contient les
+réglages (`step_window.py`) : changer un réglage d'affichage ne refait pas le calcul, et le vol « Damping 0.8 » n'est pas recalculé quand on
+ajoute « Damping 1.2 » à la série. En egui, `Tool::compute` n'a pas de `self` : il ne reçoit que ses réglages et des copies des logs (`LogInput`).
+
+**Décision.**
+- `state::Cache` (`Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>`) : un par log chargé (`LoadedLog.extras`), cloné dans
+  `LogInput.cache` ; un clone voit le même contenu.
+- La **clé** est écrite par l'outil et contient tout ce qui change le résultat : réglages de calcul **et période** (`step:{réglages:?}:{période:?}`).
+- Le cache est vidé quand la période change (`AppState::set_period`), pour borner la mémoire, mais ce n'est pas lui qui garantit l'exactitude.
+- Le cache ne range que ce qui ne dépend pas du rang du fichier : libellé et couleur sont remis à chaque affichage (`FileStep`, comme Python
+  remet `fs.color` et `fs.label`).
+
+**Options écartées.** Cache dans la page de l'outil (perdu dès qu'on ajoute ou retire un fichier, et un seul fichier recalculé ne profite à
+personne) ; clé sans la période, le vidage suffisant (un calcul parti avant le changement de période pourrait écrire un résultat de l'ancienne
+période après le vidage : course entre le thread de calcul et l'interface).
+
+**Origine.** Conséquence de W-032 (1) ; choix technique, pas une question à Cédric.
+
+**Témoins.** `rust/otb-gui/tests/step_tools.rs::le_cache_sert_au_second_calcul_mais_ni_apres_un_changement_de_periode_ni_de_reglage` ;
+deux mutations tuées (clé sans la période, clé sans les réglages).
 
 ### D-036 : 5c avant la phase 6 ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris
 

@@ -64,7 +64,7 @@ fn la_periode_est_bornee_ordonnee_et_vide_les_caches() {
     let mut s = AppState::new();
     s.add(synthetic_log("a", 10_000, 1000.0)); // 0 à 9,999 s
     let rev = s.revision();
-    s.logs[0].extras.insert("spectre", std::sync::Arc::new(1u8));
+    s.logs[0].extras.put("spectre", std::sync::Arc::new(1u8));
     s.set_period(0, 8.0, 2.0);
     assert_eq!(s.logs[0].period, (2.0, 8.0));
     assert!(s.logs[0].extras.is_empty());
@@ -73,7 +73,7 @@ fn la_periode_est_bornee_ordonnee_et_vide_les_caches() {
     assert_eq!(s.logs[0].period, (0.0, 9.999));
     // même période : ni révision ni cache vidé
     let rev = s.revision();
-    s.logs[0].extras.insert("spectre", std::sync::Arc::new(1u8));
+    s.logs[0].extras.put("spectre", std::sync::Arc::new(1u8));
     s.set_period(0, 0.0, 9.999);
     assert_eq!(s.revision(), rev);
     assert!(!s.logs[0].extras.is_empty());
@@ -93,4 +93,21 @@ fn le_curseur_et_le_log_courant_ne_changent_pas_la_revision() {
     assert_eq!((s.cursor, s.current, s.revision()), (0.05, Some(0), rev));
     s.set_current(Some(9)); // hors limites : aucun
     assert_eq!(s.current, None);
+}
+
+#[test]
+fn le_cache_rend_la_valeur_rangee_seulement_pour_le_bon_type_et_la_bonne_cle() {
+    use otb_gui::state::Cache;
+    let c = Cache::default();
+    assert!(c.is_empty());
+    c.put("a", std::sync::Arc::new(7u32));
+    assert_eq!(c.get::<u32>("a").as_deref(), Some(&7));
+    assert!(c.get::<u32>("b").is_none(), "autre clé");
+    assert!(c.get::<String>("a").is_none(), "autre type");
+    // un clone partage le même contenu (c'est ce qui passe au thread de calcul)
+    let d = c.clone();
+    d.put("b", std::sync::Arc::new(8u32));
+    assert_eq!(c.get::<u32>("b").as_deref(), Some(&8));
+    d.clear();
+    assert!(c.is_empty());
 }

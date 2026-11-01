@@ -7,7 +7,8 @@ Usage : step_cases.py SORTIE.json
 et deuxième ordre, jamais à 50 %, niveaux atteints exactement, hors de ±5 % à la fin, NaN, vide), `shape_metrics` (de 0 à 120 réponses :
 blocs du jackknife, latence NaN, moins de 3 instants), `window_starts` et `input_windows` (raccords, seuils, NaN) et `step_response` entier
 (boucles fermées simulées, avec ou sans termes PID, note de repli, raccords, régularisation, correction du palier, fenêtres trop courtes,
-aucune fenêtre retenue, `smooth > 1` non porté).
+aucune fenêtre retenue, `smooth > 1`), `box_smooth_same` (`np.convolve(gy, ones(n)/n, mode="same")` du lissage du gyro) et
+`segment_metrics` (pic et latence de chaque réponse, `gui/tools/_step_common.py`).
 
 Un flottant s'écrit en hexadécimal ; `"error": true` = Python a levé une exception. Le test `rust/otb-analysis/tests/step.rs` mesure l'écart à
 Python.
@@ -22,6 +23,7 @@ from flight_stats_cases import INPUTS, call, ref
 from loop_terms_cases import enc_lm, simulate
 
 from opentunebox.analysis import step
+from opentunebox.gui.tools._step_common import segment_metrics
 from opentunebox.log.pid_terms import PidTerms
 
 NAN = float("nan")
@@ -47,7 +49,7 @@ def tgrid(fs, resp_ms=500.0):
 
 def main():
     rng = np.random.default_rng(20261109)
-    out = {"gradient": [], "metrics": [], "shape": [], "starts": [], "response": []}
+    out = {"gradient": [], "metrics": [], "shape": [], "starts": [], "response": [], "box": [], "segment": []}
 
     # ---- gradient
     def gr(f, x, label):
@@ -247,7 +249,11 @@ def main():
     sr(sig, "seg_s négatif", seg_s=-0.5)
     sr(sig, "seg_s nul", seg_s=0.0)
     sr(sig, "smooth = 1", seg_s=0.5, smooth=1)
-    sr(sig, "smooth = 5 (non porté)", seg_s=0.5, smooth=5)
+    for n_smooth in (2, 5, 20, 40, 60):
+        sr(sig, f"smooth = {n_smooth}", seg_s=0.5, smooth=n_smooth)
+    sr(sims["b"], "smooth = 20, fenêtres de 2 s", smooth=20)
+    sr(sims["c"], "smooth = 61 (impair), sans termes", terms="none", seg_s=0.5, smooth=61)
+    sr(tuple(a[:40] for a in sig), "smooth = 60 plus long que le signal (gyro rallongé)", seg_s=0.1, smooth=60)
     sr(sig, "réponse 0 ms", seg_s=0.5, resp_ms=0.0)
     sr(sig, "réponse négative", seg_s=0.5, resp_ms=-100.0)
     sr(sig, "fs NaN", seg_s=0.5, fs=NAN)
@@ -257,6 +263,68 @@ def main():
     sr((r, yn, p, i, d, f), "NaN dans le gyro", seg_s=0.5)
     sr((r[:1200], y, p, i, d, f), "consigne plus courte que le gyro", seg_s=0.5)
     sr((r, y[:1200], p, i, d, f), "gyro plus court que la consigne", seg_s=0.5)
+
+    # ---- lissage du gyro : np.convolve(gy, ones(n)/n, mode="same"), n pair ou impair, signal plus court que le noyau
+    def bx(gy, n, label):
+        gy = np.asarray(gy, float)
+        r, e = call(lambda g, k: np.convolve(g, np.ones(k) / k, mode="same"), gy, n)
+        out["box"].append({"label": label, "gy": ref(gy), "n": n, "error": e, "out": None if e else ref(r)})
+
+    for nn in (1, 2, 3, 19, 20, 21, 60, 61, 500, 2500):
+        for k in (2, 3, 5, 20, 40, 60, 61):
+            bx(rng.normal(0, 200, nn), k, f"{nn} points, noyau {k}")
+    bx(np.zeros(0), 20, "signal vide")
+    bx(np.full(100, 3.0), 20, "constante")
+    bx(np.r_[np.zeros(50), np.full(50, 1e6)], 40, "marche")
+    bx(np.r_[rng.normal(size=30), NAN, rng.normal(size=30)], 20, "NaN dans le signal")
+
+    # ---- segment_metrics
+    def sg(t, R, label):
+        t = np.asarray(t, float)
+        R = np.asarray(R, float)
+        r, e = call(segment_metrics, t, R)
+        out["segment"].append({"label": label, "t": ref(t), "R": ref(R.ravel()), "rows": int(R.shape[0]), "error": e,
+                               "out": None if e else {"peak": ref(r[0]), "lat": ref(r[1])}})
+
+    for fs in (250.0, 1000.0, 3200.0):
+        t = tgrid(fs)
+        R = np.array([first_order(t, tau, delay=d, over=o) for tau, d, o in
+                      ((15, 0, 0), (30, 5, 0.3), (8, 2, 0.6), (60, 0, 0), (20, 10, 1.2))])
+        sg(t, R, f"cinq réponses simulées fs={fs}")
+        sg(t, R + rng.normal(0, 0.05, R.shape), f"bruitées fs={fs}")
+    t = tgrid(1000.0)
+    sg(t, np.clip(t / 20, 0, 1)[None, :], "rampe (latence 10 ms, pic 1)")
+    sg(t, (1 - np.exp(-t / 10) * np.cos(t / 8))[None, :], "oscillation amortie")
+    sg(t, np.zeros((3, t.size)), "jamais à 50 % (toutes à 0)")
+    sg(t, np.full((2, t.size), 0.7), "à 50 % dès le premier instant (k = 0)")
+    sg(t, np.full((2, t.size), 0.5), "exactement 0,5 partout")
+    R = np.zeros((1, t.size))
+    R[0, 100:] = 1.0
+    sg(t, R, "marche à 100 ms (r1 - r0 = 1)")
+    R = np.zeros((1, t.size))
+    R[0, 100:] = 0.5
+    sg(t, R, "marche exactement à 0,5")
+    R = np.zeros((1, t.size))
+    R[0, 400:] = 1.0
+    R[0, 30] = 3.0
+    sg(t, R, "pic avant la latence, horizon de 3 × latence")
+    R = np.zeros((1, t.size))
+    R[0, 40:] = 1.0
+    R[0, 300] = 5.0
+    sg(t, R, "pic après l'horizon de 150 ms (ignoré)")
+    R = np.r_[np.zeros(300), np.full(t.size - 300, 1.0)][None, :]
+    R[0, 100] = NAN
+    sg(t, R, "NaN avant l'horizon")
+    R = np.r_[np.zeros(40), np.full(t.size - 40, 1.0)][None, :]
+    R[0, 450] = NAN
+    sg(t, R, "NaN après l'horizon de 150 ms")
+    R = np.full((1, t.size), NAN)
+    sg(t, R, "que des NaN")
+    sg(t, np.zeros((0, t.size)), "aucune réponse")
+    sg(t[:1], np.array([[0.8], [0.2]]), "un seul instant")
+    sg(t[:2], np.array([[0.2, 0.9], [0.9, 0.9]]), "deux instants")
+    sg(t, np.vstack([np.zeros(t.size), np.clip(t / 40, 0, 1.4), np.full(t.size, 0.6)]), "mélange : jamais, rampe, déjà au-dessus")
+    sg(t[:300], np.vstack([np.clip(t[:300] / 20, 0, 1)] * 2), "horizon au-delà de la fin")
     out["inputs"] = INPUTS
     Path(sys.argv[1]).write_text(json.dumps(out, separators=(",", ":")))
     print({k: len(v) for k, v in out.items() if isinstance(v, list)}, len(INPUTS), "entrées")

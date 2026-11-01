@@ -5,7 +5,8 @@
 //! cassure et vagues avec incertitudes par jackknife). Les sommes de numpy sont reproduites dans leur ordre : sur l'axe 0 d'une matrice, ligne
 //! après ligne ; sur un vecteur, par paires (`pairwise_sum`).
 //!
-//! ⚠️ `smooth > 1` (convolution par BLAS) n'est pas porté : aucun appelant ne le fournit ; une valeur > 1 rend une erreur.
+//! ⚠️ `smooth > 1` (lissage du gyro, `box_smooth_same`) : la convolution de numpy passe par le BLAS, l'ordre des sommes diffère (L-061) ; les
+//! réponses lissées sont jugées à tolérance, pas au bit près.
 
 use crate::npstat::{argmax_f64, cdiv, median_f64, py_min};
 use crate::numpy_mean;
@@ -382,6 +383,75 @@ pub struct StepResult {
     pub max_inputs: Vec<f64>,
 }
 
+/// Lissage du gyro de `step_response` : `np.convolve(gy, np.ones(n) / n, mode="same")`.
+///
+/// Sortie de longueur `max(len, n)`, décalée de `(min(len, n) - 1) / 2` dans la convolution complète (`mode="same"` de numpy). Un signal plus
+/// court que le noyau donne donc `n` valeurs. ⚠️ Les sommes ne sont pas dans l'ordre du BLAS de numpy : égal à Python à ~1e-16 près, pas au bit
+/// (L-061).
+pub fn box_smooth_same(gy: &[f64], n: usize) -> Result<Vec<f64>, String> {
+    if gy.is_empty() {
+        return Err("a cannot be empty".into()); // numpy.convolve
+    }
+    if n == 0 {
+        return Err("v cannot be empty".into());
+    }
+    let w = 1.0 / n as f64; // np.ones(n) / n : chaque poids vaut 1/n
+    let len = gy.len();
+    let offset = (len.min(n) - 1) / 2;
+    Ok((0..len.max(n))
+        .map(|i| {
+            let j = i + offset; // indice dans la convolution complète
+            let lo = (j + 1).saturating_sub(n);
+            let hi = j.min(len - 1);
+            gy[lo..=hi].iter().map(|v| v * w).sum()
+        })
+        .collect())
+}
+
+/// Pic et latence (50 %) de chaque réponse (`gui/tools/_step_common.py:segment_metrics`, même définition que `step_metrics`).
+///
+/// `responses` : `rows` lignes de `t_ms.len()` valeurs, à plat. Latence NaN si la réponse n'atteint jamais 0,5 ; pic cherché jusqu'à
+/// `max(150 ms, 3 × latence)` (tout le temps sans latence), NaN s'il y en a un dans la plage, `-inf` si la plage est vide.
+pub fn segment_metrics(t_ms: &[f64], responses: &[f64], rows: usize) -> Result<(Vec<f64>, Vec<f64>), String> {
+    if rows == 0 || responses.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let len = t_ms.len();
+    if len == 0 || responses.len() != rows * len {
+        return Err("segment_metrics : t_ms et réponses de tailles incompatibles".into());
+    }
+    let dt = if len > 1 { t_ms[1] - t_ms[0] } else { 1.0 };
+    let (mut peak, mut lat) = (Vec::with_capacity(rows), Vec::with_capacity(rows));
+    for r in responses.chunks(len) {
+        // premier instant à 0,5 ou plus (argmax d'un tableau de booléens : 0 s'il n'y en a pas)
+        let found = r.iter().position(|&v| v >= 0.5);
+        let k = found.unwrap_or(0);
+        let km1 = k.saturating_sub(1);
+        let (r0, r1) = (r[km1], r[k]);
+        let frac = if r1 != r0 { (0.5 - r0) / (r1 - r0) } else { 0.0 };
+        let l = match found {
+            None => f64::NAN,
+            Some(0) => t_ms[0],
+            Some(_) => t_ms[km1] + frac * dt,
+        };
+        let horizon = if l.is_finite() {
+            150.0f64.max(3.0 * l)
+        } else {
+            t_ms[len - 1]
+        };
+        let mut p = f64::NEG_INFINITY;
+        for (t, &v) in t_ms.iter().zip(r) {
+            if *t <= horizon {
+                // np.max propage les NaN
+                p = if v.is_nan() || p.is_nan() { f64::NAN } else { p.max(v) };
+            }
+        }
+        peak.push(p);
+        lat.push(l);
+    }
+    Ok((peak, lat))
+}
+
 /// Paramètres de `step_response` autres que les signaux.
 pub struct StepOptions {
     pub seg_s: f64,
@@ -418,9 +488,15 @@ pub fn step_response(
     terms: &LoopInput,
     breaks: Option<&[i64]>,
 ) -> Result<StepResult, String> {
-    if o.smooth > 1 {
-        return Err("step_response : smooth > 1 non porté".into());
-    }
+    // le gyro lissé ne sert qu'à la déconvolution ; la boucle ouverte (`loop_from_terms`) garde les signaux bruts, comme en Python
+    let gy_raw = gy;
+    let smoothed;
+    let gy = if o.smooth > 1 {
+        smoothed = box_smooth_same(gy, o.smooth as usize)?;
+        &smoothed[..]
+    } else {
+        gy
+    };
     let n = sp.len().min(gy.len());
     let l = py_round(o.seg_s * fs)?;
     let lr = py_round(o.resp_ms * fs / 1000.0)? + 1;
@@ -504,7 +580,7 @@ pub fn step_response(
         }
         LoopInput::Unmeasurable(_) => lp,
         LoopInput::Terms(tm) => {
-            open_loop::loop_from_terms(sp, gy, tm, fs, lp, o.seg_s, o.min_input, o.max_input, breaks)?
+            open_loop::loop_from_terms(sp, gy_raw, tm, fs, lp, o.seg_s, o.min_input, o.max_input, breaks)?
         }
     };
     let mut metrics = step_metrics(&t_ms, &mean)?;
