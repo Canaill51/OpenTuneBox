@@ -63,6 +63,8 @@ Règles d'écriture :
 | W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
 | W-028 | Rust / Python : références `advisor/` et `analysis/` sans `Hover_Test5.bbl`, erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références) |
+| W-031 | Ligne de commande Rust : pas de texte d'aide détaillé, messages d'usage et d'erreur rédigés autrement que ceux d'argparse | ouvert (à voir en phase 7) |
+| W-030 | `rules.py:analyze` plante (`np.convolve` d'un tableau vide) sur 2 logs du corpus ; Rust échoue au même endroit avec un autre message | ouvert (défaut de l'étalon Python, à corriger avec l'accord de Cédric) |
 | W-029 | Rust / Python : types faux refusés par `DroneCard::from_value`, `pid_khz` toujours en flottant, `auto_status` en erreur si un usage manque, `log_rate` panique sur une taille inconnue, pas de crash réel dans le corpus du guide | ouvert (phase 6 / 7) |
 | W-025 | `motors` (Rust) n'accepte que des vitesses moteur `float32` (journaux) ; Python accepte aussi `float64` et choisit alors la précision des noyaux | ouvert (à voir en phase 6) |
 | W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ouvert (à voir en phase 7) |
@@ -453,3 +455,27 @@ Règles d'écriture :
   **Pourquoi reporté** : (1) les fiches sont écrites par l'application avec des choix du menu (textes et flottants) ; (2) à (4) n'ont pas d'appelant réel.
   **Reprise** : (1) à l'écriture de la page Guide en Rust (phase 6), qui choisira le format des fiches ; (2) à (4) à la suppression du Python (phase 7).
   *Réglé le 2026-10-31 (hors liste)* : `rust/otb-advisor/tests/data/log_check.json` pesait 26 Mo. Colonnes que `check_log` ne lit pas (termes P, I, F, commande radio, debug, moteurs) écrites en zéros — **les réponses de Python, calculées sur ces journaux-là, sont identiques** (la gaz, `d_term` et `gyro_unfilt` restent : les retirer change des réponses) — puis gzip : `log_check.json.gz`, 5,2 Mo ; lu par `flate2` (Rust pur). Les 66 mutations restent détectées (une perdue en raccourcissant des journaux, retrouvée par un cas ajouté : `fenêtres : pitch sans consigne`).
+
+## Origine : phase 5c, comparaison de la ligne de commande sur le corpus (2026-11-01)
+
+- **W-030** — `opentunebox report` (et donc l'onglet Assistant) plante sur 2 des 500 logs du corpus
+  (`1. PTB/cheussure/Dgain-1.0-1.2-1.4-1.6.bbl`, `1. PTB/cheussure/Q_750_(100_40_80)-fade30_DN2-500.bbl`) : `ValueError: a cannot be empty`
+  dans `advisor/rules.py` (ligne 709, `np.convolve(v, np.ones(5) / 5, mode="same")` sur un tableau vide). Le Rust échoue aussi
+  (`rules.rs:892`, `ValueError : object of too small depth for desired array`) : **message différent, même type d'exception**, et
+  `otb-parity check-cli` exige en plus le **même texte écrit avant l'échec** (Python a déjà écrit les sessions précédentes du fichier).
+  Le défaut est donc porté tel quel, pas ajouté.
+  **Pourquoi reporté** : défaut de l'assistant, hors du sujet de la 5c ; le corriger change des conseils (Python et Rust à la fois) et demande de
+  trouver quelle série est vide pour ces logs.
+  **Reprise** : avec l'accord de Cédric, avant la phase 7 (corriger Python puis Rust, ajouter ces deux logs aux cas de non-régression).
+  [`advisor/rules.py`, `rust/otb-advisor/src/rules.rs`]
+
+- **W-031** — le binaire Rust `opentunebox` écrit à la main son analyse des arguments (aucune dépendance) en suivant `argparse` de Python 3.14.4 :
+  même code de sortie sur 792 combinaisons (cas fixes et tirage au hasard) (`scripts/cli_args_check.py` : `--`, `-h`, `-hX`, `--help=`, options abrégées,
+  `-5` ou texte à espace pris pour un fichier, une seule série de fichiers, valeur de `--profil` refusée aussitôt, option inconnue seulement à la fin).
+  Différences connues : (1) `-h` écrit seulement la ligne d'usage, pas l'aide détaillée d'argparse ; (2) les messages d'usage et d'erreur sont rédigés
+  autrement ; (3) le message entre parenthèses d'une ligne « illisible (…) » vient de l'exception de chaque langage ; (4) `char::is_numeric` de Rust
+  est un peu plus large que `\d` de Python pour des chiffres non ASCII rares ; (5) le comportement d'argparse sur ces cas dépend de la version de Python
+  (mesuré sur 3.14.4). La sortie s'écrit au fil de l'eau, session par session, comme Python.
+  **Pourquoi reporté** : aucune de ces différences ne change un résultat.
+  **Reprise** : à la phase 7 (suppression de Python : `scripts/cli_args_check.py` disparaît avec lui), ou si Cédric veut une vraie aide en ligne.
+  [`rust/otb-cli/src/lib.rs:parse`]

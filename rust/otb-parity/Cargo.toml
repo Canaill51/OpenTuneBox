@@ -8,6 +8,7 @@ description = "Comparateur de parité (D-035) : rejoue en Rust les appels de mod
 [dependencies]
 otb-advisor = { path = "../otb-advisor" }
 otb-analysis = { path = "../otb-analysis" }
+otb-cli = { path = "../otb-cli" }
 otb-decoder = { path = "../otb-decoder" }
 otb-dsp = { path = "../otb-dsp" }
 otb-log = { path = "../otb-log" }
