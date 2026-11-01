@@ -198,6 +198,8 @@ fn attendre(h: &mut Harness<'static, App>) {
 #[test]
 fn la_page_affiche_les_deux_colonnes_et_bascule_vers_le_bruit_moteur() {
     let mut h = banc();
+    // chaque champ de la page a un nom accessible (le banc le vérifie à la fin de `run`)
+    h.run();
     h.get_by_label("Spectre complet");
     h.get_by_label("Sous 100 Hz");
     // l'outil est un onglet de la barre, mis en valeur

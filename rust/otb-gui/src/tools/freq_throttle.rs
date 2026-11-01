@@ -527,7 +527,9 @@ impl Tool for FreqThrottleTool {
                             for (k, l) in DATASETS {
                                 ui.selectable_value(&mut self.columns[c].0, Some(k), l);
                             }
-                        });
+                        })
+                        .response
+                        .accessible_name("Jeu de données de la colonne");
                     ui.checkbox(&mut self.sub100[c], "< 100 Hz");
                 });
                 ui.horizontal(|ui| {
@@ -543,7 +545,9 @@ impl Tool for FreqThrottleTool {
                             for (i, l) in state.logs.iter().enumerate() {
                                 ui.selectable_value(&mut self.columns[c].1, Some(i), l.label.as_str());
                             }
-                        });
+                        })
+                        .response
+                        .accessible_name("Fichier de la colonne");
                     ui.add(
                         egui::DragValue::new(&mut self.scale[c])
                             .range(-200.0..=1e4)
@@ -563,7 +567,9 @@ impl Tool for FreqThrottleTool {
                             self.apply_preset(i, &chosen, current);
                         }
                     }
-                });
+                })
+                .response
+                .accessible_name("Préréglage");
             if ui
                 .button("Échelle auto")
                 .on_hover_text("Adapte l'échelle de chaque colonne à ses données (sinon 0,5 comme PIDtoolbox).")
@@ -591,7 +597,9 @@ impl Tool for FreqThrottleTool {
                         for (x, l) in XAxis::ALL {
                             ui.selectable_value(&mut self.xaxis, x, l);
                         }
-                    });
+                    })
+                    .response
+                    .accessible_name("Axe X");
                 ui.end_row();
                 ui.label("Couleurs");
                 egui::ComboBox::from_id_salt("palette")
@@ -600,7 +608,9 @@ impl Tool for FreqThrottleTool {
                         for p in Palette::ALL {
                             ui.selectable_value(&mut self.palette, p, p.name());
                         }
-                    });
+                    })
+                    .response
+                    .accessible_name("Palette de couleurs");
                 ui.end_row();
                 ui.label("Lissage");
                 egui::ComboBox::from_id_salt("lissage-carte")
@@ -614,7 +624,9 @@ impl Tool for FreqThrottleTool {
                         for (v, l) in SMOOTHING {
                             ui.selectable_value(&mut self.smoothing, v, l);
                         }
-                    });
+                    })
+                    .response
+                    .accessible_name("Lissage des cartes");
                 ui.end_row();
                 ui.label("Bas de l'échelle");
                 ui.add(
@@ -622,7 +634,8 @@ impl Tool for FreqThrottleTool {
                         .range(-200.0..=1e4)
                         .speed(0.05)
                         .max_decimals(2),
-                );
+                )
+                .accessible_name("Bas de l'échelle");
                 ui.end_row();
             });
             ui.label("Bande moy./pic < 100 Hz (Hz)");
@@ -632,13 +645,15 @@ impl Tool for FreqThrottleTool {
                         .range(0.0..=100.0)
                         .speed(1.0)
                         .max_decimals(0),
-                );
+                )
+                .accessible_name("Bande basse (Hz)");
                 ui.add(
                     egui::DragValue::new(&mut self.fhi)
                         .range(0.0..=100.0)
                         .speed(1.0)
                         .max_decimals(0),
-                );
+                )
+                .accessible_name("Bande haute (Hz)");
             });
             ui.horizontal(|ui| {
                 ui.label("RPM estimé ×");
@@ -657,7 +672,7 @@ impl Tool for FreqThrottleTool {
         });
     }
 
-    fn render(&mut self, ui: &mut Ui, out: &FreqThrottleOutput, theme: &Theme) {
+    fn render(&mut self, ui: &mut Ui, _state: &mut AppState, out: &FreqThrottleOutput, theme: &Theme) {
         if std::mem::take(&mut self.auto_scale) {
             self.auto_scale(out);
         }

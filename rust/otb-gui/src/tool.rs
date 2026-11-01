@@ -58,8 +58,8 @@ pub trait Tool {
     fn compute(options: Self::Options, logs: Vec<LogInput>) -> Result<Self::Output, String>;
     /// Panneau de réglages.
     fn controls(&mut self, ui: &mut Ui, state: &AppState, theme: &Theme);
-    /// Affichage du dernier résultat.
-    fn render(&mut self, ui: &mut Ui, output: &Self::Output, theme: &Theme);
+    /// Affichage du dernier résultat. `state` : le curseur partagé et la période, que certains outils déplacent.
+    fn render(&mut self, ui: &mut Ui, state: &mut AppState, output: &Self::Output, theme: &Theme);
     /// Outil à ouvrir ensuite (son `TITLE`), demandé par un bouton de cet outil ; lu une fois par la fenêtre.
     fn take_goto(&mut self) -> Option<&'static str> {
         None
@@ -181,7 +181,7 @@ impl<T: Tool> Page for ToolPage<T> {
             }
         });
         egui::CentralPanel::default().show(ui, |ui| match &self.last {
-            Some(out) => self.tool.render(ui, out, theme),
+            Some(out) => self.tool.render(ui, state, out, theme),
             None => {
                 ui.label("Ouvrez un log pour commencer.");
             }

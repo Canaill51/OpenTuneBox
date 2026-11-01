@@ -2,6 +2,7 @@
 
 pub mod common;
 pub mod freq_throttle;
+pub mod freq_time;
 pub mod report_ui;
 pub mod spectral;
 
@@ -12,5 +13,6 @@ pub fn all_pages() -> Vec<Box<dyn Page>> {
     vec![
         Box::new(ToolPage::new(spectral::SpectralTool::new())),
         Box::new(ToolPage::new(freq_throttle::FreqThrottleTool::new())),
+        Box::new(ToolPage::new(freq_time::FreqTimeTool::new())),
     ]
 }

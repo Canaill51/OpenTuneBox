@@ -633,15 +633,15 @@ impl Tool for SpectralTool {
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut self.right, RightMode::Sub100, "< 100 Hz");
                         ui.selectable_value(&mut self.right, RightMode::MotorNoise, "Bruit moteur");
-                    });
+                    }).response.accessible_name("Graphique de droite");
             });
             self.set_psd(psd);
             egui::Grid::new("echelle").show(ui, |ui| {
                 ui.label("Y min");
                 ui.label("Y max");
                 ui.end_row();
-                ui.add(egui::DragValue::new(&mut self.ymin).range(-200.0..=1e4).speed(0.5));
-                ui.add(egui::DragValue::new(&mut self.ymax).range(-200.0..=1e4).speed(0.5));
+                ui.add(egui::DragValue::new(&mut self.ymin).range(-200.0..=1e4).speed(0.5)).accessible_name("Y min");
+                ui.add(egui::DragValue::new(&mut self.ymax).range(-200.0..=1e4).speed(0.5)).accessible_name("Y max");
                 ui.end_row();
                 ui.label("Lissage");
                 ui.label("Résolution");
@@ -652,14 +652,14 @@ impl Tool for SpectralTool {
                         for i in 0..6 {
                             ui.selectable_value(&mut self.smoothing, i, i.to_string());
                         }
-                    });
+                    }).response.accessible_name("Lissage");
                 egui::ComboBox::from_id_salt("resolution")
                     .selected_text(RESOLUTIONS[self.resolution].1)
                     .show_ui(ui, |ui| {
                         for (i, (_, l)) in RESOLUTIONS.iter().enumerate() {
                             ui.selectable_value(&mut self.resolution, i, *l);
                         }
-                    });
+                    }).response.accessible_name("Résolution");
                 ui.end_row();
             });
             egui::ComboBox::from_id_salt("harmoniques")
@@ -668,7 +668,7 @@ impl Tool for SpectralTool {
                     for (h, l) in Harmonics::ALL {
                         ui.selectable_value(&mut self.harmonics, h, l);
                     }
-                });
+                }).response.accessible_name("Harmoniques");
             ui.checkbox(&mut self.notch, "Notchs dynamiques");
             self.motors.ui(ui);
             ui.horizontal(|ui| {
@@ -692,7 +692,7 @@ impl Tool for SpectralTool {
         });
     }
 
-    fn render(&mut self, ui: &mut Ui, out: &SpectralOutput, theme: &Theme) {
+    fn render(&mut self, ui: &mut Ui, _state: &mut AppState, out: &SpectralOutput, theme: &Theme) {
         let reports: Vec<&FileSpectra> = out.files.iter().filter(|f| f.diagnosis.is_some()).collect();
         if self.diagnosis && !reports.is_empty() {
             egui::Panel::right("spectre-diagnostic")
