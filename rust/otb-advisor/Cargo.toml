@@ -10,7 +10,8 @@ otb-analysis = { path = "../otb-analysis" }
 otb-dsp = { path = "../otb-dsp" }
 otb-format = { path = "../otb-format" }
 otb-log = { path = "../otb-log" }
+serde_json = { version = "1", features = ["preserve_order"] }
 
 [dev-dependencies]
-serde_json = "1"
+flate2 = "1"
 otb-decoder = { path = "../otb-decoder" }

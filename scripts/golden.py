@@ -10,6 +10,7 @@ Usage : golden.py record DOSSIER [--limit N] [--sample N] [-j PROCESSUS]
         golden.py record-flightlog DOSSIER [--limit N] [-j PROCESSUS]   (journaux de vol : golden_flightlog.py)
         golden.py record-analysis DOSSIER [--limit N] [-j PROCESSUS]   (analyses de vol de toutes les sessions : golden_analysis.py)
         golden.py record-advisor DOSSIER [--limit N] [-j PROCESSUS]   (rapport et diagnostic du bruit de l'assistant : golden_advisor.py)
+        golden.py record-guide DOSSIER [--limit N] [-j PROCESSUS]     (vérification des logs du guide intégré : golden_guide.py)
         golden.py record-tuning DOSSIER [--limit N] [-j PROCESSUS]    (réponse indicielle par séries, un fichier par dossier : golden_advisor.py)
         golden.py check-modules  DOSSIER [--limit N] [--sample N]   (réenregistre dans DOSSIER.new, compare le contenu)
 
@@ -190,7 +191,7 @@ def check_tools(files, root, out_dir, sample, rtol):
 def main():
     argv = sys.argv[1:]
     if len(argv) < 2 or argv[0] not in ("record", "check", "record-modules", "check-modules", "record-header", "record-settings", "record-sliders", "record-flightlog",
-                                                  "record-analysis", "record-advisor", "record-tuning"):
+                                                  "record-analysis", "record-advisor", "record-tuning", "record-guide"):
         sys.exit(__doc__)
     mode, out_dir = argv[0], argv[1]
     opt = lambda name, default, cast: cast(argv[argv.index(name) + 1]) if name in argv else default  # noqa: E731
@@ -207,6 +208,11 @@ def main():
     if mode == "record-advisor":
         from golden_advisor import record_advisor
         record_advisor(files, root, out_dir, jobs)
+        from opentunebox.gui.app import hard_exit  # L-019
+        hard_exit(0)
+    if mode == "record-guide":
+        from golden_guide import record_guide
+        record_guide(files, root, out_dir, jobs)
         from opentunebox.gui.app import hard_exit  # L-019
         hard_exit(0)
     if mode == "record-tuning":
