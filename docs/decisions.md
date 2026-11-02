@@ -167,9 +167,15 @@ Questions posées à Cédric le 2026-11-02 (tri de W-034 à W-038) ; il a choisi
 - **Écarts voulus (définitifs)** : liste des fichiers d'un outil en cases à cocher (Qt : clic remplace, Ctrl ajoute) ; diagnostic en
   widgets egui et non en HTML ; « -> » à la place de « → » dans les textes (absent des polices d'egui, L-068) ; diagrammes de Bode
   zoomables ; calcul automatique à chaque changement (le bouton « Calculer » relance à la demande).
+- **Écarts voulus ajoutés le 2026-11-03 (W-039)** : titres d'onglets longs (« Analyse spectrale », « Réponse indicielle », « Simulateur de
+  filtres ») et non les libellés courts de Qt ; boutons « Fermer » et « Tout fermer » grisés quand aucun log n'est ouvert (Qt les laisse actifs
+  sans effet).
 - **Gardé tel quel** : seuls le chevron et le titre d'un groupe de la Configuration se replient, et l'état n'est pas gardé entre deux
   lancements ; la date du nom d'export est celle d'UTC (un jour d'écart possible autour de minuit) ; les barres d'erreur du bruit moteur
   n'ont pas de capuchon.
+- **Corrigé le 2026-11-03** (branche `feat/rust-toolbar-close`, Cédric a choisi les options recommandées) : boutons « Fermer » (croix, log
+  affiché) et « Tout fermer » (corbeille) ajoutés après « Ouvrir… », que rien ne remplaçait (l'interface egui ne pouvait fermer aucun log) ;
+  « Ouvrir… » plein, couleur d'accent, comme le bouton principal de Qt.
 - **Corrigé en 6-6b** : un résultat du Simulateur de filtres qui vient d'un autre log n'est plus affiché pendant le calcul du nouveau
   (`result_is_for_other_log`, W-036 (8)).
 
