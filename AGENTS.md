@@ -195,6 +195,7 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
 - Vérifier avant un commit : lancer `pytest` sans tube (`| tail` masque son échec) ; le crochet de Claude Code
   (`.claude/hooks/check-docs.sh`) ne voit que `git commit` et `git -c … commit`. L-022
 - Les couches du corpus (`advisor_rates.py`, `golden_advisor.py`) écartent les sessions de moins de 8 s : elles ne voient pas un plantage sur une session courte ; seule la couche de la ligne de commande les rejoue. Voir le test échouer avant tout correctif. L-065
+- Fonction paramétrée par un système (`os`, comme `guide::cards_path_in`) : appliquer les règles de ce système, jamais celles de l'hôte (`Path::is_absolute` refuse `/data` sous Windows) ; la CI Windows est le seul témoin. L-074
 - Panneau egui redimensionnable : son contenu est toujours dans un `ScrollArea` qui remplit (`auto_shrink([false, false])`), même dans la branche « rien à montrer » ; sinon il garde la taille de son premier cadre. Un test part de l'état vide, et on regarde une capture. L-073
 - Identité d'un log : `LoadedLog::uid` (ou `LogInput::uid`), jamais l'adresse de son `Arc` (elle peut resservir à un autre log). L-072
 - Test d'une clé de cache ou d'une règle d'affichage : casser la protection visée pour voir le test échouer ; `AppState::set_period` vide déjà le cache, donc ne prouve pas la clé (changer `period` à la main) ; une règle d'affichage sans effet testable devient une fonction pure. L-071

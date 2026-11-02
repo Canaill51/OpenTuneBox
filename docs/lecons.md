@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-074 : un test qui simule le système A ne doit pas dépendre des règles de chemins du système qui l'exécute
+- **Symptôme** — 2026-11-02 (CI de la PR #81) : `le_chemin_est_celui_de_qt_sous_linux_et_sur_ce_poste` passait sous Ubuntu et échouait sous Windows : `XDG_DATA_HOME=/data` était ignoré, le chemin retombait sur `~/.local/share`.
+- **Cause** — `cards_path_in("linux", …)` jugeait le chemin « absolu » par `Path::is_absolute`, qui suit les règles **de la machine qui compile** : sous Windows, `/data` n'est pas absolu (il faut une lettre de lecteur). Le test simulait Linux, mais la fonction pensait en Windows.
+- **Règle** — une fonction paramétrée par un système (`os`) applique les règles de **ce** système (ici : « commence par `/` »), jamais celles de l'hôte ; ses tests de chaque branche tournent sur les trois systèmes de la CI (Ubuntu et Windows existent, macOS par `construire.yml`). Lire la sortie de la CI Windows avant de croire un test « portable ».
+- **Preuve** — `rust/otb-gui/tests/guide.rs::le_chemin_est_celui_de_qt_sous_linux_et_sur_ce_poste` (échouait sous Windows, vert après correction ; la vérification sous Windows se fait par la CI).
+
 ### L-073 : un panneau egui dont le contenu est petit au premier cadre garde cette petite taille
 - **Symptôme** — 2026-11-02 (6-5) : sur la capture du Guide, le panneau des logs du drone ne montrait que 125 px au lieu de 250 : sa dernière ligne était coupée. Le même panneau, dans un banc de test qui commençait avec une fiche, faisait bien 250 px. Aucun des 30 tests ne le voyait.
 - **Cause** — au premier cadre l'application n'avait aucune fiche : le panneau ne contenait qu'une phrase, donc `Panel::bottom(..).default_size(250.0)` s'est réduit à ce contenu (puis au minimum de 120 px). egui enregistre la taille réelle du panneau : quand la fiche est arrivée, le panneau est resté petit. Un `ScrollArea` à `auto_shrink([false, false])` le remplit, mais seulement dans la branche où il est dessiné.
@@ -840,6 +846,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-074 | Fonction paramétrée par un système (`os`) : appliquer les règles de ce système, pas celles de l'hôte (`Path::is_absolute` sous Windows refuse `/data`) ; test vu échouer seulement sur la CI Windows | Tests |
 | L-073 | Panneau egui redimensionnable : sans contenu au premier cadre il se réduit à ce contenu et garde cette taille ; `ScrollArea` qui remplit dans toutes les branches, test qui part de l'état vide | Interface |
 | L-072 | Reconnaître un log à l'adresse de son `Arc` : l'adresse d'un log fermé peut resservir à un autre ; identifiant croissant `LoadedLog::uid` | Interface |
 | L-071 | Test « la clé de cache contient la période » qui passe même avec la mauvaise clé : une autre protection (`set_period` vide le cache) fait le travail ; casser la clé exprès | Tests |

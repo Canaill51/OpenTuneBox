@@ -158,10 +158,11 @@ pub fn cards_path_in(os: &str, var: &dyn Fn(&str) -> Option<OsString>) -> PathBu
     let base = match os {
         "windows" => get("APPDATA").map(PathBuf::from),
         "macos" => home.as_ref().map(|h| h.join("Library").join("Application Support")),
-        // XDG : seul un chemin absolu compte
+        // XDG : seul un chemin absolu compte, au sens d'Unix (commence par « / ») : `Path::is_absolute` exigerait une lettre de lecteur
+        // sur un poste Windows qui exécute le test de cette branche (L-074)
         _ => get("XDG_DATA_HOME")
+            .filter(|v| v.to_string_lossy().starts_with('/'))
             .map(PathBuf::from)
-            .filter(|p| p.is_absolute())
             .or_else(|| home.as_ref().map(|h| h.join(".local").join("share"))),
     };
     match base {
