@@ -131,14 +131,16 @@ impl App {
                 if ui.add(guide.selected(self.screen == Screen::Guide)).clicked() {
                     self.screen = Screen::Guide;
                 }
-                if ui.selectable_label(self.screen == Screen::Viewer, "Courbes").clicked() {
-                    self.screen = Screen::Viewer;
-                }
                 // le bouton d'un outil reste mis en valeur quand on est sur un outil qui s'ouvre depuis lui
+                // (« Courbes » aussi : la Configuration s'ouvre depuis le visualiseur)
                 let shown = match self.screen {
                     Screen::Tool(j) => self.pages.get(j).map(|p| p.tab()),
                     _ => None,
                 };
+                let courbes = self.screen == Screen::Viewer || shown == Some("Courbes");
+                if ui.selectable_label(courbes, "Courbes").clicked() {
+                    self.screen = Screen::Viewer;
+                }
                 for (i, p) in self.pages.iter().enumerate().filter(|(_, p)| !p.hidden()) {
                     let on = self.screen == Screen::Tool(i) || shown == Some(p.title());
                     if ui.selectable_label(on, p.title()).clicked() {
@@ -162,7 +164,10 @@ impl App {
         });
         let mut goto = None;
         egui::CentralPanel::default().show(root, |ui| match self.screen {
-            Screen::Viewer => self.viewer.ui(ui, &mut self.state, &theme),
+            Screen::Viewer => {
+                self.viewer.ui(ui, &mut self.state, &theme);
+                goto = self.viewer.take_goto();
+            }
             Screen::Tool(i) if i < self.pages.len() => {
                 self.pages[i].ui(ui, &mut self.state, &theme);
                 goto = self.pages[i].take_goto();
