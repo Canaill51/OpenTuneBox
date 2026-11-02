@@ -76,6 +76,10 @@ pub trait Tool {
     fn take_goto(&mut self) -> Option<&'static str> {
         None
     }
+    /// Message d'état propre à l'outil (barre d'état, hors erreur de calcul et calcul en cours).
+    fn status(&self) -> Option<String> {
+        None
+    }
 }
 
 /// Une page d'outil, vue par la fenêtre principale.
@@ -188,8 +192,12 @@ impl<T: Tool> Page for ToolPage<T> {
         egui::Panel::bottom(format!("{}-statut", T::TITLE)).show(ui, |ui| {
             if self.runner.busy() {
                 ui.label("Calcul en cours…");
-            } else {
+            } else if !self.status.is_empty() {
                 ui.colored_label(theme.accent("red"), &self.status);
+            } else if let Some(s) = self.tool.status() {
+                ui.label(s);
+            } else {
+                ui.label("");
             }
         });
         egui::CentralPanel::default().show(ui, |ui| match &self.last {

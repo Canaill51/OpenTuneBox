@@ -13,6 +13,9 @@ use otb_gui::theme::{CLAIR, SOMBRE, Theme};
 use otb_gui::tool::Tool;
 use otb_gui::tools::advisor::{AdvisorOutput, AdvisorTool, FOOTER, HELP, Options, categories, step_text};
 use otb_gui::tools::common::safe_text;
+use otb_gui::tools::filter_sim::{
+    Applied, COPIED_STATUS, FilterSimTool, NO_UNFILT_TITLE, Options as SimOptions, STALE_STATUS,
+};
 use otb_gui::tools::filter_sim_calc::{
     self as fsc, DELAY_FREQS, Editor, LPF_TYPES, SPECTRA_KEYS, bode, cli_values, delays, filter_cli_lines,
     simulate_filters,
@@ -111,6 +114,10 @@ fn un_profil_inconnu_est_une_erreur() {
 // ------------------------------------------------------------------ Assistant : dans la fenêtre
 
 fn banc(theme: Theme) -> Harness<'static, App> {
+    banc_page(theme, "Assistant")
+}
+
+fn banc_page(theme: Theme, titre: &str) -> Harness<'static, App> {
     let mut app = App::new(otb_gui::tools::all_pages());
     app.theme = theme;
     let mut h = Harness::builder()
@@ -129,7 +136,7 @@ fn banc(theme: Theme) -> Harness<'static, App> {
         .state()
         .pages
         .iter()
-        .position(|p| p.title() == "Assistant")
+        .position(|p| p.title() == titre)
         .expect("page enregistrée");
     h.state_mut().screen = Screen::Tool(i);
     attendre(&mut h);
@@ -1159,4 +1166,230 @@ fn un_log_sans_gyro_non_filtre_n_a_ni_spectre_avant_filtres_ni_simulation_du_d_n
     assert!(res.d_scale[2].is_nan() && res.d_scale[0] == 1.0);
     assert!(res.spectrum("d", 2).is_none() && res.spectrum("d_pf", 2).is_none() && res.spectrum("d", 0).is_some());
     assert!((0..3).all(|a| res.spectrum("gyro_sim_cur", a).is_none() && res.spectrum("d_sim_cur", a).is_none()));
+}
+
+// ------------------------------------------------------------------ Simulateur de filtres : interface
+
+const SIM: &str = "Simulateur de filtres";
+
+fn sim_busy(h: &Harness<'static, App>) -> bool {
+    let Screen::Tool(i) = h.state().screen else {
+        panic!("pas d'outil affiché")
+    };
+    h.state().pages[i].busy()
+}
+
+/// Texte du cadre CLI (zone de texte en lecture seule).
+fn cli_text(h: &Harness<'static, App>) -> String {
+    h.get_by_label("CLI des filtres modifiés")
+        .accesskit_node()
+        .value()
+        .expect("le cadre CLI a un texte")
+}
+
+/// Met `valeur` dans le champ nommé `nom` : un clic le passe en saisie, puis le texte et Entrée.
+fn saisir(h: &mut Harness<'static, App>, nom: &str, valeur: &str) {
+    h.get_by_label(nom).click();
+    h.run_steps(2);
+    h.get_by_label(nom).type_text(valeur);
+    h.key_press(egui::Key::Enter);
+    h.run_steps(4);
+}
+
+#[test]
+fn le_simulateur_se_calcule_et_s_affiche_dans_les_deux_themes() {
+    for theme in [CLAIR, SOMBRE] {
+        let mut h = banc_page(theme, SIM);
+        h.run(); // contrôle d'accessibilité de kittest (L-068)
+        for t in [
+            "Filtres Gyro — gain",
+            "Filtres Gyro — phase",
+            "Filtres D — gain",
+            "Filtres D — phase",
+        ] {
+            h.get_by_label(t);
+        }
+        h.get_by_label("Spectre gyro (R+P+Y)");
+        h.get_by_label("Spectre D (R+P+Y)");
+        h.get_by_label_contains("Retard des filtres (ms)");
+        h.get_by_label("Gyro + D");
+        h.get_by_label("CLI des filtres modifiés :");
+        h.get_by_label("Copier");
+        h.get_by_label("Appliquer");
+        h.get_by_label("Réinitialiser");
+        for nom in [
+            "Gyro LPF1 type",
+            "Gyro LPF1 mode",
+            "Gyro LPF2 coupure",
+            "Gaz (Bode)",
+            "Moteur (Bode)",
+        ] {
+            h.get_by_label(nom);
+        }
+        assert!(h.query_by_label(STALE_STATUS).is_none(), "rien n'a changé");
+        assert!(h.query_by_label(NO_UNFILT_TITLE).is_none());
+    }
+}
+
+#[test]
+fn les_trois_onglets_ont_tous_leurs_champs_nommes() {
+    let mut h = banc_page(CLAIR, SIM);
+    for nom in ["D", "Notch dyn / RPM"] {
+        h.get_by_label(nom).click();
+        h.run();
+        let champs: &[&str] = if nom == "D" {
+            &[
+                "D LPF1 type",
+                "D LPF1 statique",
+                "D LPF2 coupure",
+                "D notch centre",
+                "D notch coupure",
+            ]
+        } else {
+            &[
+                "Notch dynamique nombre",
+                "Notch dynamique Q",
+                "Filtre RPM harmoniques",
+                "Filtre RPM poids 3",
+            ]
+        };
+        for c in champs {
+            h.get_by_label(c);
+        }
+    }
+}
+
+#[test]
+fn modifier_un_champ_ne_lance_aucun_calcul_et_appliquer_simule() {
+    let mut h = banc_page(CLAIR, SIM);
+    assert!(cli_text(&h).contains("aucun changement"), "{}", cli_text(&h));
+    saisir(&mut h, "Gyro LPF2 coupure", "250");
+    assert!(!sim_busy(&h), "les champs ne relancent rien");
+    h.get_by_label(STALE_STATUS);
+    let cli = cli_text(&h);
+    assert!(cli.contains("set gyro_lpf2_static_hz = 250"), "{cli}");
+    assert!(!cli.contains("aucun changement"));
+    h.get_by_label("Appliquer").click();
+    h.run_steps(2);
+    assert!(sim_busy(&h), "« Appliquer » lance le calcul");
+    attendre(&mut h);
+    assert!(
+        h.query_by_label(STALE_STATUS).is_none(),
+        "le calcul correspond à l'éditeur"
+    );
+    assert!(cli_text(&h).contains("set gyro_lpf2_static_hz = 250"));
+    // « Réinitialiser » recharge l'éditeur : plus de changement, mais le dernier calcul n'est plus celui de l'éditeur
+    h.get_by_label("Réinitialiser").click();
+    h.run_steps(3);
+    assert!(cli_text(&h).contains("aucun changement"));
+    h.get_by_label(STALE_STATUS);
+    assert!(!sim_busy(&h));
+}
+
+#[test]
+fn le_bouton_copier_affiche_le_statut_de_copie() {
+    let mut h = banc_page(SOMBRE, SIM);
+    assert!(h.query_by_label(COPIED_STATUS).is_none());
+    h.get_by_label("Copier").click();
+    h.run_steps(3);
+    h.get_by_label(COPIED_STATUS);
+}
+
+#[test]
+fn un_log_sans_gyro_non_filtre_affiche_le_titre_d_alerte() {
+    let mut log = log5s();
+    log.gyro_unfilt = None;
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.theme = CLAIR;
+    let mut h = Harness::builder()
+        .with_size(egui::vec2(1600.0, 950.0))
+        .with_context_setup(otb_gui::app::setup)
+        .build_ui_state(|ui, a: &mut App| a.ui(ui), app);
+    h.state_mut().state.add(log);
+    let i = h.state().pages.iter().position(|p| p.title() == SIM).unwrap();
+    h.state_mut().screen = Screen::Tool(i);
+    attendre(&mut h);
+    h.run();
+    h.get_by_label(NO_UNFILT_TITLE);
+    h.get_by_label("Spectre D (R+P+Y)");
+}
+
+#[test]
+fn le_simulateur_sert_le_cache_sauf_si_les_reglages_ou_la_periode_changent() {
+    let mut st = etat();
+    let base = st.logs[0].log.settings.clone();
+    let opts = |applied: Option<Applied>, with_current| SimOptions { applied, with_current };
+    let a = FilterSimTool::compute(opts(None, true), st.inputs(&[0])).unwrap();
+    let b = FilterSimTool::compute(opts(None, true), st.inputs(&[0])).unwrap();
+    assert!(Arc::ptr_eq(&a, &b), "mêmes réglages et même période : repris");
+    // l'éditeur tel que chargé et ses réglages appliqués tels quels donnent le même calcul
+    let id = Arc::as_ptr(&st.logs[0].log) as usize;
+    let same = Applied {
+        log_id: id,
+        settings: Editor::from_settings(&base).modified_settings(&base),
+    };
+    assert!(Arc::ptr_eq(
+        &a,
+        &FilterSimTool::compute(opts(Some(same), true), st.inputs(&[0])).unwrap()
+    ));
+    let mut changed = Editor::from_settings(&base);
+    changed.g2_hz = 250;
+    let ap = Applied {
+        log_id: id,
+        settings: changed.modified_settings(&base),
+    };
+    let c = FilterSimTool::compute(opts(Some(ap.clone()), true), st.inputs(&[0])).unwrap();
+    assert!(!Arc::ptr_eq(&a, &c), "d'autres réglages");
+    assert!(Arc::ptr_eq(
+        &c,
+        &FilterSimTool::compute(opts(Some(ap.clone()), true), st.inputs(&[0])).unwrap()
+    ));
+    let d = FilterSimTool::compute(opts(Some(ap.clone()), false), st.inputs(&[0])).unwrap();
+    assert!(!Arc::ptr_eq(&c, &d), "la case « actuel » change le résultat");
+    // des réglages appliqués à un autre log ne servent pas : retour à l'éditeur chargé
+    let other = Applied { log_id: id + 1, ..ap };
+    assert!(Arc::ptr_eq(
+        &a,
+        &FilterSimTool::compute(opts(Some(other), true), st.inputs(&[0])).unwrap()
+    ));
+    let (t0, t1) = st.logs[0].period;
+    st.logs[0].period = (t0 + 0.5, t1 - 0.5);
+    let e = FilterSimTool::compute(opts(None, true), st.inputs(&[0])).unwrap();
+    assert!(!Arc::ptr_eq(&a, &e), "une autre période");
+    assert!(FilterSimTool::compute(opts(None, true), Vec::new()).is_err());
+}
+
+// ------------------------------------------------------------------ Simulateur : règles d'affichage
+
+#[test]
+fn la_moyenne_des_axes_se_fait_en_lineaire_puis_revient_en_db() {
+    use otb_gui::tools::filter_sim::mean_db;
+    // 0 dB et 10 dB : en linéaire (1 + 10) / 2 = 5,5, soit 7,40 dB (et non 5 dB, la moyenne des dB)
+    let m = mean_db(&[&[0.0], &[10.0]]);
+    assert!((m[0] - 10.0 * 5.5f64.log10()).abs() < 1e-12, "{m:?}");
+    // plancher à 1e-12 (-120 dB) : un spectre nul ne donne pas -inf
+    assert!((mean_db(&[&[-300.0]])[0] + 120.0).abs() < 1e-9);
+    // longueur = la plus courte des courbes
+    assert_eq!(mean_db(&[&[1.0, 2.0, 3.0], &[1.0, 2.0]]).len(), 2);
+}
+
+#[test]
+fn un_retard_est_vert_rouge_ou_inchange_a_5_microsecondes_pres() {
+    use otb_gui::tools::filter_sim::{Trend, delay_trend};
+    assert_eq!(delay_trend(1.0, 0.99), Trend::Shorter);
+    assert_eq!(delay_trend(1.0, 1.01), Trend::Longer);
+    assert_eq!(delay_trend(1.0, 1.004), Trend::Same);
+    assert_eq!(delay_trend(1.0, 0.996), Trend::Same);
+    assert_eq!(delay_trend(1.0, 1.0), Trend::Same);
+}
+
+#[test]
+fn l_echelle_du_spectre_part_du_sommet_au_dessus_de_2_hz() {
+    use otb_gui::tools::filter_sim::{spectrum_top, y_bounds};
+    // le continu (0 et 1 Hz, 50 et 40 dB) est ignoré : le sommet est -10 dB à 3 Hz
+    let top = spectrum_top(&[0.0, 1.0, 3.0, 5.0], &[50.0, 40.0, -10.0, -20.0]);
+    assert_eq!(top, -10.0);
+    assert_eq!(y_bounds(top), (-80.0, -5.0));
+    // 2 Hz exactement est exclu (strictement au-dessus)
+    assert_eq!(spectrum_top(&[2.0], &[9.0]), f64::NEG_INFINITY);
 }

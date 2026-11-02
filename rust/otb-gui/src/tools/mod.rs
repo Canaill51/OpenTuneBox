@@ -2,6 +2,7 @@
 
 pub mod advisor;
 pub mod common;
+pub mod filter_sim;
 pub mod filter_sim_calc;
 pub mod freq_throttle;
 pub mod freq_time;
@@ -24,5 +25,6 @@ pub fn all_pages() -> Vec<Box<dyn Page>> {
         Box::new(ToolPage::new(pid_slider::PidSliderTool::new())),
         Box::new(ToolPage::new(advisor::AdvisorTool::new())),
         Box::new(ToolPage::new(setup::SetupTool::new())),
+        Box::new(ToolPage::new(filter_sim::FilterSimTool::new())),
     ]
 }
