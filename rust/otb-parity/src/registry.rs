@@ -976,6 +976,11 @@ fn cache_arg(v: Option<&Value>) -> Result<WhatIfCache, String> {
         other => return Err(format!("cache : {other:?}")),
     };
     for (k, val) in items {
+        // pics prévus des notchs dynamiques ajoutés (D-041) : `("peaks", début, fin, pas, min, max) -> fréquences`. Les ignorer ne
+        // change pas le résultat, `whatif_spectrum` les recalcule à l'identique (même journal, même période, mêmes réglages)
+        if matches!(k, Value::Tuple(key) if matches!(key.first(), Some(Value::Str(s)) if s == "peaks")) {
+            continue;
+        }
         let (Value::Tuple(key), Value::Tuple(pair)) = (k, val) else {
             return Err("cache : (clé, valeur) en tuples attendus".into());
         };

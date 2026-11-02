@@ -120,7 +120,7 @@ def main():
     sidx = {i: enc_settings(s) for i, s in enumerate(all_settings)}
     out = {"settings": [sidx[i] for i in range(len(all_settings))]}
     for k in ("coefficients", "chain_response", "chain_delay_ms", "dyn_lpf_cutoff", "scale_lowpass", "lowpass_off",
-              "rpm_notch_freq_weight", "dyn_notch_enabled", "dyn_notch_initial_centres", "gyro_chain", "dterm_chain"):
+              "rpm_notch_freq_weight", "dyn_notch_enabled", "dyn_notch_initial_centres", "complete_dyn_centres", "gyro_chain", "dterm_chain"):
         out[k] = []
 
     # ---- coefficients : chaque type, cadences, Q et poids ; centres aux limites
@@ -227,6 +227,27 @@ def main():
     for i, s in enumerate(all_settings):
         out["dyn_notch_enabled"].append({"s": i, "out": bool(bf.dyn_notch_enabled(s))})
         out["dyn_notch_initial_centres"].append({"s": i, "out": [hx(v) for v in bf.dyn_notch_initial_centres(s)]})
+
+    # ---- complete_dyn_centres (D-041) : centres enregistrés hors plage, pics trop proches (tolérance 27,75 Hz exactement), hors
+    # plage, en double, plus de pics que de notchs libres, nombre de notchs nul ou négatif
+    hand_known = [[], [200.0], [50.0, 700.0], [200.0, 300.0, 400.0, 500.0], [183.25]]
+    hand_peaks = [[], [407.0], [210.0, 407.0], [650.0, 90.0, 407.0], [300.0, 407.0, 480.0], [227.75, 228.0, 139.0],
+                  [183.25 + 27.75, 183.25 - 27.75, 183.25 + 27.76], [350.0, 350.0, 350.0], [100.0, 600.0, 99.9, 600.1]]
+    crng = np.random.default_rng(20261103)  # propre à ce bloc : ne décale pas les tirages des cas suivants
+    for i, s in enumerate(all_settings):
+        cases = [(k, pk) for k in hand_known[:3] for pk in hand_peaks[:5]]
+        cases += [(hand_known[int(crng.integers(len(hand_known)))], hand_peaks[int(crng.integers(len(hand_peaks)))]) for _ in range(6)]
+        for known, peaks in cases:
+            out["complete_dyn_centres"].append({"s": i, "known": [hx(v) for v in known], "peaks": [hx(v) for v in peaks],
+                                                "out": [hx(v) for v in bf.complete_dyn_centres(list(known), s, list(peaks))]})
+    for s in (Settings(raw={}, dyn_notch_count=3, dyn_notch_min_hz=100, dyn_notch_max_hz=600),
+              Settings(raw={}, dyn_notch_count=-1, dyn_notch_min_hz=100, dyn_notch_max_hz=600),
+              Settings(raw={}, dyn_notch_count=2, dyn_notch_min_hz=600, dyn_notch_max_hz=100)):  # plage inversée
+        out["settings"].append(enc_settings(s))
+        si = len(out["settings"]) - 1
+        for known, peaks in ((hand_known[1], hand_peaks[2]), (hand_known[3], hand_peaks[4]), (hand_known[2], hand_peaks[3])):
+            out["complete_dyn_centres"].append({"s": si, "known": [hx(v) for v in known], "peaks": [hx(v) for v in peaks],
+                                                "out": [hx(v) for v in bf.complete_dyn_centres(list(known), s, list(peaks))]})
 
     # ---- gyro_chain / dterm_chain
     motor_opts = [None, (180.0, 210.0, 195.5, 160.0), [300.0], 250.0, (0.0, 0.0), (float("nan"), 220.0),

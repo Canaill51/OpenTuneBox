@@ -51,13 +51,16 @@ def enc_settings(s: Settings) -> dict:
 
 
 def make_log(rng, n, fs, settings, motors=4, unfilt=True, debug_rows=8, gap=None, flat_throttle=False,
-             zero_debug_from=None, const_debug=False, const_motors=False) -> FlightLog:
+             zero_debug_from=None, const_debug=False, const_motors=False, lines=()) -> FlightLog:
     """Journal minimal : seuls les champs que lisent les filtres sont remplis, les autres sont nuls."""
     t = np.arange(n) / fs
     if gap is not None:
         t[gap:] += 20.0 / fs  # un trou de 20 échantillons : un raccord
     gyro = (rng.standard_normal((3, n)) * 80.0 + 120.0 * np.sin(2 * np.pi * 37.0 * t)).astype(np.float32)
     gyro_unfilt = (gyro + rng.standard_normal((3, n)) * 25.0).astype(np.float32) if unfilt else None
+    for hz, amp in lines:  # raies du gyro non filtré : des pics à suivre pour les notchs dynamiques ajoutés (D-041)
+        if gyro_unfilt is not None:
+            gyro_unfilt += (amp * np.sin(2 * np.pi * hz * t)).astype(np.float32)
     throttle = (50.0 + 45.0 * np.sin(2 * np.pi * 0.7 * t) + rng.standard_normal(n) * 3.0).astype(np.float32)
     throttle[:: max(1, n // 7)] = 120.0  # gaz hors bornes
     if flat_throttle:  # mêmes gaz dans toutes les fenêtres : seuls les moteurs et les centres changent d'une fenêtre à l'autre
@@ -175,6 +178,11 @@ def main():
     # gaz constants et un seul des deux (moteurs, centres) qui varie : la clé du cache doit les distinguer
     W7 = add_log(make_log(rng, 700, 500.0, fft_settings(rng, v26, pid_denom=4), flat_throttle=True, const_debug=True))
     W8 = add_log(make_log(rng, 700, 500.0, fft_settings(rng, v26, pid_denom=4), flat_throttle=True, const_motors=True))
+    # D-041 : raies du gyro non filtré à 2 kHz (la plage cherchée n'est plus coupée à 0,95 × Nyquist de 500 Hz) ; centres perdus à partir
+    # de la moitié (tous les notchs viennent alors des pics), un trou d'enregistrement ; 292 Hz est dans la dernière case de la plage
+    # 120–300 Hz : la marge de recherche de 2 cases au-delà du bord en fait un pic (une case de plus au bord ne suffit pas)
+    W9 = add_log(make_log(rng, 3000, 2000.0, fft_settings(rng, v26, count=3, pid_denom=4), gap=700, zero_debug_from=1500,
+                          lines=((160.0, 90.0), (237.0, 70.0), (292.0, 80.0), (350.0, 100.0))))
     group_counter = 0
 
     def changed(base: Settings, how: int) -> Settings:
@@ -190,6 +198,24 @@ def main():
             return dataclasses.replace(base, rpm_harmonics=3, rpm_q=250, rpm_weights=[100, 100, 50])
         if how == 6:  # plus de notchs dynamiques que de centres lus : les manquants viennent des centres initiaux
             return dataclasses.replace(base, dyn_notch_count=base.dyn_notch_count + 3, dyn_notch_min_hz=120, dyn_notch_max_hz=560)
+        if how == 7:  # 3 notchs de plus sur la plage 120–300 Hz : raies à 160 et 237 Hz, 301 Hz juste au-delà du bord
+            return dataclasses.replace(base, dyn_notch_count=base.dyn_notch_count + 3, dyn_notch_min_hz=120, dyn_notch_max_hz=300)
+        if how == 8:  # plage décalée : la raie de 301 Hz est dans la plage, celle de 160 Hz en dessous
+            return dataclasses.replace(base, dyn_notch_count=base.dyn_notch_count + 3, dyn_notch_min_hz=200, dyn_notch_max_hz=330)
+        if how == 9:  # même nombre de notchs, plage seule modifiée
+            return dataclasses.replace(base, dyn_notch_min_hz=130, dyn_notch_max_hz=300)
+        if how == 10:  # borne basse sous la limite du firmware (20 Hz) : la recherche ne descend pas plus bas
+            return dataclasses.replace(base, dyn_notch_count=base.dyn_notch_count + 2, dyn_notch_min_hz=30, dyn_notch_max_hz=300)
+        if how == 11:  # filtre RPM modifié en même temps : les pics se prévoient avec les réglages actuels
+            return dataclasses.replace(base, dyn_notch_count=base.dyn_notch_count + 3, dyn_notch_min_hz=120, dyn_notch_max_hz=300,
+                                       rpm_harmonics=3, rpm_q=250, rpm_weights=[100, 100, 50])
+        if how == 12:  # filtre RPM coupé en même temps : les pics se prévoient quand même avec celui des réglages actuels
+            return dataclasses.replace(base, dyn_notch_count=base.dyn_notch_count + 3, dyn_notch_min_hz=120, dyn_notch_max_hz=300,
+                                       rpm_harmonics=0)
+        if how == 13:  # deux notchs libres seulement : l'ordre des pics (prévus avec le filtre RPM actuel) décide lesquels sont pris
+            return dataclasses.replace(base, dyn_notch_count=2, dyn_notch_min_hz=120, dyn_notch_max_hz=300, rpm_harmonics=0)
+        if how == 14:  # comme 7 mais seul le maximum de la plage change (clé du cache des pics)
+            return dataclasses.replace(base, dyn_notch_count=base.dyn_notch_count + 3, dyn_notch_min_hz=120, dyn_notch_max_hz=380)
         if how == 4:
             return dataclasses.replace(base, gyro_lpf1=bf.lowpass_off(base.gyro_lpf1), gyro_lpf2=bf.lowpass_off(base.gyro_lpf2),
                                        gyro_notches=[], dterm_lpf1=bf.scale_lowpass(base.dterm_lpf1, 2.0))
@@ -217,6 +243,16 @@ def main():
                     if (how + len(sel)) % 2 and target == "dterm" and sel[0] != 0:
                         continue
                     add_whatif(li, sel, base, changed(base, how), target, 300.0, prefilt=(how % 2 == 1), group=None)
+    for how in (7, 8, 6, 9, 10, 11, 12, 13, 0):
+        for sel in ((0, 3000), (600, 2400)):
+            for target in ("gyro", "dterm"):
+                add_whatif(W9, sel, logs[W9].settings, changed(logs[W9].settings, how), target, 300.0, prefilt=(how == 7), group=None)
+    # D-041 : cache partagé, même période, plage 120–300 Hz puis 200–330 Hz avec une autre longueur de fenêtre (donc de nouvelles réponses
+    # de filtres) : les pics de la 2e plage ne doivent pas être ceux de la 1re
+    group_counter += 1
+    caches[group_counter] = {}
+    for how, seg_ms in ((7, 300.0), (14, 150.0), (7, 150.0), (8, 100.0)):
+        add_whatif(W9, (0, 3000), logs[W9].settings, changed(logs[W9].settings, how), "gyro", seg_ms, prefilt=True, group=group_counter)
     # séquences qui partagent un cache : le 2e appel réutilise les réponses du 1er (et celles du terme D)
     for li in (W1, W3):
         base = logs[li].settings

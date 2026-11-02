@@ -150,6 +150,8 @@ ceux de la période entière, pas de chaque fenêtre de 300 ms ; un repli sur un
 
 **Choix de Cédric** (2026-11-02, après sa capture du Simulateur) : nouveau modèle voulu, validé sur le corpus, appliqué à Python d'abord.
 
+**Rust** (2026-11-02, W-040) : même modèle dans `rust/otb-analysis/src/bf_filters.rs` (`complete_dyn_centres`, `dyn_peaks`, pics gardés dans `WhatIfCache.peaks`), même résultat que Python sur cas fabriqués et sur le log réel de 5 s des tests (`bf_filters`, `bf_sim`, `filter_tools`) ; pas encore comparé sur un vrai log long (W-040, W-028). Aucun message de plus dans l'interface : sans gyro non filtré, le Simulateur n'a de toute façon pas de simulation (titre d'alerte existant).
+
 ---
 
 ## 2026-11-02 — Contrats de la phase 6-6b
