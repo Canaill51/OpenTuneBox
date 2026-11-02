@@ -17,8 +17,8 @@ use otb_analysis::npstat::percentile_f32;
 use otb_analysis::spectral::{Mode, smooth_freq, spectrum, to_ptb_db};
 
 use super::common::{
-    AxisToggles, FileSelection, MotorToggles, cdf, fmt_ms, harmonic_style, motor_freqs, rpm_filter_text, sel_rows,
-    sorted_above_zero, sorted_positive, wide,
+    AxisToggles, FileSelection, MotorToggles, ViewMemo, cdf, fmt_ms, harmonic_style, motor_freqs, rpm_filter_text,
+    sel_rows, sorted_above_zero, sorted_positive, wide,
 };
 use super::report_ui::{REPORT_FOOTER, diagnosis_ui};
 use crate::plots::{corner_text, error_bars, nice_axes};
@@ -174,7 +174,7 @@ pub struct SpectralTool {
     files: FileSelection,
     goto: Option<&'static str>,
     /// Clé des réglages de la vue : les bornes ne sont remises que quand elle change (le zoom de l'utilisateur reste).
-    view: Option<[u64; 5]>,
+    pub view: ViewMemo<[u64; 5]>,
 }
 
 impl Default for SpectralTool {
@@ -205,7 +205,7 @@ impl SpectralTool {
             axes: AxisToggles::default(),
             files: FileSelection::new(true),
             goto: None,
-            view: None,
+            view: ViewMemo::default(),
         }
     }
 
@@ -397,7 +397,7 @@ impl SpectralTool {
             right_key,
             u64::from(out.psd),
         ];
-        let fresh = self.view != Some(key);
+        let fresh = self.view.is_fresh(&key);
         let spacing = ui.spacing().item_spacing;
         let w = ((ui.available_width() - spacing.x) / 2.0).max(120.0);
         let rows = axes.len() as f32;
@@ -505,7 +505,7 @@ impl SpectralTool {
                 }
             });
         }
-        self.view = Some(key);
+        self.view.remember(key);
     }
 }
 
@@ -513,6 +513,11 @@ impl Tool for SpectralTool {
     type Options = Options;
     type Output = SpectralOutput;
     const TITLE: &'static str = "Analyse spectrale";
+    const HAS_VIEW: bool = true;
+
+    fn reset_view(&mut self) {
+        self.view.reset();
+    }
 
     fn options(&self) -> Options {
         Options {
@@ -612,11 +617,10 @@ impl Tool for SpectralTool {
             self.axes.ui(ui);
             ui.separator();
             ui.label(RichText::new("Jeux de données").strong());
-            egui::ScrollArea::vertical().max_height(150.0).id_salt("jeux").show(ui, |ui| {
-                for (i, (_, label)) in DATASETS.iter().enumerate() {
-                    ui.checkbox(&mut self.datasets[i], *label);
-                }
-            });
+            // tous les jeux visibles sans faire défiler (le panneau défile déjà : W-034 (10))
+            for (i, (_, label)) in DATASETS.iter().enumerate() {
+                ui.checkbox(&mut self.datasets[i], *label);
+            }
             ui.horizontal(|ui| {
                 for (title, color) in [("Fréq. × gaz", "red"), ("Fréq. × temps", "purple")] {
                     let b = egui::Button::new(RichText::new(title).color(theme.accent(color)).strong());

@@ -5,8 +5,8 @@ mod support;
 
 use otb_gui::state::AppState;
 use otb_gui::tools::common::{
-    AxisToggles, FileSelection, MotorToggles, cdf, decimate, fmt_ms, fmt3, motor_freqs, nan_unless_positive, nice_ceil,
-    rpm_filter_text, sel_rows, sorted_above_zero, sorted_positive,
+    AxisToggles, FileSelection, MotorToggles, ViewMemo, cdf, decimate, fmt_ms, fmt3, motor_freqs, nan_unless_positive,
+    nice_ceil, rpm_filter_text, sel_rows, sorted_above_zero, sorted_positive,
 };
 use support::synthetic_log;
 
@@ -239,4 +239,21 @@ fn les_centres_de_notch_gardent_les_valeurs_strictement_positives() {
     let m = nan_unless_positive(&[0.0, 5.0, -2.0, f64::NAN, 1.5]);
     assert!(m[0].is_nan() && m[2].is_nan() && m[3].is_nan());
     assert_eq!((m[1], m[4]), (5.0, 1.5));
+}
+
+#[test]
+fn la_vue_est_reposee_quand_la_cle_change_ou_apres_un_oubli() {
+    let mut v: ViewMemo<[u64; 2]> = ViewMemo::default();
+    assert!(v.is_unset() && v.is_fresh(&[1, 2]), "au départ");
+    v.remember([1, 2]);
+    assert!(
+        !v.is_unset() && !v.is_fresh(&[1, 2]),
+        "même clé : le zoom de l'utilisateur reste"
+    );
+    assert!(v.is_fresh(&[1, 3]), "clé différente : bornes reposées");
+    v.reset();
+    assert!(
+        v.is_unset() && v.is_fresh(&[1, 2]),
+        "« Tout voir » : même clé mais bornes reposées"
+    );
 }

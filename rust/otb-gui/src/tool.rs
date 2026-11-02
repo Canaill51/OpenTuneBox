@@ -65,6 +65,8 @@ pub trait Tool {
     const TITLE: &'static str;
     /// Bouton « Calculer » (la Configuration n'en a pas : elle se met à jour sans calcul, comme en Python).
     const RUN_BUTTON: bool = true;
+    /// Bouton « Tout voir » : l'outil a des graphiques zoomables dont `reset_view` remet les bornes au cadre suivant.
+    const HAS_VIEW: bool = false;
     /// Outil ouvert depuis un autre (pas de bouton dans la barre) : `OTHER_TOOLS` de `main_window.py`.
     const HIDDEN: bool = false;
     /// Bouton de la barre qui reste mis en valeur quand cet outil est affiché (par défaut, le sien).
@@ -88,6 +90,8 @@ pub trait Tool {
     fn status(&self) -> Option<String> {
         None
     }
+    /// Oublie la vue des graphiques (bouton « Tout voir »).
+    fn reset_view(&mut self) {}
 }
 
 /// Une page d'outil, vue par la fenêtre principale.
@@ -226,6 +230,9 @@ impl<T: Tool> Page for ToolPage<T> {
                 }
                 if ui.button("Exporter image").clicked() {
                     self.export = true;
+                }
+                if T::HAS_VIEW && ui.button("Tout voir").clicked() {
+                    self.tool.reset_view();
                 }
             });
             ui.separator();

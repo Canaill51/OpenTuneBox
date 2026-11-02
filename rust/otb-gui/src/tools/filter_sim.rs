@@ -270,6 +270,11 @@ struct Series {
 }
 
 impl FilterSimTool {
+    /// Aucune vue de graphique retenue (au départ, ou après « Tout voir »).
+    pub fn view_is_unset(&self) -> bool {
+        self.spectrum_view.is_none() && self.bode_view.is_none()
+    }
+
     pub fn new() -> Self {
         let editor = Editor::from_settings(&Settings::default());
         Self {
@@ -719,6 +724,12 @@ impl Tool for FilterSimTool {
     type Options = Options;
     type Output = Arc<FilterSimResult>;
     const TITLE: &'static str = "Simulateur de filtres";
+    const HAS_VIEW: bool = true;
+
+    fn reset_view(&mut self) {
+        self.spectrum_view = None;
+        self.bode_view = None;
+    }
 
     fn options(&self) -> Options {
         Options {

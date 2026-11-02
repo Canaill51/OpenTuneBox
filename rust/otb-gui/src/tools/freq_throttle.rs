@@ -14,7 +14,7 @@ use otb_analysis::npstat::percentile_f32;
 use otb_analysis::spectral::{Mode, freq_throttle, smooth_map, to_ptb_db};
 use otb_log::flightlog::FlightLog;
 
-use super::common::{AxisToggles, FileSelection, fmt3, motor_freqs, nice_ceil, percentile_linear, wide};
+use super::common::{AxisToggles, FileSelection, ViewMemo, fmt3, motor_freqs, nice_ceil, percentile_linear, wide};
 use crate::plots::{colorbar, corner_text, heatmap_texture, nice_axes};
 use crate::state::AppState;
 use crate::theme::{AXIS_NAMES, Palette, Theme, plot};
@@ -214,7 +214,7 @@ pub struct FreqThrottleTool {
     preset: Option<usize>,
     /// Texture de chaque carte (colonne, axe) et la clé des réglages qui l'ont produite.
     textures: HashMap<(usize, usize), (u64, TextureHandle)>,
-    view: Option<[u64; 3]>,
+    pub view: ViewMemo<[u64; 3]>,
 }
 
 impl Default for FreqThrottleTool {
@@ -246,7 +246,7 @@ impl FreqThrottleTool {
             auto_scale: false,
             preset: None,
             textures: HashMap::new(),
-            view: None,
+            view: ViewMemo::default(),
         }
     }
 
@@ -427,8 +427,13 @@ impl Tool for FreqThrottleTool {
     type Options = Options;
     type Output = FreqThrottleOutput;
     const TITLE: &'static str = "Fréquence × gaz";
+    const HAS_VIEW: bool = true;
     const HIDDEN: bool = true;
     const TAB: Option<&'static str> = Some("Analyse spectrale");
+
+    fn reset_view(&mut self) {
+        self.view.reset();
+    }
 
     fn options(&self) -> Options {
         Options {
@@ -695,7 +700,7 @@ impl Tool for FreqThrottleTool {
             ),
             u64::from(out.xaxis as u8) ^ (self.smoothing as u64) << 8,
         ];
-        let fresh = self.view != Some(key);
+        let fresh = self.view.is_fresh(&key);
         ui.horizontal_top(|ui| {
             for c in 0..N_COLUMNS {
                 ui.allocate_ui_with_layout(
@@ -723,6 +728,6 @@ impl Tool for FreqThrottleTool {
                 );
             }
         });
-        self.view = Some(key);
+        self.view.remember(key);
     }
 }

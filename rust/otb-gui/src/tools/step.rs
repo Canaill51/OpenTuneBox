@@ -20,7 +20,7 @@ use crate::plots::{corner_text, nice_axes, swatch};
 use crate::state::AppState;
 use crate::theme::{AXIS_NAMES, Theme, plot, with_alpha};
 use crate::tool::{LogInput, Tool};
-use crate::tools::common::{AxisToggles, FileSelection, safe_text};
+use crate::tools::common::{AxisToggles, FileSelection, ViewMemo, safe_text};
 use crate::tools::report_ui::finding_ui;
 use crate::tools::step_common::{
     FileData, FileStep, Split, StepOpts, compute_file_data, dot, mode_text, pid_text, slider_plot,
@@ -217,7 +217,7 @@ pub struct StepTool {
     axes: AxisToggles,
     files: FileSelection,
     /// Empreinte des réglages d'affichage et du calcul : les bornes ne sont remises que si elle change.
-    view: Option<u64>,
+    pub view: ViewMemo<u64>,
     /// Réponses brutes prêtes à tracer, par (fichier, axe), pour le résultat `stamp` : refaites seulement si le résultat change.
     raw_cache: (u64, RawCache),
 }
@@ -241,7 +241,7 @@ impl StepTool {
             metric2: 2,                             // retard consigne → gyro
             axes: AxisToggles([true, true, false]), // yaw : ni jugé par le diagnostic, ni souvent mesurable
             files: FileSelection::new(true),
-            view: None,
+            view: ViewMemo::default(),
             raw_cache: (0, HashMap::new()),
         }
     }
@@ -496,7 +496,7 @@ impl StepTool {
             }
         }
         let key = self.view_key(out.stamp);
-        let fresh = self.view != Some(key);
+        let fresh = self.view.is_fresh(&key);
         let sp = ui.spacing().item_spacing;
         let usable = (ui.available_width() - 2.0 * sp.x).max(300.0);
         let (w1, w2) = (usable * 5.0 / 9.0, usable * 2.0 / 9.0);
@@ -520,7 +520,7 @@ impl StepTool {
                 }
             });
         }
-        self.view = Some(key);
+        self.view.remember(key);
     }
 
     // ---------------------------------------------------------------- diagnostic du réglage
@@ -691,6 +691,11 @@ impl Tool for StepTool {
     type Options = Options;
     type Output = StepOutput;
     const TITLE: &'static str = "Réponse indicielle";
+    const HAS_VIEW: bool = true;
+
+    fn reset_view(&mut self) {
+        self.view.reset();
+    }
 
     fn options(&self) -> Options {
         Options { calc: self.calc }

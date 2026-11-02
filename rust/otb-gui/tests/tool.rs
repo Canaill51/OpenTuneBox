@@ -343,6 +343,54 @@ mod boutons {
         assert_eq!(COMPTE.load(Ordering::SeqCst), 3, "aucun calcul sans log");
     }
 
+    /// Outil minimal avec « Tout voir » : compte les appels de `reset_view`.
+    struct AvecVue {
+        resets: usize,
+    }
+
+    impl Tool for AvecVue {
+        type Options = ();
+        type Output = ();
+        const TITLE: &'static str = "AvecVue";
+        const HAS_VIEW: bool = true;
+        fn options(&self) {}
+        fn selected(&self, _: &AppState) -> Vec<usize> {
+            Vec::new()
+        }
+        fn compute(_: (), _: Vec<LogInput>) -> Result<(), String> {
+            Ok(())
+        }
+        fn controls(&mut self, _: &mut Ui, _: &AppState, _: &Theme) {}
+        fn render(&mut self, _: &mut Ui, _: &mut AppState, _: &(), _: &Theme) {}
+        fn reset_view(&mut self) {
+            self.resets += 1;
+        }
+    }
+
+    #[test]
+    fn tout_voir_n_existe_que_pour_les_outils_a_graphiques_zoomables() {
+        let nouveau = |tool| {
+            Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
+                |ui, (page, state): &mut (ToolPage<AvecVue>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+                (ToolPage::new(tool), AppState::new()),
+            )
+        };
+        let mut h = nouveau(AvecVue { resets: 0 });
+        h.step();
+        h.get_by_label("Tout voir").click();
+        h.step();
+        h.get_by_label("Tout voir").click();
+        h.step();
+        assert_eq!(h.state().0.tool.resets, 2, "un appel par clic");
+        // la Configuration, l'Assistant… (HAS_VIEW par défaut = faux) n'ont pas le bouton
+        let mut h = Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
+            |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+            (ToolPage::new(Compteur), AppState::new()),
+        );
+        h.step();
+        assert!(h.query_by_label("Tout voir").is_none());
+    }
+
     #[test]
     fn exporter_image_demande_la_page_entiere_une_seule_fois() {
         let mut h = Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
@@ -355,5 +403,66 @@ mod boutons {
         h.step();
         assert!(h.state_mut().0.take_export(), "demande notée");
         assert!(!h.state_mut().0.take_export(), "lue une seule fois");
+    }
+}
+
+// ---- « Tout voir » de chaque outil à graphiques zoomables : la vue retenue est bien oubliée (6-6a) ----
+
+mod vue {
+    use super::*;
+    use egui_kittest::Harness;
+    use otb_gui::tool::Page;
+    use otb_gui::tools::filter_sim::FilterSimTool;
+    use otb_gui::tools::freq_throttle::FreqThrottleTool;
+    use otb_gui::tools::freq_time::FreqTimeTool;
+    use otb_gui::tools::spectral::SpectralTool;
+    use otb_gui::tools::step::StepTool;
+
+    /// Affiche l'outil sur le log d'essai, vérifie qu'il retient une vue, puis que `reset_view` l'oublie.
+    fn essai<T: Tool + 'static>(tool: T, sans_vue: fn(&T) -> bool) {
+        let mut state = AppState::new();
+        let log = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/jeno5_5s.bbl");
+        state.add(otb_log::flightlog::load(&log).unwrap().remove(0));
+        let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_ui_state(
+            |ui, (page, state): &mut (ToolPage<T>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+            (ToolPage::new(tool), state),
+        );
+        let debut = Instant::now();
+        while h.state().0.result().is_none() {
+            h.step();
+            assert!(debut.elapsed() < Duration::from_secs(60), "calcul jamais terminé");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        h.run_steps(2);
+        assert!(!sans_vue(&h.state().0.tool), "le graphique a retenu sa vue");
+        h.state_mut().0.tool.reset_view();
+        assert!(sans_vue(&h.state().0.tool), "« Tout voir » oublie la vue");
+        h.run_steps(2);
+        assert!(!sans_vue(&h.state().0.tool), "elle est reposée au cadre suivant");
+    }
+
+    #[test]
+    fn spectre() {
+        essai(SpectralTool::new(), |t| t.view.is_unset());
+    }
+
+    #[test]
+    fn frequence_gaz() {
+        essai(FreqThrottleTool::new(), |t| t.view.is_unset());
+    }
+
+    #[test]
+    fn frequence_temps() {
+        essai(FreqTimeTool::new(), |t| t.view.is_unset());
+    }
+
+    #[test]
+    fn reponse_indicielle() {
+        essai(StepTool::new(), |t| t.view.is_unset());
+    }
+
+    #[test]
+    fn simulateur_de_filtres() {
+        essai(FilterSimTool::new(), |t| t.view_is_unset());
     }
 }

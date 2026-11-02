@@ -12,8 +12,8 @@ use otb_analysis::motors::dyn_notch_centres;
 use otb_analysis::spectral::{freq_time, to_ptb_db};
 
 use super::common::{
-    AxisToggles, FileSelection, MotorToggles, decimate, harmonic_style, motor_freqs, nan_unless_positive, sel_rows,
-    wide,
+    AxisToggles, FileSelection, MotorToggles, ViewMemo, decimate, harmonic_style, motor_freqs, nan_unless_positive,
+    sel_rows, wide,
 };
 use crate::plots::{VDrag, colorbar, heatmap_texture, nice_axes};
 use crate::state::AppState;
@@ -132,7 +132,7 @@ pub struct FreqTimeTool {
     /// Repère écran ↔ données de chaque graphique au dernier affichage (tests, captures).
     pub transforms: [Option<egui_plot::PlotTransform>; 3],
     textures: HashMap<usize, (u64, TextureHandle)>,
-    view: Option<[u64; 3]>,
+    pub view: ViewMemo<[u64; 3]>,
 }
 
 impl Default for FreqTimeTool {
@@ -161,7 +161,7 @@ impl FreqTimeTool {
             link: egui::Id::unique(LINK),
             transforms: [None; 3],
             textures: HashMap::new(),
-            view: None,
+            view: ViewMemo::default(),
         }
     }
 
@@ -219,8 +219,13 @@ impl Tool for FreqTimeTool {
     type Options = Options;
     type Output = FreqTimeOutput;
     const TITLE: &'static str = "Fréquence × temps";
+    const HAS_VIEW: bool = true;
     const HIDDEN: bool = true;
     const TAB: Option<&'static str> = Some("Analyse spectrale");
+
+    fn reset_view(&mut self) {
+        self.view.reset();
+    }
 
     fn options(&self) -> Options {
         Options {
@@ -415,7 +420,7 @@ impl Tool for FreqTimeTool {
             f_top.to_bits(),
             t0.to_bits() ^ t1.to_bits().rotate_left(17),
         ];
-        let fresh = self.view != Some(key);
+        let fresh = self.view.is_fresh(&key);
         let spacing = ui.spacing().item_spacing;
         let h = ((ui.available_height() - spacing.y * shown.len() as f32) / shown.len() as f32).max(110.0);
         let w = (ui.available_width() - 70.0 - spacing.x).max(200.0);
@@ -537,6 +542,6 @@ impl Tool for FreqTimeTool {
         if xs[0] != state.cursor {
             state.set_cursor(xs[0]);
         }
-        self.view = Some(key);
+        self.view.remember(key);
     }
 }
