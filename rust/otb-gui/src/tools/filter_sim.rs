@@ -59,6 +59,12 @@ pub fn bode_y_bounds(col: usize) -> (f64, f64) {
     (lo - BODE_Y_MARGIN * (hi - lo), hi)
 }
 
+/// Le résultat affiché vient-il d'un autre log que celui choisi ? Pendant le calcul d'un nouveau log, la page garde l'ancien
+/// résultat : on le masque plutôt que de montrer ses spectres sous les filtres du nouveau (W-036 (8)).
+pub fn result_is_for_other_log(result_log: u64, loaded: Option<u64>) -> bool {
+    loaded.is_some_and(|id| id != result_log)
+}
+
 /// Réglages envoyés au calcul par « Appliquer », avec le log auquel ils s'appliquent.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Applied {
@@ -766,7 +772,9 @@ impl Tool for FilterSimTool {
             return Ok(r);
         }
         let sel = li.log.slice_time(li.period.0, li.period.1);
-        let r = Arc::new(simulate_filters(&li.log, sel, base, &modf, o.with_current)?);
+        let mut r = simulate_filters(&li.log, sel, base, &modf, o.with_current)?;
+        r.log_id = id;
+        let r = Arc::new(r);
         li.cache.put(key, r.clone());
         Ok(r)
     }
@@ -828,6 +836,10 @@ impl Tool for FilterSimTool {
             .resizable(false)
             .show(ui, |ui| self.bottom(ui, theme));
         egui::CentralPanel::default().show(ui, |ui| {
+            if result_is_for_other_log(out.log_id, self.loaded) {
+                ui.label("Calcul en cours…");
+                return;
+            }
             if let Some(Err(e)) = self.derived.as_ref().map(|d| &d.bode) {
                 ui.colored_label(theme.accent("red"), format!("Calcul impossible : {e}"));
             }

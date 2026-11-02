@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
 | D-039 | Guide egui : mémoire du guide dans la persistance d'eframe, `drones.json` lu avec tolérance et jamais écrasé s'il est illisible, police Hack de secours | 2026-11-02 |
 | D-038 | Configuration egui : lignes alignées entre logs par nom de réglage (Python : par position) | 2026-11-02 |
 | D-037 | Outils egui : cache des résultats par log, partagé avec le thread de calcul, clé = réglages de calcul + période | 2026-11-02 |
@@ -111,6 +112,31 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-11-02 — Contrats de la phase 6-6b
+
+### D-040 : Interface egui : écarts voulus avec l'interface Qt et limites gardées
+
+Questions posées à Cédric le 2026-11-02 (tri de W-034 à W-038) ; il a choisi les options recommandées.
+
+**Contexte.** Les phases 6-2 à 6-6a ont laissé des écarts connus avec les fenêtres Qt (`docs/travaux-reportes.md`). Avant la phase 7
+(suppression de Python), chacun est classé : voulu, gardé tel quel, ou corrigé.
+
+**Décision.**
+- **Écarts voulus (définitifs)** : liste des fichiers d'un outil en cases à cocher (Qt : clic remplace, Ctrl ajoute) ; diagnostic en
+  widgets egui et non en HTML ; « -> » à la place de « → » dans les textes (absent des polices d'egui, L-068) ; diagrammes de Bode
+  zoomables ; calcul automatique à chaque changement (le bouton « Calculer » relance à la demande).
+- **Gardé tel quel** : seuls le chevron et le titre d'un groupe de la Configuration se replient, et l'état n'est pas gardé entre deux
+  lancements ; la date du nom d'export est celle d'UTC (un jour d'écart possible autour de minuit) ; les barres d'erreur du bruit moteur
+  n'ont pas de capuchon.
+- **Corrigé en 6-6b** : un résultat du Simulateur de filtres qui vient d'un autre log n'est plus affiché pendant le calcul du nouveau
+  (`result_is_for_other_log`, W-036 (8)).
+
+**Options écartées.** Reproduire le clic / Ctrl+clic de Qt ; dessiner les capuchons à la main ; une dépendance de dates pour l'heure
+locale (non vérifiée) ; garder l'état replié de la Configuration dans la persistance d'eframe.
+
+**Témoins.** `result_is_for_other_log` et `FilterSimResult::log_id` : `rust/otb-gui/tests/filter_tools.rs`. L'appel dans `render` n'a pas
+de test d'interface (règle d'affichage en fonction pure, L-071).
 
 ## 2026-11-02 — Contrats de la phase 6-5
 

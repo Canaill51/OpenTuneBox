@@ -15,6 +15,7 @@ use otb_gui::tools::advisor::{AdvisorOutput, AdvisorTool, FOOTER, HELP, Options,
 use otb_gui::tools::common::safe_text;
 use otb_gui::tools::filter_sim::{
     Applied, COPIED_STATUS, FilterSimTool, NO_UNFILT_TITLE, Options as SimOptions, STALE_STATUS,
+    result_is_for_other_log,
 };
 use otb_gui::tools::filter_sim_calc::{
     self as fsc, DELAY_FREQS, Editor, LPF_TYPES, SPECTRA_KEYS, bode, cli_values, delays, filter_cli_lines,
@@ -1523,4 +1524,33 @@ fn la_configuration_n_a_pas_de_bouton_calculer_mais_a_l_export() {
     );
     h.get_by_label("Exporter image");
     assert!(h.query_by_label("Tout voir").is_none(), "pas de graphique à zoomer");
+}
+
+// ------------------------------------------------------------------ Simulateur : résultat d'un autre log (W-036 (8))
+
+#[test]
+fn le_resultat_du_simulateur_porte_l_identifiant_de_son_log() {
+    let st = etat();
+    let out = FilterSimTool::compute(
+        SimOptions {
+            applied: None,
+            with_current: true,
+        },
+        st.inputs(&[0]),
+    )
+    .unwrap();
+    assert_eq!(out.log_id, st.logs[0].uid);
+}
+
+#[test]
+fn un_resultat_d_un_autre_log_n_est_pas_affiche() {
+    assert!(!result_is_for_other_log(7, Some(7)), "même log : affiché");
+    assert!(
+        result_is_for_other_log(7, Some(8)),
+        "autre log : masqué pendant le calcul"
+    );
+    assert!(
+        !result_is_for_other_log(7, None),
+        "pas de log choisi : rien à comparer, la page gère l'absence de log"
+    );
 }
