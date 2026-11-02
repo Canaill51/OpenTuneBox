@@ -2,6 +2,7 @@
 
 pub mod advisor;
 pub mod common;
+pub mod filter_sim_calc;
 pub mod freq_throttle;
 pub mod freq_time;
 pub mod pid_slider;
