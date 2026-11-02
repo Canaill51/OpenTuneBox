@@ -378,7 +378,7 @@ est celle du commit qui les a introduites.
   `egui::Panel` et `show` prend un `Ui` (`show_inside` est déprécié).
 - **Règle** — après `set_visuals`, appeler `request_repaint` ; chercher l'objet à glisser à `pointer.press_origin()`, pas à la
   position courante ; en test, ne pas se fier à « ne panique pas » : regarder la capture.
-- **Preuve** — `rust/otb-spike-egui` (`rust/otb-spike-egui/tests/interaction.rs` échouait avant la correction, `rust/otb-spike-egui/tests/tabs.rs` produit les captures).
+- **Preuve** — `rust/otb-spike-egui` (supprimé en 6-6b, retrouvable dans l'historique git ; `rust/otb-spike-egui/tests/interaction.rs` échouait avant la correction, `rust/otb-spike-egui/tests/tabs.rs` produit les captures).
 
 ### L-042 : reproduire numpy au bit près : `np.abs` complexe et `np.mean` ne font pas ce qu'on croit
 - **Symptôme** — 2026-10-29 (phase 3b, D-034) : le port Rust de `rpm_attenuation` différait de 1 ulp de l'ancien code
