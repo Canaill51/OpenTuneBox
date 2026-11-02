@@ -249,6 +249,29 @@ def dyn_notch_initial_centres(settings) -> list[float]:
     return [(p + 0.5) * (hi - lo) / n + lo for p in range(n)]
 
 
+DYN_NOTCH_BIN_HZ = 18.5  # case de la SDFT du firmware à 8 kHz (dyn_notch_filter.c)
+DYN_NOTCH_MIN_LIMIT_HZ = 20.0  # borne basse de dyn_notch_min_hz dans le firmware (cli/settings.c)
+
+
+def complete_dyn_centres(known, settings, peaks) -> list[float]:
+    """Centres du notch dynamique `settings` quand on en ajoute au-delà de ceux enregistrés dans le log (D-041).
+
+    1. centres enregistrés (`known`), ramenés dans la plage de `settings` et limités à son nombre de notchs ;
+    2. puis les pics prévus (`peaks`, triés par puissance décroissante) dans la plage, à plus de 1,5 case (27,75 Hz) d'un centre
+       déjà pris : le firmware place ses notchs sur les pics les plus hauts, pas à des positions fixes ;
+    3. sans pic pour un notch : son centre initial (comme le firmware au départ).
+    Mesuré sur 383 sessions en debug FFT_FREQ de 64 drones (rappel 0,45 contre 0,28 pour les centres initiaux seuls)."""
+    lo, hi = settings.dyn_notch_min_hz, settings.dyn_notch_max_hz
+    c = [min(max(v, lo), hi) for v in known][: settings.dyn_notch_count]
+    tol = 1.5 * DYN_NOTCH_BIN_HZ
+    for f in peaks:
+        if len(c) >= settings.dyn_notch_count:
+            break
+        if lo <= f <= hi and all(abs(f - v) > tol for v in c):
+            c.append(float(f))
+    return c + dyn_notch_initial_centres(settings)[len(c):]
+
+
 def gyro_chain(settings, throttle_frac: float = 0.5, motor_hz=None, dyn_notch_hz=None) -> Chain:
     """Chaîne de filtres gyro complète, dans l'ordre du firmware.
 
@@ -484,6 +507,14 @@ def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel
     centres = None if centres is None else centres[:, sel]
 
     cache = {} if cache is None else cache
+    peaks = ()
+    dyn_changed = (mod.dyn_notch_count != base.dyn_notch_count or mod.dyn_notch_min_hz != base.dyn_notch_min_hz
+                   or mod.dyn_notch_max_hz != base.dyn_notch_max_hz)
+    if centres is not None and dyn_changed and mod.dyn_notch_count > 0:
+        pkey = ("peaks", sel.start, sel.stop, sel.step, mod.dyn_notch_min_hz, mod.dyn_notch_max_hz)
+        if pkey not in cache:
+            cache[pkey] = _dyn_peaks(log, sel, base, mod)
+        peaks = cache[pkey]
     # moyennes de chaque fenêtre, calculées en une fois (gaz au centième, moteurs et centres à 5 Hz près)
     idx = np.asarray(starts, dtype=np.int64)
     win_mean = lambda v: np.lib.stride_tricks.sliding_window_view(v, L, axis=-1)[..., idx, :].mean(axis=-1)  # noqa: E731
@@ -497,7 +528,7 @@ def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel
         c = None if cen_w is None else tuple(cen_w[:, k].tolist())
         key = ("gyro", f.size, t, m, c)
         if key not in cache:
-            cache[key] = _gyro_h2(f, base, mod, t, m, c)
+            cache[key] = _gyro_h2(f, base, mod, t, m, c, peaks)
         r_cur, r_mod = cache[key]
         if target == "dterm":
             dkey = ("dterm", f.size, t)
@@ -519,17 +550,33 @@ def whatif_spectrum(x_logged: np.ndarray, x_prefilt: np.ndarray | None, log, sel
     return WhatIfSpectrum(f, to_db(P.mean(axis=0)), to_db(out_mod.mean(axis=0)))
 
 
-def _gyro_h2(f, base, mod, thr, motors, centres):
-    """|H|² des chaînes gyro actuelle et modifiée pour une fenêtre."""
+def _dyn_peaks(log, sel, base, mod) -> tuple[float, ...]:
+    """Pics que le notch dynamique `mod` aurait à suivre sur la période `sel` : roll du gyro non filtré × réponse des notchs RPM
+    des réglages actuels (`motors.dyn_notch_targets`, la méthode validée contre FFT_FREQ), triés par puissance décroissante.
+    Vide sans gyro non filtré : les notchs ajoutés restent alors à leurs centres initiaux."""
+    from .motors import dyn_notch_targets
+
+    unfilt = getattr(log, "gyro_unfilt", None)
+    if unfilt is None:
+        return ()
+    mhz = None if log.motor_hz is None or base.rpm_harmonics <= 0 else np.asarray(log.motor_hz[:, sel], dtype=np.float64)
+    band = (max(mod.dyn_notch_min_hz - 2 * DYN_NOTCH_BIN_HZ, DYN_NOTCH_MIN_LIMIT_HZ), mod.dyn_notch_max_hz + 2 * DYN_NOTCH_BIN_HZ)
+    t = dyn_notch_targets(np.asarray(unfilt[0][sel], dtype=np.float64), mhz, log.fs, band, None if mhz is None else base,
+                          breaks=log.breaks(sel))
+    return tuple(float(v) for v in t.freqs)
+
+
+def _gyro_h2(f, base, mod, thr, motors, centres, peaks=()):
+    """|H|² des chaînes gyro actuelle et modifiée pour une fenêtre. `peaks` : pics prévus pour les notchs dynamiques ajoutés."""
     def h2(s):
         dyn = None
         if centres is not None:
             c = [v for v in centres if v > 0]
             if s.dyn_notch_count != base.dyn_notch_count or s.dyn_notch_min_hz != base.dyn_notch_min_hz \
                     or s.dyn_notch_max_hz != base.dyn_notch_max_hz:
-                # réglage du notch dynamique modifié : centres enregistrés ramenés dans la nouvelle plage
-                c = [min(max(v, s.dyn_notch_min_hz), s.dyn_notch_max_hz) for v in c][: s.dyn_notch_count]
-                c += dyn_notch_initial_centres(s)[len(c):]
+                # réglage du notch dynamique modifié : centres enregistrés ramenés dans la nouvelle plage, puis notchs
+                # ajoutés sur les pics prévus, sinon à leur centre initial (D-041)
+                c = complete_dyn_centres(c, s, peaks)
             dyn = c
         return np.abs(chain_response(gyro_chain(s, thr, motor_hz=motors, dyn_notch_hz=dyn), f)) ** 2
 
