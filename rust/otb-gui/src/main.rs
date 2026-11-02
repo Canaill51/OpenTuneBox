@@ -12,7 +12,11 @@ fn main() -> eframe::Result {
             if let Some(storage) = cc.storage {
                 guide.restore(storage);
             }
-            Ok(Box::new(App::with_guide(otb_gui::tools::all_pages(), guide)))
+            let mut app = App::with_guide(otb_gui::tools::all_pages(), guide);
+            if let Some(storage) = cc.storage {
+                app.restore(storage);
+            }
+            Ok(Box::new(app))
         }),
     )
 }

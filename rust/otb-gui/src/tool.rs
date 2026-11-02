@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use egui::{Color32, Ui};
+use egui::{Color32, RichText, Ui};
 use otb_log::flightlog::FlightLog;
 
 use crate::state::{AppState, Cache};
@@ -44,6 +44,9 @@ impl AppState {
     }
 }
 
+/// Message d'état quand aucun log n'est sélectionné.
+const NO_LOG: &str = "Sélectionnez au moins un log.";
+
 /// Longueur gardée d'un message d'erreur de calcul (`err[-600:]` de `ToolWindow`).
 pub const ERROR_CHARS: usize = 600;
 
@@ -60,6 +63,8 @@ pub trait Tool {
 
     /// Libellé de l'onglet.
     const TITLE: &'static str;
+    /// Bouton « Calculer » (la Configuration n'en a pas : elle se met à jour sans calcul, comme en Python).
+    const RUN_BUTTON: bool = true;
     /// Outil ouvert depuis un autre (pas de bouton dans la barre) : `OTHER_TOOLS` de `main_window.py`.
     const HIDDEN: bool = false;
     /// Bouton de la barre qui reste mis en valeur quand cet outil est affiché (par défaut, le sien).
@@ -104,6 +109,10 @@ pub trait Page {
     fn take_goto(&mut self) -> Option<&'static str> {
         None
     }
+    /// Le bouton « Exporter image » a été cliqué pendant le dernier affichage : la fenêtre exporte alors toute la page.
+    fn take_export(&mut self) -> bool {
+        false
+    }
     fn ui(&mut self, ui: &mut Ui, state: &mut AppState, theme: &Theme);
 }
 
@@ -114,6 +123,7 @@ pub struct ToolPage<T: Tool> {
     /// Message d'erreur du dernier calcul (barre d'état).
     pub status: String,
     asked: Option<(T::Options, Vec<usize>, u64)>,
+    export: bool,
 }
 
 impl<T: Tool> ToolPage<T> {
@@ -124,6 +134,7 @@ impl<T: Tool> ToolPage<T> {
             last: None,
             status: String::new(),
             asked: None,
+            export: false,
         }
     }
 
@@ -143,6 +154,16 @@ impl<T: Tool> ToolPage<T> {
         self.runner.request(ctx, move || T::compute(opts, inputs));
     }
 
+    /// Bouton « Calculer » : relance même si rien n'a changé ; sans log sélectionné, le même message que `update`.
+    fn run_now(&mut self, ctx: &egui::Context, state: &AppState) {
+        if self.tool.selected(state).is_empty() {
+            self.last = None;
+            self.status = NO_LOG.into();
+        } else {
+            self.run(ctx, state);
+        }
+    }
+
     /// Lit un résultat terminé et relance au besoin si les réglages, la sélection ou les logs ont changé.
     pub fn update(&mut self, ctx: &egui::Context, state: &AppState) {
         if let Some(res) = self.runner.poll(ctx) {
@@ -159,7 +180,7 @@ impl<T: Tool> ToolPage<T> {
             if now.1.is_empty() {
                 // comme Python : pas de calcul sans log, l'ancien résultat disparaît
                 self.last = None;
-                self.status = "Sélectionnez au moins un log.".into();
+                self.status = NO_LOG.into();
                 self.asked = Some(now);
             } else {
                 self.run(ctx, state);
@@ -189,9 +210,27 @@ impl<T: Tool> Page for ToolPage<T> {
         self.tool.take_goto()
     }
 
+    fn take_export(&mut self) -> bool {
+        std::mem::take(&mut self.export)
+    }
+
     fn ui(&mut self, ui: &mut Ui, state: &mut AppState, theme: &Theme) {
         self.update(ui.ctx(), state);
-        egui::Panel::right(T::TITLE).show(ui, |ui| self.tool.controls(ui, state, theme));
+        egui::Panel::right(T::TITLE).show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                if T::RUN_BUTTON {
+                    let calculer = egui::Button::new(RichText::new("Calculer").strong().color(theme.accent("green")));
+                    if ui.add_enabled(!self.runner.busy(), calculer).clicked() {
+                        self.run_now(ui.ctx(), state);
+                    }
+                }
+                if ui.button("Exporter image").clicked() {
+                    self.export = true;
+                }
+            });
+            ui.separator();
+            self.tool.controls(ui, state, theme);
+        });
         egui::Panel::bottom(format!("{}-statut", T::TITLE)).show(ui, |ui| {
             if self.runner.busy() {
                 ui.label("Calcul en cours…");

@@ -258,3 +258,102 @@ mod export {
         assert!(write_png(&img, &f).is_err());
     }
 }
+
+// ---- boutons « Calculer » et « Exporter image » d'un outil (6-6a) ----
+
+mod boutons {
+    use super::*;
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::{NodeT, Queryable};
+    use otb_gui::tool::Page;
+
+    static COMPTE: AtomicUsize = AtomicUsize::new(0);
+    /// Tant que le test tient ce verrou, le calcul du `Compteur` reste bloqué.
+    static BARRE: Mutex<()> = Mutex::new(());
+
+    struct Compteur;
+
+    impl Tool for Compteur {
+        type Options = ();
+        type Output = usize;
+        const TITLE: &'static str = "Compteur";
+        fn options(&self) {}
+        fn selected(&self, state: &AppState) -> Vec<usize> {
+            (0..state.logs.len()).collect()
+        }
+        fn compute(_: (), _: Vec<LogInput>) -> Result<usize, String> {
+            drop(BARRE.lock().unwrap());
+            Ok(COMPTE.fetch_add(1, Ordering::SeqCst) + 1)
+        }
+        fn controls(&mut self, _: &mut Ui, _: &AppState, _: &Theme) {}
+        fn render(&mut self, _: &mut Ui, _: &mut AppState, _: &usize, _: &Theme) {}
+    }
+
+    fn attendre(h: &mut Harness<'static, (ToolPage<Compteur>, AppState)>) {
+        let debut = Instant::now();
+        while h.state().0.busy() {
+            h.step();
+            assert!(debut.elapsed() < Duration::from_secs(10), "calcul jamais terminé");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        h.step();
+    }
+
+    #[test]
+    fn calculer_relance_meme_sans_changement_et_se_grise_pendant_le_calcul() {
+        let mut state = AppState::new();
+        state.add(synthetic_log("a", 100, 1000.0));
+        let mut h = Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
+            |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+            (ToolPage::new(Compteur), state),
+        );
+        h.step(); // le premier calcul part tout seul
+        attendre(&mut h);
+        assert_eq!(COMPTE.load(Ordering::SeqCst), 1);
+        h.step();
+        assert_eq!(COMPTE.load(Ordering::SeqCst), 1, "rien n'a changé : pas de recalcul");
+
+        // le clic relance avec les mêmes réglages
+        h.get_by_label("Calculer").click();
+        h.step();
+        attendre(&mut h);
+        assert_eq!(COMPTE.load(Ordering::SeqCst), 2);
+        assert_eq!(h.state().0.result(), Some(&2));
+
+        // pendant un calcul, le bouton est grisé
+        {
+            let _barre = BARRE.lock().unwrap();
+            h.get_by_label("Calculer").click();
+            h.step();
+            assert!(h.state().0.busy());
+            h.step();
+            assert!(h.get_by_label("Calculer").accesskit_node().is_disabled());
+        }
+        attendre(&mut h);
+        assert_eq!(COMPTE.load(Ordering::SeqCst), 3);
+        assert!(!h.get_by_label("Calculer").accesskit_node().is_disabled());
+
+        // sans log sélectionné : le message de l'état, comme au recalcul automatique
+        h.state_mut().1.clear();
+        h.step();
+        h.get_by_label("Calculer").click();
+        h.step();
+        assert_eq!(h.state().0.status, "Sélectionnez au moins un log.");
+        assert_eq!(h.state().0.result(), None);
+        assert_eq!(COMPTE.load(Ordering::SeqCst), 3, "aucun calcul sans log");
+    }
+
+    #[test]
+    fn exporter_image_demande_la_page_entiere_une_seule_fois() {
+        let mut h = Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
+            |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+            (ToolPage::new(Compteur), AppState::new()),
+        );
+        h.step();
+        assert!(!h.state_mut().0.take_export());
+        h.get_by_label("Exporter image").click();
+        h.step();
+        assert!(h.state_mut().0.take_export(), "demande notée");
+        assert!(!h.state_mut().0.take_export(), "lue une seule fois");
+    }
+}

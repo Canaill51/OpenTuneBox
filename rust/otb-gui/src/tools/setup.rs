@@ -429,6 +429,7 @@ impl Tool for SetupTool {
     type Options = ();
     type Output = SetupOutput;
     const TITLE: &'static str = "Configuration";
+    const RUN_BUTTON: bool = false;
     const HIDDEN: bool = true;
     /// S'ouvre depuis le visualiseur : son bouton, « Courbes », reste mis en valeur (`OTHER_TOOLS["setup"]`).
     const TAB: Option<&'static str> = Some("Courbes");
