@@ -238,3 +238,40 @@ fn le_dossier_retenu_sert_au_nom_propose_suivant() {
     drop(noms);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Stockage d'eframe en mémoire.
+#[derive(Default)]
+struct Memoire(std::collections::HashMap<String, String>);
+
+impl eframe::Storage for Memoire {
+    fn get_string(&self, key: &str) -> Option<String> {
+        self.0.get(key).cloned()
+    }
+    fn set_string(&mut self, key: &str, value: String) {
+        self.0.insert(key.into(), value);
+    }
+    fn remove_string(&mut self, key: &str) {
+        self.0.remove(key);
+    }
+    fn flush(&mut self) {}
+}
+
+#[test]
+fn le_dossier_d_export_survit_entre_deux_lancements() {
+    use eframe::App as _;
+    let mut a = App::new(Vec::new());
+    a.export_dir = Some(PathBuf::from("/un/dossier"));
+    let mut stockage = Memoire::default();
+    a.save(&mut stockage);
+    let mut b = App::new(Vec::new());
+    b.restore(&stockage);
+    assert_eq!(b.export_dir, Some(PathBuf::from("/un/dossier")));
+    // jamais exporté : rien n'est retenu, et un stockage vide ne casse rien
+    let mut vide = Memoire::default();
+    App::new(Vec::new()).save(&mut vide);
+    let mut c = App::new(Vec::new());
+    c.restore(&vide);
+    assert_eq!(c.export_dir, None);
+    c.restore(&Memoire::default());
+    assert_eq!(c.export_dir, None);
+}

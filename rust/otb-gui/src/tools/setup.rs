@@ -527,7 +527,7 @@ impl Tool for SetupTool {
                             let title = RichText::new(safe_text(&g.title)).strong().color(theme.fg);
                             let b =
                                 egui::Button::image_and_text(icon(chevron, 14.0).tint(theme.fg), title).frame(false);
-                            if ui.add_sized(ui.available_size(), b).clicked() {
+                            if ui.add(b).clicked() {
                                 toggled = Some(g.title.clone());
                             }
                         });

@@ -1513,3 +1513,15 @@ fn les_lignes_montrees_d_un_groupe_replie_sont_vides() {
     toggle_group(&mut repliés, "Général");
     assert_eq!(shown_rows(&g, &repliés).len(), 1);
 }
+
+#[test]
+fn la_configuration_n_a_pas_de_bouton_calculer_mais_a_l_export() {
+    let mut h = banc_config(CLAIR, true);
+    h.run();
+    assert!(
+        h.query_by_label("Calculer").is_none(),
+        "elle se met à jour sans calcul, comme en Python"
+    );
+    h.get_by_label("Exporter image");
+    assert!(h.query_by_label("Tout voir").is_none(), "pas de graphique à zoomer");
+}
