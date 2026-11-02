@@ -63,6 +63,8 @@ pub const MOTOR_HZ_DEFAULT: i64 = 200;
 /// Spectres enregistrés et « et si » (dB, échelle PIDtoolbox) d'un log.
 #[derive(Debug, Clone)]
 pub struct FilterSimResult {
+    /// Identifiant du log calculé (`LoadedLog::uid`, L-072), mis par l'outil ; `simulate_filters` laisse 0.
+    pub log_id: u64,
     pub fs: f64,
     pub base: Settings,
     pub modf: Settings,
@@ -159,6 +161,7 @@ pub fn simulate_filters(
         spectra.get_mut("d_pf").unwrap()[ax] = Some(psd(pf)?);
     }
     Ok(FilterSimResult {
+        log_id: 0,
         fs,
         base: base.clone(),
         modf: modf.clone(),

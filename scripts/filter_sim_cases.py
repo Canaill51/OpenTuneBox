@@ -35,6 +35,15 @@ ROOT = Path(__file__).resolve().parent.parent
 LOG = ROOT / "tests/data/jeno5_5s.bbl"
 DEFAULT_OUT = ROOT / "rust/otb-gui/tests/data/filter_sim.json"
 
+# réglages du log d'essai : filtre RPM 3 harmoniques, Q 700, poids 100 / 50 / 70 ; notch dynamique 2 notchs, Q 400, 100 à 600 Hz
+ONE_AT_A_TIME = {
+    "rpm_q_300": {"rpm_q": 300}, "rpm_q_1000": {"rpm_q": 1000},
+    "rpm_w0_0": {"rpm_w0": 0}, "rpm_w1_100": {"rpm_w1": 100}, "rpm_w2_0": {"rpm_w2": 0},
+    "rpm_harm_1": {"rpm_harm": 1},
+    "dyn_q_250": {"dyn_q": 250}, "dyn_q_1000": {"dyn_q": 1000},
+    "dyn_count_1": {"dyn_count": 1}, "dyn_count_3": {"dyn_count": 3},
+}
+
 ED_KEYS = ["g1_type", "g1_mode", "g1_static", "g1_min", "g1_max", "g1_expo", "g2_type", "g2_hz", "n1_hz", "n1_cut", "n2_hz",
            "n2_cut", "d1_type", "d1_mode", "d1_static", "d1_min", "d1_max", "d1_expo", "d2_type", "d2_hz", "dn_hz", "dn_cut",
            "dyn_count", "dyn_q", "dyn_min", "dyn_max", "rpm_harm", "rpm_q", "rpm_min", "rpm_w0", "rpm_w1", "rpm_w2"]
@@ -235,10 +244,16 @@ def case_sim(state, win):
     mods["combo"] = edited(g1_mode=2, g1_min=100, g1_max=300, g1_expo=3, d1_mode=1, d1_static=120, dyn_count=4, dyn_q=250,
                            dyn_min=120, dyn_max=500, rpm_w2=0, n1_hz=300, n1_cut=150)
     mods["off"] = edited(g1_mode=0, g2_hz=0, d1_mode=0, d2_hz=0, dn_hz=0, dyn_count=0, rpm_harm=0)
+    # un seul réglage du filtre RPM ou du notch dynamique à la fois (Q, poids de chaque harmonique, nombre d'harmoniques, nombre
+    # de notchs) : demande de Cédric du 2026-11-02 (creux de la simulation avec 3 notchs dynamiques)
+    for name, ed in ONE_AT_A_TIME.items():
+        mods[name] = edited(**ed)
     sel = entry.sel
     out = {"label": entry.label, "sel": [sel.start, sel.stop], "base": enc_filters(base),
            "mods": {k: enc_filters(m) for k, m in mods.items()}, "results": [], "bode": []}
-    for name, with_cur in (("same", True), ("g2_250", True), ("combo", True), ("same", False), ("off", True)):
+    runs = [("same", True), ("g2_250", True), ("combo", True), ("same", False), ("off", True)]
+    runs += [(name, False) for name in ONE_AT_A_TIME]
+    for name, with_cur in runs:
         res = filter_sim.simulate_filters(entry, mods[name], with_cur)
         out["results"].append({"mod": name, "with_current": with_cur, **enc_result(res)})
     for thr, mhz, dyn in ((50, 200, False), (80, 350, True), (20, 150, False)):
@@ -247,7 +262,7 @@ def case_sim(state, win):
         win.bode_dyn.setChecked(dyn)
         nyq = base.pid_rate_hz / 2
         f = np.geomspace(1.0, nyq * 0.999, 900)
-        for name in ("g2_250", "combo", "off"):
+        for name in ("g2_250", "combo", "off", *ONE_AT_A_TIME):
             chains = {"cur": win._chains(base), "mod": win._chains(mods[name])}
             item = {"mod": name, "thr": thr, "motor_hz": mhz, "dyn": dyn, "freqs": ref(f), "curves": {}, "delays": [],
                     "dyn_cutoffs": []}

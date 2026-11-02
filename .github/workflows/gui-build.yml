@@ -1,0 +1,33 @@
+# Interface Rust (egui) à essayer à la main : compile `opentunebox-gui` pour Windows et Linux et l'envoie en artefact (1 jour).
+# Se lance à la demande, et une fois sur toute demande de fusion qui modifie ce fichier.
+name: Interface Rust
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: [".github/workflows/gui-build.yml"]
+
+jobs:
+  gui:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            exe: opentunebox-gui.exe
+          - os: ubuntu-latest
+            exe: opentunebox-gui
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Compilation
+        working-directory: rust
+        run: cargo build --release -p otb-gui
+      # Fichier envoyé tel quel (droits d'exécution conservés sous Linux).
+      - uses: actions/upload-artifact@v7
+        with:
+          path: rust/target/release/${{ matrix.exe }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 1

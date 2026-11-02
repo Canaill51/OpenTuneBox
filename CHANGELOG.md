@@ -10,6 +10,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Les lissages, la fenêtre de Hann et l'intercorrélation ne passent plus par scipy mais par `analysis/_numeric.py` (numpy seul, écart à scipy ≈ 1e-14 relatif) ; les 4 noyaux numba des filtres Betaflight sont réécrits en Rust (`rust/otb-dsp`, identiques à numba au bit près, sauf la réponse en fréquence : 1e-15 relatif). scipy, numba et llvmlite (≈ 350 Mo installés) ne sont plus nécessaires à l'application (dossier de l'exécutable Linux : 206 Mo au lieu de 463 Mo) : ils passent dans l'extra `dev`, comme références des tests (D-032).
 
 ### Corrigé
+- Interface Rust : les onglets de la barre du haut ont de nouveau leurs icônes colorées (comme dans la version Python) ; la fenêtre Linux porte l'identifiant `OpenTuneBox` (L-076).
+- Simulateur de filtres (interface Rust) : pendant le calcul d'un nouveau log, les spectres de l'ancien ne sont plus affichés.
+- Interface Rust sous Windows : plus de fenêtre de console à l'ouverture, et l'icône d'OpenTuneBox sur l'exécutable et sur la fenêtre.
 - CI Ubuntu à court de disque avec les tests de l'interface egui (`No space left on device`) : les infos de débogage du profil `dev` Rust sont réduites aux tables de lignes (binaires de test de 490 à 186 Mo, 6,7 Go pour toute la séquence) ; L-069.
 - L'assistant ne plante plus sur une session de 0,1 à 0,2 s (reste d'enregistrement après un rebranchement de la batterie) : trop
   courte pour avoir une fréquence entre 80 Hz et la limite des filtres, elle faisait échouer toute l'analyse (`ValueError: a cannot be
@@ -43,7 +46,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - `golden.py record-modules` et `check-modules` : références par module (entrées et sorties de chaque fonction publique de `analysis/` et `log/`, fichiers npz) pour le comparateur Rust (D-035).
 - `PidTerms` déplacé de `analysis/loop.py` vers `log/pid_terms.py` (réexporté par `loop.py`, comportement inchangé) : prépare le noyau Rust autonome (D-035).
 - `rust/otb-format` : formats de nombres de Python reproduits en Rust (`{:.2f}`, `%g`, `repr`, `round`), identiques sur 12 M de cas ; générateur `scripts/format_cases.py` (D-035, L-044).
-- Prototype d'interface egui (`rust/otb-spike-egui`, jetable, hors CI) sur un vrai log : verdict de l'étape E1 de la migration, aucun point bloquant (D-035, L-043).
+- Prototype d'interface egui (`rust/otb-spike-egui`, jetable, hors CI, supprimé ensuite) sur un vrai log : verdict de l'étape E1 de la migration, aucun point bloquant (D-035, L-043).
 - Boucles par fenêtre de l'analyse du bruit moteur (hauteur des harmoniques, spectres sans les raies moteur, réponse du filtre RPM) en Rust (`rust/otb-analysis`) : l'assistant est 1,29 fois plus rapide à un fil (666 → 515 ms par session), avec exactement les mêmes constats sur les 630 sessions du corpus (D-034, L-041, L-042).
 - Ouverture d'un log : le rejet des trames impossibles et les conversions en float32 sont faits en une seule passe en Rust (`rust/otb-log`) ; un fichier de 34 Mo s'ouvre 1,6 fois plus vite (838 → ≈ 530 ms) et garde 10 % de mémoire en moins, avec un `FlightLog` identique au bit près (D-034).
 - Réponse indicielle (`step_response`) : fenêtrage, FFT, déconvolution et contrôle qualité en un noyau Rust parallèle (`rust/otb-dsp/src/step.rs`), résultat identique quel que soit le nombre de fils ; 1,7× plus rapide à un fil, 4,9× avec tous les cœurs ; l'assistant complet gagne 1,2× à 1,4× (D-033).

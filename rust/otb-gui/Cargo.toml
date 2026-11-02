@@ -12,6 +12,9 @@ name = "otb_gui"
 name = "opentunebox-gui"
 path = "src/main.rs"
 
+[build-dependencies]
+winresource = "0.1"
+
 [dependencies]
 otb-advisor = { path = "../otb-advisor" }
 otb-analysis = { path = "../otb-analysis" }

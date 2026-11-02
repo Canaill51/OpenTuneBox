@@ -43,6 +43,31 @@ pub enum Screen {
     Tool(usize),
 }
 
+/// Bouton d'onglet de la barre du haut : icône colorée (si l'onglet en a une) puis le titre.
+fn tab_button<'a>(title: &'a str, on: bool, theme: &Theme) -> egui::Button<'a> {
+    match tab_icon(title) {
+        Some((name, color)) => {
+            let tint = color.map_or(theme.ui.text, |c| theme.accent(c));
+            egui::Button::image_and_text(icon(name, 16.0).tint(tint), title).selected(on)
+        }
+        None => egui::Button::new(title).selected(on),
+    }
+}
+
+/// Icône et couleur d'accent de l'onglet de la barre du haut, comme `TOOLS` de `gui/main_window.py` (`None` : pas d'onglet à lui,
+/// il s'ouvre depuis un autre bouton ; couleur `None` : celle du texte).
+pub fn tab_icon(title: &str) -> Option<(&'static str, Option<&'static str>)> {
+    match title {
+        "Courbes" => Some(("activity", None)),
+        "Analyse spectrale" => Some(("audio-waveform", Some("blue"))),
+        "Réponse indicielle" => Some(("chart-line", Some("green"))),
+        "Curseurs PID" => Some(("sliders-horizontal", Some("pink"))),
+        "Simulateur de filtres" => Some(("funnel", Some("teal"))),
+        "Assistant" => Some(("lightbulb", Some("orange"))),
+        _ => None,
+    }
+}
+
 pub struct App {
     pub state: AppState,
     pub pages: Vec<Box<dyn Page>>,
@@ -291,12 +316,12 @@ impl App {
                     _ => None,
                 };
                 let courbes = self.screen == Screen::Viewer || shown == Some("Courbes");
-                if ui.selectable_label(courbes, "Courbes").clicked() {
+                if ui.add(tab_button("Courbes", courbes, &theme)).clicked() {
                     self.screen = Screen::Viewer;
                 }
                 for (i, p) in self.pages.iter().enumerate().filter(|(_, p)| !p.hidden()) {
                     let on = self.screen == Screen::Tool(i) || shown == Some(p.title());
-                    if ui.selectable_label(on, p.title()).clicked() {
+                    if ui.add(tab_button(p.title(), on, &theme)).clicked() {
                         self.screen = Screen::Tool(i);
                     }
                 }

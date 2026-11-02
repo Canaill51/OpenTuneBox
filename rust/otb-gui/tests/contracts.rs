@@ -217,3 +217,28 @@ fn la_fenetre_se_dessine_dans_les_deux_themes_sans_log() {
         h.get_by_label("Régler son drone avec OpenTuneBox"); // l'accueil du guide est affiché
     }
 }
+
+#[test]
+fn chaque_onglet_de_la_barre_a_son_icone_et_sa_couleur_comme_python() {
+    use otb_gui::app::tab_icon;
+    // `gui/main_window.py:TOOLS` : (titre Rust, icône, couleur) ; « Courbes » = le visualiseur, sans couleur
+    for (titre, icone, couleur) in [
+        ("Courbes", "activity", None),
+        ("Analyse spectrale", "audio-waveform", Some("blue")),
+        ("Réponse indicielle", "chart-line", Some("green")),
+        ("Curseurs PID", "sliders-horizontal", Some("pink")),
+        ("Simulateur de filtres", "funnel", Some("teal")),
+        ("Assistant", "lightbulb", Some("orange")),
+    ] {
+        assert_eq!(tab_icon(titre), Some((icone, couleur)), "{titre}");
+        assert!(source(icone).is_some(), "icône {icone} absente");
+        if let Some(c) = couleur {
+            assert!(otb_gui::theme::ACCENTS.iter().any(|(n, ..)| *n == c), "accent {c}");
+        }
+    }
+    assert_eq!(
+        tab_icon("Configuration"),
+        None,
+        "page ouverte depuis un autre bouton : pas d'onglet à elle"
+    );
+}
