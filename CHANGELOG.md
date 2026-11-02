@@ -9,6 +9,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Lint par `ruff check` (règles de pyflakes, mêmes contrôles) à la place de `pyflakes`, en local et en CI (D-030).
 
 ### Corrigé
+- Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log ne creusent plus à des fréquences fixes sans raie (centres initiaux du
+  firmware) ; ils sont placés sur les pics du gyro non filtré, sinon à leur centre initial. Mesuré sur 383 sessions de 64 drones : 45 % des positions
+  réelles retrouvées contre 28 % (D-041).
 - L'assistant ne plante plus sur une session de 0,1 à 0,2 s (reste d'enregistrement après un rebranchement de la batterie) : trop
   courte pour avoir une fréquence entre 80 Hz et la limite des filtres, elle faisait échouer toute l'analyse (`ValueError: a cannot be
   empty`, vu sur 2 logs du corpus). La prévision des filtres est alors absente, donc aucun des deux conseils qui en dépendent (LPF1 du gyro

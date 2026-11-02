@@ -207,6 +207,59 @@ def test_whatif_spectrum_follows_filter_change():
     assert np.allclose((w.modified_db - w.current_db)[band], expected[band], atol=0.1)
 
 
+# ---------------------------------------------------------------- notchs dynamiques ajoutés (D-041)
+
+
+def test_complete_dyn_centres_places_added_notches_on_the_highest_peaks():
+    """Notchs ajoutés : les pics les plus hauts hors voisinage (± 1,5 case de 18,5 Hz) d'un centre déjà pris, dans la plage ;
+    sans pic, le centre initial du firmware. Centres déjà enregistrés d'abord, ramenés dans la plage."""
+    s = _settings(dyn_notch_count="3", dyn_notch_min_hz="100", dyn_notch_max_hz="600")
+    init = bf.dyn_notch_initial_centres(s)  # 183,3 ; 350 ; 516,7
+    assert bf.complete_dyn_centres([200.0], s, [407.0]) == [200.0, 407.0, init[2]]
+    assert bf.complete_dyn_centres([200.0], s, [210.0, 407.0]) == [200.0, 407.0, init[2]]  # 210 : à moins de 27,75 Hz de 200
+    assert bf.complete_dyn_centres([200.0], s, [650.0, 90.0, 407.0]) == [200.0, 407.0, init[2]]  # hors plage
+    assert bf.complete_dyn_centres([200.0], s, [300.0, 407.0, 480.0]) == [200.0, 300.0, 407.0]  # les plus hauts d'abord
+    assert bf.complete_dyn_centres([200.0], s, []) == [200.0, init[1], init[2]]  # sans pic : comportement du firmware
+    assert bf.complete_dyn_centres([50.0], s, [407.0]) == [100.0, 407.0, init[2]]  # centre enregistré ramené dans la plage
+    assert bf.complete_dyn_centres([200.0, 300.0, 400.0], _settings(dyn_notch_count="2"), [500.0]) == [200.0, 300.0]
+
+
+def _log_with_one_recorded_notch(line_hz=400.0, n=20000, fs=2000.0):
+    """Log sans corpus : un seul notch dynamique enregistré (centre 200 Hz, debug FFT_FREQ 2025.12), gyro non filtré avec une raie."""
+    from types import SimpleNamespace
+
+    rng = np.random.default_rng(3)
+    t = np.arange(n) / fs
+    unfilt = np.vstack([rng.normal(0, 1, n) + 3.0 * np.sin(2 * np.pi * line_hz * t) for _ in range(3)])
+    s = _settings(rpm_filter_weights="100,100,100", dyn_notch_count="1", debug_mode="16")
+    return SimpleNamespace(fs=fs, n=n, breaks=lambda sel: np.zeros(0, dtype=int), throttle=np.full(n, 50.0),
+                           motor_hz=np.full((4, n), 90.0), debug=np.vstack([np.zeros(n), np.full(n, 200.0)]),
+                           gyro_unfilt=unfilt, settings=s), unfilt[0]
+
+
+def test_whatif_added_dyn_notch_lands_on_the_peak_not_on_the_initial_centre():
+    """1 notch enregistré (200 Hz) monté à 3, raie à 400 Hz : le creux le plus profond entre 300 et 450 Hz est sur la raie, et non
+    à 350 Hz (centre initial, creux sans raie du modèle précédent)."""
+    log, x = _log_with_one_recorded_notch()
+    mod = _settings(rpm_filter_weights="100,100,100", dyn_notch_count="3", debug_mode="16")
+    w = bf.whatif_spectrum(x, None, log, slice(None), log.settings, mod)
+    diff = w.modified_db - w.current_db
+    zone = (w.freqs >= 300) & (w.freqs <= 450)
+    deepest = float(w.freqs[zone][np.argmin(diff[zone])])
+    assert abs(deepest - 400.0) <= 20.0, deepest
+
+
+def test_whatif_without_unfiltered_gyro_keeps_the_initial_centres():
+    """Sans gyro non filtré, aucun pic à prévoir : les notchs ajoutés restent aux centres initiaux (comme avant D-041)."""
+    log, x = _log_with_one_recorded_notch()
+    log.gyro_unfilt = None
+    mod = _settings(rpm_filter_weights="100,100,100", dyn_notch_count="3", debug_mode="16")
+    w = bf.whatif_spectrum(x, None, log, slice(None), log.settings, mod)
+    diff = w.modified_db - w.current_db
+    zone = (w.freqs >= 300) & (w.freqs <= 450)
+    assert abs(float(w.freqs[zone][np.argmin(diff[zone])]) - 350.0) <= 10.0
+
+
 # ---------------------------------------------------------------- simulation temporelle (sans corpus)
 
 
