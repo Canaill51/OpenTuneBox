@@ -60,6 +60,13 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-076 : l'icône donnée à la fenêtre ne s'affiche pas sous Linux Wayland
+- **Symptôme** — 2026-11-02 (6-6b) : l'exécutable Linux de la CI, lancé sous Wayland, montre une autre icône que celle d'OpenTuneBox dans la barre de titre et la barre des tâches, alors que `ViewportBuilder::with_icon` était réglé.
+- **Cause (vérifiée)** — dans winit 0.30.13, `set_window_icon` est **vide** sous Wayland (`platform_impl/linux/wayland/window/mod.rs`) : l'icône du programme n'est jamais envoyée. Sous Wayland, le bureau cherche l'icône d'après l'`app_id` de la fenêtre dans un fichier `.desktop` installé. Un exécutable lancé seul n'en a pas. L'origine précise de l'icône affichée à la place n'a pas été identifiée.
+- **Règle** — donner un `app_id` à la fenêtre (`OpenTuneBox`, le `StartupWMClass` des fichiers `.desktop` de `packaging/linux/`), et fournir l'icône par le fichier `.desktop` (AppImage, installateur) ; `with_icon` ne sert que sous X11 et Windows.
+- **Non vérifié** — l'effet de `with_app_id("OpenTuneBox")` sur le bureau de Cédric, et le comportement sous X11 ; à essayer avec un `.desktop` pointant vers l'exécutable.
+- **Preuve** — source de winit citée ci-dessus ; la capture d'écran de Cédric (2026-11-02).
+
 ### L-075 : un test qui peut ouvrir une vraie fenêtre du système l'ouvre, et elle ne se ferme plus
 - **Symptôme** — 2026-11-02 (6-6a) : pendant une série de mutations, des dizaines de fenêtres « Exporter l'image » se sont ouvertes sur le bureau de Cédric, sans moyen de les fermer ; les tests restaient bloqués.
 - **Cause** — la mutation « export de page inversé » faisait demander une capture à chaque image ; les bancs de test construits par `App::new(...)` qui n'avaient pas remplacé la boîte d'enregistrement ouvraient alors la **vraie** boîte du système (`rfd`, par le portail KDE), qui attend un humain pendant que le test attend la boîte. Un défaut du code, ou une mutation, suffit à transformer un test en ouverture de fenêtres.
@@ -853,6 +860,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-076 | Icône de fenêtre egui sans effet sous Linux Wayland : winit ignore `with_icon` ; le bureau cherche l'icône par `app_id` dans un fichier .desktop | Interface |
 | L-075 | Test qui peut ouvrir une vraie boîte de dialogue du système : elle bloque le test et ne se ferme plus ; boîte remplaçable, inerte dans `App::new`, mutations sans écran ni bus de session ; rendu de test sans carte graphique | Tests |
 | L-074 | Fonction paramétrée par un système (`os`) : appliquer les règles de ce système, pas celles de l'hôte (`Path::is_absolute` sous Windows refuse `/data`) ; test vu échouer seulement sur la CI Windows | Tests |
 | L-073 | Panneau egui redimensionnable : sans contenu au premier cadre il se réduit à ce contenu et garde cette taille ; `ScrollArea` qui remplit dans toutes les branches, test qui part de l'état vide | Interface |
