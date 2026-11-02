@@ -150,3 +150,111 @@ fn un_message_d_erreur_trop_long_garde_ses_600_derniers_caracteres() {
     let juste = "y".repeat(ERROR_CHARS);
     assert_eq!(error_status(&juste), format!("Erreur de calcul : {juste}"));
 }
+
+// ---- export.rs : fonctions pures de l'export PNG (6-6a) ----
+
+mod export {
+    use egui::{Color32, ColorImage, Pos2, Rect};
+    use otb_gui::export::{civil_from_days, crop, default_export_path, with_png_extension, write_png};
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn dates_civiles_connues() {
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        assert_eq!(civil_from_days(59), (1970, 3, 1));
+        assert_eq!(civil_from_days(11_016), (2000, 2, 29)); // année bissextile
+        assert_eq!(civil_from_days(20_394), (2025, 11, 2));
+        assert_eq!(civil_from_days(-1), (1969, 12, 31));
+    }
+
+    #[test]
+    fn nom_par_defaut_premier_numero_libre() {
+        let dir = Path::new("/d");
+        let jour = (2026, 11, 2);
+        let libre = default_export_path(dir, jour, &|_| false);
+        assert_eq!(libre, PathBuf::from("/d/OTB_FIGS_2026-11-02-1.png"));
+        let pris: Vec<PathBuf> = ["1", "2", "4"]
+            .iter()
+            .map(|n| PathBuf::from(format!("/d/OTB_FIGS_2026-11-02-{n}.png")))
+            .collect();
+        let p = default_export_path(dir, jour, &|f| pris.iter().any(|x| x == f));
+        assert_eq!(p, PathBuf::from("/d/OTB_FIGS_2026-11-02-3.png"));
+    }
+
+    #[test]
+    fn mois_et_jour_sur_deux_chiffres() {
+        let p = default_export_path(Path::new("/d"), (2026, 1, 5), &|_| false);
+        assert_eq!(p, PathBuf::from("/d/OTB_FIGS_2026-01-05-1.png"));
+    }
+
+    #[test]
+    fn extension_png_ajoutee_seulement_si_absente() {
+        assert_eq!(with_png_extension("/d/a".into()), PathBuf::from("/d/a.png"));
+        assert_eq!(with_png_extension("/d/a.png".into()), PathBuf::from("/d/a.png"));
+        assert_eq!(with_png_extension("/d/a.PNG".into()), PathBuf::from("/d/a.PNG"));
+        assert_eq!(with_png_extension("/d/a.v2".into()), PathBuf::from("/d/a.v2.png"));
+    }
+
+    fn degrade(w: usize, h: usize) -> ColorImage {
+        let mut img = ColorImage::filled([w, h], Color32::BLACK);
+        for y in 0..h {
+            for x in 0..w {
+                img.pixels[y * w + x] = Color32::from_rgb(x as u8, y as u8, 7);
+            }
+        }
+        img
+    }
+
+    fn rect(x0: f32, y0: f32, x1: f32, y1: f32) -> Rect {
+        Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1))
+    }
+
+    #[test]
+    fn recadrage_en_points_avec_echelle() {
+        let img = degrade(40, 20);
+        // 2 pixels par point : le rectangle (5,2)-(15,8) devient (10,4)-(30,16) en pixels
+        let c = crop(&img, rect(5.0, 2.0, 15.0, 8.0), 2.0).unwrap();
+        assert_eq!(c.size, [20, 12]);
+        assert_eq!(c.pixels[0], Color32::from_rgb(10, 4, 7));
+        assert_eq!(c.pixels[c.size[0] * c.size[1] - 1], Color32::from_rgb(29, 15, 7));
+    }
+
+    #[test]
+    fn recadrage_borne_a_l_image() {
+        let img = degrade(40, 20);
+        let c = crop(&img, rect(-5.0, -5.0, 1000.0, 1000.0), 1.0).unwrap();
+        assert_eq!(c.size, [40, 20]);
+        let c = crop(&img, rect(30.0, 10.0, 100.0, 100.0), 1.0).unwrap();
+        assert_eq!(c.size, [10, 10]);
+    }
+
+    #[test]
+    fn recadrage_vide_ou_hors_image() {
+        let img = degrade(40, 20);
+        assert!(crop(&img, rect(50.0, 0.0, 60.0, 10.0), 1.0).is_none());
+        assert!(crop(&img, rect(10.0, 10.0, 10.0, 15.0), 1.0).is_none());
+        assert!(crop(&img, rect(-9.0, -9.0, -1.0, -1.0), 1.0).is_none());
+    }
+
+    #[test]
+    fn png_ecrit_puis_relu_identique() {
+        let img = degrade(13, 9);
+        let dir = std::env::temp_dir().join(format!("otb-export-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("essai.png");
+        write_png(&img, &f).unwrap();
+        let lu = image::open(&f).unwrap().to_rgba8();
+        assert_eq!((lu.width(), lu.height()), (13, 9));
+        for (i, p) in lu.pixels().enumerate() {
+            assert_eq!(p.0, img.pixels[i].to_array(), "pixel {i}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn png_dossier_inexistant_rend_une_erreur() {
+        let img = degrade(2, 2);
+        let f = std::env::temp_dir().join("otb-absent-xyz").join("sous").join("a.png");
+        assert!(write_png(&img, &f).is_err());
+    }
+}
