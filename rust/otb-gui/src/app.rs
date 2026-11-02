@@ -94,9 +94,14 @@ fn home_dir() -> PathBuf {
 }
 
 impl App {
-    /// Guide sans fichier de fiches : les bancs de test n'écrivent jamais le vrai `drones.json`.
+    /// Guide sans fichier de fiches : les bancs de test n'écrivent jamais le vrai `drones.json`. De même, la boîte
+    /// d'enregistrement répond « annulé » sans rien ouvrir : un test qui déclencherait un export par erreur ne doit pas
+    /// ouvrir une vraie fenêtre du système (elle bloque le test et se ferme mal). Seul `with_guide` (le lancement réel)
+    /// garde la boîte du système.
     pub fn new(pages: Vec<Box<dyn Page>>) -> Self {
-        Self::with_guide(pages, GuidePage::in_memory())
+        let mut app = Self::with_guide(pages, GuidePage::in_memory());
+        app.save_dialog = Box::new(|_| None);
+        app
     }
 
     pub fn with_guide(pages: Vec<Box<dyn Page>>, guide: GuidePage) -> Self {

@@ -20,12 +20,17 @@ pub fn civil_from_days(days: i64) -> (i32, u32, u32) {
     (y, m, d)
 }
 
+/// Jour civil (UTC) d'un instant donné en secondes depuis le 1er janvier 1970.
+pub fn date_from_secs(secs: i64) -> (i32, u32, u32) {
+    civil_from_days(secs.div_euclid(86_400))
+}
+
 /// Date du jour en UTC. Python prend la date locale : l'écart d'un jour est possible autour de minuit (W-038).
 pub fn today_utc() -> (i32, u32, u32) {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64);
-    civil_from_days(secs.div_euclid(86_400))
+    date_from_secs(secs)
 }
 
 /// `OTB_FIGS_AAAA-MM-JJ-N.png` dans `dir`, avec N le premier numéro libre à partir de 1.

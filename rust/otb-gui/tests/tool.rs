@@ -155,7 +155,9 @@ fn un_message_d_erreur_trop_long_garde_ses_600_derniers_caracteres() {
 
 mod export {
     use egui::{Color32, ColorImage, Pos2, Rect};
-    use otb_gui::export::{civil_from_days, crop, default_export_path, with_png_extension, write_png};
+    use otb_gui::export::{
+        civil_from_days, crop, date_from_secs, default_export_path, today_utc, with_png_extension, write_png,
+    };
     use std::path::{Path, PathBuf};
 
     #[test]
@@ -173,12 +175,31 @@ mod export {
         let jour = (2026, 11, 2);
         let libre = default_export_path(dir, jour, &|_| false);
         assert_eq!(libre, PathBuf::from("/d/OTB_FIGS_2026-11-02-1.png"));
-        let pris: Vec<PathBuf> = ["1", "2", "4"]
+        // 1, 2 et 3 pris : le premier libre est 4 (un pas de 2 sauterait de 1 à 3 puis 5)
+        let pris: Vec<PathBuf> = ["1", "2", "3"]
             .iter()
             .map(|n| PathBuf::from(format!("/d/OTB_FIGS_2026-11-02-{n}.png")))
             .collect();
         let p = default_export_path(dir, jour, &|f| pris.iter().any(|x| x == f));
-        assert_eq!(p, PathBuf::from("/d/OTB_FIGS_2026-11-02-3.png"));
+        assert_eq!(p, PathBuf::from("/d/OTB_FIGS_2026-11-02-4.png"));
+        // un trou : le premier numéro libre, pas le suivant du dernier
+        let trou = default_export_path(dir, jour, &|f| f == Path::new("/d/OTB_FIGS_2026-11-02-1.png"));
+        assert_eq!(trou, PathBuf::from("/d/OTB_FIGS_2026-11-02-2.png"));
+    }
+
+    #[test]
+    fn date_d_un_instant_en_secondes() {
+        assert_eq!(date_from_secs(0), (1970, 1, 1));
+        assert_eq!(date_from_secs(86_399), (1970, 1, 1), "dernière seconde du jour");
+        assert_eq!(date_from_secs(86_400), (1970, 1, 2), "première seconde du lendemain");
+        assert_eq!(date_from_secs(-1), (1969, 12, 31));
+        assert_eq!(date_from_secs(20_394 * 86_400 + 5), (2025, 11, 2));
+        // la date du jour est celle du système : au moins 2026, mois et jour valides
+        let (y, m, d) = today_utc();
+        assert!(
+            y >= 2026 && (1..=12).contains(&m) && (1..=31).contains(&d),
+            "{y}-{m}-{d}"
+        );
     }
 
     #[test]
@@ -217,6 +238,19 @@ mod export {
         assert_eq!(c.size, [20, 12]);
         assert_eq!(c.pixels[0], Color32::from_rgb(10, 4, 7));
         assert_eq!(c.pixels[c.size[0] * c.size[1] - 1], Color32::from_rgb(29, 15, 7));
+    }
+
+    #[test]
+    fn recadrage_arrondit_vers_l_exterieur() {
+        let img = degrade(40, 20);
+        // (5,3 ; 2,6) → (15,2 ; 8,1) : début arrondi vers le bas, fin vers le haut = pixels 5..16 et 2..9
+        let c = crop(&img, rect(5.3, 2.6, 15.2, 8.1), 1.0).unwrap();
+        assert_eq!(c.size, [11, 7]);
+        assert_eq!(c.pixels[0], Color32::from_rgb(5, 2, 7));
+        // même chose avec une échelle : (2,6 ; 1,3) → (7,6 ; 4,2) à 2 px/pt = 5,2..15,2 et 2,6..8,4
+        let c = crop(&img, rect(2.6, 1.3, 7.6, 4.2), 2.0).unwrap();
+        assert_eq!(c.size, [11, 7]);
+        assert_eq!(c.pixels[0], Color32::from_rgb(5, 2, 7));
     }
 
     #[test]

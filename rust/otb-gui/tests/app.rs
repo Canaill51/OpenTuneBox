@@ -257,6 +257,13 @@ impl eframe::Storage for Memoire {
 }
 
 #[test]
+fn app_new_n_ouvre_jamais_de_boite_d_enregistrement_du_systeme() {
+    // la boîte des tests répond « annulé » sans rien afficher (celle du système bloque le test, voir `App::new`)
+    let mut a = App::new(Vec::new());
+    assert_eq!((a.save_dialog)(std::path::Path::new("/d/a.png")), None);
+}
+
+#[test]
 fn le_dossier_d_export_survit_entre_deux_lancements() {
     use eframe::App as _;
     let mut a = App::new(Vec::new());
