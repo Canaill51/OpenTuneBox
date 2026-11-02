@@ -60,6 +60,13 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-075 : un test qui peut ouvrir une vraie fenêtre du système l'ouvre, et elle ne se ferme plus
+- **Symptôme** — 2026-11-02 (6-6a) : pendant une série de mutations, des dizaines de fenêtres « Exporter l'image » se sont ouvertes sur le bureau de Cédric, sans moyen de les fermer ; les tests restaient bloqués.
+- **Cause** — la mutation « export de page inversé » faisait demander une capture à chaque image ; les bancs de test construits par `App::new(...)` qui n'avaient pas remplacé la boîte d'enregistrement ouvraient alors la **vraie** boîte du système (`rfd`, par le portail KDE), qui attend un humain pendant que le test attend la boîte. Un défaut du code, ou une mutation, suffit à transformer un test en ouverture de fenêtres.
+- **Règle** — tout ce qui ouvre une fenêtre du système (boîte de fichiers, message…) passe par un champ remplaçable de l'application, et le constructeur des tests (`App::new`) le met d'office en « annulé » : seul le lancement réel (`App::with_guide`) garde la vraie boîte. Un script de mutations se lance **sans écran ni bus de session** (`DISPLAY`, `WAYLAND_DISPLAY`, `DBUS_SESSION_BUS_ADDRESS` retirés), avec un délai qui tue tout le groupe de processus ; on ne tue jamais un test par son motif (`pkill -f`, L-053) mais par son numéro de processus.
+- **Complément** — le rendu par défaut d'`egui_kittest` est un vrai rendu wgpu : sans carte graphique (la CI), une capture demandée par l'application n'est jamais honorée. Les tests d'export fournissent leur propre moteur de rendu (`TestRenderer` qui rend un dégradé dont chaque pixel dit où il est : ce qui prouve aussi la position du recadrage). Le `Ui` racine d'egui laisse 8 points de marge de chaque côté : le rectangle d'un panneau n'est pas celui de la fenêtre.
+- **Preuve** — `rust/otb-gui/tests/app.rs::app_new_n_ouvre_jamais_de_boite_d_enregistrement_du_systeme` et les tests d'export de ce fichier ; mutation « export de page inversé » : 27 tests échouent, aucune fenêtre ne s'ouvre.
+
 ### L-074 : un test qui simule le système A ne doit pas dépendre des règles de chemins du système qui l'exécute
 - **Symptôme** — 2026-11-02 (CI de la PR #81) : `le_chemin_est_celui_de_qt_sous_linux_et_sur_ce_poste` passait sous Ubuntu et échouait sous Windows : `XDG_DATA_HOME=/data` était ignoré, le chemin retombait sur `~/.local/share`.
 - **Cause** — `cards_path_in("linux", …)` jugeait le chemin « absolu » par `Path::is_absolute`, qui suit les règles **de la machine qui compile** : sous Windows, `/data` n'est pas absolu (il faut une lettre de lecteur). Le test simulait Linux, mais la fonction pensait en Windows.
@@ -846,6 +853,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-075 | Test qui peut ouvrir une vraie boîte de dialogue du système : elle bloque le test et ne se ferme plus ; boîte remplaçable, inerte dans `App::new`, mutations sans écran ni bus de session ; rendu de test sans carte graphique | Tests |
 | L-074 | Fonction paramétrée par un système (`os`) : appliquer les règles de ce système, pas celles de l'hôte (`Path::is_absolute` sous Windows refuse `/data`) ; test vu échouer seulement sur la CI Windows | Tests |
 | L-073 | Panneau egui redimensionnable : sans contenu au premier cadre il se réduit à ce contenu et garde cette taille ; `ScrollArea` qui remplit dans toutes les branches, test qui part de l'état vide | Interface |
 | L-072 | Reconnaître un log à l'adresse de son `Arc` : l'adresse d'un log fermé peut resservir à un autre ; identifiant croissant `LoadedLog::uid` | Interface |

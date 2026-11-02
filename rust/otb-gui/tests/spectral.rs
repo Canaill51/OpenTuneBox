@@ -325,3 +325,18 @@ fn le_bruit_moteur_compte_les_harmoniques_des_20_hz() {
     let (mean, _) = &out.files[0].noise[&("gyro", 0)];
     assert!(mean[0].is_finite(), "1re harmonique à 25 Hz ignorée : {mean:?}");
 }
+
+#[test]
+fn tous_les_jeux_de_donnees_sont_visibles_sans_ascenseur() {
+    let h = banc();
+    // la liste est suivie du bouton « Fréq. × gaz » : le dernier jeu doit être au-dessus de lui, pas replié dans un ascenseur
+    let suite = h.get_by_label("Fréq. × gaz").rect().min.y;
+    for (_, label) in otb_analysis::datasets::DATASETS {
+        let r = h.get_by_label(label).rect();
+        assert!(
+            r.max.y <= suite,
+            "« {label} » (y = {}) déborde sous la liste (y = {suite})",
+            r.max.y
+        );
+    }
+}

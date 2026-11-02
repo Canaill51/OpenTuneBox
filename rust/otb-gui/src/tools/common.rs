@@ -12,6 +12,33 @@ use crate::theme::{AXIS_NAMES, motor_color};
 
 pub const MOTOR_LABELS: [&str; 4] = ["M1/5", "M2/6", "M3/7", "M4/8"];
 
+/// Mémoire de la vue d'un graphique : les bornes ne sont remises aux valeurs des réglages que quand la clé de ces
+/// réglages change (le zoom de l'utilisateur reste sinon) ; « Tout voir » l'oublie pour les remettre au cadre suivant.
+#[derive(Clone, Debug, Default)]
+pub struct ViewMemo<K>(Option<K>);
+
+impl<K: PartialEq> ViewMemo<K> {
+    /// Les bornes doivent être (re)posées : la clé a changé, ou la vue a été oubliée.
+    pub fn is_fresh(&self, key: &K) -> bool {
+        self.0.as_ref() != Some(key)
+    }
+
+    /// Retient la clé des bornes qui viennent d'être posées.
+    pub fn remember(&mut self, key: K) {
+        self.0 = Some(key);
+    }
+
+    /// Oublie la vue : le cadre suivant repose les bornes.
+    pub fn reset(&mut self) {
+        self.0 = None;
+    }
+
+    /// Aucune vue retenue (au départ, ou après `reset`).
+    pub fn is_unset(&self) -> bool {
+        self.0.is_none()
+    }
+}
+
 /// Texte de l'assistant prêt à afficher : les polices d'egui n'ont pas « → » (un carré s'afficherait, et le banc de test
 /// panique), remplacé par « -> ». Mesuré le 2026-11-01 : « → ✔ ▲ ↑ ↓ ⚠ » absents, tous les autres caractères du texte
 /// de l'assistant présents (W-034).

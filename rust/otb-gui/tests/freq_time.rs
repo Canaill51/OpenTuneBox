@@ -224,3 +224,34 @@ fn un_log_sans_moteurs_ni_notchs_donne_des_spectrogrammes_sans_traces() {
     st.add(log);
     assert!(calcule(&FreqTimeTool::new(), &st).maps.is_empty());
 }
+
+#[test]
+fn tout_voir_remet_les_bornes_des_reglages_apres_un_zoom() {
+    use egui_kittest::kittest::Queryable;
+    /// Bornes (x min, y min, x max, y max) du premier graphique, en bits (comparaison exacte).
+    fn bornes(h: &Banc) -> [u64; 4] {
+        let b = *h.state().0.tool.transforms[0].unwrap().bounds();
+        [
+            b.min()[0].to_bits(),
+            b.min()[1].to_bits(),
+            b.max()[0].to_bits(),
+            b.max()[1].to_bits(),
+        ]
+    }
+    let mut h = banc(FreqTimeTool::new());
+    let depart = bornes(&h);
+    let centre = h.state().0.tool.transforms[0].unwrap().frame().center();
+    // zoom molette sur le graphique : les bornes changent et le zoom reste d'un cadre à l'autre
+    h.hover_at(centre);
+    h.run();
+    h.event(egui::Event::Zoom(2.0));
+    h.run_steps(3);
+    let zoome = bornes(&h);
+    assert_ne!(zoome, depart, "le zoom a bien changé les bornes");
+    h.run_steps(3);
+    assert_eq!(bornes(&h), zoome, "le zoom de l'utilisateur reste");
+    // « Tout voir » ramène les bornes des réglages
+    h.get_by_label("Tout voir").click();
+    h.run_steps(3);
+    assert_eq!(bornes(&h), depart);
+}

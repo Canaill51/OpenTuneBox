@@ -49,6 +49,15 @@ const COL_WEIGHTS: [f32; 3] = [2.0, 2.0, 3.0];
 const BODE_Y_GAIN: (f64, f64) = (-40.0, 3.0);
 const BODE_Y_PHASE: (f64, f64) = (-270.0, 10.0);
 const BODE_X_MIN_HZ: f64 = 10.0;
+/// Marge sous la borne basse des Bode (part de la hauteur) : sans elle, l'étiquette du bas de l'axe Y (« -40 ») et celle de
+/// l'axe X (« 10 ») se touchent dans le coin (W-036 (5)).
+const BODE_Y_MARGIN: f64 = 0.06;
+
+/// Bornes Y d'un diagramme de Bode (`col` 0 : gain, 1 : phase), marge sous la borne basse comprise.
+pub fn bode_y_bounds(col: usize) -> (f64, f64) {
+    let (lo, hi) = if col == 0 { BODE_Y_GAIN } else { BODE_Y_PHASE };
+    (lo - BODE_Y_MARGIN * (hi - lo), hi)
+}
 
 /// Réglages envoyés au calcul par « Appliquer », avec le log auquel ils s'appliquent.
 #[derive(Clone, Debug, PartialEq)]
@@ -270,6 +279,11 @@ struct Series {
 }
 
 impl FilterSimTool {
+    /// Aucune vue de graphique retenue (au départ, ou après « Tout voir »).
+    pub fn view_is_unset(&self) -> bool {
+        self.spectrum_view.is_none() && self.bode_view.is_none()
+    }
+
     pub fn new() -> Self {
         let editor = Editor::from_settings(&Settings::default());
         Self {
@@ -556,7 +570,7 @@ impl FilterSimTool {
             let (lines, top) = self.series(out, gyro, theme);
             ui.horizontal(|ui| {
                 for (col, name) in ["gain", "phase"].into_iter().enumerate() {
-                    let (y_lo, y_hi) = if col == 0 { BODE_Y_GAIN } else { BODE_Y_PHASE };
+                    let (y_lo, y_hi) = bode_y_bounds(col);
                     let resp = nice_axes(Plot::new(("filtres-bode", row, col)))
                         .width(w[col])
                         .height(h)
@@ -719,6 +733,12 @@ impl Tool for FilterSimTool {
     type Options = Options;
     type Output = Arc<FilterSimResult>;
     const TITLE: &'static str = "Simulateur de filtres";
+    const HAS_VIEW: bool = true;
+
+    fn reset_view(&mut self) {
+        self.spectrum_view = None;
+        self.bode_view = None;
+    }
 
     fn options(&self) -> Options {
         Options {
