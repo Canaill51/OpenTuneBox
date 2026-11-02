@@ -296,13 +296,42 @@ impl App {
         let mut export_all = false;
         egui::Panel::top("barre").show(root, |ui| {
             ui.horizontal_wrapped(|ui| {
-                let open = egui::Button::image_and_text(icon("folder-open", 16.0).tint(theme.ui.text), "Ouvrir…");
-                if ui.add(open).clicked()
+                // bouton principal : plein, couleur d'accent (comme `QToolButton#primary` de Python)
+                let on_accent = theme::plot::ON_ACCENT;
+                let open = egui::Button::image_and_text(
+                    icon("folder-open", 16.0).tint(on_accent),
+                    egui::RichText::new("Ouvrir…").color(on_accent).strong(),
+                )
+                .fill(theme.ui.highlight);
+                if ui.add(open).on_hover_text("Ouvrir des logs Blackbox").clicked()
                     && let Some(paths) = rfd::FileDialog::new()
                         .add_filter("Blackbox", &["bbl", "bfl", "BBL", "BFL", "txt", "TXT"])
                         .pick_files()
                 {
                     self.open(paths);
+                }
+                // fermer le log affiché / tous les logs (grisés sans log)
+                let any = !self.state.logs.is_empty();
+                let close = egui::Button::image(icon("x", 16.0).tint(theme.ui.text).alt_text("Fermer le log affiché"));
+                if ui
+                    .add_enabled(any, close)
+                    .on_hover_text("Fermer le log affiché")
+                    .clicked()
+                    && let Some(current) = self.state.current
+                {
+                    self.state.remove(current);
+                }
+                let close_all = egui::Button::image(
+                    icon("trash-2", 16.0)
+                        .tint(theme.ui.text)
+                        .alt_text("Fermer tous les logs"),
+                );
+                if ui
+                    .add_enabled(any, close_all)
+                    .on_hover_text("Fermer tous les logs")
+                    .clicked()
+                {
+                    self.state.clear();
                 }
                 ui.separator();
                 let guide = egui::Button::image_and_text(icon("book-open", 16.0).tint(theme.ui.text), "Guide");

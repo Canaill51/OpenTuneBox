@@ -67,7 +67,7 @@ fn un_fichier_illisible_n_empeche_pas_les_suivants() {
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 
 /// App avec les vraies pages, un log ouvert, et une boîte d'enregistrement qui rend `cible`
 /// (ou `None` : annulation) en notant le nom proposé.
@@ -429,4 +429,57 @@ fn le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi() {
         h.state().export_status
     );
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---- fermer les logs (W-039) ----
+
+/// Banc avec deux logs ouverts (le second porte le suffixe « (2) »).
+fn banc_deux_logs() -> Harness<'static, App> {
+    let mut h = banc_export(None, Rc::new(RefCell::new(Vec::new())));
+    h.state_mut().open(vec![donnees()]);
+    let debut = Instant::now();
+    while h.state().state.logs.len() < 2 {
+        h.run();
+        assert!(debut.elapsed() < Duration::from_secs(30), "ouverture jamais terminée");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    h.run();
+    h
+}
+
+#[test]
+fn fermer_retire_le_log_affiche_puis_le_suivant() {
+    let mut h = banc_deux_logs();
+    let deuxieme = h.state().state.logs[1].label.clone();
+    assert_eq!(h.state().state.current, Some(1), "le dernier log ouvert est affiché");
+    h.get_by_label("Fermer le log affiché").click();
+    h.run();
+    let a = h.state();
+    assert_eq!(a.state.logs.len(), 1);
+    assert_ne!(
+        a.state.logs[0].label, deuxieme,
+        "c'est le log affiché qui part, pas le premier"
+    );
+    assert_eq!(a.state.current, Some(0));
+    h.get_by_label("Fermer le log affiché").click();
+    h.run();
+    assert!(h.state().state.logs.is_empty());
+    assert_eq!(h.state().state.current, None);
+}
+
+#[test]
+fn tout_fermer_vide_la_liste() {
+    let mut h = banc_deux_logs();
+    h.get_by_label("Fermer tous les logs").click();
+    h.run();
+    assert!(h.state().state.logs.is_empty());
+    assert_eq!(h.state().state.current, None);
+}
+
+#[test]
+fn sans_log_les_boutons_de_fermeture_ne_font_rien() {
+    let mut h = banc(App::new(Vec::new()));
+    h.run();
+    assert!(h.get_by_label("Fermer le log affiché").accesskit_node().is_disabled());
+    assert!(h.get_by_label("Fermer tous les logs").accesskit_node().is_disabled());
 }
