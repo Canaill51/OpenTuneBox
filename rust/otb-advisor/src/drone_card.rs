@@ -3,9 +3,10 @@
 //! La lecture et l'écriture du fichier des fiches ne sont pas ici (elles étaient dans `gui/guide.py`). Les valeurs conseillées
 //! viennent des mêmes fonctions que l'assistant (`rules::log_rate_needed`, `rules::pid_log_rate_needed`, profils de taille).
 
-use crate::profiles::{is_space, profile};
+use crate::profiles::{detect_profile, is_space, profile};
 use crate::rules::{log_rate_needed, pid_log_rate_needed, sample_rate_cli};
 use otb_format::round_digits;
+use otb_log::flightlog::FlightLog;
 use serde_json::{Map, Value, json};
 
 /// Choix proposés dans la fiche : (valeur enregistrée, libellé).
@@ -79,6 +80,9 @@ pub struct DroneCard {
     pub size: String,
     /// Fréquence de la boucle PID (onglet Configuration).
     pub pid_khz: f64,
+    /// La valeur lue dans le fichier était un entier (`4`) : on la réécrit telle quelle, comme Python (qui écrit ce qu'il a lu).
+    /// Une fiche faite par la fenêtre de saisie garde un flottant (`4.0`), comme `float(...)` de `CardDialog.card`.
+    pub pid_khz_int: bool,
     pub esc: String,
     /// Cases cochées à la main (dans l'ordre du fichier, comme le dictionnaire de Python).
     pub done: Vec<(String, bool)>,
@@ -92,55 +96,57 @@ impl DroneCard {
             bf: "4.5".to_string(),
             size: "five".to_string(),
             pid_khz: 4.0,
+            pid_khz_int: false,
             esc: "BLHeli_32".to_string(),
             done: Vec::new(),
         }
     }
 
-    /// `to_dict` de Python (`asdict`). `pid_khz` s'écrit toujours en flottant (4.0) : Python écrit ce qu'il a lu (`4` si le fichier
-    /// disait `4`), seule différence connue (les choix de la fiche sont des flottants).
+    /// `to_dict` de Python (`asdict`). `pid_khz` s'écrit en entier (`4`) seulement s'il a été lu ainsi (`pid_khz_int`), sinon en
+    /// flottant (`4.0`) : Python écrit ce qu'il a lu.
     pub fn to_value(&self) -> Value {
         let done: Map<String, Value> = self.done.iter().map(|(k, v)| (k.clone(), Value::Bool(*v))).collect();
-        json!({"name": self.name, "bf": self.bf, "size": self.size, "pid_khz": self.pid_khz, "esc": self.esc, "done": done})
+        let khz = if self.pid_khz_int && self.pid_khz.fract() == 0.0 && self.pid_khz.abs() < 1e15 {
+            json!(self.pid_khz as i64)
+        } else {
+            json!(self.pid_khz)
+        };
+        json!({"name": self.name, "bf": self.bf, "size": self.size, "pid_khz": khz, "esc": self.esc, "done": done})
     }
 
-    /// `from_dict` de Python : les clés inconnues sont ignorées, les absentes gardent leur défaut, une taille inconnue devient
-    /// `five`. Python ne vérifie pas les types ; ici une valeur du mauvais type, ou l'absence de `name`, est une erreur.
+    /// `from_dict` de Python, en plus tolérant : les clés inconnues sont ignorées ; une clé absente **ou d'un type faux** garde son
+    /// défaut (Python ne vérifie rien et laisse la valeur fausse planter plus loin) ; une taille inconnue devient `five` ; une case
+    /// de `done` vaut sa valeur de vérité (comme `bool(done.get(clé))`). Seuls restent des erreurs : une fiche qui n'est pas un
+    /// objet, et un `name` absent ou qui n'est pas un texte (Python : `TypeError` pour l'absent, nom inutilisable sinon). W-029.
     pub fn from_value(d: &Value) -> Result<DroneCard, String> {
         let obj = d.as_object().ok_or("la fiche n'est pas un objet")?;
         let text = |k: &str| match obj.get(k) {
-            None => Ok(None),
-            Some(Value::String(s)) => Ok(Some(s.clone())),
-            Some(_) => Err(format!("« {k} » n'est pas un texte")),
+            Some(Value::String(s)) => Some(s.clone()),
+            _ => None,
         };
-        let name = text("name")?.ok_or("fiche sans nom")?;
+        let name = match obj.get("name") {
+            Some(Value::String(s)) => s.clone(),
+            Some(_) => return Err("« name » n'est pas un texte".to_string()),
+            None => return Err("fiche sans nom".to_string()),
+        };
         let mut card = DroneCard::new(&name);
-        if let Some(s) = text("bf")? {
+        if let Some(s) = text("bf") {
             card.bf = s;
         }
-        if let Some(s) = text("size")? {
+        if let Some(s) = text("size") {
             card.size = s;
         }
-        if let Some(s) = text("esc")? {
+        if let Some(s) = text("esc") {
             card.esc = s;
         }
-        match obj.get("pid_khz") {
-            None => {}
-            Some(Value::Number(n)) => card.pid_khz = n.as_f64().ok_or("« pid_khz » illisible")?,
-            Some(_) => return Err("« pid_khz » n'est pas un nombre".to_string()),
+        if let Some(Value::Number(n)) = obj.get("pid_khz")
+            && let Some(x) = n.as_f64()
+        {
+            card.pid_khz = x;
+            card.pid_khz_int = n.is_i64() || n.is_u64();
         }
-        match obj.get("done") {
-            None => {}
-            Some(Value::Object(m)) => {
-                for (k, v) in m {
-                    card.done.push((
-                        k.clone(),
-                        v.as_bool()
-                            .ok_or_else(|| format!("case « {k} » n'est pas un booléen"))?,
-                    ));
-                }
-            }
-            Some(_) => return Err("« done » n'est pas un dictionnaire".to_string()),
+        if let Some(Value::Object(m)) = obj.get("done") {
+            card.done = m.iter().map(|(k, v)| (k.clone(), truthy(v))).collect();
         }
         if profile(&card.size).is_none() {
             card.size = "five".to_string();
@@ -207,6 +213,57 @@ impl DroneCard {
     /// Nom CLI de la limite d'angle : `level_limit` en 4.4, `angle_limit` ensuite.
     pub fn angle_limit_setting(&self) -> &'static str {
         if self.bf == "4.4" { "level_limit" } else { "angle_limit" }
+    }
+}
+
+/// Fiche préremplie d'après les valeurs lues dans un log (`card_from_log` de `gui/guide.py`) : séparée de la lecture du journal pour
+/// être essayée sans journal. `family` est la famille de version du log, `esc_32` vaut vrai si le log a des eRPM ou le DShot
+/// bidirectionnel, `size` la clé du profil détecté.
+pub fn card_from_parts(craft_name: &str, family: &str, pid_rate_hz: f64, esc_32: bool, size: &str) -> DroneCard {
+    let bf = if matches!(family, "4.4" | "4.5") {
+        family
+    } else {
+        "2025.12"
+    };
+    // `min(key=…)` de Python garde le premier ex æquo, comme `min_by` de Rust.
+    let khz = PID_RATES_KHZ
+        .iter()
+        .map(|(k, _)| *k)
+        .min_by(|a, b| {
+            (a * 1000.0 - pid_rate_hz)
+                .abs()
+                .total_cmp(&(b * 1000.0 - pid_rate_hz).abs())
+        })
+        .unwrap_or(4.0);
+    let mut card = DroneCard::new(if craft_name.is_empty() { "Mon drone" } else { craft_name });
+    card.bf = bf.to_string();
+    card.size = size.to_string();
+    card.pid_khz = khz;
+    card.esc = if esc_32 { "BLHeli_32" } else { "BLHeli_S" }.to_string();
+    card
+}
+
+/// Fiche préremplie d'après un log : nom, version, taille détectée, boucle PID, ESC (DShot bidirectionnel).
+pub fn card_from_log(log: &FlightLog) -> DroneCard {
+    let s = &log.settings;
+    card_from_parts(
+        &s.craft_name,
+        s.family(),
+        s.pid_rate_hz(),
+        log.motor_hz.is_some() || s.dshot_bidir,
+        detect_profile(log).0.key,
+    )
+}
+
+/// Valeur de vérité d'une valeur JSON, comme `bool(x)` de Python.
+fn truthy(v: &Value) -> bool {
+    match v {
+        Value::Null => false,
+        Value::Bool(b) => *b,
+        Value::Number(n) => n.as_f64().is_some_and(|x| x != 0.0),
+        Value::String(s) => !s.is_empty(),
+        Value::Array(a) => !a.is_empty(),
+        Value::Object(o) => !o.is_empty(),
     }
 }
 

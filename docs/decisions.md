@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-039 | Guide egui : mémoire du guide dans la persistance d'eframe, `drones.json` lu avec tolérance et jamais écrasé s'il est illisible, police Hack de secours | 2026-11-02 |
 | D-038 | Configuration egui : lignes alignées entre logs par nom de réglage (Python : par position) | 2026-11-02 |
 | D-037 | Outils egui : cache des résultats par log, partagé avec le thread de calcul, clé = réglages de calcul + période | 2026-11-02 |
 | D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris | 2026-11-01 |
@@ -110,6 +111,40 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-11-02 — Contrats de la phase 6-5
+
+### D-039 : Guide egui : mémoire dans la persistance d'eframe, fiches tolérantes et protégées, Hack en police de secours
+
+Écarts volontaires avec `gui/guide.py` ; questions posées à Cédric le 2026-11-02, il a choisi les options recommandées.
+
+**Contexte.** Python garde la dernière phase, la dernière fiche et le rôle de chaque log dans `QSettings` (D-036 : non repris), lit
+`drones.json` sans rien dire quand il est abîmé, puis l'écrase au premier clic (toutes les fiches perdues), et n'a pas à choisir de
+police. Les polices d'egui n'ont ni « ✔ » ni « ✖ » ni « → ▲ » dans le texte normal (L-068).
+
+**Décision.**
+- **Mémoire** : la persistance d'eframe (`App::save`, clés `guide.phase`, `guide.card`, `guide.roles`), pas les réglages Qt ; une phase
+  ou un rôle inconnus sont ignorés. Premier lancement : accueil, première fiche, rôles devinés.
+- **`drones.json`** : même chemin que Python (`QStandardPaths.AppDataLocation` + `OpenTuneBox/OpenTuneBox`), mêmes octets
+  (`json.dumps(ensure_ascii=False, indent=1)`), `pid_khz` entier réécrit entier. Lecture **tolérante** (`DroneCard::from_value`, W-029
+  point 1) : clé absente ou d'un type faux = valeur par défaut, seuls un `name` absent ou qui n'est pas un texte et un fichier qui n'est
+  pas une liste sont des erreurs.
+- **Mêmes octets pour les fiches écrites par l'application** (cases booléennes). Une case non booléenne lue (`{"done": {"a": 1}}`) est réécrite `true` / `false`, alors que Python garde la valeur lue ; un `pid_khz` booléen est ramené à `4.0` : fichiers jamais produits par l'application, écart assumé (W-037).
+- **Confirmations** : « Supprimer » et « Recommencer » visent la fiche **du clic** (numéro et nom gardés) et ne font rien si la liste a changé entre-temps ; Python vise la fiche choisie au moment du « Oui », qui peut avoir changé si un log d'un autre drone finit de se charger (défaut de Python, non reproduit).
+- **Fichier illisible** : jamais écrasé en silence. Message dans le Guide, puis, avant la première écriture, mis de côté sous
+  `drones.json.illisible` (`.1`, `.2`… si une copie existe déjà). Écriture par fichier temporaire puis renommage.
+- **Symboles** : la police Hack, déjà livrée avec egui, devient le dernier recours du texte normal (`app::setup` ; « → ▲ ● ○ ↑ ↓ ← ◇ ■ »
+  mesurés), sans octet de plus. « ✔ ✖ ℹ ⚠ » restent absents : icônes Lucide `check`, `x`, `info`, `triangle-alert` (même version 1.49.0 que
+  les autres, exception D-005). Le « ✔ » du texte d'intro de la phase 1 est retiré à l'affichage (`guide::display_text`). Les polices
+  d'emoji d'egui (≈ 740 Ko) ne sont pas activées : la taille de l'exécutable est l'objectif n° 1.
+- **Vérification des logs** : rapide dans le fil de l'interface (mesuré en release : 2 ms sur 5 s de vol, 26 ms sur 185 000 points ; une
+  par cadre au plus), complète en arrière-plan, une à la fois. Clé de cache = période (+ taille de la fiche pour les repères des
+  filtres) ; la vérification en cours est identifiée par (`uid`, clé) et non par l'identité de l'objet (L-072), ce qui corrige le défaut de
+  Python où une période changée pendant un calcul laissait la page sur la version rapide.
+
+**Témoins.** `rust/otb-gui/tests/guide.rs` (aller-retour octet pour octet de 27 fichiers écrits par `scripts/guide_cards_cases.py`
+avec le vrai `load_cards` / `save_cards` de Python ; fichier abîmé mis de côté, jamais écrasé ; mémoire restaurée ; signes dessinés sans
+police manquante) ; `rust/otb-advisor/tests/drone_card.rs` (un test par type faux) ; captures des deux thèmes lues à l'œil.
 
 ## 2026-11-02 — Contrats de la phase 6-4
 

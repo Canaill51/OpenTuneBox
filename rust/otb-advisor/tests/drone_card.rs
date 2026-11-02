@@ -141,10 +141,11 @@ fn les_fiches_donnent_les_memes_valeurs_conseillees() {
     }
 }
 
-/// Python ne vérifie pas les types de `from_dict` (`name` = 3 passe) ; Rust les refuse : ces entrées-là, et elles seules
-/// (`preserve_order` : motifs écrits dans l'ordre du fichier).
-const REFUSEES_PAR_RUST: [&str; 4] = [
-    r#"{"name":3}"#,
+/// Python ne vérifie pas les types de `from_dict` (`name` = 3 passe). Rust : un `name` qui n'est pas un texte reste refusé ; les
+/// autres types faux reprennent le défaut de la clé (tolérance, W-029 point 1). Motifs écrits dans l'ordre du fichier
+/// (`preserve_order`).
+const REFUSEES_PAR_RUST: [&str; 1] = [r#"{"name":3}"#];
+const TOLEREES_PAR_RUST: [&str; 3] = [
     r#"{"name":"A","pid_khz":"4"}"#,
     r#"{"name":"A","done":[1]}"#,
     r#"{"name":"A","bf":null}"#,
@@ -155,7 +156,7 @@ fn from_dict_lit_comme_python() {
     let c = cas("drone_card");
     let list = c["from_dict"].as_array().unwrap();
     assert_eq!(list.len(), 17);
-    let (mut ok, mut refusees) = (0, 0);
+    let (mut ok, mut refusees, mut tolerees) = (0, 0, 0);
     for w in list {
         let input = &w["in"];
         let got = DroneCard::from_value(input);
@@ -163,9 +164,19 @@ fn from_dict_lit_comme_python() {
             assert!(got.is_err(), "Python lève, Rust accepte : {input}");
             continue;
         }
-        if REFUSEES_PAR_RUST.contains(&input.to_string().as_str()) {
+        let txt = input.to_string();
+        if REFUSEES_PAR_RUST.contains(&txt.as_str()) {
             assert!(got.is_err(), "type refusé attendu : {input}");
             refusees += 1;
+            continue;
+        }
+        if TOLEREES_PAR_RUST.contains(&txt.as_str()) {
+            assert_eq!(
+                got.unwrap().to_value(),
+                DroneCard::new("A").to_value(),
+                "défaut attendu : {input}"
+            );
+            tolerees += 1;
             continue;
         }
         let mut want = w["out"].clone();
@@ -173,7 +184,74 @@ fn from_dict_lit_comme_python() {
         assert_eq!(got.unwrap().to_value(), want, "{input}");
         ok += 1;
     }
-    assert_eq!((ok, refusees), (11, 4));
+    assert_eq!((ok, refusees, tolerees), (11, 1, 3));
+}
+
+#[test]
+fn chaque_type_faux_reprend_le_defaut_de_sa_cle() {
+    let defaut = DroneCard::new("A");
+    for (cle, faux) in [
+        ("bf", json!(4.5)),
+        ("size", json!(["five"])),
+        ("esc", json!(null)),
+        ("pid_khz", json!("3.2")),
+        ("pid_khz", json!(null)),
+        ("pid_khz", json!([4])),
+        ("done", json!(true)),
+        ("done", json!("oui")),
+        ("done", json!(null)),
+    ] {
+        let mut d = json!({"name": "A"});
+        d[cle] = faux.clone();
+        let card = DroneCard::from_value(&d).unwrap_or_else(|e| panic!("{cle}={faux} refusé : {e}"));
+        assert_eq!(card, defaut, "{cle}={faux}");
+    }
+    // la fiche qui n'est pas un objet, et le nom absent ou faux, restent des erreurs
+    for d in [
+        json!([]),
+        json!("A"),
+        json!(null),
+        json!({}),
+        json!({"name": null}),
+        json!({"name": ["A"]}),
+    ] {
+        assert!(DroneCard::from_value(&d).is_err(), "{d}");
+    }
+}
+
+#[test]
+fn une_case_vaut_sa_valeur_de_verite_comme_en_python() {
+    let d = json!({"name": "A", "done": {"a": 1, "b": 0, "c": "", "d": "x", "e": null, "f": [], "g": [0], "h": {}, "i": true}});
+    let card = DroneCard::from_value(&d).unwrap();
+    let got: Vec<(&str, bool)> = card.done.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+    assert_eq!(
+        got,
+        [
+            ("a", true),
+            ("b", false),
+            ("c", false),
+            ("d", true),
+            ("e", false),
+            ("f", false),
+            ("g", true),
+            ("h", false),
+            ("i", true)
+        ]
+    );
+}
+
+#[test]
+fn pid_khz_entier_est_reecrit_entier_et_le_flottant_reste_flottant() {
+    let texte = |d: &Value| DroneCard::from_value(d).unwrap().to_value()["pid_khz"].to_string();
+    assert_eq!(texte(&json!({"name": "A", "pid_khz": 4})), "4");
+    assert_eq!(texte(&json!({"name": "A", "pid_khz": 8})), "8");
+    assert_eq!(texte(&json!({"name": "A", "pid_khz": 4.0})), "4.0");
+    assert_eq!(texte(&json!({"name": "A", "pid_khz": 3.2})), "3.2");
+    assert_eq!(texte(&json!({"name": "A"})), "4.0");
+    // une fiche faite à la main (fenêtre de saisie) reste en flottant
+    let mut c = DroneCard::new("A");
+    c.pid_khz = 2.0;
+    assert_eq!(c.to_value()["pid_khz"].to_string(), "2.0");
 }
 
 #[test]
@@ -222,4 +300,35 @@ fn pitch_series_donne_les_memes_valeurs() {
         non_vides += !want.is_empty() as usize;
     }
     assert!(non_vides > 300, "trop peu de séries non vides : {non_vides}");
+}
+
+#[test]
+fn la_fiche_se_preremplit_d_apres_le_log() {
+    // (nom, famille, boucle PID Hz, ESC 32 ?, taille) → (nom, bf, kHz, ESC)
+    let cas = [
+        ("JeNo", "4.4", 8000.0, true, "five", "JeNo", "4.4", 8.0, "BLHeli_32"),
+        ("", "4.5", 3200.0, false, "whoop", "Mon drone", "4.5", 3.2, "BLHeli_S"),
+        ("X", "2026.6", 4000.0, true, "seven", "X", "2025.12", 4.0, "BLHeli_32"),
+        ("X", "4.3", 2000.0, false, "five", "X", "2025.12", 2.0, "BLHeli_S"),
+        // ex æquo entre 4 kHz et 3,2 kHz : 3 600 Hz est à 400 et 400 → la première entrée de la table (4 kHz)
+        ("X", "4.5", 3600.0, true, "five", "X", "4.5", 4.0, "BLHeli_32"),
+        // hors table : la plus proche
+        ("X", "4.5", 12000.0, true, "five", "X", "4.5", 8.0, "BLHeli_32"),
+        ("X", "4.5", 500.0, true, "five", "X", "4.5", 1.6, "BLHeli_32"),
+    ];
+    for (name, fam, hz, esc32, size, want_name, want_bf, want_khz, want_esc) in cas {
+        let c = card_from_parts(name, fam, hz, esc32, size);
+        assert_eq!(
+            (
+                c.name.as_str(),
+                c.bf.as_str(),
+                c.pid_khz,
+                c.esc.as_str(),
+                c.size.as_str()
+            ),
+            (want_name, want_bf, want_khz, want_esc, size),
+            "{name} {fam} {hz}"
+        );
+        assert!(c.done.is_empty() && !c.pid_khz_int);
+    }
 }

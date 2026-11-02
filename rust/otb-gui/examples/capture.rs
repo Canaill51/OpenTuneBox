@@ -49,6 +49,26 @@ fn main() {
         h.run_steps(4);
         let img = h.render().expect("rendu");
         img.save(out.join(format!("courbes-{}.png", th.name))).unwrap();
+        // le guide : l'accueil, puis la phase des filtres avec la fiche du drone de ce log (fiche en mémoire, jamais le vrai fichier)
+        let nom = h.state().state.logs[0].log.settings.craft_name.clone();
+        let mut fiche = otb_advisor::drone_card::DroneCard::new(&nom);
+        fiche.pid_khz = 3.2;
+        h.state_mut().guide.cards.list.push(fiche);
+        h.state_mut().guide.select_by_name(&nom);
+        h.state_mut().screen = Screen::Guide;
+        for phase in [otb_gui::guide::HOME, "prep", "filters", "pid"] {
+            h.state_mut().guide.phase = phase;
+            for _ in 0..600 {
+                h.run_steps(2);
+                if !h.state().guide.busy() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            h.run_steps(6);
+            let img = h.render().expect("rendu");
+            img.save(out.join(format!("guide-{phase}-{}.png", th.name))).unwrap();
+        }
         // un outil après l'autre : on attend la fin de son calcul avant de regarder
         for i in 0..h.state().pages.len() {
             h.state_mut().screen = Screen::Tool(i);

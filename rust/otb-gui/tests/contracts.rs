@@ -213,6 +213,7 @@ fn la_fenetre_se_dessine_dans_les_deux_themes_sans_log() {
         let fond = h.ctx.global_style().visuals.panel_fill;
         assert_eq!(fond, t.ui.window, "thème {}", t.name);
         h.get_by_label("Ouvrir…");
-        assert_eq!(h.get_all_by_label("Guide").count(), 2, "bouton et titre du guide");
+        assert_eq!(h.get_all_by_label("Guide").count(), 1, "le bouton du guide");
+        h.get_by_label("Régler son drone avec OpenTuneBox"); // l'accueil du guide est affiché
     }
 }

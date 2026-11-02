@@ -17,14 +17,16 @@ otb-advisor = { path = "../otb-advisor" }
 otb-analysis = { path = "../otb-analysis" }
 otb-format = { path = "../otb-format" }
 otb-log = { path = "../otb-log" }
-eframe = "0.37"
+eframe = { version = "0.37", features = ["persistence"] }
 egui = "0.37"
 egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
+egui_commonmark = { version = "0.26", default-features = false, features = ["pulldown_cmark"] }
 egui_plot = "0.38"
 rfd = "0.17"
+serde = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 
 [dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 otb-decoder = { path = "../otb-decoder" }
 otb-parity = { path = "../otb-parity" }
-serde_json = "1"

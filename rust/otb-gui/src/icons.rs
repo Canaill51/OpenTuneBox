@@ -5,11 +5,12 @@
 
 use egui::{Image, Vec2};
 
-pub const ICONS: [(&str, &str); 21] = [
+pub const ICONS: [(&str, &str); 24] = [
     ("activity", include_str!("../assets/icons/activity.svg")),
     ("audio-waveform", include_str!("../assets/icons/audio-waveform.svg")),
     ("book-open", include_str!("../assets/icons/book-open.svg")),
     ("chart-line", include_str!("../assets/icons/chart-line.svg")),
+    ("check", include_str!("../assets/icons/check.svg")),
     ("chevron-down", include_str!("../assets/icons/chevron-down.svg")),
     ("chevron-left", include_str!("../assets/icons/chevron-left.svg")),
     ("chevron-right", include_str!("../assets/icons/chevron-right.svg")),
@@ -18,6 +19,7 @@ pub const ICONS: [(&str, &str); 21] = [
     ("folder-open", include_str!("../assets/icons/folder-open.svg")),
     ("funnel", include_str!("../assets/icons/funnel.svg")),
     ("image-down", include_str!("../assets/icons/image-down.svg")),
+    ("info", include_str!("../assets/icons/info.svg")),
     ("lightbulb", include_str!("../assets/icons/lightbulb.svg")),
     ("pause", include_str!("../assets/icons/pause.svg")),
     ("play", include_str!("../assets/icons/play.svg")),
@@ -29,6 +31,7 @@ pub const ICONS: [(&str, &str); 21] = [
         include_str!("../assets/icons/sliders-horizontal.svg"),
     ),
     ("trash-2", include_str!("../assets/icons/trash-2.svg")),
+    ("triangle-alert", include_str!("../assets/icons/triangle-alert.svg")),
     ("x", include_str!("../assets/icons/x.svg")),
 ];
 
