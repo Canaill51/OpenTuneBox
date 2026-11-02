@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
 | D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant | 2026-10-14 |
 | D-029 | Les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64 | 2026-10-13 |
 | D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
@@ -102,6 +103,42 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-11-02 — Notchs dynamiques ajoutés du Simulateur de filtres
+
+### D-041 : notchs dynamiques ajoutés placés sur les pics prévus, sinon à leur centre initial
+
+**Contexte.** Quand on monte `dyn_notch_count` au-delà des centres enregistrés dans le log (debug FFT_FREQ), `_gyro_h2` plaçait les
+notchs ajoutés aux centres initiaux du firmware, `(p + 0,5)(max − min)/n + min`. Cédric a vu, sur `1.Stock.bbl` (Air65, 1 notch
+enregistré à 207 Hz, plage 100–600 Hz), des creux de −28 dB (2 notchs) à −60 dB (3 notchs) à 350 et 517 Hz, sans pic à ces fréquences :
+le rapport |H_modifié|² / |H_actuel|² creusait là où le firmware n'aurait pas mis de notch. Le firmware attache le notch `p` au `p`-ième
+pic le plus haut (`dyn_notch_filter.c`).
+
+**Mesure** (2026-11-02, 383 sessions de 64 drones du corpus en debug FFT_FREQ avec au moins 2 notchs, un seul notch supposé connu, axe roll,
+une voix par drone ; positions vérifiées dans le temps passé par chaque notch, cases de 18,5 Hz, tolérance ± 1,5 case) :
+
+| Modèle | Positions réelles retrouvées | Positions prédites où un notch passe (≥ 5 % du temps) |
+|---|---|---|
+| A : centres initiaux (précédent) | 0,28 | 0,76 |
+| B : pics seuls | 0,35 | 0,85 |
+| **B' : pics, sinon centre initial (retenu)** | **0,45** | **0,81** |
+| C : emplacements au hasard (témoin) | 0,18 | 0,68 |
+
+Critère fixé avant de lire les résultats : gagner au moins 0,15 de rappel sur A et sur C, sans perdre en précision, sur au moins 20 drones.
+B' le remplit (60 drones), B seul non (+ 0,07). Positions sur un pic : précision 0,87 ; positions de repli : 0,73.
+Aucun notch ajouté n'est « garé » à son centre initial (0 sur 522) ; 78 sessions sur 383 n'ont aucun pic ajouté prévu.
+Script de la mesure : jetable (non versionné) ; la refaire au besoin avec `motors.dyn_notch_targets` et `bf_filters.fft_freq_centres`.
+
+**Décision.** `bf_filters.complete_dyn_centres` : centres enregistrés d'abord (ramenés dans la plage), puis les pics prévus les plus hauts
+(`motors.dyn_notch_targets` sur le roll du gyro non filtré de toute la période, réponse des notchs RPM actuels appliquée, comme la validation de
+D-022) à plus de 1,5 case d'un centre déjà pris, puis les centres initiaux. Sans gyro non filtré : centres initiaux, comme avant. La chaîne
+« actuelle » n'est jamais complétée : réglages inchangés = log exact (L-024). Le Bode et le tableau des retards gardent les centres initiaux
+(case « notchs dyn. (centres initiaux) »), sans log. L'assistant n'utilise pas cette branche (il ne modifie ni le nombre ni la plage) : `advisor_rates.py` avant / après sur 632 sessions du corpus, 0 conseil différent.
+
+**Limites connues.** Le rappel de B' reste sous 0,5 ; l'axe de debug est supposé être le roll (défaut du firmware, réglage non lu) ; les pics sont
+ceux de la période entière, pas de chaque fenêtre de 300 ms ; un repli sur un centre initial peut encore creuser sans pic réel (27 % des replis).
+
+**Choix de Cédric** (2026-11-02, après sa capture du Simulateur) : nouveau modèle voulu, validé sur le corpus, appliqué à Python d'abord.
 
 ## 2026-10-14 — Lint de la CI
 
