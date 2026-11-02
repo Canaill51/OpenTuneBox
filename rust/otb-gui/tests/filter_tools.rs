@@ -1050,7 +1050,7 @@ fn les_spectres_simules_sont_ceux_de_python() {
             }
         }
     }
-    assert!(nones == 25 && nb == 95 && nans == 5, "{nones} {nb} {nans}");
+    assert!(nones == 115 && nb == 245 && nans == 15, "{nones} {nb} {nans}");
     report();
 }
 
