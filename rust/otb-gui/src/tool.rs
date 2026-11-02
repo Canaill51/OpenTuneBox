@@ -158,12 +158,10 @@ impl<T: Tool> ToolPage<T> {
         self.runner.request(ctx, move || T::compute(opts, inputs));
     }
 
-    /// Bouton « Calculer » : relance même si rien n'a changé ; sans log sélectionné, le même message que `update`.
+    /// Bouton « Calculer » : relance même si rien n'a changé. Sans log sélectionné, rien à calculer : `update` a déjà
+    /// effacé le résultat et affiché « Sélectionnez au moins un log. ».
     fn run_now(&mut self, ctx: &egui::Context, state: &AppState) {
-        if self.tool.selected(state).is_empty() {
-            self.last = None;
-            self.status = NO_LOG.into();
-        } else {
+        if !self.tool.selected(state).is_empty() {
             self.run(ctx, state);
         }
     }
