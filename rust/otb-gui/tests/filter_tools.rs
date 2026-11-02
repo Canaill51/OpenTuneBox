@@ -20,7 +20,9 @@ use otb_gui::tools::filter_sim_calc::{
     self as fsc, DELAY_FREQS, Editor, LPF_TYPES, SPECTRA_KEYS, bode, cli_values, delays, filter_cli_lines,
     simulate_filters,
 };
-use otb_gui::tools::setup::{self, Group, LogSetup, Row, SetupTool, align, sections_from, visible};
+use otb_gui::tools::setup::{
+    self, Group, LogSetup, Row, SetupTool, align, sections_from, shown_rows, toggle_group, visible,
+};
 use otb_log::settings::{Settings, parse_settings};
 
 fn log5s() -> otb_log::flightlog::FlightLog {
@@ -1461,4 +1463,53 @@ fn les_bode_laissent_une_marge_sous_la_derniere_graduation() {
             "colonne {col} : marge raisonnable"
         );
     }
+}
+
+#[test]
+fn un_groupe_se_replie_et_se_deplie_d_un_clic_sur_son_titre() {
+    let mut h = banc_config(CLAIR, true);
+    h.run();
+    assert!(h.query_by_label("Firmware").is_some() && h.query_by_label("Carte").is_some());
+    h.get_by_label("Général").click();
+    h.run_steps(3);
+    assert!(
+        h.query_by_label("Firmware").is_none(),
+        "les lignes du groupe replié disparaissent"
+    );
+    assert!(h.query_by_label("Carte").is_none());
+    assert!(h.query_by_label("Général").is_some(), "son titre reste");
+    assert!(
+        h.query_by_label("Nom du drone").is_none(),
+        "il fait partie de « Général »"
+    );
+    assert!(
+        h.query_by_label("Roll P, I, D, Dmax, F").is_some(),
+        "les autres groupes restent dépliés"
+    );
+    h.get_by_label("Général").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Firmware").is_some(), "dépliable de nouveau");
+}
+
+#[test]
+fn les_lignes_montrees_d_un_groupe_replie_sont_vides() {
+    use std::collections::HashSet;
+    let g = Group {
+        title: "Général".into(),
+        rows: vec![Row {
+            key: "a".into(),
+            values: vec!["1".into()],
+        }],
+    };
+    let mut repliés: HashSet<String> = HashSet::new();
+    assert_eq!(shown_rows(&g, &repliés).len(), 1);
+    toggle_group(&mut repliés, "Général");
+    assert!(shown_rows(&g, &repliés).is_empty());
+    toggle_group(&mut repliés, "Autre");
+    assert!(
+        shown_rows(&g, &repliés).is_empty(),
+        "un autre groupe ne déplie pas celui-ci"
+    );
+    toggle_group(&mut repliés, "Général");
+    assert_eq!(shown_rows(&g, &repliés).len(), 1);
 }

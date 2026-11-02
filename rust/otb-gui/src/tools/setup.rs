@@ -4,11 +4,14 @@
 //! Filtres d'affichage (différences seulement, paramètres bruts, recherche) : ils vivent dans l'outil, hors `Options`,
 //! car ils ne changent pas le calcul.
 
+use std::collections::HashSet;
+
 use egui::{RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use otb_log::flightlog::FlightLog;
 use otb_log::settings::{AxisPid, Lowpass, Settings, rates_type_name};
 
+use crate::icons::icon;
 use crate::state::{AppState, MAX_LOGS};
 use crate::theme::{Theme, plot::ROW_HIGHLIGHT};
 use crate::tool::{LogInput, Tool};
@@ -401,8 +404,22 @@ pub fn visible(groups: &[Group], only_diff: bool, needle: &str) -> Vec<Group> {
         .collect()
 }
 
+/// Lignes d'un groupe qu'on montre : aucune s'il est replié.
+pub fn shown_rows<'a>(g: &'a Group, collapsed: &HashSet<String>) -> &'a [Row] {
+    if collapsed.contains(&g.title) { &[] } else { &g.rows }
+}
+
+/// Replie le groupe s'il est déplié, le déplie sinon.
+pub fn toggle_group(collapsed: &mut HashSet<String>, title: &str) {
+    if !collapsed.remove(title) {
+        collapsed.insert(title.to_string());
+    }
+}
+
 pub struct SetupTool {
     files: FileSelection,
+    /// Titres des groupes repliés (un clic sur le titre).
+    pub collapsed: HashSet<String>,
     pub only_diff: bool,
     pub show_raw: bool,
     pub filter: String,
@@ -418,6 +435,7 @@ impl SetupTool {
     pub fn new() -> Self {
         Self {
             files: FileSelection::new(true),
+            collapsed: HashSet::new(),
             only_diff: false,
             show_raw: false,
             filter: String::new(),
@@ -476,6 +494,7 @@ impl Tool for SetupTool {
         let groups = visible(&align(&out.logs, self.show_raw), self.only_diff, &self.filter);
         let n = out.logs.len();
         let h = ui.text_style_height(&egui::TextStyle::Body) + 6.0;
+        let mut toggled: Option<String> = None;
         let mut table = TableBuilder::new(ui)
             .id_salt("configuration")
             .striped(false)
@@ -500,7 +519,17 @@ impl Tool for SetupTool {
                         // `strong()` d'egui ne change que la couleur (pas de police grasse) : un bandeau distingue les titres
                         row.col(|ui| {
                             ui.painter().rect_filled(ui.max_rect(), 0.0, theme.ui.hover);
-                            ui.label(RichText::new(safe_text(&g.title)).strong().color(theme.fg));
+                            let chevron = if self.collapsed.contains(&g.title) {
+                                "chevron-right"
+                            } else {
+                                "chevron-down"
+                            };
+                            let title = RichText::new(safe_text(&g.title)).strong().color(theme.fg);
+                            let b =
+                                egui::Button::image_and_text(icon(chevron, 14.0).tint(theme.fg), title).frame(false);
+                            if ui.add_sized(ui.available_size(), b).clicked() {
+                                toggled = Some(g.title.clone());
+                            }
                         });
                         for _ in 0..n {
                             row.col(|ui| {
@@ -508,7 +537,7 @@ impl Tool for SetupTool {
                             });
                         }
                     });
-                    for r in &g.rows {
+                    for r in shown_rows(g, &self.collapsed) {
                         let differs = r.differs();
                         body.row(h, |mut row| {
                             let cell = |ui: &mut Ui, text: &str| {
@@ -526,5 +555,8 @@ impl Tool for SetupTool {
                     }
                 }
             });
+        if let Some(title) = toggled {
+            toggle_group(&mut self.collapsed, &title);
+        }
     }
 }
