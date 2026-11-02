@@ -1,13 +1,14 @@
 //! Fenêtre principale : barre d'outils dont les boutons servent d'onglets (jamais de fenêtre séparée),
 //! pages des outils, ouverture des logs (port de `gui/main_window.py`, socle seulement).
 //!
-//! Le Guide s'affiche au démarrage ; son contenu vient en 6-5 (le passage automatique aux courbes à
-//! l'ouverture d'un log, comme en Python, viendra avec le visualiseur en 6-1).
+//! Le Guide (`guide_page.rs`) s'affiche au démarrage ; ouvrir un premier log depuis son accueil passe aux courbes, comme en Python.
 
 use std::path::PathBuf;
 
 use otb_log::flightlog::{FlightLog, load};
 
+use crate::guide::ToolTarget;
+use crate::guide_page::{GuideAction, GuidePage};
 use crate::icons::icon;
 use crate::state::AppState;
 use crate::theme::{self, Theme};
@@ -15,9 +16,18 @@ use crate::tool::Page;
 use crate::viewer_page::ViewerPage;
 use crate::worker::Runner;
 
-/// À appeler une fois au démarrage (et dans chaque banc de test) : chargeurs d'images, pour les icônes SVG.
+/// À appeler une fois au démarrage (et dans chaque banc de test) : chargeurs d'images, pour les icônes SVG, et police de secours.
+///
+/// Hack, déjà livrée avec egui mais réservée au texte à chasse fixe, passe en dernier recours du texte normal : elle a « → ▲ ● ○ ↑ ↓ ← ◇ ■ »
+/// (mesuré avec `fc-query`, 2026-11-02) que Ubuntu-Light n'a pas, sans octet de plus dans l'exécutable (D-039, L-068). Les signes
+/// absents des deux (« ✔ ✖ ℹ ⚠ ») restent des icônes (`icons.rs`).
 pub fn setup(ctx: &egui::Context) {
     egui_extras::install_image_loaders(ctx);
+    let mut fonts = egui::FontDefinitions::default();
+    if let Some(list) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        list.push("Hack".to_string());
+    }
+    ctx.set_fonts(fonts);
 }
 
 /// Écran affiché.
@@ -35,6 +45,7 @@ pub struct App {
     /// Page affichée (`None` : le Guide).
     pub screen: Screen,
     pub viewer: ViewerPage,
+    pub guide: GuidePage,
     had_logs: bool,
     pub theme: Theme,
     applied: Option<&'static str>,
@@ -47,12 +58,18 @@ pub struct App {
 }
 
 impl App {
+    /// Guide sans fichier de fiches : les bancs de test n'écrivent jamais le vrai `drones.json`.
     pub fn new(pages: Vec<Box<dyn Page>>) -> Self {
+        Self::with_guide(pages, GuidePage::in_memory())
+    }
+
+    pub fn with_guide(pages: Vec<Box<dyn Page>>, guide: GuidePage) -> Self {
         Self {
             state: AppState::new(),
             pages,
             screen: Screen::Guide,
             viewer: ViewerPage::new(),
+            guide,
             had_logs: false,
             theme: theme::CLAIR,
             applied: None,
@@ -111,7 +128,7 @@ impl App {
         }
         self.poll_opening(&ctx);
         // premier log ouvert depuis l'accueil du guide : on passe aux courbes
-        if !self.state.logs.is_empty() && !self.had_logs && self.screen == Screen::Guide {
+        if !self.state.logs.is_empty() && !self.had_logs && self.screen == Screen::Guide && self.guide.at_home() {
             self.screen = Screen::Viewer;
         }
         self.had_logs = !self.state.logs.is_empty();
@@ -163,6 +180,7 @@ impl App {
             ui.label(if self.status.is_empty() { busy } else { &self.status });
         });
         let mut goto = None;
+        let mut guide_actions = Vec::new();
         egui::CentralPanel::default().show(root, |ui| match self.screen {
             Screen::Viewer => {
                 self.viewer.ui(ui, &mut self.state, &theme);
@@ -172,13 +190,17 @@ impl App {
                 self.pages[i].ui(ui, &mut self.state, &theme);
                 goto = self.pages[i].take_goto();
             }
-            _ => {
-                ui.heading("Guide");
-                ui.label("Le guide intégré arrive à la sous-étape 6-5.");
-            }
+            _ => guide_actions = self.guide.ui(ui, &mut self.state, &theme),
         });
         if let Some(title) = goto {
             self.open_tool(title);
+        }
+        for a in guide_actions {
+            match a {
+                GuideAction::Tool(ToolTarget::Viewer) => self.screen = Screen::Viewer,
+                GuideAction::Tool(ToolTarget::Page(title)) => self.open_tool(title),
+                GuideAction::Open(paths) => self.open(paths),
+            }
         }
     }
 
@@ -199,5 +221,10 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.ui(ui);
+    }
+
+    /// Mémoire du Guide entre deux lancements (D-039) : phase, fiche choisie, rôle de chaque log.
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        self.guide.save(storage);
     }
 }

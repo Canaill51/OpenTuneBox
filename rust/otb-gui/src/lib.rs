@@ -3,6 +3,8 @@
 
 pub mod app;
 pub mod colormaps;
+pub mod guide;
+pub mod guide_page;
 pub mod icons;
 pub mod plots;
 pub mod state;
