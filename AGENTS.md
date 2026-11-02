@@ -59,7 +59,8 @@ src/opentunebox/
               state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
   cli.py      commandes `opentunebox info` et `opentunebox report`
 rust/         espace de travail Cargo (D-031) : otb-decoder, otb-log, otb-analysis, otb-advisor, otb-cli, otb-gui (interface egui), otb-parity (comparateur
-              avec les références de Python), otb-dsp, otb-format, otb-py. Détail de chaque crate et de ses scripts de cas : docs/architecture.md, « Espace de travail Rust ».
+              avec les références de Python), otb-dsp, otb-format, otb-py, otb-dev (outils de développement, jamais livrés : vérification de la
+              documentation). Détail de chaque crate et de ses scripts de cas : docs/architecture.md, « Espace de travail Rust ».
 tests/        pytest ; conftest.py (Qt hors écran, réglages isolés, fixtures `app`, `synthetic_log`, `synthetic_state`),
               synthetic.py (`make_flightlog`, `make_session` : vol et session fabriqués, sans corpus),
               bbl_factory.py (fichiers Blackbox binaires fabriqués : en-tête, trames I/P/S/E),
@@ -94,7 +95,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/ruff check src tests scripts packaging/make_icons.py   # lint (doit être vide, D-030)
 .venv/bin/pytest -q --cov=opentunebox --cov-report=term-missing   # couverture (hors code numba : L-025)
 .venv/bin/pytest -q tests/test_docs.py               # cohérence de la documentation (< 1 s)
-(cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity)   # Rust
+(cd rust && cargo test -p otb-dev --test docs)   # la même, en Rust (remplacera la précédente à la phase 7, D-035)
+(cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev)   # Rust
 .venv/bin/pip install -e .                           # recompile l'extension Rust (maturin, profil release) après un changement de rust/
 .venv/bin/opentunebox-gui [LOG…]                     # interface
 .venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande

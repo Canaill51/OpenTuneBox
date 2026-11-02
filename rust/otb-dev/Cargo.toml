@@ -1,0 +1,18 @@
+[package]
+name = "otb-dev"
+description = "Outils de développement d'OpenTuneBox, jamais livrés (phase 7, D-035) : vérification de la documentation (remplace tests/test_docs.py)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "otb_dev"
+
+[dependencies]
+otb-format = { path = "../otb-format" }
+regex = "1"
+
+[dev-dependencies]
+otb-advisor = { path = "../otb-advisor" }
+otb-cli = { path = "../otb-cli" }
+otb-gui = { path = "../otb-gui" }
