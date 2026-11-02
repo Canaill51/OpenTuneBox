@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
 | D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
 | D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
 | D-039 | Guide egui : mémoire du guide dans la persistance d'eframe, `drones.json` lu avec tolérance et jamais écrasé s'il est illisible, police Hack de secours | 2026-11-02 |
@@ -115,6 +116,25 @@ ici, jamais dans le code.
 ---
 
 ## 2026-11-02 — Notchs dynamiques ajoutés du Simulateur de filtres
+
+### D-042 : macOS abandonné, application livrée pour Windows et Linux
+
+Amende D-001 (« Windows, macOS et Linux » devient « Windows et Linux ») et D-035 (le « Linux, Windows, macOS » de la phase 6 et
+de la fusion finale).
+
+**Contexte.** Aucune machine macOS n'est disponible pour essayer l'application ni un installateur ; la CI peut les construire
+mais personne ne peut les lancer. Cédric (2026-11-03, parmi : fabriquer sans essai / abandonner macOS / bloquer la fusion) :
+« Abandonner macOS ».
+
+**Décision.**
+- L'application est livrée pour **Windows et Linux** ; `construire.yml` n'a plus de ligne macOS à la phase 7-4.
+- Plus d'icône `.icns`, plus de `packaging/macos/` ni de `.dmg`.
+- Le code reste portable (egui, rfd) : rien n'est retiré de `rust/` pour macOS, mais il n'est ni compilé en CI ni garanti.
+- Pas X : fabriquer un `.dmg` jamais essayé promettrait un système non vérifié (règle « ce qui n'est pas vérifié se dit non vérifié »).
+
+**Témoins.** Réponse de Cédric du 2026-11-03 ; l'inventaire de `packaging/` (spec, `build_dmg.sh`, `.icns`) est dans le plan de la phase 7.
+
+**Ouvert.** W-021 (écarts sur ARM, à voir au premier test macOS) et le chemin macOS de `drones.json` (W-037 point 4) deviennent sans objet.
 
 ### D-041 : notchs dynamiques ajoutés placés sur les pics prévus, sinon à leur centre initial
 
