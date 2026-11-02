@@ -227,6 +227,22 @@ fn notch_dynamique_identique() {
 }
 
 #[test]
+fn complete_dyn_centres_identique() {
+    let c = cas("bf_filters");
+    let ss = all_settings(&c);
+    let cases = c["complete_dyn_centres"].as_array().unwrap();
+    assert!(cases.len() > 1000);
+    for k in cases {
+        let s = &ss[k["s"].as_u64().unwrap() as usize];
+        assert_bits(
+            &complete_dyn_centres(&hexes(&k["known"]), s, &hexes(&k["peaks"])),
+            &hexes(&k["out"]),
+            &format!("centres complétés {k} {s:?}"),
+        );
+    }
+}
+
+#[test]
 fn gyro_chain_identique() {
     let c = cas("bf_filters");
     let ss = all_settings(&c);

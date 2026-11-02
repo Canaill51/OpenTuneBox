@@ -14,6 +14,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Simulateur de filtres (interface Rust) : pendant le calcul d'un nouveau log, les spectres de l'ancien ne sont plus affichés.
 - Interface Rust sous Windows : plus de fenêtre de console à l'ouverture, et l'icône d'OpenTuneBox sur l'exécutable et sur la fenêtre.
 - CI Ubuntu à court de disque avec les tests de l'interface egui (`No space left on device`) : les infos de débogage du profil `dev` Rust sont réduites aux tables de lignes (binaires de test de 490 à 186 Mo, 6,7 Go pour toute la séquence) ; L-069.
+- Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log ne creusent plus à des fréquences fixes sans raie (centres initiaux du
+  firmware) ; ils sont placés sur les pics du gyro non filtré, sinon à leur centre initial. Mesuré sur 383 sessions de 64 drones : 45 % des positions
+  réelles retrouvées contre 28 % (D-041).
+  Le même modèle est porté dans le Rust (`rust/otb-analysis/src/bf_filters.rs`), identique à Python sur les cas de test (W-040).
 - L'assistant ne plante plus sur une session de 0,1 à 0,2 s (reste d'enregistrement après un rebranchement de la batterie) : trop
   courte pour avoir une fréquence entre 80 Hz et la limite des filtres, elle faisait échouer toute l'analyse (`ValueError: a cannot be
   empty`, vu sur 2 logs du corpus). La prévision des filtres est alors absente, donc aucun des deux conseils qui en dépendent (LPF1 du gyro

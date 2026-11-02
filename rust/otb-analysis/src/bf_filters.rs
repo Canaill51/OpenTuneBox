@@ -395,6 +395,40 @@ pub fn dyn_notch_initial_centres(s: &Settings) -> Vec<f64> {
         .collect()
 }
 
+/// Case de la SDFT du firmware à 8 kHz (`dyn_notch_filter.c`).
+pub const DYN_NOTCH_BIN_HZ: f64 = 18.5;
+/// Borne basse de `dyn_notch_min_hz` dans le firmware (`cli/settings.c`).
+pub const DYN_NOTCH_MIN_LIMIT_HZ: f64 = 20.0;
+
+/// `complete_dyn_centres` (D-041) : centres du notch dynamique `s` quand on en ajoute au-delà de ceux enregistrés dans le log.
+/// 1. centres enregistrés (`known`) ramenés dans la plage de `s` et limités à son nombre de notchs ;
+/// 2. puis les pics prévus (`peaks`, du plus puissant au plus faible) dans la plage, à plus de 1,5 case d'un centre déjà pris ;
+/// 3. sans pic pour un notch : son centre initial.
+pub fn complete_dyn_centres(known: &[f64], s: &Settings, peaks: &[f64]) -> Vec<f64> {
+    let (lo, hi) = (s.dyn_notch_min_hz as f64, s.dyn_notch_max_hz as f64);
+    // min(max(v, lo), hi) de Python : max(v, lo) rend lo si lo > v ; min(x, hi) rend hi si hi < x
+    let mut c: Vec<f64> = known
+        .iter()
+        .map(|&v| {
+            let a = if lo > v { lo } else { v };
+            if hi < a { hi } else { a }
+        })
+        .collect();
+    c.truncate(py_take(c.len(), s.dyn_notch_count));
+    let tol = 1.5 * DYN_NOTCH_BIN_HZ;
+    for &f in peaks {
+        if c.len() as i64 >= s.dyn_notch_count {
+            break;
+        }
+        if lo <= f && f <= hi && c.iter().all(|&v| (f - v).abs() > tol) {
+            c.push(f);
+        }
+    }
+    let initial = dyn_notch_initial_centres(s);
+    c.extend(initial.iter().skip(c.len()));
+    c
+}
+
 /// `1e6 / 2 / looptime_us / pid_denom * 0.95` : Nyquist du log, avec la division par zéro de Python en erreur.
 fn nyquist(s: &Settings) -> Result<f64, String> {
     if s.looptime_us == 0 || s.pid_denom == 0 {
@@ -725,10 +759,14 @@ pub type GyroKey = (usize, u64, Option<Vec<u64>>, Option<Vec<u64>>);
 /// Cache de `whatif_spectrum` (le `dict` de Python) : les réponses de filtres de chaque fenêtre ne sont calculées qu'une fois.
 /// ⚠️ Comme Python, il ne sait pas si les réglages ont changé : un cache réutilisé avec d'autres `base` / `mod` rend les
 /// anciennes réponses. À partager seulement entre appels sur le même journal, la même période et les mêmes réglages.
+/// Depuis D-041 la réponse d'une fenêtre dépend aussi des pics prévus, donc de la période : un cache par (journal, période,
+/// réglages actuels, réglages modifiés).
 #[derive(Debug, Default)]
 pub struct WhatIfCache {
     pub gyro: HashMap<GyroKey, Response2>,
     pub dterm: HashMap<(usize, u64), Response2>,
+    /// Pics prévus pour les notchs dynamiques ajoutés : (début, fin de la période, plage min, plage max du notch modifié).
+    pub peaks: HashMap<(usize, usize, i64, i64), Vec<f64>>,
 }
 
 pub fn bits(v: &[f64]) -> Vec<u64> {
@@ -744,7 +782,46 @@ fn py_take(len: usize, count: i64) -> usize {
     }
 }
 
-/// `_gyro_h2` : |H|² des chaînes gyro actuelle et modifiée pour une fenêtre (gaz `thr`, moteurs et centres arrondis).
+/// `_dyn_peaks` : pics que le notch dynamique `modf` aurait à suivre sur la période `sel` : roll du gyro non filtré × réponse des
+/// notchs RPM des réglages actuels (`motors::dyn_notch_targets`), du plus puissant au plus faible. Vide sans gyro non filtré.
+fn dyn_peaks(log: &FlightLog, sel: &Range<usize>, base: &Settings, modf: &Settings) -> Result<Vec<f64>, String> {
+    let Some(unf) = &log.gyro_unfilt else {
+        return Ok(Vec::new());
+    };
+    let mhz = match &log.motor_hz {
+        Some(m) if base.rpm_harmonics > 0 => {
+            let rg = clamp(sel, m.n);
+            let mut data = Vec::with_capacity(m.k * rg.len());
+            for k in 0..m.k {
+                data.extend_from_slice(&m.row(k)[rg.clone()]);
+            }
+            Some(Rows {
+                k: m.k,
+                n: rg.len(),
+                data,
+            })
+        }
+        _ => None,
+    };
+    let lo = (modf.dyn_notch_min_hz as f64 - 2.0 * DYN_NOTCH_BIN_HZ).max(DYN_NOTCH_MIN_LIMIT_HZ);
+    let hi = modf.dyn_notch_max_hz as f64 + 2.0 * DYN_NOTCH_BIN_HZ;
+    let x: Vec<f64> = unf.row(0)[clamp(sel, unf.n)].iter().map(|&v| v as f64).collect();
+    let br: Vec<i64> = log.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect();
+    let t = crate::motors::dyn_notch_targets(
+        &x,
+        mhz.as_ref(),
+        log.fs,
+        (lo, hi),
+        mhz.as_ref().map(|_| base),
+        300.0,
+        DYN_NOTCH_BIN_HZ,
+        Some(&br),
+    )?;
+    Ok(t.freqs)
+}
+
+/// `_gyro_h2` : |H|² des chaînes gyro actuelle et modifiée pour une fenêtre (gaz `thr`, moteurs et centres arrondis). `peaks` :
+/// pics prévus pour les notchs dynamiques ajoutés.
 fn gyro_h2(
     f: &[f64],
     base: &Settings,
@@ -752,6 +829,7 @@ fn gyro_h2(
     thr: f64,
     motors: Option<&[f64]>,
     centres: Option<&[f64]>,
+    peaks: &[f64],
 ) -> Result<Response2, String> {
     let h2 = |s: &Settings| -> Result<Vec<f64>, String> {
         let dynamic: Option<Vec<f64>> = centres.map(|cs| {
@@ -760,19 +838,9 @@ fn gyro_h2(
                 || s.dyn_notch_min_hz != base.dyn_notch_min_hz
                 || s.dyn_notch_max_hz != base.dyn_notch_max_hz
             {
-                // réglage du notch dynamique modifié : centres enregistrés ramenés dans la nouvelle plage
-                let (lo, hi) = (s.dyn_notch_min_hz as f64, s.dyn_notch_max_hz as f64);
-                // min(max(v, lo), hi) de Python : max(v, lo) rend lo si lo > v ; min(x, hi) rend hi si hi < x
-                c = c
-                    .iter()
-                    .map(|&v| {
-                        let a = if lo > v { lo } else { v };
-                        if hi < a { hi } else { a }
-                    })
-                    .collect();
-                c.truncate(py_take(c.len(), s.dyn_notch_count));
-                let initial = dyn_notch_initial_centres(s);
-                c.extend(initial.iter().skip(c.len()));
+                // réglage du notch dynamique modifié : centres enregistrés ramenés dans la nouvelle plage, puis notchs
+                // ajoutés sur les pics prévus, sinon à leur centre initial (D-041)
+                c = complete_dyn_centres(&c, s, peaks);
             }
             c
         });
@@ -853,6 +921,17 @@ pub fn whatif_spectrum(
     let mhz: Option<Vec<Vec<f64>>> = log.motor_hz.as_ref().map(|m| rows_sel(&Matrix64::from_rows(m)));
     let centres: Option<Vec<Vec<f64>>> = fft_freq_centres(log, None).map(|m| rows_sel(&m));
 
+    let dyn_changed = modf.dyn_notch_count != base.dyn_notch_count
+        || modf.dyn_notch_min_hz != base.dyn_notch_min_hz
+        || modf.dyn_notch_max_hz != base.dyn_notch_max_hz;
+    let mut peaks: Vec<f64> = Vec::new();
+    if centres.is_some() && dyn_changed && modf.dyn_notch_count > 0 {
+        let pkey = (sel.start, sel.end, modf.dyn_notch_min_hz, modf.dyn_notch_max_hz);
+        if let Entry::Vacant(slot) = cache.peaks.entry(pkey) {
+            slot.insert(dyn_peaks(log, &sel, base, modf)?);
+        }
+        peaks = cache.peaks[&pkey].clone();
+    }
     // moyennes de chaque fenêtre, calculées en une fois (gaz au centième, moteurs et centres à 5 Hz près)
     let window_means = |v: &[f64]| -> Result<Vec<f64>, String> {
         segs.starts
@@ -885,7 +964,7 @@ pub fn whatif_spectrum(
         let c: Option<Vec<f64>> = cen_w.as_ref().map(|rows| rows.iter().map(|r| r[k]).collect());
         let key: GyroKey = (nf, t.to_bits(), m.as_deref().map(bits), c.as_deref().map(bits));
         if let Entry::Vacant(slot) = cache.gyro.entry(key.clone()) {
-            slot.insert(gyro_h2(&f, base, modf, t, m.as_deref(), c.as_deref())?);
+            slot.insert(gyro_h2(&f, base, modf, t, m.as_deref(), c.as_deref(), &peaks)?);
         }
         let (mut r_cur, mut r_mod) = cache.gyro[&key].clone();
         if target == Target::Dterm {

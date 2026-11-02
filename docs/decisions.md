@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
 | D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
 | D-039 | Guide egui : mémoire du guide dans la persistance d'eframe, `drones.json` lu avec tolérance et jamais écrasé s'il est illisible, police Hack de secours | 2026-11-02 |
 | D-038 | Configuration egui : lignes alignées entre logs par nom de réglage (Python : par position) | 2026-11-02 |
@@ -110,6 +111,46 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
+
+---
+
+## 2026-11-02 — Notchs dynamiques ajoutés du Simulateur de filtres
+
+### D-041 : notchs dynamiques ajoutés placés sur les pics prévus, sinon à leur centre initial
+
+**Contexte.** Quand on monte `dyn_notch_count` au-delà des centres enregistrés dans le log (debug FFT_FREQ), `_gyro_h2` plaçait les
+notchs ajoutés aux centres initiaux du firmware, `(p + 0,5)(max − min)/n + min`. Cédric a vu, sur `1.Stock.bbl` (Air65, 1 notch
+enregistré à 207 Hz, plage 100–600 Hz), des creux de −28 dB (2 notchs) à −60 dB (3 notchs) à 350 et 517 Hz, sans pic à ces fréquences :
+le rapport |H_modifié|² / |H_actuel|² creusait là où le firmware n'aurait pas mis de notch. Le firmware attache le notch `p` au `p`-ième
+pic le plus haut (`dyn_notch_filter.c`).
+
+**Mesure** (2026-11-02, 383 sessions de 64 drones du corpus en debug FFT_FREQ avec au moins 2 notchs, un seul notch supposé connu, axe roll,
+une voix par drone ; positions vérifiées dans le temps passé par chaque notch, cases de 18,5 Hz, tolérance ± 1,5 case) :
+
+| Modèle | Positions réelles retrouvées | Positions prédites où un notch passe (≥ 5 % du temps) |
+|---|---|---|
+| A : centres initiaux (précédent) | 0,28 | 0,76 |
+| B : pics seuls | 0,35 | 0,85 |
+| **B' : pics, sinon centre initial (retenu)** | **0,45** | **0,81** |
+| C : emplacements au hasard (témoin) | 0,18 | 0,68 |
+
+Critère fixé avant de lire les résultats : gagner au moins 0,15 de rappel sur A et sur C, sans perdre en précision, sur au moins 20 drones.
+B' le remplit (60 drones), B seul non (+ 0,07). Positions sur un pic : précision 0,87 ; positions de repli : 0,73.
+Aucun notch ajouté n'est « garé » à son centre initial (0 sur 522) ; 78 sessions sur 383 n'ont aucun pic ajouté prévu.
+Script de la mesure : jetable (non versionné) ; la refaire au besoin avec `motors.dyn_notch_targets` et `bf_filters.fft_freq_centres`.
+
+**Décision.** `bf_filters.complete_dyn_centres` : centres enregistrés d'abord (ramenés dans la plage), puis les pics prévus les plus hauts
+(`motors.dyn_notch_targets` sur le roll du gyro non filtré de toute la période, réponse des notchs RPM actuels appliquée, comme la validation de
+D-022) à plus de 1,5 case d'un centre déjà pris, puis les centres initiaux. Sans gyro non filtré : centres initiaux, comme avant. La chaîne
+« actuelle » n'est jamais complétée : réglages inchangés = log exact (L-024). Le Bode et le tableau des retards gardent les centres initiaux
+(case « notchs dyn. (centres initiaux) »), sans log. L'assistant n'utilise pas cette branche (il ne modifie ni le nombre ni la plage) : `advisor_rates.py` avant / après sur 632 sessions du corpus, 0 conseil différent.
+
+**Limites connues.** Le rappel de B' reste sous 0,5 ; l'axe de debug est supposé être le roll (défaut du firmware, réglage non lu) ; les pics sont
+ceux de la période entière, pas de chaque fenêtre de 300 ms ; un repli sur un centre initial peut encore creuser sans pic réel (27 % des replis).
+
+**Choix de Cédric** (2026-11-02, après sa capture du Simulateur) : nouveau modèle voulu, validé sur le corpus, appliqué à Python d'abord.
+
+**Rust** (2026-11-02, W-040) : même modèle dans `rust/otb-analysis/src/bf_filters.rs` (`complete_dyn_centres`, `dyn_peaks`, pics gardés dans `WhatIfCache.peaks`), même résultat que Python sur cas fabriqués et sur le log réel de 5 s des tests (`bf_filters`, `bf_sim`, `filter_tools`) ; pas encore comparé sur un vrai log long (W-040, W-028). Aucun message de plus dans l'interface : sans gyro non filtré, le Simulateur n'a de toute façon pas de simulation (titre d'alerte existant).
 
 ---
 
