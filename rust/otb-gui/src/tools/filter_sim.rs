@@ -8,6 +8,7 @@
 //! L'état de l'éditeur vit dans l'outil, pas dans `Options` : `Options` ne reçoit les réglages qu'à « Appliquer », ce qui
 //! évite tout recalcul pendant la saisie.
 
+use otb_format::fixed;
 use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextFormat};
@@ -52,8 +53,8 @@ const BODE_X_MIN_HZ: f64 = 10.0;
 /// Réglages envoyés au calcul par « Appliquer », avec le log auquel ils s'appliquent.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Applied {
-    /// Adresse du log (`Arc::as_ptr`) : des réglages d'un autre log ne servent pas au nouveau.
-    pub log_id: usize,
+    /// Identifiant du chargement du log (`LoadedLog::uid`) : des réglages d'un autre log ne servent pas au nouveau (L-072).
+    pub log_id: u64,
     pub settings: Settings,
 }
 
@@ -72,7 +73,7 @@ struct BodeSet {
 
 /// Ce qui se déduit de l'éditeur et des réglages de Bode : recalculé seulement quand l'un d'eux change.
 struct Derived {
-    key: (Editor, usize, i64, i64, bool),
+    key: (Editor, u64, i64, i64, bool),
     cli: String,
     bode: Result<BodeSet, String>,
     delays: Result<Delays, String>,
@@ -84,7 +85,7 @@ pub struct FilterSimTool {
     tab: usize,
     editor: Editor,
     /// Adresse du log dont l'éditeur est chargé.
-    loaded: Option<usize>,
+    loaded: Option<u64>,
     base: Option<Settings>,
     applied: Option<Applied>,
     /// Éditeur au moment du dernier « Appliquer » (ou du chargement) : ce que le dernier calcul a simulé.
@@ -95,8 +96,9 @@ pub struct FilterSimTool {
     with_current: bool,
     message: String,
     derived: Option<Derived>,
-    spectrum_view: Option<(usize, u8, bool)>,
-    bode_view: Option<(usize, u64)>,
+    /// Résultat dessiné (gardé vivant : son adresse ne peut pas resservir), axes cochés, case « actuel ».
+    spectrum_view: Option<(Arc<FilterSimResult>, u8, bool)>,
+    bode_view: Option<(u64, u64)>,
     link: [egui::Id; 2],
 }
 
@@ -306,7 +308,7 @@ impl FilterSimTool {
             return;
         };
         let l = &state.logs[i];
-        let id = Arc::as_ptr(&l.log) as usize;
+        let id = l.uid;
         if self.loaded == Some(id) {
             return;
         }
@@ -519,8 +521,8 @@ impl FilterSimTool {
             .iter()
             .enumerate()
             .fold(0u8, |m, (i, &on)| m | (u8::from(on) << i));
-        let spec_key = (Arc::as_ptr(out) as usize, axes_mask, self.with_current);
-        let fresh_spec = self.spectrum_view != Some(spec_key);
+        let fresh_spec = !matches!(&self.spectrum_view,
+            Some((a, m, w)) if Arc::ptr_eq(a, out) && *m == axes_mask && *w == self.with_current);
         let bode_key = (self.loaded.unwrap_or(0), nyq.to_bits());
         let fresh_bode = self.bode_view != Some(bode_key);
         let lab: String = self
@@ -626,7 +628,7 @@ impl FilterSimTool {
                 });
             });
         }
-        self.spectrum_view = Some(spec_key);
+        self.spectrum_view = Some((out.clone(), axes_mask, self.with_current));
         self.bode_view = Some(bode_key);
     }
 
@@ -696,15 +698,18 @@ impl FilterSimTool {
                         Trend::Same => theme.ui.text,
                     };
                     let mut job = LayoutJob::default();
-                    job.append(&format!("{a:.2} -> "), 0.0, fmt(theme.ui.text));
-                    job.append(&format!("{b:.2}"), 0.0, fmt(color));
+                    job.append(&format!("{} -> ", fixed(a, 2, false)), 0.0, fmt(theme.ui.text));
+                    job.append(&fixed(b, 2, false), 0.0, fmt(color));
                     ui.label(job);
                 }
                 ui.end_row();
             }
         });
         for (name, hz) in &d.dyn_cutoffs {
-            ui.label(format!("LPF1 {name} dynamique (modifié) à ce gaz : {hz:.0} Hz"));
+            ui.label(format!(
+                "LPF1 {name} dynamique (modifié) à ce gaz : {} Hz",
+                fixed(*hz, 0, false)
+            ));
         }
         ui.label(RichText::new(DELAY_NOTE).color(theme.ui.muted));
     }
@@ -718,7 +723,8 @@ impl Tool for FilterSimTool {
     fn options(&self) -> Options {
         Options {
             applied: self.applied.clone(),
-            with_current: self.with_current,
+            // toujours calculée (Python aussi) : la case « actuel » ne fait que masquer la courbe, sans relancer le calcul
+            with_current: true,
         }
     }
 
@@ -729,7 +735,7 @@ impl Tool for FilterSimTool {
     fn compute(o: Options, logs: Vec<LogInput>) -> Result<Self::Output, String> {
         let li = logs.first().ok_or("Sélectionnez au moins un log.")?;
         let base = &li.log.settings;
-        let id = Arc::as_ptr(&li.log) as usize;
+        let id = li.uid;
         let modf = match o.applied {
             Some(a) if a.log_id == id => a.settings,
             _ => Editor::from_settings(base).modified_settings(base),

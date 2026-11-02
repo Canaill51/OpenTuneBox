@@ -17,6 +17,8 @@ use crate::worker::Runner;
 #[derive(Clone)]
 pub struct LogInput {
     pub log: Arc<FlightLog>,
+    /// Identifiant du chargement (`LoadedLog::uid`) : à préférer à l'adresse du log pour reconnaître un log (L-072).
+    pub uid: u64,
     pub period: (f64, f64),
     pub label: String,
     pub color: Color32,
@@ -32,6 +34,7 @@ impl AppState {
             .filter_map(|&i| self.logs.get(i))
             .map(|l| LogInput {
                 log: l.log.clone(),
+                uid: l.uid,
                 period: l.period,
                 label: l.label.clone(),
                 color: l.color,

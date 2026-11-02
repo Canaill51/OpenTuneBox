@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-038 | Configuration egui : lignes alignées entre logs par nom de réglage (Python : par position) | 2026-11-02 |
 | D-037 | Outils egui : cache des résultats par log, partagé avec le thread de calcul, clé = réglages de calcul + période | 2026-11-02 |
 | D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris | 2026-11-01 |
 | D-035 | Migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome | 2026-10-30 |
@@ -109,6 +110,28 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-11-02 — Contrats de la phase 6-4
+
+### D-038 : page Configuration egui : les lignes sont alignées entre logs par nom de réglage, pas par position
+
+Écart volontaire avec `gui/tools/setup_info.py`.
+
+**Contexte.** Python écrit les noms de lignes du **premier** log puis range les valeurs des autres logs **par rang** (`setup_info.py`,
+l.159-171). Deux logs dont les « Curseurs simplifiés » n'ont pas les mêmes clés (versions de Betaflight différentes) voient alors une
+valeur face au nom d'un autre réglage. Question posée à Cédric (2026-11-02) : copier Python tel quel ou aligner par nom ; il a répondu
+« Aligner par nom ».
+
+**Décision.**
+- Les lignes sont alignées par nom : ordre du premier log, puis les noms propres aux autres logs à la suite de leur groupe ; « — » quand
+  un log n'a pas le réglage (`tools/setup.rs::align`).
+- La ligne « — / absents » des curseurs d'un log sans curseurs est écartée dès qu'un autre log en a de vrais : elle ne crée pas une
+  fausse ligne qui « diffère ».
+- Pas de copie de l'alignement par position, même « pour la parité » : il fausse la comparaison qui est le but de la page.
+
+**Témoins.** `rust/otb-gui/tests/filter_tools.rs` (alignement de deux logs aux curseurs différents, pas de ligne « — » fantôme) ;
+`_sections` de Python rejoué sur `tests/data/jeno5_5s.bbl` : sorties identiques ligne à ligne pour un seul log ; capture à deux logs
+(`jeno5_5s` en 2026.6.0 et `Leo/stock` en 4.5.1) vérifiée à l'œil.
 
 ## 2026-11-01 — Ordre et contrats de la phase 6
 

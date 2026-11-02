@@ -56,7 +56,9 @@ fn l_assistant_rend_un_rapport_avec_profil_periode_et_trois_axes() {
     let w = calcule(Some("whoop"), &st);
     assert_eq!(w.report.profile.key, "whoop");
     assert_eq!(w.report.profile_reason, "choisi par l'utilisateur");
-    assert!(step_text(&r.steps[0].result) == "données insuffisantes" || r.steps[0].result.n > 0);
+    // roll : aucune fenêtre exploitable sur ces 5 s ; le texte dit pourquoi (et non « n=0 »)
+    assert_eq!(r.steps[0].result.n, 0);
+    assert_eq!(step_text(&r.steps[0].result), "données insuffisantes");
     assert!(
         step_text(&r.steps[1].result).contains("n=9"),
         "{}",
@@ -1323,7 +1325,7 @@ fn le_simulateur_sert_le_cache_sauf_si_les_reglages_ou_la_periode_changent() {
     let b = FilterSimTool::compute(opts(None, true), st.inputs(&[0])).unwrap();
     assert!(Arc::ptr_eq(&a, &b), "mêmes réglages et même période : repris");
     // l'éditeur tel que chargé et ses réglages appliqués tels quels donnent le même calcul
-    let id = Arc::as_ptr(&st.logs[0].log) as usize;
+    let id = st.logs[0].uid;
     let same = Applied {
         log_id: id,
         settings: Editor::from_settings(&base).modified_settings(&base),
@@ -1392,4 +1394,51 @@ fn l_echelle_du_spectre_part_du_sommet_au_dessus_de_2_hz() {
     assert_eq!(y_bounds(top), (-80.0, -5.0));
     // 2 Hz exactement est exclu (strictement au-dessus)
     assert_eq!(spectrum_top(&[2.0], &[9.0]), f64::NEG_INFINITY);
+}
+
+#[test]
+fn un_identifiant_de_chargement_n_est_jamais_reutilise() {
+    // l'adresse mémoire d'un log fermé peut servir à un autre (L-072) : l'identifiant, non
+    let mut st = etat();
+    let premier = st.logs[0].uid;
+    let log = st.logs[0].log.as_ref().clone();
+    st.remove(0);
+    assert!(st.add(log.clone()));
+    let second = st.logs[0].uid;
+    assert_ne!(premier, second);
+    assert!(st.add(log));
+    let uids: Vec<u64> = st.inputs(&[0, 1]).iter().map(|l| l.uid).collect();
+    assert_eq!(uids, vec![second, st.logs[1].uid]);
+    assert_ne!(uids[0], uids[1]);
+}
+
+#[test]
+fn changer_de_log_recharge_l_editeur_et_oublie_les_reglages_appliques() {
+    let mut h = banc_page(CLAIR, SIM);
+    saisir(&mut h, "Gyro LPF2 coupure", "250");
+    h.get_by_label("Appliquer").click();
+    h.run_steps(2);
+    attendre(&mut h);
+    assert!(cli_text(&h).contains("set gyro_lpf2_static_hz = 250"));
+    // on ferme le log puis on rouvre le même fichier : un nouveau chargement, donc un éditeur neuf
+    let Screen::Tool(page) = h.state().screen else {
+        panic!("page de l'outil")
+    };
+    // la page de l'outil n'est pas dessinée pendant ce temps (on est dans « Courbes ») : rien ne la remet à zéro
+    h.state_mut().screen = Screen::Viewer;
+    h.run_steps(2);
+    h.state_mut().state.remove(0);
+    h.run_steps(2);
+    let log = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/jeno5_5s.bbl");
+    h.state_mut().open(vec![log]);
+    let debut = Instant::now();
+    while h.state().state.logs.is_empty() {
+        h.run();
+        assert!(debut.elapsed() < Duration::from_secs(30), "ouverture jamais terminée");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    h.state_mut().screen = Screen::Tool(page);
+    attendre(&mut h);
+    assert!(cli_text(&h).contains("aucun changement"), "{}", cli_text(&h));
+    assert!(h.query_by_label(STALE_STATUS).is_none());
 }
