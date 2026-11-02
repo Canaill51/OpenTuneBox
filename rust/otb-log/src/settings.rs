@@ -17,6 +17,20 @@ use crate::debug_tables::{debug_mode_name, family};
 /// motor_pwm_protocol : 5 et plus = DShot / ProShot.
 pub const PWM_DSHOT_MIN: i64 = 5;
 
+/// `RATES_TYPES` : nom du type de rates selon `rates_type` (Python : dictionnaire de `settings.py`).
+pub const RATES_TYPES: [(i64, &str); 5] = [
+    (0, "BETAFLIGHT"),
+    (1, "RACEFLIGHT"),
+    (2, "KISS"),
+    (3, "ACTUAL"),
+    (4, "QUICK"),
+];
+
+/// `RATES_TYPES.get(n)`.
+pub fn rates_type_name(n: i64) -> Option<&'static str> {
+    RATES_TYPES.iter().find(|(k, _)| *k == n).map(|(_, v)| *v)
+}
+
 fn filter_type(n: i64) -> Option<&'static str> {
     match n {
         0 => Some("PT1"),
@@ -58,6 +72,13 @@ pub struct AxisPid {
     /// D maximum (boost D max / D min).
     pub dmax: i64,
     pub f: i64,
+}
+
+impl AxisPid {
+    /// `AxisPID.text()` : « P,I,D,Dmax,F ».
+    pub fn text(&self) -> String {
+        format!("{},{},{},{},{}", self.p, self.i, self.d, self.dmax, self.f)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -380,4 +401,39 @@ pub fn parse_settings(raw: &BTreeMap<String, String>) -> Settings {
     s.acc_1g = int(g("acc_1G"), 2048).max(1);
     s.motor_kv = int(g("motor_kv"), 0);
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn les_types_de_rates_sont_ceux_de_python() {
+        assert_eq!(
+            RATES_TYPES,
+            [
+                (0, "BETAFLIGHT"),
+                (1, "RACEFLIGHT"),
+                (2, "KISS"),
+                (3, "ACTUAL"),
+                (4, "QUICK")
+            ]
+        );
+        assert_eq!(rates_type_name(4), Some("QUICK"));
+        assert_eq!(rates_type_name(5), None);
+        assert_eq!(rates_type_name(-1), None);
+    }
+
+    #[test]
+    fn le_texte_d_un_axe_est_p_i_d_dmax_f() {
+        let p = AxisPid {
+            p: 45,
+            i: 80,
+            d: 30,
+            dmax: 42,
+            f: 120,
+        };
+        assert_eq!(p.text(), "45,80,30,42,120");
+        assert_eq!(AxisPid::default().text(), "0,0,0,0,0");
+    }
 }

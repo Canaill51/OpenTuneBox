@@ -59,6 +59,8 @@ impl Cache {
 
 pub struct LoadedLog {
     pub log: Arc<FlightLog>,
+    /// Identifiant propre à ce chargement, jamais réutilisé : une adresse mémoire, elle, peut resservir à un autre log (L-072).
+    pub uid: u64,
     pub period: (f64, f64),
     pub color: Color32,
     pub label: String,
@@ -80,6 +82,7 @@ pub struct AppState {
     pub current: Option<usize>,
     pub cursor: f64,
     revision: u64,
+    next_uid: u64,
 }
 
 impl AppState {
@@ -114,8 +117,11 @@ impl AppState {
             k += 1;
         }
         let period = default_period(&log);
+        let uid = self.next_uid;
+        self.next_uid += 1;
         self.logs.push(LoadedLog {
             log: Arc::new(log),
+            uid,
             period,
             color,
             label,

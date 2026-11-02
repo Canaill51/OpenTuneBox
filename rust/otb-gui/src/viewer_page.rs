@@ -58,6 +58,8 @@ pub struct ViewerPage {
     present: HashMap<&'static str, bool>,
     modes: Vec<(f64, String)>,
     link: Id,
+    /// Outil demandé par un bouton du panneau (son titre) ; lu une fois par la fenêtre.
+    goto: Option<&'static str>,
     /// Transformation (temps ↔ pixels) de chaque graphique au dernier cadre : Roll, Pitch, Yaw, moteurs.
     pub transforms: [Option<egui_plot::PlotTransform>; 4],
 }
@@ -84,6 +86,7 @@ impl Default for ViewerPage {
             present: HashMap::new(),
             modes: Vec::new(),
             link: Id::unique(LINK),
+            goto: None,
             transforms: [None; 4],
         }
     }
@@ -332,6 +335,19 @@ impl ViewerPage {
             });
         });
         self.player(ui, state, th);
+        ui.separator();
+        if ui
+            .button("Configuration")
+            .on_hover_text("Infos de configuration (en-tête du log) : réglages des logs côte à côte")
+            .clicked()
+        {
+            self.goto = Some("Configuration");
+        }
+    }
+
+    /// Outil à ouvrir ensuite (son titre), demandé par un bouton du panneau.
+    pub fn take_goto(&mut self) -> Option<&'static str> {
+        self.goto.take()
     }
 
     fn measure_controls(&mut self, ui: &mut Ui, state: &AppState, th: &Theme) {

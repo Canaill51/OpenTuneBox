@@ -60,6 +60,18 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-072 : l'adresse mémoire d'un log ne l'identifie pas : elle peut resservir à un autre log
+- **Symptôme** — 2026-11-02 (relecture de la 6-4) : le Simulateur de filtres reconnaissait « son » log par `Arc::as_ptr` ; fermer le log A puis ouvrir B pouvait redonner la même adresse, donc ni l'éditeur ni les réglages appliqués n'étaient rechargés, et un « et si » était calculé avec les réglages de A contre la base de B, sans aucun message.
+- **Cause** — une fois l'`Arc` libéré, l'allocateur peut redonner le même bloc à une allocation de même taille (vérifié par un petit programme : même pointeur) ; la probabilité dépend des allocations du décodage. Python protège par `(label, id(log))` avec le log gardé vivant.
+- **Règle** — identifier un chargement par `LoadedLog::uid` (compteur de `AppState`, jamais réutilisé, copié dans `LogInput::uid`), jamais par une adresse. Même chose pour un résultat dessiné : garder l'`Arc` lui-même et comparer par `Arc::ptr_eq` (il reste vivant, son adresse ne peut pas resservir).
+- **Preuve** — `rust/otb-gui/tests/filter_tools.rs::changer_de_log_recharge_l_editeur_et_oublie_les_reglages_appliques` (échoue avec un identifiant constant ; le test passe par « Courbes » pour que la page de l'outil ne se remette pas à zéro seule) et `un_identifiant_de_chargement_n_est_jamais_reutilise` (échoue avec un compteur figé).
+
+### L-071 : un test de clé de cache peut passer avec la mauvaise clé quand une autre protection fait le travail
+- **Symptôme** — 2026-11-02 (6-4a) : le test de l'Assistant disait « pas repris après une autre période » ; en retirant la période de la clé de cache (mutation), les 6 tests restaient verts.
+- **Cause** — le test changeait la période par `AppState::set_period`, qui **vide déjà le cache** (D-037) : la clé n'était jamais consultée avec une période différente. Deux protections superposées, un seul témoin.
+- **Règle** — pour prouver qu'une protection tient seule, neutraliser l'autre dans le test (ici : écrire `st.logs[0].period` à la main, sans passer par `set_period`) et **casser exprès la protection visée** pour voir le test échouer (L-034). Même réflexe pour toute règle d'affichage sans effet testable à l'écran : en tirer une fonction pure (`delay_trend`, `spectrum_top`, `y_bounds` du Simulateur) ; cinq mutations survivaient avant.
+- **Preuve** — `rust/otb-gui/tests/filter_tools.rs::le_cache_sert_au_second_calcul_mais_ni_apres_un_autre_profil_ni_une_autre_periode` (échoue avec la clé sans la période) ; trois tests de règles d'affichage du Simulateur, cinq mutations tuées.
+
 ### L-070 : une liste déroulante d'egui est coupée à 200 px : les derniers choix sont hors de la zone cliquable
 - **Symptôme** — 2026-11-02 (6-3) : le test qui parcourt les 11 métriques de la Réponse indicielle échouait à la neuvième (« Marge de phase ») : le clic sur le choix ne changeait rien, la colonne gardait l'ancienne valeur, sans aucune erreur.
 - **Cause** — `egui::ComboBox` limite la hauteur de sa liste à 200 px par défaut et la rend défilante ; les choix du bas existent dans l'arbre d'accessibilité mais sont rognés par le cadre de défilement, le clic tombe à côté. Un utilisateur aurait dû faire défiler une liste de 11 choix que Qt affiche en entier.
@@ -821,6 +833,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-072 | Reconnaître un log à l'adresse de son `Arc` : l'adresse d'un log fermé peut resservir à un autre ; identifiant croissant `LoadedLog::uid` | Interface |
+| L-071 | Test « la clé de cache contient la période » qui passe même avec la mauvaise clé : une autre protection (`set_period` vide le cache) fait le travail ; casser la clé exprès | Tests |
 | L-070 | `ComboBox` d'egui : la liste est coupée à 200 px, les derniers choix d'une liste de 11 sortent de la zone cliquable (test : clic sans effet) | Interface |
 | L-069 | CI Ubuntu à court de disque : chaque fichier de test d'`otb-gui` lie egui et wgpu (≈ 490 Mo) ; `debug = "line-tables-only"` dans le profil `dev` | Outillage |
 | L-068 | Banc kittest : le contrôle d'accessibilité ne tourne qu'à la fin de `run()` (listes et champs sans nom) ; « → ✔ ▲ ↑ ↓ ⚠ » absents des polices d'egui | Tests |

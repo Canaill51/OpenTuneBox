@@ -17,6 +17,8 @@ use crate::worker::Runner;
 #[derive(Clone)]
 pub struct LogInput {
     pub log: Arc<FlightLog>,
+    /// Identifiant du chargement (`LoadedLog::uid`) : à préférer à l'adresse du log pour reconnaître un log (L-072).
+    pub uid: u64,
     pub period: (f64, f64),
     pub label: String,
     pub color: Color32,
@@ -32,6 +34,7 @@ impl AppState {
             .filter_map(|&i| self.logs.get(i))
             .map(|l| LogInput {
                 log: l.log.clone(),
+                uid: l.uid,
                 period: l.period,
                 label: l.label.clone(),
                 color: l.color,
@@ -74,6 +77,10 @@ pub trait Tool {
     fn render(&mut self, ui: &mut Ui, state: &mut AppState, output: &Self::Output, theme: &Theme);
     /// Outil à ouvrir ensuite (son `TITLE`), demandé par un bouton de cet outil ; lu une fois par la fenêtre.
     fn take_goto(&mut self) -> Option<&'static str> {
+        None
+    }
+    /// Message d'état propre à l'outil (barre d'état, hors erreur de calcul et calcul en cours).
+    fn status(&self) -> Option<String> {
         None
     }
 }
@@ -188,8 +195,12 @@ impl<T: Tool> Page for ToolPage<T> {
         egui::Panel::bottom(format!("{}-statut", T::TITLE)).show(ui, |ui| {
             if self.runner.busy() {
                 ui.label("Calcul en cours…");
-            } else {
+            } else if !self.status.is_empty() {
                 ui.colored_label(theme.accent("red"), &self.status);
+            } else if let Some(s) = self.tool.status() {
+                ui.label(s);
+            } else {
+                ui.label("");
             }
         });
         egui::CentralPanel::default().show(ui, |ui| match &self.last {
