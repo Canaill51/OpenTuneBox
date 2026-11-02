@@ -1446,22 +1446,21 @@ fn changer_de_log_recharge_l_editeur_et_oublie_les_reglages_appliques() {
 }
 
 #[test]
-fn les_bode_laissent_une_marge_sous_la_derniere_graduation() {
+fn les_bode_laissent_une_marge_sous_la_borne_basse() {
     use otb_gui::tools::filter_sim::bode_y_bounds;
-    for (col, derniere_graduation, haut) in [(0, -40.0, 3.0), (1, -270.0, 10.0)] {
+    // borne basse nominale : -40 dB pour le gain (sa graduation « -40 » est étiquetée : vue sur capture), -270 ° pour la phase
+    // (sa dernière graduation étiquetée n'est pas vérifiée : la marge y est seulement cohérente). Le test ne prouve que les
+    // bornes ; l'absence de chevauchement des étiquettes se juge sur les captures.
+    for (col, basse, haut) in [(0, -40.0, 3.0), (1, -270.0, 10.0)] {
         let (lo, hi) = bode_y_bounds(col);
         assert_eq!(hi, haut, "colonne {col} : borne haute inchangée");
-        // au moins 5 % de la hauteur sous la dernière graduation, pour que « -40 » ne touche pas le « 10 » de l'axe X
         assert!(
-            derniere_graduation - lo >= 0.05 * (hi - lo),
+            basse - lo >= 0.05 * (hi - lo),
             "colonne {col} : marge {} pour une hauteur de {}",
-            derniere_graduation - lo,
+            basse - lo,
             hi - lo
         );
-        assert!(
-            derniere_graduation - lo <= 0.1 * (hi - lo),
-            "colonne {col} : marge raisonnable"
-        );
+        assert!(basse - lo <= 0.1 * (hi - lo), "colonne {col} : marge raisonnable");
     }
 }
 

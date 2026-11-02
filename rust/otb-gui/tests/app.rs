@@ -72,7 +72,30 @@ use egui_kittest::kittest::Queryable;
 /// App avec les vraies pages, un log ouvert, et une boîte d'enregistrement qui rend `cible`
 /// (ou `None` : annulation) en notant le nom proposé.
 fn banc_export(cible: Option<PathBuf>, propose: Rc<RefCell<Vec<PathBuf>>>) -> Harness<'static, App> {
+    banc_export_avec(cible, propose, Degrade)
+}
+
+/// Moteur de rendu qui échoue toujours : la demande de capture n'est jamais honorée (surface de taille nulle…).
+struct Muet;
+
+impl egui_kittest::TestRenderer for Muet {
+    fn handle_delta(&mut self, delta: &mut egui::TexturesDelta) {
+        delta.clear();
+    }
+
+    fn render(&mut self, _: &egui::Context, _: &egui::FullOutput) -> Result<image::RgbaImage, String> {
+        Err("pas de rendu".into())
+    }
+}
+
+fn banc_export_avec(
+    cible: Option<PathBuf>,
+    propose: Rc<RefCell<Vec<PathBuf>>>,
+    renderer: impl egui_kittest::TestRenderer + 'static,
+) -> Harness<'static, App> {
     let mut app = App::new(otb_gui::tools::all_pages());
+    // jamais le vrai dossier personnel : le nom proposé dépend des fichiers déjà là (un essai à la main y laisse des images)
+    app.export_dir = Some(dossier_temp("banc"));
     app.save_dialog = Box::new(move |nom| {
         propose.borrow_mut().push(nom.to_path_buf());
         cible.clone()
@@ -80,7 +103,7 @@ fn banc_export(cible: Option<PathBuf>, propose: Rc<RefCell<Vec<PathBuf>>>) -> Ha
     let mut h = Harness::builder()
         .with_size(egui::vec2(900.0, 500.0))
         .with_context_setup(otb_gui::app::setup)
-        .renderer(Degrade)
+        .renderer(renderer)
         .build_ui_state(|ui, a: &mut App| a.ui(ui), app);
     h.state_mut().open(vec![donnees()]);
     let debut = Instant::now();
@@ -93,7 +116,9 @@ fn banc_export(cible: Option<PathBuf>, propose: Rc<RefCell<Vec<PathBuf>>>) -> Ha
 }
 
 fn dossier_temp(nom: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("otb-{nom}-{}", std::process::id()));
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let d = std::env::temp_dir().join(format!("otb-{nom}-{}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
     d
@@ -164,7 +189,10 @@ fn le_bouton_d_un_outil_exporte_seulement_sa_page() {
     let propose = Rc::new(RefCell::new(Vec::new()));
     let mut h = banc_export(Some(cible), propose);
     h.state_mut().open_tool("Analyse spectrale");
+    // un message connu dans la barre d'état de la fenêtre : on y lit où la page doit s'arrêter
+    h.state_mut().export_status = "etat-connu".into();
     h.run();
+    let haut_barre = h.get_by_label("etat-connu").rect().min.y;
     h.get_by_label("Exporter image").click();
     attendre_export(&mut h);
     let img = image::open(dir.join("outil.png"))
@@ -172,17 +200,16 @@ fn le_bouton_d_un_outil_exporte_seulement_sa_page() {
         .to_rgba8();
     let ppp = h.ctx.pixels_per_point();
     assert_eq!(img.width(), (900.0 * ppp).round() as u32, "toute la largeur");
+    // le dégradé dit d'où vient chaque pixel : rouge = x, vert = y
     let coin = img.get_pixel(0, 0).0;
     assert_eq!(coin[0], 0, "le bord gauche de la fenêtre");
+    let haut = coin[1] as f32 / ppp;
+    assert!(haut >= 40.0, "la page commence sous la barre du haut : y = {haut}");
+    // la page finit juste au-dessus de la barre d'état de la fenêtre (le cadre de la barre est un peu plus haut que son texte)
+    let bas = haut + img.height() as f32 / ppp;
     assert!(
-        coin[1] as f32 >= 40.0 * ppp,
-        "la page commence sous la barre du haut : y = {}",
-        coin[1]
-    );
-    assert!(
-        (img.height() as f32) < 500.0 * ppp - 10.0 && (img.height() as f32) > 300.0 * ppp,
-        "sous la barre d'outils : {}",
-        img.height()
+        bas <= haut_barre && haut_barre - bas < 16.0,
+        "la page doit finir juste au-dessus de la barre d'état : bas = {bas}, texte de la barre = {haut_barre}"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -191,18 +218,20 @@ fn le_bouton_d_un_outil_exporte_seulement_sa_page() {
 fn annuler_la_boite_n_ecrit_rien() {
     let propose = Rc::new(RefCell::new(Vec::new()));
     let mut h = banc_export(None, propose.clone());
+    let avant = h.state().export_dir.clone();
     h.run();
     h.get_by_label("Exporter la fenêtre en image PNG").click();
     attendre_export(&mut h);
     assert_eq!(propose.borrow().len(), 1, "la boîte s'est ouverte");
     assert!(h.state().export_status.is_empty(), "{}", h.state().export_status);
-    assert_eq!(h.state().export_dir, None);
+    assert_eq!(h.state().export_dir, avant, "dossier inchangé");
 }
 
 #[test]
 fn un_dossier_introuvable_donne_un_message_d_erreur() {
     let cible = std::env::temp_dir().join("otb-absent-xyz").join("sous").join("a.png");
     let mut h = banc_export(Some(cible), Rc::new(RefCell::new(Vec::new())));
+    let avant = h.state().export_dir.clone();
     h.run();
     h.get_by_label("Exporter la fenêtre en image PNG").click();
     attendre_export(&mut h);
@@ -213,7 +242,7 @@ fn un_dossier_introuvable_donne_un_message_d_erreur() {
     );
     assert_eq!(
         h.state().export_dir,
-        None,
+        avant,
         "le dossier n'est retenu qu'après une écriture réussie"
     );
 }
@@ -281,4 +310,123 @@ fn le_dossier_d_export_survit_entre_deux_lancements() {
     assert_eq!(c.export_dir, None);
     c.restore(&Memoire::default());
     assert_eq!(c.export_dir, None);
+}
+
+#[test]
+fn une_capture_jamais_recue_est_abandonnee_et_l_export_suivant_reste_possible() {
+    let dir = dossier_temp("muet");
+    let mut h = banc_export_avec(Some(dir.join("a.png")), Rc::new(RefCell::new(Vec::new())), Muet);
+    h.state_mut().capture_timeout = Duration::ZERO;
+    h.run();
+    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    attendre_export(&mut h);
+    assert!(
+        h.state().export_status.starts_with("Export impossible") && h.state().export_status.contains("capture"),
+        "{}",
+        h.state().export_status
+    );
+    assert!(!dir.join("a.png").exists());
+    // un nouveau clic est de nouveau pris en compte (la demande bloquée ne reste pas jusqu'à la fermeture)
+    h.state_mut().export_status.clear();
+    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    attendre_export(&mut h);
+    assert!(
+        h.state().export_status.starts_with("Export impossible"),
+        "{}",
+        h.state().export_status
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn un_nom_sans_extension_ne_remplace_pas_un_fichier_existant() {
+    let dir = dossier_temp("ecrase");
+    std::fs::write(dir.join("vol1.png"), b"ancien").unwrap();
+    let mut h = banc_export(Some(dir.join("vol1")), Rc::new(RefCell::new(Vec::new())));
+    h.run();
+    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    attendre_export(&mut h);
+    assert_eq!(
+        std::fs::read(dir.join("vol1.png")).unwrap(),
+        b"ancien",
+        "fichier intact"
+    );
+    assert!(
+        h.state().export_status.contains("existe déjà"),
+        "{}",
+        h.state().export_status
+    );
+    assert_eq!(
+        h.state().export_dir.as_deref().map(|d| d != dir.as_path()),
+        Some(true),
+        "dossier non retenu"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn un_nom_complet_choisi_dans_la_boite_est_ecrit_meme_s_il_existe() {
+    // la boîte du système a déjà demandé la confirmation pour un nom complet : on écrit
+    let dir = dossier_temp("ecrase-ok");
+    std::fs::write(dir.join("vol1.png"), b"ancien").unwrap();
+    let mut h = banc_export(Some(dir.join("vol1.png")), Rc::new(RefCell::new(Vec::new())));
+    h.run();
+    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    attendre_export(&mut h);
+    assert_ne!(std::fs::read(dir.join("vol1.png")).unwrap(), b"ancien");
+    assert!(
+        h.state().export_status.starts_with("Image enregistrée"),
+        "{}",
+        h.state().export_status
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn la_barre_d_etat_montre_l_erreur_d_ouverture_et_l_export_ensemble() {
+    use otb_gui::app::status_line;
+    assert_eq!(status_line("", "", ""), "");
+    assert_eq!(status_line("", "", "Ouverture en cours…"), "Ouverture en cours…");
+    assert_eq!(status_line("x illisible", "", "Ouverture en cours…"), "x illisible");
+    assert_eq!(
+        status_line("", "Image enregistrée : a.png", "Ouverture en cours…"),
+        "Image enregistrée : a.png"
+    );
+    assert_eq!(
+        status_line("x illisible", "Export impossible : y", ""),
+        "x illisible · Export impossible : y",
+        "aucun des deux messages ne masque l'autre"
+    );
+}
+
+#[test]
+fn ouvrir_un_fichier_efface_le_resultat_du_dernier_export() {
+    let mut a = App::new(Vec::new());
+    a.export_status = "Image enregistrée : a.png".into();
+    a.open(vec![PathBuf::from("/inexistant/absent.bbl")]);
+    assert!(a.export_status.is_empty());
+}
+
+#[test]
+fn le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi() {
+    let dir = dossier_temp("delai");
+    let mut h = banc_export(Some(dir.join("a.png")), Rc::new(RefCell::new(Vec::new())));
+    h.state_mut().capture_timeout = Duration::from_millis(150);
+    h.run();
+    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    attendre_export(&mut h);
+    assert!(
+        h.state().export_status.starts_with("Image enregistrée"),
+        "{}",
+        h.state().export_status
+    );
+    // bien après le délai : le message de réussite n'est pas remplacé par une fausse erreur
+    std::thread::sleep(Duration::from_millis(400));
+    h.run_steps(3);
+    assert!(
+        h.state().export_status.starts_with("Image enregistrée"),
+        "{}",
+        h.state().export_status
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
+use std::time::{Duration, Instant};
 
 use otb_log::flightlog::{FlightLog, load};
 
@@ -64,8 +65,12 @@ pub struct App {
     pub export_dir: Option<PathBuf>,
     /// Les tests remplacent la boîte du système.
     pub save_dialog: SaveDialog,
-    /// Zone en attente d'une capture d'écran (`None` : pas d'export en cours).
+    /// Zone en attente d'une capture d'écran (`None` : pas d'export en cours) et instant de la demande.
     shot_rect: Option<egui::Rect>,
+    shot_at: Option<Instant>,
+    /// Délai après lequel une capture non reçue est abandonnée : egui-wgpu jette parfois la demande sans appeler le rappel
+    /// (surface de taille nulle, lecture refusée), et l'export resterait bloqué jusqu'à la fermeture de l'application.
+    pub capture_timeout: Duration,
     shot_tx: Sender<Arc<egui::ColorImage>>,
     shot_rx: Receiver<Arc<egui::ColorImage>>,
 }
@@ -85,6 +90,20 @@ fn system_save_dialog(suggested: &Path) -> Option<PathBuf> {
         d = d.set_file_name(name.to_string_lossy());
     }
     d.save_file()
+}
+
+/// Texte de la barre du bas : erreurs d'ouverture et résultat du dernier export ensemble (aucun ne masque l'autre),
+/// sinon « Ouverture en cours… » ou rien.
+pub fn status_line(open_status: &str, export_status: &str, busy: &str) -> String {
+    let parts: Vec<&str> = [open_status, export_status]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect();
+    if parts.is_empty() {
+        busy.to_string()
+    } else {
+        parts.join(" · ")
+    }
 }
 
 fn home_dir() -> PathBuf {
@@ -123,6 +142,8 @@ impl App {
             export_dir: None,
             save_dialog: Box::new(system_save_dialog),
             shot_rect: None,
+            shot_at: None,
+            capture_timeout: Duration::from_secs(3),
             shot_tx,
             shot_rx,
         }
@@ -134,6 +155,7 @@ impl App {
             return; // une capture est déjà en route
         }
         self.shot_rect = Some(rect);
+        self.shot_at = Some(Instant::now());
         let (tx, c) = (self.shot_tx.clone(), ctx.clone());
         ctx.request_screenshot(move |img| {
             let _ = tx.send(img);
@@ -144,6 +166,7 @@ impl App {
 
     /// Recadre la capture reçue, demande le fichier, l'écrit. Python n'affiche rien ; ici le résultat va dans la barre du bas (W-038).
     fn finish_export(&mut self, ctx: &egui::Context, shot: &egui::ColorImage) {
+        self.shot_at = None;
         let Some(rect) = self.shot_rect.take() else {
             return;
         };
@@ -156,7 +179,13 @@ impl App {
         let Some(chosen) = (self.save_dialog)(&suggested) else {
             return; // annulé
         };
-        let path = with_png_extension(chosen);
+        let path = with_png_extension(chosen.clone());
+        // la boîte du système ne confirme l'écrasement que pour le nom tapé : « vol1 » devenu « vol1.png » ne doit pas
+        // remplacer sans le dire un fichier existant
+        if path != chosen && path.exists() {
+            self.export_status = format!("Ce fichier existe déjà : {} (choisissez un autre nom).", path.display());
+            return;
+        }
         self.export_status = match write_png(&part, &path) {
             Ok(()) => {
                 self.export_dir = path.parent().map(Path::to_path_buf);
@@ -177,6 +206,7 @@ impl App {
     /// suivants, et chaque erreur est écrite dans la barre d'état.
     pub fn open(&mut self, paths: Vec<PathBuf>) {
         self.errors.clear();
+        self.export_status.clear();
         self.queue.extend(paths);
     }
 
@@ -220,6 +250,15 @@ impl App {
             self.open(dropped);
         }
         self.poll_opening(&ctx);
+        if let Some(at) = self.shot_at {
+            if at.elapsed() > self.capture_timeout {
+                self.shot_at = None;
+                self.shot_rect = None;
+                self.export_status = "Export impossible : la capture d'écran n'est pas arrivée.".into();
+            } else {
+                ctx.request_repaint_after(self.capture_timeout); // pour constater l'échéance même sans autre événement
+            }
+        }
         if let Ok(shot) = self.shot_rx.try_recv() {
             self.finish_export(&ctx, &shot);
         }
@@ -287,25 +326,18 @@ impl App {
             } else {
                 ""
             };
-            let msg = if !self.status.is_empty() {
-                &self.status
-            } else if !self.export_status.is_empty() {
-                &self.export_status
-            } else {
-                busy
-            };
-            ui.label(msg);
+            ui.label(status_line(&self.status, &self.export_status, busy));
         });
         let mut goto = None;
         let mut export_page = false;
         let mut guide_actions = Vec::new();
         // la page d'un outil : sous la barre du haut, au-dessus de la barre d'état, sur toute la largeur de la fenêtre
-        // (le `Ui` racine laisse 8 points de marge de chaque côté)
+        // (dans eframe le `Ui` racine couvre déjà la fenêtre ; le banc de test d'egui_kittest l'entoure d'une marge de 8 points)
         let page_rect = {
-            let (libre, fenetre) = (root.available_rect_before_wrap(), ctx.content_rect());
+            let (free, window) = (root.available_rect_before_wrap(), ctx.content_rect());
             egui::Rect::from_min_max(
-                egui::pos2(fenetre.min.x, libre.min.y),
-                egui::pos2(fenetre.max.x, libre.max.y),
+                egui::pos2(window.min.x, free.min.y),
+                egui::pos2(window.max.x, free.max.y),
             )
         };
         egui::CentralPanel::default().show(root, |ui| match self.screen {

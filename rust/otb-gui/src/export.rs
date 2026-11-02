@@ -48,8 +48,8 @@ pub fn default_export_path(dir: &Path, today: (i32, u32, u32), exists: &dyn Fn(&
 
 /// Ajoute `.png` si le nom n'a pas cette extension (Python laisse le nom tel quel).
 pub fn with_png_extension(path: PathBuf) -> PathBuf {
-    let est_png = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
-    if est_png {
+    let is_png = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
+    if is_png {
         return path;
     }
     let mut s = path.into_os_string();
@@ -61,12 +61,15 @@ pub fn with_png_extension(path: PathBuf) -> PathBuf {
 /// `ColorImage::region` panique si le rectangle dépasse. `None` si rien ne reste.
 pub fn crop(img: &ColorImage, rect: Rect, ppp: f32) -> Option<ColorImage> {
     let [w, h] = img.size;
-    let borne = |v: f32, max: usize| (v.max(0.0) as usize).min(max);
+    let clamp_px = |v: f32, max: usize| (v.max(0.0) as usize).min(max);
     let (x0, y0) = (
-        borne((rect.min.x * ppp).floor(), w),
-        borne((rect.min.y * ppp).floor(), h),
+        clamp_px((rect.min.x * ppp).floor(), w),
+        clamp_px((rect.min.y * ppp).floor(), h),
     );
-    let (x1, y1) = (borne((rect.max.x * ppp).ceil(), w), borne((rect.max.y * ppp).ceil(), h));
+    let (x1, y1) = (
+        clamp_px((rect.max.x * ppp).ceil(), w),
+        clamp_px((rect.max.y * ppp).ceil(), h),
+    );
     if x1 <= x0 || y1 <= y0 {
         return None;
     }
@@ -76,8 +79,8 @@ pub fn crop(img: &ColorImage, rect: Rect, ppp: f32) -> Option<ColorImage> {
 /// Écrit `img` en PNG.
 pub fn write_png(img: &ColorImage, path: &Path) -> Result<(), String> {
     let [w, h] = img.size;
-    let octets: Vec<u8> = img.pixels.iter().flat_map(|p| p.to_array()).collect();
-    let rgba = image::RgbaImage::from_raw(w as u32, h as u32, octets)
+    let bytes: Vec<u8> = img.pixels.iter().flat_map(|p| p.to_array()).collect();
+    let rgba = image::RgbaImage::from_raw(w as u32, h as u32, bytes)
         .ok_or_else(|| "image de taille incohérente".to_string())?;
     rgba.save(path).map_err(|e| e.to_string())
 }
