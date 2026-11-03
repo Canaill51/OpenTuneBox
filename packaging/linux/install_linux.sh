@@ -25,10 +25,15 @@ if [ ! -x "$BIN" ]; then
 fi
 
 mkdir -p "$BIN_DIR" "$APPS" "$HICOLOR/scalable/apps" "$HICOLOR/256x256/apps"
-cp "$BIN" "$BIN_DIR/opentunebox-gui"
+# Copie à côté puis remplacement d'un coup : `cp` directement sur le programme échoue (« Fichier texte occupé ») quand OpenTuneBox est
+# ouvert, ce qui est le cas d'une mise à jour ; `mv` remplace le fichier même s'il tourne (l'ancienne fenêtre garde l'ancien programme).
+cp "$BIN" "$BIN_DIR/.opentunebox-gui.new"
+mv -f "$BIN_DIR/.opentunebox-gui.new" "$BIN_DIR/opentunebox-gui"
 # Icône vectorielle, plus un PNG de 256 px : certains menus et barres des tâches n'utilisent que des PNG.
 cp "$SVG" "$HICOLOR/scalable/apps/opentunebox.svg"
 cp "$PNG" "$HICOLOR/256x256/apps/opentunebox.png"
+# Les versions du script d'avant la phase 7-4 posaient aussi des PNG de 16 à 128 px (rendus par Qt) : ils masqueraient l'icône actuelle.
+for n in 16 24 32 48 64 128; do rm -f "$HICOLOR/${n}x${n}/apps/opentunebox.png"; done
 
 # ⚠️ Le fichier s'appelle OpenTuneBox.desktop, comme l'app_id de la fenêtre, majuscules comprises : sous Wayland (KDE), c'est ce nom
 # qui fait trouver l'icône (avec opentunebox.desktop, la fenêtre garde une icône générique : L-076).
