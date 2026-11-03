@@ -27,6 +27,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Le jeton (droit d'écriture sur la page Releases) ne doit pas rester dans .git/config pendant la compilation : les build.rs et
+          # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
+          persist-credentials: false
       - name: Rust
         run: rustup toolchain install stable --profile minimal
       - name: Notes de version (section du CHANGELOG)
@@ -37,6 +41,7 @@ jobs:
       - name: Brouillon de la page de la version
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
@@ -61,6 +66,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Le jeton (droit d'écriture sur la page Releases) ne doit pas rester dans .git/config pendant la compilation : les build.rs et
+          # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
+          persist-credentials: false
       - name: Rust
         run: rustup toolchain install stable --profile minimal
       - name: Bibliothèques pour l'essai de démarrage (Linux)
@@ -157,6 +166,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: gh release upload "$GITHUB_REF_NAME" ${{ matrix.package }} --clobber
       # Lancement à la main : fichier envoyé tel quel (droits d'exécution conservés), gardé un jour.
       - uses: actions/upload-artifact@v7
