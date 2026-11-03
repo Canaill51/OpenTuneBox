@@ -4,12 +4,13 @@
 //! otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]   numéro de version, CHANGELOG
 //! otb-dev release notes vX.Y.Z                        texte de la page Releases
 //! otb-dev icons [--svg CHEMIN]                        PNG Linux et .ico Windows depuis le SVG
+//! otb-dev corpus <outil> …                            outils du corpus de vrais logs (`OTB_LOGS`)
 //! ```
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]";
+const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev corpus <outil> …";
 
 /// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `CHANGELOG.md` et `rust/Cargo.toml`.
 fn repo_root() -> Result<PathBuf, String> {
@@ -40,6 +41,20 @@ fn run(args: &[String]) -> Result<String, String> {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("corpus") {
+        // les outils du corpus rendent aussi un code de sortie (1 : écart trouvé)
+        let rest: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+        return match otb_dev::corpus::run(&rest) {
+            Ok(out) => {
+                println!("{}", out.text);
+                ExitCode::from(out.code)
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     match run(&args) {
         Ok(text) => {
             println!("{text}");

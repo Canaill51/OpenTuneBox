@@ -8,6 +8,7 @@
 //! Chaque contrôle reçoit les textes ou les listes à comparer et rend la liste des problèmes (vide = tout va bien) ; les listes réelles
 //! (outils, profils, commandes…) sont rassemblées par `tests/docs.rs`, les cas fabriqués qui doivent échouer sont dans `tests/checks.rs`.
 
+pub mod corpus;
 pub mod docs;
 pub mod icons;
 pub mod release;

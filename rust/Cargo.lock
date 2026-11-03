@@ -2774,11 +2774,17 @@ version = "0.8.0"
 dependencies = [
  "ico",
  "otb-advisor",
+ "otb-analysis",
  "otb-cli",
+ "otb-decoder",
  "otb-format",
  "otb-gui",
+ "otb-log",
+ "rayon",
  "regex",
  "resvg 0.49.0",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

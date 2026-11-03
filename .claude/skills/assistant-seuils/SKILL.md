@@ -1,6 +1,6 @@
 ---
 name: assistant-seuils
-description: Méthode pour créer, modifier, calibrer ou justifier un seuil, une règle ou un profil de taille de l'assistant de réglage d'OpenTuneBox (advisor/profiles.py, advisor/rules.py, scripts/calibrate_advisor.py, docs/assistant.md). À charger avant de toucher à un seuil ou à une règle de l'assistant, ou quand Cédric demande d'où vient une valeur.
+description: Méthode pour créer, modifier, calibrer ou justifier un seuil, une règle ou un profil de taille de l'assistant de réglage d'OpenTuneBox (advisor/profiles.py, advisor/rules.py, `otb-dev corpus calibrate`, docs/assistant.md). À charger avant de toucher à un seuil ou à une règle de l'assistant, ou quand Cédric demande d'où vient une valeur.
 ---
 
 # Seuils de l'assistant : calibrer et sourcer
@@ -13,13 +13,13 @@ permise, mais elle doit être déclarée comme telle et listée pour être véri
 ## 1. Calibrer sur le corpus
 
 ```sh
-.venv/bin/python scripts/corpus_labels.py                                  # ≈ 40 s, met à jour $OTB_LOGS/corpus.csv
-.venv/bin/python scripts/calibrate_advisor.py 600 SCRATCH/stats.json        # ≈ 3 min, tout le corpus
-.venv/bin/python scripts/calibrate_advisor.py --resume SCRATCH/stats.json   # p10/p50/p90 par taille
-.venv/bin/python scripts/advisor_rates.py SCRATCH/rates.json                # ≈ 2 min, taux de chaque constat
+(cd rust && cargo run --release -p otb-dev -- corpus labels)                      # met à jour $OTB_LOGS/corpus.csv
+(cd rust && cargo run --release -p otb-dev -- corpus calibrate 600 SCRATCH/stats.json)   # tout le corpus
+(cd rust && cargo run --release -p otb-dev -- corpus calibrate --resume SCRATCH/stats.json)   # p10/p50/p90 par taille
+(cd rust && cargo run --release -p otb-dev -- corpus rates SCRATCH/rates.json)   # taux de chaque constat
 ```
 
-Les scripts tournent en parallèle sur tous les cœurs : charger la compétence `calculs-corpus` avant de les
+Les outils tournent en parallèle sur tous les cœurs : charger la compétence `calculs-corpus` avant de les
 lancer (essai sur un échantillon, réutilisation d'un JSON récent, bits inversés sur le poste de Cédric).
 
 `SCRATCH` = répertoire de travail temporaire de la session (jamais dans le dépôt). Lancer le calcul en
@@ -27,12 +27,12 @@ arrière-plan. `--resume` reclasse les sessions avec les limites de taille actue
 (`profiles.profile_key`, fréquence moteur et cellules), sans tout recalculer. **Tout le corpus compte** :
 Cédric ne peut pas dire quels drones sont réglés ou d'origine, il n'y a donc pas de corpus de référence
 (décision du 2026-10-05, `docs/assistant.md`, « Calibration ») ; ne pas lui redemander ces étiquettes ni la
-taille réelle. `corpus_labels.py` (tableau `corpus.csv`) ne réécrit jamais les colonnes `etat`, `taille_reelle` et `remarque`. Il
+taille réelle. `corpus labels` (tableau `corpus.csv`) ne réécrit jamais les colonnes `etat`, `taille_reelle` et `remarque`. Il
 signale les noms de drone trouvés dans plusieurs dossiers : demander à Cédric si ce sont des machines
-différentes : oui → `SHARED_NAMES`, non → `SAME_DRONE_NAMES`. Les deux scripts lisent les logs par
-`corpus_labels.log_files` (sans doublons de contenu ni `__MACOSX`).
+différentes : oui → `SHARED_NAMES`, non → `SAME_DRONE_NAMES`. Les outils lisent les logs par
+`corpus::log_files` d'otb-dev (sans doublons de contenu ni `__MACOSX`).
 
-Pour une **nouvelle mesure** : l'ajouter dans la boucle du script (même calcul que la règle ; si la règle
+Pour une **nouvelle mesure** : l'ajouter dans la boucle de l'outil (`calibrate.rs`) (même calcul que la règle ; si la règle
 mélange mesure et décision, séparer la mesure dans une fonction réutilisable, comme
 `rules.frame_resonance`), puis relancer.
 
@@ -48,7 +48,7 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 - Rejeter un percentile sans sens physique (ex. saturation p90 = 0 % en 7" → la moindre saturation
   serait signalée) : seuil commun à la place, et l'écrire dans la doc.
 - Vérifier le **taux de déclenchement** d'un seuil sur le corpus (part des sessions signalées,
-  `scripts/advisor_rates.py`, avant / après le changement) : très
+  `otb-dev corpus rates`, avant / après le changement) : très
   au-dessus de 10 % → seuil trop sévère ; proche de 0 % → règle inutile.
 - **Séparer selon le réglage qui fausse la mesure** : le feedforward gonfle le pic de réponse (p90 1,19
   sans, 1,59 avec, une voix par drone, D-025) → deux jeux de paliers (`rules.STEP_PEAK_HIGH`, `STEP_PEAK_HIGH_FF`).
