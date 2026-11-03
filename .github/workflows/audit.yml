@@ -1,5 +1,6 @@
-# Contrôle des vulnérabilités connues dans les bibliothèques dont dépend OpenTuneBox (pip-audit, base
-# d'avis de PyPI). Se lance à chaque envoi et demande de fusion, et chaque lundi : une faille peut être
+# Contrôle des vulnérabilités connues dans les bibliothèques dont dépend OpenTuneBox : Python (pip-audit, base
+# d'avis de PyPI, jusqu'à la suppression du Python, phase 7-5) et Rust (cargo-deny : failles RustSec, licences, origine des crates,
+# réglages dans rust/deny.toml). Se lance à chaque envoi et demande de fusion, et chaque lundi : une faille peut être
 # publiée sans qu'on ait changé une ligne. Échec = une dépendance a une faille connue : la mettre à jour
 # (Dependabot propose souvent déjà la demande de fusion).
 name: Audit
@@ -37,3 +38,15 @@ jobs:
           python -m venv "$RUNNER_TEMP/audit-tool"
           "$RUNNER_TEMP/audit-tool/bin/pip" install pip-audit==2.9.0
           "$RUNNER_TEMP/audit-tool/bin/pip-audit" --skip-editable --path "$(python -c 'import site; print(site.getsitepackages()[0])')"
+
+  # Dépendances Rust : mêmes réglages qu'en local (`cd rust && cargo deny check`). Un avis « non maintenu » sans correctif se met dans
+  # `ignore` de rust/deny.toml avec sa raison, jamais en retirant le contrôle.
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: rust/Cargo.toml
+          # Par défaut l'action ajoute `--all-features` : on veut le même arbre que le build livré.
+          arguments: ""

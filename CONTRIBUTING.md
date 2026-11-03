@@ -62,7 +62,7 @@ pas le nom d'une branche : c'est normal. On les fusionne à la main, une fois la
 les notes de la nouvelle version.
 
 Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connues dans les bibliothèques
-livrées (`pip-audit`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
+livrées (`pip-audit` pour Python ; `cargo-deny` pour Rust, réglages dans `rust/deny.toml`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
 a une faille publiée : relever sa version minimale dans `pyproject.toml`. Rien à lancer en local ; pour un
 essai, dans un environnement vierge (`python3 -m venv /tmp/projet /tmp/outil`) :
 ```sh
@@ -70,6 +70,10 @@ essai, dans un environnement vierge (`python3 -m venv /tmp/projet /tmp/outil`) :
 /tmp/outil/bin/pip install pip-audit==2.9.0
 /tmp/outil/bin/pip-audit --skip-editable --path /tmp/projet/lib/python3.*/site-packages
 ```
+Côté Rust : `(cd rust && cargo deny check)` (failles RustSec, licences, origine des crates ; la base d'avis est téléchargée à
+chaque passage). Un avis « non maintenu » sans correctif ne se retire pas du contrôle : il entre dans `ignore` de
+`rust/deny.toml` avec sa raison et un numéro `W-xxx`. Une licence nouvelle (surtout un copyleft : GPL, LGPL) se discute avec
+Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises à jour des crates (écosystème `cargo`).
 
 ## Publier une version
 

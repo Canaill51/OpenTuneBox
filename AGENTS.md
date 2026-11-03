@@ -115,7 +115,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```
 
-CI : `tests.yml` (lint, tests, couverture) et `audit.yml` (failles des dépendances, voir `CONTRIBUTING.md`) ; la
+CI : `tests.yml` (lint, tests, couverture) et `audit.yml` (failles des dépendances : pip-audit et `cargo deny check`, voir `CONTRIBUTING.md`) ; la
 CI ne voit pas le corpus.
 
 Variables d'environnement : `OTB_LOGS` (dossier de vrais logs, défaut `~/Documents/Drones/Logs` ; contient

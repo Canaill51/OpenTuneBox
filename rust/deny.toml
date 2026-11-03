@@ -1,0 +1,60 @@
+# Contrôle des dépendances Rust par cargo-deny (phase 7-4) : failles connues, licences, origine des crates.
+# Lancé par `.github/workflows/audit.yml` à chaque envoi, demande de fusion et chaque lundi ; en local :
+#   (cd rust && cargo deny check)
+# Format : https://embarkstudios.github.io/cargo-deny/ (sections [graph], [advisories], [licenses], [bans], [sources]).
+
+[graph]
+# Seulement ce qui est livré (D-042 : Windows et Linux, plus macOS) : les dépendances propres à d'autres systèmes
+# (macOS, Android, web…) ne sont ni contrôlées ni listées.
+targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
+
+[advisories]
+# Base RustSec, récupérée à chaque passage (réseau requis). Une faille connue, ou une crate retirée du registre (« yanked »),
+# fait échouer le contrôle : mettre la dépendance à jour, ou, si c'est impossible, ajouter l'avis à `ignore` avec la raison.
+yanked = "deny"
+# Avis « non maintenu » sans version corrigée, tous hérités de la pile d'egui / eframe (2026-11-03, `cargo tree -i`) : `zbus`,
+# `zvariant`, `zvariant_derive` et `zbus_names` par l'accessibilité (accesskit_unix), `ttf-parser` par la barre de titre Wayland
+# (sctk-adwaita → ab_glyph). Rien à corriger de notre côté : reprise à la prochaine mise à jour d'eframe (W-042). Ce ne sont pas
+# des failles ; `unused-ignored-advisory` (avertissement) signalera le jour où l'un de ces avis ne s'applique plus.
+ignore = [
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser non maintenu, via sctk-adwaita (eframe), W-042" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant non maintenu, via accesskit_unix (eframe), W-042" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names non maintenu, via accesskit_unix (eframe), W-042" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive non maintenu, via accesskit_unix (eframe), W-042" },
+]
+
+[licenses]
+# Liste mesurée sur le vrai `Cargo.lock` (`cargo deny list`, 2026-11-03) : seules les licences réellement présentes y figurent.
+# Aucune licence à copyleft : `self_cell` (GPL-2.0-only) et `r-efi` (LGPL-2.1-or-later) les proposent en alternative « OR » à
+# MIT / Apache-2.0, qui sont acceptées. Le projet est privé, tous droits réservés (D-001) : ne pas ajouter de GPL / LGPL sans
+# en parler à Cédric.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unlicense",
+    "BSL-1.0",
+    "0BSD",
+    # polices embarquées par egui (`epaint_default_fonts` : « (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0 »)
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+]
+# Les crates du dépôt (`publish = false`, sans champ `license`) ne sont pas contrôlées.
+private = { ignore = true }
+
+[bans]
+# Doublons de versions : signalés, pas bloquants (l'arbre d'egui / wgpu en contient plusieurs).
+multiple-versions = "warn"
+wildcards = "deny"
+# Les dépendances internes sont des chemins (`path = "../…"`), sans version : autorisées.
+allow-wildcard-paths = true
+
+[sources]
+# crates.io seulement : aucune dépendance prise sur un dépôt git ou un autre registre.
+unknown-registry = "deny"
+unknown-git = "deny"
