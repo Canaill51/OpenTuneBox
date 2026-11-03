@@ -36,7 +36,7 @@ et les comparer au code :
 | Formule ou réglage du firmware | `docs/spec-betaflight.md`, `log/settings.py` / `log/debug_tables.py` cohérents |
 | Assistant (règle, seuil, profil) | `docs/assistant.md` (Taille du drone, Calibration, Règles, Origine des seuils), `advisor/profiles.py` (commentaires), compétence `assistant-seuils`, textes du guide intégré `gui/assets/guide/` et `advisor/log_check.py` s'ils citent la valeur |
 | Procédure de réglage, enregistrement, outil cité par le guide | guide intégré `gui/assets/guide/` (compétence `guide-integre`), résumé dans `docs/guide-utilisateur.md` §3 et §6 |
-| Décodeur | `docs/validation.md` (relancer `scripts/validate_corpus.py`), `docs/pieges-par-domaine.md` |
+| Décodeur | `docs/validation.md` (relancer `otb-dev corpus validate`), `docs/pieges-par-domaine.md` |
 | Nouveau module ou fichier déplacé | `AGENTS.md` (Organisation), `docs/architecture.md` |
 | Construction, installateurs, workflow | `README.md` (Installation, Développement), guide (1. Installer), `CONTRIBUTING.md` (Publier une version), `docs/architecture.md` (Distribution), compétence `opentunebox-dev` (Fabriquer les exécutables) |
 | Commande, script, variable d'environnement | `AGENTS.md` (Commandes), `README.md`, `CONTRIBUTING.md` |

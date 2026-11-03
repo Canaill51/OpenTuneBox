@@ -88,5 +88,6 @@ Si la mesure doit servir plusieurs fois (taux, seuil), l'ajouter à `calibrate_a
 - Fils de Rust (rayon, noyau de `step_response`, D-033) : `map_files` fixe `RAYON_NUM_THREADS=1` dans chaque
   processus (sans cela, cœurs × cœurs fils). Un script qui calcule dans UN seul processus peut laisser tous
   les cœurs au noyau (4,9× plus rapide que numpy mesuré le 2026-10-29).
-- `scripts/validate_corpus.py` (comparaison avec `blackbox_decode`) reste séquentiel : il pilote un
-  programme externe avec un délai de 180 s par fichier et se reprend par `--start`.
+- `otb-dev corpus validate` (comparaison avec `blackbox_decode`) lance la référence avec un délai de 180 s par fichier
+  (3 fichiers la bloquent : `refhang`), 4 fichiers à la fois par défaut (≈ 1 Go de mémoire au pic ; `-j N` pour changer),
+  et se reprend par `--start N`. Corpus entier : ≈ 6 min.

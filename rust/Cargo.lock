@@ -2776,6 +2776,7 @@ dependencies = [
  "otb-advisor",
  "otb-analysis",
  "otb-cli",
+ "otb-decoder",
  "otb-format",
  "otb-gui",
  "otb-log",
