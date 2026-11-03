@@ -5,6 +5,8 @@
 //! Un seul processus : les fichiers se répartissent sur un pool rayon, et le noyau de `step_response` partage ce même pool,
 //! donc pas de « cœurs × cœurs » fils (le `RAYON_NUM_THREADS=1` par processus de `map_files` en Python n'a plus d'objet).
 
+pub mod rates;
+
 use std::collections::HashSet;
 use std::ops::Range;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -243,11 +245,24 @@ impl<'a> Args<'a> {
     }
 }
 
-pub const USAGE: &str = "Usage :\n  otb-dev corpus <outil> …\nOutils : (à venir) rates, calibrate, labels, validate";
+/// Ce qu'un outil rend : le texte pour la sortie standard et le code de sortie (1 : l'outil a trouvé un écart).
+pub struct Output {
+    pub text: String,
+    pub code: u8,
+}
+
+impl Output {
+    pub fn ok(text: String) -> Self {
+        Output { text, code: 0 }
+    }
+}
+
+pub const USAGE: &str = "Usage :\n  otb-dev corpus <outil> …\nOutils : rates (à venir : calibrate, labels, validate)";
 
 /// Point d'entrée de `otb-dev corpus …`.
-pub fn run(args: &[&str]) -> Result<String, String> {
+pub fn run(args: &[&str]) -> Result<Output, String> {
     match args {
+        ["rates", rest @ ..] => rates::run(rest),
         [outil, ..] => Err(format!("outil inconnu : {outil}\n{USAGE}")),
         [] => Err(USAGE.into()),
     }

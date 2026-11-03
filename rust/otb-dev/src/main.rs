@@ -35,13 +35,26 @@ fn run(args: &[String]) -> Result<String, String> {
         ["release", "notes", tag] => otb_dev::release::notes(&repo_root()?, tag),
         ["icons"] => otb_dev::icons::generate(&repo_root()?, None),
         ["icons", "--svg", path] => otb_dev::icons::generate(&repo_root()?, Some(Path::new(path))),
-        ["corpus", rest @ ..] => otb_dev::corpus::run(rest),
         _ => Err(USAGE.into()),
     }
 }
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("corpus") {
+        // les outils du corpus rendent aussi un code de sortie (1 : écart trouvé)
+        let rest: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+        return match otb_dev::corpus::run(&rest) {
+            Ok(out) => {
+                println!("{}", out.text);
+                ExitCode::from(out.code)
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     match run(&args) {
         Ok(text) => {
             println!("{text}");
