@@ -242,3 +242,26 @@ fn chaque_onglet_de_la_barre_a_son_icone_et_sa_couleur_comme_python() {
         "page ouverte depuis un autre bouton : pas d'onglet à elle"
     );
 }
+
+/// L-076 : sous Linux (Wayland), le bureau trouve l'icône de la fenêtre par un fichier `.desktop` dont le **nom** est l'`app_id`
+/// de la fenêtre, majuscules comprises (`OpenTuneBox.desktop` : bonne icône ; `opentunebox.desktop` avec `StartupWMClass` : icône
+/// générique, essayé sur KDE Plasma le 2026-11-03). Les deux scripts de `packaging/linux/` doivent donc écrire ce nom exact.
+#[test]
+fn le_fichier_desktop_porte_le_nom_de_l_app_id() {
+    let main = std::fs::read_to_string(racine().join("src/main.rs")).unwrap();
+    let debut = main.find("with_app_id(\"").expect("with_app_id dans main.rs") + "with_app_id(\"".len();
+    let app_id = &main[debut..debut + main[debut..].find('"').unwrap()];
+    assert!(!app_id.is_empty());
+    for (script, dossier) in [("install_linux.sh", "$APPS"), ("build_appimage.sh", "$APPDIR")] {
+        let texte = std::fs::read_to_string(racine().join("../../packaging/linux").join(script)).unwrap();
+        let attendu = format!("\"{dossier}/{app_id}.desktop\"");
+        assert!(
+            texte.contains(&attendu),
+            "{script} doit écrire {attendu} (nom du fichier .desktop = app_id de la fenêtre, L-076)"
+        );
+        assert!(
+            texte.contains(&format!("StartupWMClass={app_id}")),
+            "{script} : StartupWMClass doit valoir l'app_id (X11)"
+        );
+    }
+}

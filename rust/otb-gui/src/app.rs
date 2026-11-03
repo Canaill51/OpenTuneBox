@@ -20,6 +20,15 @@ use crate::tool::Page;
 use crate::viewer_page::ViewerPage;
 use crate::worker::Runner;
 
+/// Fichiers à ouvrir au lancement : les arguments de la ligne de commande sans les options (même règle que la version Python).
+/// C'est ce que reçoit l'application par l'association `.bbl` / `.bfl` de Windows (`OpenTuneBox.exe "%1"`) et par l'AppImage (`%F`).
+pub fn files_from_args(args: impl IntoIterator<Item = std::ffi::OsString>) -> Vec<PathBuf> {
+    args.into_iter()
+        .filter(|a| !a.to_string_lossy().starts_with('-'))
+        .map(PathBuf::from)
+        .collect()
+}
+
 /// À appeler une fois au démarrage (et dans chaque banc de test) : chargeurs d'images, pour les icônes SVG, et police de secours.
 ///
 /// Hack, déjà livrée avec egui mais réservée au texte à chasse fixe, passe en dernier recours du texte normal : elle a « → ▲ ● ○ ↑ ↓ ← ◇ ■ »
@@ -225,6 +234,15 @@ impl App {
         self.export_dir = eframe::get_value::<String>(storage, "export_dir")
             .filter(|d| !d.is_empty())
             .map(PathBuf::from);
+    }
+
+    /// Fichiers reçus au lancement (double-clic) : ouverts, et l'écran passe aux courbes sans attendre le premier log,
+    /// même si le Guide était sur une autre page que l'accueil (`poll_opening` ne bascule que depuis l'accueil).
+    pub fn open_at_launch(&mut self, paths: Vec<PathBuf>) {
+        if !paths.is_empty() {
+            self.screen = Screen::Viewer;
+        }
+        self.open(paths);
     }
 
     /// Ouvre des fichiers `.bbl` / `.bfl` en arrière-plan, un par un : un fichier illisible n'empêche pas les

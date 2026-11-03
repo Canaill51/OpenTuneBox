@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use egui_kittest::Harness;
-use otb_gui::app::App;
+use otb_gui::app::{App, Screen};
 use otb_gui::theme;
 
 fn banc(app: App) -> Harness<'static, App> {
@@ -35,6 +35,29 @@ fn le_theme_choisi_survit_a_un_changement_de_theme_du_systeme() {
 
 fn donnees() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/jeno5_5s.bbl")
+}
+
+/// Les fichiers du double-clic (association `.bbl` : `OpenTuneBox.exe "%1"`, AppImage : `%F`) : tout sauf les options.
+#[test]
+fn les_arguments_de_lancement_sont_les_fichiers_sans_les_options() {
+    use std::ffi::OsString;
+    let args = |v: &[&str]| v.iter().map(OsString::from).collect::<Vec<_>>();
+    assert!(otb_gui::app::files_from_args(args(&[])).is_empty());
+    assert_eq!(
+        otb_gui::app::files_from_args(args(&["a.bbl", "--option", "dossier/b bis.BFL", "-x"])),
+        vec![PathBuf::from("a.bbl"), PathBuf::from("dossier/b bis.BFL")]
+    );
+}
+
+/// Double-clic sur un log : directement les courbes, même si le Guide était sur une autre page que l'accueil (comme la version Python).
+#[test]
+fn un_log_donne_au_lancement_ouvre_les_courbes_meme_depuis_une_page_du_guide() {
+    let mut a = App::new(Vec::new());
+    a.screen = Screen::Guide;
+    a.open_at_launch(Vec::new());
+    assert_eq!(a.screen, Screen::Guide, "aucun fichier : l'écran ne change pas");
+    a.open_at_launch(vec![PathBuf::from("/inexistant/absent.bbl")]);
+    assert_eq!(a.screen, Screen::Viewer);
 }
 
 #[test]

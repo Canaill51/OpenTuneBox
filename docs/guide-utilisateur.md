@@ -13,12 +13,6 @@ par-dessus l'ancienne ; désinstallation : *Paramètres → Applications → Ope
 Le programme n'est pas signé : au premier lancement de l'installateur, SmartScreen peut afficher
 « Windows a protégé votre ordinateur » → **Informations complémentaires → Exécuter quand même**.
 
-**macOS** (Mac à puce Apple : M1 et suivants) : `OpenTuneBox-macOS.dmg`. L'ouvrir, puis glisser
-**OpenTuneBox** sur **Applications**. L'application n'est pas signée par Apple : au premier lancement,
-macOS refuse de l'ouvrir. Aller dans *Réglages Système → Confidentialité et sécurité*, en bas :
-**Ouvrir quand même** (une seule fois). Un `.bbl` / `.bfl` s'ouvre ensuite dans OpenTuneBox par
-double-clic (*Ouvrir avec* la première fois).
-
 **Linux** (Ubuntu 22.04, Debian 12, Fedora 36… ou plus récent) : `OpenTuneBox-Linux.AppImage`, un seul
 fichier. Le rendre exécutable (clic droit → *Propriétés* → *Autoriser l'exécution*, ou
 `chmod +x OpenTuneBox-Linux.AppImage`), puis double-clic. S'il ne démarre pas (système sans FUSE) :
@@ -34,7 +28,7 @@ drone (voir [6. Méthode de réglage](#6-méthode-de-réglage)). Le bouton **Gui
 d'outils y ramène à tout moment.
 
 Bouton bleu **Ouvrir** de la barre d'outils (ou Ctrl+O), glisser-déposer dans la fenêtre, ou double-clic
-sur un `.bbl` / `.bfl` (Windows et macOS, voir ci-dessus). Sous Linux, la fenêtre d'ouverture est celle
+sur un `.bbl` / `.bfl` (Windows, voir ci-dessus). Sous Linux, la fenêtre d'ouverture est celle
 du bureau (KDE, GNOME…). Chaque session d'un fichier (un armement = une session) apparaît comme un log
 séparé ; 10 logs au maximum, chacun avec sa couleur, que l'on retrouve dans tous les outils.
 

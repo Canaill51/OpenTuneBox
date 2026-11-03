@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-079 : une doc qui cite un fichier produit par la compilation passe chez soi et échoue sur la CI
+- **Symptôme** — 2026-11-03 (CI de la PR #93, jobs `tests` et `windows`) : `otb-dev/tests/docs.rs` panique, `chemins ou symboles introuvables : ["README.md : rust/target/release/opentunebox-gui"]`, alors que le même test passait en local juste avant le push.
+- **Cause (mesurée)** — le README citait en code (`…`) la sortie de `cargo build`. Ce fichier existe sur le poste de développement (on y a compilé), pas dans un dépôt fraîchement cloné : le test de chemins exige que tout chemin cité qui commence par un dossier du dépôt (`rust/`, `packaging/`…) existe. Sur une copie propre, le même test échoue comme la CI (essayé).
+- **Règle** — un fichier de compilation (`target/…`, `dist/…`) se cite sans le préfixe du dépôt (« le fichier `target/release/…` du dossier `rust` ») ou dans un bloc de code ; ne pas assouplir le test. **Avant de pousser un changement de documentation, lancer les deux contrôles sur une copie propre des fichiers suivis par git** : `git ls-files -z | xargs -0 -I{} cp --parents {} /tmp/copie/`, puis `cd /tmp/copie/rust && OTB_DOCS_ROOT=/tmp/copie cargo test -p otb-dev --test docs` et `cd /tmp/copie && python -m pytest tests/test_docs.py`.
+- **Preuve** — `otb-dev/tests/docs.rs::code_paths_and_symbols_exist` : échoue sur la copie propre avec l'ancienne phrase du README, passe avec la nouvelle.
+
 ### L-078 : un test écrit avec `std::os::unix` ne compile pas sous Windows, et la CI Windows est le dernier endroit où on le voit
 - **Symptôme** — 2026-11-03 (CI de la PR #91) : job `windows` en échec après 8 min, `error[E0433]: cannot find 'unix' in 'os'` et `error[E0599]: no associated function … 'from_mode'`, alors que tout passait sous Ubuntu. Un test échoue donc à la compilation, avant de tourner, et la même erreur coupe tous les tests du crate.
 - **Cause** — mesurée : le test du délai de `corpus validate` fabriquait un faux `blackbox_decode` (script shell) et lui donnait les droits d'exécution par `std::os::unix::fs::PermissionsExt`, module qui n'existe pas sous Windows. Un second défaut du même commit n'est apparu qu'à la relecture : le rapport écrivait les chemins avec le séparateur du système, le test attendait des `/`. Même famille que L-074 (un test « portable » qui ne l'est pas), mais l'erreur est ici à la compilation.
@@ -72,12 +78,12 @@ est celle du commit qui les a introduites.
 - **Règle** — un test qui attend un calcul en arrière-plan avance au pas (`step()` dans la boucle d'attente, `run_steps(n)` ensuite), jamais par `run()`.
 - **Preuve** — `rust/otb-gui/tests/app.rs::un_fichier_illisible_n_empeche_pas_les_suivants` (non reproduit en local ; la vérification sous Windows se fait par la CI).
 
-### L-076 : l'icône donnée à la fenêtre ne s'affiche pas sous Linux Wayland
-- **Symptôme** — 2026-11-02 (6-6b) : l'exécutable Linux de la CI, lancé sous Wayland, montre une autre icône que celle d'OpenTuneBox dans la barre de titre et la barre des tâches, alors que `ViewportBuilder::with_icon` était réglé.
-- **Cause (vérifiée)** — dans winit 0.30.13, `set_window_icon` est **vide** sous Wayland (`platform_impl/linux/wayland/window/mod.rs`) : l'icône du programme n'est jamais envoyée. Sous Wayland, le bureau cherche l'icône d'après l'`app_id` de la fenêtre dans un fichier `.desktop` installé. Un exécutable lancé seul n'en a pas. L'origine précise de l'icône affichée à la place n'a pas été identifiée.
-- **Règle** — donner un `app_id` à la fenêtre (`OpenTuneBox`, le `StartupWMClass` des fichiers `.desktop` de `packaging/linux/`), et fournir l'icône par le fichier `.desktop` (AppImage, installateur) ; `with_icon` ne sert que sous X11 et Windows.
-- **Non vérifié** — l'effet de `with_app_id("OpenTuneBox")` sur le bureau de Cédric, et le comportement sous X11 ; à essayer avec un `.desktop` pointant vers l'exécutable.
-- **Preuve** — source de winit citée ci-dessus ; la capture d'écran de Cédric (2026-11-02).
+### L-076 : l'icône donnée à la fenêtre ne s'affiche pas sous Linux Wayland : il faut un `.desktop` nommé comme l'`app_id`
+- **Symptôme** — 2026-11-02 (6-6b), revu par Cédric le 2026-11-03 sur l'AppImage et sur l'exécutable de la CI : sous KDE Plasma (Wayland), la barre de titre montre un rond orange avec un « W » blanc (ressemble au logo de Wayland ; aucun fichier d'icône correspondant retrouvé dans le thème, donc **non confirmé**) au lieu de l'icône d'OpenTuneBox, alors que `ViewportBuilder::with_icon` était réglé.
+- **Cause (vérifiée)** — (1) dans winit 0.30.13, `set_window_icon` est **vide** sous Wayland (`platform_impl/linux/wayland/window/mod.rs`) : l'icône du programme n'est jamais envoyée. Sous Wayland, le bureau cherche l'icône d'après l'`app_id` de la fenêtre dans un fichier `.desktop` installé. (2) **Le nom du fichier compte, majuscules comprises** : essayé le 2026-11-03 sur KDE Plasma Wayland, programme installé dans `~/.local/bin` avec l'icône dans `hicolor` : `opentunebox.desktop` (avec `StartupWMClass=OpenTuneBox`) **ne change rien** (icône générique) ; `OpenTuneBox.desktop` (= `app_id`) donne la bonne icône. Une règle écrite avant cet essai (« fournir l'icône par le fichier `.desktop` ») était donc insuffisante.
+- **Règle** — le fichier `.desktop` s'appelle exactement comme l'`app_id` de la fenêtre (`OpenTuneBox.desktop`) : `packaging/linux/install_linux.sh` l'écrit sous ce nom (et supprime l'ancien `opentunebox.desktop`) et `build_appimage.sh` aussi ; garder `StartupWMClass=OpenTuneBox` pour X11. Une AppImage lancée telle quelle (non intégrée au bureau par AppImageLauncher ou équivalent) n'a pas de `.desktop` connu : elle garde l'icône générique sous Wayland, on n'y peut rien dans le programme. `with_icon` ne sert que sous X11 et Windows.
+- **Non élucidé** — sous X11 forcé (`WINIT_UNIX_BACKEND=x11`, `WAYLAND_DISPLAY` retiré), la propriété `_NET_WM_ICON` de la fenêtre existe mais est **vide** (`xprop`), alors que le PNG se décode (256 × 256 RGBA) et que winit sait l'écrire : cause non trouvée (voir W-045).
+- **Preuve** — source de winit citée ci-dessus ; captures de la barre de titre le 2026-11-03 (sans `.desktop` : icône générique ; `opentunebox.desktop` : générique ; `OpenTuneBox.desktop` : icône d'OpenTuneBox) ; `rust/otb-gui/tests/contracts.rs::le_fichier_desktop_porte_le_nom_de_l_app_id` (échouait avec le nom en minuscules).
 
 ### L-075 : un test qui peut ouvrir une vraie fenêtre du système l'ouvre, et elle ne se ferme plus
 - **Symptôme** — 2026-11-02 (6-6a) : pendant une série de mutations, des dizaines de fenêtres « Exporter l'image » se sont ouvertes sur le bureau de Cédric, sans moyen de les fermer ; les tests restaient bloqués.
@@ -477,8 +483,10 @@ est celle du commit qui les a introduites.
 - **Règle** — en changeant une dépendance de place, chercher tous les workflows (`grep -rn "pip install"
   .github`). Les références de test s'installent pour les tests, puis se **désinstallent avant PyInstaller** :
   l'exécutable ne peut pas les reprendre.
-- **Preuve** — `tests/test_workflows.py:test_build_workflow_installs_what_its_tests_import` (échoue si on retire
-  `scipy numba` de la ligne d'installation).
+- **Preuve** — le test `test_build_workflow_installs_what_its_tests_import` de `tests/test_workflows.py` échouait si on retirait
+  `scipy numba` de la ligne d'installation. **Supprimé en 7-4** (CI de la PR #93 : `StopIteration`) : `construire.yml` ne lance plus
+  de tests Python ni d'installation de `scipy` / `numba` (il compile l'interface Rust), donc rien à surveiller ; le test de
+  validité du YAML reste. La règle reste vraie pour `tests.yml` (il installe `.[dev]`).
 
 ### L-036 : `PyReadonlyArray2::as_slice` accepte l'ordre Fortran et le lit comme du C : résultat faux, sans erreur
 - **Symptôme** — relu avant la fusion : `_native.run_section(np.asfortranarray(x), …)` rend autre chose que
@@ -872,9 +880,10 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |
 | L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |
 | L-077 | Banc kittest : `run()` panique (`exceeded max_steps`) si un fil de calcul redemande une repeinte pendant qu'il tourne, vu sur la CI Windows ; attendre un calcul avec `step()` / `run_steps(n)` | Tests |
-| L-076 | Icône de fenêtre egui sans effet sous Linux Wayland : winit ignore `with_icon` ; le bureau cherche l'icône par `app_id` dans un fichier .desktop | Interface |
+| L-076 | Icône de fenêtre egui sans effet sous Linux Wayland : winit ignore `with_icon` ; le bureau cherche l'icône dans un `.desktop` dont le NOM est l'`app_id`, majuscules comprises (`OpenTuneBox.desktop`, pas `opentunebox.desktop`) ; AppImage non intégrée : icône générique | Interface |
 | L-075 | Test qui peut ouvrir une vraie boîte de dialogue du système : elle bloque le test et ne se ferme plus ; boîte remplaçable, inerte dans `App::new`, mutations sans écran ni bus de session ; rendu de test sans carte graphique | Tests |
 | L-074 | Fonction paramétrée par un système (`os`) : appliquer les règles de ce système, pas celles de l'hôte (`Path::is_absolute` sous Windows refuse `/data`) ; test vu échouer seulement sur la CI Windows | Tests |
 | L-073 | Panneau egui redimensionnable : sans contenu au premier cadre il se réduit à ce contenu et garde cette taille ; `ScrollArea` qui remplit dans toutes les branches, test qui part de l'état vide | Interface |

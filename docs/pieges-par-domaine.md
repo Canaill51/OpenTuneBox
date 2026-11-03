@@ -89,6 +89,6 @@ Les pièges qui valent pour presque toute tâche restent dans `AGENTS.md`.
 
 ## Construction des exécutables
 
-- Linux : PyInstaller a besoin de `binutils` (`objdump`). Windows/macOS : construire sur le système cible. L-020
+- Linux : PyInstaller a besoin de `binutils` (`objdump`) ; ne concerne que la version Python (plus construite par la CI depuis la 7-4, supprimée en 7-5). Windows : construire sur le système cible. L-020
 - Exécutable Windows sans console (`console=False`) : `sys.stdout` et `sys.stderr` valent `None` ;
   ne jamais les utiliser sans vérifier (voir `gui/app.py:hard_exit`). L-021
