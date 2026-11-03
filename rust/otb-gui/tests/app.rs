@@ -44,14 +44,14 @@ fn un_fichier_illisible_n_empeche_pas_les_suivants() {
     h.state_mut()
         .open(vec![PathBuf::from("/inexistant/absent.bbl"), donnees(), donnees()]);
     let debut = Instant::now();
+    // ⚠️ `run()` panique si le fil de calcul redemande une repeinte pendant qu'il tourne
+    // (« exceeded max_steps », vu sur Windows en CI) : on avance au pas, sans exiger le repos.
     while h.state().state.logs.len() < 2 {
-        h.run();
+        h.step();
         assert!(debut.elapsed() < Duration::from_secs(30), "ouverture jamais terminée");
         std::thread::sleep(Duration::from_millis(5));
     }
-    for _ in 0..3 {
-        h.run();
-    }
+    h.run_steps(3);
     let a = h.state();
     assert_eq!(a.state.logs.len(), 2, "les deux bons fichiers sont ouverts");
     assert!(

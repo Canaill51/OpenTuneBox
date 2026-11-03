@@ -8,9 +8,16 @@ publish.workspace = true
 [lib]
 name = "otb_dev"
 
+[[bin]]
+name = "otb-dev"
+path = "src/main.rs"
+
 [dependencies]
+ico = "0.6"
 otb-format = { path = "../otb-format" }
 regex = "1"
+# Le SVG de l'icône n'a ni texte ni image : sans les fonctionnalités par défaut, pas de polices ni de décodeurs d'images.
+resvg = { version = "0.49", default-features = false }
 
 [dev-dependencies]
 otb-advisor = { path = "../otb-advisor" }
