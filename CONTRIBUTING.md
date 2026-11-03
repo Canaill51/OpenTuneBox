@@ -94,3 +94,10 @@ Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises
    système échoue : corriger, puis relancer les tâches échouées (`gh run rerun ID --failed`) ; le
    brouillon est réutilisé. Le dépôt étant privé, seules les personnes ayant accès au dépôt peuvent
    télécharger.
+
+**Essayer la publication sans rien publier** (avant la première version d'une nouvelle chaîne de construction) : pousser une
+étiquette `essai-v` suivie du numéro **déjà** présent dans `rust/Cargo.toml` et le CHANGELOG, par exemple
+`git tag essai-v0.8.0 && git push origin essai-v0.8.0` sur la branche à essayer. Le workflow fait tout le parcours
+(notes, brouillon, construction, envoi des deux fichiers, contrôle de la liste) mais laisse la page en **brouillon**,
+invisible, et ne la déclare jamais « dernière version ». Regarder le brouillon, puis le supprimer avec son étiquette :
+`gh release delete essai-v0.8.0 --cleanup-tag --yes`.
