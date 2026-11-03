@@ -254,14 +254,18 @@ fn le_fichier_desktop_porte_le_nom_de_l_app_id() {
     assert!(!app_id.is_empty());
     for (script, dossier) in [("install_linux.sh", "$APPS"), ("build_appimage.sh", "$APPDIR")] {
         let texte = std::fs::read_to_string(racine().join("../../packaging/linux").join(script)).unwrap();
-        let attendu = format!("\"{dossier}/{app_id}.desktop\"");
+        // ⚠️ Lignes entières, commentaires exclus : une simple recherche de texte est satisfaite par un commentaire qui cite le nom
+        // (le fichier réellement écrit pourrait alors porter un autre nom sans que le test le voie).
+        let ecrit = |debut: &str| texte.lines().any(|l| l.trim_start().starts_with(debut));
+        let attendu = format!("cat > \"{dossier}/{app_id}.desktop\" <<");
         assert!(
-            texte.contains(&attendu),
-            "{script} doit écrire {attendu} (nom du fichier .desktop = app_id de la fenêtre, L-076)"
+            ecrit(&attendu),
+            "{script} doit avoir une ligne `{attendu}…` (nom du fichier .desktop = app_id de la fenêtre, L-076)"
         );
+        let classe = format!("StartupWMClass={app_id}");
         assert!(
-            texte.contains(&format!("StartupWMClass={app_id}")),
-            "{script} : StartupWMClass doit valoir l'app_id (X11)"
+            texte.lines().any(|l| l.trim() == classe),
+            "{script} : une ligne `{classe}` doit figurer dans le .desktop (X11)"
         );
     }
 }
