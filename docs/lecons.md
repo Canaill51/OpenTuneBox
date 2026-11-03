@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-077 : `Harness::run()` d'egui_kittest panique si un fil de calcul redemande une repeinte pendant qu'il tourne
+- **Symptôme** — 2026-11-03 (CI de la PR #90) : `un_fichier_illisible_n_empeche_pas_les_suivants` passait en local et sous Ubuntu, mais échouait sous Windows : `Harness::run exceeded max_steps (4). It would have settled after 6 steps`.
+- **Cause** — le fil de calcul (`worker.rs`) appelle `ctx.request_repaint()` à la fin de chaque ouverture. Sur le poste lent de la CI, ces demandes arrivent pendant `run()`, qui exige un repos en 4 pas au plus.
+- **Règle** — un test qui attend un calcul en arrière-plan avance au pas (`step()` dans la boucle d'attente, `run_steps(n)` ensuite), jamais par `run()`.
+- **Preuve** — `rust/otb-gui/tests/app.rs::un_fichier_illisible_n_empeche_pas_les_suivants` (non reproduit en local ; la vérification sous Windows se fait par la CI).
+
 ### L-076 : l'icône donnée à la fenêtre ne s'affiche pas sous Linux Wayland
 - **Symptôme** — 2026-11-02 (6-6b) : l'exécutable Linux de la CI, lancé sous Wayland, montre une autre icône que celle d'OpenTuneBox dans la barre de titre et la barre des tâches, alors que `ViewportBuilder::with_icon` était réglé.
 - **Cause (vérifiée)** — dans winit 0.30.13, `set_window_icon` est **vide** sous Wayland (`platform_impl/linux/wayland/window/mod.rs`) : l'icône du programme n'est jamais envoyée. Sous Wayland, le bureau cherche l'icône d'après l'`app_id` de la fenêtre dans un fichier `.desktop` installé. Un exécutable lancé seul n'en a pas. L'origine précise de l'icône affichée à la place n'a pas été identifiée.
@@ -860,6 +866,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-077 | Banc kittest : `run()` panique (`exceeded max_steps`) si un fil de calcul redemande une repeinte pendant qu'il tourne, vu sur la CI Windows ; attendre un calcul avec `step()` / `run_steps(n)` | Tests |
 | L-076 | Icône de fenêtre egui sans effet sous Linux Wayland : winit ignore `with_icon` ; le bureau cherche l'icône par `app_id` dans un fichier .desktop | Interface |
 | L-075 | Test qui peut ouvrir une vraie boîte de dialogue du système : elle bloque le test et ne se ferme plus ; boîte remplaçable, inerte dans `App::new`, mutations sans écran ni bus de session ; rendu de test sans carte graphique | Tests |
 | L-074 | Fonction paramétrée par un système (`os`) : appliquer les règles de ce système, pas celles de l'hôte (`Path::is_absolute` sous Windows refuse `/data`) ; test vu échouer seulement sur la CI Windows | Tests |

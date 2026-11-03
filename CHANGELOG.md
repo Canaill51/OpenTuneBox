@@ -11,6 +11,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 - Les lissages, la fenêtre de Hann et l'intercorrélation ne passent plus par scipy mais par `analysis/_numeric.py` (numpy seul, écart à scipy ≈ 1e-14 relatif) ; les 4 noyaux numba des filtres Betaflight sont réécrits en Rust (`rust/otb-dsp`, identiques à numba au bit près, sauf la réponse en fréquence : 1e-15 relatif). scipy, numba et llvmlite (≈ 350 Mo installés) ne sont plus nécessaires à l'application (dossier de l'exécutable Linux : 206 Mo au lieu de 463 Mo) : ils passent dans l'extra `dev`, comme références des tests (D-032).
 
 ### Corrigé
+- Test de l'interface egui (`un_fichier_illisible_n_empeche_pas_les_suivants`) : échec sur la CI Windows (`exceeded max_steps`), le test avance désormais au pas pendant le calcul en arrière-plan (L-077).
 - Interface Rust : les onglets de la barre du haut ont de nouveau leurs icônes colorées (comme dans la version Python) ; la fenêtre Linux porte l'identifiant `OpenTuneBox` (L-076).
 - Simulateur de filtres (interface Rust) : pendant le calcul d'un nouveau log, les spectres de l'ancien ne sont plus affichés.
 - Interface Rust sous Windows : plus de fenêtre de console à l'ouverture, et l'icône d'OpenTuneBox sur l'exécutable et sur la fenêtre.

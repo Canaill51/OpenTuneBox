@@ -82,6 +82,7 @@ Les pièges qui valent pour presque toute tâche restent dans `AGENTS.md`.
 ## Interface egui et Rust
 
 - Fonction paramétrée par un système (`os`, comme `guide::cards_path_in`) : appliquer les règles de ce système, jamais celles de l'hôte (`Path::is_absolute` refuse `/data` sous Windows) ; la CI Windows est le seul témoin. L-074
+- Test egui qui attend un calcul en arrière-plan : `step()` dans la boucle d'attente puis `run_steps(n)`, jamais `run()` (il panique si le fil redemande une repeinte, CI Windows). L-077
 - Panneau egui redimensionnable : son contenu est toujours dans un `ScrollArea` qui remplit (`auto_shrink([false, false])`), même dans la branche « rien à montrer » ; sinon il garde la taille de son premier cadre. Un test part de l'état vide, et on regarde une capture. L-073
 - Tout ce qui ouvre une fenêtre du système (boîte de fichiers…) passe par un champ remplaçable, inerte dans `App::new` ; scripts de mutations lancés sans écran ni bus de session, avec délai. L-075
 - Identité d'un log : `LoadedLog::uid` (ou `LogInput::uid`), jamais l'adresse de son `Arc` (elle peut resservir à un autre log). L-072
