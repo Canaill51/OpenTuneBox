@@ -17,6 +17,24 @@ mettre la documentation à jour avec la compétence `docs-sync` (un crochet bloq
 - Méthode d'analyse → `docs/spec-methodes.md` ; écran PIDtoolbox à reproduire → `docs/spec-ecrans.md`.
 - Valeurs de référence déjà établies → `docs/validation.md` ; seuils de l'assistant → `docs/assistant.md`.
 
+## Contrôler la compilation Windows avant de pousser
+
+La CI Windows met 10 à 25 min et est le seul endroit où l'on voit un test qui ne compile pas sous Windows (L-078, L-074).
+La cible `x86_64-pc-windows-gnu` est installée sur le poste : une vérification de compilation (sans exécution) prend
+quelques secondes.
+
+```sh
+cd rust && cargo check -p CRATE --lib --profile test --target x86_64-pc-windows-gnu
+```
+
+- `otb-gui` (même en dépendance de test) exige `windres` pour l'icône, absent ici : pour `otb-dev`, retirer
+  **temporairement** la section `[dev-dependencies]` de `otb-dev/Cargo.toml` (sauvegarde dans le répertoire temporaire,
+  puis `git checkout rust/Cargo.lock`) et vérifier les tests d'intégration un par un (`--test corpus_labels` …) ; le test
+  `docs` dépend d'`otb-gui` et reste à la CI.
+- Pas de linker mingw ici : on ne peut pas **exécuter** les tests (`wine` est présent, mais sans linker il n'y a pas
+  d'exécutable). Le contrôle attrape les erreurs de compilation, pas les différences de comportement.
+- Ne pas défaire un correctif avec `git checkout FICHIER` pendant une contre-épreuve : sauvegarder le fichier avant.
+
 ## Valider une modification du décodeur
 
 ```sh

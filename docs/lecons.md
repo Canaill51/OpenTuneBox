@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-078 : un test écrit avec `std::os::unix` ne compile pas sous Windows, et la CI Windows est le dernier endroit où on le voit
+- **Symptôme** — 2026-11-03 (CI de la PR #91) : job `windows` en échec après 8 min, `error[E0433]: cannot find 'unix' in 'os'` et `error[E0599]: no associated function … 'from_mode'`, alors que tout passait sous Ubuntu. Un test échoue donc à la compilation, avant de tourner, et la même erreur coupe tous les tests du crate.
+- **Cause** — mesurée : le test du délai de `corpus validate` fabriquait un faux `blackbox_decode` (script shell) et lui donnait les droits d'exécution par `std::os::unix::fs::PermissionsExt`, module qui n'existe pas sous Windows. Un second défaut du même commit n'est apparu qu'à la relecture : le rapport écrivait les chemins avec le séparateur du système, le test attendait des `/`. Même famille que L-074 (un test « portable » qui ne l'est pas), mais l'erreur est ici à la compilation.
+- **Règle** — tout code ou test qui touche `std::os::unix`, un script shell, des droits de fichier ou un séparateur de chemin porte `#[cfg(unix)]` (le test) ou n'écrit que des `/` (la sortie). Avant de pousser : `cargo check --target x86_64-pc-windows-gnu` (voir la compétence `opentunebox-dev`, « Contrôler la compilation Windows »). Ce contrôle ne prouve pas que les tests réussissent : seule la CI Windows les exécute.
+- **Preuve** — `rust/otb-dev/src/corpus/validate.rs::blocked_reference_is_killed_and_reported_as_refhang` (`#[cfg(unix)]`) ; sans l'attribut, `cargo check --lib --profile test --target x86_64-pc-windows-gnu` reproduit les deux erreurs de la CI ; avec, il passe, et la CI Windows de la PR #91 est verte.
+
 ### L-077 : `Harness::run()` d'egui_kittest panique si un fil de calcul redemande une repeinte pendant qu'il tourne
 - **Symptôme** — 2026-11-03 (CI de la PR #90) : `un_fichier_illisible_n_empeche_pas_les_suivants` passait en local et sous Ubuntu, mais échouait sous Windows : `Harness::run exceeded max_steps (4). It would have settled after 6 steps`.
 - **Cause** — le fil de calcul (`worker.rs`) appelle `ctx.request_repaint()` à la fin de chaque ouverture. Sur le poste lent de la CI, ces demandes arrivent pendant `run()`, qui exige un repos en 4 pas au plus.
@@ -866,6 +872,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |
 | L-077 | Banc kittest : `run()` panique (`exceeded max_steps`) si un fil de calcul redemande une repeinte pendant qu'il tourne, vu sur la CI Windows ; attendre un calcul avec `step()` / `run_steps(n)` | Tests |
 | L-076 | Icône de fenêtre egui sans effet sous Linux Wayland : winit ignore `with_icon` ; le bureau cherche l'icône par `app_id` dans un fichier .desktop | Interface |
 | L-075 | Test qui peut ouvrir une vraie boîte de dialogue du système : elle bloque le test et ne se ferme plus ; boîte remplaçable, inerte dans `App::new`, mutations sans écran ni bus de session ; rendu de test sans carte graphique | Tests |
