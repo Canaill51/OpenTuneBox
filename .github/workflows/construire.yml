@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Le jeton (droit d'écriture sur la page Releases) ne doit pas rester dans .git/config pendant la compilation : les build.rs et
           # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
@@ -68,7 +68,7 @@ jobs:
             package: OpenTuneBox-Linux.AppImage
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Le jeton (droit d'écriture sur la page Releases) ne doit pas rester dans .git/config pendant la compilation : les build.rs et
           # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
@@ -177,7 +177,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: gh release upload "$GITHUB_REF_NAME" ${{ matrix.package }} --clobber
       # Lancement à la main : fichier envoyé tel quel (droits d'exécution conservés), gardé un jour.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           path: ${{ matrix.package }}

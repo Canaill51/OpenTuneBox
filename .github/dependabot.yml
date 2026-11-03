@@ -43,7 +43,7 @@ updates:
           - "minor"
           - "patch"
 
-  - package-ecosystem: "github-actions" # lit .github/workflows/*.yml
+  - package-ecosystem: "github-actions" # lit .github/workflows/*.yml ; les actions y sont épinglées par SHA, Dependabot garde le commentaire de version à jour
     directory: "/"
     schedule:
       interval: "weekly"
