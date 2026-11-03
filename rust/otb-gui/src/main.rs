@@ -21,8 +21,9 @@ fn window_icon() -> Option<egui::IconData> {
 }
 
 fn main() -> eframe::Result {
-    // `app_id` : sous Linux (Wayland), le bureau ne lit pas l'icône de la fenêtre, il la cherche dans le fichier .desktop dont
-    // `StartupWMClass` vaut cet identifiant (celui de la version Python : `packaging/linux/*.sh`).
+    // `app_id` : sous Linux (Wayland), le bureau ne lit pas l'icône de la fenêtre, il la cherche dans le fichier `.desktop` dont le
+    // **nom** est cet identifiant, majuscules comprises (`OpenTuneBox.desktop`, écrit par `packaging/linux/*.sh` ; test
+    // `contracts.rs::le_fichier_desktop_porte_le_nom_de_l_app_id`, L-076).
     let mut viewport = egui::ViewportBuilder::default().with_app_id("OpenTuneBox");
     if let Some(icon) = window_icon() {
         viewport = viewport.with_icon(icon);

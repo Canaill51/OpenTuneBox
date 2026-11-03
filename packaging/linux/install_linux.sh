@@ -3,7 +3,7 @@
 #   sh packaging/linux/install_linux.sh             compile le programme (cargo build --release) puis l'installe
 #   sh packaging/linux/install_linux.sh CHEMIN      installe le programme déjà compilé (ex. rust/target/release/opentunebox-gui)
 # Rien n'est installé hors de ~/.local : le programme (~/.local/bin/opentunebox-gui), l'icône et le fichier .desktop.
-# Pour retirer : supprimer ces trois éléments.
+# Pour retirer : supprimer ces éléments (programme, icônes, OpenTuneBox.desktop).
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BIN_DIR="$HOME/.local/bin"
@@ -30,9 +30,12 @@ cp "$BIN" "$BIN_DIR/opentunebox-gui"
 cp "$SVG" "$HICOLOR/scalable/apps/opentunebox.svg"
 cp "$PNG" "$HICOLOR/256x256/apps/opentunebox.png"
 
+# ⚠️ Le fichier s'appelle OpenTuneBox.desktop, comme l'app_id de la fenêtre, majuscules comprises : sous Wayland (KDE), c'est ce nom
+# qui fait trouver l'icône (avec opentunebox.desktop, la fenêtre garde une icône générique : L-076).
 # Pas de MimeType : il n'existe pas de type standard pour les logs Blackbox (.bbl, .bfl) ; l'association se fait
 # par « Ouvrir avec » dans le gestionnaire de fichiers.
-cat > "$APPS/opentunebox.desktop" <<DESK
+rm -f "$APPS/opentunebox.desktop" # ancien nom (versions du script d'avant la phase 7-4) : éviter un doublon dans le menu
+cat > "$APPS/OpenTuneBox.desktop" <<DESK
 [Desktop Entry]
 Type=Application
 Name=OpenTuneBox
@@ -49,4 +52,4 @@ update-desktop-database "$APPS" 2>/dev/null || true
 gtk-update-icon-cache -f -t "$HICOLOR" 2>/dev/null || true
 kbuildsycoca6 2>/dev/null || kbuildsycoca5 2>/dev/null || true
 echo "OpenTuneBox installé : $BIN_DIR/opentunebox-gui"
-echo "Ajouté au menu : $APPS/opentunebox.desktop"
+echo "Ajouté au menu : $APPS/OpenTuneBox.desktop"

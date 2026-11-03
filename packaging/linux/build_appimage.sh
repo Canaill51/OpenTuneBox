@@ -31,8 +31,10 @@ exec "$HERE/usr/bin/OpenTuneBox" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 
-# Pas de MimeType : il n'existe pas de type standard pour les logs Blackbox (voir install_linux.sh).
-cat > "$APPDIR/opentunebox.desktop" <<'EOF'
+# Même nom que l'app_id de la fenêtre (L-076, voir install_linux.sh). Pas de MimeType : il n'existe pas de type standard pour les
+# logs Blackbox. ⚠️ L'AppImage n'est connue du bureau que si elle est intégrée (AppImageLauncher…) : lancée telle quelle, la fenêtre
+# garde une icône générique sous Wayland.
+cat > "$APPDIR/OpenTuneBox.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=OpenTuneBox
