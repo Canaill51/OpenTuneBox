@@ -111,7 +111,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python scripts/advisor_rates.py SORTIE.json            # taux de chaque constat sur le corpus (≈ 2 min)
 .venv/bin/python scripts/advisor_rates.py --compare AVANT.json APRÈS.json   # mêmes conseils avant / après ?
 .venv/bin/python scripts/golden.py record|check "$OTB_LOGS/golden"   # références pour la migration Rust (D-031)
-.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
+.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome de la version Python (la CI compile l'interface Rust depuis la 7-4)
 .venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
 ```
 

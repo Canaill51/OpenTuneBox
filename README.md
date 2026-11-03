@@ -86,8 +86,9 @@ OTB_LOGS=/chemin/logs .venv/bin/pytest -q -m corpus   # tests sur un dossier de 
 
 Sous Windows, remplacer `.venv/bin/` par `.venv\Scripts\`.
 
-Exécutable autonome fabriqué soi-même, sur le système visé : `pyinstaller packaging/opentunebox.spec --noconfirm`
-(Linux : nécessite `binutils`) → `dist/OpenTuneBox/` ; sous Windows,
+Exécutable autonome fabriqué soi-même, sur le système visé (Rust, `cargo`) : sous Linux,
+`(cd rust && cargo build --release -p otb-gui)` → `rust/target/release/opentunebox-gui` (un seul fichier), puis
+`sh packaging/linux/install_linux.sh` pour l'ajouter au menu ; sous Windows,
 double-clic sur `packaging\windows\construire_windows.bat` (compile l'interface Rust : `dist\OpenTuneBox.exe`, et l'installateur si
 Inno Setup 6 est installé). Les installateurs des deux systèmes sont
 fabriqués par le workflow GitHub [`construire.yml`](.github/workflows/construire.yml) et publiés sur la page
