@@ -10,6 +10,8 @@ use otb_log::flightlog::{FlightLog, load};
 use std::path::Path;
 
 const AXES: [&str; 3] = ["Roll", "Pitch", "Yaw"];
+/// Les commandes de `opentunebox` (vérifiées contre le README par `otb-dev`, `tests/docs.rs`).
+pub const COMMANDS: [&str; 2] = ["info", "report"];
 const PROFILS: [&str; 5] = ["whoop", "micro", "five", "seven", "large"];
 
 /// Puits du texte : le binaire l'écrit, les tests le rassemblent.
@@ -210,7 +212,7 @@ pub fn parse(args: &[String]) -> Result<Parsed, (i32, String)> {
                 run_closed = true;
             }
         } else if cmd.is_none() {
-            if !matches!(a.as_str(), "info" | "report") {
+            if !COMMANDS.contains(&a.as_str()) {
                 return Err(usage(format!("commande inconnue : {a}")));
             }
             cmd = Some(a.as_str());

@@ -12,6 +12,7 @@ tant que les documents concernés n'ont pas été relus et corrigés.
 
 ```sh
 .venv/bin/pytest -q tests/test_docs.py
+(cd rust && cargo test -p otb-dev --test docs)   # la même vérification en Rust (le nouveau contrôle s'ajoute dans rust/otb-dev/src/docs.rs)
 ```
 
 Elle contrôle : liens et ancres entre documents, chemins et fonctions cités (`gui/app.py:hard_exit`),
