@@ -477,8 +477,10 @@ est celle du commit qui les a introduites.
 - **Règle** — en changeant une dépendance de place, chercher tous les workflows (`grep -rn "pip install"
   .github`). Les références de test s'installent pour les tests, puis se **désinstallent avant PyInstaller** :
   l'exécutable ne peut pas les reprendre.
-- **Preuve** — `tests/test_workflows.py:test_build_workflow_installs_what_its_tests_import` (échoue si on retire
-  `scipy numba` de la ligne d'installation).
+- **Preuve** — le test `test_build_workflow_installs_what_its_tests_import` de `tests/test_workflows.py` échouait si on retirait
+  `scipy numba` de la ligne d'installation. **Supprimé en 7-4** (CI de la PR #93 : `StopIteration`) : `construire.yml` ne lance plus
+  de tests Python ni d'installation de `scipy` / `numba` (il compile l'interface Rust), donc rien à surveiller ; le test de
+  validité du YAML reste. La règle reste vraie pour `tests.yml` (il installe `.[dev]`).
 
 ### L-036 : `PyReadonlyArray2::as_slice` accepte l'ordre Fortran et le lit comme du C : résultat faux, sans erreur
 - **Symptôme** — relu avant la fusion : `_native.run_section(np.asfortranarray(x), …)` rend autre chose que
