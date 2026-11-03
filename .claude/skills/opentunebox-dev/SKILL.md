@@ -92,7 +92,9 @@ chaque seuil).
   Vérifier après tout changement de la recette : exécutable d'essai (même recette, script qui lance
   `opentunebox report` avec un `NUMBA_CACHE_DIR` vide puis ouvre chaque outil hors écran).
 - Windows : sources par `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`,
-  puis `packaging\windows\construire_windows.bat` sur le PC Windows (Python 3.13 installé par winget).
+  puis `packaging\windows\construire_windows.bat` sur le PC Windows (Rust installé par winget si absent ; les outils de compilation
+  C++ de Visual Studio sont nécessaires, le script donne la commande si le lien échoue). Le script n'a pas été essayé sur un vrai Windows
+  au 2026-11-03 (W-044) : à essayer à la première occasion.
 - Tous systèmes : workflow `construire.yml` (manuel, ou étiquette `v*` → page Releases ; préparer la version
   avec `scripts/release.py prepare X.Y.Z`, voir `CONTRIBUTING.md`) : un fichier par système
   (installateur Inno Setup Windows, `.dmg` macOS, AppImage Linux construite sur Ubuntu 22.04),

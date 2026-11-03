@@ -89,7 +89,8 @@ Sous Windows, remplacer `.venv/bin/` par `.venv\Scripts\`.
 
 Exécutable autonome fabriqué soi-même, sur le système visé : `pyinstaller packaging/opentunebox.spec --noconfirm`
 (Linux : nécessite `binutils`) → `dist/OpenTuneBox/` (`dist/OpenTuneBox.app` sous macOS) ; sous Windows,
-double-clic sur `packaging\windows\construire_windows.bat`. Les installateurs des trois systèmes sont
+double-clic sur `packaging\windows\construire_windows.bat` (compile l'interface Rust : `dist\OpenTuneBox.exe`, et l'installateur si
+Inno Setup 6 est installé). Les installateurs des trois systèmes sont
 fabriqués par le workflow GitHub [`construire.yml`](.github/workflows/construire.yml) et publiés sur la page
 Releases à chaque version ([Contribuer](CONTRIBUTING.md)).
 

@@ -1,11 +1,16 @@
-; Installateur Windows d'OpenTuneBox (Inno Setup 6), à partir du dossier dist\OpenTuneBox de PyInstaller.
-;   iscc /DAppVersion=0.2.0 packaging\windows\opentunebox.iss   →   dist\OpenTuneBox-Windows-Setup.exe
+; Installateur Windows d'OpenTuneBox (Inno Setup 6), à partir de l'exécutable Rust unique (cargo build --release -p otb-gui,
+; fichier rust\target\release\opentunebox-gui.exe), installé sous le nom OpenTuneBox.exe.
+;   iscc /DAppVersion=0.9.0 packaging\windows\opentunebox.iss   →   dist\OpenTuneBox-Windows-Setup.exe
+;   /DExePath=CHEMIN pour un exécutable ailleurs (le défaut est le dossier de construction de cargo).
 ; Installation pour l'utilisateur seul par défaut (pas de droits administrateur), ou pour tous au choix.
 ; Raccourci du menu Démarrer, raccourci du Bureau et ouverture des .bbl / .bfl en option, désinstallation
 ; depuis les Paramètres de Windows.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
+#endif
+#ifndef ExePath
+  #define ExePath "..\..\rust\target\release\opentunebox-gui.exe"
 #endif
 
 [Setup]
@@ -43,11 +48,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "associate"; Description: "Ouvrir les logs Blackbox (.bbl, .bfl) avec OpenTuneBox"; GroupDescription: "Fichiers :"
 
 [InstallDelete]
-; Mise à jour : retirer les bibliothèques de la version précédente, qui peuvent ne plus correspondre.
+; Mise à jour par-dessus la version Python (0.8.0 et avant, PyInstaller) : son dossier `_internal` (Python, Qt, numpy…, des
+; centaines de Mo) ne sert plus à rien. À retirer quand plus personne n'aura la version Python (W-044).
 Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
-Source: "..\..\dist\OpenTuneBox\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ExePath}"; DestDir: "{app}"; DestName: "OpenTuneBox.exe"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\OpenTuneBox"; Filename: "{app}\OpenTuneBox.exe"

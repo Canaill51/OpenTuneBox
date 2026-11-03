@@ -118,11 +118,11 @@ fichier .bbl/.bfl
 - Installateurs, un par système, fabriqués et essayés par `.github/workflows/construire.yml`, envoyés dans un
   brouillon de la page Releases à chaque étiquette `v…`, publiée quand les trois y sont (sans *Artifacts* :
   quota de 500 Mo d'un dépôt privé ; `scripts/release.py`, procédure dans `CONTRIBUTING.md`) :
-  Windows `packaging/windows/opentunebox.iss` (Inno Setup), macOS `packaging/macos/build_dmg.sh` (.dmg),
+  Windows `packaging/windows/opentunebox.iss` (Inno Setup ; un seul fichier, l'exécutable Rust installé sous le nom `OpenTuneBox.exe` ; le dossier `_internal` de la version Python est supprimé à la mise à jour, W-044), macOS `packaging/macos/build_dmg.sh` (.dmg),
   Linux `packaging/linux/build_appimage.sh` (AppImage de l'exécutable Rust `opentunebox-gui`, appimagetool 1.9.1, construite sur Ubuntu 22.04 ; 10,6 Mo mesurés le 2026-11-03, contre 167 Mo en Python 0.8.0).
 - Icônes : `packaging/make_icons.py` fabrique `.icns` (macOS) et `.png` (Linux) depuis le SVG ; `.ico` pour Windows.
 - Depuis les sources : `packaging/linux/install_linux.sh` (compile `otb-gui`, l'installe dans `~/.local/bin` et ajoute le raccourci du menu Linux) ;
-  `packaging/windows/construire_windows.bat` fabrique l'exécutable sur un PC Windows.
+  `packaging/windows/construire_windows.bat` fabrique l'exécutable Rust (cargo, bibliothèque C embarquée) et, si Inno Setup est là, l'installateur sur un PC Windows.
 
 ## Espace de travail Rust
 
