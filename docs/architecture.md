@@ -113,14 +113,16 @@ fichier .bbl/.bfl
 
 ## Distribution
 
-- Exécutable autonome : PyInstaller (`packaging/opentunebox.spec`, point d'entrée `packaging/launcher.py`),
-  allégé des parties de Qt et de pyqtgraph inutilisées.
+- Exécutable autonome de la version Python : PyInstaller (`packaging/opentunebox.spec`, point d'entrée `packaging/launcher.py`),
+  allégé des parties de Qt et de pyqtgraph inutilisées ; plus utilisé par la CI depuis la 7-4 (supprimé en 7-5).
 - Installateurs, un par système, fabriqués et essayés par `.github/workflows/construire.yml`, envoyés dans un
-  brouillon de la page Releases à chaque étiquette `v…`, publiée quand les trois y sont (sans *Artifacts* :
-  quota de 500 Mo d'un dépôt privé ; `scripts/release.py`, procédure dans `CONTRIBUTING.md`) :
-  Windows `packaging/windows/opentunebox.iss` (Inno Setup ; un seul fichier, l'exécutable Rust installé sous le nom `OpenTuneBox.exe` ; le dossier `_internal` de la version Python est supprimé à la mise à jour, W-044), macOS `packaging/macos/build_dmg.sh` (.dmg),
+  brouillon de la page Releases à chaque étiquette `v…`, publiée quand les deux y sont (sans *Artifacts* :
+  quota de 500 Mo d'un dépôt privé ; `otb-dev release`, procédure dans `CONTRIBUTING.md`) ; macOS abandonné (D-042). Le workflow compile
+  `cargo build --release -p otb-gui` (Windows : `crt-static`), vérifie les DLL demandées, démarre le programme 20 s avec un petit log,
+  installe / lance / désinstalle l'installateur, et démarre l'AppImage sous un écran virtuel (xvfb) avec le pilote Vulkan logiciel lavapipe :
+  Windows `packaging/windows/opentunebox.iss` (Inno Setup ; un seul fichier, l'exécutable Rust installé sous le nom `OpenTuneBox.exe` ; le dossier `_internal` de la version Python est supprimé à la mise à jour, W-044),
   Linux `packaging/linux/build_appimage.sh` (AppImage de l'exécutable Rust `opentunebox-gui`, appimagetool 1.9.1, construite sur Ubuntu 22.04 ; 10,6 Mo mesurés le 2026-11-03, contre 167 Mo en Python 0.8.0).
-- Icônes : `packaging/make_icons.py` fabrique `.icns` (macOS) et `.png` (Linux) depuis le SVG ; `.ico` pour Windows.
+- Icônes : `otb-dev icons` fabrique le `.png` (Linux) et le `.ico` (Windows) depuis le SVG (`packaging/make_icons.py` et le `.icns` de macOS ne servent plus, suppression en 7-5).
 - Depuis les sources : `packaging/linux/install_linux.sh` (compile `otb-gui`, l'installe dans `~/.local/bin` et ajoute le raccourci du menu Linux) ;
   `packaging/windows/construire_windows.bat` fabrique l'exécutable Rust (cargo, bibliothèque C embarquée) et, si Inno Setup est là, l'installateur sur un PC Windows.
 

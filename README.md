@@ -2,7 +2,7 @@
 
 Boîte à outils d'analyse des logs **Blackbox Betaflight** pour régler les drones de toutes tailles,
 du whoop au 10 pouces. Elle reprend les outils de PIDtoolbox Pro V0.94 avec un décodeur et des
-calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux, Windows et macOS.
+calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux et Windows.
 
 ![Visualiseur de log](docs/images/visualiseur.png)
 
@@ -43,16 +43,15 @@ Jusqu'à 10 logs comparés à la fois. Formats `.bbl`, `.bfl` (Betaflight 4.4 �
 ## Installation
 
 Dernière version : page [**Releases**](../../releases/latest), section *Assets*. Un seul fichier par
-système, rien d'autre à installer (Python et les bibliothèques sont inclus).
+système, rien d'autre à installer (tout est inclus).
 
 | Système | Fichier | Installation |
 |---|---|---|
 | Windows 10 / 11 | `OpenTuneBox-Windows-Setup.exe` | double-clic, puis suivre l'assistant (menu Démarrer, Bureau, ouverture des `.bbl`) |
-| macOS (puce Apple) | `OpenTuneBox-macOS.dmg` | ouvrir, puis glisser OpenTuneBox sur Applications |
 | Linux (Ubuntu 22.04, Debian 12, Fedora 36… ou plus récent) | `OpenTuneBox-Linux.AppImage` | rendre le fichier exécutable, puis double-clic |
 
-Le programme n'est pas signé : Windows et macOS affichent un avertissement au premier lancement (marche à
-suivre dans le [guide](docs/guide-utilisateur.md#1-installer)).
+Le programme n'est pas signé : Windows affiche un avertissement au premier lancement (marche à
+suivre dans le [guide](docs/guide-utilisateur.md#1-installer)). Pas de version macOS (D-042).
 
 ## Ligne de commande (depuis les sources)
 
@@ -88,9 +87,9 @@ OTB_LOGS=/chemin/logs .venv/bin/pytest -q -m corpus   # tests sur un dossier de 
 Sous Windows, remplacer `.venv/bin/` par `.venv\Scripts\`.
 
 Exécutable autonome fabriqué soi-même, sur le système visé : `pyinstaller packaging/opentunebox.spec --noconfirm`
-(Linux : nécessite `binutils`) → `dist/OpenTuneBox/` (`dist/OpenTuneBox.app` sous macOS) ; sous Windows,
+(Linux : nécessite `binutils`) → `dist/OpenTuneBox/` ; sous Windows,
 double-clic sur `packaging\windows\construire_windows.bat` (compile l'interface Rust : `dist\OpenTuneBox.exe`, et l'installateur si
-Inno Setup 6 est installé). Les installateurs des trois systèmes sont
+Inno Setup 6 est installé). Les installateurs des deux systèmes sont
 fabriqués par le workflow GitHub [`construire.yml`](.github/workflows/construire.yml) et publiés sur la page
 Releases à chaque version ([Contribuer](CONTRIBUTING.md)).
 

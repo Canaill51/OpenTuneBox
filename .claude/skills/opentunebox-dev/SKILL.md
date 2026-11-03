@@ -87,20 +87,21 @@ chaque seuil).
 
 ## Fabriquer les exécutables
 
-- Linux : `.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm` (≈ 30 s, `dist/OpenTuneBox/` ≈ 460 Mo).
-  Pas d'option `strip` : celui d'Ubuntu 22.04 abîme `libscipy_openblas` de numpy (« not page-aligned »).
-  Vérifier après tout changement de la recette : exécutable d'essai (même recette, script qui lance
-  `opentunebox report` avec un `NUMBA_CACHE_DIR` vide puis ouvre chaque outil hors écran).
-- Windows : sources par `git archive --format=zip --prefix=OpenTuneBox/ -o dist/OpenTuneBox-source.zip HEAD`,
-  puis `packaging\windows\construire_windows.bat` sur le PC Windows (Rust installé par winget si absent ; les outils de compilation
-  C++ de Visual Studio sont nécessaires, le script donne la commande si le lien échoue). Le script n'a pas été essayé sur un vrai Windows
-  au 2026-11-03 (W-044) : à essayer à la première occasion.
-- Tous systèmes : workflow `construire.yml` (manuel, ou étiquette `v*` → page Releases ; préparer la version
-  avec `scripts/release.py prepare X.Y.Z`, voir `CONTRIBUTING.md`) : un fichier par système
-  (installateur Inno Setup Windows, `.dmg` macOS, AppImage Linux construite sur Ubuntu 22.04),
-  chacun essayé au démarrage. AppImage en local : télécharger appimagetool 1.9.1 dans le répertoire temporaire,
-  puis `(cd rust && cargo build --release -p otb-gui)` et
+Le programme livré est l'interface Rust seule (`cargo build --release -p otb-gui`, 26 Mo). PyInstaller n'est plus utilisé par la CI
+(`packaging/opentunebox.spec` sera supprimé en 7-5).
+
+- Linux, en local : télécharger appimagetool 1.9.1 dans le répertoire temporaire (empreinte SHA-256 dans `construire.yml`), puis
+  `(cd rust && cargo build --release -p otb-gui)` et
   `APPIMAGETOOL=… sh packaging/linux/build_appimage.sh rust/target/release/opentunebox-gui SORTIE.AppImage`.
   Lancer l'AppImage avec un log en argument et capturer la fenêtre (`spectacle -b -n -a -o FICHIER.png`) ; pour l'arrêter,
   `kill` par identifiant : `pkill -f` avec un motif présent dans la commande tue le shell lui-même.
-  Icônes `.icns` / `.png` : `python packaging/make_icons.py` si le SVG change.
+- Windows : `packaging\windows\construire_windows.bat` sur le PC Windows (Rust installé par winget si absent ; les outils de
+  compilation C++ de Visual Studio sont nécessaires, le script donne la commande si le lien échoue). Le script n'a pas été essayé sur
+  un vrai Windows au 2026-11-03 (W-044) : à essayer à la première occasion.
+- Tous systèmes : workflow `construire.yml` (manuel, ou étiquette `v*` → page Releases ; préparer la version avec
+  `(cd rust && cargo run -p otb-dev -- release prepare X.Y.Z)`, voir `CONTRIBUTING.md`) : un fichier par système (installateur Inno
+  Setup Windows, AppImage Linux construite sur Ubuntu 22.04), chacun essayé au démarrage avec un petit log en argument. Avant de le
+  modifier : `actionlint .github/workflows/*.yml` (installé sur le poste ; mettre `shell: pwsh` aux étapes Windows, sinon il les
+  prend pour du bash). Le lancer à la main sur la branche (`gh workflow run construire.yml --ref BRANCHE`, accord de Cédric) avant
+  de fusionner.
+- Icônes : `(cd rust && cargo run -p otb-dev -- icons)` si le SVG change.

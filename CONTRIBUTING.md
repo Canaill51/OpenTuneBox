@@ -77,8 +77,8 @@ Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises
 
 ## Publier une version
 
-1. Sur une branche (`chore/release-0.2.0`) : `python scripts/release.py prepare 0.2.0`. Le script met le
-   numéro dans `pyproject.toml` et `src/opentunebox/__init__.py`, transforme la section *Non publié* de
+1. Sur une branche (`chore/release-0.2.0`) : `(cd rust && cargo run -p otb-dev -- release prepare 0.2.0)`. L'outil met le
+   numéro dans `rust/Cargo.toml` (et dans `pyproject.toml` et `src/opentunebox/__init__.py` tant qu'ils existent), transforme la section *Non publié* de
    `CHANGELOG.md` en `[0.2.0] — date du jour` et en rouvre une vide. Relire le CHANGELOG (c'est le texte
    de la page de téléchargement), puis demande de fusion vers `main` comme d'habitude.
 2. Une fois fusionnée, sur `main` à jour :
@@ -88,8 +88,8 @@ Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises
    ```
 3. Le workflow `construire.yml` vérifie que l'étiquette correspond au numéro du projet (sinon il s'arrête
    tout de suite) et crée un **brouillon** de la page **Releases** avec la section du CHANGELOG. Il
-   fabrique et essaie les installateurs Windows (`Setup.exe`), macOS (`.dmg`) et Linux (AppImage), envoie
-   chacun dans le brouillon, puis publie la page quand les trois fichiers y sont (≈ 10 min). Les fichiers
+   fabrique et essaie les installateurs Windows (`Setup.exe`) et Linux (AppImage) à partir de l'interface Rust, envoie
+   chacun dans le brouillon, puis publie la page quand les deux fichiers y sont. Les fichiers
    ne passent pas par les *Artifacts* de GitHub (stockage limité à 500 Mo pour un dépôt privé). Si un
    système échoue : corriger, puis relancer les tâches échouées (`gh run rerun ID --failed`) ; le
    brouillon est réutilisé. Le dépôt étant privé, seules les personnes ayant accès au dépôt peuvent
