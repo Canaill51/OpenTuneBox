@@ -183,6 +183,24 @@ impl App {
         }
     }
 
+    /// L'application telle que `main.rs` la lance : réglages relus, puis fichiers de la ligne de commande ouverts.
+    /// `args` est la liste complète des arguments du processus (`std::env::args_os()`) : le premier, le nom du programme, est sauté ici
+    /// (testé par `tests/app.rs`, car le branchement de `main.rs` n'est lui-même couvert par aucun test).
+    pub fn from_launch(
+        pages: Vec<Box<dyn Page>>,
+        guide: GuidePage,
+        storage: Option<&dyn eframe::Storage>,
+        args: impl IntoIterator<Item = std::ffi::OsString>,
+    ) -> Self {
+        let mut app = Self::with_guide(pages, guide);
+        if let Some(storage) = storage {
+            app.restore(storage);
+        }
+        // Logs ouverts par double-clic : directement les courbes.
+        app.open_at_launch(files_from_args(args.into_iter().skip(1)));
+        app
+    }
+
     /// Demande la capture de `rect` (en points) ; l'image arrive à un cadre suivant (`finish_export`).
     pub fn request_export(&mut self, ctx: &egui::Context, rect: egui::Rect) {
         if self.shot_rect.is_some() {

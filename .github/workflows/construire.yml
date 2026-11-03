@@ -1,6 +1,8 @@
 # Construction automatique d'OpenTuneBox pour Windows et Linux sur les serveurs de GitHub (macOS abandonné : D-042).
 # Se lance à la main (onglet « Actions » → « Construire OpenTuneBox » → « Run workflow ») ou en poussant
 # une étiquette de version (git tag v0.2.0 && git push origin v0.2.0).
+# Essai de toute la chaîne de publication sans rien publier : une étiquette « essai-v0.8.0 » (le numéro doit être celui de rust/Cargo.toml
+# et du CHANGELOG) fait tout, notes, brouillon, envoi des deux fichiers, contrôle de la liste, mais laisse la page en brouillon.
 # Avec une étiquette de version, les fichiers sont publiés sur une page « Releases » permanente
 # (préparer d'abord la version : cd rust && cargo run -p otb-dev -- release prepare 0.2.0, voir CONTRIBUTING.md) :
 # brouillon de la page, chaque système y envoie son fichier, puis publication quand les deux sont là.
@@ -15,18 +17,18 @@ name: Construire OpenTuneBox
 on:
   workflow_dispatch:
   push:
-    tags: ["v*"]
+    tags: ["v*", "essai-v*"]
 
 jobs:
   # Brouillon de la page « Releases » (invisible tant qu'il n'est pas publié) : seulement pour une étiquette v….
   # Déjà créé (relance après un échec) : on le garde.
   brouillon:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Le jeton (droit d'écriture sur la page Releases) ne doit pas rester dans .git/config pendant la compilation : les build.rs et
           # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
@@ -37,15 +39,16 @@ jobs:
         # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette : les jobs de
         # construction ne partent pas (« needs: brouillon »), ce contrôle n'a donc pas à y être refait.
         working-directory: rust
-        run: cargo run --quiet -p otb-dev -- release notes "$GITHUB_REF_NAME" > ../notes.md
+        run: cargo run --quiet -p otb-dev -- release notes "${GITHUB_REF_NAME#essai-}" > ../notes.md
       - name: Brouillon de la page de la version
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          numero="${GITHUB_REF_NAME#essai-}"; numero="${numero#v}" # essai-v0.8.0 et v0.8.0 donnent 0.8.0
           gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
-              --title "OpenTuneBox ${GITHUB_REF_NAME#v}" --notes-file notes.md
+              --title "OpenTuneBox $numero" --notes-file notes.md
 
   construire:
     needs: brouillon
@@ -65,7 +68,7 @@ jobs:
             package: OpenTuneBox-Linux.AppImage
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Le jeton (droit d'écriture sur la page Releases) ne doit pas rester dans .git/config pendant la compilation : les build.rs et
           # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
@@ -139,12 +142,17 @@ jobs:
 
       - name: AppImage (Linux)
         if: runner.os == 'Linux'
-        # appimagetool en version fixe, vérifiée par son empreinte SHA-256.
+        # appimagetool en version fixe, vérifiée par son empreinte SHA-256. Son « runtime » (la tête exécutable de l'AppImage) l'est
+        # aussi : sans `--runtime-file`, appimagetool 1.9.1 le télécharge depuis la version mouvante `continuous` sans contrôle
+        # d'empreinte (lu dans son code source). On lui donne la version figée 20251108 de AppImage/type2-runtime, empreinte relevée
+        # le 2026-11-03 sur le fichier téléchargé (944 632 octets).
         run: |
           curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
           echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum -c -
           chmod +x appimagetool
-          APPIMAGETOOL="$PWD/appimagetool" sh packaging/linux/build_appimage.sh rust/target/release/opentunebox-gui ${{ matrix.package }}
+          curl -sSL -o runtime-x86_64 https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+          echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64" | sha256sum -c -
+          APPIMAGETOOL="$PWD/appimagetool" APPIMAGE_RUNTIME="$PWD/runtime-x86_64" sh packaging/linux/build_appimage.sh rust/target/release/opentunebox-gui ${{ matrix.package }}
           echo "taille de l'AppImage : $(( $(stat -c %s ${{ matrix.package }}) / 1048576 )) Mo"
       - name: Démarrage de l'AppImage (Linux)
         if: runner.os == 'Linux'
@@ -162,15 +170,15 @@ jobs:
 
       # Version : fichier envoyé dans le brouillon de la page « Releases » (remplacé s'il y est déjà).
       - name: Envoi sur la page de la version
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh release upload "$GITHUB_REF_NAME" ${{ matrix.package }} --clobber
       # Lancement à la main : fichier envoyé tel quel (droits d'exécution conservés), gardé un jour.
-      - uses: actions/upload-artifact@v7
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           path: ${{ matrix.package }}
           archive: false
@@ -180,7 +188,7 @@ jobs:
   # Publication de la page « Releases », une fois les deux systèmes construits et envoyés.
   publier:
     needs: construire
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -193,4 +201,8 @@ jobs:
           gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name' | LC_ALL=C sort | tee fichiers.txt
           # Exactement les deux fichiers attendus (Windows, Linux), sinon on s'arrête.
           printf '%s\n' OpenTuneBox-Linux.AppImage OpenTuneBox-Windows-Setup.exe | diff - fichiers.txt
-          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          # Étiquette d'essai : la page reste un brouillon, invisible. Seule une vraie étiquette v* la publie.
+          case "$GITHUB_REF_NAME" in
+            essai-v*) echo "étiquette d'essai : page gardée en brouillon (à supprimer : gh release delete $GITHUB_REF_NAME --cleanup-tag --yes)" ;;
+            *) gh release edit "$GITHUB_REF_NAME" --draft=false --latest ;;
+          esac

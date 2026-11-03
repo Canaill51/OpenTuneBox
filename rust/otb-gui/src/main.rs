@@ -40,13 +40,12 @@ fn main() -> eframe::Result {
             if let Some(storage) = cc.storage {
                 guide.restore(storage);
             }
-            let mut app = App::with_guide(otb_gui::tools::all_pages(), guide);
-            if let Some(storage) = cc.storage {
-                app.restore(storage);
-            }
-            // Logs ouverts par double-clic : directement les courbes.
-            app.open_at_launch(otb_gui::app::files_from_args(std::env::args_os().skip(1)));
-            Ok(Box::new(app))
+            Ok(Box::new(App::from_launch(
+                otb_gui::tools::all_pages(),
+                guide,
+                cc.storage,
+                std::env::args_os(),
+            )))
         }),
     )
 }

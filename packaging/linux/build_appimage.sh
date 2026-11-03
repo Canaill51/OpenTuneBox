@@ -49,5 +49,17 @@ EOF
 cp "$ROOT/packaging/linux/opentunebox.png" "$APPDIR/opentunebox.png"
 cp "$ROOT/packaging/linux/opentunebox.png" "$APPDIR/.DirIcon"
 
+# ⚠️ Sans `--runtime-file`, appimagetool 1.9.1 télécharge le « runtime » (la tête exécutable de l'AppImage) depuis la version mouvante
+# `continuous` de AppImage/type2-runtime, et ne contrôle que sa taille, aucune empreinte (vérifié dans son code). La CI donne donc un runtime
+# de version fixe dont elle a vérifié le SHA-256 : `APPIMAGE_RUNTIME=chemin/runtime-x86_64`. Sans cette variable (essai local), il
+# télécharge le sien, comme avant.
+set -- --no-appstream
+if [ -n "${APPIMAGE_RUNTIME:-}" ]; then
+    if [ ! -f "$APPIMAGE_RUNTIME" ]; then
+        echo "runtime introuvable : $APPIMAGE_RUNTIME" >&2
+        exit 1
+    fi
+    set -- "$@" --runtime-file "$APPIMAGE_RUNTIME"
+fi
 # APPIMAGE_EXTRACT_AND_RUN : appimagetool est lui-même une AppImage, lancée ici sans FUSE (serveurs GitHub).
-ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" --no-appstream "$APPDIR" "$OUT"
+ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" "$@" "$APPDIR" "$OUT"

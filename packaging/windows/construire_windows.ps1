@@ -35,8 +35,13 @@ Copy-Item (Join-Path $root "rust\target\release\opentunebox-gui.exe") $exe -Forc
 Etape "3/3 Installateur (facultatif)"
 $meta = cargo metadata --no-deps --format-version 1 --manifest-path (Join-Path $root "rust\Cargo.toml") | ConvertFrom-Json
 $version = ($meta.packages | Where-Object { $_.name -eq "otb-gui" }).version
-$iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
-if (Test-Path $iscc) {
+# Inno Setup 6 installé pour tous les utilisateurs (Program Files) ou « pour moi seulement » (%LOCALAPPDATA%\Programs : dossier
+# `{autopf}` en mode non administrateur, déduit du script d'installation officiel is-6_7_4 ; non essayé sur un vrai Windows, W-044).
+$iscc = @(
+    (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($iscc) {
     & $iscc /Qp "/DAppVersion=$version" (Join-Path $root "packaging\windows\opentunebox.iss")
     if ($LASTEXITCODE -ne 0) { throw "échec d'Inno Setup" }
     Write-Host "Installateur : $root\dist\OpenTuneBox-Windows-Setup.exe"

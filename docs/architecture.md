@@ -121,7 +121,7 @@ fichier .bbl/.bfl
   `cargo build --release -p otb-gui` (Windows : `crt-static`), vérifie les DLL demandées, démarre le programme 20 s avec un petit log,
   installe / lance / désinstalle l'installateur, et démarre l'AppImage sous un écran virtuel (xvfb) avec le pilote Vulkan logiciel lavapipe :
   Windows `packaging/windows/opentunebox.iss` (Inno Setup ; un seul fichier, l'exécutable Rust installé sous le nom `OpenTuneBox.exe` ; 7,5 Mo mesurés par la CI le 2026-11-03, contre 88 Mo en Python ; le dossier `_internal` de la version Python est supprimé à la mise à jour, W-044),
-  Linux `packaging/linux/build_appimage.sh` (AppImage de l'exécutable Rust `opentunebox-gui`, appimagetool 1.9.1, construite sur Ubuntu 22.04 ; 10 Mo mesurés le 2026-11-03, contre 167 Mo en Python 0.8.0).
+  Linux `packaging/linux/build_appimage.sh` (AppImage de l'exécutable Rust `opentunebox-gui`, appimagetool 1.9.1 et runtime type2 figé `20251108`, tous deux vérifiés par leur SHA-256 dans `construire.yml`, construite sur Ubuntu 22.04 ; 10 Mo mesurés le 2026-11-03, contre 167 Mo en Python 0.8.0).
 - Icônes : `otb-dev icons` fabrique le `.png` (Linux) et le `.ico` (Windows) depuis le SVG (`packaging/make_icons.py` et le `.icns` de macOS ne servent plus, suppression en 7-5).
 - Depuis les sources : `packaging/linux/install_linux.sh` (compile `otb-gui`, l'installe dans `~/.local/bin` et ajoute le raccourci du menu Linux) ;
   `packaging/windows/construire_windows.bat` fabrique l'exécutable Rust (cargo, bibliothèque C embarquée) et, si Inno Setup est là, l'installateur sur un PC Windows.
