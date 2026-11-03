@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-079 : une doc qui cite un fichier produit par la compilation passe chez soi et échoue sur la CI
+- **Symptôme** — 2026-11-03 (CI de la PR #93, jobs `tests` et `windows`) : `otb-dev/tests/docs.rs` panique, `chemins ou symboles introuvables : ["README.md : rust/target/release/opentunebox-gui"]`, alors que le même test passait en local juste avant le push.
+- **Cause (mesurée)** — le README citait en code (`…`) la sortie de `cargo build`. Ce fichier existe sur le poste de développement (on y a compilé), pas dans un dépôt fraîchement cloné : le test de chemins exige que tout chemin cité qui commence par un dossier du dépôt (`rust/`, `packaging/`…) existe. Sur une copie propre, le même test échoue comme la CI (essayé).
+- **Règle** — un fichier de compilation (`target/…`, `dist/…`) se cite sans le préfixe du dépôt (« le fichier `target/release/…` du dossier `rust` ») ou dans un bloc de code ; ne pas assouplir le test. **Avant de pousser un changement de documentation, lancer les deux contrôles sur une copie propre des fichiers suivis par git** : `git ls-files -z | xargs -0 -I{} cp --parents {} /tmp/copie/`, puis `cd /tmp/copie/rust && OTB_DOCS_ROOT=/tmp/copie cargo test -p otb-dev --test docs` et `cd /tmp/copie && python -m pytest tests/test_docs.py`.
+- **Preuve** — `otb-dev/tests/docs.rs::code_paths_and_symbols_exist` : échoue sur la copie propre avec l'ancienne phrase du README, passe avec la nouvelle.
+
 ### L-078 : un test écrit avec `std::os::unix` ne compile pas sous Windows, et la CI Windows est le dernier endroit où on le voit
 - **Symptôme** — 2026-11-03 (CI de la PR #91) : job `windows` en échec après 8 min, `error[E0433]: cannot find 'unix' in 'os'` et `error[E0599]: no associated function … 'from_mode'`, alors que tout passait sous Ubuntu. Un test échoue donc à la compilation, avant de tourner, et la même erreur coupe tous les tests du crate.
 - **Cause** — mesurée : le test du délai de `corpus validate` fabriquait un faux `blackbox_decode` (script shell) et lui donnait les droits d'exécution par `std::os::unix::fs::PermissionsExt`, module qui n'existe pas sous Windows. Un second défaut du même commit n'est apparu qu'à la relecture : le rapport écrivait les chemins avec le séparateur du système, le test attendait des `/`. Même famille que L-074 (un test « portable » qui ne l'est pas), mais l'erreur est ici à la compilation.
@@ -874,6 +880,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |
 | L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |
 | L-077 | Banc kittest : `run()` panique (`exceeded max_steps`) si un fil de calcul redemande une repeinte pendant qu'il tourne, vu sur la CI Windows ; attendre un calcul avec `step()` / `run_steps(n)` | Tests |
 | L-076 | Icône de fenêtre egui sans effet sous Linux Wayland : winit ignore `with_icon` ; le bureau cherche l'icône dans un `.desktop` dont le NOM est l'`app_id`, majuscules comprises (`OpenTuneBox.desktop`, pas `opentunebox.desktop`) ; AppImage non intégrée : icône générique | Interface |
