@@ -396,13 +396,17 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Chemin affiché : relatif au dossier des logs, sinon sans la racine.
+/// Chemin affiché : relatif au dossier des logs, sinon sans la racine ; toujours avec des `/` (même sortie sous Windows).
 fn shown(path: &Path, root: &Path) -> String {
-    let r = path
-        .strip_prefix(root)
-        .or_else(|_| path.strip_prefix("/"))
-        .unwrap_or(path);
-    r.display().to_string()
+    let r = path.strip_prefix(root).unwrap_or(path);
+    r.components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(n) => Some(n.to_string_lossy()),
+            std::path::Component::ParentDir => Some("..".into()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 /// `{'ok': 3, 'gap': 1}` : les statuts dans l'ordre de leur première apparition, comme le `dict` de Python.
@@ -678,6 +682,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // le faux « blackbox_decode » est un script shell exécutable
     fn blocked_reference_is_killed_and_reported_as_refhang() {
         let dir = std::env::temp_dir().join(format!("otb-validate-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
