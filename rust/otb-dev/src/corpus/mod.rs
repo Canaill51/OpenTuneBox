@@ -7,6 +7,7 @@
 
 pub mod calibrate;
 pub mod json;
+pub mod labels;
 pub mod rates;
 
 use std::collections::HashSet;
@@ -259,13 +260,14 @@ impl Output {
     }
 }
 
-pub const USAGE: &str = "Usage :\n  otb-dev corpus <outil> …\nOutils : rates, calibrate (à venir : labels, validate)";
+pub const USAGE: &str = "Usage :\n  otb-dev corpus <outil> …\nOutils : rates, calibrate, labels (à venir : validate)";
 
 /// Point d'entrée de `otb-dev corpus …`.
 pub fn run(args: &[&str]) -> Result<Output, String> {
     match args {
         ["rates", rest @ ..] => rates::run(rest),
         ["calibrate", rest @ ..] => calibrate::run(rest),
+        ["labels", rest @ ..] => labels::run(rest),
         [outil, ..] => Err(format!("outil inconnu : {outil}\n{USAGE}")),
         [] => Err(USAGE.into()),
     }

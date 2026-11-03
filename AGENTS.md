@@ -100,6 +100,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 (cd rust && cargo run -p otb-dev -- release prepare X.Y.Z)   # préparer une version ; `release notes vX.Y.Z` : notes de la page Releases ; jusqu'à la 7-5, ne pas préparer une version avec `scripts/release.py` (il ne met pas à jour `rust/Cargo.toml`)
 (cd rust && cargo run --release -p otb-dev -- corpus rates SORTIE.json)   # taux de chaque constat sur le corpus (remplace advisor_rates.py) ; `--compare AVANT.json APRÈS.json` : mêmes conseils ?
 (cd rust && cargo run --release -p otb-dev -- corpus calibrate 600 SORTIE.json)   # mesures brutes du corpus pour calibrer les seuils (remplace calibrate_advisor.py) ; `corpus calibrate --resume SORTIE.json` : p10 / p50 / p90 par taille
+(cd rust && cargo run --release -p otb-dev -- corpus labels)   # tableau d'étiquettes $OTB_LOGS/corpus.csv (remplace corpus_labels.py) ; ne réécrit jamais `etat`, `taille_reelle` ni `remarque` ; `--csv COPIE` pour essayer sur une copie
 (cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev)   # Rust
 .venv/bin/pip install -e .                           # recompile l'extension Rust (maturin, profil release) après un changement de rust/
 .venv/bin/opentunebox-gui [LOG…]                     # interface
