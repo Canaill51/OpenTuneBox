@@ -97,5 +97,8 @@ chaque seuil).
   avec `scripts/release.py prepare X.Y.Z`, voir `CONTRIBUTING.md`) : un fichier par système
   (installateur Inno Setup Windows, `.dmg` macOS, AppImage Linux construite sur Ubuntu 22.04),
   chacun essayé au démarrage. AppImage en local : télécharger appimagetool 1.9.1 dans le répertoire temporaire,
-  puis `APPIMAGETOOL=… sh packaging/linux/build_appimage.sh dist/OpenTuneBox SORTIE.AppImage`.
+  puis `(cd rust && cargo build --release -p otb-gui)` et
+  `APPIMAGETOOL=… sh packaging/linux/build_appimage.sh rust/target/release/opentunebox-gui SORTIE.AppImage`.
+  Lancer l'AppImage avec un log en argument et capturer la fenêtre (`spectacle -b -n -a -o FICHIER.png`) ; pour l'arrêter,
+  `kill` par identifiant : `pkill -f` avec un motif présent dans la commande tue le shell lui-même.
   Icônes `.icns` / `.png` : `python packaging/make_icons.py` si le SVG change.

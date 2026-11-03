@@ -79,7 +79,7 @@ Depuis les sources (Python 3.11 ou plus récent ; [Rust](https://rustup.rs) est 
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/opentunebox-gui                 # interface graphique
-sh packaging/linux/install_linux.sh       # Linux : ajoute OpenTuneBox au menu des applications
+sh packaging/linux/install_linux.sh       # Linux : compile l'interface Rust (cargo) et l'ajoute au menu des applications
 .venv/bin/pytest -q                       # tests (ceux qui demandent de vrais logs sont ignorés sans corpus)
 (cd rust && cargo test -p otb-decoder)    # tests du code Rust
 OTB_LOGS=/chemin/logs .venv/bin/pytest -q -m corpus   # tests sur un dossier de vrais logs
