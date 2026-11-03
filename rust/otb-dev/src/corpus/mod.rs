@@ -5,6 +5,8 @@
 //! Un seul processus : les fichiers se répartissent sur un pool rayon, et le noyau de `step_response` partage ce même pool,
 //! donc pas de « cœurs × cœurs » fils (le `RAYON_NUM_THREADS=1` par processus de `map_files` en Python n'a plus d'objet).
 
+pub mod calibrate;
+pub mod json;
 pub mod rates;
 
 use std::collections::HashSet;
@@ -257,12 +259,13 @@ impl Output {
     }
 }
 
-pub const USAGE: &str = "Usage :\n  otb-dev corpus <outil> …\nOutils : rates (à venir : calibrate, labels, validate)";
+pub const USAGE: &str = "Usage :\n  otb-dev corpus <outil> …\nOutils : rates, calibrate (à venir : labels, validate)";
 
 /// Point d'entrée de `otb-dev corpus …`.
 pub fn run(args: &[&str]) -> Result<Output, String> {
     match args {
         ["rates", rest @ ..] => rates::run(rest),
+        ["calibrate", rest @ ..] => calibrate::run(rest),
         [outil, ..] => Err(format!("outil inconnu : {outil}\n{USAGE}")),
         [] => Err(USAGE.into()),
     }
