@@ -4,12 +4,13 @@
 //! otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]   numéro de version, CHANGELOG
 //! otb-dev release notes vX.Y.Z                        texte de la page Releases
 //! otb-dev icons [--svg CHEMIN]                        PNG Linux et .ico Windows depuis le SVG
+//! otb-dev corpus <outil> …                            outils du corpus de vrais logs (`OTB_LOGS`)
 //! ```
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]";
+const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev corpus <outil> …";
 
 /// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `CHANGELOG.md` et `rust/Cargo.toml`.
 fn repo_root() -> Result<PathBuf, String> {
@@ -34,6 +35,7 @@ fn run(args: &[String]) -> Result<String, String> {
         ["release", "notes", tag] => otb_dev::release::notes(&repo_root()?, tag),
         ["icons"] => otb_dev::icons::generate(&repo_root()?, None),
         ["icons", "--svg", path] => otb_dev::icons::generate(&repo_root()?, Some(Path::new(path))),
+        ["corpus", rest @ ..] => otb_dev::corpus::run(rest),
         _ => Err(USAGE.into()),
     }
 }
