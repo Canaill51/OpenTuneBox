@@ -75,8 +75,10 @@ le lot 2 après le lot 1 (il documente la nouvelle commande) ; les lots 3 et 4 s
    `gh` du propriétaire, un agent peut fusionner seul. **Fait par Cédric le 2026-11-04** (vérifié par `gh api` : une
    approbation requise, approbations périmées rejetées à chaque nouveau commit, contournement du rôle administrateur
    gardé « pour les PR seulement »). Comme toute règle GitHub est contournable par le compte du propriétaire, le vrai
-   verrou est côté Claude Code : `.claude/settings.json` refuse désormais `git push`, `gh pr merge`, `git tag` et
-   `gh release` (accord de Cédric le même jour). Ces gestes restent les siens. L'interdit entre aussi dans `AGENTS.md` au lot 2.
+   verrou est côté Claude Code : `.claude/settings.json` refusait `git push`, `gh pr merge`, `git tag` et
+   `gh release` (accord de Cédric le même jour). **Changé par Cédric le 2026-11-04** : ces quatre commandes sont en « demander »
+   (dans ce projet et dans `~/.claude/settings.json`, donc tous ses dépôts) : l'agent ne les lance qu'avec sa confirmation à
+   chaque fois. La règle entre aussi dans `AGENTS.md` au lot 2.
 5. **Première publication Rust.** W-046 (police Ubuntu Light face à la GPL 3) la bloque et relève d'une décision de Cédric.
    **Cédric (2026-11-04) : à traiter aussi.** Un lot 7 est réservé en fin de plan ; il ne se détaille qu'une fois W-046 tranché.
 
@@ -88,14 +90,14 @@ départ que le lot 5 devra battre.
 **À lire** : `docs/validation.md` (procédures), `.claude/skills/calculs-corpus/SKILL.md`, `rust/otb-dev/src/corpus/mod.rs`
 (variables d'environnement, dossier par défaut).
 
-- [ ] Relever sur ce poste : `OTB_LOGS` (défaut `~/Documents/Drones/Logs`, 525 logs et `corpus.csv` vus le 2026-11-04),
+- [x] Relever sur ce poste : `OTB_LOGS` (défaut `~/Documents/Drones/Logs`, 525 logs et `corpus.csv` vus le 2026-11-04),
       présence d'un dossier `golden/`, présence d'un `blackbox_decode` de référence ; noter le résultat dans « Avancement ».
-- [ ] Si les références manquent : poser la question 1 ci-dessus à Cédric et **s'arrêter là** (critère d'arrêt).
-- [ ] Si elles existent : lancer `cargo run --release -p otb-parity -- check "$OTB_GOLDEN"` et
+- [x] Si les références manquent : poser la question 1 ci-dessus à Cédric et **s'arrêter là** (critère d'arrêt).
+- [x] Si elles existent : lancer `cargo run --release -p otb-parity -- check "$OTB_GOLDEN"` et
       `cargo run --release -p otb-dev -- corpus validate` ; les deux doivent être à 0 écart sur `main` : c'est la ligne de base.
-- [ ] Mesures de départ pour le lot 5, sur le plus gros log du corpus : temps de `opentunebox info` et pic mémoire
+- [x] Mesures de départ pour le lot 5, sur le plus gros log du corpus : temps de `opentunebox info` et pic mémoire
       (gestionnaire des tâches ou `Measure-Command` + compteur `PeakWorkingSet`), notées dans `docs/validation.md`.
-- [ ] Vérification : aucune ; ce lot ne change pas de code. Livrable : la section « Avancement » remplie, et si besoin
+- [x] Vérification : aucune ; ce lot ne change pas de code. Livrable : la section « Avancement » remplie, et si besoin
       les variables d'environnement à définir, préparées pour Cédric (pas de `sudo` requis).
 
 ## Lot 1 : commande unique `otb-dev verify` et crochet réparé (Sonnet) — C3
@@ -144,8 +146,8 @@ jamais faire.
 - [ ] Alléger (après accord, question 3) : bloc « Organisation » à une ligne par crate ; historique Python réduit à une phrase
       avec renvoi vers `docs/architecture.md` ; renvois L-036 et L-038 (époque PyO3) retirés des pièges génériques ; liste des
       compétences retirée de `CLAUDE.md` (elles se chargent d'après leur description).
-- [ ] Ajouter : la commande `verify` et sa durée ; les interdits explicites (jamais de `git push`, jamais de tag `v*` ou
-      `essai-v*`, jamais de `gh pr merge`, ne pas modifier `$OTB_LOGS`, `golden/` ni `corpus.csv`, ne jamais affaiblir un
+- [ ] Ajouter : la commande `verify` et sa durée ; les règles explicites (`git push`, `git tag`, `gh pr merge` et `gh release` :
+      seulement avec la confirmation de Cédric à chaque fois ; l'étiquette `v*` reste posée par lui ; ne pas modifier `$OTB_LOGS`, `golden/` ni `corpus.csv`, ne jamais affaiblir un
       test pour le faire passer) ; la consigne « fichiers temporaires hors du dépôt » ; le poste de développement (Windows 11 et
       Linux : commandes données pour les deux ou en POSIX avec la mention) ; les variables `OTB_DEV_ROOT`, `OTB_BITEXACT`,
       `OTB_FORMAT_CASES`.
@@ -269,7 +271,7 @@ posée **par Cédric lui-même**.
 
 | Lot | État |
 |---|---|
-| 0 | À faire, sur le poste Linux |
+| 0 | Fait le 2026-11-04 sur le poste Linux : références présentes ; `otb-parity` 0 écart ; `corpus validate` 697/712 sessions conformes (les 15 autres sont des écarts connus, la ligne de base n'est donc pas « 0 écart » comme le plan le supposait) ; départ mémoire 491 Mo sur `LOG00008.BFL`. Détail dans `docs/validation.md` (« Ligne de base ») |
 | 1 | À faire |
 | 2 | À faire |
 | 3 | À faire |

@@ -35,6 +35,33 @@ analyses (`otb-dev corpus validate`, `otb-parity`, tests de chaque crate).
   `blackbox_decode` le 2026-10-12 ; un test de l'ancienne version Python figeait l'en-tête, la première et la dernière trame,
   les statistiques et les unités physiques.
 
+### Ligne de base avant les chantiers du décodeur (2026-11-04, `main` au commit 11f1a71, poste Linux)
+
+Sert de point de comparaison aux lots 4 et 5 de `plan-chantiers.md` : après leurs changements, **rien de plus** ne doit
+différer. Variables à définir : `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golden` et
+`OTB_REF_DECODER=$HOME/.local/share/PIDtoolboxProV094/blackbox_decode` (fourni avec PIDtoolbox).
+
+- Corpus : 529 fichiers `.bbl`/`.bfl` sous `~/Documents/Drones/Logs` (528 lus par `corpus validate`, `golden/` exclu).
+- `cargo run --release -p otb-parity -- check "$OTB_GOLDEN"` : 3123 fichiers, 1728 appels rejoués, **0 échec** (37 s).
+- `cargo run --release -p otb-dev -- corpus validate` : **697 sessions conformes sur 712** (6 min 42 s, code de sortie 1).
+  Statuts : ok 627, gap 67, slow 8, values 5, refhang 3, rows 2. Les 15 non conformes (`slow`, `values`, `rows`) sont des
+  trames corrompues que la référence accepte et qu'OpenTuneBox rejette (voir plus haut) ; elles se trouvent dans 14 fichiers :
+  - `slow` : `1. PTB/BlackSummer/` (`Hover_48kHz.bfl`, `Wobble_0.8.bfl`, `Wobble_0.8_DSHOT300.bfl`), `1. PTB/Tes/mm 1.0.BFL`,
+    `1. PTB/st7ven3241/` (`108_D1.5_PD1.4.BFL`, `116_D1.5_PD1.4_MM1.4..BFL`, `LOG00042_wobble.BFL`, `LOG00081_D16_P14_MM12.BFL`) ;
+  - `values` (terme PID à ±2147483648) : `1. PTB/Sohail/btfl_all.bbl` (session 7), `07-16 VX3.5 HOVER+WOBBLE TUNED.bbl`
+    de `StraylightFPV/VX35/` et de `falseidol416/` (session 2), `Cedric/Meteor 75 Pro O4 HD/48k Base/t2.bbl` (session 3) ;
+  - `rows` : `1. PTB/Zox - Mario8/HOVER HQPROPS.BFL`, `1. PTB/st7ven3241/LOG00054_MM1.4_PiD_1.3.BFL`.
+- Ouverture d'un log (`opentunebox info`, version release, 3 essais, `/usr/bin/time` : temps écoulé et pic de mémoire) :
+
+  | Log | Taille | Trames | Temps | Pic de mémoire |
+  |---|---|---|---|---|
+  | `1. PTB/st7ven3241/LOG00008.BFL` (le plus gourmand des 529) | 32 Mo | 620 079 | 0,59 à 0,62 s | **≈ 491 Mo** |
+  | `1. PTB/ram/BTFL_BLACKBOX_LOG_MARIO_8_…bbl` | 21 Mo | | 0,46 à 0,49 s | ≈ 266 Mo |
+  | `tests/data/jeno5_5s.bbl` | 5 s | 8 262 | < 0,01 s | ≈ 11 Mo |
+
+  Objectif du lot 5a (÷ 1,5) : passer sous ≈ 327 Mo sur `LOG00008.BFL`. Le « plus gros log » de W-014 (965 000 trames, 39 Mo)
+  n'est plus dans le corpus : ses 364 Mo ne se comparent pas à ces chiffres. Ordinateur : 16 cœurs, 15 Go de mémoire.
+
 ## Recoupement avec PIDtoolbox Pro V0.94 (mêmes logs)
 
 | Mesure | Log | PIDtoolbox | OpenTuneBox |
