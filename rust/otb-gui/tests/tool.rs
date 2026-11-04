@@ -137,6 +137,90 @@ fn recalcul_file_d_attente_et_erreur() {
     assert_eq!(page.status, "Sélectionnez au moins un log.");
 }
 
+/// Tant que le test tient ce verrou, `compute` de `Perime` reste bloqué (verrou à part : `Essai` compte ses appels).
+static PORTE_PERIME: Mutex<()> = Mutex::new(());
+
+/// Outil dont le résultat dit combien de logs ont été donnés au calcul.
+struct Perime {
+    /// Indices sélectionnés.
+    choix: Vec<usize>,
+}
+
+impl Tool for Perime {
+    type Options = ();
+    type Output = Vec<String>;
+    const TITLE: &'static str = "Perime";
+
+    fn options(&self) {}
+    fn selected(&self, state: &AppState) -> Vec<usize> {
+        self.choix.iter().copied().filter(|&i| i < state.logs.len()).collect()
+    }
+    fn compute(_: (), logs: Vec<LogInput>) -> Result<Vec<String>, String> {
+        drop(PORTE_PERIME.lock().unwrap());
+        Ok(logs.into_iter().map(|l| l.label).collect())
+    }
+    fn controls(&mut self, _: &mut Ui, _: &AppState, _: &Theme) {}
+    fn render(&mut self, _: &mut Ui, _: &mut AppState, _: &Vec<String>, _: &Theme) {}
+}
+
+fn finir(p: &mut ToolPage<Perime>, ctx: &egui::Context, s: &AppState) {
+    let debut = Instant::now();
+    while p.busy() {
+        p.update(ctx, s);
+        assert!(debut.elapsed() < Duration::from_secs(10), "calcul jamais terminé");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+/// Un calcul lancé avant que l'état soit vidé ne doit pas rendre son résultat à une page sans log (C2).
+#[test]
+fn un_calcul_termine_apres_le_vidage_n_affiche_rien() {
+    let ctx = egui::Context::default();
+    let mut state = AppState::new();
+    state.add(synthetic_log("a", 100, 1000.0));
+    let mut page = ToolPage::new(Perime { choix: vec![0] });
+    {
+        let _porte = PORTE_PERIME.lock().unwrap();
+        page.update(&ctx, &state); // lance, bloqué
+        assert!(page.busy());
+        state.clear();
+        page.update(&ctx, &state); // plus de log : résultat effacé, message
+        assert_eq!(page.status, "Sélectionnez au moins un log.");
+    }
+    finir(&mut page, &ctx, &state);
+    page.update(&ctx, &state);
+    assert_eq!(page.result(), None, "le résultat de l'ancien état ne doit pas revenir");
+    assert_eq!(page.status, "Sélectionnez au moins un log.");
+}
+
+/// Changer la sélection pendant un calcul : seul le résultat de la dernière sélection est affiché.
+#[test]
+fn le_resultat_de_l_ancienne_selection_ne_s_affiche_jamais() {
+    let ctx = egui::Context::default();
+    let mut state = AppState::new();
+    state.add(synthetic_log("a", 100, 1000.0));
+    state.add(synthetic_log("b", 100, 1000.0));
+    let mut page = ToolPage::new(Perime { choix: vec![0] });
+    {
+        let _porte = PORTE_PERIME.lock().unwrap();
+        page.update(&ctx, &state); // lance le log 0, bloqué
+        page.tool.choix = vec![1];
+        page.update(&ctx, &state); // la sélection change : demande en attente
+    }
+    // le premier calcul finit : son résultat (log « a ») ne doit jamais être vu
+    let debut = Instant::now();
+    while page.busy() {
+        page.update(&ctx, &state);
+        if let Some(r) = page.result() {
+            assert_eq!(r, &vec!["b".to_string()], "résultat de l'ancienne sélection affiché");
+        }
+        assert!(debut.elapsed() < Duration::from_secs(10), "calcul jamais terminé");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    page.update(&ctx, &state);
+    assert_eq!(page.result(), Some(&vec!["b".to_string()]));
+}
+
 #[test]
 fn un_message_d_erreur_trop_long_garde_ses_600_derniers_caracteres() {
     use otb_gui::tool::{ERROR_CHARS, error_status};
