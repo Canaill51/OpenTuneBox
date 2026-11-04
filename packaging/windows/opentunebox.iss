@@ -54,6 +54,9 @@ Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
 Source: "{#ExePath}"; DestDir: "{app}"; DestName: "OpenTuneBox.exe"; Flags: ignoreversion
+; Mentions de licences des composants embarqués (polices, icônes, bibliothèques) : exigées par leurs licences (W-043).
+; Fichier produit par `otb-dev licenses`.
+Source: "..\..\THIRD-PARTY-LICENSES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\OpenTuneBox"; Filename: "{app}\OpenTuneBox.exe"

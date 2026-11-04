@@ -67,7 +67,8 @@ Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises
 
 ## Publier une version
 
-1. Sur une branche (`chore/release-0.2.0`) : `(cd rust && cargo run -p otb-dev -- release prepare 0.2.0)`. L'outil met le
+1. Sur une branche (`chore/release-0.2.0`) : `(cd rust && cargo run -p otb-dev -- licenses)` (refait `THIRD-PARTY-LICENSES.txt`, que les
+   deux installateurs livrent : à relancer si une dépendance a changé), puis `(cd rust && cargo run -p otb-dev -- release prepare 0.2.0)`. Cet outil met le
    numéro dans `rust/Cargo.toml`, transforme la section *Non publié* de
    `CHANGELOG.md` en `[0.2.0] — date du jour` et en rouvre une vide. Relire le CHANGELOG (c'est le texte
    de la page de téléchargement), puis demande de fusion vers `main` comme d'habitude.
