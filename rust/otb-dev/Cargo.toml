@@ -1,0 +1,31 @@
+[package]
+name = "otb-dev"
+description = "Outils de développement d'OpenTuneBox, jamais livrés (phase 7, D-035) : vérification de la documentation, version, icônes, outils du corpus"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "otb_dev"
+
+[[bin]]
+name = "otb-dev"
+path = "src/main.rs"
+
+[dependencies]
+ico = "0.6"
+otb-decoder = { path = "../otb-decoder" }
+otb-format = { path = "../otb-format" }
+otb-advisor = { path = "../otb-advisor" }
+otb-analysis = { path = "../otb-analysis" }
+otb-log = { path = "../otb-log" }
+rayon = "1.12.0"
+regex = "1"
+# Le SVG de l'icône n'a ni texte ni image : sans les fonctionnalités par défaut, pas de polices ni de décodeurs d'images.
+resvg = { version = "0.49", default-features = false }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.11.1"
+
+[dev-dependencies]
+otb-cli = { path = "../otb-cli" }
+otb-gui = { path = "../otb-gui" }

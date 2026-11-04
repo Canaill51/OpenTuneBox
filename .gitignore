@@ -1,15 +1,5 @@
-.venv/
-.venv-win/
-__pycache__/
-*.pyc
-*.egg-info/
 build/
 dist/
-.pytest_cache/
 /out/
-.ruff_cache/
-.coverage
-.coverage.*
-.mypy_cache/
-*.spec.bak
 OTB_FIGS_*.png
+rust/target/

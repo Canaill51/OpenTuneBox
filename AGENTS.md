@@ -14,18 +14,23 @@ les commandes qui demandent `sudo` : préparer la commande ou un script, ne pas 
 
 Résumé ; contexte, options écartées et preuves dans `docs/decisions.md`.
 
-- Multiplateforme : Python + **PySide6** + **pyqtgraph** ; décodeur Python accéléré par **numba** (aucun binaire externe). D-001, D-002
+- Multiplateforme (Linux, Windows) : **Rust**, interface **egui** + **egui_plot**, noyau Rust autonome. D-035. (La version 0.8.0 était en Python + PySide6 + numba : D-001, D-002, remplacées par D-035.)
 - Assistant **100 % hors ligne**, à règles : aucune API, aucune donnée envoyée. D-003
-- Projet **privé, tous droits réservés** (pas de licence libre). D-001
+- Dépôt **public**, licence **GNU GPL 3** (`LICENSE`). D-043
 - **Aucune copie de code PIDtoolbox** (binaire chiffré) ni d'autres projets : tout est réimplémenté à partir
   des formules du firmware Betaflight et de méthodes publiées (voir `docs/spec-*.md`).
   Seule exception, validée par Cédric : les icônes [Lucide](https://lucide.dev) (licence ISC) dans
-  `gui/assets/icons/`, à garder avec leur fichier de licence. D-004, D-005
+  `rust/otb-gui/assets/icons/`, à garder avec leur fichier de licence. D-004, D-005
+- Migration vers Rust : le travail passe par `feat/rust-migration` et ses sous-branches (`docs/migration-rust.md`) ; chaque module a été
+  prouvé équivalent avant de supprimer l'ancien. D-031
+- **Plus aucun Python** dans le dépôt (application, tests, scripts) depuis la phase 7-5 ; Python figé comme étalon (tags `python-etalon`
+  pour les références, `python-final` pour le dernier état de `main`). Pour refaire une référence : « Refaire une référence Python » dans
+  `docs/validation.md`. D-035
 - Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français. D-001
 
 ## Suivi du projet
 
-Trois registres numérotés, un maître par sujet (D-018) ; `tests/test_docs.py` vérifie que chaque numéro
+Trois registres numérotés, un maître par sujet (D-018) ; `cargo test -p otb-dev --test docs` vérifie que chaque numéro
 est unique et que chaque numéro cité existe.
 
 - `docs/decisions.md` (`D-xxx`) : choix en vigueur, options écartées, preuves. Un choix qui écarte une
@@ -42,151 +47,87 @@ est unique et que chaque numéro cité existe.
 ## Organisation
 
 ```
-src/opentunebox/
-  decoder/    décodage binaire BBL (numba, cache=True) → DecodedSession (valeurs brutes)
-  log/        FlightLog (unités physiques, courbes en float32 : D-029), settings.py (en-tête normalisé par version), debug_tables.py, modes.py
-  analysis/   calculs purs numpy/scipy : spectral, step (Wiener), step_series (séries de vols), loop (marges de
-              stabilité), delay, bf_filters, sliders, motors, stats, period, datasets (jeux de données analysables)
-  advisor/    profils de taille (profiles.py), règles (rules.py), diagnostic du bruit de Spectre (noise.py),
-              diagnostic du réglage de la Réponse indicielle (step_tuning.py),
-              guide intégré : vérification des logs (log_check.py), fiche drone (drone_card.py), parcours
-              à cocher (tuning_path.py)
-  gui/        app.py, main_window.py (visualiseur), guide.py (guide intégré : fiches drone, cases ; accueil dans assets/guide/),
-              state.py, worker.py, theme.py, icons.py, geometry.py, tools/ (une page par outil), widgets/, assets/
-  cli.py      commandes `opentunebox info` et `opentunebox report`
-tests/        pytest ; conftest.py (Qt hors écran, réglages isolés, fixtures `app`, `synthetic_log`, `synthetic_state`),
-              synthetic.py (`make_flightlog`, `make_session` : vol et session fabriqués, sans corpus),
-              bbl_factory.py (fichiers Blackbox binaires fabriqués : en-tête, trames I/P/S/E),
-              data/jeno5_5s.bbl (5 s d'un vrai log de Cédric, décodé en CI par test_real_log.py) ;
-              les tests marqués `corpus` utilisent de vrais logs (ignorés s'ils sont absents) ;
-              test_docs.py vérifie la documentation
-scripts/      validate_corpus.py (décodeur vs référence), calibrate_advisor.py (seuils de l'assistant),
-              advisor_rates.py (taux de déclenchement des constats), corpus_labels.py (tableau d'étiquettes
-              du corpus, passages parallèles map_files), release.py (préparer une version, notes de la page Releases)
-packaging/    opentunebox.spec (PyInstaller), launcher.py, icônes (make_icons.py), installateurs :
-              windows/ (Inno Setup), macos/ (.dmg), linux/ (AppImage)
+rust/         espace de travail Cargo (D-031) ; détail de chaque crate et de chaque fichier : docs/architecture.md
+  otb-decoder   décodeur BBL/BFL → session décodée (valeurs brutes) : header, frame, reader, file
+  otb-log       FlightLog (unités physiques, courbes en float32 : D-029), settings (en-tête normalisé par version), debug_tables, modes
+  otb-dsp       noyaux de calcul (filtres Betaflight, step_response, primitives numériques ; rayon : D-033)
+  otb-analysis  calculs purs : spectral, step (Wiener), step_series, open_loop (marges de stabilité), delay, bf_filters, sliders, motors,
+                stats, period, datasets (jeux de données analysables), npstat
+  otb-advisor   profils de taille (profiles.rs), règles (rules.rs), diagnostic du bruit de Spectre (noise.rs), diagnostic du réglage de la
+                Réponse indicielle (step_tuning.rs), guide intégré : vérification des logs (log_check.rs), fiche drone (drone_card.rs),
+                parcours à cocher (tuning_path.rs)
+  otb-format    formats de nombres (D-035)
+  otb-cli       commandes `opentunebox info` et `opentunebox report`
+  otb-gui       interface egui + egui_plot : app.rs, viewer.rs / viewer_page.rs (visualiseur), guide.rs / guide_page.rs (guide intégré),
+                state.rs, worker.rs, tool.rs, theme.rs, icons.rs, plots.rs, export.rs, tools/ (une page par outil), assets/
+  otb-parity    comparateur avec les références figées de l'ancienne version Python (tag `python-etalon`)
+  otb-dev       outils de développement, jamais livrés : vérification de la documentation, release, icons, licenses, corpus (rates, calibrate, labels, validate)
+tests/        data/jeno5_5s.bbl : 5 s d'un vrai log de Cédric, lu par 15 tests Rust ; les autres tests sont dans chaque crate
+              (`rust/<crate>/tests/`) ; `rust/otb-gui/tests/support/mod.rs` : `synthetic_log` fabrique un vol sans corpus
+packaging/    icônes (`opentunebox.ico`, `linux/opentunebox.png`, refaites par `otb-dev icons`), installateurs : windows/ (Inno Setup),
+              linux/ (AppImage et `install_linux.sh`)
 docs/         guide utilisateur, architecture, validation, assistant, spécifications (index : docs/README.md)
 ```
 
 Règles :
-- `analysis/` et `advisor/` n'importent **jamais** `gui/` : tout calcul doit rester utilisable en ligne de commande et testable.
-- `gui/` affiche seulement ce que `analysis/` calcule. Un outil s'affiche dans une page de la fenêtre principale
-  (`gui/main_window.py:MainWindow.open_tool`, boutons de la barre = onglets, jamais de fenêtre séparée) ; il hérite de `gui/tools/base.py:ToolWindow`
-  (`build_controls`, `snapshot_options`, `compute` en arrière-plan, `render`) et s'enregistre dans `gui/tools/__init__.py:REGISTRY`.
-- Les widgets Qt ne se lisent pas dans `compute` (autre thread) : copier leurs valeurs dans `snapshot_options`
-  (vérifié par `tests/test_gui_tools.py` sur chaque outil du registre) ; les tests appellent `compute_sync`.
-- Un constat de l'assistant (`advisor/rules.py:Finding`) se reconnaît par sa clé `key` (littéral anglais),
+- `otb-analysis` et `otb-advisor` ne dépendent **jamais** d'`otb-gui` : tout calcul doit rester utilisable en ligne de commande et testable.
+- `otb-gui` affiche seulement ce que `otb-analysis` calcule. Un outil s'affiche dans une page de la fenêtre principale (`rust/otb-gui/src/app.rs`,
+  boutons de la barre = onglets, jamais de fenêtre séparée) ; il implémente le trait `Tool` de `rust/otb-gui/src/tool.rs` et s'enregistre
+  dans `rust/otb-gui/src/tools/mod.rs:all_pages`.
+- `Tool::compute` est une fonction sans `self` : elle ne lit pas les réglages de l'interface, elle reçoit une copie (`Options`), ce qui évite
+  de lire un réglage depuis un autre thread (le compilateur le vérifie).
+- Un constat de l'assistant (`rust/otb-advisor/src/rules.rs:Finding`) se reconnaît par sa clé `key` (littéral anglais),
   jamais par son titre ou ses actions : les textes se reformulent librement ; un réglage déjà conseillé se
   déclare dans `settings` (D-028).
 
 ## Commandes
 
+Toutes depuis `rust/` (`cd rust`).
+
 ```sh
-python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/pytest -q                                  # tous les tests (≈ 4 min avec le corpus, 1 min sans)
-.venv/bin/pytest -q -m "not corpus"                  # tests rapides, sans vrais logs
-.venv/bin/ruff check src tests scripts packaging/make_icons.py   # lint (doit être vide, D-030)
-.venv/bin/pytest -q --cov=opentunebox --cov-report=term-missing   # couverture (hors code numba : L-025)
-.venv/bin/pytest -q tests/test_docs.py               # cohérence de la documentation (< 1 s)
-.venv/bin/opentunebox-gui [LOG…]                     # interface
-.venv/bin/opentunebox report LOG.bbl                 # diagnostic en ligne de commande
-.venv/bin/python scripts/validate_corpus.py [DOSSIER] [--limit N]   # décodeur vs blackbox_decode
-.venv/bin/python scripts/corpus_labels.py                        # tableau d'étiquettes $OTB_LOGS/corpus.csv
-.venv/bin/python scripts/advisor_rates.py SORTIE.json            # taux de chaque constat sur le corpus (≈ 2 min)
-.venv/bin/python scripts/advisor_rates.py --compare AVANT.json APRÈS.json   # mêmes conseils avant / après ?
-.venv/bin/pyinstaller packaging/opentunebox.spec --noconfirm        # exécutable autonome
-.venv/bin/python scripts/release.py prepare X.Y.Z                 # préparer une version (CONTRIBUTING.md)
+cargo test --no-fail-fast -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev   # tous les tests (sans le corpus)
+cargo test -p otb-dev --test docs   # cohérence de la documentation
+cargo fmt --check && cargo clippy --all-targets -- -D warnings   # formatage et lint (doivent être vides)
+cargo run --release -p otb-gui -- [LOG…]   # interface
+cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande (binaire `opentunebox`)
+cargo run -p otb-dev -- icons   # refait packaging/linux/opentunebox.png et packaging/opentunebox.ico depuis le SVG
+cargo run -p otb-dev -- licenses   # refait THIRD-PARTY-LICENSES.txt (mentions de licences livrées par les installateurs) ; à relancer quand une dépendance change
+cargo run -p otb-dev -- release prepare X.Y.Z   # préparer une version ; `release notes vX.Y.Z` : notes de la page Releases
+cargo run --release -p otb-dev -- corpus rates SORTIE.json   # taux de chaque constat sur le corpus ; `--compare AVANT.json APRÈS.json` : mêmes conseils ?
+cargo run --release -p otb-dev -- corpus calibrate 600 SORTIE.json   # mesures brutes du corpus pour calibrer les seuils ; `corpus calibrate --resume SORTIE.json` : p10 / p50 / p90 par taille
+cargo run --release -p otb-dev -- corpus labels   # tableau d'étiquettes $OTB_LOGS/corpus.csv ; ne réécrit jamais `etat`, `taille_reelle` ni `remarque` ; `--csv COPIE` pour essayer sur une copie
+cargo run --release -p otb-dev -- corpus validate [--limit N] [--start N] [-j FILS]   # décodeur vs `blackbox_decode` de référence ; code 1 si une session n'est pas conforme
+cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références de l'ancienne version (couches : check-header, check-decoder…)
+cargo deny check   # failles des dépendances, licences (réglages : rust/deny.toml)
 ```
 
-CI : `tests.yml` (lint, tests, couverture) et `audit.yml` (failles des dépendances, voir `CONTRIBUTING.md`) ; la
-CI ne voit pas le corpus.
+CI : `tests.yml` (formatage, lint, tests, sur Ubuntu et Windows) et `audit.yml` (`cargo deny check`, voir `CONTRIBUTING.md`) ;
+`construire.yml` fabrique les installateurs. La CI ne voit pas le corpus.
 
 Variables d'environnement : `OTB_LOGS` (dossier de vrais logs, défaut `~/Documents/Drones/Logs` ; contient
-aussi `corpus.csv`, les étiquettes des drones remplies par Cédric, à ne jamais écraser),
-`OTB_REF_DECODER` (`blackbox_decode` de référence pour `validate_corpus.py`).
+aussi `corpus.csv`, les étiquettes des drones remplies par Cédric, à ne jamais écraser), `OTB_GOLDEN` (références figées, en général
+`$OTB_LOGS/golden`), `OTB_REF_DECODER` (`blackbox_decode` de référence pour `otb-dev corpus validate`), `OTB_DOCS_ROOT` (autre racine pour la
+vérification de la documentation).
 
-Tests d'interface et captures sans écran : `QT_QPA_PLATFORM=offscreen`, puis `widget.grab().save(...)` et
-regarder l'image produite. **Terminer tout script Qt par `opentunebox.gui.app.hard_exit(code)`** :
-PySide6 6.11 + pyqtgraph plantent (segfault) pendant le nettoyage automatique de fin de Python (L-019).
+Captures sans écran : `cargo run --release -p otb-gui --example capture` (rendu wgpu), puis regarder l'image produite.
 
 ## Pièges connus
 
-Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md` sous le numéro indiqué.
+Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md` sous le numéro indiqué. Ci-dessous, ceux qui valent pour
+presque toute tâche ; **ceux d'un domaine sont dans [docs/pieges-par-domaine.md](docs/pieges-par-domaine.md) : le lire avant de travailler dessus.**
 
-- `blackbox_decode` (référence de PIDtoolbox) compte mal `loopIteration` avec les en-têtes `P interval:N`
-  (Betaflight récents) et jette les trames P qui suivent la 1re trame I d'un bloc : comparer en alignant sur
-  `time`. Il accepte aussi des trames corrompues (tronquées avant un trou de carte SD, trames S parasites)
-  et se bloque sur certains fichiers ; notre décodeur suit le firmware (itération = boucle PID). L-001
-- `log/flightlog.py:_drop_implausible` écarte les trames impossibles (gyro ou consigne > 4000 °/s, terme PID > ±65535) ;
-  une session corrompue à plus de 50 % est ignorée. L-002
-- `stats["corrupt_frames"]` compte des tentatives de resynchronisation, pas du temps perdu : juger un log
-  abîmé par ses trous (`FlightLog.recording_gaps`). Toute analyse à fenêtres prend `breaks=log.breaks(sel)` :
-  sans lui, chaque trou ajoute un faux bruit (jusqu'à +18 dB). D-020, L-027
-- Numéros de `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12) → `log/debug_tables.py`. L-003
-- 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max` → normalisé dans `log/settings.py`. L-004
-- Retards de filtres : méthode de **phase** (10–100 Hz, pondérée par la cohérence), pas l'intercorrélation
-  (dominée par le bruit haute fréquence). PIDtoolbox affiche un retard D 0,3 à 0,9 ms trop court (le gyro
-  concorde) : ses objectifs de retard D ne s'appliquent pas tels quels. D-007, L-006
-- Retard des filtres : jugé seulement avec des mouvements (`delay.MOVING_SETPOINT_DPS`, consigne
-  > 30 °/s au moins 5 % du temps) ; en vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime.
-  Pas 50 °/s : les wobbles en mode Angle limité à 30° plafonnent vers 47 °/s. D-010, D-026, L-007
-- Fréquence du log : deux minimums à ne pas mélanger. **Filtres** : au moins 2 kHz pour un gyro à 8 kHz,
-  1,6 kHz à 3,2 kHz, plus pour les petits drones (`rules.log_rate_needed`) ; le blackbox sous-échantillonne
-  sans filtre, tout ce qui dépasse fs/2 se replie. **Séries PID** : 1 kHz (`rules.pid_log_rate_needed`). Le
-  guide range les logs par rôle (`log_check.FILTERS` / `PID`) : chaque case ne lit que ceux de sa phase.
-  Vol stationnaire = identifier le bruit ; vol avec mouvements = juger le retard. D-017, L-008
-- Feedforward : forcé à 0 par le firmware en mode **Angle** seulement (pas en Horizon) → masque
-  `flightlog.ANGLE_MODE_MASK`, distinct de `ANGLE_HORIZON_MASK` (instrument de la boucle ouverte). Juger la
-  réponse selon `FlightConditions.ff_gain(axe)` (0 en Angle), jamais le F de l'en-tête. D-014, D-025, L-005
-- Réponse indicielle par séries (`advisor/step_tuning.py`) : seuils tirés de 10 séries Master du corpus,
-  choix des pilotes relus dans les vols suivants ; la cassure varie d'environ 0,01 entre deux vols
-  identiques (incertitude jackknife plus faible : elle ne couvre que le bruit d'un vol). L-012
-- Échelle des DSP : `analysis/` calcule la densité physique (= `scipy.signal.welch`), 6,5 dB au-dessus de PIDtoolbox
-  (`spectral.PTB_PSD_OFFSET_DB`) ; l'interface affiche l'échelle de PTB (`spectral.to_ptb_db`, dans `compute` des
-  outils), l'assistant convertit lui-même (`rules.band_peak_ptb_db`) : ne jamais appliquer la conversion deux fois. D-016, L-009
-- Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic
-  cherché dans max(150 ms, 3 × latence). Bande passante calculée à partir de 2 Hz, lissage `uniform_filter1d(mode="nearest")`.
-- Notch dynamique : prévoir ses pics avec la **réponse** des notchs RPM du firmware (poids, Q), jamais en
-  retirant les bandes des harmoniques : une harmonique à poids réduit laisse un reste qu'il suit. Le debug
-  FFT_FREQ (`bf_filters.fft_freq_centres`) donne ce qu'il a vraiment suivi : y vérifier tout modèle. D-022, L-028
-- Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²
-  à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
-  `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log. D-008, L-011, L-024
-- Seuils de l'assistant = 90e percentile du corpus par taille de drone (`docs/assistant.md`) : les recalculer
-  avec `scripts/calibrate_advisor.py` (`--resume` pour les percentiles ; scripts du corpus en parallèle sur
-  tous les cœurs, compétence `calculs-corpus`), ne pas les inventer. Compter **une voix
-  par drone** quand quelques drones dominent une taille (whoop, seuils mécaniques) ; moins de ~20 drones →
-  seuil commun ou profil provisoire. Chaque seuil a une origine notée (corpus, théorie, firmware…). D-011, L-013
-- Boucle ouverte (`analysis/loop.py`) : L = G·(Ce + Cd) **mesurée** à partir des termes P, I, D, F loggés ;
-  G par estimateur instrumental (consigne, ou `rcCommand` en mode angle/horizon, plus l'excitation du debug
-  CHIRP de Betaflight, ajoutée à la consigne avant le mode angle), jamais S(u, gyro)/S(u, u)
-  (biaisé en boucle fermée). L = T/(1 − T) n'est qu'un repli « approché » (faux pour Betaflight : D sur le
-  gyro, FF sur la consigne). La bande mesurable s'arrête vers 20–40 Hz (énergie du manche) : pic de
-  sensibilité souvent minorant. L'onglet Autotune du configurateur n'est pas une source. D-012, L-010
-- Interface : style Qt **Fusion** imposé partout (`gui/theme.py`). Le style natif Windows 11 ignore la palette
-  et grise les textes. Sous Fusion (Qt 6.11), les cases et boutons radio sont presque invisibles : ils sont
-  redessinés par la feuille de style globale. Le délégué natif des `QComboBox` ignore cette feuille
-  (texte blanc sur blanc) : `theme._ComboDelegateFix` le remplace par `QStyledItemDelegate`. D-009, L-014, L-015
-- Couleurs : jamais de couleur en dur (`#777`, `gray`…) ni de taille en pixels hors de `gui/theme.py` ; textes
-  par `theme.accent_style`, `theme.muted_style` et `theme.current().ui`, courbes et repères par `theme.PLOT_COLORS`
-  (`tests/test_gui_contracts.py` refuse tout code couleur ailleurs). Vérifier les deux thèmes. L-016
-- Linux : fenêtres d'ouverture / d'enregistrement par le portail XDG (`QT_QPA_PLATFORMTHEME=xdgdesktopportal`
-  dans `gui/app.py`), indépendant du bureau. Logo de KDE sur la fenêtre du portail : normal. Sans portail,
-  `theme._match_icon_theme` choisit les icônes claires / sombres. Textes de Qt en français : `qtbase_fr.qm`,
-  seule traduction gardée par la recette PyInstaller. D-013, L-017
-- Une feuille de style Qt ne charge une image que depuis un fichier : icône recolorée écrite dans le dossier
-  temporaire (`theme._colored_svg`). L-018
+- Couleurs : jamais de couleur en dur (`#777`, `Color32::GRAY`…) hors de `rust/otb-gui/src/theme.rs` ; les textes et les courbes passent
+  par le thème (`rust/otb-gui/tests/contracts.rs` refuse tout code couleur ailleurs). Vérifier les deux thèmes. L-016
 - Pas de compilateur C sur le poste de développement : pas de dépendance à compiler. D-006
-- Linux : PyInstaller a besoin de `binutils` (`objdump`). Windows/macOS : construire sur le système cible. L-020
-- Exécutable Windows sans console (`console=False`) : `sys.stdout` et `sys.stderr` valent `None` ;
-  ne jamais les utiliser sans vérifier (voir `gui/app.py:hard_exit`). L-021
-- Vérifier avant un commit : lancer `pytest` sans tube (`| tail` masque son échec) ; le crochet de Claude Code
+- Vérifier avant un commit : lancer `cargo test` sans tube (`| tail` masque son échec) ; le crochet de Claude Code
   (`.claude/hooks/check-docs.sh`) ne voit que `git commit` et `git -c … commit`. L-022
-- Tests du corpus : ouvrir un log par `tests/corpus_paths.py:corpus_log` (ignoré en le nommant s'il manque) ;
-  après un changement du corpus, `pytest -rs` liste les logs à remplacer. L-023
-- Couverture : la CI n'a pas le corpus et `coverage` ne voit pas le code numba (`NUMBA_DISABLE_JIT=1`) ;
-  tout outil ou analyse a d'abord un test sur les logs synthétiques (`tests/synthetic.py`), et un fichier
-  marqué `corpus` en bloc ne contient aucun test pur. L-025
+- Test d'une clé de cache ou d'une règle d'affichage : casser la protection visée pour voir le test échouer ; `AppState::set_period` vide déjà le cache, donc ne prouve pas la clé (changer `period` à la main) ; une règle d'affichage sans effet testable devient une fonction pure. L-071
+- Noyau parallèle (rayon, D-033) : L-038. Tableau 2D passé à plat : L-036
+- Tests : la CI n'a pas le corpus ; tout outil ou analyse a d'abord un test sur un log fabriqué (`rust/otb-gui/tests/support/mod.rs:synthetic_log`)
+  ou sur `tests/data/jeno5_5s.bbl`. Le test de `otb-parity` qui lit `$OTB_GOLDEN` s'ignore avec un message quand le dossier manque. L-023, L-025
+
+Sections de `docs/pieges-par-domaine.md` : décodeur et journaux de vol ; analyses ; filtres Betaflight et notch dynamique ; assistant de réglage ;
+interface egui et Rust ; construction des exécutables.
 
 ## Méthode de travail
 
@@ -196,10 +137,10 @@ Règle courte de chaque piège ; histoire, cause et preuve dans `docs/lecons.md`
 2. Valider sur **de vrais logs** en plus des tests synthétiques ; recouper avec les captures PIDtoolbox
    (`PTB_FIGS_*` du corpus) quand elles existent (résultats de référence dans `docs/validation.md`).
 3. **Documentation à jour à chaque modification**, dans le même commit que le code : suivre la compétence
-   `.claude/skills/docs-sync` (quels documents relire selon le changement) ; `tests/test_docs.py` vérifie
+   `.claude/skills/docs-sync` (quels documents relire selon le changement) ; `cargo test -p otb-dev --test docs` vérifie
    automatiquement liens, chemins, outils, modules, fichiers publiés et langue.
-   `pytest` et `ruff check` propres avant chaque commit ; mettre à jour `CHANGELOG.md` (section *Non publié*).
-4. Commits en français, à l'impératif ou descriptifs, un sujet par commit. Auteur `Cedric <desmetgerry@gmail.com>`.
+   `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo test` propres avant chaque commit ; mettre à jour `CHANGELOG.md` (section *Non publié*).
+4. Commits en français, à l'impératif ou descriptifs, un sujet par commit. Auteur `Cedric` avec l'adresse noreply de GitHub (D-043), jamais l'adresse personnelle.
    Ne jamais pousser sur GitHub ni publier quoi que ce soit sans l'accord de Cédric.
 5. Une branche par sujet, nommée `type/description-courte` (convention GitHub : `feat`, `fix`, `docs`,
    `refactor`, `test`, `chore` ; minuscules, tirets, anglais). La PR vers `main` a pour titre **exactement

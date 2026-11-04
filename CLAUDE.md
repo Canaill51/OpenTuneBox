@@ -9,7 +9,7 @@
   modifier le décodeur, les analyses ou l'interface.
 - Assistant de réglage : compétence `.claude/skills/assistant-seuils` (calibrer, choisir et sourcer chaque
   seuil). La charger avant de modifier un seuil, une règle ou un profil de taille.
-- Guide intégré (page Guide, textes `gui/assets/guide/`, étape « Vérifier mes logs ») : compétence
+- Guide intégré (page Guide, textes `rust/otb-gui/assets/guide/`, étape « Vérifier mes logs ») : compétence
   `.claude/skills/guide-integre` (configurateur d'abord, CLI en repli ; correspondances vérifiées).
 - Calculs sur tout le corpus (calibration, taux de déclenchement, mesure ponctuelle) : compétence
   `.claude/skills/calculs-corpus` (scripts parallèles, réutilisation des résultats, piège des bits inversés).

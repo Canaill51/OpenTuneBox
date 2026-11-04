@@ -10,8 +10,7 @@
 
 ## Vérifications
 
-- [ ] `pytest -q` passe
-- [ ] `ruff check src tests scripts packaging/make_icons.py` ne signale rien
+- [ ] `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo test` (dans `rust/`) passent
 - [ ] Testé sur de vrais logs (lesquels ?) :
 - [ ] Documentation à jour : documents relus selon `.claude/skills/docs-sync` (README, guide, AGENTS, docs/…)
 - [ ] `CHANGELOG.md` mis à jour (section *Non publié*)

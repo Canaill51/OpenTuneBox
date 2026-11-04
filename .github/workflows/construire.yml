@@ -1,42 +1,54 @@
-# Construction automatique d'OpenTuneBox pour Windows, macOS et Linux sur les serveurs de GitHub.
+# Construction automatique d'OpenTuneBox pour Windows et Linux sur les serveurs de GitHub (macOS abandonné : D-042).
 # Se lance à la main (onglet « Actions » → « Construire OpenTuneBox » → « Run workflow ») ou en poussant
 # une étiquette de version (git tag v0.2.0 && git push origin v0.2.0).
+# Essai de toute la chaîne de publication sans rien publier : une étiquette « essai-v0.8.0 » (le numéro doit être celui de rust/Cargo.toml
+# et du CHANGELOG) fait tout, notes, brouillon, envoi des deux fichiers, contrôle de la liste, mais laisse la page en brouillon.
 # Avec une étiquette de version, les fichiers sont publiés sur une page « Releases » permanente
-# (préparer d'abord la version : python scripts/release.py prepare 0.2.0, voir CONTRIBUTING.md) :
-# brouillon de la page, chaque système y envoie son fichier, puis publication quand les trois sont là.
-# Les fichiers ne passent pas par les « Artifacts » de GitHub : leur stockage, limité à 500 Mo pour un
-# dépôt privé, se remplissait (≈ 290 Mo par construction, gardés 90 jours). Lancement à la main : fichiers
-# téléchargeables en bas de la page de l'exécution (« Artifacts »), gardés un jour seulement.
+# (préparer d'abord la version : cd rust && cargo run -p otb-dev -- release prepare 0.2.0, voir CONTRIBUTING.md) :
+# brouillon de la page, chaque système y envoie son fichier, puis publication quand les deux sont là.
+# Les fichiers ne passent pas par les « Artifacts » de GitHub (leur stockage se remplissait quand le dépôt était privé).
+# Lancement à la main : fichiers téléchargeables en bas de la page de
+# l'exécution (« Artifacts »), gardés un jour seulement.
+# Le programme est l'interface Rust (`cargo build --release -p otb-gui`) : un seul fichier, sans Python.
 # Fichiers produits :
 #   OpenTuneBox-Windows-Setup.exe  installateur Windows (menu Démarrer, Bureau, .bbl, désinstallation)
-#   OpenTuneBox-macOS.dmg          glisser OpenTuneBox dans Applications (Mac Apple Silicon)
 #   OpenTuneBox-Linux.AppImage     un seul fichier : le rendre exécutable, puis double-clic
 name: Construire OpenTuneBox
 on:
   workflow_dispatch:
   push:
-    tags: ["v*"]
+    tags: ["v*", "essai-v*"]
 
 jobs:
   # Brouillon de la page « Releases » (invisible tant qu'il n'est pas publié) : seulement pour une étiquette v….
   # Déjà créé (relance après un échec) : on le garde.
   brouillon:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Le jeton (droit d'écriture sur la page Releases) ne doit pas rester dans .git/config pendant la compilation : les build.rs et
+          # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
+          persist-credentials: false
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal
       - name: Notes de version (section du CHANGELOG)
-        # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette.
-        run: python3 scripts/release.py notes "$GITHUB_REF_NAME" > notes.md
+        # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette : les jobs de
+        # construction ne partent pas (« needs: brouillon »), ce contrôle n'a donc pas à y être refait.
+        working-directory: rust
+        run: cargo run --quiet -p otb-dev -- release notes "${GITHUB_REF_NAME#essai-}" > ../notes.md
       - name: Brouillon de la page de la version
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
+          numero="${GITHUB_REF_NAME#essai-}"; numero="${numero#v}" # essai-v0.8.0 et v0.8.0 donnent 0.8.0
           gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
-              --title "OpenTuneBox ${GITHUB_REF_NAME#v}" --notes-file notes.md
+              --title "OpenTuneBox $numero" --notes-file notes.md
 
   construire:
     needs: brouillon
@@ -50,83 +62,74 @@ jobs:
         include:
           - os: windows-latest
             package: OpenTuneBox-Windows-Setup.exe
-          - os: macos-latest
-            package: OpenTuneBox-macOS.dmg
           # Ubuntu le plus ancien disponible : l'exécutable fonctionne sur les Linux de même âge ou plus récents
           # (il dépend de la version de la bibliothèque C du système qui l'a fabriqué).
           - os: ubuntu-22.04
             package: OpenTuneBox-Linux.AppImage
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: "3.13"
-      - name: Cohérence de l'étiquette de version
-        if: startsWith(github.ref, 'refs/tags/v')
-        # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette.
-        shell: bash
-        run: python scripts/release.py notes "$GITHUB_REF_NAME" > /dev/null
-      - name: Bibliothèques système Qt (Linux)
+          # Le jeton (droit d'écriture sur la page Releases) ne doit pas rester dans .git/config pendant la compilation : les build.rs et
+          # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
+          persist-credentials: false
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Bibliothèques pour l'essai de démarrage (Linux)
         if: runner.os == 'Linux'
-        # Installées ici pour que PyInstaller les embarque : certaines (libxcb-cursor…) manquent sur
-        # beaucoup de Linux, et Qt refuse alors d'ouvrir ses fenêtres.
+        # Les serveurs n'ont ni écran ni carte graphique : écran virtuel (xvfb) et pilote Vulkan logiciel (lavapipe, dans
+        # mesa-vulkan-drivers). Ces bibliothèques ne servent qu'à l'essai : le programme les cherche sur le système de l'utilisateur.
         run: >
           sudo apt-get update && sudo apt-get install -y
-          libegl1 libgl1 libfontconfig1 libdbus-1-3 libxkbcommon0 libxkbcommon-x11-0
-          libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0
-          libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 libxcb-xkb1
-      - name: Dépendances
-        run: python -m pip install . pyinstaller pytest
-      - name: Tests rapides
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: python -m pytest -q -m "not corpus" tests/test_decoder.py tests/test_analysis.py tests/test_bf_filters.py tests/test_sliders.py
+          xvfb mesa-vulkan-drivers libvulkan1 libegl1 libgl1 libxkbcommon-x11-0 libxcursor1 libxi6 libxrandr2
       - name: Exécutable
-        # Les serveurs n'ont pas d'écran : si une bibliothèque crée une fenêtre pendant l'analyse, elle reste invisible.
+        shell: bash
+        working-directory: rust
         env:
-          QT_QPA_PLATFORM: offscreen
-        run: python -m PyInstaller packaging/opentunebox.spec --noconfirm
-      # Essais de démarrage : l'interface doit rester ouverte 20 s sans planter.
+          # Windows : la bibliothèque C est embarquée, le programme ne demande aucune DLL de Visual C++ au PC de l'utilisateur.
+          RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
+        run: cargo build --release -p otb-gui
+
+      - name: Bibliothèques demandées par l'exécutable (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # dumpbin vient de Visual Studio (vswhere le trouve) ; aucune DLL de Visual C++ ne doit être demandée (crt-static).
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\**\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) { Write-Error "dumpbin introuvable"; exit 1 }
+          $dll = & $dumpbin /dependents rust\target\release\opentunebox-gui.exe | Out-String
+          Write-Host $dll
+          if ($dll -match '(?i)vcruntime|msvcp|concrt') { Write-Error "l'exécutable demande une DLL de Visual C++"; exit 1 }
       - name: Démarrage de l'exécutable (Windows)
         if: runner.os == 'Windows'
-        env:
-          QT_QPA_PLATFORM: offscreen
+        shell: pwsh
+        # L'interface doit rester ouverte 20 s sans planter, avec un petit log en argument (celui du double-clic).
         run: |
-          $p = Start-Process -FilePath dist\OpenTuneBox\OpenTuneBox.exe -PassThru
+          $p = Start-Process -FilePath rust\target\release\opentunebox-gui.exe -ArgumentList tests\data\jeno5_5s.bbl -PassThru
           Start-Sleep -Seconds 20
           if ($p.HasExited) { Write-Error "OpenTuneBox s'est arrêté (code $($p.ExitCode))"; exit 1 }
           Stop-Process -Id $p.Id -Force
-      - name: Démarrage de l'exécutable (macOS)
-        if: runner.os == 'macOS'
-        # perl coupe le programme au bout de 20 s (signal d'alarme, code 142) : il était donc toujours ouvert.
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          set +e
-          perl -e 'alarm 20; exec @ARGV' dist/OpenTuneBox.app/Contents/MacOS/OpenTuneBox
-          code=$?
-          echo "code de sortie : $code"
-          test $code -eq 142
-
       - name: Installateur (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          $version = python -c "import opentunebox; print(opentunebox.__version__)"
+          $meta = cargo metadata --no-deps --format-version 1 --manifest-path rust\Cargo.toml | ConvertFrom-Json
+          $version = ($meta.packages | Where-Object { $_.name -eq "otb-gui" }).version
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=$version" packaging\windows\opentunebox.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Move-Item dist\OpenTuneBox-Windows-Setup.exe ${{ matrix.package }}
+          (Get-Item ${{ matrix.package }}).Length / 1MB | ForEach-Object { Write-Host ("taille de l'installateur : {0:N1} Mo" -f $_) }
       - name: Essai de l'installateur (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         # Installe sans questions pour l'utilisateur courant, lance le programme installé, puis désinstalle.
-        env:
-          QT_QPA_PLATFORM: offscreen
         run: |
           Start-Process -Wait -FilePath .\${{ matrix.package }} -ArgumentList '/VERYSILENT', '/CURRENTUSER', '/TASKS=associate'
           $dir = "$env:LOCALAPPDATA\Programs\OpenTuneBox"
           if (-not (Test-Path "$dir\OpenTuneBox.exe")) { Write-Error "programme absent de $dir"; exit 1 }
           if (-not (Test-Path "Registry::HKEY_CURRENT_USER\Software\Classes\OpenTuneBox.BlackboxLog\shell\open\command")) { Write-Error "association .bbl absente"; exit 1 }
-          $p = Start-Process -FilePath "$dir\OpenTuneBox.exe" -PassThru
+          $p = Start-Process -FilePath "$dir\OpenTuneBox.exe" -ArgumentList tests\data\jeno5_5s.bbl -PassThru
           Start-Sleep -Seconds 20
           if ($p.HasExited) { Write-Error "OpenTuneBox installé s'est arrêté (code $($p.ExitCode))"; exit 1 }
           Stop-Process -Id $p.Id -Force
@@ -136,55 +139,56 @@ jobs:
           if (Test-Path "$dir\OpenTuneBox.exe") { Write-Error "la désinstallation a laissé le programme"; exit 1 }
           if (Test-Path "Registry::HKEY_CURRENT_USER\Software\Classes\OpenTuneBox.BlackboxLog") { Write-Error "la désinstallation a laissé l'association .bbl"; exit 1 }
           Write-Host "installation, lancement et désinstallation : ok"
-      - name: Image disque (macOS)
-        if: runner.os == 'macOS'
-        # Seulement OpenTuneBox.app : le dossier dist/OpenTuneBox en est une copie.
-        run: |
-          sh packaging/macos/build_dmg.sh dist/OpenTuneBox.app ${{ matrix.package }}
-          hdiutil verify ${{ matrix.package }}
-          plutil -p dist/OpenTuneBox.app/Contents/Info.plist | grep -E "CFBundleShortVersionString|blackbox-log"
+
       - name: AppImage (Linux)
         if: runner.os == 'Linux'
-        # appimagetool en version fixe, vérifiée par son empreinte SHA-256.
+        # appimagetool en version fixe, vérifiée par son empreinte SHA-256. Son « runtime » (la tête exécutable de l'AppImage) l'est
+        # aussi : sans `--runtime-file`, appimagetool 1.9.1 le télécharge depuis la version mouvante `continuous` sans contrôle
+        # d'empreinte (lu dans son code source). On lui donne la version figée 20251108 de AppImage/type2-runtime, empreinte relevée
+        # le 2026-11-03 sur le fichier téléchargé (944 632 octets).
         run: |
           curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
           echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum -c -
           chmod +x appimagetool
-          APPIMAGETOOL="$PWD/appimagetool" sh packaging/linux/build_appimage.sh dist/OpenTuneBox ${{ matrix.package }}
+          curl -sSL -o runtime-x86_64 https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+          echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64" | sha256sum -c -
+          APPIMAGETOOL="$PWD/appimagetool" APPIMAGE_RUNTIME="$PWD/runtime-x86_64" sh packaging/linux/build_appimage.sh rust/target/release/opentunebox-gui ${{ matrix.package }}
+          echo "taille de l'AppImage : $(( $(stat -c %s ${{ matrix.package }}) / 1048576 )) Mo"
       - name: Démarrage de l'AppImage (Linux)
         if: runner.os == 'Linux'
-        # « timeout » arrête le programme au bout de 20 s avec le code 124 : il était donc toujours ouvert.
+        # « timeout » arrête le programme au bout de 20 s avec le code 124 : il était donc toujours ouvert. Un petit log est
+        # donné en argument (celui du double-clic). xvfb-run : écran virtuel.
         # APPIMAGE_EXTRACT_AND_RUN : les serveurs de GitHub n'autorisent pas FUSE.
         env:
-          QT_QPA_PLATFORM: offscreen
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
           set +e
-          timeout 20 ./${{ matrix.package }}
+          xvfb-run -a timeout 20 ./${{ matrix.package }} tests/data/jeno5_5s.bbl
           code=$?
           echo "code de sortie : $code"
           test $code -eq 124
 
       # Version : fichier envoyé dans le brouillon de la page « Releases » (remplacé s'il y est déjà).
       - name: Envoi sur la page de la version
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: gh release upload "$GITHUB_REF_NAME" ${{ matrix.package }} --clobber
       # Lancement à la main : fichier envoyé tel quel (droits d'exécution conservés), gardé un jour.
-      - uses: actions/upload-artifact@v7
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           path: ${{ matrix.package }}
           archive: false
           if-no-files-found: error
           retention-days: 1
 
-  # Publication de la page « Releases », une fois les trois systèmes construits et envoyés.
+  # Publication de la page « Releases », une fois les deux systèmes construits et envoyés.
   publier:
     needs: construire
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -195,6 +199,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name' | LC_ALL=C sort | tee fichiers.txt
-          # Exactement les trois fichiers attendus (Windows, macOS, Linux), sinon on s'arrête.
-          printf '%s\n' OpenTuneBox-Linux.AppImage OpenTuneBox-Windows-Setup.exe OpenTuneBox-macOS.dmg | diff - fichiers.txt
-          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          # Exactement les deux fichiers attendus (Windows, Linux), sinon on s'arrête.
+          printf '%s\n' OpenTuneBox-Linux.AppImage OpenTuneBox-Windows-Setup.exe | diff - fichiers.txt
+          # Étiquette d'essai : la page reste un brouillon, invisible. Seule une vraie étiquette v* la publie.
+          case "$GITHUB_REF_NAME" in
+            essai-v*) echo "étiquette d'essai : page gardée en brouillon (à supprimer : gh release delete $GITHUB_REF_NAME --cleanup-tag --yes)" ;;
+            *) gh release edit "$GITHUB_REF_NAME" --draft=false --latest ;;
+          esac

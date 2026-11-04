@@ -1,28 +1,30 @@
-# Mises à jour automatiques : une demande de fusion hebdomadaire (lundi) pour les actions GitHub, dont les
+# Mises à jour automatiques : une demande de fusion hebdomadaire (lundi) pour les actions GitHub et pour les crates Rust, dont les
 # mises à jour mineures et correctives sont groupées ; une mise à jour majeure reste une demande à part.
-# Pour les bibliothèques Python, pyproject.toml ne fixe que des versions minimales (>=) : avec
-# « increase-if-necessary », Dependabot ne touche à une borne que si elle n'admet plus la dernière version, donc
-# presque jamais. On le garde pour que ce soit explicite (sans cela, « auto » relèverait chaque semaine les
-# planchers, qui sont des versions minimales compatibles et non des versions à jour). Les failles des
-# bibliothèques sont contrôlées par le workflow audit.yml.
+# Les failles des bibliothèques sont contrôlées par le workflow audit.yml.
 version: 2
 updates:
-  - package-ecosystem: "pip" # lit les dépendances de pyproject.toml
-    directory: "/"
+  - package-ecosystem: "cargo" # lit rust/Cargo.toml et rust/Cargo.lock (migration Rust, phase 7)
+    directory: "/rust"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:00"
       timezone: "Europe/Paris"
     open-pull-requests-limit: 5
-    versioning-strategy: "increase-if-necessary"
     labels:
       - "dependencies"
     commit-message:
       prefix: "chore"
       include: "scope"
+    groups:
+      cargo:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
-  - package-ecosystem: "github-actions" # lit .github/workflows/*.yml
+  - package-ecosystem: "github-actions" # lit .github/workflows/*.yml ; les actions y sont épinglées par SHA, Dependabot garde le commentaire de version à jour
     directory: "/"
     schedule:
       interval: "weekly"

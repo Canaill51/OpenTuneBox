@@ -1,21 +1,38 @@
 # Validation
 
 Mesures du 2026-10-01 sur le corpus de Cédric. À refaire après toute modification du décodeur ou des
-analyses (`scripts/validate_corpus.py`, tests `-m corpus`).
+analyses (`otb-dev corpus validate`, `otb-parity`, tests de chaque crate).
 
 ## Décodeur
 
-`scripts/validate_corpus.py` compare chaque session à `blackbox_decode` (fourni avec PIDtoolbox), alignée sur `time` :
+`otb-dev corpus validate` (anciennement `validate_corpus.py`, en Python) compare chaque session à `blackbox_decode` (fourni avec PIDtoolbox), alignée sur `time` :
 
 - 568 fichiers décodés ; **95 % des sessions identiques** valeur par valeur.
 - Les écarts restants sont des trames corrompues que la référence accepte : trames tronquées avant un trou
   d'écriture sur la carte SD (`gap`), trames S parasites (`slow`), valeurs impossibles (gyro ou consigne
   > 4000 °/s, terme PID > ±65535). OpenTuneBox les rejette.
 - La référence se bloque sur 3 fichiers (`refhang`) qu'OpenTuneBox lit.
-- Démarrage à froid du décodeur ≈ 0,6 s (cache numba).
+- Démarrage à froid du décodeur numba ≈ 0,6 s (cache numba).
+- **Décodeur Rust** (D-031, 2026-10-29) : empreintes identiques à celles du décodeur numba sur 499 fichiers et
+  680 sessions (`golden.py check` de l'ancienne version Python, aussi pour les outils et les constats de l'assistant : 0 différence
+  sur 630 sessions) ; 6 000 flux aléatoires et 40 fichiers abîmés (`test_native_decoder` de l'ancienne version). Temps
+  d'ouverture : 3,6 Mo 0,32 s → 0,05 s ; 22,3 Mo 1,94 s → 0,29 s.
+- **Phase 2a** (D-032, 2026-10-29) : sans scipy ni numba, mêmes résultats que les références figées par `main` :
+  décodeur 0 différence sur 499 fichiers, assistant 0 session aux constats différents sur 630, outils (20 logs)
+  même structure, écart relatif maximal **2,4e-10** (boucle ouverte, qui amplifie les écarts de 1e-14 de
+  `_numeric.py` face à scipy) ; noyaux des filtres Rust = numba au bit près, sauf la réponse en fréquence (1,2e-15).
+- **Phase 2b, noyau de `step_response` en Rust** (D-033, 2026-10-29) : mêmes résultats que les références de
+  `main` : décodeur 0 différence, assistant 0 session aux constats différents sur 630 (durée cumulée de l'assistant
+  1879 s → 1410 s), outils (20 logs) même structure et écart relatif maximal 2,4e-10 ; noyau face à la boucle numpy :
+  1,7e-14 sur les réponses, 4e-12 case par case sur les sommes. Temps (session de 72 s, 3 axes) : 315 ms → 185 ms à un fil (1,70×), 64 ms avec tous les cœurs (4,9×).
+- **Phase 3a, ouverture des logs en Rust** (D-034, 2026-10-29) : `FlightLog` **identique au bit près** à celui de l'ancien
+  code numpy (224 + 21 cas de `test_native_log` de l'ancienne version, dont 40 fichiers abîmés et le corpus) ; mêmes références de
+  `main` : décodeur 0 différence, assistant 0 session aux constats différents sur 630 (durée cumulée de l'assistant
+  1879 s → 1357 s), outils (20 logs) même structure et écart relatif maximal 2,4e-10. Temps (un chargement par processus,
+  33,6 Mo, 620 000 trames) : 838 → 502–548 ms (1,6×) ; `from_session` 413 → 147 ms ; mémoire conservée +154 → +138 Mo.
 - Un vrai extrait est versionné pour la CI : `tests/data/jeno5_5s.bbl` (5,1 s du début de la 1re session de
   `Cedric/JeNo 5/FINAL.bbl`, Betaflight 2026.6.0-rc3, 8 262 trames, coupé sur une trame I). Statut `ok` face à
-  `blackbox_decode` le 2026-10-12 ; `tests/test_real_log.py` fige l'en-tête, la première et la dernière trame,
+  `blackbox_decode` le 2026-10-12 ; un test de l'ancienne version Python figeait l'en-tête, la première et la dernière trame,
   les statistiques et les unités physiques.
 
 ## Recoupement avec PIDtoolbox Pro V0.94 (mêmes logs)
@@ -105,10 +122,10 @@ La dispersion diminue avec les mouvements, sans rupture à 50 °/s ; le biais re
 des moteurs ne change pas d'une tranche à l'autre (rapport 0,97 à 1,02). Vol stationnaire (< 25 °/s) contre vol
 avec mouvements (≥ 100 °/s) du même drone, mêmes filtres (18 drones) : +0,015 ms en médiane (p10 / p90 −0,12 /
 +0,22 ms) pour le gyro, +0,03 ms pour le D.
-Découpe « stationnaire / mouvements » du guide (`period.flight_parts`, blocs de 1 s lissés sur 3) : dans les
+Découpe « stationnaire / mouvements » du guide (`flight_parts` de `rust/otb-analysis/src/period.rs`, blocs de 1 s lissés sur 3) : dans les
 83 vols stationnaires, 1,6 % des blocs dépassent 30 °/s (0,3 % à 50 °/s) ; dans les vols au-delà de 100 °/s,
 79,7 % (74,6 %). Un vol freestyle n'a pas de vrai stationnaire : la plus longue partie calme peut changer
-d'endroit avec le seuil (`Cedric/JeNo 5/FINAL`, `tests/test_tuning_path.py`).
+d'endroit avec le seuil (`Cedric/JeNo 5/FINAL`, `rust/otb-advisor/tests/tuning_path.rs`).
 
 Écart connu : la latence 50 % peut différer d'environ 1 ms (interpolation au passage exact à 50 % contre
 lecture échantillon par échantillon).
@@ -117,17 +134,17 @@ lecture échantillon par échantillon).
 
 - Curseurs simplifiés : les formules redonnent les PID de l'en-tête pour 740 sessions sur 741.
 - Simulateur de filtres : sans modification des réglages, le spectre « et si » égale le spectre loggé à 0,009 dB près.
-- Filtres Betaflight : réponses comparées aux formules analytiques (`tests/test_bf_filters.py`).
-- Marges de stabilité (`analysis/loop.py`) : marge de phase, croisement et marge de gain égaux aux
-  formules exactes d'une boucle intégrateur + retard (`tests/test_loop.py`, ±0,3° et ±0,05 dB), y compris
+- Filtres Betaflight : réponses comparées aux formules analytiques (`test_bf_filters` de l'ancienne version Python).
+- Marges de stabilité (`rust/otb-analysis/src/open_loop.rs`) : marge de phase, croisement et marge de gain égaux aux
+  formules exactes d'une boucle intégrateur + retard (`test_loop` de l'ancienne version, ±0,3° et ±0,05 dB), y compris
   une marge négative. Sur 60 logs du corpus tirés au hasard (133 axes, 2026-10-05) : marge inchangée à
   1° près pour 83 des 122 axes mesurables ; une marge passe de +299° (phase repliée, ancien calcul) à
   −109° ; les 8 écarts de plus de 5° sont des axes très bruités (yaw, vol stationnaire, phase qui saute de
   50 à 100° d'un point au suivant). Prendre la plus petite marge sur **tous** les croisements |L| = 1 a été
   essayé puis écarté : |L| repasse au-dessus de 1 vers 100 Hz sur les logs bruités et donnait des marges
   de −1100°. Le pic de sensibilité tombe au bord de la bande analysée pour 57 axes sur 133.
-- Boucle ouverte mesurée (`analysis/loop.py`, 2026-10-05) :
-  - **simulation** d'une boucle Betaflight (`tests/bf_loop_sim.py` : P, I sur l'erreur, D sur le gyro
+- Boucle ouverte mesurée (`rust/otb-analysis/src/open_loop.rs`, 2026-10-05) :
+  - **simulation** d'une boucle Betaflight (`bf_loop_sim` de l'ancienne version Python : P, I sur l'erreur, D sur le gyro
     filtré, F lissé, retard, moteur, filtres, perturbation et bruit ; vraie boucle connue), 5 tirages par
     cas : marge de phase à ±2,6° près (±3,2° en yaw), croisement à ±5 %, pic de sensibilité à +0,1 à
     +1,7 dB, quand le pic est dans la bande ; log à 2 kHz, 1 kHz ou 500 Hz, vol de 20 s, D variable (entre
@@ -157,14 +174,30 @@ lecture échantillon par échantillon).
     souvent qu'un minorant. Avant le 2026-10-06, le chirp de Betaflight n'était pas mesurable en mode angle
     (« cohérence insuffisante ») : l'excitation, absente de la commande radio, est maintenant ajoutée à
     l'instrument ;
-  - **corpus** (`scripts/calibrate_advisor.py`, 539 logs, 681 sessions, 1253 axes roll / pitch) : boucle
+  - **corpus** (`otb-dev corpus calibrate`, 539 logs, 681 sessions, 1253 axes roll / pitch) : boucle
     mesurée pour 88 % des axes (objectif ≥ 80 %), croisement trouvé dans la bande pour 70 % d'entre eux,
     pic de sensibilité au bord (minorant) pour 34 %. Médianes, mesurée contre ancienne formule :
     croisement 14,7 contre 8,8 Hz, marge de phase 50 contre 65°, pic de sensibilité 3,7 contre 3,2 dB ;
     le D domine au croisement (|Ĉd/Ĉe| > 1) pour 62 % des axes. Avec les seuils actuels, sessions signalées :
     pic > 6 dB 29 % (14 % avant), marge < 40° 3 % (1 % avant) ;
   - `test_matches_ptb_damping_sweep` inchangé (partie Wiener identique).
-- Interface : les 8 outils s'ouvrent et calculent sans erreur sur de vrais logs (`tests/test_gui_spectral.py`,
-  `tests/test_gui_step.py`, `tests/test_advisor.py`).
-- Documentation : liens, chemins, outils, modules, fichiers publiés et langue vérifiés à chaque `pytest`
-  (`tests/test_docs.py`).
+- Interface : les 8 outils s'ouvrent et calculent sans erreur sur de vrais logs (tests de l'ancienne interface Qt, puis
+  `rust/otb-gui/tests/spectral.rs` et `rust/otb-gui/tests/step_tools.rs`).
+- Documentation : liens, chemins, outils, modules, fichiers publiés et langue vérifiés à chaque `cargo test`
+  (`cargo test -p otb-dev --test docs`).
+
+## Refaire une référence Python
+
+La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui
+servent de référence aux tests Rust (`rust/*/tests/data/*.json`, `$OTB_GOLDEN`, souvent `$OTB_LOGS/golden`) ont été écrits par elle. Pour en
+refaire un (par exemple après un changement voulu d'un seuil, voir la compétence `assistant-seuils`) :
+
+1. `git worktree add ../otb-etalon python-final` : le dernier état qui contient encore Python. L'étiquette `python-etalon` est plus ancienne
+   (elle n'a pas les scripts `*_cases.py`).
+2. Dans ce dossier : `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'` (Rust est requis : l'extension est compilée à l'installation).
+3. Les scripts sont dans `scripts/` (`*_cases.py` pour les cas de `rust/*/tests/data/`, `golden.py record…` pour `$OTB_GOLDEN`) ; leur en-tête dit
+   quel fichier ils écrivent. Copier le résultat dans `rust/` et lancer `otb-parity` ou les tests de la crate.
+4. Retirer le dossier : `git worktree remove ../otb-etalon`.
+
+Le Python n'est plus maintenu : un cas qui ne peut plus s'écrire ainsi (règle ou seuil modifié dans le Rust) se met à jour à la main, dans le
+test concerné, avec la raison.

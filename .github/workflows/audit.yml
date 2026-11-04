@@ -1,11 +1,11 @@
-# Contrôle des vulnérabilités connues dans les bibliothèques dont dépend OpenTuneBox (pip-audit, base
-# d'avis de PyPI). Se lance à chaque envoi et demande de fusion, et chaque lundi : une faille peut être
+# Contrôle des vulnérabilités connues dans les bibliothèques dont dépend OpenTuneBox (cargo-deny : failles RustSec,
+# licences, origine des crates, réglages dans rust/deny.toml). Se lance à chaque envoi et demande de fusion, et chaque lundi : une faille peut être
 # publiée sans qu'on ait changé une ligne. Échec = une dépendance a une faille connue : la mettre à jour
 # (Dependabot propose souvent déjà la demande de fusion).
 name: Audit
 on:
   push:
-    branches: [main]
+    branches: [main, feat/rust-migration]
   pull_request:
   schedule:
     - cron: "0 5 * * 1"
@@ -15,25 +15,14 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  # Dépendances Rust : mêmes réglages qu'en local (`cd rust && cargo deny check`). Un avis « non maintenu » sans correctif se met dans
+  # `ignore` de rust/deny.toml avec sa raison, jamais en retirant le contrôle.
+  cargo-deny:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
-          python-version: "3.13"
-      - name: Dépendances d'exécution
-        # ⚠️ pip-audit contrôle aussi pip lui-même, et celui de l'image peut avoir une faille connue (vu le
-        # 2026-10-14 : pip 25.1.1) : pip d'abord (L-031). Sans l'extra [dev] : seul ce qui est livré compte.
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e .
-      - name: pip-audit
-        # ⚠️ pip-audit vit dans son propre environnement : installé à côté des dépendances, il serait audité avec
-        # elles et une faille de ses outils (requests, urllib3…) ferait échouer ce contrôle à tort (L-031).
-        # Version épinglée : un outil « latest » peut changer sans qu'on ait touché au code ; à relever à la main
-        # de temps en temps (Dependabot ne lit pas les versions écrites dans une commande).
-        run: |
-          python -m venv "$RUNNER_TEMP/audit-tool"
-          "$RUNNER_TEMP/audit-tool/bin/pip" install pip-audit==2.9.0
-          "$RUNNER_TEMP/audit-tool/bin/pip-audit" --skip-editable --path "$(python -c 'import site; print(site.getsitepackages()[0])')"
+          manifest-path: rust/Cargo.toml
+          # Par défaut l'action ajoute `--all-features` : on veut le même arbre que le build livré.
+          arguments: ""

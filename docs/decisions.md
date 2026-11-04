@@ -70,7 +70,19 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres | 2026-11-04 |
+| D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
 | D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
+| D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
+| D-039 | Guide egui : mémoire du guide dans la persistance d'eframe, `drones.json` lu avec tolérance et jamais écrasé s'il est illisible, police Hack de secours | 2026-11-02 |
+| D-038 | Configuration egui : lignes alignées entre logs par nom de réglage (Python : par position) | 2026-11-02 |
+| D-037 | Outils egui : cache des résultats par log, partagé avec le thread de calcul, clé = réglages de calcul + période | 2026-11-02 |
+| D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris | 2026-11-01 |
+| D-035 | Migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome | 2026-10-30 |
+| D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé | 2026-10-29 |
+| D-033 | Phase 2b limitée à un pilote : le noyau de `step_response` en Rust (FFT seule écartée : gain ≤ 5 %) | 2026-10-29 |
+| D-032 | Phase 2 de la migration en deux temps : scipy remplacé par numpy, noyaux de filtres en Rust, scipy et numba réservés aux tests | 2026-10-29 |
+| D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python | 2026-10-29 |
 | D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant | 2026-10-14 |
 | D-029 | Les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64 | 2026-10-13 |
 | D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
@@ -104,7 +116,43 @@ ici, jamais dans le code.
 
 ---
 
-## 2026-11-02 — Notchs dynamiques ajoutés du Simulateur de filtres
+## 2026-11-04 — Dépôt public et licence
+
+### D-043 : le dépôt est public, sous licence GPL 3
+
+Amende D-001 (« projet privé, tous droits réservés, pas de licence libre » ; le reste de D-001 reste en vigueur) et le résumé d'`AGENTS.md`.
+
+**Contexte.** Le 2026-11-04, la CI du dépôt privé s'arrête avant de démarrer un seul travail : « The job was not started because recent account payments have failed or your spending limit needs to be increased » (annotation lue sur les exécutions de la PR #96). La documentation de GitHub indique que les runners standard sont gratuits dans un dépôt public. Cédric passe le dépôt en public le 2026-11-04 et tranche quatre points (questions posées le même jour).
+
+**Décision.**
+- Licence **GNU GPL version 3** (texte officiel dans `LICENSE`). Copyright : Cédric.
+- Pas « tous droits réservés » (choix de Cédric : GPL 3) ; pas MIT ni Apache 2.0 non plus : la GPL oblige quiconque redistribue une version modifiée à publier son code.
+- Les versions publiées v0.2.0 à v0.8.0 (builds Python avec PySide6/Qt et macOS, ~375 Mo chacune) sont **supprimées** de la page Releases (7 versions, 0 restante au 2026-11-04) ; les étiquettes git `v0.2.0` à `v0.8.0` restent. Raison : elles devenaient téléchargeables par tous et leurs obligations de licence n'étaient pas vérifiées.
+- Les nouveaux commits utilisent l'adresse noreply de GitHub, pas l'adresse personnelle ; l'historique n'est pas réécrit (les copies déjà faites depuis le passage en public garderaient l'ancienne adresse).
+- Les pseudos de pilotes tiers sont remplacés par des noms neutres dans la documentation (l'historique garde les anciens noms) ; la liste `SHARED_NAMES` de `rust/otb-dev/src/corpus/mod.rs` garde les noms réels de drones, car l'outil `corpus` doit les reconnaître dans le vrai corpus.
+
+**Témoins.** `gh repo view` : visibilité PUBLIC ; `gh api repos/Canaill51/OpenTuneBox/releases` : 0 version ; CI des PR #96 et #97 verte après le passage en public (la #97 : `tests` 6 min 7, `windows` 7 min 3, `cargo-deny` 33 s). Le texte de `LICENSE` vient de `gh api licenses/gpl-3.0` (35 150 octets).
+
+**Ouvert.** (1) W-046 : la licence de la police Ubuntu Light (Ubuntu Font Licence 1.0, « the Font Software … must be distributed entirely under this licence ») face à la GPL, non tranchée ; (2) la compatibilité avec la GPL 3 est lue sur la liste de la FSF pour MIT, ISC et Apache 2.0 seulement ; BSD, Zlib, Unicode-3.0, BSL-1.0 et 0BSD ne sont pas vérifiées ; ce n'est pas un avis juridique ; (3) réglages de sécurité GitHub (protection de `main` et des étiquettes, analyse des secrets, signalement privé) : décision de Cédric.
+
+### D-042 : macOS abandonné, application livrée pour Windows et Linux
+
+Amende D-001 (« Windows, macOS et Linux » devient « Windows et Linux ») et D-035 (le « Linux, Windows, macOS » de la phase 6 et
+de la fusion finale).
+
+**Contexte.** Aucune machine macOS n'est disponible pour essayer l'application ni un installateur ; la CI peut les construire
+mais personne ne peut les lancer. Cédric (2026-11-03, parmi : fabriquer sans essai / abandonner macOS / bloquer la fusion) :
+« Abandonner macOS ».
+
+**Décision.**
+- L'application est livrée pour **Windows et Linux** ; `construire.yml` n'a plus de ligne macOS à la phase 7-4.
+- Plus d'icône `.icns`, plus de `packaging/macos/` ni de `.dmg`.
+- Le code reste portable (egui, rfd) : rien n'est retiré de `rust/` pour macOS, mais il n'est ni compilé en CI ni garanti.
+- Pas X : fabriquer un `.dmg` jamais essayé promettrait un système non vérifié (règle « ce qui n'est pas vérifié se dit non vérifié »).
+
+**Témoins.** Réponse de Cédric du 2026-11-03 ; l'inventaire de `packaging/` (spec, `build_dmg.sh`, `.icns`) est dans le plan de la phase 7.
+
+**Ouvert.** W-021 (écarts sur ARM, à voir au premier test macOS) et le chemin macOS de `drones.json` (W-037 point 4) deviennent sans objet.
 
 ### D-041 : notchs dynamiques ajoutés placés sur les pics prévus, sinon à leur centre initial
 
@@ -139,6 +187,344 @@ D-022) à plus de 1,5 case d'un centre déjà pris, puis les centres initiaux. S
 ceux de la période entière, pas de chaque fenêtre de 300 ms ; un repli sur un centre initial peut encore creuser sans pic réel (27 % des replis).
 
 **Choix de Cédric** (2026-11-02, après sa capture du Simulateur) : nouveau modèle voulu, validé sur le corpus, appliqué à Python d'abord.
+
+**Rust** (2026-11-02, W-040) : même modèle dans `rust/otb-analysis/src/bf_filters.rs` (`complete_dyn_centres`, `dyn_peaks`, pics gardés dans `WhatIfCache.peaks`), même résultat que Python sur cas fabriqués et sur le log réel de 5 s des tests (`bf_filters`, `bf_sim`, `filter_tools`) ; pas encore comparé sur un vrai log long (W-040, W-028). Aucun message de plus dans l'interface : sans gyro non filtré, le Simulateur n'a de toute façon pas de simulation (titre d'alerte existant).
+
+---
+
+## 2026-11-02 — Contrats de la phase 6-6b
+
+### D-040 : Interface egui : écarts voulus avec l'interface Qt et limites gardées
+
+Questions posées à Cédric le 2026-11-02 (tri de W-034 à W-038) ; il a choisi les options recommandées.
+
+**Contexte.** Les phases 6-2 à 6-6a ont laissé des écarts connus avec les fenêtres Qt (`docs/travaux-reportes.md`). Avant la phase 7
+(suppression de Python), chacun est classé : voulu, gardé tel quel, ou corrigé.
+
+**Décision.**
+- **Écarts voulus (définitifs)** : liste des fichiers d'un outil en cases à cocher (Qt : clic remplace, Ctrl ajoute) ; diagnostic en
+  widgets egui et non en HTML ; « -> » à la place de « → » dans les textes (absent des polices d'egui, L-068) ; diagrammes de Bode
+  zoomables ; calcul automatique à chaque changement (le bouton « Calculer » relance à la demande).
+- **Écarts voulus ajoutés le 2026-11-03 (W-039)** : titres d'onglets longs (« Analyse spectrale », « Réponse indicielle », « Simulateur de
+  filtres ») et non les libellés courts de Qt ; boutons « Fermer » et « Tout fermer » grisés quand aucun log n'est ouvert (Qt les laisse actifs
+  sans effet).
+- **Gardé tel quel** : seuls le chevron et le titre d'un groupe de la Configuration se replient, et l'état n'est pas gardé entre deux
+  lancements ; la date du nom d'export est celle d'UTC (un jour d'écart possible autour de minuit) ; les barres d'erreur du bruit moteur
+  n'ont pas de capuchon.
+- **Corrigé le 2026-11-03** (branche `feat/rust-toolbar-close`, Cédric a choisi les options recommandées) : boutons « Fermer » (croix, log
+  affiché) et « Tout fermer » (corbeille) ajoutés après « Ouvrir… », que rien ne remplaçait (l'interface egui ne pouvait fermer aucun log) ;
+  « Ouvrir… » plein, couleur d'accent, comme le bouton principal de Qt.
+- **Corrigé en 6-6b** : un résultat du Simulateur de filtres qui vient d'un autre log n'est plus affiché pendant le calcul du nouveau
+  (`result_is_for_other_log`, W-036 (8)).
+
+**Options écartées.** Reproduire le clic / Ctrl+clic de Qt ; dessiner les capuchons à la main ; une dépendance de dates pour l'heure
+locale (non vérifiée) ; garder l'état replié de la Configuration dans la persistance d'eframe.
+
+**Témoins.** `result_is_for_other_log` et `FilterSimResult::log_id` : `rust/otb-gui/tests/filter_tools.rs`. L'appel dans `render` n'a pas
+de test d'interface (règle d'affichage en fonction pure, L-071).
+
+## 2026-11-02 — Contrats de la phase 6-5
+
+### D-039 : Guide egui : mémoire dans la persistance d'eframe, fiches tolérantes et protégées, Hack en police de secours
+
+Écarts volontaires avec `gui/guide.py` ; questions posées à Cédric le 2026-11-02, il a choisi les options recommandées.
+
+**Contexte.** Python garde la dernière phase, la dernière fiche et le rôle de chaque log dans `QSettings` (D-036 : non repris), lit
+`drones.json` sans rien dire quand il est abîmé, puis l'écrase au premier clic (toutes les fiches perdues), et n'a pas à choisir de
+police. Les polices d'egui n'ont ni « ✔ » ni « ✖ » ni « → ▲ » dans le texte normal (L-068).
+
+**Décision.**
+- **Mémoire** : la persistance d'eframe (`App::save`, clés `guide.phase`, `guide.card`, `guide.roles`), pas les réglages Qt ; une phase
+  ou un rôle inconnus sont ignorés. Premier lancement : accueil, première fiche, rôles devinés.
+- **`drones.json`** : même chemin que Python (`QStandardPaths.AppDataLocation` + `OpenTuneBox/OpenTuneBox`), mêmes octets
+  (`json.dumps(ensure_ascii=False, indent=1)`), `pid_khz` entier réécrit entier. Lecture **tolérante** (`DroneCard::from_value`, W-029
+  point 1) : clé absente ou d'un type faux = valeur par défaut, seuls un `name` absent ou qui n'est pas un texte et un fichier qui n'est
+  pas une liste sont des erreurs.
+- **Mêmes octets pour les fiches écrites par l'application** (cases booléennes). Une case non booléenne lue (`{"done": {"a": 1}}`) est réécrite `true` / `false`, alors que Python garde la valeur lue ; un `pid_khz` booléen est ramené à `4.0` : fichiers jamais produits par l'application, écart assumé (W-037).
+- **Confirmations** : « Supprimer » et « Recommencer » visent la fiche **du clic** (numéro et nom gardés) et ne font rien si la liste a changé entre-temps ; Python vise la fiche choisie au moment du « Oui », qui peut avoir changé si un log d'un autre drone finit de se charger (défaut de Python, non reproduit).
+- **Fichier illisible** : jamais écrasé en silence. Message dans le Guide, puis, avant la première écriture, mis de côté sous
+  `drones.json.illisible` (`.1`, `.2`… si une copie existe déjà). Écriture par fichier temporaire puis renommage.
+- **Symboles** : la police Hack, déjà livrée avec egui, devient le dernier recours du texte normal (`app::setup` ; « → ▲ ● ○ ↑ ↓ ← ◇ ■ »
+  mesurés), sans octet de plus. « ✔ ✖ ℹ ⚠ » restent absents : icônes Lucide `check`, `x`, `info`, `triangle-alert` (même version 1.49.0 que
+  les autres, exception D-005). Le « ✔ » du texte d'intro de la phase 1 est retiré à l'affichage (`guide::display_text`). Les polices
+  d'emoji d'egui (≈ 740 Ko) ne sont pas activées : la taille de l'exécutable est l'objectif n° 1.
+- **Vérification des logs** : rapide dans le fil de l'interface (mesuré en release : 2 ms sur 5 s de vol, 26 ms sur 185 000 points ; une
+  par cadre au plus), complète en arrière-plan, une à la fois. Clé de cache = période (+ taille de la fiche pour les repères des
+  filtres) ; la vérification en cours est identifiée par (`uid`, clé) et non par l'identité de l'objet (L-072), ce qui corrige le défaut de
+  Python où une période changée pendant un calcul laissait la page sur la version rapide.
+
+**Témoins.** `rust/otb-gui/tests/guide.rs` (aller-retour octet pour octet de 27 fichiers écrits par `scripts/guide_cards_cases.py`
+avec le vrai `load_cards` / `save_cards` de Python ; fichier abîmé mis de côté, jamais écrasé ; mémoire restaurée ; signes dessinés sans
+police manquante) ; `rust/otb-advisor/tests/drone_card.rs` (un test par type faux) ; captures des deux thèmes lues à l'œil.
+
+## 2026-11-02 — Contrats de la phase 6-4
+
+### D-038 : page Configuration egui : les lignes sont alignées entre logs par nom de réglage, pas par position
+
+Écart volontaire avec `gui/tools/setup_info.py`.
+
+**Contexte.** Python écrit les noms de lignes du **premier** log puis range les valeurs des autres logs **par rang** (`setup_info.py`,
+l.159-171). Deux logs dont les « Curseurs simplifiés » n'ont pas les mêmes clés (versions de Betaflight différentes) voient alors une
+valeur face au nom d'un autre réglage. Question posée à Cédric (2026-11-02) : copier Python tel quel ou aligner par nom ; il a répondu
+« Aligner par nom ».
+
+**Décision.**
+- Les lignes sont alignées par nom : ordre du premier log, puis les noms propres aux autres logs à la suite de leur groupe ; « — » quand
+  un log n'a pas le réglage (`tools/setup.rs::align`).
+- La ligne « — / absents » des curseurs d'un log sans curseurs est écartée dès qu'un autre log en a de vrais : elle ne crée pas une
+  fausse ligne qui « diffère ».
+- Pas de copie de l'alignement par position, même « pour la parité » : il fausse la comparaison qui est le but de la page.
+
+**Témoins.** `rust/otb-gui/tests/filter_tools.rs` (alignement de deux logs aux curseurs différents, pas de ligne « — » fantôme) ;
+`_sections` de Python rejoué sur `tests/data/jeno5_5s.bbl` : sorties identiques ligne à ligne pour un seul log ; capture à deux logs
+(`jeno5_5s` en 2026.6.0 et `Leo/stock` en 4.5.1) vérifiée à l'œil.
+
+## 2026-11-01 — Ordre et contrats de la phase 6
+
+### D-037 : cache des résultats des outils egui : un par log, partagé avec le thread de calcul, clé = réglages de calcul + période
+
+Précise D-035 (phase 6) ; tranche le point 1 de W-032.
+
+**Contexte.** En Python, `compute` d'une fenêtre d'outil range son résultat dans `entry.extras` du log, avec une clé qui contient les
+réglages (`step_window.py`) : changer un réglage d'affichage ne refait pas le calcul, et le vol « Damping 0.8 » n'est pas recalculé quand on
+ajoute « Damping 1.2 » à la série. En egui, `Tool::compute` n'a pas de `self` : il ne reçoit que ses réglages et des copies des logs (`LogInput`).
+
+**Décision.**
+- `state::Cache` (`Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>`) : un par log chargé (`LoadedLog.extras`), cloné dans
+  `LogInput.cache` ; un clone voit le même contenu.
+- La **clé** est écrite par l'outil et contient tout ce qui change le résultat : réglages de calcul **et période** (`step:{réglages:?}:{période:?}`).
+- Le cache est vidé quand la période change (`AppState::set_period`), pour borner la mémoire, mais ce n'est pas lui qui garantit l'exactitude.
+- Le cache ne range que ce qui ne dépend pas du rang du fichier : libellé et couleur sont remis à chaque affichage (`FileStep`, comme Python
+  remet `fs.color` et `fs.label`).
+
+**Options écartées.** Cache dans la page de l'outil (perdu dès qu'on ajoute ou retire un fichier, et un seul fichier recalculé ne profite à
+personne) ; clé sans la période, le vidage suffisant (un calcul parti avant le changement de période pourrait écrire un résultat de l'ancienne
+période après le vidage : course entre le thread de calcul et l'interface).
+
+**Origine.** Conséquence de W-032 (1) ; choix technique, pas une question à Cédric.
+
+**Témoins.** `rust/otb-gui/tests/step_tools.rs::le_cache_sert_au_second_calcul_mais_ni_apres_un_changement_de_periode_ni_de_reglage` ;
+deux mutations tuées (clé sans la période, clé sans les réglages).
+
+### D-036 : 5c avant la phase 6 ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris
+
+Précise D-035 (phases 5c et 6) ; tranche le point 1 de W-029.
+
+**Contexte.** Les phases 4, 5a et 5b sont fusionnées (PR #73). La phase 6 remplace l'interface Qt (≈ 6 000 lignes) par egui ;
+la page Guide doit lire et écrire les fiches drone (`drones.json`), et l'interface Qt garde ses réglages dans `QSettings`.
+
+**Décision.**
+- **5c d'abord** : la ligne de commande (`opentunebox info` / `report`) devient le binaire Rust `otb-cli`, rapports identiques
+  caractère par caractère, avant d'écrire l'interface.
+- **Fiches drone tolérantes** : même fichier `drones.json`, même emplacement, même format que Python. Un champ de type faux
+  prend sa valeur par défaut, une fiche n'est jamais perdue ; `pid_khz` entier s'écrit `4`, pas `4.0`.
+- **Réglages d'interface** (thème, dernier dossier, courbes, tailles de fenêtres) : l'interface egui repart de zéro, sans lire
+  `QSettings`. Seules les fiches drone sont reprises.
+
+**Options écartées.** Fiches strictes (une fiche au champ faux disparaîtrait de la liste) ; lecture unique des `QSettings`
+au premier lancement (code en plus, à vérifier sur trois systèmes, pour des choix qui se refont en une minute).
+
+**Choix de Cédric** (2026-11-01, parmi : 5c d'abord / directement la 6 ; tolérante / stricte ; repartir à zéro / reprendre).
+
+**Témoins.** Plan : [migration-rust.md](migration-rust.md) ; W-029.
+
+## 2026-10-30 — Migration complète vers Rust
+
+### D-035 : migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome
+
+Amende D-031 (méthode : plus de pont PyO3 module par module à partir de la phase 4), D-034 (le reste de `analysis/` et
+`log/` n'est plus repoussé) et D-001 (la technologie Python + PySide6 + pyqtgraph est remplacée à la phase 6 ; le reste de D-001, projet
+privé et interface en français, reste en vigueur). D-002 et D-006 sont aussi amendées (plus de Python, dépendances compilées permises).
+
+**Contexte.** Après les phases 3a et 3b (D-034), porter le reste de `analysis/` et de `log/` rapporte peu en vitesse (W-019),
+mais Cédric veut un binaire autonome, sans Python. Mesuré le 2026-10-30 : ≈ 13 800 lignes de Python d'application (interface
+5 637, assistant 3 346, analyses 2 749, décodeur et logs ≈ 2 000), ≈ 9 900 lignes de tests, ≈ 960 lignes de scripts,
+contre ≈ 2 900 lignes de Rust. Le poste a `gcc` et `g++`.
+
+**Décision.**
+- **Périmètre : tout.** Application, tests, scripts du corpus, outils d'icônes et de packaging passent en Rust. À la fin,
+  `git ls-files '*.py'` est vide. L'ancien Python reste seulement sur `main` et dans un tag figé `python-etalon`.
+- **Interface : egui + egui_plot**, sous réserve d'un prototype d'essai (« spike ») sur de vraies données qui doit établir pour
+  chaque point : axe logarithmique, barre de couleurs de heatmap, lignes et régions déplaçables, barres d'erreur, second axe Y,
+  séries de 10⁶ points, Markdown/HTML riche, thèmes clair et sombre, fenêtres de fichiers, test d'interface sans écran. Un point
+  bloquant sans contournement raisonnable revient devant Cédric avant d'aller plus loin sur l'interface.
+- **Méthode : noyau Rust autonome.** Bibliothèques `otb-log`, `otb-analysis`, `otb-advisor`, binaires `otb-cli` et `otb-gui`,
+  outil de parité `otb-parity`. Pas de pont PyO3 module par module : le Python de la branche reste intact et sert d'étalon, par
+  des références enregistrées sur le corpus (`golden.py record-modules`).
+- **Preuve.** Tolérance de chaque module fixée avant d'écrire le code ; assistant : 0 session aux constats différents sur 630 ;
+  rapports de la ligne de commande identiques au caractère ; recette de la 3b pour chaque module (audit des dtypes, tests avant le
+  code, mutations vues en échec, relecture indépendante, parité sur le corpus).
+- **Ordre.** Décision, prototype d'interface, filet de parité, phase 4 (journaux et analyses), phase 5 (assistant et ligne de
+  commande), phase 6 (interface), phase 7 (basculement et suppression du Python). Plan : [migration-rust.md](migration-rust.md).
+
+**Options écartées.** Slint (la documentation consultée ne décrit aucun composant de graphiques : les exemples dessinent dans un
+tampon de pixels, toute l'interaction serait à écrire) ; cxx-qt (garde Qt, à installer et à embarquer, et `qmake` est absent du
+poste : ce n'est pas du « tout Rust ») ; pont PyO3 module par module (adaptateurs jetables pour `FlightLog`, `Settings`, `Report`) ;
+périmètre « application seulement » (le dépôt aurait gardé du Python).
+
+**Choix de Cédric** (2026-10-30, parmi : egui / Slint / cxx-qt ; tout / application seulement ; noyau Rust autonome / pont
+PyO3 module par module).
+
+**Ouvert.** ~~Verdict du prototype d'interface~~ (rendu le 2026-10-30 : aucun point bloquant, cinq contournements, voir [migration-rust.md](migration-rust.md#verdict-du-prototype-dinterface-e1)) ; tolérance de chaque module ; reproduction exacte des formats de nombres de Python
+par `format!` (à tester sur des valeurs enregistrées) ; W-019 repris.
+
+## 2026-10-29 — Migration vers Rust
+
+### D-034 : phase 3 « par le gain mesuré » : ouverture des logs, puis `motors.py` ; le reste de `analysis/` et `log/` est repoussé
+
+✏️ AMENDÉE par D-035 (le reste de `analysis/` et `log/` n'est plus repoussé).
+
+**Contexte.** Exploration du 2026-10-29 (carte des 16 modules, profilage sur une session de 72 s et trois gros logs) :
+porter tout `analysis/` et `log/` rapporterait peu en vitesse. Le reste est de la FFT numpy (déjà en C), ou de la
+logique métier (dicts de réglages, `round()` demi-pair de Python, seuils discontinus, regex). Le gain est dans
+deux postes : l'ouverture d'un gros log (`from_session` = 51–56 % du chargement) et `motors.py` avec son noyau
+`sections_response` (24 % + 17 % des 574 ms de l'assistant).
+
+**Décision.** Phase 3 dans cet ordre, une branche et une PR par étape, un critère chiffré fixé avant le Rust :
+- **3a** : ouverture des logs (`_drop_implausible`, `axes()`, `col()`) en Rust, crate `rust/otb-log` (Rust pur).
+- **3b** : `motors.py` (boucles par fenêtre × harmonique) et `sections_response` en Rust, crate `rust/otb-analysis`.
+- **3c** (`whatif_spectrum` de filter_sim) décidée seulement après la mesure de 3b : elle exige de porter la
+  construction des chaînes de filtres (`gyro_chain`, `Settings`).
+- **Repoussé** (W-019) : `spectral`, `loop`, `delay`, `stats`, `sliders`, `step_series`, `settings`, `datasets`,
+  `period`, `FlightLog` lui-même (objet Python gardé : seuls des tableaux contigus et des scalaires passent à Rust).
+- Les anciennes fonctions restent **inchangées** dans `tests/ref_*.py` comme étalons de parité.
+
+**Choix de Cédric** (2026-10-29, parmi : par le gain mesuré / bas en haut, tout porter / seulement 3a).
+
+**3a, résultats** (2026-10-29, fichier de 33,6 Mo, un chargement par processus) : chargement **838 ms → 502–548 ms
+(1,6×)**, `from_session` 413 → 147 ms (2,8×) ; sorties **identiques au bit près** à l'ancien code ; mémoire conservée après
+ouverture +154 Mo → +138 Mo (−10 %), pic +11 Mo. Parité sur le corpus (`golden.py`) : décodeur 0 différence, assistant
+**0 session aux constats différents** sur 630 (durée cumulée 1879 s → 1357 s), outils : structure identique, écart relatif
+maximal 2,4e-10 (inchangé). `tests/test_native_log.py` (245 cas, six mutations vues en échec, L-034).
+Le premier critère visait « moins de mémoire » : atteint seulement après correction (L-040) ; le gain vient d'une
+**seule passe** sur la matrice (L-039).
+
+**3b, résultats** (2026-10-29, 15 sessions tirées au hasard, 818 s de vol, un fil) : assistant **666 → 515 ms par
+session (1,29×)**, critère ≥ 1,25× atteint. Le gain vient de `harmonic_prominence` (1,9 s → 0,28 s sur le lot), de
+`_masked_spectrum` (0,41 → 0,10 s) et de `rpm_attenuation` (z⁻¹ calculé une fois pour toutes les fenêtres, et plus
+d'appel à `hypot` par case : même décision de plancher de gain, testée dans la zone ambiguë). Sorties **identiques au
+bit près** à l'ancien code (étalon `tests/ref_motors.py`) : 80 comparaisons sur de vrais logs, float32 et float64.
+Parité sur le corpus (`golden.py`) : décodeur 0 différence (499 fichiers), assistant **0 session aux constats
+différents** sur 630, outils 0 différence à `rtol=1e-9` (écart scipy→numpy connu). `tests/test_native_motors.py`
+(675 cas) et huit mutations vues en échec (L-034). Deux pièges coûteux : les fréquences moteur sont en float32 dans de
+vrais logs, et l'ancien code calculait les bandes dans cette précision (L-041) ; `np.abs` complexe et `np.mean` ne se
+reproduisent pas avec `hypot` et une somme naïve (L-042). `FFT` et découpage restent en numpy.
+
+**3c abandonnée** (2026-10-30, mesures sans profileur, un fil sauf mention, 15 sessions tirées au hasard, 818 s de vol,
+après la 3b). Assistant : 516 ms par session (7,74 s au total) ; 348 ms avec 16 cœurs. `whatif_spectrum` : 0,84 s sur
+7,52 s, soit 0,15 s de FFT (`_seg_spectra`), 0,50 s pour les chaînes de filtres des fenêtres (`_gyro_h2`) et 0,19 s
+d'autre. La construction des chaînes (`gyro_chain`), la seule partie que la 3c aurait portée en Rust, pèse 0,31 s :
+4,0 % de l'assistant à un fil (5,8 % avec 16 cœurs). Même supprimée entièrement, le gain ne dépasse donc pas
+**1,04× à un fil (1,06× avec 16 cœurs)**, loin du critère de 1,25× ; et il faudrait réécrire les `Settings` et les
+chaînes de filtres (logique métier à variantes selon la version de Betaflight). Piste de mémorisation essayée en
+prototype (cache gardé pour toute l'analyse : 1 544 évaluations redondantes sur 2 701 pour la chaîne actuelle, 837 pour
+la modifiée) : 7,51 → 7,06 s, **1,06×**, mêmes clés de constats (177) ; sous le seuil de 1,1× fixé, non retenue.
+Le premier chiffre avancé (« 1,4 s » puis « environ 1 s de construction ») venait d'un profil pris sous `cProfile`,
+qui gonfle les petits appels Python (L-039).
+
+**Ouvert.** W-015 ; W-019.
+
+### D-033 : phase 2b réduite à un pilote : le noyau de `step_response` en Rust ; porter la FFT seule est écarté
+
+**Contexte.** Profilage du 2026-10-29 (log de 72 s à 2016 Hz, assistant complet 720 ms) : la FFT ne pèse que 27 %
+de l'assistant et `rustfft` va à peu près aussi vite que `pocketfft` (numpy) : porter **la FFT seule** donnerait
+5 % au plus. Le temps part dans de grosses opérations numpy limitées par la mémoire : `step_response` prend 348 ms
+(48 % de l'assistant) dont 38 % de FFT seulement.
+
+**Décision.** Pilote limité à `step_response` (fenêtrage, FFT, déconvolution de Wiener, `cumsum`, contrôle
+qualité et sommes fusionnés en un noyau Rust, `rust/otb-dsp/src/step.rs`) ; `_seg_spectra`, `loop_spectra` et
+`xcorr` ne sont portés qu'après mesure, avec leur contexte, en phase 3.
+- Dépendances Rust pures (pas de compilateur C, D-006) : `realfft` (FFT réelles) et `rayon` (fenêtres en parallèle).
+- **Résultat indépendant du nombre de fils** : les fenêtres se calculent en parallèle, les sommes se font dans
+  l'ordre des fenêtres (par paquets de 256, comme la boucle numpy).
+- **Un processus par cœur = un fil par processus** : `scripts/corpus_labels.py:map_files` fixe
+  `RAYON_NUM_THREADS=1` (sinon cœurs² fils).
+- La boucle numpy d'origine reste dans `tests/ref_step.py`, **inchangée**, comme étalon de parité.
+- Critère fixé avant d'écrire le Rust : `step_response` ≥ 1,5× et assistant ≥ 1,2× plus rapides à un seul fil.
+
+**Choix de Cédric** (2026-10-29, parmi : pilote `step_response` / tout le noyau FFT d'un coup / sauter à la phase 3).
+
+**Témoins.** `tests/test_native_step.py` (72 cas face à l'étalon numpy : écart mesuré 1,7e-14 relatif sur les
+réponses, 6e-16 sur les sommes ; déterminisme à 1 et 8 fils ; fenêtres hors tableau → `ValueError`) ; six
+mutations du noyau (`reg`, seuils 0,5 et 3,0, 1/nfft, `y_correction`, somme) vues en échec (L-034) ; banc du
+2026-10-29 sur la session de 72 s : `step_response` ×3 axes 315 ms → 185 ms à un fil (**1,70×**), 80 ms à
+4 fils (3,9×), 64 ms avec tous les cœurs (**4,9×**) ; assistant 763 ms → 635 ms (**1,20×**, tout juste au seuil)
+à un fil, 539 ms (1,42×) avec tous les cœurs.
+
+**Parité sur le corpus** (`scripts/golden.py check`, 2026-10-29) : décodeur 0 différence (499 fichiers) ; assistant
+**0 session aux constats différents** sur 630, durée cumulée 1879 s → 1410 s (références de `main` : numba, scipy et
+décodeur Python) ; outils (20 logs) : structure identique, donc mêmes fenêtres retenues, écart relatif maximal
+**2,4e-10** (boucle ouverte `loop.L`, identique à la mesure de la phase 2a : le noyau n'ajoute rien de mesurable).
+
+**Ouvert.** W-015 ; `_seg_spectra`, `loop_spectra`, `xcorr` : phase 3.
+
+### D-032 : phase 2 en deux temps ; scipy remplacé par numpy, noyaux des filtres en Rust, scipy et numba réservés aux tests
+
+**Contexte.** L'inventaire du 2026-10-29 montre que scipy ne sert presque plus : Welch, CSD et cohérence sont
+déjà écrits à la main avec `np.fft`, et scipy ne fournit que la fenêtre de Hann, deux lissages (`uniform_filter1d`,
+`gaussian_filter`) et l'intercorrélation. numba ne reste que dans 4 noyaux de `analysis/bf_filters.py` et dans
+l'ancien décodeur. Poids installés dans le `.venv` : scipy 140 Mo, llvmlite 173 Mo, numba 34 Mo (numpy 70 Mo reste).
+
+**Décision.** Phase 2 découpée (branche `feat/rust-dsp`) :
+- **2a** : scipy remplacé par `analysis/_numeric.py` (numpy seul) ; les 4 noyaux numba réécrits dans `rust/otb-dsp`
+  (Rust pur) ; scipy et numba passent dans l'extra `dev` (références des tests) et ne sont plus importés par
+  l'application (`tests/test_no_heavy_deps.py`) ; `decoder/core.py` (numba) n'est chargé que par `OTB_BACKEND=python`.
+- **2b** (après mesure du poids des installateurs) : bibliothèque Rust de FFT, Welch, CSD, Wiener, réutilisée
+  par la phase 3.
+- Les anciens noyaux numba restent dans `tests/ref_bf_kernels.py`, **inchangés**, comme étalon de parité.
+- Les fenêtres de Hann des deux conventions restent distinctes (périodique : `spectral`, `delay` ; symétrique :
+  `step`, `loop`), comme avec scipy.
+
+**Choix de Cédric** (2026-10-29, parmi : 2a puis 2b / tout en Rust tout de suite / 2a seulement ; ancien
+décodeur : gardé pour les tests / supprimé).
+Amende D-002 (numba ne sert plus qu'aux tests) sur la branche Rust seulement.
+
+**Témoins.** `tests/test_numeric.py` (69+ cas face à scipy, écart ≈ 1e-14 relatif) ; `tests/test_native_dsp.py`
+(Rust = numba : identique au bit près pour `biquad`, `run_section`, `pt1_track`, 1,2e-15 relatif pour la réponse
+en fréquence) ; `scripts/golden.py check` : décodeur 0 différence sur 499 fichiers, assistant 0 session aux
+constats différents sur 630, outils : 20 logs, aucune différence de structure, écart relatif maximal 2,4e-10
+(boucle ouverte `loop.L`), donc `--rtol 1e-9` suffit ; mutations vues en échec (L-034).
+
+**Poids mesuré** (Linux, 2026-10-29) : dossier de l'exécutable 206 Mo au lieu de 463 Mo.
+
+**Ouvert.** Poids des installateurs compressés des trois systèmes ; phase 2b ; W-015.
+
+### D-031 : migration vers Rust sur une branche d'intégration, `main` reste en Python
+
+✏️ AMENDÉE par D-035 (méthode à partir de la phase 4 : noyau Rust autonome, sans pont PyO3 module par module).
+
+**Contexte.** Numba impose `llvmlite` (≈ 37 % des installateurs) et une compilation au premier lancement
+(W-015) ; Cédric veut des installateurs plus légers, plus de rapidité et, à terme, un binaire autonome. Le
+poste de développement a maintenant `cargo` 1.99 et `gcc`.
+
+**Décision.** Le code est réécrit en Rust, module par module, **sans régression** :
+- **Branches.** `main` reste en Python, publiable à tout moment. `feat/rust-migration` est la branche
+  d'intégration ; chaque étape a sa branche (`chore/rust-safety-net`, `feat/rust-decoder`…) créée depuis elle
+  et fusionnée par PR vers elle, jamais vers `main`. Les correctifs de `main` y sont rapatriés par
+  `git merge main`. Une seule PR finale `feat/rust-migration` → `main`, une fois tout testé et validé par Cédric.
+- **Ordre.** Décodeur → noyaux de calcul (FFT, Welch, CSD, filtres Betaflight, Wiener) → analyses → assistant
+  → ligne de commande → interface (bibliothèque choisie à ce moment-là ; PySide6 reste en attendant).
+  Pont PyO3 + maturin, module `opentunebox._native`, commutateur `OTB_BACKEND=python|rust` pendant la transition.
+- **Équivalence.** Décodeur identique au bit près ; analyses à tolérance mesurée (≈ 1e-5 relatif, FFT
+  différente de scipy) ; assistant : mêmes constats sur tout le corpus (`advisor_rates.py --compare`).
+  Références figées avant d'écrire du Rust (`scripts/golden.py`, stockées dans `$OTB_LOGS/golden`).
+- **Systèmes.** Windows fait partie des livrables à chaque étape (CI sous Linux et Windows).
+- **Comportement défini là où numba était indéfini** : une lecture hors tableau (prédicteur `MOTOR_0` dans une
+  trame S/G/H, coordonnée GPS d'une trame H incomplète) rend 0 ; une session à moins de 2 champs I est ignorée ;
+  une panique du Rust devient une `RuntimeError`. Les tests de parité excluent ces cas (L-032).
+- Pas de repli vers numba si `_native` manque : le Rust est le moteur par défaut dès la phase 1
+  (`OTB_BACKEND=python` garde numba le temps de la migration).
+- Amende D-002 et D-006 **sur la branche Rust seulement** ; D-001 sera amendée pour l'interface à la dernière phase.
+
+**Choix de Cédric** (2026-10-29, parmi : hybride / tout en Rust par étapes / tout d'un coup ; interface
+PySide6 gardée en attendant ; tolérance « décodeur exact, analyses à tolérance »).
+Plan complet : [migration-rust.md](migration-rust.md).
+
+**Témoins.** `scripts/golden.py`, branche `chore/rust-safety-net`.
+
+**Ouvert.** W-015.
+
+---
 
 ## 2026-10-14 — Lint de la CI
 
@@ -610,6 +996,8 @@ retomber exactement sur ce spectre quand rien ne change.
 
 ### D-006 : aucune dépendance à compiler
 
+✏️ AMENDÉE par D-031 et D-035 (sur `feat/rust-migration` seulement).
+
 **Contexte.** Pas de compilateur C sur le poste de développement ; les exécutables se fabriquent sur trois
 systèmes.
 
@@ -648,6 +1036,8 @@ référence de résultats, pas de source.
 
 ### D-002 : décodeur Python accéléré par numba
 
+✏️ AMENDÉE par D-031 et D-035 (sur `feat/rust-migration` seulement).
+
 **Contexte.** `blackbox_decode` n'existe pas sur toutes les plateformes et a ses propres défauts (L-001).
 
 **Décision.** Décodeur Python accéléré par numba (`cache=True`), aucun binaire externe ;
@@ -656,6 +1046,8 @@ référence de résultats, pas de source.
 **Témoins.** [validation.md](validation.md#décodeur) ; commit `28c709c`.
 
 ### D-001 : Python + PySide6 + pyqtgraph, projet privé, interface en français
+
+✏️ AMENDÉE par D-035 (la technologie, à la phase 6) et par D-043 (le dépôt est public sous GPL 3 ; le reste reste en vigueur).
 
 **Contexte.** Un seul code pour Windows, macOS et Linux, maintenable par un débutant aidé d'agents IA,
 pour un pilote francophone.
