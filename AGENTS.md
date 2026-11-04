@@ -16,7 +16,7 @@ Résumé ; contexte, options écartées et preuves dans `docs/decisions.md`.
 
 - Multiplateforme (Linux, Windows) : **Rust**, interface **egui** + **egui_plot**, noyau Rust autonome. D-035. (La version 0.8.0 était en Python + PySide6 + numba : D-001, D-002, remplacées par D-035.)
 - Assistant **100 % hors ligne**, à règles : aucune API, aucune donnée envoyée. D-003
-- Projet **privé, tous droits réservés** (pas de licence libre). D-001
+- Dépôt **public**, licence **GNU GPL 3** (`LICENSE`). D-043
 - **Aucune copie de code PIDtoolbox** (binaire chiffré) ni d'autres projets : tout est réimplémenté à partir
   des formules du firmware Betaflight et de méthodes publiées (voir `docs/spec-*.md`).
   Seule exception, validée par Cédric : les icônes [Lucide](https://lucide.dev) (licence ISC) dans
@@ -140,7 +140,7 @@ interface egui et Rust ; construction des exécutables.
    `.claude/skills/docs-sync` (quels documents relire selon le changement) ; `cargo test -p otb-dev --test docs` vérifie
    automatiquement liens, chemins, outils, modules, fichiers publiés et langue.
    `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo test` propres avant chaque commit ; mettre à jour `CHANGELOG.md` (section *Non publié*).
-4. Commits en français, à l'impératif ou descriptifs, un sujet par commit. Auteur `Cedric <desmetgerry@gmail.com>`.
+4. Commits en français, à l'impératif ou descriptifs, un sujet par commit. Auteur `Cedric` avec l'adresse noreply de GitHub (D-043), jamais l'adresse personnelle.
    Ne jamais pousser sur GitHub ni publier quoi que ce soit sans l'accord de Cédric.
 5. Une branche par sujet, nommée `type/description-courte` (convention GitHub : `feat`, `fix`, `docs`,
    `refactor`, `test`, `chore` ; minuscules, tirets, anglais). La PR vers `main` a pour titre **exactement

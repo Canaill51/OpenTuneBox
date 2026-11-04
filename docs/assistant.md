@@ -36,7 +36,7 @@ score est un peu optimiste.
 (299 × 5" / 55 drones, 133 × 7" / 19, 121 whoops / 11, 108 × 2–3,5" / 20, 20 × 8"+ / 6 ; un drone peut
 compter dans deux tailles si ses sessions diffèrent), période automatique, roll + pitch. Un drone est
 identifié par son nom (`craft_name`), à défaut par le dossier du log ; un nom porté par plusieurs machines
-(`SHARED_NAMES` de `rust/otb-dev/src/corpus/mod.rs`, ex. « Jax » chez Guigui) est complété par le dossier. Les
+(`SHARED_NAMES` de `rust/otb-dev/src/corpus/mod.rs`, ex. « DroneX » chez PiloteA) est complété par le dossier. Les
 logs sont lus par `rust/otb-dev/src/corpus/mod.rs:log_files` : dossiers `__MACOSX` ignorés, et un fichier au contenu
 identique à un autre n'est compté qu'une fois.
 
@@ -433,7 +433,7 @@ des pilotes est relu dans les vols faits ensuite (« FINAL », « FF », « tune
 | Meteor 75 48k (Cédric) 1,0 → 1,4 | 1,4 | 1,4 proche de l'optimum |
 | Valkyrie 2 (Jérôme) 1,0 → 1,8 | 1,6 | 1,8 proche de l'optimum |
 | Davy 1,2 → 1,6 | 1,4 | 1,2 (cassure 0,066 à 1,4) |
-| Guigui 1,2 → 1,6 | 1,4 | 1,6 proche de l'optimum |
+| PiloteA 1,2 → 1,6 | 1,4 | 1,6 proche de l'optimum |
 | Sasha (Amax) 1,0 → 1,8 | 1,6 | 1,6 (cassure 0,067 à 1,8) |
 | dcodemonster (PTB) 0,6 → 1,6 | 1,15 | 0,8, affinage 0,9 (cassure 0,065 à 1,0, 0,11 à 1,2) |
 
@@ -463,7 +463,7 @@ l'écran) : Damping règle le D des deux axes, et un pitch qui dépasse encore s
 (remarque de Cédric sur l'Air65, 2026-10-10 : roll sans dépassement à 1,2, pitch 1,08 ; il a gardé
 Damping 1,2 et monté Pitch Damping à 1,2). La première valeur au pic roll ≤ 1,05, ou au-delà de laquelle il
 baisse de moins de 0,02, donne le choix du pilote pour 6 drones (Air65, Gerrykiki, Meteor 1,2 et 1,35,
-Guigui, BlackSummer), à 0,1 près pour 2 (JeNo 5 1,0 pour 1,1, Davy 1,0 pour 1,05) ; écarts : Valkyrie 2
+PiloteA, BlackSummer), à 0,1 près pour 2 (JeNo 5 1,0 pour 1,1, Davy 1,0 pour 1,05) ; écarts : Valkyrie 2
 (1,4 pour 1,2), dcodemonster (0,8 et Pitch Damping +0,2, pour 1,0). Jugée sur le plus fort des deux axes, la
 règle conseillait 1,4 sur l'Air65.
 

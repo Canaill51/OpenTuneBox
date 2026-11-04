@@ -26,10 +26,10 @@ fn drone_id_est_celui_de_la_calibration() {
     assert_eq!(drone_id("", "a.bbl"), "?");
     // nom porté par plusieurs machines : nom + dossier
     assert_ne!(
-        drone_id("Jax", "Guigui/HORUS/a.bbl"),
-        drone_id("Jax", "Guigui/Whisper25/b.bbl")
+        drone_id("Jax", "PiloteA/HORUS/a.bbl"),
+        drone_id("Jax", "PiloteA/Whisper25/b.bbl")
     );
-    assert_eq!(drone_id("Jax", "Guigui/HORUS/a.bbl"), "Jax · Guigui/HORUS");
+    assert_eq!(drone_id("Jax", "PiloteA/HORUS/a.bbl"), "Jax · PiloteA/HORUS");
 }
 
 #[test]

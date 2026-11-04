@@ -60,7 +60,7 @@ fn le_chiffre_precedent_decide_comme_le_lookbehind_de_python() {
 fn les_noms_partages_ne_se_confondent_pas_avec_les_sous_dossiers() {
     let rows = labels(&[
         row(&[("drone", "A"), ("dossiers", "Cedric/Air65 | Cedric/Air65/16012025")]), // sous-dossiers : même drone
-        row(&[("drone", "B"), ("dossiers", "Guigui | Guigui/HORUS | Guigui/Whisper25")]),
+        row(&[("drone", "B"), ("dossiers", "PiloteA | PiloteA/HORUS | PiloteA/Whisper25")]),
         row(&[("drone", "?Leo"), ("dossiers", "Leo")]),
         row(&[
             ("drone", "AIR65 CED"),

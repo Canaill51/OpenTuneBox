@@ -26,8 +26,8 @@ ignore = [
 [licenses]
 # Liste mesurée sur le vrai `Cargo.lock` (`cargo deny list`, 2026-11-03) : seules les licences réellement présentes y figurent.
 # Aucune licence à copyleft : `self_cell` (GPL-2.0-only) et `r-efi` (LGPL-2.1-or-later) les proposent en alternative « OR » à
-# MIT / Apache-2.0, qui sont acceptées. Le projet est privé, tous droits réservés (D-001) : ne pas ajouter de GPL / LGPL sans
-# en parler à Cédric.
+# MIT / Apache-2.0, qui sont acceptées. Le projet est sous GPL 3 (D-043) : une licence à copyleft dans une dépendance se discute avec Cédric
+# (compatibilité avec la GPL 3, W-046).
 allow = [
     "MIT",
     "Apache-2.0",

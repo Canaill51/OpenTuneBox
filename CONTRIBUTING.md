@@ -1,6 +1,7 @@
 # Contribuer à OpenTuneBox
 
-Projet privé : les contributions se font sur invitation. Les consignes techniques détaillées (organisation
+Projet public sous licence GNU GPL 3 (voir [LICENSE](LICENSE)) : en proposant une modification, vous acceptez qu'elle soit publiée sous cette licence.
+Les consignes techniques détaillées (organisation
 du code, pièges, commandes) sont dans [AGENTS.md](AGENTS.md) ; elles valent pour les humains comme pour les agents IA.
 
 ## Signaler un problème
@@ -81,10 +82,9 @@ Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises
    tout de suite) et crée un **brouillon** de la page **Releases** avec la section du CHANGELOG. Il
    fabrique et essaie les installateurs Windows (`Setup.exe`) et Linux (AppImage) à partir de l'interface Rust, envoie
    chacun dans le brouillon, puis publie la page quand les deux fichiers y sont. Les fichiers
-   ne passent pas par les *Artifacts* de GitHub (stockage limité à 500 Mo pour un dépôt privé). Si un
+   ne passent pas par les *Artifacts* de GitHub. Si un
    système échoue : corriger, puis relancer les tâches échouées (`gh run rerun ID --failed`) ; le
-   brouillon est réutilisé. Le dépôt étant privé, seules les personnes ayant accès au dépôt peuvent
-   télécharger.
+   brouillon est réutilisé.
 
 **Essayer la publication sans rien publier** (avant la première version d'une nouvelle chaîne de construction) : pousser une
 étiquette `essai-v` suivie du numéro **déjà** présent dans `rust/Cargo.toml` et le CHANGELOG, par exemple

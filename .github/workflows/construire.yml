@@ -6,8 +6,8 @@
 # Avec une étiquette de version, les fichiers sont publiés sur une page « Releases » permanente
 # (préparer d'abord la version : cd rust && cargo run -p otb-dev -- release prepare 0.2.0, voir CONTRIBUTING.md) :
 # brouillon de la page, chaque système y envoie son fichier, puis publication quand les deux sont là.
-# Les fichiers ne passent pas par les « Artifacts » de GitHub : leur stockage, limité à 500 Mo pour un
-# dépôt privé, se remplissait. Lancement à la main : fichiers téléchargeables en bas de la page de
+# Les fichiers ne passent pas par les « Artifacts » de GitHub (leur stockage se remplissait quand le dépôt était privé).
+# Lancement à la main : fichiers téléchargeables en bas de la page de
 # l'exécution (« Artifacts »), gardés un jour seulement.
 # Le programme est l'interface Rust (`cargo build --release -p otb-gui`) : un seul fichier, sans Python.
 # Fichiers produits :

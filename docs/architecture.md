@@ -110,7 +110,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 
 - Installateurs, un par système, fabriqués et essayés par `.github/workflows/construire.yml`, envoyés dans un
   brouillon de la page Releases à chaque étiquette `v…`, publiée quand les deux y sont (sans *Artifacts* :
-  quota de 500 Mo d'un dépôt privé ; `otb-dev release`, procédure dans `CONTRIBUTING.md`) ; macOS abandonné (D-042). Le workflow compile
+  `otb-dev release`, procédure dans `CONTRIBUTING.md`) ; macOS abandonné (D-042). Le workflow compile
   `cargo build --release -p otb-gui` (Windows : `crt-static`), vérifie les DLL demandées, démarre le programme 20 s avec un petit log,
   installe / lance / désinstalle l'installateur, et démarre l'AppImage sous un écran virtuel (xvfb) avec le pilote Vulkan logiciel lavapipe :
   Windows `packaging/windows/opentunebox.iss` (Inno Setup ; un seul fichier, l'exécutable Rust installé sous le nom `OpenTuneBox.exe` ; 7,5 Mo mesurés par la CI le 2026-11-03 ; le dossier `_internal` de l'ancienne version Python est supprimé à la mise à jour, W-044),
