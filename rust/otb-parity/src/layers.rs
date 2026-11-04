@@ -144,21 +144,20 @@ pub fn check_decoder(dossier: &Path, logs_root: &Path, threads: usize) -> Result
                     let want = want.as_array().unwrap();
                     let result = match std::fs::read(logs_root.join(rel)) {
                         Err(e) => Err(format!("lecture : {e}")),
-                        Ok(data) => {
-                            let got = otb_decoder::file::decode_bytes(&data, None);
-                            if got.len() != want.len() {
+                        Ok(data) => match otb_decoder::file::decode_bytes(&data, None) {
+                            Err(e) => Err(e.to_string()),
+                            Ok(got) if got.len() != want.len() => {
                                 Err(format!("{} sessions décodées (Python {})", got.len(), want.len()))
-                            } else {
-                                got.iter().zip(want).try_for_each(|(g, w)| {
-                                    let d = crate::decoded::diff(w, g);
-                                    if d.is_empty() {
-                                        Ok(())
-                                    } else {
-                                        Err(format!("session {} : {}", g.index, d.join(" ; ")))
-                                    }
-                                })
                             }
-                        }
+                            Ok(got) => got.iter().zip(want).try_for_each(|(g, w)| {
+                                let d = crate::decoded::diff(w, g);
+                                if d.is_empty() {
+                                    Ok(())
+                                } else {
+                                    Err(format!("session {} : {}", g.index, d.join(" ; ")))
+                                }
+                            }),
+                        },
                     };
                     let mut r = report.lock().unwrap();
                     r.checked += want.len();

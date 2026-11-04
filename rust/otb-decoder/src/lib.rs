@@ -6,11 +6,13 @@
 //! - une trame I valide resynchronise le flux principal ; les trames P ne sont acceptées que si le flux
 //!   est valide et que le temps / l'itération n'ont pas sauté trop loin.
 
+mod error;
 pub mod file;
 mod frame;
 pub mod header;
 mod reader;
 
+pub use error::{DecodeError, OutOfMemory};
 pub use frame::*;
 use reader::Stream;
 
@@ -55,8 +57,12 @@ impl Table {
         let _ = data.try_reserve(rows.saturating_mul(cols));
         Table { cols, data }
     }
-    fn push(&mut self, row: &[i64]) {
+    /// Ajoute une ligne ; `Err` si la mémoire manque (une allocation ratée n'est pas une panique : `extend` abandonnerait
+    /// le programme, L-080).
+    fn push(&mut self, row: &[i64]) -> Result<(), OutOfMemory> {
+        self.data.try_reserve(self.cols).map_err(|_| OutOfMemory)?;
         self.data.extend_from_slice(&row[..self.cols]);
+        Ok(())
     }
     pub fn rows(&self) -> usize {
         self.data.len().checked_div(self.cols).unwrap_or(0)
@@ -88,7 +94,8 @@ fn is_marker(c: i64) -> bool {
     matches!(c, 73 | 80 | 71 | 72 | 83 | 69)
 }
 
-pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
+/// `Err(OutOfMemory)` : la mémoire manque pour ranger les trames (la session est abandonnée, le programme continue).
+pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
     let mut s = Stream::new(buf, prm.start, prm.end);
     let mut ctx = prm.ctx;
     let n_main = prm.i_def.n;
@@ -169,7 +176,8 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
                             stream_valid = false;
                         }
                         if stream_valid {
-                            main.push(&cur);
+                            main.push(&cur)?;
+                            kind.try_reserve(1).map_err(|_| OutOfMemory)?;
                             kind.push(0);
                             stats[5] += 1;
                         } else {
@@ -191,7 +199,8 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
                             last_iter = cur[FIELD_ITERATION];
                             last_time = cur[FIELD_TIME];
                             stats[2] = stats[2].wrapping_add(last_skipped);
-                            main.push(&cur);
+                            main.push(&cur)?;
+                            kind.try_reserve(1).map_err(|_| OutOfMemory)?;
                             kind.push(1);
                             stats[6] += 1;
                             prev2.copy_from_slice(&prev);
@@ -202,7 +211,8 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
                     }
                     83 => {
                         // S
-                        slow.push(&last_slow);
+                        slow.push(&last_slow)?;
+                        slow_at.try_reserve(1).map_err(|_| OutOfMemory)?;
                         slow_at.push(main.rows() as i64);
                     }
                     72 => {
@@ -213,7 +223,8 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
                     71 => {
                         // G
                         if home_valid {
-                            gps.push(&last_gps);
+                            gps.push(&last_gps)?;
+                            gps_at.try_reserve(1).map_err(|_| OutOfMemory)?;
                             gps_at.push(main.rows() as i64);
                         } else {
                             accepted = false;
@@ -226,6 +237,7 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
                                 last_iter = ev_d1;
                                 last_time = ev_d2;
                             }
+                            events.try_reserve(1).map_err(|_| OutOfMemory)?;
                             events.push([ev_type, main.rows() as i64, ev_d1, ev_d2]);
                             if ev_type == EVENT_LOG_END {
                                 stats[3] = 1;
@@ -285,7 +297,10 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
                     last_skipped = 0;
                     if last_iter != -1 {
                         let mut k = last_iter.wrapping_add(1);
-                        while !should_have_frame(k, prm.i_interval, prm.p_num, prm.p_denom) {
+                        // borne dure : au-delà, la trame sera de toute façon refusée (saut d'itération trop grand)
+                        while last_skipped < MAX_ITERATION_JUMP
+                            && !should_have_frame(k, prm.i_interval, prm.p_num, prm.p_denom)
+                        {
                             last_skipped = last_skipped.wrapping_add(1);
                             k = k.wrapping_add(1);
                         }
@@ -361,7 +376,7 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
     // copies à la taille exacte : la réserve d'avance resterait sinon en mémoire tant que la session existe
     main.data.shrink_to_fit();
     kind.shrink_to_fit();
-    Decoded {
+    Ok(Decoded {
         main,
         kind,
         slow,
@@ -370,7 +385,7 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Decoded {
         gps_at,
         events,
         stats,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -419,7 +434,7 @@ mod tests {
             ctx: [0; CTX_SIZE],
             est_rows: 0,
         };
-        decode_stream(bytes, &prm)
+        decode_stream(bytes, &prm).unwrap()
     }
 
     #[test]
@@ -446,6 +461,16 @@ mod tests {
         let d = run(&bytes);
         assert_eq!(d.main.rows(), 0);
         assert!(d.stats[0] > 0);
+    }
+
+    #[test]
+    fn push_rend_une_erreur_quand_la_memoire_manque() {
+        // une ligne de 2^58 valeurs (≈ 2 Eo) ne peut jamais être réservée : `Err`, pas d'abandon du programme (L-080)
+        let mut t = Table {
+            cols: 1 << 58,
+            data: Vec::new(),
+        };
+        assert!(t.push(&[]).is_err());
     }
 
     #[test]

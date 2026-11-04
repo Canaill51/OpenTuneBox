@@ -199,32 +199,32 @@ décodeur, `docs/validation.md`.
 
 Sous-lot 4a, tests rouges (même PR) :
 
-- [ ] Nouveau fichier de tests d'intégration *robustness.rs* dans `rust/otb-decoder/tests/` : fabriquer les variantes **en
+- [x] Nouveau fichier de tests d'intégration *robustness.rs* dans `rust/otb-decoder/tests/` : fabriquer les variantes **en
       mémoire** à partir de `tests/data/jeno5_5s.bbl` (remplacer les lignes `H I interval:` et `H P interval:`, dupliquer la
       ligne des noms de champs pour en déclarer 20 000, mettre tous les réglages à zéro) ; aucun nouveau fichier binaire dans
       le dépôt. Chaque cas : `decode_bytes` rend une erreur ou zéro session, en moins d'une seconde (chronomètre dans le
       test), et le test ne doit jamais abandonner le processus (lancer d'abord un à un).
-- [ ] Rejouer les variantes gardées dans le bac à sable de la session du 2026-11-04 si elles existent encore ; sinon les
+- [x] Rejouer les variantes gardées dans le bac à sable de la session du 2026-11-04 si elles existent encore ; sinon les
       refaire : tronqué 50 %, en-tête coupé, vide, corps à 0xFF, dix mutations à 1 % (déjà propres : servent de non-régression).
 
 Sous-lot 4b, correction :
 
-- [ ] Bornes à la lecture de l'en-tête (question 2) : nombre de champs, `I interval`, `P interval` ; hors bornes → erreur
+- [x] Bornes à la lecture de l'en-tête (question 2) : nombre de champs, `I interval`, `P interval` ; hors bornes → erreur
       typée, message en français, session refusée.
-- [ ] Croissance de `Table` : réserver par `try_reserve` **avant chaque ajout** qui dépasse la capacité (ou borner les lignes
+- [x] Croissance de `Table` : réserver par `try_reserve` **avant chaque ajout** qui dépasse la capacité (ou borner les lignes
       par la taille du fichier : jamais plus de trames que d'octets), et transformer l'échec en erreur « fichier trop grand pour
       la mémoire disponible » remontée jusqu'à la barre d'état de l'interface.
-- [ ] Boucle de recherche de l'itération attendue : borne dure (la constante `MAX_ITERATION_JUMP` existe déjà pour un autre
+- [x] Boucle de recherche de l'itération attendue : borne dure (la constante `MAX_ITERATION_JUMP` existe déjà pour un autre
       cas) ; au-delà, trame déclarée corrompue, comme aujourd'hui pour une trame trop grande.
-- [ ] Réglages à zéro : `otb-log` garde ses `.max(1)`, mais l'interface et la CLI doivent signaler « réglages de l'en-tête
+- [x] Réglages à zéro : `otb-log` garde ses `.max(1)`, mais l'interface et la CLI doivent signaler « réglages de l'en-tête
       invraisemblables » plutôt qu'afficher 1 000 000 Hz (constat, pas d'invention de valeur).
-- [ ] Documentation : `docs/architecture.md`, `docs/validation.md` (section robustesse : cas et résultats),
+- [x] Documentation : `docs/architecture.md`, `docs/validation.md` (section robustesse : cas et résultats),
       `docs/pieges-par-domaine.md`, `docs/lecons.md` (nouvelle leçon : une allocation ratée n'est pas rattrapable par
       `catch_unwind`), `CHANGELOG.md`.
-- [ ] Vérification : `verify` vert ; `cargo run --release -p otb-dev -- corpus validate` à 0 non conforme et
+- [x] Vérification : `verify` vert ; `cargo run --release -p otb-dev -- corpus validate` à 0 non conforme et
       `otb-parity check` à 0 écart (lot 0) : **aucun vrai log ne doit changer de résultat**. **Contre-preuve** : retirer une
       borne, le test correspondant rougit (ou bloque : le lancer avec `timeout`).
-- [ ] Critère d'arrêt : si une borne proposée rejette un vrai log du corpus, s'arrêter et consigner le fichier et la valeur.
+- [x] Critère d'arrêt : si une borne proposée rejette un vrai log du corpus, s'arrêter et consigner le fichier et la valeur.
 
 ## Lot 5 : mémoire du décodeur (Opus) — C4
 
@@ -280,7 +280,7 @@ posée **par Cédric lui-même**.
 | 1 | Fait le 2026-11-04 (branche `feat/dev-verify`) : `otb-dev verify [--quick] [--strict]`, marqueur `[OTB-SAUT]`, crochet sans `jq`, listes de `-p` retirées (tests.yml, CONTRIBUTING, README, AGENTS). 74 exécutables avec et sans `-p` (critère d'arrêt levé). `verify` : 63–67 s à chaud sur ce poste, code 0 sur le code actuel. Contre-preuves : (a) test cassé → 1, (b) espace de formatage → 1, (c) `--strict` sans `OTB_GOLDEN` → 1 (2 sauts comptés), (d) docs sabotées (lien cassé) : le crochet rend 2 sans `jq` dans le PATH pour `git commit`, la forme avec `-C` et celle avec `-c`, et 0 sans sabotage. Non traités : les autres sauts de tests (`otb-gui`…) ; W-047 |
 | 2 | À faire |
 | 3 | À faire |
-| 4 | À faire |
+| 4 | Fait le 2026-11-04 (branche `fix/decoder-hostile-header`, D-044, L-080) : `DecodeError`, bornes 512 champs / intervalles 1 à 65 535, `try_reserve`, `Settings::implausible`. `robustness.rs` : 10 cas, 6 rouges avant correction (les intervalles à 9·10¹⁸ ne bouclaient pas sur cette source : refusés par la borne seulement) ; contre-preuves : 4 retraits rougissent. `otb-parity` 0 échec, `corpus validate` 697/712 comme la ligne de base |
 | 5 | À faire |
 | 6 | À faire |
 | 7 | Réservé (attend W-046) |

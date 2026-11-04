@@ -276,6 +276,9 @@ impl App {
             Some(Ok(logs)) if logs.is_empty() => self.errors.push("fichier sans session exploitable".into()),
             Some(Ok(logs)) => {
                 for log in logs {
+                    if let Some(m) = log.settings.implausible() {
+                        self.errors.push(format!("{} : {m}", log.name()));
+                    }
                     if !self.state.add(log) {
                         self.errors.push(format!(
                             "{} logs au plus : les suivants sont ignorés.",

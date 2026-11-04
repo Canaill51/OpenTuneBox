@@ -62,6 +62,24 @@ différer. Variables à définir : `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golde
   Objectif du lot 5a (÷ 1,5) : passer sous ≈ 327 Mo sur `LOG00008.BFL`. Le « plus gros log » de W-014 (965 000 trames, 39 Mo)
   n'est plus dans le corpus : ses 364 Mo ne se comparent pas à ces chiffres. Ordinateur : 16 cœurs, 15 Go de mémoire.
 
+### Robustesse face à un en-tête hostile (2026-11-04, D-044)
+
+`rust/otb-decoder/tests/robustness.rs` fabrique en mémoire des variantes de `tests/data/jeno5_5s.bbl` (aucun fichier de plus dans le dépôt) ;
+chaque cas doit rendre une erreur ou zéro session en moins d'une seconde.
+
+| Cas | Avant (mesuré) | Après |
+|---|---|---|
+| `I interval` 9·10¹⁸ ; 65 536 | décodé tel quel | refusé (`HeaderOutOfBounds`) |
+| `P interval` 1/9·10¹⁸ ; 9·10¹⁸/2 | décodé tel quel | refusé |
+| 513 champs ; 20 000 champs | accepté ; 20 000 : 3,7 s | refusé, instantané |
+| 512 champs ; intervalles 65 535 (les bornes) | accepté | accepté |
+| réglages à zéro, fichier vide, tronqué 50 %, en-tête coupé, corps à 0xFF, dix mutations à 1 % | propre | propre (non-régression) |
+
+Contre-preuves : plafond d'intervalle retiré → 4 cas rouges ; plafond de champs retiré → 2 cas rouges (20 000 champs : 4,5 s) ;
+`try_reserve` retiré de `Table::push` → son test panique ; seuil de cadence retiré → `otb-log/tests/implausible.rs` rouge.
+Aucun vrai log ne change : `otb-parity check` 0 échec sur 3123 fichiers, 70 fichiers abîmés inchangés, `corpus validate` : 697 sessions conformes sur 712, mêmes statuts que la ligne de base (ok 627, gap 67, slow 8, values 5, refhang 3, rows 2).
+Limite : sous Linux, une réservation énorme peut réussir (surengagement de la mémoire) ; le plafond de 512 champs borne l'essentiel, pas tout (non mesuré).
+
 ## Recoupement avec PIDtoolbox Pro V0.94 (mêmes logs)
 
 | Mesure | Log | PIDtoolbox | OpenTuneBox |
