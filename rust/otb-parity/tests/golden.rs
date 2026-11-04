@@ -6,7 +6,7 @@ use otb_parity::{compare, registry, value};
 #[test]
 fn les_references_se_lisent_et_les_fonctions_portees_concordent() {
     let Ok(dir) = std::env::var("OTB_GOLDEN") else {
-        eprintln!("OTB_GOLDEN absent : test ignoré");
+        println!("[OTB-SAUT] OTB_GOLDEN absent : concordance avec les références ignorée");
         return;
     };
     let (mut lus, mut rejoues) = (0, 0);

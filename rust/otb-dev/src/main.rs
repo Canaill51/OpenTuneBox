@@ -6,12 +6,13 @@
 //! otb-dev icons [--svg CHEMIN]                        PNG Linux et .ico Windows depuis le SVG
 //! otb-dev licenses                                    THIRD-PARTY-LICENSES.txt (mentions de licences des composants livrés)
 //! otb-dev corpus <outil> …                            outils du corpus de vrais logs (`OTB_LOGS`)
+//! otb-dev verify [--quick] [--strict]                 fmt, clippy, tests, cargo deny : code 0 seulement si tout passe
 //! ```
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses\n  otb-dev corpus <outil> …";
+const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]";
 
 /// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `CHANGELOG.md` et `rust/Cargo.toml`.
 fn repo_root() -> Result<PathBuf, String> {
@@ -54,6 +55,19 @@ fn main() -> ExitCode {
             Err(e) => {
                 eprintln!("{e}");
                 ExitCode::FAILURE
+            }
+        };
+    }
+    if args.first().map(String::as_str) == Some("verify") {
+        return match repo_root().and_then(|root| Ok((root, otb_dev::verify::parse_options(&args[1..])?))) {
+            Ok((root, options)) => {
+                let (report, code) = otb_dev::verify::run(&root, options);
+                println!("{report}");
+                ExitCode::from(code)
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::from(2)
             }
         };
     }
