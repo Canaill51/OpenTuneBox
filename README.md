@@ -92,5 +92,5 @@ Les consignes pour les agents IA (Claude Code, Codex, Copilot…) sont dans [AGE
 
 ## Licence
 
-Projet privé, tous droits réservés (voir [LICENSE](LICENSE)). OpenTuneBox ne contient aucun code de
+Logiciel libre sous licence GNU GPL 3 (voir [LICENSE](LICENSE)) ; mentions des composants tiers : [THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt). OpenTuneBox ne contient aucun code de
 PIDtoolbox ; il s'appuie sur les formules publiques du firmware Betaflight et des méthodes d'analyse publiées.

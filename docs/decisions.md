@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres | 2026-11-04 |
 | D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
 | D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
 | D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
@@ -115,7 +116,24 @@ ici, jamais dans le code.
 
 ---
 
-## 2026-11-02 — Notchs dynamiques ajoutés du Simulateur de filtres
+## 2026-11-04 — Dépôt public et licence
+
+### D-043 : le dépôt est public, sous licence GPL 3
+
+Amende D-001 (« projet privé, tous droits réservés, pas de licence libre » ; le reste de D-001 reste en vigueur) et le résumé d'`AGENTS.md`.
+
+**Contexte.** Le 2026-11-04, la CI du dépôt privé s'arrête avant de démarrer un seul travail : « The job was not started because recent account payments have failed or your spending limit needs to be increased » (annotation lue sur les exécutions de la PR #96). La documentation de GitHub indique que les runners standard sont gratuits dans un dépôt public. Cédric passe le dépôt en public le 2026-11-04 et tranche quatre points (questions posées le même jour).
+
+**Décision.**
+- Licence **GNU GPL version 3** (texte officiel dans `LICENSE`). Copyright : Cédric.
+- Pas « tous droits réservés » (choix de Cédric : GPL 3) ; pas MIT ni Apache 2.0 non plus : la GPL oblige quiconque redistribue une version modifiée à publier son code.
+- Les versions publiées v0.2.0 à v0.8.0 (builds Python avec PySide6/Qt et macOS, ~375 Mo chacune) sont **supprimées** de la page Releases (7 versions, 0 restante au 2026-11-04) ; les étiquettes git `v0.2.0` à `v0.8.0` restent. Raison : elles devenaient téléchargeables par tous et leurs obligations de licence n'étaient pas vérifiées.
+- Les nouveaux commits utilisent l'adresse noreply de GitHub, pas l'adresse personnelle ; l'historique n'est pas réécrit (les copies déjà faites depuis le passage en public garderaient l'ancienne adresse).
+- Les pseudos de pilotes tiers sont remplacés par des noms neutres dans la documentation (l'historique garde les anciens noms) ; la liste `SHARED_NAMES` de `rust/otb-dev/src/corpus/mod.rs` garde les noms réels de drones, car l'outil `corpus` doit les reconnaître dans le vrai corpus.
+
+**Témoins.** `gh repo view` : visibilité PUBLIC ; `gh api repos/Canaill51/OpenTuneBox/releases` : 0 version ; CI des PR #96 et #97 verte après le passage en public (la #97 : `tests` 6 min 7, `windows` 7 min 3, `cargo-deny` 33 s). Le texte de `LICENSE` vient de `gh api licenses/gpl-3.0` (35 150 octets).
+
+**Ouvert.** (1) W-046 : la licence de la police Ubuntu Light (Ubuntu Font Licence 1.0, « the Font Software … must be distributed entirely under this licence ») face à la GPL, non tranchée ; (2) la compatibilité avec la GPL 3 est lue sur la liste de la FSF pour MIT, ISC et Apache 2.0 seulement ; BSD, Zlib, Unicode-3.0, BSL-1.0 et 0BSD ne sont pas vérifiées ; ce n'est pas un avis juridique ; (3) réglages de sécurité GitHub (protection de `main` et des étiquettes, analyse des secrets, signalement privé) : décision de Cédric.
 
 ### D-042 : macOS abandonné, application livrée pour Windows et Linux
 
@@ -1029,7 +1047,7 @@ référence de résultats, pas de source.
 
 ### D-001 : Python + PySide6 + pyqtgraph, projet privé, interface en français
 
-✏️ AMENDÉE par D-035 (la technologie, à la phase 6 ; le reste reste en vigueur).
+✏️ AMENDÉE par D-035 (la technologie, à la phase 6) et par D-043 (le dépôt est public sous GPL 3 ; le reste reste en vigueur).
 
 **Contexte.** Un seul code pour Windows, macOS et Linux, maintenable par un débutant aidé d'agents IA,
 pour un pilote francophone.
