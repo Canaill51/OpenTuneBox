@@ -88,14 +88,14 @@ départ que le lot 5 devra battre.
 **À lire** : `docs/validation.md` (procédures), `.claude/skills/calculs-corpus/SKILL.md`, `rust/otb-dev/src/corpus/mod.rs`
 (variables d'environnement, dossier par défaut).
 
-- [ ] Relever sur ce poste : `OTB_LOGS` (défaut `~/Documents/Drones/Logs`, 525 logs et `corpus.csv` vus le 2026-11-04),
+- [x] Relever sur ce poste : `OTB_LOGS` (défaut `~/Documents/Drones/Logs`, 525 logs et `corpus.csv` vus le 2026-11-04),
       présence d'un dossier `golden/`, présence d'un `blackbox_decode` de référence ; noter le résultat dans « Avancement ».
-- [ ] Si les références manquent : poser la question 1 ci-dessus à Cédric et **s'arrêter là** (critère d'arrêt).
-- [ ] Si elles existent : lancer `cargo run --release -p otb-parity -- check "$OTB_GOLDEN"` et
+- [x] Si les références manquent : poser la question 1 ci-dessus à Cédric et **s'arrêter là** (critère d'arrêt).
+- [x] Si elles existent : lancer `cargo run --release -p otb-parity -- check "$OTB_GOLDEN"` et
       `cargo run --release -p otb-dev -- corpus validate` ; les deux doivent être à 0 écart sur `main` : c'est la ligne de base.
-- [ ] Mesures de départ pour le lot 5, sur le plus gros log du corpus : temps de `opentunebox info` et pic mémoire
+- [x] Mesures de départ pour le lot 5, sur le plus gros log du corpus : temps de `opentunebox info` et pic mémoire
       (gestionnaire des tâches ou `Measure-Command` + compteur `PeakWorkingSet`), notées dans `docs/validation.md`.
-- [ ] Vérification : aucune ; ce lot ne change pas de code. Livrable : la section « Avancement » remplie, et si besoin
+- [x] Vérification : aucune ; ce lot ne change pas de code. Livrable : la section « Avancement » remplie, et si besoin
       les variables d'environnement à définir, préparées pour Cédric (pas de `sudo` requis).
 
 ## Lot 1 : commande unique `otb-dev verify` et crochet réparé (Sonnet) — C3
@@ -269,7 +269,7 @@ posée **par Cédric lui-même**.
 
 | Lot | État |
 |---|---|
-| 0 | À faire, sur le poste Linux |
+| 0 | Fait le 2026-11-04 sur le poste Linux : références présentes ; `otb-parity` 0 écart ; `corpus validate` 697/712 sessions conformes (les 15 autres sont des écarts connus, la ligne de base n'est donc pas « 0 écart » comme le plan le supposait) ; départ mémoire 491 Mo sur `LOG00008.BFL`. Détail dans `docs/validation.md` (« Ligne de base ») |
 | 1 | À faire |
 | 2 | À faire |
 | 3 | À faire |
