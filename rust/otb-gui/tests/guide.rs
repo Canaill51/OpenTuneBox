@@ -276,13 +276,6 @@ fn chaque_lien_de_l_accueil_est_valide_et_la_source_est_unique() {
         }
     }
     assert!(n >= 5, "l'accueil devrait contenir au moins 5 liens internes ({n})");
-    // même fichier que Python
-    let python = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../src/opentunebox/gui/assets/guide/accueil.md"
-    ))
-    .unwrap();
-    assert_eq!(HOME_TEXT, python);
 }
 
 // ------------------------------------------------------------------ outils cités par les cases

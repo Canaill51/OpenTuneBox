@@ -495,7 +495,7 @@ est celle du commit qui les a introduites.
 - **Cause** — `as_slice` demande un tableau contigu, pas contigu **ligne par ligne**.
 - **Règle** — un tableau 2D passé au Rust comme `&[T]` à plat se contrôle par `is_c_contiguous()` ; un test
   avec `np.asfortranarray` accompagne chaque entrée 2D.
-- **Preuve** — `rust/otb-py/src/lib.rs:run_section` ;
+- **Preuve** — `run_section` du pont PyO3 (supprimé en 7-5) ;
   `tests/test_native_dsp.py:test_run_section_rejects_fortran_order_instead_of_reading_it_wrong` (échoue sans le garde).
 
 ### L-035 : `ruff check --fix` supprime un import qui sert de réexport à un test

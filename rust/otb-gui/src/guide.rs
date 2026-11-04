@@ -13,7 +13,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 /// Accueil du guide : le **même** fichier que la version Python (une seule source tant qu'elle existe).
-pub const HOME_TEXT: &str = include_str!("../../../src/opentunebox/gui/assets/guide/accueil.md");
+pub const HOME_TEXT: &str = include_str!("../assets/guide/accueil.md");
 /// Clé de l'accueil dans les liens `otb:phase/home` et dans la mémoire de la page.
 pub const HOME: &str = "home";
 pub const PHASE_KEYS: [&str; 4] = ["prep", "filters", "pid", "finish"];

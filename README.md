@@ -71,20 +71,14 @@ opentunebox report LOG.bbl [--profil five]   # diagnostic (profils : whoop micro
 
 ## Développement
 
-Depuis les sources (Python 3.11 ou plus récent ; [Rust](https://rustup.rs) est requis sur la branche
-`feat/rust-migration` : l'extension `opentunebox._native` est compilée par `pip install`) :
+Depuis les sources ([Rust](https://rustup.rs) est le seul prérequis) :
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
-.venv/bin/opentunebox-gui                 # interface graphique
-sh packaging/linux/install_linux.sh       # Linux : compile l'interface Rust (cargo) et l'ajoute au menu des applications
-.venv/bin/pytest -q                       # tests (ceux qui demandent de vrais logs sont ignorés sans corpus)
-(cd rust && cargo test -p otb-decoder)    # tests du code Rust
-OTB_LOGS=/chemin/logs .venv/bin/pytest -q -m corpus   # tests sur un dossier de vrais logs
+cd rust
+cargo run --release -p otb-gui -- [LOG…]   # interface graphique
+cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev   # tests (rapides, sans vrais logs)
+cd .. && sh packaging/linux/install_linux.sh   # Linux : compile l'interface (cargo) et l'ajoute au menu des applications
 ```
-
-Sous Windows, remplacer `.venv/bin/` par `.venv\Scripts\`.
 
 Exécutable autonome fabriqué soi-même, sur le système visé (Rust, `cargo`) : sous Linux,
 `(cd rust && cargo build --release -p otb-gui)` → le fichier `target/release/opentunebox-gui` du dossier `rust` (un seul fichier), puis

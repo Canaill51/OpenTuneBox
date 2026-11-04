@@ -14,12 +14,12 @@ fait OpenTuneBox ; les conventions de PIDtoolbox (PTB) sont indiquées quand ell
   temps laisse la colonne vide (D-020).
 - Gaz % = `setpoint[3] / 10`. Moteurs % = `(moteur − 48) / 1999 · 100` (DShot).
 - Erreur PID = `gyroADC − setpoint` (signe de PTB).
-- **D préfiltre** (reconstruit, `log/flightlog.py`) : `−d(gyroADC)/dt × k`, le gain `k` étant ajusté par
+- **D préfiltre** (reconstruit, `rust/otb-log/src/flightlog.rs`) : `−d(gyroADC)/dt × k`, le gain `k` étant ajusté par
   moindres carrés sur les composantes lentes (< ~30 Hz, moyenne glissante sur Fs/60) du terme D loggé,
   sur chaque axe dont le D n'est pas nul. (PTB utilise le rapport médian, roll et pitch seulement.)
 - **Gyro préfiltre** : `gyroUnfilt` (4.5+), sinon debug GYRO_SCALED [0..2] (4.4), sinon indisponible.
 
-## Réponse indicielle (déconvolution de Wiener, `analysis/step.py`)
+## Réponse indicielle (déconvolution de Wiener, `rust/otb-analysis/src/step.rs`)
 
 Entrées : consigne SP = setpoint[axe], GY = gyroADC[axe] sur la période choisie.
 1. Lissage du gyro au choix (aucun / 20 / 40 / 60 échantillons).
@@ -51,7 +51,7 @@ gyro (moyenne des interspectres / autospectres des fenêtres), de 2 à 150 Hz, p
 lissage complexe sur 5 points (`uniform_filter1d(mode="nearest")`). Bande passante = −3 dB de |T|,
 cherchée à partir de 2 Hz ; pic de suivi = max |1 − T| (consigne → erreur).
 
-### Boucle ouverte (`analysis/loop.py`)
+### Boucle ouverte (`rust/otb-analysis/src/open_loop.rs`)
 
 Boucle coupée à l'entrée du drone, comme dans les manuels. Le régulateur de Betaflight
 (`flight/pid.c`) : P + I agissent sur l'erreur e = consigne − gyro (Ce), le D sur le gyro seul (D = −Cd·gyro,
@@ -97,7 +97,7 @@ toujours la marge. Utilisée
 quand un terme de gain non nul manque dans le log, ou quand la mesure n'a pas assez de points valides
 (raison dans `LoopMetrics.notes`).
 
-Marges (`analysis/loop.py:margins`) : phase déroulée (`np.unwrap`, premier point ramené dans
+Marges (`rust/otb-analysis/src/open_loop.rs:margins`) : phase déroulée (`np.unwrap`, premier point ramené dans
 (−360°, 0]) ; croisement = premier passage de |L| au-dessous de 1, interpolé en (log f, log |L|) ; marge de
 phase = 180° + ∠L, négative si la phase y est sous −180° ; marge de gain = −20·log10 |L| au premier passage
 de la phase par −180° (− k·360°) après le croisement ; pic de sensibilité Ms = max |S| en dB (repères
@@ -105,7 +105,7 @@ de la phase par −180° (− k·360°) après le croisement ; pic de sensibilit
 dernier point (ce n'est alors qu'un minorant). Les croisements suivants sont ignorés : sur les vrais logs
 ils viennent du bruit (`validation.md`).
 
-## Spectres (`analysis/spectral.py`)
+## Spectres (`rust/otb-analysis/src/spectral.rs`)
 
 - **Spectre 2D** : Welch, fenêtre de Hann, recouvrement 50 % ; longueur de fenêtre fixée par la résolution
   (0,5 Hz par défaut, soit 2 s ; choix 0,5 / 1 / 2 / 4 Hz). DSP unilatérale en `10·log10`. Lissage de
@@ -141,7 +141,7 @@ ils viennent du bruit (`validation.md`).
 - **Estimation RPM** sans télémétrie : fréquence moteur ≈ multiplicateur (2,1) × % moteur (« RPM est. » de PTB),
   à calibrer par drone.
 
-## Retards (`analysis/delay.py`)
+## Retards (`rust/otb-analysis/src/delay.rs`)
 
 - **Filtres gyro** (gyroUnfilt → gyroADC) et **D** (D préfiltre → terme D) : pente de la phase de
   H = Sxy/Sxx (Welch, fenêtres d'environ 0,5 s), entre 10 et 100 Hz, points de cohérence ≥ 0,6, moyenne
@@ -211,7 +211,7 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   [S10] ; 7–8 ms = filtrage très lourd [S11].
 - **Fréquence fondamentale des moteurs** : régime en charge ≈ 70 % du régime à vide KV × cellules × 4 V
   [S12], soit ≈ KV × tension nominale × 0,75 : formule indicative seulement, l'estimation par taille qu'on
-  en tirait donnait des whoops trop hauts. Bornes retenues, mesurées sur le corpus (`advisor/profiles.py`,
+  en tirait donnait des whoops trop hauts. Bornes retenues, mesurées sur le corpus (`rust/otb-advisor/src/profiles.rs`,
   `hover_hz`, fréquence en stationnaire) : whoop 345–900 Hz, 2–3,5" 200–345 Hz, 4–5" 160–290 Hz, 6–7"
   115–160 Hz, 8"+ 50–125 Hz ; médianes par drone en vol : AIR65 ≈ 480 Hz, Meteor 75 ≈ 355 Hz,
   3" ≈ 325 Hz, 5" ≈ 210 Hz, 7" ≈ 140 Hz, 9" ≈ 110 Hz (`assistant.md`, « Taille du drone »). Les whoops

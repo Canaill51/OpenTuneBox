@@ -62,7 +62,7 @@ Règles d'écriture :
 |---|---|---|
 | W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
-| W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références) |
+| W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
 | W-045 | Icône de fenêtre sous X11 : `_NET_WM_ICON` vide alors que le PNG se décode (L-076) ; AppImage non intégrée au bureau : icône générique sous Wayland (intégration au premier lancement non décidée) | ouvert (X11 : à creuser si quelqu'un l'utilise ; AppImage : décision de Cédric) |
 | W-044 | Installateur Windows : suppression du dossier `_internal` de la version Python (mise à jour depuis la 0.8.0) à retirer plus tard ; `construire_windows.ps1` non essayé sur un vrai Windows (l'installateur l'a été par la CI) | ouvert (script : à l'occasion ; `_internal` : version qui suit la première publication Rust) |
 | W-043 | Polices embarquées par egui (`epaint_default_fonts` : OFL-1.1 et Ubuntu-font-1.0) : obligations de ces licences pour l'installateur et l'AppImage non vérifiées | ouvert (avant la première publication Rust) |
@@ -77,11 +77,11 @@ Règles d'écriture :
 | W-033 | Visualiseur egui : lissage plus large que la courbe (numpy rend `w` valeurs, Rust `n`) ; échelle Y fixe (pas de zoom vertical) ; molette = défilement désactivé, zoom par Ctrl + molette | 6-1c |
 | W-035 | Réponse indicielle et Curseurs PID egui (6-3) : écarts connus avec les fenêtres Qt (tracé des brutes, sélecteurs, légendes sans « ● ○ ⚠ », copie des commandes) | point (7) traité en 6-6a ; le reste décidé (D-040) |
 | W-032 | Socle egui (6-0) : écarts connus avec `ToolWindow.run` de Python | traité en 6-3 (points 1 à 4) |
-| W-031 | Ligne de commande Rust : pas de texte d'aide détaillé, messages d'usage et d'erreur rédigés autrement que ceux d'argparse | ouvert (à voir en phase 7) |
+| W-031 | Ligne de commande Rust : pas de texte d'aide détaillé, messages d'usage et d'erreur rédigés autrement que ceux d'argparse | ouvert (depuis 7-5 il n'y a plus de Python à égaler : aide en ligne détaillée seulement si Cédric la veut) |
 | W-030 | `rules.py:analyze` plantait (`np.convolve` d'un tableau vide) sur 2 logs du corpus | TRAITÉ le 2026-11-01 (Python sur `main`, PR #75 ; Rust sur `fix/rust-short-session`) |
-| W-029 | Rust / Python : types faux refusés par `DroneCard::from_value`, `pid_khz` toujours en flottant, `auto_status` en erreur si un usage manque, `log_rate` panique sur une taille inconnue, pas de crash réel dans le corpus du guide | point 1 TRAITÉ en 6-5 (D-039) ; points 2 à 4 ouverts (phase 7) |
+| W-029 | Rust / Python : types faux refusés par `DroneCard::from_value`, `pid_khz` toujours en flottant, `auto_status` en erreur si un usage manque, `log_rate` panique sur une taille inconnue, pas de crash réel dans le corpus du guide | point 1 TRAITÉ en 6-5 (D-039) ; points 2 à 4 ouverts (depuis 7-5, défauts propres du Rust sans appelant réel) |
 | W-025 | `motors` (Rust) n'accepte que des vitesses moteur `float32` (journaux) ; Python accepte aussi `float64` et choisit alors la précision des noyaux | ouvert (à voir en phase 6) |
-| W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ouvert (à voir en phase 7) |
+| W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ouvert (code mort sans appelant depuis 7-5 : retirer le paramètre ou le porter si un outil veut lisser) |
 | W-023 | `FlightLog::d_term_prefilter` (Rust) planteait (index hors limites) pour un journal d'un point au terme D non nul, Python lève `ValueError` (`np.gradient`) | TRAITÉ le 2026-10-30 (4c-A : `Err`, relecture) |
 | W-022 | `otb-parity check` : une seule tolérance par fonction, y compris pour les champs exacts (`freqs`, `bins`) | ouvert (à voir en phase 7) |
 | W-021 | Écarts connus Rust / Python sur entrées irréalistes (`nbins = 0`, `fs = 0`, `astype(int)` sur ARM, message d'erreur) | macOS abandonné (D-042) : reste ouvert seulement pour un futur ARM Linux ou Windows |
@@ -90,7 +90,7 @@ Règles d'écriture :
 | W-018 | `opentunebox report` plante sous Windows quand sa sortie est redirigée (cp1252) | ouvert |
 | W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | TRAITÉ sur `feat/rust-migration` (D-031) |
 | W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | TRAITÉ sur `feat/rust-migration` (D-031) |
-| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | EN COURS (D-031, D-032 : numba et scipy hors de l'application) |
+| W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | TRAITÉ (D-031, D-032, D-035 : numba, scipy et tout le Python supprimés en 7-5 ; installateurs de 7,5 Mo (Windows) et 10 Mo (AppImage)) |
 | W-014 | Décodeur : 3,4 µs par trame, plus grosse part de l'ouverture d'un log | ouvert |
 | W-013 | Résonances : raies fixes et raies moteur mal séparées près de la fondamentale | clos |
 | W-012 | Marge de ± 5 % autour des harmoniques dans la recherche de raies et la forme des pics | clos |
@@ -339,6 +339,7 @@ Règles d'écriture :
   **Pourquoi reporté** : supprimer numba demande de réécrire le décodeur et les noyaux de filtres dans un
   langage compilé (Rust par une extension PyO3, ou C), fabriqué pour chaque système par `construire.yml` :
   cela remplace D-002 et D-006, décision réservée à Cédric (proposée dans le rapport du chantier).
+  *Traité (2026-11-04, phase 7-5)* : Cédric a décidé la migration (D-031, D-035) ; numba, scipy et Python sont supprimés du dépôt.
   **Risque si on n'y touche pas** : installateurs de 88 à 167 Mo selon le système ; 5 à 15 s de compilation
   au tout premier lancement (mesuré : 6 s pour un rapport à cache numba vide sous Linux).
   **Reprise** : accord de Cédric pour une extension compilée.
@@ -440,6 +441,7 @@ Règles d'écriture :
   **Pourquoi reporté** : code mort côté application ; le porter demanderait une tolérance de plus sans rien protéger.
   **Reprise** : si un outil de la phase 6 veut lisser les signaux avant l'intercorrélation (alors porter la convolution avec sa tolérance), ou à
   la suppression du Python en phase 7 (retirer le paramètre).
+  *Statut après 7-5 (2026-11-04)* : le Python a disparu ; le paramètre reste ouvert comme code mort sans appelant (le retirer ou le porter si un outil veut lisser).
 - **W-025** — les fonctions de `analysis/motors.py` acceptent une vitesse moteur `mhz` en `float32` ou en `float64` (`_mhz_args`, L-041) ; le port Rust
   (`otb-analysis/src/motors.rs`) ne prend que des `Rows` `float32`, ce que rendent tous les journaux (D-029) et `motor_hz`. Aucun appelant de
   l'application ne fournit du `float64`.
@@ -463,7 +465,7 @@ Règles d'écriture :
 
 - **W-028** — trois écarts de couverture connus de la 5a-4 / 5a-5, relevés par la relecture : (1) `1. PTB/Moribot/Hover_Test5.bbl` est dans le corpus (500 fichiers) mais pas dans `flightlog.json` (499) ni dans `advisor/` ni dans `analysis/` : les références de ces couches sont plus anciennes que le corpus, seul le réglage par séries (`advisor_tuning/`) le couvre ; (2) `tuning_layer.rs` compare les erreurs par leur seule présence (Python lève ⇒ Rust lève), sans vérifier que c'est à la même étape, et le corpus actuel n'en contient aucune ; (3) `step_tuning` sur des curseurs contenant un NaN : Python trie sans erreur dans un ordre arbitraire, Rust rend une erreur (inatteignable depuis `find_series`).
   **Pourquoi reporté** : (1) demande de réenregistrer `advisor/` et `analysis/` (≈ 25 min) sans changer le code ; (2) et (3) n'ont aucun appelant réel.
-  **Reprise** : (1) au prochain réenregistrement des références (`golden.py record-flightlog`, `record-analysis`, `record-advisor`) ; (2) et (3) si un cas d'erreur apparaît dans le corpus ou à la phase 7.
+  **Reprise** : (1) au prochain réenregistrement des références (`golden.py record-flightlog`, `record-analysis`, `record-advisor`, à lancer depuis l'état Python gardé dans git : « Refaire une référence Python », `docs/validation.md`) ; (2) et (3) si un cas d'erreur apparaît dans le corpus ou à la phase 7.
   *Réglé le 2026-11-01 pour `flightlog.json` et `advisor/`* : `golden.py record-flightlog` et `record-advisor` refaits (669 journaux, 631 sessions de l'assistant, `Hover_Test5.bbl` comprise) ; `otb-parity check-advisor` : 631 sessions, 362 089 clés, 0 écart. Reste le point (1) pour `analysis/` (`record-analysis`, 337 Mo), à refaire au prochain besoin.
 
 - **W-029** — quatre limites connues de la 5b : (1) `DroneCard::from_value` (Rust) refuse un type faux (`name` = 3, `pid_khz` = "4", `done` = liste, `bf` = null) alors que `from_dict` de Python les accepte sans rien vérifier ; `pid_khz` s'écrit toujours en flottant (`4.0`), Python réécrit ce qu'il a lu (`4` si le fichier disait `4`) ; (2) `auto_status` rend une erreur si l'usage de la case manque dans un `LogCheck` (Python lève `AttributeError`), cas que `check_log` ne produit jamais ; (3) `DroneCard::log_rate` panique (Python : `KeyError`) si la taille est inconnue et la fiche construite à la main (`from_value` la ramène à `five`) ; (4) le corpus ne contient aucun crash au sens de `crash_time` dans les sessions rejouées par `check-guide` : la branche « crash » repose sur les cas fabriqués.
@@ -471,6 +473,7 @@ Règles d'écriture :
   **Reprise** : (1) à l'écriture de la page Guide en Rust (phase 6), qui choisira le format des fiches ; (2) à (4) à la suppression du Python (phase 7).
   *Réglé le 2026-10-31 (hors liste)* : `log_check.json` (dans `rust/otb-advisor/tests/data/`) pesait 26 Mo. Colonnes que `check_log` ne lit pas (termes P, I, F, commande radio, debug, moteurs) écrites en zéros — **les réponses de Python, calculées sur ces journaux-là, sont identiques** (la gaz, `d_term` et `gyro_unfilt` restent : les retirer change des réponses) — puis gzip : `log_check.json.gz`, 5,2 Mo ; lu par `flate2` (Rust pur). Les 66 mutations restent détectées (une perdue en raccourcissant des journaux, retrouvée par un cas ajouté : `fenêtres : pitch sans consigne`).
   *Point 1 traité le 2026-11-02 (6-5, D-039)* : `DroneCard::from_value` est tolérant (une clé absente ou d'un type faux reprend son défaut ; seuls un `name` absent ou faux et une fiche qui n'est pas un objet restent des erreurs) et `pid_khz` entier est réécrit entier (`pid_khz_int`). Points 2 à 4 inchangés.
+  *Statut après 7-5 (2026-11-04)* : il n'y a plus de Python à égaler ; les points 2 à 4 restent ouverts comme défauts propres du Rust (aucun appelant réel), à traiter si un appelant apparaît.
 
 ## Origine : phase 5c, comparaison de la ligne de commande sur le corpus (2026-11-01)
 
@@ -491,6 +494,7 @@ Règles d'écriture :
   (mesuré sur 3.14.4). La sortie s'écrit au fil de l'eau, session par session, comme Python.
   **Pourquoi reporté** : aucune de ces différences ne change un résultat.
   **Reprise** : à la phase 7 (suppression de Python : `scripts/cli_args_check.py` disparaît avec lui), ou si Cédric veut une vraie aide en ligne.
+  *Statut après 7-5 (2026-11-04)* : Python supprimé ; reste ouvert seulement si Cédric veut une vraie aide en ligne.
   [`rust/otb-cli/src/lib.rs:parse`]
 
 - **W-032** — Socle egui (6-0), relecture du 2026-11-01. Écarts connus avec `ToolWindow.run`, laissés pour la sous-étape qui en a besoin :

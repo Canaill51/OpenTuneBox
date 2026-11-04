@@ -1,6 +1,6 @@
 # Assistant de réglage — fonctionnement et calibration
 
-L'assistant (`src/opentunebox/advisor/`) transforme les mesures d'un log en constats argumentés.
+L'assistant (`rust/otb-advisor/src/`) transforme les mesures d'un log en constats argumentés.
 Chaque constat cite la mesure et le seuil qui le déclenchent ; les actions passent d'abord par les
 curseurs du réglage simplifié de Betaflight, une chose à la fois, par pas de 0,2 pour dégrossir et de 0,1
 pour le réglage fin (voir « Pas des curseurs »).
@@ -17,7 +17,7 @@ moteurs > 10 Hz) et par le nombre de cellules de la batterie (`FlightLog.cells`,
 Sans eRPM : 1S → whoop ; sinon par le nom du drone : « whoop », « Meteor », ou le nombre entier 65 ou 75
 (« Air65 », pas « 1750 ») → whoop ; une taille en pouces, à un ou deux chiffres (« 5" », « 3.5in », « 7 pouces »,
 « 10in ») : < 3,8 → 2–3,5", < 5,8 → 5", < 7,8 → 7", au-delà 8"+. À défaut : profil 5"
-(`tests/test_advisor_rules.py`). Le profil peut être forcé dans la fenêtre de l'assistant ou avec `opentunebox report --profil`.
+(`rust/otb-advisor/tests/profiles.rs`). Le profil peut être forcé dans la fenêtre de l'assistant ou avec `opentunebox report --profil`.
 
 Vérification (2026-10-05) sur 41 drones de taille connue : les 20 tailles notées par Cédric dans
 `corpus.csv` et 21 drones dont le nom donne la taille (Bee35, Whisper25, Pavo20, SevenInch, Mario8, M5…).
@@ -31,13 +31,13 @@ score est un peu optimiste.
 
 ## Calibration (2026-10-05)
 
-`scripts/calibrate_advisor.py 600 stats.json` sur le corpus `~/Documents/Drones/Logs`, puis
-`scripts/calibrate_advisor.py --resume stats.json` : 681 sessions exploitables de 94 drones
+`otb-dev corpus calibrate 600 stats.json` (chiffres produits par l'ancien `calibrate_advisor.py`, en Python) sur le corpus `~/Documents/Drones/Logs`, puis
+`otb-dev corpus calibrate --resume stats.json` : 681 sessions exploitables de 94 drones
 (299 × 5" / 55 drones, 133 × 7" / 19, 121 whoops / 11, 108 × 2–3,5" / 20, 20 × 8"+ / 6 ; un drone peut
 compter dans deux tailles si ses sessions diffèrent), période automatique, roll + pitch. Un drone est
 identifié par son nom (`craft_name`), à défaut par le dossier du log ; un nom porté par plusieurs machines
-(`SHARED_NAMES` de `scripts/corpus_labels.py`, ex. « Jax » chez Guigui) est complété par le dossier. Les
-logs sont lus par `corpus_labels.py:log_files` : dossiers `__MACOSX` ignorés, et un fichier au contenu
+(`SHARED_NAMES` de `rust/otb-dev/src/corpus/mod.rs`, ex. « Jax » chez Guigui) est complété par le dossier. Les
+logs sont lus par `rust/otb-dev/src/corpus/mod.rs:log_files` : dossiers `__MACOSX` ignorés, et un fichier au contenu
 identique à un autre n'est compté qu'une fois.
 
 **Tout le corpus compte** : il n'y a pas de corpus de référence. Plus de la moitié des logs (« 1. PTB »,
@@ -78,7 +78,7 @@ gyro par session y monterait de 1,84 à 1,95 ms en 5" et de 1,71 à 1,83 ms en 2
 arrondis), à cause de 2 à 7 vols de quelques drones (`VLC X4`, `TriPro 6`, `GERRYKIKI`…) ; une voix par drone :
 1,62 ms inchangé en 2–3,5", 2,06 → 2,12 ms en 5". Retard du D : à 0,01 ms près, aucune taille ne change.
 
-Seuils retenus dans `advisor/profiles.py` :
+Seuils retenus dans `rust/otb-advisor/src/profiles.rs` :
 
 - **2–3,5", 5" et 7"** (recalculés le 2026-10-05) : bruit = p90 par session arrondi au 0,1 dB ; latence =
   p10 arrondi vers le bas et p90 vers le haut ; retards = p90 arrondi au dixième supérieur.
@@ -118,7 +118,7 @@ Les seuils communs, recalculés (déséquilibre 13,3 %, terme I 33, écart 0,12,
 
 ### Tableau d'étiquettes (`corpus.csv`)
 
-`scripts/corpus_labels.py` tient un tableau, `corpus.csv`, rangé dans le dossier des logs (`OTB_LOGS`, hors
+`otb-dev corpus labels` tient un tableau, `corpus.csv`, rangé dans le dossier des logs (`OTB_LOGS`, hors
 du dépôt), une ligne par drone (même identité que la calibration), séparateur « ; » :
 
 | Colonne | Contenu |
@@ -296,7 +296,7 @@ meilleur log pour identifier le bruit.
   2026-10-05) : avec une seule étape, le constat seul dit déjà quoi faire. Dès une étape, elle apparaissait
   dans 79 % des sessions (92 % des vols stationnaires), souvent pour la seule fréquence d'enregistrement ;
   à partir de deux, dans 37 % (34 % avec mouvements, 50 % en stationnaire), repères de retard recalculés
-  compris ; 25 % sans compter l'enregistrement, option écartée (`scripts/advisor_rates.py`).
+  compris ; 25 % sans compter l'enregistrement, option écartée (`otb-dev corpus rates`).
 - **Vol stationnaire** (`motors.spectrum_lines`) : raies moteur repérées par l'eRPM et retirées jusqu'à la
   8e harmonique (± 5 % de la fréquence moteur, `motors.MOTOR_LINE_MARGIN`, images repliées comprises : sur un
   whoop logué à 4 kHz, la 8e harmonique retombe vers 200 Hz) ; toute autre raie dépassant le bruit voisin de
@@ -419,8 +419,8 @@ l'en-tête, mais 0 en mode Angle (au moins 90 % de la période), où le firmware
 
 ### Diagnostic du réglage par séries (2026-10-10)
 
-« Diagnostic du réglage » de la Réponse indicielle, toujours affiché (`advisor/step_tuning.py`), méthode de Brian White
-(`spec-methodes.md`, [S32]). Séries reconnues dans tout le corpus (`analysis/step_series.py:find_series` :
+« Diagnostic du réglage » de la Réponse indicielle, toujours affiché (`rust/otb-advisor/src/step_tuning.rs`), méthode de Brian White
+(`spec-methodes.md`, [S32]). Séries reconnues dans tout le corpus (`rust/otb-analysis/src/step_series.rs:find_series` :
 mêmes filtres, un seul curseur changé) : 28 séries Master, 43 Damping, 6 Pitch Tracking / Pitch Damping Le choix final
 des pilotes est relu dans les vols faits ensuite (« FINAL », « FF », « tune »…), faute d'étiquette.
 
@@ -555,7 +555,7 @@ diagnostic du bruit et les tests lisent cette clé, jamais le titre (D-028) ; un
 `rpm_filter_q` ou `dyn_notch_count` le déclare dans `Finding.settings`, ce qui fait taire les règles qui
 proposeraient le même réglage.
 
-Le diagnostic du bruit de la fenêtre Spectre (`advisor/noise.py`) reprend ces mêmes constats, rangés par
+Le diagnostic du bruit de la fenêtre Spectre (`rust/otb-advisor/src/noise.rs`) reprend ces mêmes constats, rangés par
 clé en quatre parties (conditions du log, gyro, terme D, stratégie) ; il n'a aucun seuil à lui.
 Quand l'assistant n'écrit pas de stratégie (moins de deux étapes), il indique le seul réglage de filtre à
 faire, ou qu'aucun n'est conseillé. Les constats du gyro sont répartis en blocs (filtre RPM, notch
@@ -565,10 +565,10 @@ verdict qui reprend les repères existants (harmonique effacée à 4 dB au plus,
 au-dessus du repère, bruit faible). Seules valeurs ajoutées, toutes du firmware :
 `rpm_filter_harmonics = 3` proposé si le filtre RPM est coupé malgré l'eRPM (défaut de Betaflight,
 `pg/rpm_filter.c`), `blackbox_disable_rpm = OFF` si `dshot_bidir` est actif sans eRPM enregistré. Un nouveau
-constat de bruit ou de filtre doit avoir sa place dans `noise.GYRO_KEYS` ou `noise.DTERM_KEYS` (vérifié par
-`tests/test_advisor_rules.py`).
+constat de bruit ou de filtre doit avoir sa place dans `GYRO_KEYS` ou `DTERM_KEYS` de `rust/otb-advisor/src/noise.rs` (cas figés de
+`rust/otb-advisor/tests/noise.rs`).
 
-Le diagnostic du réglage de la Réponse indicielle (`advisor/step_tuning.py`) a ses propres seuils, tous
+Le diagnostic du réglage de la Réponse indicielle (`rust/otb-advisor/src/step_tuning.rs`) a ses propres seuils, tous
 dans ce module (tableau ci-dessous) ; il réutilise seulement les niveaux de gravité et la mise en forme des
 constats.
 
@@ -705,7 +705,7 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
 Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origine :
 
 - **Corpus** : mesuré sur les vrais logs (percentile par taille), recalculable avec
-  `scripts/calibrate_advisor.py` ;
+  `otb-dev corpus calibrate` ;
 - **Communauté** : repère de pilotes ou d'outils publics, avec sa source (auteur, date, adresse, citation)
   dans `docs/spec-methodes.md`, « Sources des repères » (recherche du 2026-10-05) ; les renvois [S1]… du
   tableau désignent cette liste ;
@@ -728,7 +728,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Guide : protocole des mouvements | mode Angle ≥ 90 % ou Acro avec le feedforward à 0 (choix de Cédric, 2026-10-12 ; même réponse, [S24]) ; rates ACTUAL 200 / 200 / 0 sur les trois axes ; limite d'angle 30° (mode Angle seulement) ; Dynamic Damping à 0 | Communauté [S24, S33, S34] + choix de Cédric | Rates 200 / 200 / 0 choisies par Cédric (linéaires, comme [S33]) ; Brian White conseille 20° pour un gros drone, non retenu |
 | Guide : séries | Damping 0,6 → 1,6 (jusqu'à 5") ou 1,0 → 1,6 (6" et plus) ; Master 1,0 → 2,0 ; Pitch Damping et Pitch Tracking : 3 vols dans le sens du diagnostic | Communauté [S25, S34] | Arrêt au premier vol « trop haut » |
 | Guide : finitions | I 0,8–1,0 (jusqu'à 5"), 0,6–0,8 (6" et plus) | Communauté [S34, S36] + choix de Cédric | Plages de départ, arrondies autour des valeurs de Brian White |
-| Série Feedforward (finitions) | pas de 0,5 (0, 0,5, 1), Acro uniquement ; retard consigne → gyro par vol, dans l'Assistant et sous les logs du guide, sans valeur conseillée | Choix de Cédric (2026-10-12) + firmware | Remplace les plages de départ 0,8–1,2 / 0,5–1,0. Pas jugée par le Diagnostic du réglage : le feedforward fausse la réponse indicielle. Retard par intercorrélation (`analysis/delay.py:xcorr_delay_ms`). Feedforward coupé en mode Angle (`pid.c`) : un vol de la série en mode Angle est signalé |
+| Série Feedforward (finitions) | pas de 0,5 (0, 0,5, 1), Acro uniquement ; retard consigne → gyro par vol, dans l'Assistant et sous les logs du guide, sans valeur conseillée | Choix de Cédric (2026-10-12) + firmware | Remplace les plages de départ 0,8–1,2 / 0,5–1,0. Pas jugée par le Diagnostic du réglage : le feedforward fausse la réponse indicielle. Retard par intercorrélation (`rust/otb-analysis/src/delay.rs:xcorr_delay_ms`). Feedforward coupé en mode Angle (`pid.c`) : un vol de la série en mode Angle est signalé |
 | Guide : repères de fin des filtres | gyro filtré ≤ −30 dB, terme D ≤ −10 dB (échelle PIDtoolbox, partie stationnaire) ; retard sous l'objectif de la taille (D : + 0,5 ms, écart de mesure avec PIDtoolbox) | Communauté [S20, S21, S26] | Mêmes repères que l'assistant (`rules.GYRO_PTB_MAX_DB`, `DTERM_PTB_MAX_DB`, `profiles.filter_delay_target_ms`) |
 | Diagnostic du réglage : feedforward | F > 0 hors mode Angle (≥ 90 % du vol), sauf vols d'une série Feedforward | Firmware + communauté [S32] | Le feedforward est forcé à 0 en Angle (`pid.c`), pas en Horizon |
 | Diagnostic du réglage : Damping | pic roll ≤ 1,05 ; ou le cran suivant baisse le pic de moins de 0,02 (pic ≤ 1,10) ; pitch au-dessus de 1,05 et de 0,02 de plus que le roll → Pitch Damping +0,2 | Communauté [S24, S25, S32] + corpus | Repère 1,03 (`rules.STEP_PEAK_FLAT`) plus le bruit d'un vol ; 9 séries de choix connu. Série Pitch Damping : même règle sur le pitch |
@@ -744,10 +744,10 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Dépassement | sans feedforward : pic > 1,20 (conseil), > 1,25 (attention) ; avec feedforward : > 1,60, > 1,70 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon le feedforward en service, 0 en mode Angle (D-025, 2026-10-13, « Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode de Brian White [S24, S25]) |
 | Dépassement dû au feedforward | feedforward en service (F > 0 hors mode Angle) et latence < p10 de la taille | Corpus | Séries du corpus où seul F change (2026-10-13, 8 drones) : +100 de F = pic +0,24 et latence −3,6 ms ; 7 des 8 dépassements dus au feedforward reconnus ; axes reconnus : terme F 2,85 fois le terme P (autres : 0,33). Voir « Pic de réponse indicielle » |
 | Réponse molle | pic < 1,01 et latence > p90 de la taille | Corpus | Pic : p10 des axes (« Pic de réponse indicielle », 2026-10-12) ; 1,3 % des sessions |
-| Roll et pitch différents | écart de pic > 0,08 (7") à 0,12 (commun) selon la taille | Corpus | Seuils mécaniques (`profiles.py`, voir « Calibration ») |
+| Roll et pitch différents | écart de pic > 0,08 (7") à 0,12 (commun) selon la taille | Corpus | Seuils mécaniques (`profiles.rs`, voir « Calibration ») |
 | Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
 | Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |
-| D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Corpus | Choisit le conseil (Master −0,1 plutôt que plus de D). 55 séries Damping et Pitch Damping (« D dominant », 2026-10-12) : dès 1,0, un cran de D fait monter le pic de sensibilité ; aussi la simulation (`tests/test_loop.py`) et la série BlackSummer (`validation.md`) |
+| D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Corpus | Choisit le conseil (Master −0,1 plutôt que plus de D). 55 séries Damping et Pitch Damping (« D dominant », 2026-10-12) : dès 1,0, un cran de D fait monter le pic de sensibilité ; aussi la simulation (`test_loop` de l'ancienne version Python) et la série BlackSummer (`validation.md`) |
 | Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + corpus | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes vérifiées sur le corpus (« Bandes de bruit », 2026-10-13) : 80 Hz peu sensible (60–100 Hz : 92 à 100 % des mêmes sessions), 500 Hz = plus haute borne commune aux logs à 1 kHz (26 % des sessions), 20–80 Hz signale autant les vols stationnaires (11 %) que les vols avec mouvements (10 %) |
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
 | Terme D, échelle de PIDtoolbox | sommet > −10 dB (attention, avec le p90) ; idéal < −20 dB (texte) | Communauté | Brian White [S20] (« maybe minus 10 would be the highest ») ; 18 % des sessions (voir « Repères de PIDtoolbox ») |
@@ -792,8 +792,8 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
 | Notch statique conseillé | seulement si le notch dynamique ne peut pas traiter la raie (boucle PID < 2 kHz, 7 notchs, raie > 980 Hz), jamais sous 100 Hz ; coupure tirée du Q nécessaire pour la raie, 0,62 à 0,89 × sa fréquence ; 0,7 sans mesure | Choix de Cédric + théorie + firmware | Même calcul que le Q du notch dynamique [S31], `filterGetNotchQ` ; repli 0,7 dans la plage des défauts de Betaflight 3.2.0 (0,5 à 0,75), voir « Règles » (2026-10-12) ; D-024 |
 
-Le champ `resonance_hz` des profils (`advisor/profiles.py`) est renseigné mais **aucune règle ne
-l'utilise** ; `hover_hz` ne sert qu'à la fiche drone du guide (`advisor/drone_card.py:log_rate`,
+Le champ `resonance_hz` des profils (`rust/otb-advisor/src/profiles.rs`) est renseigné mais **aucune règle ne
+l'utilise** ; `hover_hz` ne sert qu'à la fiche drone du guide (`rust/otb-advisor/src/drone_card.rs:log_rate`,
 fréquence d'enregistrement conseillée d'après le milieu de la plage).
 
 ### Sources vérifiées
@@ -817,7 +817,7 @@ fréquence d'enregistrement conseillée d'après le milieu de la plage).
 Jusqu'à la version 0.3.0, le pic de sensibilité et la marge de phase étaient calculés sur L = T/(1 − T),
 T étant la fonction de transfert consigne → gyro. Ce n'est la vraie boucle ouverte que si tout le
 régulateur agit sur l'erreur ; dans Betaflight le D agit sur le gyro et le feedforward sur la consigne.
-Depuis, `analysis/loop.py` **mesure** L = G·(Ce + Cd) à partir des termes P, I, D, F loggés
+Depuis, `rust/otb-analysis/src/open_loop.rs` **mesure** L = G·(Ce + Cd) à partir des termes P, I, D, F loggés
 (`spec-methodes.md`, « Boucle ouverte ») : c'est la boucle des manuels, à laquelle les limites de
 Skogestad et Postlethwaite et d'Åström et Murray s'appliquent directement. Ce que montrent la simulation
 et les vrais logs (`validation.md`) :

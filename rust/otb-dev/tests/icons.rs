@@ -126,22 +126,14 @@ fn generate_writes_both_files_and_nothing_on_error() {
 }
 
 #[test]
-fn find_svg_prefers_the_given_path_then_known_places() {
+fn find_svg_prefers_the_given_path_then_the_default_place() {
     let dir = std::env::temp_dir().join(format!("otb-svg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     assert!(find_svg(&dir, None).unwrap_err().contains("introuvable"));
-    let old = dir.join("src/opentunebox/gui/assets/opentunebox.svg");
-    fs::create_dir_all(old.parent().expect("parent")).expect("dossiers");
-    fs::write(&old, SVG).expect("svg");
-    assert_eq!(find_svg(&dir, None), Ok(old.clone()));
     let new = dir.join("rust/otb-gui/assets/opentunebox.svg");
     fs::create_dir_all(new.parent().expect("parent")).expect("dossiers");
     fs::write(&new, SVG).expect("svg");
-    assert_eq!(
-        find_svg(&dir, None),
-        Ok(new),
-        "le nouvel emplacement passe avant l'ancien"
-    );
+    assert_eq!(find_svg(&dir, None), Ok(new));
     assert_eq!(find_svg(&dir, Some(Path::new("x.svg"))), Ok(PathBuf::from("x.svg")));
 }
 

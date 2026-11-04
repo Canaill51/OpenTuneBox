@@ -116,7 +116,8 @@ pub fn broken_links(md: &Path, text: &str) -> Vec<String> {
 
 // ------------------------------------------------------------------------------------------------ chemins et symboles
 
-/// Préfixes des chemins du dépôt cités entre `…` ; ceux de `gui/`, `analysis/`… sont relatifs à `src/opentunebox/` (Python).
+/// Préfixes des chemins du dépôt cités entre `…`. Ceux de `gui/`, `analysis/`… (relatifs à l'ancien `src/opentunebox/`, Python) ne
+/// sont plus acceptés que dans les documents historiques (`HISTORICAL_DOCS`).
 pub const REPO_PREFIXES: [&str; 8] = [
     "src/opentunebox/",
     "tests/",
@@ -128,13 +129,28 @@ pub const REPO_PREFIXES: [&str; 8] = [
     "rust/",
 ];
 /// Chemins supprimés du dépôt mais cités par les registres et le journal des versions (l'historique les garde) : jamais signalés.
-pub const REMOVED_PATHS: [&str; 1] = ["rust/otb-spike-egui"];
+pub const REMOVED_PATHS: [&str; 2] = ["rust/otb-spike-egui", "rust/otb-py"];
 pub const PKG_DIRS: [&str; 5] = ["decoder/", "log/", "analysis/", "advisor/", "gui/"];
+/// Documents qui racontent l'histoire du projet : ils peuvent citer des fichiers Python disparus à la phase 7-5 (D-035). Les autres
+/// documents décrivent le dépôt tel qu'il est et ne citent que des chemins qui existent.
+pub const HISTORICAL_DOCS: [&str; 5] = [
+    "CHANGELOG.md",
+    "docs/decisions.md",
+    "docs/lecons.md",
+    "docs/migration-rust.md",
+    "docs/travaux-reportes.md",
+];
 
-/// Le symbole est défini dans un fichier Python : `def`, `class` ou affectation simple (les méthodes et les affectations internes comptent).
-pub fn py_symbol_defined(text: &str, name: &str) -> bool {
-    let n = regex::escape(name);
-    re(&format!(r"(?m)^\s*(?:(?:async\s+)?def|class)\s+{n}\b|^\s*{n}\s*=[^=]")).is_match(text)
+/// Le chemin désigne un fichier de l'ancienne version Python (disparue en 7-5) : module sous `src/opentunebox/`, script, test, emballage.
+pub fn is_removed_python_path(path: &str) -> bool {
+    let ext = path.rsplit_once('.').map_or("", |(_, e)| e);
+    path.starts_with("src/opentunebox/")
+        || PKG_DIRS.iter().any(|p| path.starts_with(p))
+        || path.starts_with("tools/")
+        || path.starts_with("widgets/")
+        || path.starts_with("scripts/")
+        || path.starts_with("packaging/macos")
+        || matches!(ext, "py" | "spec" | "icns")
 }
 
 /// Le symbole est déclaré dans un fichier Rust : `fn`, `struct`, `enum`, `trait`, `const`, `static`, `type`, `mod`, `macro_rules!`.
@@ -147,7 +163,8 @@ pub fn rs_symbol_defined(text: &str, name: &str) -> bool {
 }
 
 /// Chemins cités entre `…` (`rust/otb-gui/src/app.rs:App`, `packaging/…`) : le fichier existe, et le symbole s'il est donné.
-pub fn missing_paths(root: &Path, text: &str) -> Vec<String> {
+/// `historical` : le document est un registre d'histoire, un chemin Python disparu n'y est pas signalé.
+pub fn missing_paths(root: &Path, text: &str, historical: bool) -> Vec<String> {
     let src = root.join("src").join("opentunebox");
     let span_re = re(r"^([\w./-]+?)(?::(\w+))?$");
     let mut missing = Vec::new();
@@ -162,6 +179,9 @@ pub fn missing_paths(root: &Path, text: &str) -> Vec<String> {
         let path = m[1].trim_end_matches('/');
         let symbol = m.get(2).map(|s| s.as_str());
         if REMOVED_PATHS.iter().any(|r| path.starts_with(r)) {
+            continue;
+        }
+        if historical && is_removed_python_path(path) && !root.join(path).exists() {
             continue;
         }
         let candidates: Vec<PathBuf> = if REPO_PREFIXES.iter().any(|p| path.starts_with(p)) {
@@ -180,7 +200,6 @@ pub fn missing_paths(root: &Path, text: &str) -> Vec<String> {
                 if let Some(sym) = symbol {
                     let ext = found.extension().and_then(|e| e.to_str()).unwrap_or("");
                     let ok = match ext {
-                        "py" => py_symbol_defined(&read(found), sym),
                         "rs" => rs_symbol_defined(&read(found), sym),
                         _ => true,
                     };
@@ -494,7 +513,7 @@ fn close(a: f64, b: f64) -> bool {
 pub fn assistant_doc_problems(text: &str, profiles: &[ProfileView]) -> Vec<String> {
     let mut problems = Vec::new();
     let (Some(a), Some(b)) = (
-        text.find("Seuils retenus dans `advisor/profiles.py`"),
+        text.find("Seuils retenus dans `rust/otb-advisor/src/profiles.rs`"),
         text.find("Pour un profil provisoire"),
     ) else {
         return vec!["sections « Seuils retenus » ou « Pour un profil provisoire » introuvables".into()];
