@@ -1,6 +1,8 @@
 # Contribuer à OpenTuneBox
 
-Projet public sous licence GNU GPL 3 (voir [LICENSE](LICENSE)) : en proposant une modification, vous acceptez qu'elle soit publiée sous cette licence.
+Projet public sous licence [PolyForm Noncommercial 1.0.0](LICENSE) : le code est ouvert, tout usage commercial est interdit (D-045).
+En proposant une modification, vous acceptez qu'elle soit publiée sous cette seule licence — ni CLA à signer, ni cession supplémentaire,
+et l'auteur ne se réserve aucun droit commercial.
 Les consignes techniques détaillées (organisation
 du code, pièges, commandes) sont dans [AGENTS.md](AGENTS.md) ; elles valent pour les humains comme pour les agents IA.
 
@@ -55,8 +57,9 @@ Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connu
 livrées (`cargo-deny`, réglages dans `rust/deny.toml`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
 a une faille publiée : la mettre à jour. En local : `(cd rust && cargo deny check)` (failles RustSec, licences, origine des crates ; la base d'avis est téléchargée à
 chaque passage). Un avis « non maintenu » sans correctif ne se retire pas du contrôle : il entre dans `ignore` de
-`rust/deny.toml` avec sa raison et un numéro `W-xxx`. Une licence nouvelle (surtout un copyleft : GPL, LGPL) se discute avec
-Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises à jour des crates (écosystème `cargo`).
+`rust/deny.toml` avec sa raison et un numéro `W-xxx`. Une licence nouvelle se discute avec Cédric avant d'entrer dans la liste
+`allow`, et une licence à **copyleft** (GPL, LGPL, AGPL, MPL) est un **refus**, pas une discussion : du code sous copyleft ne peut pas être
+redistribué sous une licence qui interdit l'usage commercial (D-045). Dependabot propose aussi les mises à jour des crates (écosystème `cargo`).
 
 ## Publier une version
 

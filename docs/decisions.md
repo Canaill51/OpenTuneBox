@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-045 | Licence PolyForm Noncommercial 1.0.0 : code ouvert, tout usage commercial interdit, sans double licence ni exception vendue | 2026-11-04 |
 | D-044 | Décodeur : en-tête refusé au-delà de 512 champs ou hors de 1 à 65 535 pour les intervalles ; mémoire insuffisante = erreur ; réglages à zéro signalés | 2026-11-04 |
 | D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres | 2026-11-04 |
 | D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
@@ -117,6 +118,53 @@ ici, jamais dans le code.
 
 ---
 
+## 2026-11-04 — Licence non commerciale
+
+### D-045 : la licence est PolyForm Noncommercial 1.0.0 ; tout usage commercial est interdit
+
+Amende D-043 (la licence seulement ; le dépôt reste public et le reste de D-043 reste en vigueur).
+
+**Contexte.** Le 2026-11-04, quelques heures après le passage sous GPL 3 (D-043), Cédric reprend la question : il veut que le code reste ouvert
+mais que l'application ne puisse pas être vendue — « je ne souhaite pas du tout qu'il soit possible de la vendre non plus. Personne ne pourra en
+tirer une valeur commerciale ». La GPL 3 ne peut pas l'imposer : elle **autorise** la vente et oblige seulement à livrer les sources. Une licence
+qui interdit la vente sort de la définition « open source » (OSI, FSF), qui exige d'autoriser l'usage commercial : le choix est donc entre un
+copyleft fort (vente légale mais sans intérêt) et une licence « source disponible » (vente interdite). Cédric tranche pour l'interdiction nette.
+
+**Décision.**
+- Licence **PolyForm Noncommercial 1.0.0** (texte officiel dans `LICENSE`, précédé de la ligne `Required Notice:` que prévoit la licence).
+  Copyright : Cédric. Tout usage **non commercial** est permis (personnel, loisir, club, association, enseignement, recherche publique, santé
+  et secours) ; l'usage commercial est interdit : revente, version modifiée vendue, service payant, usage professionnel.
+- **Pas de double licence, pas d'exception commerciale vendue, l'auteur compris.** Portée réelle de cet engagement, écrite sans illusion : une
+  contribution reçue sous cette licence **lie** l'auteur du projet (il ne peut pas la commercialiser sans l'accord de son auteur), tandis que sur
+  son propre code aucune licence ne contraint le titulaire du copyright — l'engagement y est une **promesse publique**, consignée ici et dans le
+  README, non un verrou juridique.
+- Les contributions sont publiées **sous la seule licence du projet** : pas de CLA, pas de cession supplémentaire (`CONTRIBUTING.md`).
+- **Aucune dépendance à copyleft** n'est désormais acceptable (GPL, LGPL, AGPL, MPL) : du code sous copyleft ne peut pas être redistribué sous une
+  licence qui interdit l'usage commercial. C'est un refus, plus une discussion (`rust/deny.toml`, `CONTRIBUTING.md`).
+- Les installateurs livrent `LICENSE` à côté de `THIRD-PARTY-LICENSES.txt` (section « Notices » de la licence : quiconque reçoit une copie reçoit
+  les termes et la ligne `Required Notice:`) ; l'installateur Windows l'affiche aussi à l'installation (`LicenseFile`).
+- Conséquence assumée : OpenTuneBox n'est plus « open source » au sens OSI/FSF mais **« source disponible »**. Il sort des dépôts Debian, Fedora et
+  Flathub, GitHub n'affiche plus de licence reconnue, et certains contributeurs refuseront de travailler sur du non-libre. Le « Open » du nom
+  désigne le code ouvert, pas la définition OSI (dit dans le README).
+- Les droits GPL 3 **déjà accordés ne sont pas révocables** : qui aurait cloné le dépôt entre son passage en public et ce commit garderait les
+  droits GPL sur cet instantané, et les commits concernés restent sous GPL dans l'historique. Les témoins ci-dessous rendent le risque nul en
+  pratique (personne n'a copié le dépôt).
+- Options écartées : **AGPL 3 + double licence** (reste open source et ferme le trou du service web, mais n'empêche pas un tiers d'en vivre tant
+  qu'il publie son code : contraire à la volonté de Cédric) ; **Commons Clause** sur Apache 2.0 (le mot « vendre » n'y est pas défini, licence mal
+  vue) ; **CC BY-NC-SA** (Creative Commons la déconseille elle-même pour du logiciel : ni code source ni brevets) ; **BUSL 1.1** et **FSL** (elles
+  rebasculent en licence libre après 2 à 4 ans, ce qui rouvrirait la vente).
+
+**Témoins.** `LICENSE` : 4 647 octets. Texte officiel récupéré par
+`gh api repos/polyformproject/polyform-licenses/contents/PolyForm-Noncommercial-1.0.0.md` (4 563 octets, 73 lignes, 16 sections) et vérifié
+identique par `diff` après ajout de la ligne `Required Notice:`. Relicenciement possible sans l'accord de personne : `git log --format='%an <%ae>'`
+donne 433 commits de Cédric et 1 de dependabot (mise à jour de version, pas une œuvre). Aucune dépendance copyleft : la liste `allow` de
+`rust/deny.toml` (MIT, Apache-2.0, BSD-2/3, ISC, Zlib, Unlicense, BSL-1.0, Unicode-3.0, OFL-1.1, Ubuntu-font-1.0) et `cargo deny check`.
+Exposition du code déjà publié sous GPL 3 : `gh api repos/Canaill51/OpenTuneBox` donne 0 fork, 0 étoile, 0 abonné et 0 version publiée le jour du
+changement. Livraison de la licence par les installateurs : `cargo test -p otb-dev --test install_linux`
+(`la_licence_du_projet_est_installee_avec_les_mentions_tierces`, rouge avant la correction des trois scripts, vert après).
+
+**Ouvert.** W-046 (police Ubuntu Light) : la cause du conflit disparaît avec cette licence, le point reste à clore par Cédric.
+
 ## 2026-11-04 — Bornes du décodeur
 
 ### D-044 : le décodeur refuse un en-tête qui annonce plus de 512 champs ou un intervalle hors de 1 à 65 535
@@ -137,6 +185,8 @@ ici, jamais dans le code.
 ## 2026-11-04 — Dépôt public et licence
 
 ### D-043 : le dépôt est public, sous licence GPL 3
+
+✏️ AMENDÉE par D-045 (la licence : PolyForm Noncommercial 1.0.0 au lieu de la GPL 3 ; le dépôt reste public et le reste de D-043 reste en vigueur).
 
 Amende D-001 (« projet privé, tous droits réservés, pas de licence libre » ; le reste de D-001 reste en vigueur) et le résumé d'`AGENTS.md`.
 

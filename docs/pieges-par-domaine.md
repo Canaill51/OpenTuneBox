@@ -82,5 +82,7 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 
 ## Construction des exécutables
 
+- Test qui exécute un programme **qu'il vient de copier ou d'écrire** (scripts d'installation, AppImage) : réessayer sur « Text file busy »
+  (`ETXTBSY`, code 26), car un test voisin du même binaire qui lance un processus fait échouer l'exécution par intermittence (L-082).
 - Ancienne version Python (PyInstaller, supprimée en 7-5) : `binutils` requis sous Linux (L-020) ; exécutable Windows sans console : `sys.stdout`
   vaut `None` (L-021). Windows : construire sur le système cible.

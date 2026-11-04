@@ -2,8 +2,8 @@
 # Installe OpenTuneBox pour l'utilisateur courant et l'ajoute au menu des applications (KDE, GNOME…).
 #   sh packaging/linux/install_linux.sh             compile le programme (cargo build --release) puis l'installe
 #   sh packaging/linux/install_linux.sh CHEMIN      installe le programme déjà compilé (ex. rust/target/release/opentunebox-gui)
-# Rien n'est installé hors de ~/.local : le programme (~/.local/bin/opentunebox-gui), l'icône, le fichier .desktop et les mentions de
-# licences (~/.local/share/doc/opentunebox/). Pour retirer : supprimer ces éléments (programme, icônes, OpenTuneBox.desktop, dossier doc).
+# Rien n'est installé hors de ~/.local : le programme (~/.local/bin/opentunebox-gui), l'icône, le fichier .desktop, la licence du projet
+# et les mentions des composants tiers (~/.local/share/doc/opentunebox/). Pour retirer : supprimer ces éléments (programme, icônes, OpenTuneBox.desktop, dossier doc).
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BIN_DIR="$HOME/.local/bin"
@@ -29,6 +29,9 @@ mkdir -p "$BIN_DIR" "$APPS" "$DOC" "$HICOLOR/scalable/apps" "$HICOLOR/256x256/ap
 # ouvert, ce qui est le cas d'une mise à jour ; `mv` remplace le fichier même s'il tourne (l'ancienne fenêtre garde l'ancien programme).
 cp "$BIN" "$BIN_DIR/.opentunebox-gui.new"
 mv -f "$BIN_DIR/.opentunebox-gui.new" "$BIN_DIR/opentunebox-gui"
+# Licence du projet : la section « Notices » de PolyForm Noncommercial oblige à remettre ses termes et sa ligne `Required Notice:`
+# à quiconque reçoit une copie du programme (D-045).
+cp "$ROOT/LICENSE" "$DOC/LICENSE"
 # Mentions de licences des composants embarqués (polices, icônes, bibliothèques), exigées par leurs licences (W-043).
 cp "$ROOT/THIRD-PARTY-LICENSES.txt" "$DOC/THIRD-PARTY-LICENSES.txt"
 # Icône vectorielle, plus un PNG de 256 px : certains menus et barres des tâches n'utilisent que des PNG.
