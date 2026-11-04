@@ -5,6 +5,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- Plan par lots des cinq chantiers après la migration Rust (`docs/plan-chantiers.md`), issu de l'audit du 2026-11-04 : robustesse du décodeur face à un en-tête hostile (boucle sans fin, allocation géante), résultat périmé affiché par le socle des outils, commande unique de vérification `otb-dev verify` et crochet de pré-commit sans `jq`, mémoire du décodeur, consignes et CI remises à jour. Une PR par lot, preuves et contre-preuves exigées, décisions de Cédric consignées (bornes du décodeur : 512 champs, intervalles 1 à 65 535).
+
 ### Modifié
 - Le dépôt est **public**, sous licence **GNU GPL 3** (D-043) : `LICENSE` contient le texte officiel, README, CONTRIBUTING, AGENTS et `deny.toml` ne parlent plus de projet privé. Les versions v0.2.0 à v0.8.0 (builds Python, PySide6/Qt, macOS) ont été retirées de la page Releases (les étiquettes git restent). Les pseudos de pilotes tiers sont remplacés par des noms neutres dans la documentation. Point ouvert : la police Ubuntu Light d'egui face à la GPL (W-046).
 - Mentions de licences livrées (W-043) : un fichier `THIRD-PARTY-LICENSES.txt` (324 composants : bibliothèques Rust, polices Hack et Ubuntu Light, logos d'egui, icônes Lucide) est installé avec le programme par l'installateur Windows, l'AppImage et `install_linux.sh`. Les licences des polices (Ubuntu Font Licence, MIT, Bitstream Vera) et des bibliothèques (MIT, Apache 2.0, BSD…) demandent de conserver leur avis dans les copies livrées. Le fichier est produit par `otb-dev licenses` (lecture des fichiers de licence de chaque paquet, textes identiques regroupés ; 22 composants, surtout la famille egui, n'en ont pas dans leur paquet : ils sont listés avec leur licence et leurs auteurs déclarés). La licence OFL de la crate des polices ne concerne que NotoEmoji, non compilée chez nous : un test signale son apparition.
