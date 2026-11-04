@@ -10,6 +10,7 @@
 | [pieges-par-domaine.md](pieges-par-domaine.md) | Développeurs, agents IA | Règles courtes des pièges rangées par domaine (décodeur, analyses, filtres, interface, exécutables) |
 | [travaux-reportes.md](travaux-reportes.md) | Développeurs, agents IA | Ce qui est vu et laissé de côté (`W-xxx`), et quand le reprendre |
 | [migration-rust.md](migration-rust.md) | Développeurs, agents IA | Plan de migration vers Rust (D-031), phases, preuves d'équivalence |
+| [plan-chantiers.md](plan-chantiers.md) | Développeurs, agents IA | Plan par lots des cinq chantiers après la migration (robustesse, résultat périmé, vérification, mémoire, consignes) |
 | [validation.md](validation.md) | Développeurs, agents IA | Preuves de justesse (décodeur, recoupement PIDtoolbox) |
 | [spec-betaflight.md](spec-betaflight.md) | Développeurs | Formules du firmware : filtres, debug, en-têtes, unités |
 | [spec-methodes.md](spec-methodes.md) | Développeurs | Méthodes d'analyse (FFT, Wiener, retards) et repères de réglage |
