@@ -1,7 +1,7 @@
 # Migration vers Rust
 
 Plan et suivi de la réécriture d'OpenTuneBox en Rust, **sans régression** (décision D-031, travail reporté W-015).
-Ce document ne vit que sur `feat/rust-migration` : `main` reste en Python jusqu'à la validation finale.
+**Terminé le 2026-11-04 (PR 96) : `main` est en Rust.** Ce qui suit est l'histoire du chantier, gardée telle quelle ; il décrit l'état d'alors (`main` en Python, branche d'intégration `feat/rust-migration`).
 
 ## Branches
 

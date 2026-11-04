@@ -5,7 +5,7 @@
 name: Audit
 on:
   push:
-    branches: [main, feat/rust-migration]
+    branches: [main]
   pull_request:
   schedule:
     - cron: "0 5 * * 1"
