@@ -127,6 +127,12 @@ pub struct ToolPage<T: Tool> {
     /// Message d'erreur du dernier calcul (barre d'état).
     pub status: String,
     asked: Option<(T::Options, Vec<usize>, u64)>,
+    /// Numéro de la dernière demande (ou du dernier vidage) : seul le résultat qui le porte est affiché (C2).
+    latest: u64,
+    /// Numéro de la demande du calcul en cours dans le `Runner`.
+    in_flight: u64,
+    /// Numéro de la demande mise en attente derrière le calcul en cours.
+    queued: Option<u64>,
     export: bool,
 }
 
@@ -138,6 +144,9 @@ impl<T: Tool> ToolPage<T> {
             last: None,
             status: String::new(),
             asked: None,
+            latest: 0,
+            in_flight: 0,
+            queued: None,
             export: false,
         }
     }
@@ -155,6 +164,13 @@ impl<T: Tool> ToolPage<T> {
         let (opts, sel) = (self.tool.options(), self.tool.selected(state));
         let inputs = state.inputs(&sel);
         self.asked = Some((opts.clone(), sel, state.revision()));
+        self.latest += 1;
+        // même règle que `Runner::request` : lancé tout de suite, ou en attente (la dernière remplace la précédente)
+        if self.runner.busy() {
+            self.queued = Some(self.latest);
+        } else {
+            self.in_flight = self.latest;
+        }
         self.runner.request(ctx, move || T::compute(opts, inputs));
     }
 
@@ -169,12 +185,21 @@ impl<T: Tool> ToolPage<T> {
     /// Lit un résultat terminé et relance au besoin si les réglages, la sélection ou les logs ont changé.
     pub fn update(&mut self, ctx: &egui::Context, state: &AppState) {
         if let Some(res) = self.runner.poll(ctx) {
-            match res {
-                Ok(out) => {
-                    self.last = Some(out);
-                    self.status.clear();
+            let id = self.in_flight;
+            // `poll` a lancé la demande en attente, s'il y en avait une
+            if let Some(next) = self.queued.take() {
+                self.in_flight = next;
+            }
+            // un résultat qui ne porte pas le dernier numéro vient d'une sélection, de réglages ou d'un état
+            // périmés : on le jette, une demande plus récente est en route (ou l'état a été vidé)
+            if id == self.latest {
+                match res {
+                    Ok(out) => {
+                        self.last = Some(out);
+                        self.status.clear();
+                    }
+                    Err(e) => self.status = error_status(&e),
                 }
-                Err(e) => self.status = error_status(&e),
             }
         }
         let now = (self.tool.options(), self.tool.selected(state), state.revision());
@@ -183,6 +208,7 @@ impl<T: Tool> ToolPage<T> {
                 // comme Python : pas de calcul sans log, l'ancien résultat disparaît
                 self.last = None;
                 self.status = NO_LOG.into();
+                self.latest += 1; // un calcul encore en cours devient périmé
                 self.asked = Some(now);
             } else {
                 self.run(ctx, state);

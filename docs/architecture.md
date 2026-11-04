@@ -73,7 +73,8 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 - `worker.rs` : file d'attente d'un calcul par outil, en arrière-plan ; le résultat revient au thread de l'interface.
 - `tool.rs` : trait `Page` (une page de la fenêtre principale) et trait `Tool` ; `Tool::compute` est une fonction associée
   sans `self` : elle ne peut pas lire les réglages de l'interface, elle ne reçoit que `Options` (copie des réglages au moment de la
-  demande) et `LogInput`, deux types `Send` (le compilateur fait respecter la règle).
+  demande) et `LogInput`, deux types `Send` (le compilateur fait respecter la règle). `ToolPage` numérote chaque demande (`latest`) et ne garde que le résultat
+  qui porte le dernier numéro : un calcul terminé après un changement de sélection ou après le vidage de l'état est jeté (C2).
 - Outils (`tools/`, une page chacun dans la fenêtre principale, enregistrés par `tools::all_pages` dans `rust/otb-gui/src/tools/mod.rs`) :
 
   | Bouton | Module | Fenêtre |

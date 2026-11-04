@@ -173,18 +173,18 @@ d'`architecture.md` et d'`AGENTS.md` fait rougir `every_module_documented`. Dét
 `docs/lecons.md` L-071 (prouver une protection en la cassant), W-036 point (8) (correction locale faite dans le Simulateur
 par un identifiant, à généraliser).
 
-- [ ] **Test d'abord** (rouge) dans `rust/otb-gui/tests/tool.rs` : bloquer le calcul par la barrière, vider l'état
+- [x] **Test d'abord** (rouge) dans `rust/otb-gui/tests/tool.rs` : bloquer le calcul par la barrière, vider l'état
       (`clear`), avancer d'une image, libérer la barrière, avancer d'une image → le résultat doit être `None` et le statut
       « Sélectionnez au moins un log. ». Second test : changer la sélection pendant un calcul → le résultat de l'ancienne
       sélection ne s'affiche jamais (vérifier le contenu, pas seulement l'absence).
-- [ ] Correction : numéroter chaque demande (`request`) et faire porter le numéro par le résultat ; `update` ignore tout
+- [x] Correction : numéroter chaque demande (`request`) et faire porter le numéro par le résultat ; `update` ignore tout
       résultat dont le numéro n'est pas celui de la dernière demande (`asked`). Ne pas toucher au cache (`state.rs`) : L-071.
-- [ ] Vérifier que le Simulateur de filtres (correction locale W-036 (8)) continue de passer ses tests, puis retirer son
+- [x] Vérifier que le Simulateur de filtres (correction locale W-036 (8)) continue de passer ses tests, puis retirer son
       mécanisme propre s'il devient redondant (sinon le laisser et le dire).
-- [ ] Documentation : `docs/architecture.md` (socle des outils), W-036 (8) mis à jour, `CHANGELOG.md` (*Corrigé*).
-- [ ] Vérification : `verify` vert ; **contre-preuve** : revenir au `update` d'origine, les deux nouveaux tests rougissent ;
+- [x] Documentation : `docs/architecture.md` (socle des outils), W-036 (8) mis à jour, `CHANGELOG.md` (*Corrigé*).
+- [x] Vérification : `verify` vert ; **contre-preuve** : revenir au `update` d'origine, les deux nouveaux tests rougissent ;
       `cargo run --release -p otb-gui --example check_tools` sans écart.
-- [ ] Critère d'arrêt : si `egui_kittest` ne permet pas d'avancer d'une seule image entre le `clear` et la libération,
+- [x] Critère d'arrêt : si `egui_kittest` ne permet pas d'avancer d'une seule image entre le `clear` et la libération,
       le dire et proposer un test de `Runner` seul plutôt que d'affaiblir le test.
 
 ## Lot 4 : décodeur robuste face à un en-tête hostile (Opus) — C1
