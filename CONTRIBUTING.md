@@ -38,17 +38,10 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    gh pr create --base main --title "fix/windows-close-crash"
    ```
 
-## Migration vers Rust (branche d'intégration)
+## Migration vers Rust (terminée)
 
-Exception temporaire à la règle « créer une branche depuis `main` » (D-031) : tant que la migration n'est pas
-fusionnée, `main` reste en Python et le travail Rust passe par `feat/rust-migration`. Chaque étape a sa branche,
-créée depuis `feat/rust-migration`, et sa PR **vers `feat/rust-migration`** (titre = nom de la branche) :
-```sh
-git switch feat/rust-migration && git switch -c feat/rust-decoder
-gh pr create --base feat/rust-migration --title "feat/rust-decoder"
-```
-Rapatrier les correctifs de `main` : `git switch feat/rust-migration && git merge main`. Plan et preuves
-d'équivalence : [docs/migration-rust.md](docs/migration-rust.md).
+La migration est terminée depuis le 2026-11-04 (PR 96) : toute branche part de `main`, et la branche d'intégration `feat/rust-migration` est
+supprimée sur GitHub. Son histoire et ses preuves d'équivalence : [docs/migration-rust.md](docs/migration-rust.md).
 
 ## Contrôles et mises à jour automatiques des dépendances
 

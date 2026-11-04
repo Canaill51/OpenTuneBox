@@ -42,7 +42,7 @@ et les comparer au code :
 | Commande, script, variable d'environnement | `AGENTS.md` (Commandes), `README.md`, `CONTRIBUTING.md` |
 | Procédure (branches, commits, publication) | `CONTRIBUTING.md`, `AGENTS.md` (Méthode de travail), `.github/PULL_REQUEST_TEMPLATE.md` |
 | Décision de Cédric, choix qui écarte une option, contrat entre deux parties du code | `docs/decisions.md` (nouvelle entrée, ou marque REMPLACÉE / AMENDÉE sur l'ancienne), résumé dans `AGENTS.md` (Décisions fixées) s'il est structurant |
-| Piège qui a coûté du temps (échec silencieux, cause contre-intuitive, récidive) | `docs/lecons.md` (entrée complète + index rapide), règle courte avec son numéro dans `AGENTS.md` (Pièges connus) |
+| Piège qui a coûté du temps (échec silencieux, cause contre-intuitive, récidive) | `docs/lecons.md` (entrée complète + index rapide) ; règle courte avec son numéro dans `AGENTS.md` (Pièges connus) si elle vaut pour toute tâche, sinon dans `docs/pieges-par-domaine.md` (section du domaine) |
 | Défaut vu hors du sujet de la branche, limite assumée, idée repoussée ; travail repris ou abandonné | `docs/travaux-reportes.md` (nouvelle entrée ou changement de statut, jamais de suppression) |
 | Tout changement visible | `CHANGELOG.md`, section *Non publié* (Ajouté / Modifié / Corrigé) |
 
