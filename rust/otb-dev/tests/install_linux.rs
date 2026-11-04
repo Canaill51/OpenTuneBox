@@ -33,6 +33,26 @@ fn nouveau_programme(dossier: &Path, contenu: &str) -> PathBuf {
     p
 }
 
+/// Lance un programme qui vient d'être copié, en réessayant tant que Linux le dit « Text file busy » (`ETXTBSY`).
+/// ⚠️ Sans ce réessai, le test échoue par intermittence (L-082) : les tests de ce fichier tournent en parallèle dans le même
+/// processus et chacun lance des processus (le script d'installation) ; un enfant hérite du descripteur d'écriture de la copie
+/// le temps du `fork`, et le noyau refuse alors d'exécuter le fichier. Le réessai ne touche à aucune assertion.
+fn lance_malgre_etxtbsy(programme: &Path, args: &[&str]) -> std::process::Child {
+    for _ in 0..100 {
+        match Command::new(programme).args(args).stdout(Stdio::null()).spawn() {
+            Ok(enfant) => return enfant,
+            Err(e) if e.raw_os_error() == Some(26) => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            Err(e) => panic!("lancement impossible : {e}"),
+        }
+    }
+    panic!(
+        "programme toujours « Text file busy » après 2 s : {}",
+        programme.display()
+    );
+}
+
 #[test]
 fn la_mise_a_jour_marche_meme_si_le_programme_installe_tourne() {
     let d = dossier_jetable("maj");
@@ -42,11 +62,7 @@ fn la_mise_a_jour_marche_meme_si_le_programme_installe_tourne() {
     // un vrai exécutable (pas un script ni un binaire « multi-appel ») qui reste en cours d'exécution
     let installe_deja = bin.join("opentunebox-gui");
     std::fs::copy(std::fs::canonicalize("/bin/sh").unwrap(), &installe_deja).unwrap();
-    let mut en_cours = Command::new(&installe_deja)
-        .args(["-c", "sleep 20; echo fin"])
-        .stdout(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut en_cours = lance_malgre_etxtbsy(&installe_deja, &["-c", "sleep 20; echo fin"]);
     std::thread::sleep(std::time::Duration::from_millis(500));
 
     let nouveau = nouveau_programme(&d, "#!/bin/sh\necho nouvelle version\n");
@@ -88,6 +104,34 @@ fn les_anciens_png_de_l_ancien_script_sont_retires() {
     assert!(
         home.join(".local/share/icons/hicolor/256x256/apps/opentunebox.png")
             .exists()
+    );
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// La licence du projet (PolyForm Noncommercial 1.0.0, D-045) oblige, dans sa section « Notices », à remettre ses termes et la ligne
+/// `Required Notice:` à quiconque reçoit une copie du programme : l'installateur pose donc `LICENSE` à côté des mentions tierces.
+#[test]
+fn la_licence_du_projet_est_installee_avec_les_mentions_tierces() {
+    let d = dossier_jetable("licence");
+    let home = d.join("home");
+    let sortie = installe(&home, &nouveau_programme(&d, "#!/bin/sh\n"));
+    assert!(
+        sortie.status.success(),
+        "installation échouée : {}",
+        String::from_utf8_lossy(&sortie.stderr)
+    );
+
+    let doc = home.join(".local/share/doc/opentunebox");
+    for fichier in ["LICENSE", "THIRD-PARTY-LICENSES.txt"] {
+        assert!(
+            doc.join(fichier).exists(),
+            "{fichier} n'est pas installé dans ~/.local/share/doc/opentunebox"
+        );
+    }
+    let licence = std::fs::read_to_string(doc.join("LICENSE")).unwrap();
+    assert!(
+        licence.contains("PolyForm Noncommercial License 1.0.0") && licence.contains("Required Notice:"),
+        "la licence installée n'a pas son titre ou sa ligne « Required Notice: »"
     );
     let _ = std::fs::remove_dir_all(&d);
 }

@@ -79,7 +79,8 @@ le lot 2 après le lot 1 (il documente la nouvelle commande) ; les lots 3 et 4 s
    `gh release` (accord de Cédric le même jour). **Changé par Cédric le 2026-11-04** : ces quatre commandes sont en « demander »
    (dans ce projet et dans `~/.claude/settings.json`, donc tous ses dépôts) : l'agent ne les lance qu'avec sa confirmation à
    chaque fois. La règle entre aussi dans `AGENTS.md` au lot 2.
-5. **Première publication Rust.** W-046 (police Ubuntu Light face à la GPL 3) la bloque et relève d'une décision de Cédric.
+5. **Première publication Rust.** W-046 (police Ubuntu Light face à la licence du projet) la bloque et relève d'une décision de
+   Cédric ; depuis D-045 (licence PolyForm Noncommercial, qui n'est pas un copyleft), la cause du conflit a disparu — il reste à clore.
    **Cédric (2026-11-04) : à traiter aussi.** Un lot 7 est réservé en fin de plan ; il ne se détaille qu'une fois W-046 tranché.
 
 ## Lot 0 : sonde du corpus et des références (Sonnet, une courte session)
@@ -264,8 +265,8 @@ Sous-lot 5b, colonnes utiles seulement (PR `perf/decoder-columns`, ouverte seule
 
 ## Lot 7 : première publication Rust (réservé)
 
-Demandé par Cédric le 2026-11-04 ; ne se détaille qu'une fois W-046 tranché (garder la police Ubuntu Light, ou la retirer
-au profit d'une police dont la licence est compatible avec la GPL 3). À prévoir alors : `otb-dev licenses`, `otb-dev release
+Demandé par Cédric le 2026-11-04 ; ne se détaille qu'une fois W-046 tranché (garder la police Ubuntu Light, ou la retirer au profit
+d'une autre police). Depuis D-045, la licence du projet n'est plus un copyleft : la cause du conflit a disparu, la clôture reste à écrire. À prévoir alors : `otb-dev licenses`, `otb-dev release
 prepare`, essai complet de la chaîne par une étiquette `essai-v…` (procédure dans `CONTRIBUTING.md`), puis l'étiquette `v…`
 posée **par Cédric lui-même**.
 

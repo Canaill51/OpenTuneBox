@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-082 : exécuter un programme qu'on vient de copier échoue par intermittence (« Text file busy ») quand un test voisin lance un processus
+- **Symptôme** — 2026-11-05 : `rust/otb-dev/tests/install_linux.rs` échoue 2 fois sur 5 exécutions isolées après l'ajout d'un 3ᵉ cas de test, sur `spawn()` ligne 49 : `Os { code: 26, kind: ExecutableFileBusy, message: "Text file busy" }`. Le cas qui échoue n'est pas le nouveau, et le même fichier passait auparavant (un seul échec constaté en six exécutions de `verify` : W-047, cause alors non trouvée).
+- **Cause (reproduite)** — les cas d'un fichier de test tournent **en parallèle dans le même processus**. L'un copie `/bin/sh` puis l'exécute aussitôt ; les autres lancent le script d'installation. Quand un `fork` se produit pendant que la copie est encore ouverte en écriture, l'enfant hérite du descripteur le temps du `fork`/`exec`, et le noyau refuse d'exécuter un fichier ouvert en écriture (`ETXTBSY`). Plus il y a de cas qui lancent des processus, plus la fenêtre est touchée : d'où un piège qui dormait et devient fréquent.
+- **Règle** — un test qui exécute un fichier **qu'il vient d'écrire** réessaie sur `ETXTBSY` (code 26) au lieu de `unwrap()` : voir `lance_malgre_etxtbsy` dans ce fichier. Réessayer la mise en place ne touche aucune assertion ; ne pas « régler » le problème en désactivant le parallélisme des tests ni en supprimant le cas gênant.
+- **Preuve** — avant : 2 échecs sur 5 exécutions de `cargo test -p otb-dev --test install_linux` ; après le réessai : 10 exécutions de suite au vert (2026-11-05). Clôt W-047.
+
 ### L-080 : une allocation ratée n'est pas une panique : `catch_unwind` ne la rattrape pas, le processus est abandonné
 - **Symptôme** — 2026-11-04 (audit du lot 4) : un en-tête qui déclare 20 000 champs fait demander 67 Go au décodeur ; Rust écrit « memory allocation of … bytes failed » et abandonne le programme entier, sans rien dire à l'interface (qui décode pourtant dans un fil).
 - **Cause (mesurée)** — `Vec::extend_from_slice` et `push` appellent le gestionnaire d'erreur d'allocation, qui abandonne ; `std::panic::catch_unwind` ne voit que les paniques. Réserver d'avance « au mieux » (`try_reserve` dans `Table::new`) ne suffisait pas : la croissance ligne après ligne abandonnait quand même.
@@ -886,6 +892,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-082 | Exécuter un fichier qu'on vient de copier échoue par intermittence (« Text file busy », `ETXTBSY`) quand un test voisin lance un processus dans le même binaire de test : réessayer sur le code 26, sans toucher aux assertions | Tests |
 | L-080 | Allocation ratée = abandon du programme, `catch_unwind` ne la voit pas : `try_reserve` avant chaque ajout, et borner les nombres lus dans l'en-tête (D-044) | Décodeur et logs |
 | L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |
 | L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |

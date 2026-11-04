@@ -92,5 +92,17 @@ Les consignes pour les agents IA (Claude Code, Codex, Copilot…) sont dans [AGE
 
 ## Licence
 
-Logiciel libre sous licence GNU GPL 3 (voir [LICENSE](LICENSE)) ; mentions des composants tiers : [THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt). OpenTuneBox ne contient aucun code de
-PIDtoolbox ; il s'appuie sur les formules publiques du firmware Betaflight et des méthodes d'analyse publiées.
+Le code est ouvert et le programme est gratuit, mais **tout usage commercial est interdit** : licence
+[PolyForm Noncommercial 1.0.0](LICENSE) (D-045). En clair :
+
+- **Autorisé** : utiliser, étudier, modifier et partager OpenTuneBox pour un usage personnel ou de loisir, en club ou en association, dans
+  l'enseignement, la recherche publique, la sécurité civile et les secours.
+- **Interdit** : vendre le programme ou une version modifiée, le proposer comme service payant, ou s'en servir dans une activité
+  professionnelle (atelier de réglage, pilote ou équipe rémunérés, formation payante).
+- **Aucune licence commerciale n'est proposée, ni ne le sera** : l'auteur ne vend pas d'exception. Personne ne doit tirer de valeur
+  commerciale d'OpenTuneBox.
+
+Le « Open » du nom désigne le code ouvert, pas la définition « open source » de l'OSI, qui impose d'autoriser la vente.
+Mentions des composants tiers : [THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt) ; chacun garde sa propre licence.
+OpenTuneBox ne contient aucun code de PIDtoolbox ; il s'appuie sur les formules publiques du firmware Betaflight et des méthodes
+d'analyse publiées.

@@ -39,6 +39,8 @@ WizardStyle=modern
 ChangesAssociations=yes
 ; Fermer OpenTuneBox s'il est ouvert pendant une mise à jour.
 CloseApplications=yes
+; Licence montrée et acceptée à l'installation : usage non commercial seulement (PolyForm Noncommercial 1.0.0, D-045).
+LicenseFile=..\..\LICENSE
 
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
@@ -54,6 +56,8 @@ Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
 Source: "{#ExePath}"; DestDir: "{app}"; DestName: "OpenTuneBox.exe"; Flags: ignoreversion
+; Licence du projet : ses termes doivent accompagner toute copie du programme (section « Notices » de PolyForm Noncommercial, D-045).
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 ; Mentions de licences des composants embarqués (polices, icônes, bibliothèques) : exigées par leurs licences (W-043).
 ; Fichier produit par `otb-dev licenses`.
 Source: "..\..\THIRD-PARTY-LICENSES.txt"; DestDir: "{app}"; Flags: ignoreversion

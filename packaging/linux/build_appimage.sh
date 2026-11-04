@@ -22,9 +22,11 @@ trap 'rm -rf "$WORK"' EXIT
 APPDIR="$WORK/OpenTuneBox.AppDir"
 mkdir -p "$APPDIR/usr/bin"
 cp "$BIN" "$APPDIR/usr/bin/OpenTuneBox"
-# Mentions de licences des composants embarqués (polices, icônes, bibliothèques) : exigées par leurs licences (W-043).
-# Fichier produit par `otb-dev licenses`.
+# Licence du projet, puis mentions des composants embarqués (polices, icônes, bibliothèques). La section « Notices » de PolyForm
+# Noncommercial oblige à remettre les termes du projet avec toute copie (D-045) ; les licences tierces l'exigent aussi (W-043).
+# `THIRD-PARTY-LICENSES.txt` est produit par `otb-dev licenses`.
 mkdir -p "$APPDIR/usr/share/doc/opentunebox"
+cp "$ROOT/LICENSE" "$APPDIR/usr/share/doc/opentunebox/LICENSE"
 cp "$ROOT/THIRD-PARTY-LICENSES.txt" "$APPDIR/usr/share/doc/opentunebox/THIRD-PARTY-LICENSES.txt"
 
 # Point d'entrée : l'AppImage monte son contenu puis lance ce script, qui passe les fichiers à ouvrir.
