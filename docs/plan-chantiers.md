@@ -42,7 +42,8 @@ main
  ├─ fix/decoder-hostile-header  lot 4 : C1
  ├─ perf/decoder-memory         lot 5 : C4 (deux sous-lots, deux PR)
  ├─ docs/chantiers-bilan        lot 6 : bilan et mesures finales
- └─ (à nommer)                  lot 7 : première publication Rust, après décision sur W-046
+ ├─ (à nommer)                  lot 7 : première publication Rust, après décision sur W-046
+ └─ chore/viewer-frame-bench    lot 8 : banc de temps de cadre (W-049), part de perf/decoder-memory
 ```
 
 Chaque branche part de `main` à jour. Dépendances : le lot 1 d'abord (il donne la commande de vérification à tous les
@@ -272,6 +273,53 @@ posée **par Cédric lui-même**.
 - [ ] W-046 tranché (décision `D-xxx` écrite).
 - [ ] Lot détaillé ici, avec ses preuves (installateurs essayés sur Windows et Linux).
 
+## Lot 8 : banc de temps de cadre de l'interface (Opus) — W-049
+
+Issu de l'audit de performance du 2026-11-04 (W-049, W-050, W-051), pas des cinq chantiers de l'audit du dépôt.
+
+**But** : mettre dans le dépôt le banc qui mesure le temps de cadre de l'interface, pour que la correction de W-049 soit
+prouvée par la même mesure avant et après. Les chiffres de W-049 viennent d'un banc écrit hors du dépôt, dans un dossier
+temporaire de session : il est perdu. **Ce lot ne corrige pas W-049**, il fabrique l'instrument.
+
+**À lire** : `rust/otb-gui/examples/banc_carte.rs` (le banc de cadres déjà en place : constante d'essais, médiane, chauffe de
+3 cadres, en-tête qui dit ce qui n'est pas mesuré), `rust/otb-gui/examples/capture.rs` (harnais `egui_kittest` avec rendu
+`wgpu`, attente par `busy()`, « ms par cadre » sur la sortie d'erreur), `rust/otb-gui/tests/spectral.rs` (montage du
+`Harness` avec un vrai log, lignes 169 à 200), `rust/otb-gui/src/viewer_page.rs` (`ui`, et le cache de séries), `docs/travaux-reportes.md`
+W-049, `docs/validation.md` (« Ouverture d'un log », le modèle de consignation), `docs/lecons.md` L-066 (`with_context_setup`
+obligatoire) et L-022 (`verify` sans tube).
+
+Branche `chore/viewer-frame-bench`, **partant de `perf/decoder-memory`** et non de `main` : le banc cite W-049, qui n'existe
+que sur cette branche, et `register_ids_cited_exist` contrôle aussi les fichiers `.rs`. À fusionner après le lot 5.
+
+- [ ] Fichier neuf `examples/banc_cadre.rs` dans `rust/otb-gui/` (nommé comme `banc_carte.rs`, pas en anglais) :
+      `cargo run --release -p otb-gui --example banc_cadre -- LOG [--largeur 1920] [--cadres 60] [--gpu]`.
+      Trois mesures : écran « Guide » (aucune courbe, la référence à soustraire), viewer en vue entière (le cas le plus
+      lourd), et le rendu `wgpu` avec `--gpu` (relecture de l'image comprise, donc **majorant**). Sortie : minimum et
+      médiane, la différence « viewer − Guide » et le coût **par échantillon**, seul chiffre comparable d'un log à l'autre.
+- [ ] Pièges à respecter dans le banc, tous vérifiés pendant l'audit : `App::new` et jamais `App::from_launch` (sinon la
+      mesure dépend des préférences enregistrées de celui qui la lance) ; attendre qu'**aucune nouvelle session** n'arrive
+      pendant un délai, l'ouverture se faisant session par session dans un thread de travail ; **afficher la session la plus
+      longue** (`AppState::set_current`), car la première session du plus gros log ne fait que 1 254 échantillons et donne
+      2,4 ms au lieu de 7,9 ; `Harness::step()` pour un cadre et non `run()`, qui en enchaîne plusieurs ; `--gpu` inactif par
+      défaut (Vulkan absent de la CI) ; aucun code Unix-only (la CI compile les exemples sous Windows), donc pas de
+      `/proc/self/status` — la mémoire reste l'affaire de `otb-dev bench-open`.
+- [ ] Consigner : sous-section « Temps de cadre de l'interface » dans `docs/validation.md`, bâtie comme « Ouverture d'un
+      log » ; puce des exemples de `docs/architecture.md` (chemin relatif à la crate, comme les deux autres) ; ligne sous
+      « Non publié » du `CHANGELOG.md`. Mettre à jour W-049 **et le préambule de sa section**, qui dit « bancs isolés hors du
+      dépôt, rien n'a été ajouté à `rust/` » : ce ne sera plus vrai.
+- [ ] Vérification : le banc aboutit sur `tests/data/jeno5_5s.bbl` (le seul log que la CI possède) ; sur
+      `Cedric/JeNo 5/FINAL.bbl` il **retrouve ≈ 7,9 ms** à 321 729 échantillons et ≈ 0,43 ms sur l'écran Guide — s'il donne
+      autre chose, c'est le banc qui est faux, pas l'interface, les valeurs de W-049 servant d'étalon ; `--largeur 640` sur ce
+      même log redonne ≈ 5,9 ms, ce qui reproduit la preuve que le coût est le parcours en O(n) et non le rendu ;
+      `verify` vert, **sans tube** (L-022).
+- [ ] Mesure neuve, celle qui justifie le lot : `1. PTB/st7ven3241/LOG00008.BFL` (620 079 trames en **une seule session**, le
+      plus gourmand des 529) dira si l'on approche vraiment des 16,7 ms du budget 60 images par seconde, et remplacera dans
+      W-049 l'extrapolation « vers 700 000 échantillons » par un chiffre mesuré.
+
+**Suite, hors de ce lot** : la correction de W-049 elle-même (cache des points décimés, ou index multi-résolution min/max),
+sur une autre branche, dont ce banc prouvera le gain. Attention : un cache de points ne gagne rien pendant un glissement ou un
+zoom, où les bornes changent à chaque cadre ; seul l'index multi-résolution y gagne.
+
 ## Avancement
 
 | Lot | État |
@@ -284,3 +332,4 @@ posée **par Cédric lui-même**.
 | 5 | Banc `otb-dev bench-open` fait (lot 5a). 5a (session par session) essayé et retiré : sans effet (une seule session, +32 Mo). Variante 1 : rendre la table `i64` avant les copies finales : 481 → 342 Mo. Variante 2 (accord de Cédric) : `CompactTable`, trames rangées en `i32` dès le décodeur : **274 Mo (÷ 1,75, objectif ÷ 1,5 atteint, ÷ 2 manqué), 0,54 s (plus rapide)**, `FlightLog` identiques sur 528 fichiers, `corpus validate` 697/712, `otb-parity` 0 échec. Un décodage par blocs vers `f32` irait plus loin (non fait). `golden.rs` rouge sur `main` avec `OTB_GOLDEN`, non traité |
 | 6 | À faire |
 | 7 | Réservé (attend W-046) |
+| 8 | À faire (banc de temps de cadre, W-049) |
