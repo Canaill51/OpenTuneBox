@@ -137,27 +137,32 @@ jamais faire.
 **À lire** : `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/architecture.md`, `.github/workflows/tests.yml`,
 `.github/workflows/audit.yml`, `rust/otb-dev/src/docs.rs` (ce que le test de documentation exige : chemins, modules, index).
 
-- [ ] Corriger les huit points faux : « interface Qt » (ligne 4), branche `feat/rust-migration` (lignes 24-25, et la section
+- [x] Corriger les huit points faux : « interface Qt » (ligne 4), branche `feat/rust-migration` (lignes 24-25, et la section
       « Migration vers Rust » de `CONTRIBUTING.md`), « pas de compilateur C » (D-035 dit le contraire), « 15 tests », fmt et
       clippy « sur Ubuntu et Windows » (Ubuntu seulement), `gui-build.yml` non cité, commande de capture sans
       `-- LOG.bbl DOSSIER`, détecteur de couleurs (6 chiffres hexadécimaux seulement, `#777` passe).
-- [ ] Retirer `feat/rust-migration` de `branches:` dans `tests.yml` et `audit.yml` ; relire `docs/migration-rust.md` : ajouter
+- [x] Retirer `feat/rust-migration` de `branches:` dans `tests.yml` et `audit.yml` ; relire `docs/migration-rust.md` : ajouter
       en tête « Terminé le 2026-11-04 (PR 96) », sans réécrire l'histoire.
-- [ ] Alléger (après accord, question 3) : bloc « Organisation » à une ligne par crate ; historique Python réduit à une phrase
+- [x] Alléger (après accord, question 3) : bloc « Organisation » à une ligne par crate ; historique Python réduit à une phrase
       avec renvoi vers `docs/architecture.md` ; renvois L-036 et L-038 (époque PyO3) retirés des pièges génériques ; liste des
       compétences retirée de `CLAUDE.md` (elles se chargent d'après leur description).
-- [ ] Ajouter : la commande `verify` et sa durée ; les règles explicites (`git push`, `git tag`, `gh pr merge` et `gh release` :
+- [x] Ajouter : la commande `verify` et sa durée ; les règles explicites (`git push`, `git tag`, `gh pr merge` et `gh release` :
       seulement avec la confirmation de Cédric à chaque fois ; l'étiquette `v*` reste posée par lui ; ne pas modifier `$OTB_LOGS`, `golden/` ni `corpus.csv`, ne jamais affaiblir un
       test pour le faire passer) ; la consigne « fichiers temporaires hors du dépôt » ; le poste de développement (Windows 11 et
       Linux : commandes données pour les deux ou en POSIX avec la mention) ; les variables `OTB_DEV_ROOT`, `OTB_BITEXACT`,
       `OTB_FORMAT_CASES`.
-- [ ] Mettre d'accord `AGENTS.md` et `docs/lecons.md` sur ce qu'il faut lire en début de session (une seule consigne) ; mettre
+- [x] Mettre d'accord `AGENTS.md` et `docs/lecons.md` sur ce qu'il faut lire en début de session (une seule consigne) ; mettre
       à jour le tableau de `.claude/skills/docs-sync/SKILL.md` (les pièges d'un domaine vont dans `docs/pieges-par-domaine.md`).
-- [ ] Vérification : `cargo run -p otb-dev -- verify` vert (le test `docs` y est inclus) ;
+- [x] Vérification : `cargo run -p otb-dev -- verify` vert (le test `docs` y est inclus) ;
       `grep -rn "feat/rust-migration" AGENTS.md CONTRIBUTING.md .github/` ne rend que des mentions historiques explicites, ou
       rien ; `AGENTS.md` réduit d'au moins un tiers (147 lignes, 12,6 Ko le 2026-11-04). **Contre-preuve** : retirer un
       module de `docs/architecture.md`, le test `every_module_documented` doit rougir (preuve que l'allègement
       d'`AGENTS.md` n'a pas supprimé le filet).
+
+**Avancement (2026-11-04, branche `docs/agents-refresh`)** : `verify` vert en 66-69 s à chaud. `AGENTS.md` : 12 608 → 8 390 octets (−33 %),
+147 → 102 lignes (−31 %). `grep feat/rust-migration` : une seule mention, historique, dans `CONTRIBUTING.md`. Contre-preuve : un module retiré
+d'`architecture.md` et d'`AGENTS.md` fait rougir `every_module_documented`. Détecteur de couleurs : il refuse `#` + 6 chiffres hexadécimaux seulement
+(`#777` passe), documenté mais non modifié. La branche locale `feat/rust-migration` existe encore (supprimée sur GitHub) : à effacer par Cédric s'il le souhaite.
 
 ## Lot 3 : résultat périmé du socle des outils (Sonnet) — C2
 
