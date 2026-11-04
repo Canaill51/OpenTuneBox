@@ -159,7 +159,7 @@ jamais faire.
       module de `docs/architecture.md`, le test `every_module_documented` doit rougir (preuve que l'allègement
       d'`AGENTS.md` n'a pas supprimé le filet).
 
-**Avancement (2026-11-04, branche `docs/agents-refresh`)** : `verify` vert en 66-69 s à chaud. `AGENTS.md` : 12 608 → 8 390 octets (−33 %),
+**Avancement (2026-11-04, branche « agents-refresh »)** : `verify` vert en 66-69 s à chaud. `AGENTS.md` : 12 608 → 8 390 octets (−33 %),
 147 → 102 lignes (−31 %). `grep feat/rust-migration` : une seule mention, historique, dans `CONTRIBUTING.md`. Contre-preuve : un module retiré
 d'`architecture.md` et d'`AGENTS.md` fait rougir `every_module_documented`. Détecteur de couleurs : il refuse `#` + 6 chiffres hexadécimaux seulement
 (`#777` passe), documenté mais non modifié. La branche locale `feat/rust-migration` existe encore (supprimée sur GitHub) : à effacer par Cédric s'il le souhaite.
