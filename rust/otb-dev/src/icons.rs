@@ -1,4 +1,4 @@
-//! Icônes d'application refaites depuis `opentunebox.svg` (remplace `packaging/make_icons.py`, phase 7-2).
+//! Icônes d'application refaites depuis `opentunebox.svg` (remplace `packaging/make_icons.py`, phase 7-2, supprimé en 7-5).
 //!
 //! - `packaging/linux/opentunebox.png` : 256 × 256, pour l'AppImage et l'icône de fenêtre (`include_bytes!` de `otb-gui`).
 //! - `packaging/opentunebox.ico` : plusieurs tailles, pour l'installateur et l'exécutable Windows (`build.rs` de `otb-gui`).
@@ -57,19 +57,14 @@ pub fn ico_bytes(svg: &[u8]) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-/// Le SVG de l'icône : celui qu'on donne, sinon le premier qui existe parmi les emplacements connus.
+/// Le SVG de l'icône : celui qu'on donne, sinon `rust/otb-gui/assets/opentunebox.svg`.
 pub fn find_svg(root: &Path, given: Option<&Path>) -> Result<PathBuf, String> {
     if let Some(p) = given {
         return Ok(p.to_path_buf());
     }
-    [
-        "rust/otb-gui/assets/opentunebox.svg",
-        "src/opentunebox/gui/assets/opentunebox.svg",
-    ]
-    .iter()
-    .map(|p| root.join(p))
-    .find(|p| p.exists())
-    .ok_or_else(|| "opentunebox.svg introuvable (donner --svg CHEMIN)".into())
+    Some(root.join("rust/otb-gui/assets/opentunebox.svg"))
+        .filter(|p| p.exists())
+        .ok_or_else(|| "opentunebox.svg introuvable (donner --svg CHEMIN)".into())
 }
 
 /// Écrit `packaging/linux/opentunebox.png` et `packaging/opentunebox.ico` ; rend le message à afficher.

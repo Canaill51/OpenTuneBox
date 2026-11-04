@@ -1,6 +1,6 @@
-//! Préparation et publication d'une version (remplace `scripts/release.py`, phase 7-2).
+//! Préparation et publication d'une version (remplace `scripts/release.py`, phase 7-2, supprimé en 7-5).
 //!
-//! `otb-dev release prepare 0.9.0` met le numéro dans `rust/Cargo.toml` (et dans `pyproject.toml` / `__init__.py` tant qu'ils existent),
+//! `otb-dev release prepare 0.9.0` met le numéro dans `rust/Cargo.toml`,
 //! transforme la section « Non publié » du CHANGELOG en « [0.9.0] — date » et en rouvre une vide.
 //! `otb-dev release notes v0.9.0` vérifie que l'étiquette correspond aux numéros du projet et au CHANGELOG, puis affiche la section
 //! de cette version (texte de la page Releases ; workflow `construire.yml`).
@@ -19,33 +19,14 @@ pub struct VersionSource {
     pub pattern: &'static str,
     pub template: &'static str,
     pub after: Option<&'static str>,
-    /// Absent du dépôt : on l'ignore (les fichiers Python disparaissent en 7-5) ; sinon une erreur.
-    pub optional: bool,
 }
 
-pub const SOURCES: [VersionSource; 3] = [
-    VersionSource {
-        path: "rust/Cargo.toml",
-        pattern: r#"(?m)^version = "([^"]+)""#,
-        template: "version = \"{}\"",
-        after: Some("[workspace.package]"),
-        optional: false,
-    },
-    VersionSource {
-        path: "pyproject.toml",
-        pattern: r#"(?m)^version = "([^"]+)""#,
-        template: "version = \"{}\"",
-        after: None,
-        optional: true,
-    },
-    VersionSource {
-        path: "src/opentunebox/__init__.py",
-        pattern: r#"(?m)^__version__ = "([^"]+)""#,
-        template: "__version__ = \"{}\"",
-        after: None,
-        optional: true,
-    },
-];
+pub const SOURCES: [VersionSource; 1] = [VersionSource {
+    path: "rust/Cargo.toml",
+    pattern: r#"(?m)^version = "([^"]+)""#,
+    template: "version = \"{}\"",
+    after: Some("[workspace.package]"),
+}];
 
 /// `0.2.0`, sans « v ».
 pub fn is_version(s: &str) -> bool {
@@ -164,9 +145,6 @@ pub fn project_versions(root: &Path) -> Result<Vec<(&'static str, String)>, Stri
     let mut found = Vec::new();
     for src in &SOURCES {
         let path = root.join(src.path);
-        if !path.exists() && src.optional {
-            continue;
-        }
         let text = read(&path)?;
         let v = read_version(src, &text).ok_or_else(|| format!("{} : numéro de version introuvable", src.path))?;
         found.push((src.path, v));
@@ -193,9 +171,6 @@ pub fn prepare(root: &Path, version: &str, date: Option<&str>) -> Result<String,
     let mut names = vec!["CHANGELOG.md"];
     for src in &SOURCES {
         let path = root.join(src.path);
-        if !path.exists() && src.optional {
-            continue;
-        }
         let new = write_version(src, &read(&path)?, version)
             .ok_or_else(|| format!("{} : numéro de version introuvable", src.path))?;
         writes.push((path, new));

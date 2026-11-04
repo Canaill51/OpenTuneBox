@@ -11,17 +11,17 @@ tant que les documents concernés n'ont pas été relus et corrigés.
 ## 1. Vérification automatique
 
 ```sh
-.venv/bin/pytest -q tests/test_docs.py
-(cd rust && cargo test -p otb-dev --test docs)   # la même vérification en Rust (le nouveau contrôle s'ajoute dans rust/otb-dev/src/docs.rs)
+(cd rust && cargo test -p otb-dev --test docs)   # un nouveau contrôle s'ajoute dans rust/otb-dev/src/docs.rs, avec sa preuve dans rust/otb-dev/tests/checks.rs
 ```
 
-Elle contrôle : liens et ancres entre documents, chemins et fonctions cités (`gui/app.py:hard_exit`),
+Elle contrôle : liens et ancres entre documents, chemins et fonctions cités (`rust/otb-gui/src/app.rs:App`),
 chaque bouton d'outil dans le README et le guide, chaque module dans `AGENTS.md` / `docs/architecture.md`,
 l'index `docs/README.md`, les fichiers publiés (`construire.yml`) dans le README et le guide, les commandes
-de `cli.py` dans le README, la langue (français), les numéros des registres (`D-`, `L-`, `W-` : uniques,
-et chaque numéro cité existe). Elle tourne aussi avec `pytest`, à chaque commit (crochet
+de la CLI (`rust/otb-cli`) dans le README, la langue (français), les numéros des registres (`D-`, `L-`, `W-` : uniques,
+et chaque numéro cité existe). Elle tourne à chaque commit (crochet
 de Claude Code) et sur chaque demande de fusion (GitHub). Un échec = documentation à corriger, **pas** test
-à affaiblir. Si un nouveau type d'incohérence apparaît, ajouter le contrôle dans `tests/test_docs.py`.
+à affaiblir. Si un nouveau type d'incohérence apparaît, ajouter le contrôle dans `rust/otb-dev/src/docs.rs`.
+Seuls les registres d'histoire (`HISTORICAL_DOCS`) peuvent citer des fichiers de l'ancienne version Python.
 
 ## 2. Relecture selon le changement
 
@@ -33,9 +33,9 @@ et les comparer au code :
 | Interface : bouton, outil, réglage, texte, raccourci, fenêtre | `docs/guide-utilisateur.md` (visualiseur, outil concerné), tableau des outils du `README.md`, `docs/architecture.md` (Interface), captures `docs/images/` si l'aspect change |
 | Nouvel outil | tout ce qui précède + étapes de la compétence `opentunebox-dev` (« Ajouter un outil ») |
 | Analyse (paramètre, fenêtre, seuil, méthode) | `docs/spec-methodes.md`, `docs/validation.md` (refaire la mesure si besoin), `AGENTS.md` (Pièges connus) |
-| Formule ou réglage du firmware | `docs/spec-betaflight.md`, `log/settings.py` / `log/debug_tables.py` cohérents |
-| Assistant (règle, seuil, profil) | `docs/assistant.md` (Taille du drone, Calibration, Règles, Origine des seuils), `advisor/profiles.py` (commentaires), compétence `assistant-seuils`, textes du guide intégré `gui/assets/guide/` et `advisor/log_check.py` s'ils citent la valeur |
-| Procédure de réglage, enregistrement, outil cité par le guide | guide intégré `gui/assets/guide/` (compétence `guide-integre`), résumé dans `docs/guide-utilisateur.md` §3 et §6 |
+| Formule ou réglage du firmware | `docs/spec-betaflight.md`, `rust/otb-log/src/settings.rs` / `debug_tables.rs` cohérents |
+| Assistant (règle, seuil, profil) | `docs/assistant.md` (Taille du drone, Calibration, Règles, Origine des seuils), `rust/otb-advisor/src/profiles.rs` (commentaires), compétence `assistant-seuils`, textes du guide intégré `rust/otb-gui/assets/guide/` et `rust/otb-advisor/src/log_check.rs` s'ils citent la valeur |
+| Procédure de réglage, enregistrement, outil cité par le guide | guide intégré `rust/otb-gui/assets/guide/` (compétence `guide-integre`), résumé dans `docs/guide-utilisateur.md` §3 et §6 |
 | Décodeur | `docs/validation.md` (relancer `otb-dev corpus validate`), `docs/pieges-par-domaine.md` |
 | Nouveau module ou fichier déplacé | `AGENTS.md` (Organisation), `docs/architecture.md` |
 | Construction, installateurs, workflow | `README.md` (Installation, Développement), guide (1. Installer), `CONTRIBUTING.md` (Publier une version), `docs/architecture.md` (Distribution), compétence `opentunebox-dev` (Fabriquer les exécutables) |

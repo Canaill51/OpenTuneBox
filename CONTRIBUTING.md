@@ -19,14 +19,13 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
    ```
 2. Modifier, puis vérifier :
    ```sh
-   .venv/bin/pytest -q
-   .venv/bin/ruff check src tests scripts packaging/make_icons.py
-   (cd rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-parity)   # si rust/ change
+   cd rust
+   cargo fmt --check && cargo clippy --all-targets -- -D warnings
+   cargo test --no-fail-fast -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev
    ```
-   Sur `feat/rust-migration`, `pip install -e .` compile l'extension Rust : [rustup](https://rustup.rs) est requis ;
-   après un changement dans `rust/`, relancer `.venv/bin/pip install -e .`.
+   [rustup](https://rustup.rs) est le seul prérequis.
 3. Mettre la documentation à jour **dans le même commit** : le tableau de `.claude/skills/docs-sync/SKILL.md`
-   indique quels documents relire selon le changement ; `tests/test_docs.py` (lancé par `pytest`) vérifie
+   indique quels documents relire selon le changement ; `cargo test -p otb-dev --test docs` (inclus dans `cargo test`) vérifie
    automatiquement liens, chemins, outils, modules et fichiers publiés. Ajouter une ligne dans
    `CHANGELOG.md` (section *Non publié*). Selon le cas, compléter les registres numérotés : un choix qui
    écarte une option → [docs/decisions.md](docs/decisions.md) (`D-xxx`), un piège qui a coûté du temps →
@@ -42,7 +41,7 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
 ## Migration vers Rust (branche d'intégration)
 
 Exception temporaire à la règle « créer une branche depuis `main` » (D-031) : tant que la migration n'est pas
-validée, `main` reste en Python et le travail Rust passe par `feat/rust-migration`. Chaque étape a sa branche,
+fusionnée, `main` reste en Python et le travail Rust passe par `feat/rust-migration`. Chaque étape a sa branche,
 créée depuis `feat/rust-migration`, et sa PR **vers `feat/rust-migration`** (titre = nom de la branche) :
 ```sh
 git switch feat/rust-migration && git switch -c feat/rust-decoder
@@ -54,23 +53,14 @@ d'équivalence : [docs/migration-rust.md](docs/migration-rust.md).
 ## Contrôles et mises à jour automatiques des dépendances
 
 Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) ouvre chaque lundi une demande de fusion
-pour les actions GitHub des workflows (mises à jour mineures et correctives groupées, majeure à part).
-Pour les bibliothèques Python, `pyproject.toml` ne fixe que des versions minimales (`>=`) : Dependabot n'y
-touche pas tant que la borne admet la dernière version, et c'est voulu (les planchers disent ce qui est
-compatible, pas ce qui est à jour). Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`),
+pour les actions GitHub des workflows et pour les crates Rust (mises à jour mineures et correctives groupées, majeure à part).
+Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`),
 pas le nom d'une branche : c'est normal. On les fusionne à la main, une fois la CI verte et après avoir lu
 les notes de la nouvelle version.
 
 Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connues dans les bibliothèques
-livrées (`pip-audit` pour Python ; `cargo-deny` pour Rust, réglages dans `rust/deny.toml`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
-a une faille publiée : relever sa version minimale dans `pyproject.toml`. Rien à lancer en local ; pour un
-essai, dans un environnement vierge (`python3 -m venv /tmp/projet /tmp/outil`) :
-```sh
-/tmp/projet/bin/pip install --upgrade pip && /tmp/projet/bin/pip install -e .
-/tmp/outil/bin/pip install pip-audit==2.9.0
-/tmp/outil/bin/pip-audit --skip-editable --path /tmp/projet/lib/python3.*/site-packages
-```
-Côté Rust : `(cd rust && cargo deny check)` (failles RustSec, licences, origine des crates ; la base d'avis est téléchargée à
+livrées (`cargo-deny`, réglages dans `rust/deny.toml`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
+a une faille publiée : la mettre à jour. En local : `(cd rust && cargo deny check)` (failles RustSec, licences, origine des crates ; la base d'avis est téléchargée à
 chaque passage). Un avis « non maintenu » sans correctif ne se retire pas du contrôle : il entre dans `ignore` de
 `rust/deny.toml` avec sa raison et un numéro `W-xxx`. Une licence nouvelle (surtout un copyleft : GPL, LGPL) se discute avec
 Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises à jour des crates (écosystème `cargo`).
@@ -78,7 +68,7 @@ Cédric avant d'entrer dans la liste `allow`. Dependabot propose aussi les mises
 ## Publier une version
 
 1. Sur une branche (`chore/release-0.2.0`) : `(cd rust && cargo run -p otb-dev -- release prepare 0.2.0)`. L'outil met le
-   numéro dans `rust/Cargo.toml` (et dans `pyproject.toml` et `src/opentunebox/__init__.py` tant qu'ils existent), transforme la section *Non publié* de
+   numéro dans `rust/Cargo.toml`, transforme la section *Non publié* de
    `CHANGELOG.md` en `[0.2.0] — date du jour` et en rouvre une vide. Relire le CHANGELOG (c'est le texte
    de la page de téléchargement), puis demande de fusion vers `main` comme d'habitude.
 2. Une fois fusionnée, sur `main` à jour :

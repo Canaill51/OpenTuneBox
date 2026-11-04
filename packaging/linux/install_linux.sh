@@ -9,8 +9,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BIN_DIR="$HOME/.local/bin"
 APPS="$HOME/.local/share/applications"
 HICOLOR="$HOME/.local/share/icons/hicolor"
-# ⚠️ Le SVG vit encore dans l'arborescence Python ; il passe sous rust/otb-gui/assets/ à la phase 7-5 (mettre ce chemin à jour).
-SVG="$ROOT/src/opentunebox/gui/assets/opentunebox.svg"
+SVG="$ROOT/rust/otb-gui/assets/opentunebox.svg"
 PNG="$ROOT/packaging/linux/opentunebox.png"
 
 if [ $# -ge 1 ]; then

@@ -1,12 +1,12 @@
 ---
 name: assistant-seuils
-description: Méthode pour créer, modifier, calibrer ou justifier un seuil, une règle ou un profil de taille de l'assistant de réglage d'OpenTuneBox (advisor/profiles.py, advisor/rules.py, `otb-dev corpus calibrate`, docs/assistant.md). À charger avant de toucher à un seuil ou à une règle de l'assistant, ou quand Cédric demande d'où vient une valeur.
+description: Méthode pour créer, modifier, calibrer ou justifier un seuil, une règle ou un profil de taille de l'assistant de réglage d'OpenTuneBox (rust/otb-advisor/src/profiles.rs, rules.rs, `otb-dev corpus calibrate`, docs/assistant.md). À charger avant de toucher à un seuil ou à une règle de l'assistant, ou quand Cédric demande d'où vient une valeur.
 ---
 
 # Seuils de l'assistant : calibrer et sourcer
 
-Principe fixé avec Cédric : **aucun seuil sans origine notée**. Chaque valeur de `advisor/profiles.py` et
-de `advisor/rules.py` figure dans `docs/assistant.md`, section « Origine des seuils », avec l'une des
+Principe fixé avec Cédric : **aucun seuil sans origine notée**. Chaque valeur de `rust/otb-advisor/src/profiles.rs` et
+de `rules.rs` figure dans `docs/assistant.md`, section « Origine des seuils », avec l'une des
 origines : **Corpus**, **Communauté**, **Théorie**, **Firmware**, **Estimation**. Une estimation est
 permise, mais elle doit être déclarée comme telle et listée pour être vérifiée plus tard.
 
@@ -79,7 +79,7 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 
 ## 4. Pièges
 
-- Pic de sensibilité et marge de phase : boucle ouverte **mesurée** (`analysis/loop.py`) quand les termes
+- Pic de sensibilité et marge de phase : boucle ouverte **mesurée** (`rust/otb-analysis/src/open_loop.rs`) quand les termes
   P, I, D, F sont loggés, sinon approchée par L = T/(1 − T) (faux pour Betaflight, `docs/assistant.md`,
   « Boucle ouverte mesurée »). Les percentiles calculés avec l'ancienne méthode ne sont pas comparables
   (marge de phase environ 10° plus haute, croisement environ 2 fois trop bas). Le pic de sensibilité est
@@ -95,11 +95,12 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 
 ## 5. Terminer
 
-1. Valeurs dans `advisor/profiles.py` (arguments nommés, commentaire de calibration daté).
+1. Valeurs dans `rust/otb-advisor/src/profiles.rs` (arguments nommés, commentaire de calibration daté).
 2. `docs/assistant.md` : sections « Taille du drone », « Calibration » (tableaux), « Règles » et
    « Origine des seuils » ; `CHANGELOG.md` (*Non publié*). Puis la compétence `docs-sync`.
-3. Tests : mettre à jour l'instantané des seuils (`tests/test_advisor_rules.py:test_profiles_snapshot`,
-   `test_rule_constants_snapshot`), qui échoue à chaque changement de valeur ; les règles pures et les seuils
-   encadrés sont dans `test_advisor_rules.py` / `test_advisor_synthetic.py` (sans corpus), les vérifications sur
-   vrais logs dans `tests/test_advisor.py`.
-4. `pytest` et `ruff check` propres.
+3. Tests : `rust/otb-advisor/tests/profiles.rs` et `rules.rs` comparent les seuils et les décisions à des cas figés
+   (`rust/otb-advisor/tests/data/*.json`, écrits par l'ancienne version Python). Un changement **voulu** de valeur les fait échouer :
+   mettre à jour le cas concerné à la main, dans le même commit, en écrivant pourquoi (valeur ancienne, valeur nouvelle, mesure du
+   corpus). Ne jamais affaiblir un test pour le faire passer. `cargo test -p otb-dev --test docs` vérifie que `docs/assistant.md`
+   porte les mêmes valeurs que `profiles.rs`.
+4. `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo test` propres.

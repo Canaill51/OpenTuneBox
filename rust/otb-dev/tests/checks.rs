@@ -48,30 +48,48 @@ fn chemins_et_symboles() {
     let root = sandbox("chemins");
     write(
         &root,
-        "src/opentunebox/gui/app.py",
-        "def hard_exit(code):\n    pass\n\nclass Fenetre:\n    nom = 3\n",
-    );
-    write(
-        &root,
         "rust/otb-x/src/lib.rs",
         "pub fn calcule() {}\npub struct Page;\npub const MAX: usize = 3;\n",
     );
     write(&root, "docs/a.md", "");
-    let ok = "`gui/app.py:hard_exit` `gui/app.py:Fenetre` `gui/app.py:nom` `rust/otb-x/src/lib.rs:calcule` `rust/otb-x/src/lib.rs:Page` `rust/otb-x/src/lib.rs:MAX` `docs/a.md` `refs/heads/main` `docs/*.md`";
-    assert_eq!(missing_paths(&root, ok), Vec::<String>::new());
-    assert_eq!(missing_paths(&root, "`docs/absent.md`"), ["docs/absent.md"]);
+    let ok = "`rust/otb-x/src/lib.rs:calcule` `rust/otb-x/src/lib.rs:Page` `rust/otb-x/src/lib.rs:MAX` `docs/a.md` `refs/heads/main` `docs/*.md`";
+    assert_eq!(missing_paths(&root, ok, false), Vec::<String>::new());
+    assert_eq!(missing_paths(&root, "`docs/absent.md`", false), ["docs/absent.md"]);
     assert_eq!(
-        missing_paths(&root, "`rust/otb-y/src/lib.rs`"),
+        missing_paths(&root, "`rust/otb-y/src/lib.rs`", false),
         ["rust/otb-y/src/lib.rs"]
     );
-    assert!(missing_paths(&root, "`gui/app.py:disparue`")[0].contains("symbole absent"));
-    assert!(missing_paths(&root, "`rust/otb-x/src/lib.rs:disparue`")[0].contains("symbole absent"));
-    assert!(missing_paths(&root, "`gui/absent.py`")[0].contains("gui/absent.py"));
+    assert!(missing_paths(&root, "`rust/otb-x/src/lib.rs:disparue`", false)[0].contains("symbole absent"));
     assert!(
-        missing_paths(&root, "`rust/otb-spike-egui/src/main.rs`").is_empty(),
+        missing_paths(&root, "`rust/otb-spike-egui/src/main.rs`", false).is_empty(),
         "crate supprimé, cité par l'historique"
     );
-    assert!(missing_paths(&root, "```\n`docs/absent.md`\n```").is_empty());
+    assert!(
+        missing_paths(&root, "`rust/otb-py/src/lib.rs`", false).is_empty(),
+        "pont PyO3 supprimé en 7-5, cité par l'historique"
+    );
+    assert!(missing_paths(&root, "```\n`docs/absent.md`\n```", false).is_empty());
+}
+
+#[test]
+fn chemins_python_disparus_acceptes_seulement_dans_l_historique() {
+    let root = sandbox("chemins-python");
+    write(&root, "docs/a.md", "");
+    write(&root, "rust/otb-x/src/lib.rs", "pub fn calcule() {}\n");
+    let anciens = "`gui/app.py:hard_exit` `src/opentunebox/log/flightlog.py` `scripts/release.py` `tests/test_docs.py` `analysis/loop.py` `packaging/opentunebox.spec` `packaging/macos/build_dmg.sh`";
+    // document vivant : chaque chemin Python disparu est signalé
+    assert_eq!(missing_paths(&root, anciens, false).len(), 7);
+    // registre historique : accepté
+    assert!(missing_paths(&root, anciens, true).is_empty());
+    // l'histoire n'excuse pas un chemin Rust ou un document qui n'existe pas
+    assert_eq!(
+        missing_paths(&root, "`rust/otb-y/src/lib.rs` `docs/absent.md`", true),
+        ["rust/otb-y/src/lib.rs", "docs/absent.md"]
+    );
+    assert!(missing_paths(&root, "`rust/otb-x/src/lib.rs:disparue`", true)[0].contains("symbole absent"));
+    // un chemin au nom « Python » qui existe encore est vérifié comme les autres
+    write(&root, "scripts/reste.py", "");
+    assert!(missing_paths(&root, "`scripts/reste.py`", false).is_empty());
 }
 
 #[test]
@@ -243,7 +261,7 @@ fn profil(key: &str) -> ProfileView {
     }
 }
 
-const ASSISTANT: &str = "Seuils retenus dans `advisor/profiles.py` :\n- −28,5 dB, −13,5, −15,5, −29,5 dB, latence 10–21 ms, retards 1,8 / 2,6 ms.\n\nPour un profil provisoire\n\n| Seuil mécanique | Commun | 5\" | 7\" |\n|---|---|---|---|\n| Déséquilibre des moteurs (%) | 13,5 | 13,5 | 13,5 |\n| Terme I moyen (valeur absolue) | 33 | 33 | 33 |\n| Saturation (% du temps ≥ 98 %) | 1,5 | 1,5 | 1,5 |\n| Écart de pic roll / pitch | 0,12 | 0,12 | 0,12 |\n| Résonance (dB au-dessus du bruit voisin) | 7,9 | 7,9 | 7,9 |\n";
+const ASSISTANT: &str = "Seuils retenus dans `rust/otb-advisor/src/profiles.rs` :\n- −28,5 dB, −13,5, −15,5, −29,5 dB, latence 10–21 ms, retards 1,8 / 2,6 ms.\n\nPour un profil provisoire\n\n| Seuil mécanique | Commun | 5\" | 7\" |\n|---|---|---|---|\n| Déséquilibre des moteurs (%) | 13,5 | 13,5 | 13,5 |\n| Terme I moyen (valeur absolue) | 33 | 33 | 33 |\n| Saturation (% du temps ≥ 98 %) | 1,5 | 1,5 | 1,5 |\n| Écart de pic roll / pitch | 0,12 | 0,12 | 0,12 |\n| Résonance (dB au-dessus du bruit voisin) | 7,9 | 7,9 | 7,9 |\n";
 
 #[test]
 fn seuils_de_l_assistant() {

@@ -110,12 +110,7 @@ fn read_and_write_version_files() {
         None,
         "repère absent"
     );
-    let init = "\"\"\"Doc.\"\"\"\n__version__ = \"0.8.0\"\n";
-    assert_eq!(
-        write_version(&SOURCES[2], init, "0.9.0").as_deref(),
-        Some("\"\"\"Doc.\"\"\"\n__version__ = \"0.9.0\"\n")
-    );
-    assert_eq!(write_version(&SOURCES[1], "rien", "0.9.0"), None);
+    assert_eq!(write_version(src, "rien", "0.9.0"), None);
 }
 
 #[test]
@@ -153,9 +148,6 @@ fn text(root: &Path, file: &str) -> String {
 #[test]
 fn prepare_then_notes_on_a_repository() {
     let root = sandbox("complet");
-    fs::write(root.join("pyproject.toml"), "[project]\nversion = \"0.1.0\"\n").expect("pyproject");
-    fs::create_dir_all(root.join("src/opentunebox")).expect("src");
-    fs::write(root.join("src/opentunebox/__init__.py"), "__version__ = \"0.1.0\"\n").expect("init");
     // Avant : l'étiquette 0.2.0 est incohérente.
     assert!(
         notes(&root, "v0.2.0")
@@ -168,8 +160,6 @@ fn prepare_then_notes_on_a_repository() {
         "{msg}"
     );
     assert!(text(&root, "rust/Cargo.toml").contains("version = \"0.2.0\""));
-    assert!(text(&root, "pyproject.toml").contains("version = \"0.2.0\""));
-    assert!(text(&root, "src/opentunebox/__init__.py").contains("__version__ = \"0.2.0\""));
     assert!(text(&root, "CHANGELOG.md").contains("## [0.2.0] — 2026-10-05"));
     assert_eq!(
         notes(&root, "v0.2.0").as_deref(),
@@ -186,8 +176,8 @@ fn prepare_then_notes_on_a_repository() {
 }
 
 #[test]
-fn prepare_without_python_files_and_refusals() {
-    let root = sandbox("sans-python");
+fn prepare_refusals_and_second_preparation() {
+    let root = sandbox("refus");
     assert!(prepare(&root, "v0.2.0", None).unwrap_err().contains("Numéro invalide"));
     assert!(
         prepare(&root, "0.2.0", Some("hier"))
@@ -199,7 +189,7 @@ fn prepare_without_python_files_and_refusals() {
             .unwrap_err()
             .contains("Date invalide")
     );
-    prepare(&root, "0.2.0", Some("2026-10-05")).expect("sans fichiers Python");
+    prepare(&root, "0.2.0", Some("2026-10-05")).expect("préparation");
     assert_eq!(
         notes(&root, "0.2.0").as_deref(),
         Ok("### Ajouté\n- Page de téléchargement."),
@@ -218,12 +208,12 @@ fn prepare_without_python_files_and_refusals() {
 #[test]
 fn prepare_changes_nothing_when_a_version_file_is_unreadable() {
     let root = sandbox("incomplet");
-    fs::write(root.join("pyproject.toml"), "[project]\nname = \"x\"\n").expect("pyproject sans numéro");
+    fs::write(root.join("rust/Cargo.toml"), "[workspace.package]\nname = \"x\"\n").expect("Cargo.toml sans numéro");
     let before = (text(&root, "CHANGELOG.md"), text(&root, "rust/Cargo.toml"));
     assert!(
         prepare(&root, "0.2.0", Some("2026-10-05"))
             .unwrap_err()
-            .contains("pyproject.toml")
+            .contains("rust/Cargo.toml")
     );
     assert_eq!(
         before,

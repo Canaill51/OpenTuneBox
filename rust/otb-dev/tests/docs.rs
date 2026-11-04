@@ -52,7 +52,10 @@ fn relative_links_exist() {
 #[test]
 fn code_paths_and_symbols_exist() {
     let root = root();
-    let bad = each(&root, &md_files(&root), |_, t| missing_paths(&root, t));
+    let bad = each(&root, &md_files(&root), |f, t| {
+        let rel = rel(&root, f);
+        missing_paths(&root, t, HISTORICAL_DOCS.contains(&rel.as_str()))
+    });
     assert!(bad.is_empty(), "chemins ou symboles introuvables : {bad:#?}");
 }
 
