@@ -32,7 +32,7 @@ fn fixtures() -> Vec<(String, PathBuf, Value)> {
 fn les_fichiers_fabriques_et_abimes_se_decodent_comme_en_python() {
     let (mut files, mut sessions) = (0, 0);
     for (name, path, want) in fixtures() {
-        let got = decode_bytes(&std::fs::read(&path).unwrap(), None);
+        let got = decode_bytes(&std::fs::read(&path).unwrap(), None).unwrap_or_else(|e| panic!("{name} : {e}"));
         let want = want["sessions"].as_array().unwrap();
         assert_eq!(got.len(), want.len(), "{name} : nombre de sessions décodées");
         for (g, w) in got.iter().zip(want) {

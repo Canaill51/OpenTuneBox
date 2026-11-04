@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-080 : une allocation ratée n'est pas une panique : `catch_unwind` ne la rattrape pas, le processus est abandonné
+- **Symptôme** — 2026-11-04 (audit du lot 4) : un en-tête qui déclare 20 000 champs fait demander 67 Go au décodeur ; Rust écrit « memory allocation of … bytes failed » et abandonne le programme entier, sans rien dire à l'interface (qui décode pourtant dans un fil).
+- **Cause (mesurée)** — `Vec::extend_from_slice` et `push` appellent le gestionnaire d'erreur d'allocation, qui abandonne ; `std::panic::catch_unwind` ne voit que les paniques. Réserver d'avance « au mieux » (`try_reserve` dans `Table::new`) ne suffisait pas : la croissance ligne après ligne abandonnait quand même.
+- **Règle** — tout tampon dont la taille vient d'un fichier se fait grandir avec `try_reserve` avant chaque ajout (erreur rendue, jamais d'abandon) ; ne jamais compter sur `catch_unwind` pour la mémoire. Les nombres annoncés par l'en-tête sont bornés avant de s'en servir (D-044).
+- **Preuve** — `rust/otb-decoder/src/lib.rs` : `push_rend_une_erreur_quand_la_memoire_manque` (sans `try_reserve`, le test panique) ; `rust/otb-decoder/tests/robustness.rs`.
+
 ### L-079 : une doc qui cite un fichier produit par la compilation passe chez soi et échoue sur la CI
 - **Symptôme** — 2026-11-03 (CI de la PR #93, jobs `tests` et `windows`) : `otb-dev/tests/docs.rs` panique, `chemins ou symboles introuvables : ["README.md : rust/target/release/opentunebox-gui"]`, alors que le même test passait en local juste avant le push.
 - **Cause (mesurée)** — le README citait en code (`…`) la sortie de `cargo build`. Ce fichier existe sur le poste de développement (on y a compilé), pas dans un dépôt fraîchement cloné : le test de chemins exige que tout chemin cité qui commence par un dossier du dépôt (`rust/`, `packaging/`…) existe. Sur une copie propre, le même test échoue comme la CI (essayé).
@@ -880,6 +886,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-080 | Allocation ratée = abandon du programme, `catch_unwind` ne la voit pas : `try_reserve` avant chaque ajout, et borner les nombres lus dans l'en-tête (D-044) | Décodeur et logs |
 | L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |
 | L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |
 | L-077 | Banc kittest : `run()` panique (`exceeded max_steps`) si un fil de calcul redemande une repeinte pendant qu'il tourne, vu sur la CI Windows ; attendre un calcul avec `step()` / `run_steps(n)` | Tests |

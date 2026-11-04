@@ -9,9 +9,14 @@
 
 use std::collections::BTreeMap;
 
+use crate::DecodeError;
 use crate::frame::{PRED_HOME_COORD, PRED_HOME_COORD_1};
 
 pub const LOG_START_MARKER: &[u8] = b"H Product:Blackbox flight data recorder by Nicholas Sherlock";
+/// Plafond du nombre de champs d'un type de trame (D-044) : dix fois le plus grand log réel (60).
+pub const MAX_FIELDS: usize = 512;
+/// Plafond de `I interval` et de chaque terme de `P interval` (D-044) : entiers 16 bits du firmware.
+pub const MAX_INTERVAL: i64 = 65_535;
 const FRAME_MARKERS: &[u8] = b"IPGHSE";
 
 /// Définition d'un type de trame : noms, signes, prédicteurs et encodages des champs.
@@ -129,6 +134,47 @@ impl LogHeader {
         match v.split_once('/') {
             Some((a, b)) => (int(Some(a), 1).max(1), int(Some(b), 1).max(1)),
             None => (1, int(Some(v), 1).max(1)),
+        }
+    }
+
+    /// Refuse un en-tête dont les nombres annoncés sont hors bornes (D-044), au lieu de les croire sur parole.
+    pub fn check_bounds(&self, session: usize) -> Result<(), DecodeError> {
+        let err = |what, value| Err(DecodeError::HeaderOutOfBounds { session, what, value });
+        for (k, fd) in &self.frames {
+            if fd.count() > MAX_FIELDS {
+                return err(
+                    match k {
+                        'I' => "le nombre de champs des trames I",
+                        'P' => "le nombre de champs des trames P",
+                        'S' => "le nombre de champs des trames S",
+                        'G' => "le nombre de champs des trames G",
+                        _ => "le nombre de champs des trames H",
+                    },
+                    fd.count() as i64,
+                );
+            }
+        }
+        let ok = |v: i64| (1..=MAX_INTERVAL).contains(&v);
+        let i = int(self.get("I interval"), 1);
+        if !ok(i) {
+            return err("I interval", i);
+        }
+        let (num, den) = self.p_interval_raw();
+        if !ok(num) {
+            return err("le numérateur de P interval", num);
+        }
+        if !ok(den) {
+            return err("le dénominateur de P interval", den);
+        }
+        Ok(())
+    }
+
+    /// « P interval » tel qu'annoncé, sans ramener à 1 les valeurs nulles ou négatives.
+    fn p_interval_raw(&self) -> (i64, i64) {
+        let v = self.get("P interval").unwrap_or("1");
+        match v.split_once('/') {
+            Some((a, b)) => (int(Some(a), 1), int(Some(b), 1)),
+            None => (1, int(Some(v), 1)),
         }
     }
 

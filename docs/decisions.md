@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-044 | Décodeur : en-tête refusé au-delà de 512 champs ou hors de 1 à 65 535 pour les intervalles ; mémoire insuffisante = erreur ; réglages à zéro signalés | 2026-11-04 |
 | D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres | 2026-11-04 |
 | D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
 | D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
@@ -115,6 +116,23 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-11-04 — Bornes du décodeur
+
+### D-044 : le décodeur refuse un en-tête qui annonce plus de 512 champs ou un intervalle hors de 1 à 65 535
+
+**Contexte.** L'en-tête annonce trois nombres que le décodeur croyait sur parole : le nombre de champs par trame (`Field I name`…), `I interval` et `P interval`. Mesuré le 2026-11-04 sur la source `tests/data/jeno5_5s.bbl` modifiée en mémoire : 20 000 champs → 3,7 s et des tables gigantesques ; intervalles à 9·10¹⁸ → boucles de recherche de l'itération attendue sans borne. Valeurs réelles relevées sur les 525 logs du corpus : `I interval` ∈ {102, 128, 256}, `P interval` ∈ {1, 2, 4, 8}, 35 à 60 champs.
+
+**Décision** (accord de Cédric le 2026-11-04).
+- Au plus **512 champs** par type de trame ; `I interval` et chaque terme de `P interval` entre **1 et 65 535** (entiers 16 bits du firmware, de mémoire : non vérifié dans les sources Betaflight). Hors bornes : `DecodeError::HeaderOutOfBounds` (message en français), session refusée, donc fichier refusé ; `decode_file` la rend en `io::ErrorKind::InvalidData`, et l'interface l'affiche dans la barre d'état.
+- `decode_bytes` rend `Result<Vec<DecodedSession>, DecodeError>` (option A de Cédric : erreur typée, plutôt qu'écarter la session en silence).
+- Une allocation ratée devient `DecodeError::OutOfMemory` (`try_reserve` avant chaque ajout), pas un abandon du programme.
+- La recherche des itérations sautées d'une trame P est bornée par `MAX_ITERATION_JUMP`.
+- Réglages d'en-tête à zéro : `otb-log` garde ses `.max(1)` ; `Settings::implausible` (gyro > 100 kHz, soit trois fois les 32 kHz des vrais logs) fait signaler « réglages de l'en-tête invraisemblables » par la CLI et par la barre d'état, sans inventer de valeur.
+
+**Option écartée.** Écarter en silence la session hors bornes : aucun message n'arrive à l'utilisateur.
+
+**Témoins.** `rust/otb-decoder/tests/robustness.rs` (10 cas, contre-preuve : plafond retiré → rouge) ; `otb-parity check` 0 échec sur 3123 fichiers ; les 70 fichiers abîmés de `decode_fixtures.rs` inchangés ; `corpus validate` : voir [validation.md](validation.md#décodeur).
 
 ## 2026-11-04 — Dépôt public et licence
 

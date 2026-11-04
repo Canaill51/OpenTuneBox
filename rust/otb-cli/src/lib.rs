@@ -55,6 +55,11 @@ fn load_or_say(f: &str, out: Sink) -> Vec<FlightLog> {
             if logs.is_empty() {
                 out(&format!("{f} : aucune session exploitable\n"));
             }
+            for lg in &logs {
+                if let Some(m) = lg.settings.implausible() {
+                    out(&format!("{f} : {m}\n"));
+                }
+            }
             logs
         }
     }

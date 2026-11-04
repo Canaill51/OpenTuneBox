@@ -6,7 +6,7 @@ use std::path::Path;
 use crate::header::{FrameDef as HeaderFrameDef, LogHeader, find_log_starts, parse_header};
 use crate::{
     CTX_DATA_VERSION, CTX_HOME0_IDX, CTX_HOME1_IDX, CTX_MINTHROTTLE, CTX_MOTOR_MIN, CTX_MOTOR0_IDX, CTX_SIZE,
-    CTX_VBATREF, FrameDef, Params, Table, decode_stream,
+    CTX_VBATREF, DecodeError, FrameDef, OutOfMemory, Params, Table, decode_stream,
 };
 
 /// Tableau d'entiers rangé ligne après ligne.
@@ -113,8 +113,11 @@ fn forward_fill(slow: &Table, at: &[i64], n: usize, width: usize) -> Vec<i64> {
     out
 }
 
-fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Option<DecodedSession> {
-    let fi = header.frames.get(&'I').filter(|f| f.complete() && f.count() >= 2)?; // itération et temps indispensables (D-031)
+fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Result<Option<DecodedSession>, DecodeError> {
+    header.check_bounds(index)?;
+    let Some(fi) = header.frames.get(&'I').filter(|f| f.complete() && f.count() >= 2) else {
+        return Ok(None);
+    }; // itération et temps indispensables (D-031)
     let fp = header.frames.get(&'P');
     let (i_pred, i_enc, n_main, _) = defs(Some(fi));
     let (p_pred, p_enc, _, has_p) = defs(fp);
@@ -173,7 +176,7 @@ fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Option<Decoded
         ctx,
         est_rows,
     };
-    let d = decode_stream(buf, &prm);
+    let d = decode_stream(buf, &prm).map_err(|OutOfMemory| DecodeError::OutOfMemory { session: index })?;
 
     let slow_names: Vec<String> = if has_s {
         header.frames[&'S'].names.clone()
@@ -201,7 +204,7 @@ fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Option<Decoded
         i_frames: d.stats[5],
         p_frames: d.stats[6],
     };
-    Some(DecodedSession {
+    Ok(Some(DecodedSession {
         index,
         main: Matrix {
             rows,
@@ -222,7 +225,7 @@ fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Option<Decoded
         slow_names,
         gps_names,
         header,
-    })
+    }))
 }
 
 /// En-têtes de toutes les sessions d'un fichier (rapide, sans décoder les trames).
@@ -234,7 +237,7 @@ pub fn list_sessions(data: &[u8]) -> Vec<LogHeader> {
 }
 
 /// Décode toutes les sessions (ou seulement la n° `only`, à partir de 1) ; une session sans définition I complète est écartée.
-pub fn decode_bytes(data: &[u8], only: Option<usize>) -> Vec<DecodedSession> {
+pub fn decode_bytes(data: &[u8], only: Option<usize>) -> Result<Vec<DecodedSession>, DecodeError> {
     let starts = find_log_starts(data);
     let mut sessions = Vec::new();
     for (k, &s) in starts.iter().enumerate() {
@@ -242,13 +245,13 @@ pub fn decode_bytes(data: &[u8], only: Option<usize>) -> Vec<DecodedSession> {
             continue;
         }
         let end = starts.get(k + 1).copied().unwrap_or(data.len());
-        if let Some(sess) = decode_session(data, parse_header(data, s, end), k + 1) {
+        if let Some(sess) = decode_session(data, parse_header(data, s, end), k + 1)? {
             sessions.push(sess);
         }
     }
-    sessions
+    Ok(sessions)
 }
 
 pub fn decode_file(path: &Path, only: Option<usize>) -> std::io::Result<Vec<DecodedSession>> {
-    Ok(decode_bytes(&std::fs::read(path)?, only))
+    decode_bytes(&std::fs::read(path)?, only).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
 }

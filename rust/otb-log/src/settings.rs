@@ -202,9 +202,23 @@ impl Default for Settings {
     }
 }
 
+/// Cadence gyro au-delà de laquelle l'en-tête est jugé invraisemblable.
+const MAX_PLAUSIBLE_GYRO_HZ: f64 = 100_000.0;
+
 impl Settings {
     pub fn gyro_rate_hz(&self) -> f64 {
         1e6 / self.looptime_us.max(1) as f64
+    }
+
+    /// Constat (et non valeur inventée) quand l'en-tête annonce une cadence impossible : `looptime` à 0 devient 1 µs, donc
+    /// « 1 000 000 Hz ». Les plus rapides des vrais logs tournent à 32 kHz ; le seuil est trois fois plus haut (D-044).
+    pub fn implausible(&self) -> Option<String> {
+        let hz = self.gyro_rate_hz();
+        (hz > MAX_PLAUSIBLE_GYRO_HZ).then(|| {
+            format!(
+                "réglages de l'en-tête invraisemblables (gyro {hz:.0} Hz) : les analyses de ce log ne sont pas fiables"
+            )
+        })
     }
 
     pub fn pid_rate_hz(&self) -> f64 {
