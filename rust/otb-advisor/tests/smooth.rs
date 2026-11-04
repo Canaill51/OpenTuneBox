@@ -97,7 +97,9 @@ fn smooth_est_proche_de_numpy_a_1e_15() {
 #[test]
 fn smooth_est_identique_a_numpy_au_bit_pres_si_demande() {
     if std::env::var("OTB_BITEXACT").as_deref() != Ok("1") {
-        eprintln!("OTB_BITEXACT absent : comparaison au bit près ignorée (la tolérance est vérifiée par l'autre test)");
+        println!(
+            "[OTB-SAUT] OTB_BITEXACT absent : comparaison au bit près ignorée (la tolérance est vérifiée par l'autre test)"
+        );
         return;
     }
     for (name, k, f) in sources() {

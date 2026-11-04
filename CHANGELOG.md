@@ -6,6 +6,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- `otb-dev verify [--quick] [--strict]` : vérification complète en une commande (formatage, lint, tous les tests, `cargo deny`), code de sortie 0 seulement si tout passe ; les tests sautés faute de corpus (`OTB_GOLDEN`, `OTB_BITEXACT`) sont comptés et affichés, `--strict` en fait un échec. Le crochet de pré-commit n'utilise plus `jq` (absent du poste Windows : il laissait passer tous les commits) et reconnaît aussi la forme avec `-C dossier`. La CI et la documentation n'ont plus la liste des dix `-p`.
 - Plan par lots des cinq chantiers après la migration Rust (`docs/plan-chantiers.md`), issu de l'audit du 2026-11-04 : robustesse du décodeur face à un en-tête hostile (boucle sans fin, allocation géante), résultat périmé affiché par le socle des outils, commande unique de vérification `otb-dev verify` et crochet de pré-commit sans `jq`, mémoire du décodeur, consignes et CI remises à jour. Une PR par lot, preuves et contre-preuves exigées, décisions de Cédric consignées (bornes du décodeur : 512 champs, intervalles 1 à 65 535).
 - Garde-fous pour un agent qui travaille seul : `.claude/settings.json` refuse les commandes `git push`, `gh pr merge`, `git tag` et `gh release` (ces gestes restent ceux de Cédric) ; côté GitHub, la règle `protection-main` exige désormais une approbation par PR.
 

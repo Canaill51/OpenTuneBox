@@ -1,12 +1,13 @@
 #!/bin/sh
 # Crochet Claude Code (PreToolUse sur Bash) : avant chaque « git commit », vérifie la documentation
 # (`cargo test -p otb-dev --test docs`). En cas d'échec, le commit est bloqué (code 2) et le message est renvoyé à Claude.
-cmd=$(jq -r '.tool_input.command // empty')
-case "$cmd" in
-    *"git commit"* | *git\ -c\ *commit*) ;;
-    *) exit 0 ;;
-esac
-cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
+# Pas de `jq` (absent du poste Windows : l'ancien crochet sortait en 0 sans rien vérifier) : l'entrée JSON est lue telle quelle,
+# le motif « git [-c x=y] [-C dir] commit » la reconnaît même avec les guillemets échappés du JSON.
+input=$(cat)
+if ! printf '%s' "$input" | grep -Eq 'git( +(-c +[^ ]+|-C +[^ ]+|--[a-z-]+(=[^ ]+)?))* +commit'; then
+    exit 0
+fi
+cd "${CLAUDE_PROJECT_DIR:-.}" || { echo "Crochet : dossier du projet introuvable, vérification impossible." >&2; exit 2; }
 # Le délai du crochet est de 60 s (.claude/settings.json) : la suite Rust est donc coupée à 50 s, avec un avertissement visible
 # (le commit passe alors sans ce contrôle ; le lancer à la main).
 failed=0

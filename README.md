@@ -76,7 +76,7 @@ Depuis les sources ([Rust](https://rustup.rs) est le seul prérequis) :
 ```sh
 cd rust
 cargo run --release -p otb-gui -- [LOG…]   # interface graphique
-cargo test -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev   # tests (rapides, sans vrais logs)
+cargo run -p otb-dev -- verify   # vérification complète (formatage, lint, tests, cargo deny), sans vrais logs
 cd .. && sh packaging/linux/install_linux.sh   # Linux : compile l'interface (cargo) et l'ajoute au menu des applications
 ```
 

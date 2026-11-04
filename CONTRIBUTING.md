@@ -21,8 +21,7 @@ Pour une valeur qui diffère de PIDtoolbox, joindre la capture PIDtoolbox du mê
 2. Modifier, puis vérifier :
    ```sh
    cd rust
-   cargo fmt --check && cargo clippy --all-targets -- -D warnings
-   cargo test --no-fail-fast -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev
+   cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, cargo deny ; code 0 seulement si tout passe (--quick : sans deny)
    ```
    [rustup](https://rustup.rs) est le seul prérequis.
 3. Mettre la documentation à jour **dans le même commit** : le tableau de `.claude/skills/docs-sync/SKILL.md`

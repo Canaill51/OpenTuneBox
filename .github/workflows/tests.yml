@@ -20,7 +20,7 @@ jobs:
         run: |
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
-          cargo test --no-fail-fast -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev
+          cargo test --no-fail-fast
 
   # Windows fait partie des livrables (D-031) : les mêmes tests y tournent à chaque envoi.
   windows:
@@ -31,4 +31,4 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Tests Rust
         working-directory: rust
-        run: cargo test --no-fail-fast -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev
+        run: cargo test --no-fail-fast

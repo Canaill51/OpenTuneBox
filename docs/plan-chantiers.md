@@ -109,24 +109,24 @@ bloque réellement.
 `.claude/settings.json`, `rust/otb-parity/tests/golden.rs` et `rust/otb-advisor/tests/smooth.rs` (tests sautés en silence),
 `docs/lecons.md` L-069 (profil `dev` et disque de la CI), L-023 (tests ignorés sans bruit).
 
-- [ ] Sous-commande `verify` dans `otb-dev` : enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
+- [x] Sous-commande `verify` dans `otb-dev` : enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
       `cargo test --no-fail-fast` (sans la liste des `-p`, équivalente : 74 exécutables dans les deux cas), puis
       `cargo deny check` si `cargo-deny` est installé (sinon avertissement visible) ; code de sortie 0 seulement si tout passe ;
       option `--quick` sans `deny`. Afficher la durée de chaque étape.
-- [ ] Tests sautés rendus visibles : `golden.rs` et `smooth.rs` affichent leur saut sur la sortie standard **et** `verify` le
+- [x] Tests sautés rendus visibles : `golden.rs` et `smooth.rs` affichent leur saut sur la sortie standard **et** `verify` le
       compte ; option `--strict` : un saut vaut échec (pour le poste qui a le corpus). Ne pas transformer le saut en
       `#[ignore]` sans vérifier que `cargo test` continue de les lister.
-- [ ] Crochet : plus de `jq`. Lire la commande dans le JSON avec `sed`/`grep` POSIX, ou échouer bruyamment (code 2 et message)
+- [x] Crochet : plus de `jq`. Lire la commande dans le JSON avec `sed`/`grep` POSIX, ou échouer bruyamment (code 2 et message)
       si l'outil manque, jamais `exit 0` en silence. Garder le motif `git commit` et ajouter `git -C … commit`.
-- [ ] Remplacer la liste des `-p` par `cargo test --no-fail-fast` dans `.github/workflows/tests.yml`, `CONTRIBUTING.md`,
+- [x] Remplacer la liste des `-p` par `cargo test --no-fail-fast` dans `.github/workflows/tests.yml`, `CONTRIBUTING.md`,
       `AGENTS.md`, `README.md` (une seule source : la ligne de `verify`).
-- [ ] Documentation : `AGENTS.md` (bloc « Commandes »), `CONTRIBUTING.md`, `docs/architecture.md` (module de `otb-dev`),
+- [x] Documentation : `AGENTS.md` (bloc « Commandes »), `CONTRIBUTING.md`, `docs/architecture.md` (module de `otb-dev`),
       `CHANGELOG.md`.
-- [ ] Vérification : `cargo run -p otb-dev -- verify` rend 0 sur `main`. **Contre-preuves** : (a) casser un test, `verify`
+- [x] Vérification : `cargo run -p otb-dev -- verify` rend 0 sur `main`. **Contre-preuves** : (a) casser un test, `verify`
       rend 1 ; (b) ajouter un espace de formatage, 1 ; (c) `verify --strict` sans `OTB_GOLDEN`, 1 ; (d) crochet : avec
       `OTB_DOCS_ROOT` vers une copie sabotée (lien cassé), un `git commit` est bloqué avec le code 2 ; sans `jq` installé, il
       bloque quand même. Mesurer et noter la durée totale (≈ 100 s à chaud attendu).
-- [ ] Critère d'arrêt : si `cargo test` sans `-p` ne donne pas les mêmes 74 exécutables, chercher pourquoi avant de changer
+- [x] Critère d'arrêt : si `cargo test` sans `-p` ne donne pas les mêmes 74 exécutables, chercher pourquoi avant de changer
       la CI.
 
 ## Lot 2 : consignes et CI remises à jour (Sonnet) — C5
@@ -272,7 +272,7 @@ posée **par Cédric lui-même**.
 | Lot | État |
 |---|---|
 | 0 | Fait le 2026-11-04 sur le poste Linux : références présentes ; `otb-parity` 0 écart ; `corpus validate` 697/712 sessions conformes (les 15 autres sont des écarts connus, la ligne de base n'est donc pas « 0 écart » comme le plan le supposait) ; départ mémoire 491 Mo sur `LOG00008.BFL`. Détail dans `docs/validation.md` (« Ligne de base ») |
-| 1 | À faire |
+| 1 | Fait le 2026-11-04 (branche `feat/dev-verify`) : `otb-dev verify [--quick] [--strict]`, marqueur `[OTB-SAUT]`, crochet sans `jq`, listes de `-p` retirées (tests.yml, CONTRIBUTING, README, AGENTS). 74 exécutables avec et sans `-p` (critère d'arrêt levé). `verify` : 63–67 s à chaud sur ce poste, code 0 sur le code actuel. Contre-preuves : (a) test cassé → 1, (b) espace de formatage → 1, (c) `--strict` sans `OTB_GOLDEN` → 1 (2 sauts comptés), (d) docs sabotées (lien cassé) : le crochet rend 2 sans `jq` dans le PATH pour `git commit`, la forme avec `-C` et celle avec `-c`, et 0 sans sabotage. Non traités : les autres sauts de tests (`otb-gui`…) ; W-047 |
 | 2 | À faire |
 | 3 | À faire |
 | 4 | À faire |

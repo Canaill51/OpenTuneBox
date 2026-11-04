@@ -85,7 +85,7 @@ Règles :
 Toutes depuis `rust/` (`cd rust`).
 
 ```sh
-cargo test --no-fail-fast -p otb-decoder -p otb-dsp -p otb-format -p otb-log -p otb-analysis -p otb-advisor -p otb-cli -p otb-gui -p otb-parity -p otb-dev   # tous les tests (sans le corpus)
+cargo run -p otb-dev -- verify   # vérification complète : fmt, clippy, tous les tests, cargo deny ; code 0 seulement si tout passe (--quick sans deny ; --strict : un test sauté faute de corpus = échec)
 cargo test -p otb-dev --test docs   # cohérence de la documentation
 cargo fmt --check && cargo clippy --all-targets -- -D warnings   # formatage et lint (doivent être vides)
 cargo run --release -p otb-gui -- [LOG…]   # interface
