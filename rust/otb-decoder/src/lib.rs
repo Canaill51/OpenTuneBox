@@ -41,6 +41,8 @@ pub struct Params<'a> {
     pub ctx: [i64; CTX_SIZE],
     /// Nombre de lignes à réserver d'avance (simple indication de capacité).
     pub est_rows: usize,
+    /// `Some(colonnes larges)` : les trames principales sont rangées dans une [`CompactTable`] (`main` reste vide).
+    pub compact: Option<&'a [usize]>,
 }
 
 /// Table à lignes de largeur fixe, en une seule mémoire (ligne après ligne).
@@ -69,9 +71,88 @@ impl Table {
     }
 }
 
+/// Trames principales rangées plus serré que [`Table`] (L-081) : les colonnes « larges » (`loopIteration`, `time`, qui
+/// dépassent 32 bits) restent en `i64`, **toutes les autres sont ramenées aux 32 bits** (`((c + 2³¹) mod 2³²) − 2³¹`, comme le
+/// firmware et `otb_log::drop_implausible`) et rangées en `i32` : moitié moins de mémoire.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct CompactTable {
+    pub rows: usize,
+    pub cols: usize,
+    /// Indices (croissants) des colonnes rangées en `i64`.
+    pub wide_cols: Vec<usize>,
+    /// `rows × wide_cols.len()`, ligne après ligne.
+    pub wide: Vec<i64>,
+    /// `rows × (cols − wide_cols.len())`, ligne après ligne, colonnes étroites dans l'ordre.
+    pub narrow: Vec<i32>,
+}
+
+/// Valeur ramenée aux 32 bits (identique à `drop_implausible` : sans effet sur une valeur déjà dans la plage).
+pub fn wrap32(v: i64) -> i32 {
+    (v.wrapping_add(1 << 31).rem_euclid(1 << 32) - (1 << 31)) as i32
+}
+
+impl CompactTable {
+    pub fn new(cols: usize, wide_cols: &[usize], rows: usize) -> Self {
+        let mut t = CompactTable {
+            rows: 0,
+            cols,
+            wide_cols: wide_cols.to_vec(),
+            wide: Vec::new(),
+            narrow: Vec::new(),
+        };
+        let _ = t.wide.try_reserve(rows.saturating_mul(t.wide_cols.len()));
+        let _ = t.narrow.try_reserve(rows.saturating_mul(cols - t.wide_cols.len()));
+        t
+    }
+    pub fn n_narrow(&self) -> usize {
+        self.cols - self.wide_cols.len()
+    }
+    /// Ajoute une ligne ; `Err` si la mémoire manque (L-080).
+    pub fn push(&mut self, row: &[i64]) -> Result<(), OutOfMemory> {
+        self.wide.try_reserve(self.wide_cols.len()).map_err(|_| OutOfMemory)?;
+        self.narrow.try_reserve(self.n_narrow()).map_err(|_| OutOfMemory)?;
+        let mut w = self.wide_cols.iter().copied().peekable();
+        for (c, &v) in row[..self.cols].iter().enumerate() {
+            if w.peek() == Some(&c) {
+                w.next();
+                self.wide.push(v);
+            } else {
+                self.narrow.push(wrap32(v));
+            }
+        }
+        self.rows += 1;
+        Ok(())
+    }
+    /// Place de la colonne `c` : `(true, rang parmi les larges)` ou `(false, rang parmi les étroites)`.
+    pub fn slot(&self, c: usize) -> (bool, usize) {
+        match self.wide_cols.binary_search(&c) {
+            Ok(k) => (true, k),
+            Err(k) => (false, c - k),
+        }
+    }
+    /// Valeur de la ligne `r`, colonne `c`.
+    pub fn get(&self, r: usize, c: usize) -> i64 {
+        match self.slot(c) {
+            (true, k) => self.wide[r * self.wide_cols.len() + k],
+            (false, k) => i64::from(self.narrow[r * self.n_narrow() + k]),
+        }
+    }
+    /// Rend la mémoire des valeurs (`rows`, `cols` et les indices restent).
+    pub fn release(&mut self) {
+        self.wide = Vec::new();
+        self.narrow = Vec::new();
+    }
+    fn shrink_to_fit(&mut self) {
+        self.wide.shrink_to_fit();
+        self.narrow.shrink_to_fit();
+    }
+}
+
 /// Résultat : mêmes tableaux que `core.decode_stream` (largeur au moins 1, comme en Python).
 pub struct Decoded {
+    /// Vide si `Params::compact` est donné (voir `compact`).
     pub main: Table,
+    pub compact: Option<CompactTable>,
     pub kind: Vec<i8>,
     pub slow: Table,
     pub slow_at: Vec<i64>,
@@ -94,6 +175,11 @@ fn is_marker(c: i64) -> bool {
     matches!(c, 73 | 80 | 71 | 72 | 83 | 69)
 }
 
+/// Nombre de trames principales rangées, quel que soit le rangement (les trames S, G et E y notent leur position).
+fn main_rows(main: &Table, compact: &Option<CompactTable>) -> usize {
+    compact.as_ref().map_or_else(|| main.rows(), |c| c.rows)
+}
+
 /// `Err(OutOfMemory)` : la mémoire manque pour ranger les trames (la session est abandonnée, le programme continue).
 pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
     let mut s = Stream::new(buf, prm.start, prm.end);
@@ -104,7 +190,8 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
 
     // l'estimation d'après la taille du fichier est environ deux fois trop grande (W-016) : on en réserve la moitié
     let rows_hint = (prm.est_rows / 2).max(16);
-    let mut main = Table::new(nm, rows_hint);
+    let mut main = Table::new(nm, if prm.compact.is_some() { 0 } else { rows_hint });
+    let mut compact = prm.compact.map(|w| CompactTable::new(nm, w, rows_hint));
     let mut kind: Vec<i8> = Vec::new();
     let _ = kind.try_reserve(rows_hint);
     let mut slow = Table::new(n_slow, 64);
@@ -176,7 +263,10 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
                             stream_valid = false;
                         }
                         if stream_valid {
-                            main.push(&cur)?;
+                            match compact.as_mut() {
+                                Some(c) => c.push(&cur)?,
+                                None => main.push(&cur)?,
+                            }
                             kind.try_reserve(1).map_err(|_| OutOfMemory)?;
                             kind.push(0);
                             stats[5] += 1;
@@ -199,7 +289,10 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
                             last_iter = cur[FIELD_ITERATION];
                             last_time = cur[FIELD_TIME];
                             stats[2] = stats[2].wrapping_add(last_skipped);
-                            main.push(&cur)?;
+                            match compact.as_mut() {
+                                Some(c) => c.push(&cur)?,
+                                None => main.push(&cur)?,
+                            }
                             kind.try_reserve(1).map_err(|_| OutOfMemory)?;
                             kind.push(1);
                             stats[6] += 1;
@@ -213,7 +306,7 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
                         // S
                         slow.push(&last_slow)?;
                         slow_at.try_reserve(1).map_err(|_| OutOfMemory)?;
-                        slow_at.push(main.rows() as i64);
+                        slow_at.push(main_rows(&main, &compact) as i64);
                     }
                     72 => {
                         // H
@@ -225,7 +318,7 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
                         if home_valid {
                             gps.push(&last_gps)?;
                             gps_at.try_reserve(1).map_err(|_| OutOfMemory)?;
-                            gps_at.push(main.rows() as i64);
+                            gps_at.push(main_rows(&main, &compact) as i64);
                         } else {
                             accepted = false;
                         }
@@ -238,7 +331,7 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
                                 last_time = ev_d2;
                             }
                             events.try_reserve(1).map_err(|_| OutOfMemory)?;
-                            events.push([ev_type, main.rows() as i64, ev_d1, ev_d2]);
+                            events.push([ev_type, main_rows(&main, &compact) as i64, ev_d1, ev_d2]);
                             if ev_type == EVENT_LOG_END {
                                 stats[3] = 1;
                             }
@@ -375,9 +468,13 @@ pub fn decode_stream(buf: &[u8], prm: &Params) -> Result<Decoded, OutOfMemory> {
     stats[4] = s.pos - prm.start;
     // copies à la taille exacte : la réserve d'avance resterait sinon en mémoire tant que la session existe
     main.data.shrink_to_fit();
+    if let Some(c) = compact.as_mut() {
+        c.shrink_to_fit();
+    }
     kind.shrink_to_fit();
     Ok(Decoded {
         main,
+        compact,
         kind,
         slow,
         slow_at,
@@ -433,6 +530,7 @@ mod tests {
             p_denom: 1,
             ctx: [0; CTX_SIZE],
             est_rows: 0,
+            compact: None,
         };
         decode_stream(bytes, &prm).unwrap()
     }

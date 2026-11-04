@@ -68,6 +68,11 @@ différer. Variables à définir : `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golde
   décodeur (295 Mo). `Fields::release_main` la rend après l'extraction du temps et des drapeaux : `LOG00008.BFL` **342 Mo**
   (÷ 1,41 ; objectif ÷ 1,5 non atteint), 0,62 s. Identité : empreinte de tous les `FlightLog` des 528 fichiers, avant et après
   (programme temporaire, non gardé) : identiques ; `otb-parity check` 0 échec sur 1728 appels ; `corpus validate` 697/712, mêmes statuts.
+  **Refonte (rangement compact, L-081)** : le décodeur range directement les trames principales en `CompactTable` (`i32` ramenés aux
+  32 bits pour toutes les colonnes sauf `loopIteration` et `time`, en `i64`) quand `load` le demande. `LOG00008.BFL` : **274 Mo**
+  (÷ 1,75 ; objectif ÷ 2 manqué, ÷ 1,5 atteint), **0,54 s** (0,63 s avant : plus rapide). Identité : empreinte de tous les `FlightLog`
+  des 528 fichiers identique à celle de `main` ; `otb-parity check` 0 échec ; `corpus validate` 697/712, mêmes statuts. Contre-preuve : la
+  position des trames lentes calculée sur une table vide (bogue rencontré en route) fait échouer `otb-decoder/tests/compact.rs`.
   Le test `otb-parity --test golden` échoue avec `OTB_GOLDEN` défini (écart de 1e-15 relatif dans `spectral.spectrum`), **déjà sur `main`** :
   à traiter à part.
 

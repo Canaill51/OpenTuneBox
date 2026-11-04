@@ -64,6 +64,7 @@ est celle du commit qui les a introduites.
 - **Symptôme** — 2026-11-04 (lot 5) : `LOG00008.BFL` (une session, 620 079 trames) demande 481 Mo. Le plan attendait un gain de la conversion session par session (5a) : elle a donné 513 Mo (+ 32 Mo, le fichier restant lu) ; aucun log du corpus de plus de 1 Mo n'a deux sessions.
 - **Cause (mesurée par `VmHWM` à trois endroits de `from_session`)** — le pic n'était pas dans le décodeur (295 Mo) mais à la fin de `from_session` : la table d'entiers 64 bits (213 Mo) restait vivante pendant que les copies finales (`f.axes`, moteurs…) se construisaient (468 Mo).
 - **Règle** — mesurer le pic par étape avant de choisir la piste ; rendre la grosse table dès que ses colonnes utiles sont extraites (`Fields::release_main`). Preuve d'identité : empreinte du `FlightLog` complet de chaque fichier du corpus, avant et après (528 fichiers identiques) ; `corpus validate` et `otb-parity` ne passent pas par `load` et ne la donnent pas. Mesure : 481 → 342 Mo, durée inchangée.
+- **Suite (refonte)** — ranger les colonnes en `i32` dès le décodeur (`CompactTable`) : 274 Mo, 0,54 s. Piège rencontré : le décodeur note la position des trames lentes, GPS et événements avec le nombre de trames principales ; avec une table principale vide ce nombre vaut 0 et les drapeaux de mode de vol étaient faux (528 empreintes différentes, aucun test rouge). Toute valeur dérivée du nombre de trames doit passer par `main_rows`.
 
 ### L-080 : une allocation ratée n'est pas une panique : `catch_unwind` ne la rattrape pas, le processus est abandonné
 - **Symptôme** — 2026-11-04 (audit du lot 4) : un en-tête qui déclare 20 000 champs fait demander 67 Go au décodeur ; Rust écrit « memory allocation of … bytes failed » et abandonne le programme entier, sans rien dire à l'interface (qui décode pourtant dans un fil).
@@ -891,7 +892,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
-| L-081 | Pic de mémoire de l'ouverture : mesurer par étape ; rendre la table `i64` dès que les colonnes utiles sont extraites (481 → 342 Mo) | Décodeur et logs |
+| L-081 | Pic de mémoire de l'ouverture : mesurer par étape ; rendre la table `i64` dès que les colonnes utiles sont extraites, puis ranger en `i32` dès le décodeur (481 → 274 Mo) ; positions S/G/E via `main_rows` | Décodeur et logs |
 | L-080 | Allocation ratée = abandon du programme, `catch_unwind` ne la voit pas : `try_reserve` avant chaque ajout, et borner les nombres lus dans l'en-tête (D-044) | Décodeur et logs |
 | L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |
 | L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |

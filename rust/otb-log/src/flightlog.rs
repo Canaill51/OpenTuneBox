@@ -14,11 +14,12 @@ use std::collections::{BTreeSet, HashMap};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-use otb_decoder::file::{DecodedSession, Matrix, Stats, decode_file};
+use otb_decoder::CompactTable;
+use otb_decoder::file::{DecodedSession, Matrix, Stats, decode_bytes_compact, wide_columns};
 use otb_dsp::pairwise_sum;
 
 use crate::settings::{Settings, parse_settings};
-use crate::{KIND_GYRO, KIND_PID, KIND_SKIP, KIND_WRAP, drop_implausible, rows_f32_scaled};
+use crate::{KIND_GYRO, KIND_PID, KIND_SKIP, KIND_WRAP, compact_f32_scaled, implausible_rows, rows_f32_scaled};
 
 pub const AXES: [&str; 3] = ["Roll", "Pitch", "Yaw"];
 /// Boîtes ANGLE (bit 1) et HORIZON (bit 2), mêmes rangs dans toutes les versions.
@@ -171,9 +172,58 @@ fn keep_rows(m: &mut Matrix, keep: &[bool]) {
     *m = Matrix { rows, cols, data };
 }
 
+/// Rangement compact d'une matrice d'entiers 64 bits (sessions décodées sans `decode_bytes_compact`, tests) : mêmes valeurs
+/// que le décodeur compact ; une colonne large qui n'est pas `loopIteration`/`time` est ramenée aux 32 bits comme les autres.
+fn compact_from_matrix(m: &Matrix, names: &[String]) -> CompactTable {
+    let mut wide = wide_columns(names).unwrap_or_default();
+    for c in [0, 1] {
+        if c < m.cols && !wide.contains(&c) {
+            wide.push(c);
+        }
+    }
+    wide.sort_unstable();
+    let mut t = CompactTable::new(m.cols, &wide, m.rows);
+    for r in 0..m.rows {
+        t.push(m.row(r)).expect("mémoire");
+    }
+    let nw = wide.len();
+    for (k, &c) in wide.iter().enumerate() {
+        if column_kinds(names).get(c) != Some(&KIND_SKIP) {
+            for r in 0..t.rows {
+                t.wide[r * nw + k] = i64::from(otb_decoder::wrap32(t.wide[r * nw + k]));
+            }
+        }
+    }
+    t
+}
+
+/// Garde les lignes où `keep` est vrai (trames principales compactes).
+fn keep_rows_compact(t: &mut CompactTable, keep: &[bool]) {
+    let (nn, nw) = (t.n_narrow(), t.wide_cols.len());
+    let mut narrow = Vec::with_capacity(t.narrow.len());
+    let mut wide = Vec::with_capacity(t.wide.len());
+    let mut rows = 0;
+    for (r, &k) in keep.iter().enumerate() {
+        if k {
+            narrow.extend_from_slice(&t.narrow[r * nn..(r + 1) * nn]);
+            wide.extend_from_slice(&t.wide[r * nw..(r + 1) * nw]);
+            rows += 1;
+        }
+    }
+    t.narrow = narrow;
+    t.wide = wide;
+    t.rows = rows;
+}
+
 /// Accès aux champs de la session, par lots (une passe sur les lignes quel que soit le nombre de colonnes).
+/// Emplacement d'un champ.
+enum Loc {
+    Main(usize),
+    Slow(usize),
+}
+
 struct Fields {
-    main: Matrix,
+    main: CompactTable,
     slow: Matrix,
     main_idx: HashMap<String, usize>,
     slow_names: Vec<String>,
@@ -188,16 +238,16 @@ struct Fields {
 
 impl Fields {
     fn release_main(&mut self) {
-        self.main.data = Vec::new();
+        self.main.release();
         self.released = true;
     }
 
-    /// (tableau, indice de colonne) d'un champ : trames principales d'abord, puis lentes.
-    fn locate(&self, name: &str) -> Option<(&Matrix, usize)> {
+    /// Où se trouve un champ : trames principales d'abord (colonne), puis lentes (colonne).
+    fn locate(&self, name: &str) -> Option<Loc> {
         if let Some(&i) = self.main_idx.get(name) {
-            return Some((&self.main, i));
+            return Some(Loc::Main(i));
         }
-        self.slow_names.iter().position(|n| n == name).map(|i| (&self.slow, i))
+        self.slow_names.iter().position(|n| n == name).map(Loc::Slow)
     }
 
     fn present(&self, name: &str) -> bool {
@@ -212,12 +262,19 @@ impl Fields {
             let n = self.main.rows;
             return Some(self.lot_data[lot][row * n..(row + 1) * n].to_vec());
         }
-        let (m, c) = self.locate(name)?;
-        assert!(
-            !(self.released && std::ptr::eq(m, &self.main)),
-            "champ {name} lu hors des lots après la libération de la table brute"
-        );
-        Some(rows_f32_scaled(&m.data, m.rows, m.cols, &[c as i64], &[scale]).expect("colonne valide"))
+        match self.locate(name)? {
+            Loc::Main(c) => {
+                assert!(
+                    !self.released,
+                    "champ {name} lu hors des lots après la libération de la table brute"
+                );
+                Some(compact_f32_scaled(&self.main, &[c], &[scale]))
+            }
+            Loc::Slow(c) => {
+                let m = &self.slow;
+                Some(rows_f32_scaled(&m.data, m.rows, m.cols, &[c as i64], &[scale]).expect("colonne valide"))
+            }
+        }
     }
 
     /// `prefix[0..count]` en `f32` : `None` si aucune voie n'existe, zéros pour une voie absente.
@@ -239,8 +296,13 @@ impl Fields {
     }
 
     fn column_i64(&self, name: &str) -> Option<Vec<i64>> {
-        let (m, c) = self.locate(name)?;
-        Some((0..m.rows).map(|r| m.data[r * m.cols + c]).collect())
+        match self.locate(name)? {
+            Loc::Main(c) => Some((0..self.main.rows).map(|r| self.main.get(r, c)).collect()),
+            Loc::Slow(c) => {
+                let m = &self.slow;
+                Some((0..m.rows).map(|r| m.data[r * m.cols + c]).collect())
+            }
+        }
     }
 }
 
@@ -266,17 +328,23 @@ fn div32(v: f32, d: f64) -> f32 {
 pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> {
     let st = parse_settings(&sess.header.raw);
     let hr: f64 = if st.high_resolution { 10.0 } else { 1.0 };
-    let n0 = sess.main.rows;
+    // trames principales en rangement compact (le décodeur le fournit en `decode_bytes_compact` ; sinon on le fabrique)
+    let mut main = match sess.compact.take() {
+        Some(c) => c,
+        None => compact_from_matrix(&sess.main, &sess.main_names),
+    };
+    sess.main = Matrix::default();
+    let n0 = main.rows;
 
-    // 1. trames impossibles
+    // 1. trames impossibles (les colonnes étroites sont déjà ramenées aux 32 bits)
     let mut n_bad = 0usize;
     if n0 > 0 {
         let kinds = column_kinds(&sess.main_names);
-        let bad = drop_implausible(&mut sess.main.data, n0, sess.main.cols, &kinds, hr).expect("noyau");
+        let bad = implausible_rows(&main, &kinds, hr);
         n_bad = bad.iter().filter(|&&b| b).count();
         if n_bad > 0 {
             let keep: Vec<bool> = bad.iter().map(|b| !b).collect();
-            keep_rows(&mut sess.main, &keep);
+            keep_rows_compact(&mut main, &keep);
             keep_rows(&mut sess.slow, &keep);
             sess.main_kind = sess
                 .main_kind
@@ -287,10 +355,10 @@ pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> 
                 .collect();
         }
     }
-    if sess.main.rows < 2 || n_bad as f64 > n0 as f64 / 2.0 {
+    if main.rows < 2 || n_bad as f64 > n0 as f64 / 2.0 {
         return None; // session essentiellement corrompue
     }
-    let n = sess.main.rows;
+    let n = main.rows;
 
     // 2. champs, convertis en f32 par lots : une passe sur la matrice par lot (D-034)
     let mut main_idx = HashMap::new();
@@ -323,7 +391,7 @@ pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> 
     plan_order.push(("amperageLatest".into(), 1.0));
 
     let mut f = Fields {
-        main: std::mem::take(&mut sess.main),
+        main,
         slow: std::mem::take(&mut sess.slow),
         main_idx,
         slow_names: sess.slow_names.clone(),
@@ -340,9 +408,9 @@ pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> 
         if wanted.is_empty() {
             continue;
         }
-        let cols: Vec<i64> = wanted.iter().map(|(name, _)| f.main_idx[name] as i64).collect();
+        let cols: Vec<usize> = wanted.iter().map(|(name, _)| f.main_idx[name]).collect();
         let scales: Vec<f64> = wanted.iter().map(|(_, s)| *s).collect();
-        let lot = rows_f32_scaled(&f.main.data, f.main.rows, f.main.cols, &cols, &scales).expect("colonnes valides");
+        let lot = compact_f32_scaled(&f.main, &cols, &scales);
         let id = f.lot_data.len();
         f.lot_data.push(lot);
         for (row, (name, _)) in wanted.iter().enumerate() {
@@ -351,7 +419,7 @@ pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> 
     }
 
     // 3. temps et fréquence d'enregistrement
-    let time_us: Vec<f64> = (0..n).map(|r| f.main.data[r * f.main.cols + 1] as f64).collect();
+    let time_us: Vec<f64> = (0..n).map(|r| f.main.get(r, 1) as f64).collect();
     let mode_flags = f
         .column_i64("flightModeFlags")
         .map(|v| v.into_iter().map(|x| x as i32).collect::<Vec<_>>());
@@ -517,9 +585,13 @@ pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> 
 
 /// Charge toutes les sessions d'un fichier `.bbl`/`.bfl`.
 pub fn load(path: &Path) -> std::io::Result<Vec<FlightLog>> {
-    Ok(decode_file(path, None)?
+    let data = std::fs::read(path)?;
+    let sessions =
+        decode_bytes_compact(&data, None).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    drop(data);
+    Ok(sessions
         .into_iter()
-        .filter(|s| s.main.rows > 1)
+        .filter(|s| s.compact.as_ref().map_or(s.main.rows, |c| c.rows) > 1)
         .filter_map(|s| from_session(path, s))
         .collect())
 }
