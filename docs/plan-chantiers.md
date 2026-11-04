@@ -72,10 +72,11 @@ le lot 2 après le lot 1 (il documente la nouvelle commande) ; les lots 3 et 4 s
    une ligne par crate (le détail reste dans `docs/architecture.md`, que le test de documentation accepte).
    **Accord de Cédric (2026-11-04).**
 4. **Protection de la branche `main` (action manuelle, hors code).** Le ruleset exige la CI mais zéro approbation : avec le
-   `gh` du propriétaire, un agent peut fusionner seul. **Cédric (2026-11-04) : à régler.** C'est un réglage GitHub que
-   Cédric fait lui-même (page *Settings → Rules → protection-main* : « Require a pull request before merging », nombre
-   d'approbations à 1, et retirer le contournement du rôle administrateur, ou le garder pour lui seul en connaissance de
-   cause). Un agent ne doit jamais fusionner une PR : l'interdit entre dans `AGENTS.md` au lot 2 quoi qu'il en soit.
+   `gh` du propriétaire, un agent peut fusionner seul. **Fait par Cédric le 2026-11-04** (vérifié par `gh api` : une
+   approbation requise, approbations périmées rejetées à chaque nouveau commit, contournement du rôle administrateur
+   gardé « pour les PR seulement »). Comme toute règle GitHub est contournable par le compte du propriétaire, le vrai
+   verrou est côté Claude Code : `.claude/settings.json` refuse désormais `git push`, `gh pr merge`, `git tag` et
+   `gh release` (accord de Cédric le même jour). Ces gestes restent les siens. L'interdit entre aussi dans `AGENTS.md` au lot 2.
 5. **Première publication Rust.** W-046 (police Ubuntu Light face à la GPL 3) la bloque et relève d'une décision de Cédric.
    **Cédric (2026-11-04) : à traiter aussi.** Un lot 7 est réservé en fin de plan ; il ne se détaille qu'une fois W-046 tranché.
 

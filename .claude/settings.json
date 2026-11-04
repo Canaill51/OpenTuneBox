@@ -1,4 +1,12 @@
 {
+  "permissions": {
+    "deny": [
+      "Bash(git push*)",
+      "Bash(gh pr merge*)",
+      "Bash(git tag*)",
+      "Bash(gh release*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
