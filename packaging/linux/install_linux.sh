@@ -2,8 +2,8 @@
 # Installe OpenTuneBox pour l'utilisateur courant et l'ajoute au menu des applications (KDE, GNOME…).
 #   sh packaging/linux/install_linux.sh             compile le programme (cargo build --release) puis l'installe
 #   sh packaging/linux/install_linux.sh CHEMIN      installe le programme déjà compilé (ex. rust/target/release/opentunebox-gui)
-# Rien n'est installé hors de ~/.local : le programme (~/.local/bin/opentunebox-gui), l'icône et le fichier .desktop.
-# Pour retirer : supprimer ces éléments (programme, icônes, OpenTuneBox.desktop).
+# Rien n'est installé hors de ~/.local : le programme (~/.local/bin/opentunebox-gui), l'icône, le fichier .desktop et les mentions de
+# licences (~/.local/share/doc/opentunebox/). Pour retirer : supprimer ces éléments (programme, icônes, OpenTuneBox.desktop, dossier doc).
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BIN_DIR="$HOME/.local/bin"
@@ -11,6 +11,7 @@ APPS="$HOME/.local/share/applications"
 HICOLOR="$HOME/.local/share/icons/hicolor"
 SVG="$ROOT/rust/otb-gui/assets/opentunebox.svg"
 PNG="$ROOT/packaging/linux/opentunebox.png"
+DOC="$HOME/.local/share/doc/opentunebox"
 
 if [ $# -ge 1 ]; then
     BIN="$1"
@@ -23,11 +24,13 @@ if [ ! -x "$BIN" ]; then
     exit 1
 fi
 
-mkdir -p "$BIN_DIR" "$APPS" "$HICOLOR/scalable/apps" "$HICOLOR/256x256/apps"
+mkdir -p "$BIN_DIR" "$APPS" "$DOC" "$HICOLOR/scalable/apps" "$HICOLOR/256x256/apps"
 # Copie à côté puis remplacement d'un coup : `cp` directement sur le programme échoue (« Fichier texte occupé ») quand OpenTuneBox est
 # ouvert, ce qui est le cas d'une mise à jour ; `mv` remplace le fichier même s'il tourne (l'ancienne fenêtre garde l'ancien programme).
 cp "$BIN" "$BIN_DIR/.opentunebox-gui.new"
 mv -f "$BIN_DIR/.opentunebox-gui.new" "$BIN_DIR/opentunebox-gui"
+# Mentions de licences des composants embarqués (polices, icônes, bibliothèques), exigées par leurs licences (W-043).
+cp "$ROOT/THIRD-PARTY-LICENSES.txt" "$DOC/THIRD-PARTY-LICENSES.txt"
 # Icône vectorielle, plus un PNG de 256 px : certains menus et barres des tâches n'utilisent que des PNG.
 cp "$SVG" "$HICOLOR/scalable/apps/opentunebox.svg"
 cp "$PNG" "$HICOLOR/256x256/apps/opentunebox.png"

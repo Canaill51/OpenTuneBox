@@ -11,4 +11,5 @@
 pub mod corpus;
 pub mod docs;
 pub mod icons;
+pub mod licenses;
 pub mod release;

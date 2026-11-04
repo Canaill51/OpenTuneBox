@@ -150,6 +150,7 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.
   - `release.rs` : `otb-dev release prepare X.Y.Z | notes vX.Y.Z` (numéro de version dans `rust/Cargo.toml`, CHANGELOG).
   - `icons.rs` : `otb-dev icons` (PNG Linux et `.ico` Windows depuis `opentunebox.svg`, par `resvg` et `ico`, Rust pur ; pas de `.icns` : D-042).
+  - `licenses.rs` : `otb-dev licenses` écrit `THIRD-PARTY-LICENSES.txt` à la racine : les fichiers de licence de chaque crate que `otb-gui` embarque (dépendances normales pour Linux et Windows, via `cargo metadata`, sans construction, test ni macros procédurales), les polices (Hack, Ubuntu Light, logos d'egui) et les icônes Lucide ; les textes identiques sont écrits une fois, les composants sans fichier de licence sont listés avec leur licence et leurs auteurs déclarés. L'installateur Windows et l'AppImage livrent ce fichier (W-043). À refaire à chaque changement de dépendance (voir « Publier une version » dans `CONTRIBUTING.md`).
   - `src/corpus/` : outils du corpus de vrais logs (`otb-dev corpus <outil>`). `mod.rs` est le socle (liste des logs sans doublons ni
     `__MACOSX`, passage parallèle rayon avec reprise des fichiers en échec, sessions d'au moins 8 s, options) ; `rates.rs`
     (`corpus rates SORTIE.json`, `--resume`, `--compare AVANT APRÈS` : code 1 si un conseil diffère) ; `calibrate.rs`

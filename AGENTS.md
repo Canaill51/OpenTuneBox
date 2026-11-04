@@ -61,7 +61,7 @@ rust/         espace de travail Cargo (D-031) ; détail de chaque crate et de ch
   otb-gui       interface egui + egui_plot : app.rs, viewer.rs / viewer_page.rs (visualiseur), guide.rs / guide_page.rs (guide intégré),
                 state.rs, worker.rs, tool.rs, theme.rs, icons.rs, plots.rs, export.rs, tools/ (une page par outil), assets/
   otb-parity    comparateur avec les références figées de l'ancienne version Python (tag `python-etalon`)
-  otb-dev       outils de développement, jamais livrés : vérification de la documentation, release, icons, corpus (rates, calibrate, labels, validate)
+  otb-dev       outils de développement, jamais livrés : vérification de la documentation, release, icons, licenses, corpus (rates, calibrate, labels, validate)
 tests/        data/jeno5_5s.bbl : 5 s d'un vrai log de Cédric, lu par 15 tests Rust ; les autres tests sont dans chaque crate
               (`rust/<crate>/tests/`) ; `rust/otb-gui/tests/support/mod.rs` : `synthetic_log` fabrique un vol sans corpus
 packaging/    icônes (`opentunebox.ico`, `linux/opentunebox.png`, refaites par `otb-dev icons`), installateurs : windows/ (Inno Setup),
@@ -91,6 +91,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings   # formatage et 
 cargo run --release -p otb-gui -- [LOG…]   # interface
 cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande (binaire `opentunebox`)
 cargo run -p otb-dev -- icons   # refait packaging/linux/opentunebox.png et packaging/opentunebox.ico depuis le SVG
+cargo run -p otb-dev -- licenses   # refait THIRD-PARTY-LICENSES.txt (mentions de licences livrées par les installateurs) ; à relancer quand une dépendance change
 cargo run -p otb-dev -- release prepare X.Y.Z   # préparer une version ; `release notes vX.Y.Z` : notes de la page Releases
 cargo run --release -p otb-dev -- corpus rates SORTIE.json   # taux de chaque constat sur le corpus ; `--compare AVANT.json APRÈS.json` : mêmes conseils ?
 cargo run --release -p otb-dev -- corpus calibrate 600 SORTIE.json   # mesures brutes du corpus pour calibrer les seuils ; `corpus calibrate --resume SORTIE.json` : p10 / p50 / p90 par taille
