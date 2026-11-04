@@ -59,6 +59,12 @@ différer. Variables à définir : `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golde
   | `1. PTB/ram/BTFL_BLACKBOX_LOG_MARIO_8_…bbl` | 21 Mo | | 0,46 à 0,49 s | ≈ 266 Mo |
   | `tests/data/jeno5_5s.bbl` | 5 s | 8 262 | < 0,01 s | ≈ 11 Mo |
 
+  Banc : `otb-dev bench-open LOG [ESSAIS]` (pic = `VmHWM`, compteur du système, un processus par log). Refait le 2026-11-04 sur
+  `main` : `LOG00008.BFL` 0,63 s, **481 Mo** (3 essais identiques) ; `jeno5_5s.bbl` 0,008 s, 12 Mo.
+  **Essai du lot 5a (conversion session par session) : sans effet.** `LOG00008.BFL` n'a qu'une session et aucun log du corpus de plus
+  de 1 Mo n'en a deux : le pic vient de la table d'entiers 64 bits d'une seule session, que 5a ne réduit pas. Mesuré : 513 Mo
+  (+ 32 Mo, le fichier restant lu pendant toute la conversion) et 0,70 s ; code retiré.
+
   Objectif du lot 5a (÷ 1,5) : passer sous ≈ 327 Mo sur `LOG00008.BFL`. Le « plus gros log » de W-014 (965 000 trames, 39 Mo)
   n'est plus dans le corpus : ses 364 Mo ne se comparent pas à ces chiffres. Ordinateur : 16 cœurs, 15 Go de mémoire.
 
