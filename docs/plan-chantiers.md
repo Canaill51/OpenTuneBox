@@ -43,7 +43,9 @@ main
  ├─ perf/decoder-memory         lot 5 : C4 (deux sous-lots, deux PR)
  ├─ docs/chantiers-bilan        lot 6 : bilan et mesures finales
  ├─ (à nommer)                  lot 7 : première publication Rust, après décision sur W-046
- └─ chore/viewer-frame-bench    lot 8 : banc de temps de cadre (W-049), part de perf/decoder-memory
+ ├─ chore/viewer-frame-bench    lot 8 : banc de temps de cadre (W-049), part de perf/decoder-memory
+ ├─ perf/viewer-decimation      lot 10 : tracé du viewer sans parcourir toute la série (W-049), après le lot 8
+ └─ perf/open-parallel          lot 11 : ouverture de plusieurs logs en parallèle (W-050), après la fusion du lot 5
 ```
 
 Chaque branche part de `main` à jour. Dépendances : le lot 1 d'abord (il donne la commande de vérification à tous les
@@ -256,6 +258,11 @@ Sous-lot 5b, colonnes utiles seulement (PR `perf/decoder-columns`, ouverte seule
 
 ## Lot 6 : bilan (Sonnet)
 
+**Ordre (Cédric, 2026-11-04)** : après le lot 8, dont il reprend la mesure de `LOG00008.BFL` (verdict sur W-049), et il couvre aussi
+l'audit de performance processeur / carte graphique (W-049 à W-051) et les lots 10 et 11 s'ils sont faits ; il écrit dans les
+mêmes fichiers que le lot 8 (`validation.md`, `CHANGELOG.md`, W-049, tableau d'avancement), d'où cet ordre. Les lots 10 et 11
+peuvent suivre le bilan : il les propose alors comme suite.
+
 - [ ] Relire les cinq chantiers : état, preuves, mesures ; mettre à jour `docs/validation.md` (robustesse, mémoire) et ce plan.
 - [ ] Clore ou mettre à jour les W concernés : W-014, W-016, W-035 (9), W-036 (8), W-041 si touché.
 - [ ] Leçons à ajouter dans `docs/lecons.md` : allocation ratée non rattrapable ; crochet dépendant d'un outil absent ;
@@ -320,6 +327,71 @@ que sur cette branche, et `register_ids_cited_exist` contrôle aussi les fichier
 sur une autre branche, dont ce banc prouvera le gain. Attention : un cache de points ne gagne rien pendant un glissement ou un
 zoom, où les bornes changent à chaque cadre ; seul l'index multi-résolution y gagne.
 
+## Lot 9 : non retenu
+
+Prévu pour W-048 (`otb-parity --test golden` rouge avec `OTB_GOLDEN`). **Cédric (2026-11-04) : on n'affaiblit aucun test**, donc
+le test garde `rtol: 0.0`, W-048 reste ouvert, et il n'y a pas de lot. Conséquence connue : tant que W-048 est ouvert,
+`verify --strict` échoue sur le poste qui a `OTB_GOLDEN`. Reprise : voir W-048.
+
+## Lot 10 : tracé du viewer sans parcourir toute la série (Opus) — W-049
+
+**But** : que le cadre du viewer ne dépende plus du nombre total d'échantillons mais du nombre de points rendus, y compris pendant
+un glissement ou un zoom. **Dépend du lot 8** (le banc `banc_cadre` donne la mesure « avant » et « après » ; sans lui, ce lot ne
+démarre pas).
+
+**À lire** : `docs/travaux-reportes.md` W-049 (mesures et deux pistes), `rust/otb-gui/src/plots.rs:visible_points` (décimation
+min/max, `t` croissant, `y` en `f64`), `rust/otb-gui/src/viewer_page.rs` (l'appel ligne ≈ 549 et le cache de séries lissées),
+`docs/lecons.md` L-071 (casser la protection pour voir échouer), `docs/decisions.md` D-029 (courbes en `f32`).
+
+**Décision à demander à Cédric avant de coder** (`D-xxx`) : (a) cache des points décimés, ou (b) pyramide min/max calculée à
+l'ouverture. Le plan recommande **(b)** : (a) ne gagne rien pendant un glissement ou un zoom, où les bornes changent à chaque
+cadre ; (b) coûte de la mémoire par log, à mesurer avec `otb-dev bench-open` contre les 274 Mo du lot 5 (pyramide de facteur 16 :
+environ 1/8 de la série en plus, **estimation à remplacer par la mesure**).
+
+- [ ] Calcul pur et testable, **hors de `otb-gui`** (`otb-analysis` ou `otb-dsp`, règle d'`AGENTS.md`) : construction de la
+      pyramide min/max et requête « points d'une fenêtre `[x0, x1]` pour `max_points` ». `visible_points` devient un appel à cette
+      requête, avec le même contrat (un point de marge de chaque côté, pics conservés).
+- [ ] Tests d'abord (TDD) : (1) **enveloppe identique** — pour des fenêtres variées (entière, étroite, hors du log, un seul point),
+      la valeur minimale et la maximale de chaque colonne de pixels sont celles de l'ancienne `visible_points` ; les points
+      choisis peuvent différer, l'enveloppe non ; (2) série constante, série monotone, un pic isolé (jamais perdu), `NaN` ;
+      (3) moins de `max_points` : sortie identique à l'ancienne, point pour point.
+- [ ] Mesure : `banc_cadre` sur `Cedric/JeNo 5/FINAL.bbl` (≈ 7,9 ms avant) et `1. PTB/st7ven3241/LOG00008.BFL`, **vue entière
+      et pendant un glissement** (bornes changeantes) ; objectif : cadre du viewer proche de celui de l'écran Guide (≈ 0,4 ms)
+      + le coût des points rendus, indépendant du nombre d'échantillons. Pic de mémoire par `bench-open`, avant et après.
+- [ ] Vérification : `verify` vert, sans tube ; captures hors écran avant et après (`capture`) **regardées** : la courbe est
+      visuellement la même (pics, creux) aux deux thèmes.
+- [ ] **Critères d'arrêt** : une enveloppe qui diffère d'un seul pixel sur un jeu d'essai ; un surcoût de mémoire au-delà de ce que
+      Cédric accepte (à fixer avec la décision) ; un gain nul pendant le glissement. On revient alors vers lui, on n'improvise pas.
+- [ ] Consigner : W-049 traité, `docs/validation.md` (« Temps de cadre de l'interface », tableau avant / après),
+      `docs/architecture.md`, `CHANGELOG.md`, décision `D-xxx`.
+
+## Lot 11 : ouverture de plusieurs logs en parallèle (Opus) — W-050
+
+**But** : ouvrir plusieurs fichiers à la fois (×2,4 mesuré sur 6 logs, 0,830 s → 0,345 s) **sans que le pic de mémoire dépasse un
+plafond choisi**. **Dépend de la fusion du lot 5** (il part de `main` qui contient `CompactTable` ; les chiffres de mémoire
+de W-050 ont été pris sur ce rangement).
+
+**À lire** : `docs/travaux-reportes.md` W-050, `docs/validation.md` (« Ouverture d'un log »), `rust/otb-gui/src/app.rs:open` et
+`poll_opening` (aujourd'hui **un seul** fichier à la fois : la file `queue` et un unique `opening`),
+`rust/otb-log/src/flightlog.rs:load`, `rust/otb-dev/src/bench_open.rs`, `docs/lecons.md` L-081 et L-066.
+
+**Décision à demander à Cédric** : le plafond de mémoire (ou de fichiers simultanés). Le décodage de sessions d'un même fichier
+en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cumulerait plusieurs tables compactes.
+
+- [ ] Banc multi-fichiers d'abord (le lot 5 n'en a qu'un seul fichier par processus) : `otb-dev bench-open` accepte plusieurs logs
+      et un nombre de fichiers simultanés, et donne durée totale et pic de mémoire du processus. Mesure « avant » (séquentiel)
+      consignée sur 6 logs dont `LOG00008.BFL`.
+- [ ] Ouverture parallèle avec plafond (`rayon`, ordre des logs conservé, `par_iter().collect()`), dans le calcul pur
+      (`otb-log`) ; l'interface garde son rôle : afficher, annuler, remonter les erreurs **fichier par fichier**.
+- [ ] Tests : ordre conservé quelle que soit la durée de chaque fichier ; un fichier illisible n'empêche pas les autres ;
+      le plafond est respecté (compteur de fichiers en cours dans un test, pas une mesure de mémoire) ; résultat identique au
+      séquentiel (empreinte de tous les `FlightLog`, comme au lot 5).
+- [ ] Mesure « après » : ×2 attendu au moins sur les 6 logs ; **pic de mémoire ≤ plafond décidé** ; un seul fichier : temps non
+      dégradé.
+- [ ] **Critères d'arrêt** : un `FlightLog` qui diffère d'un bit ; un pic au-dessus du plafond sur les 6 logs ; un gain
+      inférieur à ×1,5.
+- [ ] Consigner : W-050 traité, `docs/validation.md`, `docs/architecture.md`, `CHANGELOG.md`, leçon si un piège coûte du temps.
+
 ## Avancement
 
 | Lot | État |
@@ -333,3 +405,6 @@ zoom, où les bornes changent à chaque cadre ; seul l'index multi-résolution y
 | 6 | À faire |
 | 7 | Réservé (attend W-046) |
 | 8 | À faire (banc de temps de cadre, W-049) |
+| 9 | Non retenu (W-048 reste ouvert : aucun test affaibli) |
+| 10 | À faire, après le lot 8 (tracé du viewer, W-049) |
+| 11 | À faire, après la fusion du lot 5 (ouverture parallèle, W-050) |
