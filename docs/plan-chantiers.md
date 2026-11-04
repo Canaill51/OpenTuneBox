@@ -238,21 +238,21 @@ opérations flottantes et parité).
 
 Sous-lot 5a, banc et conversion session par session (PR `perf/decoder-memory`) :
 
-- [ ] Banc reproductible : exemple ou sous-commande `otb-dev` qui ouvre un log donné, affiche la durée et le pic mémoire
+- [x] Banc reproductible : exemple ou sous-commande `otb-dev` qui ouvre un log donné, affiche la durée et le pic mémoire
       (compteur du système, pas d'estimation) ; l'exécuter sur `tests/data/jeno5_5s.bbl` et sur le plus gros log du corpus ;
       consigner les valeurs de départ (lot 0) dans `docs/validation.md`.
-- [ ] `load` : lister les sessions puis décoder et convertir **une session à la fois** (le paramètre `only` de `decode_file`
+- [x] (essayé, **retiré** : sans effet, voir L-081 ; remplacé par la variante ci-dessous) `load` : lister les sessions puis décoder et convertir **une session à la fois** (le paramètre `only` de `decode_file`
       existe déjà), en libérant la table `i64` avant la suivante.
-- [ ] Vérification : `verify` vert ; `corpus validate` 0 non conforme ; `otb-parity check` 0 écart ; pic mémoire du plus gros
+- [x] Vérification (faite sur la variante `CompactTable`, 274 Mo ; contre-preuve : 481 Mo mesurés sur `main` avec le même banc) : `verify` vert ; `corpus validate` 0 non conforme ; `otb-parity check` 0 écart ; pic mémoire du plus gros
       log **divisé par au moins 1,5** par rapport au lot 0, mesure consignée. **Contre-preuve** : le banc rejoué sur `main`
       redonne l'ancienne valeur.
 
 Sous-lot 5b, colonnes utiles seulement (PR `perf/decoder-columns`, ouverte seulement si 5a ne suffit pas à l'objectif « ÷ 2 ») :
 
-- [ ] Décoder vers la table `i64` uniquement les colonnes que `from_session` garde, ou convertir en `f32` à la volée par
+- [x] (fait autrement : toutes les colonnes gardées, rangées en `i32` sauf `loopIteration` et `time` ; la sélection de colonnes ne gagnait rien sur `LOG00008.BFL`, 43 colonnes toutes utiles) Décoder vers la table `i64` uniquement les colonnes que `from_session` garde, ou convertir en `f32` à la volée par
       blocs de trames ; les trames `S`, `E`, `G`, `H` gardent leur traitement actuel.
-- [ ] Vérification : mêmes preuves qu'en 5a ; objectif pic mémoire **÷ 2** et temps d'ouverture non dégradé (W-014).
-- [ ] Critère d'arrêt : un seul bit qui change sur le corpus (`otb-parity`) arrête le sous-lot ; on revient à 5a seul.
+- [x] Vérification : mêmes preuves qu'en 5a (pic ÷ 1,75 et non ÷ 2 ; temps 0,63 → 0,54 s) ; objectif pic mémoire **÷ 2** et temps d'ouverture non dégradé (W-014).
+- [x] Critère d'arrêt (non déclenché : `FlightLog` identiques sur 528 fichiers) : un seul bit qui change sur le corpus (`otb-parity`) arrête le sous-lot ; on revient à 5a seul.
 
 ## Lot 6 : bilan (Sonnet)
 
@@ -326,10 +326,10 @@ zoom, où les bornes changent à chaque cadre ; seul l'index multi-résolution y
 |---|---|
 | 0 | Fait le 2026-11-04 sur le poste Linux : références présentes ; `otb-parity` 0 écart ; `corpus validate` 697/712 sessions conformes (les 15 autres sont des écarts connus, la ligne de base n'est donc pas « 0 écart » comme le plan le supposait) ; départ mémoire 491 Mo sur `LOG00008.BFL`. Détail dans `docs/validation.md` (« Ligne de base ») |
 | 1 | Fait le 2026-11-04 (branche `feat/dev-verify`) : `otb-dev verify [--quick] [--strict]`, marqueur `[OTB-SAUT]`, crochet sans `jq`, listes de `-p` retirées (tests.yml, CONTRIBUTING, README, AGENTS). 74 exécutables avec et sans `-p` (critère d'arrêt levé). `verify` : 63–67 s à chaud sur ce poste, code 0 sur le code actuel. Contre-preuves : (a) test cassé → 1, (b) espace de formatage → 1, (c) `--strict` sans `OTB_GOLDEN` → 1 (2 sauts comptés), (d) docs sabotées (lien cassé) : le crochet rend 2 sans `jq` dans le PATH pour `git commit`, la forme avec `-C` et celle avec `-c`, et 0 sans sabotage. Non traités : les autres sauts de tests (`otb-gui`…) ; W-047 |
-| 2 | À faire |
-| 3 | À faire |
+| 2 | Fait (PR #103) |
+| 3 | Fait (PR #104) |
 | 4 | Fait le 2026-11-04 (branche `fix/decoder-hostile-header`, D-044, L-080) : `DecodeError`, bornes 512 champs / intervalles 1 à 65 535, `try_reserve`, `Settings::implausible`. `robustness.rs` : 10 cas, 6 rouges avant correction (les intervalles à 9·10¹⁸ ne bouclaient pas sur cette source : refusés par la borne seulement) ; contre-preuves : 4 retraits rougissent. `otb-parity` 0 échec, `corpus validate` 697/712 comme la ligne de base |
-| 5 | Banc `otb-dev bench-open` fait (lot 5a). 5a (session par session) essayé et retiré : sans effet (une seule session, +32 Mo). Variante 1 : rendre la table `i64` avant les copies finales : 481 → 342 Mo. Variante 2 (accord de Cédric) : `CompactTable`, trames rangées en `i32` dès le décodeur : **274 Mo (÷ 1,75, objectif ÷ 1,5 atteint, ÷ 2 manqué), 0,54 s (plus rapide)**, `FlightLog` identiques sur 528 fichiers, `corpus validate` 697/712, `otb-parity` 0 échec. Un décodage par blocs vers `f32` irait plus loin (non fait). `golden.rs` rouge sur `main` avec `OTB_GOLDEN`, non traité |
+| 5 | Fait le 2026-11-04 (branche `perf/decoder-memory`, poussée, PR non ouverte, L-081). Banc `otb-dev bench-open` fait (lot 5a). 5a (session par session) essayé et retiré : sans effet (une seule session, +32 Mo). Variante 1 : rendre la table `i64` avant les copies finales : 481 → 342 Mo. Variante 2 (accord de Cédric) : `CompactTable`, trames rangées en `i32` dès le décodeur : **274 Mo (÷ 1,75, objectif ÷ 1,5 atteint, ÷ 2 manqué), 0,54 s (plus rapide)**, `FlightLog` identiques sur 528 fichiers, `corpus validate` 697/712, `otb-parity` 0 échec. Un décodage par blocs vers `f32` irait plus loin (non fait). `golden.rs` rouge sur `main` avec `OTB_GOLDEN`, non traité |
 | 6 | À faire |
 | 7 | Réservé (attend W-046) |
 | 8 | À faire (banc de temps de cadre, W-049) |
