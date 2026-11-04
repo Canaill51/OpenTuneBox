@@ -182,9 +182,16 @@ struct Fields {
     /// champ → (lot, ligne dans le lot)
     lots: HashMap<String, (usize, usize)>,
     lot_data: Vec<Vec<f32>>,
+    /// vrai quand `main.data` a été rendue (`rows` et `cols` restent)
+    released: bool,
 }
 
 impl Fields {
+    fn release_main(&mut self) {
+        self.main.data = Vec::new();
+        self.released = true;
+    }
+
     /// (tableau, indice de colonne) d'un champ : trames principales d'abord, puis lentes.
     fn locate(&self, name: &str) -> Option<(&Matrix, usize)> {
         if let Some(&i) = self.main_idx.get(name) {
@@ -206,6 +213,10 @@ impl Fields {
             return Some(self.lot_data[lot][row * n..(row + 1) * n].to_vec());
         }
         let (m, c) = self.locate(name)?;
+        assert!(
+            !(self.released && std::ptr::eq(m, &self.main)),
+            "champ {name} lu hors des lots après la libération de la table brute"
+        );
         Some(rows_f32_scaled(&m.data, m.rows, m.cols, &[c as i64], &[scale]).expect("colonne valide"))
     }
 
@@ -319,6 +330,7 @@ pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> 
         plan: plan_order.iter().cloned().collect(),
         lots: HashMap::new(),
         lot_data: Vec::new(),
+        released: false,
     };
     for keep_lot in [true, false] {
         let wanted: Vec<&(String, f64)> = plan_order
@@ -340,6 +352,13 @@ pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> 
 
     // 3. temps et fréquence d'enregistrement
     let time_us: Vec<f64> = (0..n).map(|r| f.main.data[r * f.main.cols + 1] as f64).collect();
+    let mode_flags = f
+        .column_i64("flightModeFlags")
+        .map(|v| v.into_iter().map(|x| x as i32).collect::<Vec<_>>());
+    // ⚠️ la table d'entiers 64 bits (8 octets par valeur) est la plus grosse allocation : la rendre avant de construire les
+    // copies finales évite d'en cumuler le poids avec elles (pic mémoire de l'ouverture ; après ce point, `field` ne lit
+    // plus que les lots, d'où `expect` dans `Fields::field`)
+    f.release_main();
     let t: Vec<f64> = time_us.iter().map(|&u| (u - time_us[0]) * 1e-6).collect();
     let mut dt: Vec<f64> = time_us.windows(2).map(|w| w[1] - w[0]).filter(|&d| d > 0.0).collect();
     let fs = if dt.is_empty() {
@@ -442,9 +461,6 @@ pub fn from_session(path: &Path, mut sess: DecodedSession) -> Option<FlightLog> 
         .field("amperageLatest", 1.0)
         .map(|v| v.into_iter().map(|x| div32(x, 100.0)).collect::<Vec<_>>());
     let acc = f.axes("accSmooth", st.acc_1g as f64, 3);
-    let mode_flags = f
-        .column_i64("flightModeFlags")
-        .map(|v| v.into_iter().map(|x| x as i32).collect::<Vec<_>>());
 
     let pid_or_zeros = |prefix: &str| {
         if f.present(&format!("{prefix}[0]")) {

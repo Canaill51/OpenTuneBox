@@ -64,6 +64,12 @@ différer. Variables à définir : `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golde
   **Essai du lot 5a (conversion session par session) : sans effet.** `LOG00008.BFL` n'a qu'une session et aucun log du corpus de plus
   de 1 Mo n'en a deux : le pic vient de la table d'entiers 64 bits d'une seule session, que 5a ne réduit pas. Mesuré : 513 Mo
   (+ 32 Mo, le fichier restant lu pendant toute la conversion) et 0,70 s ; code retiré.
+  **Lot 5b retenu (L-081)** : le pic était dans `from_session` (table `i64` de 213 Mo gardée pendant les copies finales), pas dans le
+  décodeur (295 Mo). `Fields::release_main` la rend après l'extraction du temps et des drapeaux : `LOG00008.BFL` **342 Mo**
+  (÷ 1,41 ; objectif ÷ 1,5 non atteint), 0,62 s. Identité : empreinte de tous les `FlightLog` des 528 fichiers, avant et après
+  (programme temporaire, non gardé) : identiques ; `otb-parity check` 0 échec sur 1728 appels ; `corpus validate` 697/712, mêmes statuts.
+  Le test `otb-parity --test golden` échoue avec `OTB_GOLDEN` défini (écart de 1e-15 relatif dans `spectral.spectrum`), **déjà sur `main`** :
+  à traiter à part.
 
   Objectif du lot 5a (÷ 1,5) : passer sous ≈ 327 Mo sur `LOG00008.BFL`. Le « plus gros log » de W-014 (965 000 trames, 39 Mo)
   n'est plus dans le corpus : ses 364 Mo ne se comparent pas à ces chiffres. Ordinateur : 16 cœurs, 15 Go de mémoire.
