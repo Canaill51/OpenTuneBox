@@ -60,6 +60,31 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-086 : un index min/max qui ne range que des indices relit la courbe à chaque comparaison, et le cadre reste proportionnel au nombre d'échantillons
+- **Symptôme** — 2026-11-05 (lot 10) : la pyramide min/max en place, le cadre du viewer tombe de 10,9 à 5,7 ms sur
+  620 079 échantillons, mais **pas** à la valeur attendue (le tracé seul) ; la même courbe zoomée sur un huitième donne 1,9 ms,
+  soit un coût qui suit encore le nombre d'échantillons visibles alors que le nombre de points rendus est le même.
+- **Cause (mesurée)** — les blocs ne portaient que les **indices** du minimum et du maximum ; les combiner demandait de lire
+  `y[lo]` et `y[hi]`, deux adresses éloignées dans une courbe de 5 Mo, une vingtaine de fois par paquet. Le temps n'était plus du
+  calcul mais des défauts de cache, d'autant plus nombreux que la courbe est longue. Avec les **valeurs** rangées à côté des
+  indices (24 octets par bloc), la décimation seule passe de 0,99 à 0,17 ms (`otb-dsp --example banc_minmax`).
+- **Règle** — un index de résumé range ce qu'il faut pour **comparer** sans revenir aux données. Et pour prouver qu'un calcul ne
+  dépend plus de la taille des données, mesurer le **même** log en vue entière puis zoomée (à nombre de points rendus égal) :
+  comparer deux logs différents mélange le nombre de courbes présentes et ne prouve rien.
+- **Preuve** — `rust/otb-dsp/src/minmax.rs:Block` ; `banc_cadre --zoom 8` ; D-048 ; `docs/validation.md`.
+
+### L-085 : décimation min/max par comparaison nue : un `NaN` en tête de paquet efface le minimum et le maximum réels
+- **Symptôme** — 2026-11-05 (lot 10) : impossible de faire rendre à un index multi-résolution le même résultat que l'ancienne
+  `visible_points` sur les courbes à trous (rotation des moteurs en Hz), quel que soit le découpage.
+- **Cause (lue)** — `if y[i] < y[lo] { lo = i }` : `NaN` perd toute comparaison, donc un `NaN` **en tête** de paquet n'est jamais
+  remplacé (tout le paquet devient un trou, min et max réels perdus) tandis qu'un `NaN` ailleurs est ignoré. Le résultat dépend
+  donc de la position du trou dans le découpage : la règle n'est pas associative, et combiner des résumés déjà combinés ne peut
+  pas rendre la même chose que parcourir les échantillons un par un.
+- **Règle** — avant de résumer par blocs, s'assurer que la règle de combinaison est **associative** ; sinon la fixer d'abord
+  (ici : un paquet qui contient un trou est tracé comme un trou, D-048), et vérifier le changement par des captures.
+- **Preuve** — `rust/otb-dsp/tests/minmax.rs:un_paquet_a_trou_coupe_la_ligne_et_garde_le_min_max_des_paquets_voisins` (il garde
+  le témoin de l'ancien comportement) ; contre-preuve : rétablir la règle non associative rougit deux tests.
+
 ### L-084 : `egui_kittest` en `wgpu` choisit exprès le rendu logiciel : un « temps de carte graphique » mesuré ainsi est celui du processeur
 - **Symptôme** — 2026-11-05 (lot 8) : le banc `banc_cadre --gpu` donne ≈ 44 ms de rendu par cadre sur `FINAL.bbl`, quand W-049
   annonçait 0,34 ms ; sur une vraie carte, encore ≈ 10 ms, **écran Guide (sans courbe) compris**.
@@ -923,6 +948,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-086 | Index min/max dont les blocs ne portent que des indices : chaque comparaison relit la courbe au loin, le cadre reste proportionnel au nombre d'échantillons (défauts de cache) ; ranger les valeurs **avec** les indices, et prouver l'indépendance sur le **même** log zoomé, jamais en comparant deux logs | Interface |
+| L-085 | Décimation min/max par comparaison nue (`y[i] < y[lo]`) : un `NaN` en tête de paquet gagne toutes les comparaisons et efface le min/max réel ; règle non associative, donc tout index multi-résolution bâti dessus est faux | Analyses |
 | L-081 | Pic de mémoire de l'ouverture : mesurer par étape ; rendre la table `i64` dès que les colonnes utiles sont extraites, puis ranger en `i32` dès le décodeur (481 → 274 Mo) ; positions S/G/E via `main_rows` | Décodeur et logs |
 | L-082 | Exécuter un fichier qu'on vient de copier échoue par intermittence (« Text file busy », `ETXTBSY`) quand un test voisin lance un processus dans le même binaire de test : réessayer sur le code 26, sans toucher aux assertions | Tests |
 | L-083 | Test et outil qui vérifient le même contrat : même source de tolérance (`registry::tolerance`), jamais une copie ; lister tous les écarts (`golden.rs` rouge par construction, caché par la CI) | Tests |

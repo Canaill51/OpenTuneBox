@@ -2767,6 +2767,7 @@ dependencies = [
  "otb-advisor",
  "otb-analysis",
  "otb-decoder",
+ "otb-dsp",
  "otb-format",
  "otb-log",
  "otb-parity",

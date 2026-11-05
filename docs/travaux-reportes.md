@@ -63,9 +63,10 @@ Règles d'écriture :
 | W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
+| W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
 | W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
 | W-050 | Ouverture d'un log dominée par le décodage (83 % de 342 ms) ; fichiers ouverts les uns après les autres (×2,40 mesuré en parallèle, pic de mémoire à plafonner) | ouvert |
-| W-049 | Le tracé du viewer parcourt la série entière à chaque cadre (7,94 ms par cadre à 321 729 échantillons, 12,6 à 13,0 ms à 620 079, la plus longue session du corpus) : saccades attendues au-delà de ~800 000 échantillons | ouvert |
+| W-049 | Le tracé du viewer parcourt la série entière à chaque cadre (7,94 ms par cadre à 321 729 échantillons, 12,6 à 13,0 ms à 620 079, la plus longue session du corpus) : saccades attendues au-delà de ~800 000 échantillons | TRAITÉ le 2026-11-05 (D-048 : index multi-résolution min/max, cadre ÷ 2,2 à ÷ 6,5, tracé identique au bit près ; L-085, L-086 ; reste W-052) |
 | W-048 | `otb-parity --test golden` rouge avec `OTB_GOLDEN` défini (écart de 1e-15 relatif, `spectral.spectrum`), déjà sur `main` ; test volontairement non affaibli | TRAITÉ le 2026-11-05 (D-047 : tolérance mesurée de chaque fonction, bit près par défaut ; L-083) |
 | W-047 | Test `install_linux` échoué une fois sur six exécutions de `verify`, cause non trouvée | TRAITÉ le 2026-11-05 (course `ETXTBSY` entre les cas du fichier : cause reproduite et corrigée, L-082) |
 | W-046 | Police Ubuntu Light (Ubuntu Font Licence 1.0) embarquée par egui : compatibilité avec la licence du projet | TRAITÉ le 2026-11-05 (D-046 : police gardée sous sa licence, la cause du conflit a disparu avec D-045) |
@@ -569,7 +570,18 @@ i7-11800H (8 cœurs, 16 fils), 15 Gio de mémoire, profil `release` du dépôt, 
 `egui_kittest` (la vraie `App`, les vraies pages, un vrai log, le rendu `wgpu`), donc **hors écran** : sans vsync ni
 compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
 
-- **W-049** — Le tracé du viewer parcourt la série **entière** à chaque cadre. Les graphiques sont réglés en
+- **W-052** — Depuis D-048, le cadre du viewer n'est plus dominé par le parcours de la série mais par le **tracé** des points
+  rendus : ≈ 3 840 points par courbe et par cadre, une douzaine de courbes. Mesuré le 2026-11-05 sur `LOG00008.BFL` : 4,7 ms en
+  vue entière contre 2,1 ms zoomé sur un huitième (même log, même nombre de points rendus) ; à 640 px de large, le cadre tombe de
+  3,1 à 0,95 ms sur `FINAL.bbl`. Il reste donc deux parts : le tracé lui-même (indépendant du log) et les bords de paquets, qui
+  touchent la courbe sur toute son étendue (L-086).
+  **Pourquoi reporté** : le budget de 60 images par seconde est tenu avec une marge de 3 (5,6 ms contre 16,7), sur la plus longue
+  session du corpus. **Pistes** : rendre moins de points (un seul segment vertical par colonne de pixels au lieu de deux points),
+  ou dessiner la courbe décimée dans une texture mise en cache, comme `freq_time`. **Reprise** : si le viewer accroche encore sur
+  un log plus long que le corpus, ou avant d'afficher beaucoup plus de courbes à la fois.
+  [`rust/otb-gui/src/viewer_page.rs:ui`]
+
+- **W-049** (TRAITÉ le 2026-11-05, D-048) — Le tracé du viewer parcourait la série **entière** à chaque cadre. Les graphiques sont réglés en
   `auto_bounds(false)` avec les bornes sur tout le log, et `visible_points` est appelé dans la fonction d'affichage, pour
   chaque courbe et à chaque cadre : la décimation min/max limite les points **rendus** (≈ 3 830 pour 1920 px de large), pas le
   parcours, qui reste en O(n). Mesuré le 2026-11-04 sur la session de 321 729 échantillons de `Cedric/JeNo 5/FINAL.bbl`,
@@ -597,7 +609,7 @@ compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
   `freq_time`) ; ramènerait le cadre à vue fixe vers 0,5 ms, **sans rien gagner pendant un glissement ou un zoom**, où les
   bornes changent à chaque cadre ; (b) un index multi-résolution (pyramide min/max calculée à l'ouverture) rendrait le tracé
   en O(points rendus) et gagnerait aussi pendant le glissement, au prix d'une structure de données à valider par des tests.
-  [`rust/otb-gui/src/viewer_page.rs:ui`, `rust/otb-gui/src/plots.rs:visible_points`]
+  [`rust/otb-gui/src/viewer_page.rs:ui`, `rust/otb-dsp/src/minmax.rs:window_points`]
 
 - **W-050** — L'ouverture d'un log est dominée par le décodage, et les fichiers s'ouvrent les uns après les autres. Mesuré le
   2026-11-04 sur `1. PTB/ram/BTFL_BLACKBOX_LOG_MARIO_8_…TMOTORVELOXF7SE.bbl` (22,3 Mo, 9 sessions, 515 239 trames) :
