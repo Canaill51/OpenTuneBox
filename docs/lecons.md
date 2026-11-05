@@ -60,6 +60,12 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-082 : exécuter un programme qu'on vient de copier échoue par intermittence (« Text file busy ») quand un test voisin lance un processus
+- **Symptôme** — 2026-11-05 : `rust/otb-dev/tests/install_linux.rs` échoue 2 fois sur 5 exécutions isolées après l'ajout d'un 3ᵉ cas de test, sur `spawn()` ligne 49 : `Os { code: 26, kind: ExecutableFileBusy, message: "Text file busy" }`. Le cas qui échoue n'est pas le nouveau, et le même fichier passait auparavant (un seul échec constaté en six exécutions de `verify` : W-047, cause alors non trouvée).
+- **Cause (reproduite)** — les cas d'un fichier de test tournent **en parallèle dans le même processus**. L'un copie `/bin/sh` puis l'exécute aussitôt ; les autres lancent le script d'installation. Quand un `fork` se produit pendant que la copie est encore ouverte en écriture, l'enfant hérite du descripteur le temps du `fork`/`exec`, et le noyau refuse d'exécuter un fichier ouvert en écriture (`ETXTBSY`). Plus il y a de cas qui lancent des processus, plus la fenêtre est touchée : d'où un piège qui dormait et devient fréquent.
+- **Règle** — un test qui exécute un fichier **qu'il vient d'écrire** réessaie sur `ETXTBSY` (code 26) au lieu de `unwrap()` : voir `lance_malgre_etxtbsy` dans ce fichier. Réessayer la mise en place ne touche aucune assertion ; ne pas « régler » le problème en désactivant le parallélisme des tests ni en supprimant le cas gênant.
+- **Preuve** — avant : 2 échecs sur 5 exécutions de `cargo test -p otb-dev --test install_linux` ; après le réessai : 10 exécutions de suite au vert (2026-11-05). Clôt W-047.
+
 ### L-081 : le pic de mémoire d'une ouverture se mesure par étape, et la « conversion session par session » ne sert qu'aux fichiers à plusieurs sessions
 - **Symptôme** — 2026-11-04 (lot 5) : `LOG00008.BFL` (une session, 620 079 trames) demande 481 Mo. Le plan attendait un gain de la conversion session par session (5a) : elle a donné 513 Mo (+ 32 Mo, le fichier restant lu) ; aucun log du corpus de plus de 1 Mo n'a deux sessions.
 - **Cause (mesurée par `VmHWM` à trois endroits de `from_session`)** — le pic n'était pas dans le décodeur (295 Mo) mais à la fin de `from_session` : la table d'entiers 64 bits (213 Mo) restait vivante pendant que les copies finales (`f.axes`, moteurs…) se construisaient (468 Mo).
@@ -893,6 +899,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
 | L-081 | Pic de mémoire de l'ouverture : mesurer par étape ; rendre la table `i64` dès que les colonnes utiles sont extraites, puis ranger en `i32` dès le décodeur (481 → 274 Mo) ; positions S/G/E via `main_rows` | Décodeur et logs |
+| L-082 | Exécuter un fichier qu'on vient de copier échoue par intermittence (« Text file busy », `ETXTBSY`) quand un test voisin lance un processus dans le même binaire de test : réessayer sur le code 26, sans toucher aux assertions | Tests |
 | L-080 | Allocation ratée = abandon du programme, `catch_unwind` ne la voit pas : `try_reserve` avant chaque ajout, et borner les nombres lus dans l'en-tête (D-044) | Décodeur et logs |
 | L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |
 | L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |

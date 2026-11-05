@@ -16,7 +16,7 @@ Contexte, options écartées et preuves : `docs/decisions.md`.
 - **Rust**, interface **egui** + **egui_plot**, noyau autonome, Linux et Windows. D-035. Migration terminée le 2026-11-04 (`docs/migration-rust.md`) :
   plus aucun Python dans le dépôt ; étalon figé dans les tags `python-etalon` et `python-final` (`docs/validation.md`, « Refaire une référence Python »).
 - Assistant **100 % hors ligne**, à règles : aucune API, aucune donnée envoyée. D-003
-- Dépôt **public**, licence **GNU GPL 3**. D-043
+- Dépôt **public**, licence **PolyForm Noncommercial 1.0.0** : code ouvert, tout usage commercial interdit, aucune dépendance copyleft (polices : chacune sous sa licence, D-046). D-043, D-045
 - **Aucune copie de code PIDtoolbox** ni d'autres projets : tout est réimplémenté d'après le firmware Betaflight et des méthodes publiées
   (`docs/spec-*.md`). Seule exception : les icônes [Lucide](https://lucide.dev) (ISC) dans `rust/otb-gui/assets/icons/`, avec leur licence. D-004, D-005
 - Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français. D-001

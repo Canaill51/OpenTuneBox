@@ -42,7 +42,8 @@ main
  ├─ fix/decoder-hostile-header  lot 4 : C1
  ├─ perf/decoder-memory         lot 5 : C4 (deux sous-lots, deux PR)
  ├─ docs/chantiers-bilan        lot 6 : bilan et mesures finales
- ├─ (à nommer)                  lot 7 : première publication Rust, après décision sur W-046
+ ├─ feat/licenses-check         lot 7a : contrôle de THIRD-PARTY-LICENSES.txt
+ ├─ chore/release-0.9.0         lot 7b à 7e : première publication Rust (0.9.0)
  ├─ chore/viewer-frame-bench    lot 8 : banc de temps de cadre (W-049), part de perf/decoder-memory
  ├─ perf/viewer-decimation      lot 10 : tracé du viewer sans parcourir toute la série (W-049), après le lot 8
  └─ perf/open-parallel          lot 11 : ouverture de plusieurs logs en parallèle (W-050), après la fusion du lot 5
@@ -82,8 +83,9 @@ le lot 2 après le lot 1 (il documente la nouvelle commande) ; les lots 3 et 4 s
    `gh release` (accord de Cédric le même jour). **Changé par Cédric le 2026-11-04** : ces quatre commandes sont en « demander »
    (dans ce projet et dans `~/.claude/settings.json`, donc tous ses dépôts) : l'agent ne les lance qu'avec sa confirmation à
    chaque fois. La règle entre aussi dans `AGENTS.md` au lot 2.
-5. **Première publication Rust.** W-046 (police Ubuntu Light face à la GPL 3) la bloque et relève d'une décision de Cédric.
-   **Cédric (2026-11-04) : à traiter aussi.** Un lot 7 est réservé en fin de plan ; il ne se détaille qu'une fois W-046 tranché.
+5. **Première publication Rust.** W-046 (police Ubuntu Light face à la licence du projet) la bloque et relève d'une décision de
+   Cédric ; depuis D-045 (licence PolyForm Noncommercial, qui n'est pas un copyleft), la cause du conflit a disparu.
+   **Cédric (2026-11-04) : à traiter aussi.** Un lot 7 est réservé en fin de plan ; W-046 est clos le 2026-11-05 (D-046 : police gardée).
 
 ## Lot 0 : sonde du corpus et des références (Sonnet, une courte session)
 
@@ -267,18 +269,82 @@ peuvent suivre le bilan : il les propose alors comme suite.
 - [ ] Clore ou mettre à jour les W concernés : W-014, W-016, W-035 (9), W-036 (8), W-041 si touché.
 - [ ] Leçons à ajouter dans `docs/lecons.md` : allocation ratée non rattrapable ; crochet dépendant d'un outil absent ;
       résultat de thread sans étiquette.
-- [ ] Proposer à Cédric la suite : première publication Rust (bloquée par W-046), cache borné (W-035 (9)), factorisation des
+- [ ] Proposer à Cédric la suite : première publication Rust (débloquée : W-046 clos par D-046), cache borné (W-035 (9)), factorisation des
       pages spectrales, lints pédantiques ciblés (**jamais** `suboptimal_flops` : L-051).
 
-## Lot 7 : première publication Rust (réservé)
+## Lot 7 : première publication Rust, version 0.9.0 (Sonnet ; essais réels par Cédric)
 
-Demandé par Cédric le 2026-11-04 ; ne se détaille qu'une fois W-046 tranché (garder la police Ubuntu Light, ou la retirer
-au profit d'une police dont la licence est compatible avec la GPL 3). À prévoir alors : `otb-dev licenses`, `otb-dev release
-prepare`, essai complet de la chaîne par une étiquette `essai-v…` (procédure dans `CONTRIBUTING.md`), puis l'étiquette `v…`
-posée **par Cédric lui-même**.
+**But** : publier la première version Rust sur la page *Releases*, avec des installateurs Windows et Linux essayés sur de vraies
+machines, des mentions de licences à jour et un texte de version lisible par un pilote.
 
-- [ ] W-046 tranché (décision `D-xxx` écrite).
-- [ ] Lot détaillé ici, avec ses preuves (installateurs essayés sur Windows et Linux).
+**Décisions de Cédric (2026-11-05)** : numéro **0.9.0** (suite de la 0.8.0 Python ; 1.0.0 gardé pour une version éprouvée par
+des utilisateurs) ; publication **après les lots 5 et 6** ; section du CHANGELOG = **résumé pour l'utilisateur en tête, puis le
+détail**, sans les lignes de l'époque Python ; contrôle automatique de `THIRD-PARTY-LICENSES.txt` **dans ce lot**. W-046 est clos
+(D-046, 2026-11-05 : Ubuntu Light gardée sous sa propre licence).
+
+**Prérequis** : lots 5 et 6 fusionnés, CI de `main` verte, poste Linux qui a le corpus et les références (`OTB_GOLDEN`).
+
+**À lire** : `CONTRIBUTING.md` (« Publier une version » et « Essayer la publication sans rien publier »), `.github/workflows/construire.yml`,
+`rust/otb-dev/src/release.rs` (`prepare`, `notes`, `changelog_section`), `rust/otb-dev/src/licenses.rs`, `rust/otb-dev/tests/licenses.rs`,
+`packaging/windows/opentunebox.iss`, `packaging/linux/build_appimage.sh` et `install_linux.sh`, `docs/travaux-reportes.md` W-043, W-044, W-045.
+
+**Constat de départ (2026-11-05)** : `THIRD-PARTY-LICENSES.txt` a été refait le 2026-11-04 à 11 h 50 UTC, `rust/Cargo.lock` a changé
+après (12 h 33 UTC, mise à jour de `zip`, PR #99) ; aucun test ne compare le fichier aux dépendances : il est peut-être périmé
+(non vérifié). Dernière vraie publication par une étiquette `v*` : jamais faite avec la chaîne Rust (seulement `essai-v0.8.0`).
+
+Sous-lot 7a, contrôle des mentions de licences (PR `feat/licenses-check`) :
+
+- [ ] Vérifier d'abord l'hypothèse : `otb-dev licenses` produit-il **le même fichier sous Linux et sous Windows** (dépendances
+      propres à un système, chemins du registre Cargo) ? Le faire tourner sur les deux (Windows : CI ou poste de Cédric) et comparer.
+      **Critère d'arrêt** : s'il diffère, consigner l'écart et revenir vers Cédric avant d'écrire le contrôle.
+- [ ] Option `otb-dev licenses --check` : produit le texte en mémoire, le compare au fichier du dépôt, rend 1 avec le message
+      « relancer `cargo run -p otb-dev -- licenses` » s'il diffère, 0 sinon ; ne touche jamais au fichier.
+- [ ] Appelée par `otb-dev verify` (étape à part, durée affichée) et par la CI (`tests.yml`, Ubuntu).
+- [ ] Refaire le fichier (`otb-dev licenses`) et noter dans la PR si la mise à jour de `zip` le changeait (preuve du constat).
+- [ ] Tests dans `rust/otb-dev/tests/licenses.rs` ; **contre-preuve** : une ligne retirée du fichier → `--check` rend 1, et
+      `verify` aussi.
+- [ ] Documentation : `CONTRIBUTING.md` (« Publier une version »), `AGENTS.md` (Commandes), `docs/architecture.md`, `CHANGELOG.md`.
+
+Sous-lot 7b, préparation de la version (PR `chore/release-0.9.0`) :
+
+- [ ] CHANGELOG, section *Non publié* : écrire en tête un court résumé « ce qui change pour vous » (application réécrite en Rust,
+      installateurs de 7,5 Mo et 10 Mo au lieu de 88 Mo et 167 Mo, Windows et Linux seulement (D-042), licence PolyForm
+      Noncommercial (D-045), ce qui disparaît : macOS) ; retirer les lignes qui décrivent le code Python supprimé (lint `ruff`,
+      scipy et numba…) : **liste des lignes retirées montrée à Cédric avant le commit**. Vérifier que `otb-dev release notes 0.9.0`
+      rend bien le résumé puis le détail (`changelog_section` coupe à la section suivante : un sous-titre libre doit passer).
+- [ ] Relire `README.md` (téléchargement, configuration requise, captures) pour la version Rust.
+- [ ] `otb-dev licenses --check` à 0, puis `cargo run -p otb-dev -- release prepare 0.9.0`.
+- [ ] Vérification : `verify --strict` vert sur le poste qui a le corpus ; `otb-parity check "$OTB_GOLDEN"` 0 écart ;
+      `corpus validate` égal à la ligne de base (697/712, ou la valeur consignée au lot 5).
+
+Étape 7c, essai complet sans rien publier (sur la branche de 7b, **avant** sa fusion) :
+
+- [ ] Étiquette `essai-v0.9.0` sur la branche (poussée avec la confirmation de Cédric) ; run `construire.yml` vert ; le brouillon
+      porte les deux fichiers et les notes (résumé puis détail) ; la page reste en brouillon.
+- [ ] Télécharger les deux fichiers (`gh release download essai-v0.9.0`) et les donner à Cédric, qui essaie **à la main** :
+      - Windows (son poste) : installation par-dessus la 0.8.0 si elle est encore là (dossier `_internal` supprimé, raccourcis,
+        numéro dans « Applications installées »), ouverture d'un vrai log, page Guide, désinstallation propre ; si possible
+        `construire_windows.ps1` (W-044).
+      - Linux (son poste) : AppImage lancée (X11 et Wayland si possible ; icône : W-045), log passé en argument ouvert,
+        `install_linux.sh`.
+- [ ] Décision de Cédric sur W-045 (AppImage non intégrée au bureau : documenter, ou écrire un `.desktop` au premier lancement)
+      après l'avoir vue ; un correctif éventuel = sa propre branche `fix/…`, puis nouvel essai.
+- [ ] Supprimer le brouillon : `gh release delete essai-v0.9.0 --cleanup-tag --yes`.
+- [ ] **Critère d'arrêt** : un défaut sur une vraie machine → pas d'étiquette `v0.9.0` ; le consigner, le corriger dans une
+      branche à part, refaire l'essai.
+
+Étape 7d, publication :
+
+- [ ] Cédric fusionne la PR de 7b, puis pose **lui-même** l'étiquette `v0.9.0` sur `main` à jour (`CONTRIBUTING.md`, point 2).
+- [ ] Suivre le run : page publiée, marquée « dernière version », deux fichiers, notes de la 0.9.0. Télécharger depuis la page
+      publique et relancer un démarrage rapide de chaque fichier. En cas d'échec : `gh run rerun ID --failed` (le brouillon est
+      réutilisé) ; ne jamais supprimer l'étiquette `v0.9.0` sans l'accord de Cédric.
+
+Étape 7e, consigner :
+
+- [ ] Remplir « Avancement » ; mettre à jour W-044 (retirer la suppression de `_internal` à la version qui suit la 0.9.0), W-045
+      (décision de Cédric), W-043 (relecture des textes de licences avec Cédric : faite ou reportée) ; leçons nouvelles dans
+      `docs/lecons.md`.
 
 ## Lot 8 : banc de temps de cadre de l'interface (Opus) — W-049
 
@@ -398,12 +464,12 @@ en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cum
 |---|---|
 | 0 | Fait le 2026-11-04 sur le poste Linux : références présentes ; `otb-parity` 0 écart ; `corpus validate` 697/712 sessions conformes (les 15 autres sont des écarts connus, la ligne de base n'est donc pas « 0 écart » comme le plan le supposait) ; départ mémoire 491 Mo sur `LOG00008.BFL`. Détail dans `docs/validation.md` (« Ligne de base ») |
 | 1 | Fait le 2026-11-04 (branche `feat/dev-verify`) : `otb-dev verify [--quick] [--strict]`, marqueur `[OTB-SAUT]`, crochet sans `jq`, listes de `-p` retirées (tests.yml, CONTRIBUTING, README, AGENTS). 74 exécutables avec et sans `-p` (critère d'arrêt levé). `verify` : 63–67 s à chaud sur ce poste, code 0 sur le code actuel. Contre-preuves : (a) test cassé → 1, (b) espace de formatage → 1, (c) `--strict` sans `OTB_GOLDEN` → 1 (2 sauts comptés), (d) docs sabotées (lien cassé) : le crochet rend 2 sans `jq` dans le PATH pour `git commit`, la forme avec `-C` et celle avec `-c`, et 0 sans sabotage. Non traités : les autres sauts de tests (`otb-gui`…) ; W-047 |
-| 2 | Fait (PR #103) |
-| 3 | Fait (PR #104) |
+| 2 | Fait le 2026-11-04 (PR #103) |
+| 3 | Fait le 2026-11-04 (PR #104) |
 | 4 | Fait le 2026-11-04 (branche `fix/decoder-hostile-header`, D-044, L-080) : `DecodeError`, bornes 512 champs / intervalles 1 à 65 535, `try_reserve`, `Settings::implausible`. `robustness.rs` : 10 cas, 6 rouges avant correction (les intervalles à 9·10¹⁸ ne bouclaient pas sur cette source : refusés par la borne seulement) ; contre-preuves : 4 retraits rougissent. `otb-parity` 0 échec, `corpus validate` 697/712 comme la ligne de base |
 | 5 | Fait le 2026-11-04 (branche `perf/decoder-memory`, poussée, PR non ouverte, L-081). Banc `otb-dev bench-open` fait (lot 5a). 5a (session par session) essayé et retiré : sans effet (une seule session, +32 Mo). Variante 1 : rendre la table `i64` avant les copies finales : 481 → 342 Mo. Variante 2 (accord de Cédric) : `CompactTable`, trames rangées en `i32` dès le décodeur : **274 Mo (÷ 1,75, objectif ÷ 1,5 atteint, ÷ 2 manqué), 0,54 s (plus rapide)**, `FlightLog` identiques sur 528 fichiers, `corpus validate` 697/712, `otb-parity` 0 échec. Un décodage par blocs vers `f32` irait plus loin (non fait). `golden.rs` rouge sur `main` avec `OTB_GOLDEN`, non traité |
 | 6 | À faire |
-| 7 | Réservé (attend W-046) |
+| 7 | Détaillé le 2026-11-05 (0.9.0, après les lots 5 et 6) ; à faire |
 | 8 | À faire (banc de temps de cadre, W-049) |
 | 9 | Non retenu (W-048 reste ouvert : aucun test affaibli) |
 | 10 | À faire, après le lot 8 (tracé du viewer, W-049) |
