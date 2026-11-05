@@ -5,6 +5,8 @@
 //! Les conversions reproduisent celles de numpy (modulo mathématique, addition entière qui déborde sans erreur,
 //! conversion entier → float32 arrondie au plus proche, division float32), pas celles « naturelles » de Rust.
 
+use otb_decoder::CompactTable;
+
 pub mod debug_tables;
 pub mod flightlog;
 pub mod modes;
@@ -81,6 +83,63 @@ pub fn drop_implausible(
         *b = is_bad;
     }
     Ok(bad)
+}
+
+/// Équivalent de [`drop_implausible`] sur une [`CompactTable`] : les colonnes étroites sont déjà ramenées aux 32 bits par le
+/// décodeur (`wrap32`), il ne reste qu'à marquer les trames impossibles (`true` = à rejeter). `kinds` : une valeur par colonne.
+pub fn implausible_rows(t: &CompactTable, kinds: &[u8], hr: f64) -> Vec<bool> {
+    let slots = |kind: u8| -> Vec<usize> {
+        (0..t.cols)
+            .filter(|&c| kinds[c] == kind)
+            .filter_map(|c| match t.slot(c) {
+                (false, k) => Some(k),
+                (true, _) => None,
+            })
+            .collect()
+    };
+    let (gyro, pid) = (slots(KIND_GYRO), slots(KIND_PID));
+    let gyro_limit = 4000.0 * hr;
+    let nn = t.n_narrow();
+    let mut bad = vec![false; t.rows];
+    if nn == 0 {
+        return bad;
+    }
+    for (row, b) in t.narrow.chunks_exact(nn).zip(bad.iter_mut()) {
+        let mut is_bad = false;
+        for &k in &gyro {
+            is_bad |= (row[k].unsigned_abs() as f64) > gyro_limit;
+        }
+        for &k in &pid {
+            is_bad |= u64::from(row[k].unsigned_abs()) > PID_LIMIT as u64;
+        }
+        *b = is_bad;
+    }
+    bad
+}
+
+/// Équivalent de [`rows_f32_scaled`] sur une [`CompactTable`] (colonnes `cols`, toutes présentes) : mêmes conversions
+/// (entier → float32 arrondi au plus proche, puis division float32 si l'échelle n'est pas 1). Résultat rangé `k × rows`.
+pub fn compact_f32_scaled(t: &CompactTable, cols: &[usize], scales: &[f64]) -> Vec<f32> {
+    let n = t.rows;
+    let (nn, nw) = (t.n_narrow(), t.wide_cols.len());
+    let slots: Vec<(bool, usize)> = cols.iter().map(|&c| t.slot(c)).collect();
+    let mut out = vec![0.0f32; cols.len() * n];
+    for j in 0..n {
+        for (i, &(is_wide, k)) in slots.iter().enumerate() {
+            out[i * n + j] = if is_wide {
+                t.wide[j * nw + k] as f32
+            } else {
+                t.narrow[j * nn + k] as f32
+            };
+        }
+    }
+    for (i, &scale) in scales.iter().enumerate() {
+        if scale != 1.0 {
+            let s = scale as f32;
+            out[i * n..(i + 1) * n].iter_mut().for_each(|v| *v /= s);
+        }
+    }
+    out
 }
 
 /// Colonnes `cols` de `src` (`nrows × ncols`, rangée ligne par ligne) en float32, une ligne de sortie par colonne,

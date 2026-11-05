@@ -6,7 +6,7 @@ use std::path::Path;
 use crate::header::{FrameDef as HeaderFrameDef, LogHeader, find_log_starts, parse_header};
 use crate::{
     CTX_DATA_VERSION, CTX_HOME0_IDX, CTX_HOME1_IDX, CTX_MINTHROTTLE, CTX_MOTOR_MIN, CTX_MOTOR0_IDX, CTX_SIZE,
-    CTX_VBATREF, DecodeError, FrameDef, OutOfMemory, Params, Table, decode_stream,
+    CTX_VBATREF, CompactTable, DecodeError, FrameDef, OutOfMemory, Params, Table, decode_stream,
 };
 
 /// Tableau d'entiers rangé ligne après ligne.
@@ -51,8 +51,10 @@ pub struct DecodedSession {
     pub index: usize,
     pub header: LogHeader,
     pub main_names: Vec<String>,
-    /// (n, champs) : trames I/P valides, dans l'ordre.
+    /// (n, champs) : trames I/P valides, dans l'ordre. Vide quand la session est décodée en compact (`compact`).
     pub main: Matrix,
+    /// Les mêmes trames rangées serré (`decode_bytes_compact`) : colonnes étroites en `i32` déjà ramenées aux 32 bits.
+    pub compact: Option<CompactTable>,
     /// 0 = I, 1 = P.
     pub main_kind: Vec<i8>,
     pub slow_names: Vec<String>,
@@ -113,7 +115,28 @@ fn forward_fill(slow: &Table, at: &[i64], n: usize, width: usize) -> Vec<i64> {
     out
 }
 
-fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Result<Option<DecodedSession>, DecodeError> {
+/// Colonnes principales qui restent en `i64` dans le rangement compact : `loopIteration` et `time` (qui dépassent 32 bits).
+/// `None` si les colonnes 0 et 1 n'ont pas ces noms (en-tête inhabituel) : le rangement compact n'est alors pas utilisé.
+pub fn wide_columns(names: &[String]) -> Option<Vec<usize>> {
+    if names.first().map(String::as_str) != Some("loopIteration") || names.get(1).map(String::as_str) != Some("time") {
+        return None;
+    }
+    Some(
+        names
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| *n == "loopIteration" || *n == "time")
+            .map(|(i, _)| i)
+            .collect(),
+    )
+}
+
+fn decode_session(
+    buf: &[u8],
+    header: LogHeader,
+    index: usize,
+    compact: bool,
+) -> Result<Option<DecodedSession>, DecodeError> {
     header.check_bounds(index)?;
     let Some(fi) = header.frames.get(&'I').filter(|f| f.complete() && f.count() >= 2) else {
         return Ok(None);
@@ -135,6 +158,7 @@ fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Result<Option<
     ctx[CTX_HOME1_IDX] = fh.map_or(0, |f| f.index("GPS_home[1]").max(0));
     ctx[CTX_DATA_VERSION] = header.data_version();
 
+    let wide = if compact { wide_columns(&fi.names) } else { None };
     let (p_num, p_denom) = header.p_interval();
     let nbytes = header.data_end as i64 - header.data_start as i64;
     let est_rows = (nbytes.div_euclid(20)).max(1024) as usize;
@@ -175,6 +199,7 @@ fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Result<Option<
         p_denom,
         ctx,
         est_rows,
+        compact: wide.as_deref(),
     };
     let d = decode_stream(buf, &prm).map_err(|OutOfMemory| DecodeError::OutOfMemory { session: index })?;
 
@@ -188,7 +213,7 @@ fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Result<Option<
     } else {
         vec![]
     };
-    let rows = d.main.rows();
+    let rows = d.compact.as_ref().map_or_else(|| d.main.rows(), |c| c.rows);
     let width = d.slow.cols.max(1);
     let filled = Table {
         cols: width,
@@ -211,6 +236,7 @@ fn decode_session(buf: &[u8], header: LogHeader, index: usize) -> Result<Option<
             cols: d.main.cols,
             data: d.main.data,
         },
+        compact: d.compact,
         main_kind: d.kind,
         slow: Matrix::from_table(&filled, rows, slow_names.len()),
         gps: Matrix::from_table(&d.gps, d.gps.rows(), gps_names.len()),
@@ -238,6 +264,15 @@ pub fn list_sessions(data: &[u8]) -> Vec<LogHeader> {
 
 /// Décode toutes les sessions (ou seulement la n° `only`, à partir de 1) ; une session sans définition I complète est écartée.
 pub fn decode_bytes(data: &[u8], only: Option<usize>) -> Result<Vec<DecodedSession>, DecodeError> {
+    decode_bytes_with(data, only, false)
+}
+
+/// Comme [`decode_bytes`], les trames principales étant rangées en `CompactTable` (moitié moins de mémoire : L-081).
+pub fn decode_bytes_compact(data: &[u8], only: Option<usize>) -> Result<Vec<DecodedSession>, DecodeError> {
+    decode_bytes_with(data, only, true)
+}
+
+fn decode_bytes_with(data: &[u8], only: Option<usize>, compact: bool) -> Result<Vec<DecodedSession>, DecodeError> {
     let starts = find_log_starts(data);
     let mut sessions = Vec::new();
     for (k, &s) in starts.iter().enumerate() {
@@ -245,7 +280,7 @@ pub fn decode_bytes(data: &[u8], only: Option<usize>) -> Result<Vec<DecodedSessi
             continue;
         }
         let end = starts.get(k + 1).copied().unwrap_or(data.len());
-        if let Some(sess) = decode_session(data, parse_header(data, s, end), k + 1)? {
+        if let Some(sess) = decode_session(data, parse_header(data, s, end), k + 1, compact)? {
             sessions.push(sess);
         }
     }

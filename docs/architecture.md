@@ -126,7 +126,7 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
 (`tests/data/*.json`, `$OTB_LOGS/golden`) ont été écrits par l'ancienne version Python (tag `python-final`) : pour en refaire un, voir
 « Refaire une référence Python » dans [validation](validation.md).
 
-- **otb-decoder** : décodeur, Rust pur. `header.rs` (en-têtes et sessions), `file.rs` (`decode_file` de bout en bout), `error.rs` (`DecodeError` : en-tête hors bornes, mémoire insuffisante ; D-044), `frame.rs`
+- **otb-decoder** : décodeur, Rust pur. `header.rs` (en-têtes et sessions), `file.rs` (`decode_file` de bout en bout ; `decode_bytes_compact` range les trames principales en `CompactTable`, `i32` sauf `loopIteration` et `time`, pour `otb_log::flightlog::load` : L-081), `error.rs` (`DecodeError` : en-tête hors bornes, mémoire insuffisante ; D-044), `frame.rs`
   (prédicteurs et lecture d'une trame ou d'un événement), `reader.rs` (session décodée).
 - **otb-log** : rejet des trames impossibles et conversions float32 de l'ouverture d'un log (D-034) ; `debug_tables.rs` et `modes.rs`
   (tables de debug et de modes), `settings.rs` (`parse_settings`), `flightlog.rs` (`FlightLog`, `from_session`, `load`).
@@ -150,6 +150,7 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     cas fabriqué. Les registres d'histoire (`HISTORICAL_DOCS` : CHANGELOG, decisions, lecons, migration-rust, travaux-reportes) peuvent
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.
   - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail : mêmes 74 exécutables qu'avec la liste des `-p`) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard (`golden.rs`, `smooth.rs`) : `verify` les compte et `--strict` en fait un échec.
+  - `bench_open.rs` : `otb-dev bench-open LOG [ESSAIS]` ouvre un log (`otb_log::flightlog::load`) et affiche durées et pic de mémoire (`VmHWM` de `/proc/self/status`, Linux seulement) ; un processus par log, car le pic ne redescend pas.
   - `release.rs` : `otb-dev release prepare X.Y.Z | notes vX.Y.Z` (numéro de version dans `rust/Cargo.toml`, CHANGELOG).
   - `icons.rs` : `otb-dev icons` (PNG Linux et `.ico` Windows depuis `opentunebox.svg`, par `resvg` et `ico`, Rust pur ; pas de `.icns` : D-042).
   - `licenses.rs` : `otb-dev licenses` écrit `THIRD-PARTY-LICENSES.txt` à la racine : les fichiers de licence de chaque crate que `otb-gui` embarque (dépendances normales pour Linux et Windows, via `cargo metadata`, sans construction, test ni macros procédurales), les polices (Hack, Ubuntu Light, logos d'egui) et les icônes Lucide ; les textes identiques sont écrits une fois, les composants sans fichier de licence sont listés avec leur licence et leurs auteurs déclarés. L'installateur Windows et l'AppImage livrent ce fichier (W-043). À refaire à chaque changement de dépendance (voir « Publier une version » dans `CONTRIBUTING.md`).

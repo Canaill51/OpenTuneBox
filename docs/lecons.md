@@ -66,6 +66,12 @@ est celle du commit qui les a introduites.
 - **Règle** — un test qui exécute un fichier **qu'il vient d'écrire** réessaie sur `ETXTBSY` (code 26) au lieu de `unwrap()` : voir `lance_malgre_etxtbsy` dans ce fichier. Réessayer la mise en place ne touche aucune assertion ; ne pas « régler » le problème en désactivant le parallélisme des tests ni en supprimant le cas gênant.
 - **Preuve** — avant : 2 échecs sur 5 exécutions de `cargo test -p otb-dev --test install_linux` ; après le réessai : 10 exécutions de suite au vert (2026-11-05). Clôt W-047.
 
+### L-081 : le pic de mémoire d'une ouverture se mesure par étape, et la « conversion session par session » ne sert qu'aux fichiers à plusieurs sessions
+- **Symptôme** — 2026-11-04 (lot 5) : `LOG00008.BFL` (une session, 620 079 trames) demande 481 Mo. Le plan attendait un gain de la conversion session par session (5a) : elle a donné 513 Mo (+ 32 Mo, le fichier restant lu) ; aucun log du corpus de plus de 1 Mo n'a deux sessions.
+- **Cause (mesurée par `VmHWM` à trois endroits de `from_session`)** — le pic n'était pas dans le décodeur (295 Mo) mais à la fin de `from_session` : la table d'entiers 64 bits (213 Mo) restait vivante pendant que les copies finales (`f.axes`, moteurs…) se construisaient (468 Mo).
+- **Règle** — mesurer le pic par étape avant de choisir la piste ; rendre la grosse table dès que ses colonnes utiles sont extraites (`Fields::release_main`). Preuve d'identité : empreinte du `FlightLog` complet de chaque fichier du corpus, avant et après (528 fichiers identiques) ; `corpus validate` et `otb-parity` ne passent pas par `load` et ne la donnent pas. Mesure : 481 → 342 Mo, durée inchangée.
+- **Suite (refonte)** — ranger les colonnes en `i32` dès le décodeur (`CompactTable`) : 274 Mo, 0,54 s. Piège rencontré : le décodeur note la position des trames lentes, GPS et événements avec le nombre de trames principales ; avec une table principale vide ce nombre vaut 0 et les drapeaux de mode de vol étaient faux (528 empreintes différentes, aucun test rouge). Toute valeur dérivée du nombre de trames doit passer par `main_rows`.
+
 ### L-080 : une allocation ratée n'est pas une panique : `catch_unwind` ne la rattrape pas, le processus est abandonné
 - **Symptôme** — 2026-11-04 (audit du lot 4) : un en-tête qui déclare 20 000 champs fait demander 67 Go au décodeur ; Rust écrit « memory allocation of … bytes failed » et abandonne le programme entier, sans rien dire à l'interface (qui décode pourtant dans un fil).
 - **Cause (mesurée)** — `Vec::extend_from_slice` et `push` appellent le gestionnaire d'erreur d'allocation, qui abandonne ; `std::panic::catch_unwind` ne voit que les paniques. Réserver d'avance « au mieux » (`try_reserve` dans `Table::new`) ne suffisait pas : la croissance ligne après ligne abandonnait quand même.
@@ -892,6 +898,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-081 | Pic de mémoire de l'ouverture : mesurer par étape ; rendre la table `i64` dès que les colonnes utiles sont extraites, puis ranger en `i32` dès le décodeur (481 → 274 Mo) ; positions S/G/E via `main_rows` | Décodeur et logs |
 | L-082 | Exécuter un fichier qu'on vient de copier échoue par intermittence (« Text file busy », `ETXTBSY`) quand un test voisin lance un processus dans le même binaire de test : réessayer sur le code 26, sans toucher aux assertions | Tests |
 | L-080 | Allocation ratée = abandon du programme, `catch_unwind` ne la voit pas : `try_reserve` avant chaque ajout, et borner les nombres lus dans l'en-tête (D-044) | Décodeur et logs |
 | L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |

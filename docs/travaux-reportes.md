@@ -63,6 +63,10 @@ Règles d'écriture :
 | W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
+| W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
+| W-050 | Ouverture d'un log dominée par le décodage (83 % de 342 ms) ; fichiers ouverts les uns après les autres (×2,40 mesuré en parallèle, pic de mémoire à plafonner) | ouvert |
+| W-049 | Le tracé du viewer parcourt la série entière à chaque cadre (7,94 ms par cadre à 321 729 échantillons, dont 0,34 ms de carte graphique) : saccades attendues au-delà de ~700 000 échantillons | ouvert |
+| W-048 | `otb-parity --test golden` rouge avec `OTB_GOLDEN` défini (écart de 1e-15 relatif, `spectral.spectrum`), déjà sur `main` ; test volontairement non affaibli | ouvert |
 | W-047 | Test `install_linux` échoué une fois sur six exécutions de `verify`, cause non trouvée | TRAITÉ le 2026-11-05 (course `ETXTBSY` entre les cas du fichier : cause reproduite et corrigée, L-082) |
 | W-046 | Police Ubuntu Light (Ubuntu Font Licence 1.0) embarquée par egui : compatibilité avec la licence du projet | TRAITÉ le 2026-11-05 (D-046 : police gardée sous sa licence, la cause du conflit a disparu avec D-045) |
 | W-045 | Icône de fenêtre sous X11 : `_NET_WM_ICON` vide alors que le PNG se décode (L-076) ; AppImage non intégrée au bureau : icône générique sous Wayland (intégration au premier lancement non décidée) | ouvert (X11 : à creuser si quelqu'un l'utilise ; AppImage : décision de Cédric) |
@@ -554,3 +558,65 @@ Règles d'écriture :
 ## Origine : lot 1 des chantiers, branche feat/dev-verify (2026-11-04)
 
 - **W-047** — Pendant les contre-preuves de `otb-dev verify`, le test `rust/otb-dev/tests/install_linux.rs` a échoué **une fois** dans une exécution complète (le test a 2 cas) ; il a passé dans 5 exécutions isolées de suite et dans toutes les autres exécutions complètes (4 autres). Le message d'échec n'a pas été conservé (`verify` n'affichait alors que la fin de la sortie) : **cause non trouvée**, on ne sait pas si c'est un test instable ou un effet de mes modifications en cours (le fichier source de `verify.rs` venait d'être changé à la main pour la contre-preuve). **Reprise** : sans objet. **TRAITÉ le 2026-11-05** : l'ajout d'un 3ᵉ cas de test (livraison de `LICENSE`, D-045) a rendu l'échec fréquent (2 sur 5), ce qui a permis de relever le message — `Os { code: 26, kind: ExecutableFileBusy }` sur le `spawn()` du programme fraîchement copié — et de trouver la cause : les cas du fichier tournent en parallèle dans le même processus, et un `fork` pendant que la copie est ouverte en écriture empêche de l'exécuter. Corrigé par un réessai sur `ETXTBSY` (`lance_malgre_etxtbsy`), 10 exécutions de suite au vert. Leçon L-082.
+
+- **W-048** — Vu le 2026-11-04 (lot 5) sur le poste Linux avec `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golden` : `cargo test -p otb-parity --test golden` échoue sur `golden/modules/013/spectral.spectrum.1.npz` (417 valeurs sur 501 diffèrent au 15e chiffre : `2.656027582785467` contre `2.65602758278547`). Identique sur `main` sans mes changements ; `otb-parity check` (rtol=0 sur les appels rejoués) passe. Sans rapport avec le lot 5. **Cause trouvée (lecture du code)** : `golden.rs` compare tout avec `rtol: 0.0`, alors que `otb-parity check` applique `registry::tolerance` (1e-14 pour `spectral.spectrum`, au dernier bit de la FFT). **Décision de Cédric (2026-11-04) : ne pas aligner le test, on n'affaiblit aucun test** ; il reste donc rouge avec `OTB_GOLDEN` et `verify --strict` ne peut pas passer sur le poste qui a les références. **Reprise** (inchangée sauf l'option « tolérance », écartée) : avant de lancer `verify --strict` pour de bon ; chercher si le test compare au bit près ce que `check` compare avec une tolérance, ou si une référence est périmée.
+
+## Origine : audit de performance processeur et carte graphique demandé par Cédric (2026-11-04)
+
+Bancs isolés **hors du dépôt** (ils dépendent des crates par chemin, rien n'a été ajouté à `rust/`) : i7-11800H (8 cœurs,
+16 fils), 15 Gio de mémoire, profil `release` du dépôt, cache disque chaud, meilleur de 3 essais. L'interface est mesurée par
+`egui_kittest` (la vraie `App`, les vraies pages, un vrai log, le rendu `wgpu`), donc **hors écran** : sans vsync ni
+compositeur. Les trois bancs sont relançables tels quels pour refaire chaque chiffre.
+
+- **W-049** — Le tracé du viewer parcourt la série **entière** à chaque cadre. Les graphiques sont réglés en
+  `auto_bounds(false)` avec les bornes sur tout le log, et `visible_points` est appelé dans la fonction d'affichage, pour
+  chaque courbe et à chaque cadre : la décimation min/max limite les points **rendus** (≈ 3 830 pour 1920 px de large), pas le
+  parcours, qui reste en O(n). Mesuré le 2026-11-04 sur la session de 321 729 échantillons de `Cedric/JeNo 5/FINAL.bbl`,
+  fenêtre 1920 × 1080 : écran « Guide » (aucune courbe) 0,43 ms par cadre, viewer en vue entière 7,94 ms, dont 0,34 ms de
+  rendu `wgpu` (relecture de l'image comprise, donc **majorant**) — le processeur fait 96 % du cadre, la carte graphique 4 %.
+  Le coût est linéaire en nombre d'échantillons : 2,90 ms à 97 208, 2,93 ms à 121 261, 3,33 ms à 123 295 et 7,94 ms à
+  321 729, soit 21 à 26 ns par échantillon. Preuve que c'est le parcours et non le rendu : à 640 px de large (3 fois moins de
+  points rendus) le cadre ne descend qu'à 5,96 ms. **Extrapolation, non mesurée** (aucune session du corpus n'est assez
+  longue) : le budget de 16,7 ms (60 images par seconde) serait atteint vers 700 000 échantillons.
+  **Pourquoi reporté** : l'interface est réactive (elle ne redessine que sur évènement), donc au repos ce coût n'est pas payé ;
+  il l'est pendant la lecture (qui demande un rafraîchissement continu), un glissement ou un zoom. Aucun log du corpus
+  n'atteint la taille où cela se verrait, et le choix entre les deux parades revient à Cédric.
+  **Risque si on n'y touche pas** : sur un log de plus de ~700 000 échantillons (vol long, cadence élevée), la lecture et le
+  glissement saccadent ; le défaut grandit avec la **taille des logs**, pas avec le nombre de courbes.
+  **Reprise** : si un pilote signale une interface qui accroche, ou avant d'accepter des logs plus longs.
+  **Piste** : (a) mettre en cache les points décimés, invalidés seulement quand les bornes du graphique, la largeur en pixels,
+  le lissage ou la courbe changent — même technique que les caches déjà en place (séries lissées du viewer, textures de
+  `freq_time`) ; ramènerait le cadre à vue fixe vers 0,5 ms, **sans rien gagner pendant un glissement ou un zoom**, où les
+  bornes changent à chaque cadre ; (b) un index multi-résolution (pyramide min/max calculée à l'ouverture) rendrait le tracé
+  en O(points rendus) et gagnerait aussi pendant le glissement, au prix d'une structure de données à valider par des tests.
+  [`rust/otb-gui/src/viewer_page.rs:ui`, `rust/otb-gui/src/plots.rs:visible_points`]
+
+- **W-050** — L'ouverture d'un log est dominée par le décodage, et les fichiers s'ouvrent les uns après les autres. Mesuré le
+  2026-11-04 sur `1. PTB/ram/BTFL_BLACKBOX_LOG_MARIO_8_…TMOTORVELOXF7SE.bbl` (22,3 Mo, 9 sessions, 515 239 trames) :
+  ouverture complète 342 ms, dont lecture du fichier 3 ms, **décodage 283 ms (83 %, soit 0,55 µs par trame)** et construction
+  des séries f32 56 ms (16 %). Deux leviers mesurés : décoder en parallèle les sessions d'un même fichier (possible sans
+  toucher la boucle validée, `decode_bytes_compact(data, Some(i))` décode déjà une session seule) donne ×2,23 sur ce fichier à
+  9 sessions, mais seulement **×1,10** sur `Cedric/JeNo 5/FINAL.bbl` (2 sessions dont une domine : la plus grosse fixe le
+  plancher) ; ouvrir plusieurs fichiers en parallèle donne **×2,40** (6 logs du corpus, 0,830 s → 0,345 s). Le décodage d'une
+  seule session ne se parallélise pas simplement : chaque trame P est un delta de la précédente (W-014).
+  **Pourquoi reporté** : 342 ms pour le plus gros log du corpus ne se voit pas ; le gain porte sur l'ouverture de **plusieurs**
+  logs, et le parallélisme multiplie le pic de mémoire (168 à 181 Mo par fichier, mesurés), donc il faut un plafond de
+  fichiers décodés en même temps, qui reste à choisir et à mesurer.
+  **Risque si on n'y touche pas** : environ une seconde d'attente quand on coche plusieurs logs pour les comparer.
+  **Reprise** : quand l'ouverture multiple gênera, ou en même temps que W-049 (même chantier).
+  **Piste** : `rayon` sur les fichiers, avec un plafond de concurrence et l'ordre des logs conservé (`par_iter().collect()` le
+  garantit) ; le décodage par session seulement si un corpus montre des sessions de tailles comparables.
+  [`rust/otb-log/src/flightlog.rs:load`, `rust/otb-decoder/src/file.rs:decode_bytes_compact`, `rust/otb-gui/src/app.rs:open`]
+
+- ~~**W-051** — Trois pistes d'optimisation écartées par la mesure du 2026-11-04, notées pour ne pas les reprendre.~~
+  🚫 **SANS SUITE (2026-11-04)** — mesuré : le gain est nul ou négatif. (1) le plan FFT recréé à chaque appel de `rfft_rows` coûte 8 µs
+  (L = 1024) à 15 µs (L = 2048) : invisible, et le plan sert déjà à toutes les lignes d'une matrice ; (2) paralléliser les
+  fenêtres de FFT gagne bien ×1,9 à ×3,2, mais sur 1 à 3 ms — un spectrogramme de 587 fenêtres de 1024 (`seg_spectra`) prend
+  3 ms, `smooth_freq` 6 µs ; (3) porter les calculs sur la carte graphique (`wgpu` compute, CUDA) serait **plus lent** : ces
+  calculs durent 1 à 3 ms, soit l'ordre de grandeur d'un aller-retour de données vers la carte. Le rendu, lui, est déjà sur la
+  carte graphique (egui et eframe avec le moteur `wgpu`, textures de spectrogramme gardées en cache) et ne pèse que 0,34 ms
+  par cadre (W-049). Durées de FFT mesurées sur un **signal synthétique** de la taille des vraies séries : la durée d'une FFT
+  dépend de sa taille, pas de son contenu.
+  **Reprise** : aucune. Si une analyse nouvelle dépassait quelques dizaines de millisecondes de calcul homogène, refaire la
+  mesure avant de conclure.
+  [`rust/otb-dsp/src/numeric.rs:rfft_rows`, `rust/otb-analysis/src/spectral.rs:seg_spectra`]

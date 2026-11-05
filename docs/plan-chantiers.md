@@ -43,7 +43,10 @@ main
  ├─ perf/decoder-memory         lot 5 : C4 (deux sous-lots, deux PR)
  ├─ docs/chantiers-bilan        lot 6 : bilan et mesures finales
  ├─ feat/licenses-check         lot 7a : contrôle de THIRD-PARTY-LICENSES.txt
- └─ chore/release-0.9.0         lot 7b à 7e : première publication Rust (0.9.0)
+ ├─ chore/release-0.9.0         lot 7b à 7e : première publication Rust (0.9.0)
+ ├─ chore/viewer-frame-bench    lot 8 : banc de temps de cadre (W-049), part de perf/decoder-memory
+ ├─ perf/viewer-decimation      lot 10 : tracé du viewer sans parcourir toute la série (W-049), après le lot 8
+ └─ perf/open-parallel          lot 11 : ouverture de plusieurs logs en parallèle (W-050), après la fusion du lot 5
 ```
 
 Chaque branche part de `main` à jour. Dépendances : le lot 1 d'abord (il donne la commande de vérification à tous les
@@ -239,23 +242,28 @@ opérations flottantes et parité).
 
 Sous-lot 5a, banc et conversion session par session (PR `perf/decoder-memory`) :
 
-- [ ] Banc reproductible : exemple ou sous-commande `otb-dev` qui ouvre un log donné, affiche la durée et le pic mémoire
+- [x] Banc reproductible : exemple ou sous-commande `otb-dev` qui ouvre un log donné, affiche la durée et le pic mémoire
       (compteur du système, pas d'estimation) ; l'exécuter sur `tests/data/jeno5_5s.bbl` et sur le plus gros log du corpus ;
       consigner les valeurs de départ (lot 0) dans `docs/validation.md`.
-- [ ] `load` : lister les sessions puis décoder et convertir **une session à la fois** (le paramètre `only` de `decode_file`
+- [x] (essayé, **retiré** : sans effet, voir L-081 ; remplacé par la variante ci-dessous) `load` : lister les sessions puis décoder et convertir **une session à la fois** (le paramètre `only` de `decode_file`
       existe déjà), en libérant la table `i64` avant la suivante.
-- [ ] Vérification : `verify` vert ; `corpus validate` 0 non conforme ; `otb-parity check` 0 écart ; pic mémoire du plus gros
+- [x] Vérification (faite sur la variante `CompactTable`, 274 Mo ; contre-preuve : 481 Mo mesurés sur `main` avec le même banc) : `verify` vert ; `corpus validate` 0 non conforme ; `otb-parity check` 0 écart ; pic mémoire du plus gros
       log **divisé par au moins 1,5** par rapport au lot 0, mesure consignée. **Contre-preuve** : le banc rejoué sur `main`
       redonne l'ancienne valeur.
 
 Sous-lot 5b, colonnes utiles seulement (PR `perf/decoder-columns`, ouverte seulement si 5a ne suffit pas à l'objectif « ÷ 2 ») :
 
-- [ ] Décoder vers la table `i64` uniquement les colonnes que `from_session` garde, ou convertir en `f32` à la volée par
+- [x] (fait autrement : toutes les colonnes gardées, rangées en `i32` sauf `loopIteration` et `time` ; la sélection de colonnes ne gagnait rien sur `LOG00008.BFL`, 43 colonnes toutes utiles) Décoder vers la table `i64` uniquement les colonnes que `from_session` garde, ou convertir en `f32` à la volée par
       blocs de trames ; les trames `S`, `E`, `G`, `H` gardent leur traitement actuel.
-- [ ] Vérification : mêmes preuves qu'en 5a ; objectif pic mémoire **÷ 2** et temps d'ouverture non dégradé (W-014).
-- [ ] Critère d'arrêt : un seul bit qui change sur le corpus (`otb-parity`) arrête le sous-lot ; on revient à 5a seul.
+- [x] Vérification : mêmes preuves qu'en 5a (pic ÷ 1,75 et non ÷ 2 ; temps 0,63 → 0,54 s) ; objectif pic mémoire **÷ 2** et temps d'ouverture non dégradé (W-014).
+- [x] Critère d'arrêt (non déclenché : `FlightLog` identiques sur 528 fichiers) : un seul bit qui change sur le corpus (`otb-parity`) arrête le sous-lot ; on revient à 5a seul.
 
 ## Lot 6 : bilan (Sonnet)
+
+**Ordre (Cédric, 2026-11-04)** : après le lot 8, dont il reprend la mesure de `LOG00008.BFL` (verdict sur W-049), et il couvre aussi
+l'audit de performance processeur / carte graphique (W-049 à W-051) et les lots 10 et 11 s'ils sont faits ; il écrit dans les
+mêmes fichiers que le lot 8 (`validation.md`, `CHANGELOG.md`, W-049, tableau d'avancement), d'où cet ordre. Les lots 10 et 11
+peuvent suivre le bilan : il les propose alors comme suite.
 
 - [ ] Relire les cinq chantiers : état, preuves, mesures ; mettre à jour `docs/validation.md` (robustesse, mémoire) et ce plan.
 - [ ] Clore ou mettre à jour les W concernés : W-014, W-016, W-035 (9), W-036 (8), W-041 si touché.
@@ -338,6 +346,118 @@ Sous-lot 7b, préparation de la version (PR `chore/release-0.9.0`) :
       (décision de Cédric), W-043 (relecture des textes de licences avec Cédric : faite ou reportée) ; leçons nouvelles dans
       `docs/lecons.md`.
 
+## Lot 8 : banc de temps de cadre de l'interface (Opus) — W-049
+
+Issu de l'audit de performance du 2026-11-04 (W-049, W-050, W-051), pas des cinq chantiers de l'audit du dépôt.
+
+**But** : mettre dans le dépôt le banc qui mesure le temps de cadre de l'interface, pour que la correction de W-049 soit
+prouvée par la même mesure avant et après. Les chiffres de W-049 viennent d'un banc écrit hors du dépôt, dans un dossier
+temporaire de session : il est perdu. **Ce lot ne corrige pas W-049**, il fabrique l'instrument.
+
+**À lire** : `rust/otb-gui/examples/banc_carte.rs` (le banc de cadres déjà en place : constante d'essais, médiane, chauffe de
+3 cadres, en-tête qui dit ce qui n'est pas mesuré), `rust/otb-gui/examples/capture.rs` (harnais `egui_kittest` avec rendu
+`wgpu`, attente par `busy()`, « ms par cadre » sur la sortie d'erreur), `rust/otb-gui/tests/spectral.rs` (montage du
+`Harness` avec un vrai log, lignes 169 à 200), `rust/otb-gui/src/viewer_page.rs` (`ui`, et le cache de séries), `docs/travaux-reportes.md`
+W-049, `docs/validation.md` (« Ouverture d'un log », le modèle de consignation), `docs/lecons.md` L-066 (`with_context_setup`
+obligatoire) et L-022 (`verify` sans tube).
+
+Branche `chore/viewer-frame-bench`, **partant de `perf/decoder-memory`** et non de `main` : le banc cite W-049, qui n'existe
+que sur cette branche, et `register_ids_cited_exist` contrôle aussi les fichiers `.rs`. À fusionner après le lot 5.
+
+- [ ] Fichier neuf `examples/banc_cadre.rs` dans `rust/otb-gui/` (nommé comme `banc_carte.rs`, pas en anglais) :
+      `cargo run --release -p otb-gui --example banc_cadre -- LOG [--largeur 1920] [--cadres 60] [--gpu]`.
+      Trois mesures : écran « Guide » (aucune courbe, la référence à soustraire), viewer en vue entière (le cas le plus
+      lourd), et le rendu `wgpu` avec `--gpu` (relecture de l'image comprise, donc **majorant**). Sortie : minimum et
+      médiane, la différence « viewer − Guide » et le coût **par échantillon**, seul chiffre comparable d'un log à l'autre.
+- [ ] Pièges à respecter dans le banc, tous vérifiés pendant l'audit : `App::new` et jamais `App::from_launch` (sinon la
+      mesure dépend des préférences enregistrées de celui qui la lance) ; attendre qu'**aucune nouvelle session** n'arrive
+      pendant un délai, l'ouverture se faisant session par session dans un thread de travail ; **afficher la session la plus
+      longue** (`AppState::set_current`), car la première session du plus gros log ne fait que 1 254 échantillons et donne
+      2,4 ms au lieu de 7,9 ; `Harness::step()` pour un cadre et non `run()`, qui en enchaîne plusieurs ; `--gpu` inactif par
+      défaut (Vulkan absent de la CI) ; aucun code Unix-only (la CI compile les exemples sous Windows), donc pas de
+      `/proc/self/status` — la mémoire reste l'affaire de `otb-dev bench-open`.
+- [ ] Consigner : sous-section « Temps de cadre de l'interface » dans `docs/validation.md`, bâtie comme « Ouverture d'un
+      log » ; puce des exemples de `docs/architecture.md` (chemin relatif à la crate, comme les deux autres) ; ligne sous
+      « Non publié » du `CHANGELOG.md`. Mettre à jour W-049 **et le préambule de sa section**, qui dit « bancs isolés hors du
+      dépôt, rien n'a été ajouté à `rust/` » : ce ne sera plus vrai.
+- [ ] Vérification : le banc aboutit sur `tests/data/jeno5_5s.bbl` (le seul log que la CI possède) ; sur
+      `Cedric/JeNo 5/FINAL.bbl` il **retrouve ≈ 7,9 ms** à 321 729 échantillons et ≈ 0,43 ms sur l'écran Guide — s'il donne
+      autre chose, c'est le banc qui est faux, pas l'interface, les valeurs de W-049 servant d'étalon ; `--largeur 640` sur ce
+      même log redonne ≈ 5,9 ms, ce qui reproduit la preuve que le coût est le parcours en O(n) et non le rendu ;
+      `verify` vert, **sans tube** (L-022).
+- [ ] Mesure neuve, celle qui justifie le lot : `1. PTB/st7ven3241/LOG00008.BFL` (620 079 trames en **une seule session**, le
+      plus gourmand des 529) dira si l'on approche vraiment des 16,7 ms du budget 60 images par seconde, et remplacera dans
+      W-049 l'extrapolation « vers 700 000 échantillons » par un chiffre mesuré.
+
+**Suite, hors de ce lot** : la correction de W-049 elle-même (cache des points décimés, ou index multi-résolution min/max),
+sur une autre branche, dont ce banc prouvera le gain. Attention : un cache de points ne gagne rien pendant un glissement ou un
+zoom, où les bornes changent à chaque cadre ; seul l'index multi-résolution y gagne.
+
+## Lot 9 : non retenu
+
+Prévu pour W-048 (`otb-parity --test golden` rouge avec `OTB_GOLDEN`). **Cédric (2026-11-04) : on n'affaiblit aucun test**, donc
+le test garde `rtol: 0.0`, W-048 reste ouvert, et il n'y a pas de lot. Conséquence connue : tant que W-048 est ouvert,
+`verify --strict` échoue sur le poste qui a `OTB_GOLDEN`. Reprise : voir W-048.
+
+## Lot 10 : tracé du viewer sans parcourir toute la série (Opus) — W-049
+
+**But** : que le cadre du viewer ne dépende plus du nombre total d'échantillons mais du nombre de points rendus, y compris pendant
+un glissement ou un zoom. **Dépend du lot 8** (le banc `banc_cadre` donne la mesure « avant » et « après » ; sans lui, ce lot ne
+démarre pas).
+
+**À lire** : `docs/travaux-reportes.md` W-049 (mesures et deux pistes), `rust/otb-gui/src/plots.rs:visible_points` (décimation
+min/max, `t` croissant, `y` en `f64`), `rust/otb-gui/src/viewer_page.rs` (l'appel ligne ≈ 549 et le cache de séries lissées),
+`docs/lecons.md` L-071 (casser la protection pour voir échouer), `docs/decisions.md` D-029 (courbes en `f32`).
+
+**Décision à demander à Cédric avant de coder** (`D-xxx`) : (a) cache des points décimés, ou (b) pyramide min/max calculée à
+l'ouverture. Le plan recommande **(b)** : (a) ne gagne rien pendant un glissement ou un zoom, où les bornes changent à chaque
+cadre ; (b) coûte de la mémoire par log, à mesurer avec `otb-dev bench-open` contre les 274 Mo du lot 5 (pyramide de facteur 16 :
+environ 1/8 de la série en plus, **estimation à remplacer par la mesure**).
+
+- [ ] Calcul pur et testable, **hors de `otb-gui`** (`otb-analysis` ou `otb-dsp`, règle d'`AGENTS.md`) : construction de la
+      pyramide min/max et requête « points d'une fenêtre `[x0, x1]` pour `max_points` ». `visible_points` devient un appel à cette
+      requête, avec le même contrat (un point de marge de chaque côté, pics conservés).
+- [ ] Tests d'abord (TDD) : (1) **enveloppe identique** — pour des fenêtres variées (entière, étroite, hors du log, un seul point),
+      la valeur minimale et la maximale de chaque colonne de pixels sont celles de l'ancienne `visible_points` ; les points
+      choisis peuvent différer, l'enveloppe non ; (2) série constante, série monotone, un pic isolé (jamais perdu), `NaN` ;
+      (3) moins de `max_points` : sortie identique à l'ancienne, point pour point.
+- [ ] Mesure : `banc_cadre` sur `Cedric/JeNo 5/FINAL.bbl` (≈ 7,9 ms avant) et `1. PTB/st7ven3241/LOG00008.BFL`, **vue entière
+      et pendant un glissement** (bornes changeantes) ; objectif : cadre du viewer proche de celui de l'écran Guide (≈ 0,4 ms)
+      + le coût des points rendus, indépendant du nombre d'échantillons. Pic de mémoire par `bench-open`, avant et après.
+- [ ] Vérification : `verify` vert, sans tube ; captures hors écran avant et après (`capture`) **regardées** : la courbe est
+      visuellement la même (pics, creux) aux deux thèmes.
+- [ ] **Critères d'arrêt** : une enveloppe qui diffère d'un seul pixel sur un jeu d'essai ; un surcoût de mémoire au-delà de ce que
+      Cédric accepte (à fixer avec la décision) ; un gain nul pendant le glissement. On revient alors vers lui, on n'improvise pas.
+- [ ] Consigner : W-049 traité, `docs/validation.md` (« Temps de cadre de l'interface », tableau avant / après),
+      `docs/architecture.md`, `CHANGELOG.md`, décision `D-xxx`.
+
+## Lot 11 : ouverture de plusieurs logs en parallèle (Opus) — W-050
+
+**But** : ouvrir plusieurs fichiers à la fois (×2,4 mesuré sur 6 logs, 0,830 s → 0,345 s) **sans que le pic de mémoire dépasse un
+plafond choisi**. **Dépend de la fusion du lot 5** (il part de `main` qui contient `CompactTable` ; les chiffres de mémoire
+de W-050 ont été pris sur ce rangement).
+
+**À lire** : `docs/travaux-reportes.md` W-050, `docs/validation.md` (« Ouverture d'un log »), `rust/otb-gui/src/app.rs:open` et
+`poll_opening` (aujourd'hui **un seul** fichier à la fois : la file `queue` et un unique `opening`),
+`rust/otb-log/src/flightlog.rs:load`, `rust/otb-dev/src/bench_open.rs`, `docs/lecons.md` L-081 et L-066.
+
+**Décision à demander à Cédric** : le plafond de mémoire (ou de fichiers simultanés). Le décodage de sessions d'un même fichier
+en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cumulerait plusieurs tables compactes.
+
+- [ ] Banc multi-fichiers d'abord (le lot 5 n'en a qu'un seul fichier par processus) : `otb-dev bench-open` accepte plusieurs logs
+      et un nombre de fichiers simultanés, et donne durée totale et pic de mémoire du processus. Mesure « avant » (séquentiel)
+      consignée sur 6 logs dont `LOG00008.BFL`.
+- [ ] Ouverture parallèle avec plafond (`rayon`, ordre des logs conservé, `par_iter().collect()`), dans le calcul pur
+      (`otb-log`) ; l'interface garde son rôle : afficher, annuler, remonter les erreurs **fichier par fichier**.
+- [ ] Tests : ordre conservé quelle que soit la durée de chaque fichier ; un fichier illisible n'empêche pas les autres ;
+      le plafond est respecté (compteur de fichiers en cours dans un test, pas une mesure de mémoire) ; résultat identique au
+      séquentiel (empreinte de tous les `FlightLog`, comme au lot 5).
+- [ ] Mesure « après » : ×2 attendu au moins sur les 6 logs ; **pic de mémoire ≤ plafond décidé** ; un seul fichier : temps non
+      dégradé.
+- [ ] **Critères d'arrêt** : un `FlightLog` qui diffère d'un bit ; un pic au-dessus du plafond sur les 6 logs ; un gain
+      inférieur à ×1,5.
+- [ ] Consigner : W-050 traité, `docs/validation.md`, `docs/architecture.md`, `CHANGELOG.md`, leçon si un piège coûte du temps.
+
 ## Avancement
 
 | Lot | État |
@@ -347,6 +467,10 @@ Sous-lot 7b, préparation de la version (PR `chore/release-0.9.0`) :
 | 2 | Fait le 2026-11-04 (PR #103) |
 | 3 | Fait le 2026-11-04 (PR #104) |
 | 4 | Fait le 2026-11-04 (branche `fix/decoder-hostile-header`, D-044, L-080) : `DecodeError`, bornes 512 champs / intervalles 1 à 65 535, `try_reserve`, `Settings::implausible`. `robustness.rs` : 10 cas, 6 rouges avant correction (les intervalles à 9·10¹⁸ ne bouclaient pas sur cette source : refusés par la borne seulement) ; contre-preuves : 4 retraits rougissent. `otb-parity` 0 échec, `corpus validate` 697/712 comme la ligne de base |
-| 5 | À faire |
+| 5 | Fait le 2026-11-04 (branche `perf/decoder-memory`, poussée, PR non ouverte, L-081). Banc `otb-dev bench-open` fait (lot 5a). 5a (session par session) essayé et retiré : sans effet (une seule session, +32 Mo). Variante 1 : rendre la table `i64` avant les copies finales : 481 → 342 Mo. Variante 2 (accord de Cédric) : `CompactTable`, trames rangées en `i32` dès le décodeur : **274 Mo (÷ 1,75, objectif ÷ 1,5 atteint, ÷ 2 manqué), 0,54 s (plus rapide)**, `FlightLog` identiques sur 528 fichiers, `corpus validate` 697/712, `otb-parity` 0 échec. Un décodage par blocs vers `f32` irait plus loin (non fait). `golden.rs` rouge sur `main` avec `OTB_GOLDEN`, non traité |
 | 6 | À faire |
 | 7 | Détaillé le 2026-11-05 (0.9.0, après les lots 5 et 6) ; à faire |
+| 8 | À faire (banc de temps de cadre, W-049) |
+| 9 | Non retenu (W-048 reste ouvert : aucun test affaibli) |
+| 10 | À faire, après le lot 8 (tracé du viewer, W-049) |
+| 11 | À faire, après la fusion du lot 5 (ouverture parallèle, W-050) |
