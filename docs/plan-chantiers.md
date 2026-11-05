@@ -399,6 +399,10 @@ Prévu pour W-048 (`otb-parity --test golden` rouge avec `OTB_GOLDEN`). **Cédri
 le test garde `rtol: 0.0`, W-048 reste ouvert, et il n'y a pas de lot. Conséquence connue : tant que W-048 est ouvert,
 `verify --strict` échoue sur le poste qui a `OTB_GOLDEN`. Reprise : voir W-048.
 
+**Repris le 2026-11-05 (D-047)** : la mesure complète (243 écarts dans 8 fonctions, tous dans la tolérance mesurée) a montré
+que le test ne pouvait pas passer ; avec l'accord de Cédric, `golden.rs` applique `registry::tolerance` (branche
+`test/golden-tolerance`). W-048 est clos.
+
 ## Lot 10 : tracé du viewer sans parcourir toute la série (Opus) — W-049
 
 **But** : que le cadre du viewer ne dépende plus du nombre total d'échantillons mais du nombre de points rendus, y compris pendant
@@ -471,6 +475,6 @@ en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cum
 | 6 | À faire |
 | 7 | Détaillé le 2026-11-05 (0.9.0, après les lots 5 et 6) ; à faire |
 | 8 | À faire (banc de temps de cadre, W-049) |
-| 9 | Non retenu (W-048 reste ouvert : aucun test affaibli) |
+| 9 | Non retenu le 2026-11-04 ; repris hors lot le 2026-11-05 (branche `test/golden-tolerance`, D-047, L-083) : `golden.rs` vert avec `OTB_GOLDEN` |
 | 10 | À faire, après le lot 8 (tracé du viewer, W-049) |
 | 11 | À faire, après la fusion du lot 5 (ouverture parallèle, W-050) |

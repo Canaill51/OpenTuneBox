@@ -45,6 +45,8 @@ Les pièges qui valent pour presque toute tâche restent dans `AGENTS.md`.
   (biaisé en boucle fermée). L = T/(1 − T) n'est qu'un repli « approché » (faux pour Betaflight : D sur le
   gyro, FF sur la consigne). La bande mesurable s'arrête vers 20–40 Hz (énergie du manche) : pic de
   sensibilité souvent minorant. L'onglet Autotune du configurateur n'est pas une source. D-012, L-010
+- Concordance avec Python (`otb-parity`) : tout test qui rejoue les références prend la tolérance de
+  `rust/otb-parity/src/registry.rs:tolerance` (bit près par défaut), jamais une valeur recopiée, et liste tous ses écarts. D-047, L-083
 
 ## Filtres Betaflight et notch dynamique
 
