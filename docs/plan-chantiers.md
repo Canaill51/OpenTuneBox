@@ -42,7 +42,7 @@ main
  ├─ fix/decoder-hostile-header  lot 4 : C1
  ├─ perf/decoder-memory         lot 5 : C4 (deux sous-lots, deux PR)
  ├─ docs/chantiers-bilan        lot 6 : bilan et mesures finales
- └─ (à nommer)                  lot 7 : première publication Rust, après décision sur W-046
+ └─ (à nommer)                  lot 7 : première publication Rust (W-046 clos par D-046)
 ```
 
 Chaque branche part de `main` à jour. Dépendances : le lot 1 d'abord (il donne la commande de vérification à tous les
@@ -80,8 +80,8 @@ le lot 2 après le lot 1 (il documente la nouvelle commande) ; les lots 3 et 4 s
    (dans ce projet et dans `~/.claude/settings.json`, donc tous ses dépôts) : l'agent ne les lance qu'avec sa confirmation à
    chaque fois. La règle entre aussi dans `AGENTS.md` au lot 2.
 5. **Première publication Rust.** W-046 (police Ubuntu Light face à la licence du projet) la bloque et relève d'une décision de
-   Cédric ; depuis D-045 (licence PolyForm Noncommercial, qui n'est pas un copyleft), la cause du conflit a disparu — il reste à clore.
-   **Cédric (2026-11-04) : à traiter aussi.** Un lot 7 est réservé en fin de plan ; il ne se détaille qu'une fois W-046 tranché.
+   Cédric ; depuis D-045 (licence PolyForm Noncommercial, qui n'est pas un copyleft), la cause du conflit a disparu.
+   **Cédric (2026-11-04) : à traiter aussi.** Un lot 7 est réservé en fin de plan ; W-046 est clos le 2026-11-05 (D-046 : police gardée).
 
 ## Lot 0 : sonde du corpus et des références (Sonnet, une courte session)
 
@@ -260,17 +260,18 @@ Sous-lot 5b, colonnes utiles seulement (PR `perf/decoder-columns`, ouverte seule
 - [ ] Clore ou mettre à jour les W concernés : W-014, W-016, W-035 (9), W-036 (8), W-041 si touché.
 - [ ] Leçons à ajouter dans `docs/lecons.md` : allocation ratée non rattrapable ; crochet dépendant d'un outil absent ;
       résultat de thread sans étiquette.
-- [ ] Proposer à Cédric la suite : première publication Rust (bloquée par W-046), cache borné (W-035 (9)), factorisation des
+- [ ] Proposer à Cédric la suite : première publication Rust (débloquée : W-046 clos par D-046), cache borné (W-035 (9)), factorisation des
       pages spectrales, lints pédantiques ciblés (**jamais** `suboptimal_flops` : L-051).
 
 ## Lot 7 : première publication Rust (réservé)
 
 Demandé par Cédric le 2026-11-04 ; ne se détaille qu'une fois W-046 tranché (garder la police Ubuntu Light, ou la retirer au profit
-d'une autre police). Depuis D-045, la licence du projet n'est plus un copyleft : la cause du conflit a disparu, la clôture reste à écrire. À prévoir alors : `otb-dev licenses`, `otb-dev release
+d'une autre police). Depuis D-045, la licence du projet n'est plus un copyleft : la cause du conflit a disparu ; W-046 est clos par D-046
+(2026-11-05 : Ubuntu Light gardée, sous sa propre licence). À prévoir : `otb-dev licenses`, `otb-dev release
 prepare`, essai complet de la chaîne par une étiquette `essai-v…` (procédure dans `CONTRIBUTING.md`), puis l'étiquette `v…`
 posée **par Cédric lui-même**.
 
-- [ ] W-046 tranché (décision `D-xxx` écrite).
+- [x] W-046 tranché (D-046, 2026-11-05 : police gardée, chacune sous sa licence).
 - [ ] Lot détaillé ici, avec ses preuves (installateurs essayés sur Windows et Linux).
 
 ## Avancement
@@ -284,4 +285,4 @@ posée **par Cédric lui-même**.
 | 4 | Fait le 2026-11-04 (branche `fix/decoder-hostile-header`, D-044, L-080) : `DecodeError`, bornes 512 champs / intervalles 1 à 65 535, `try_reserve`, `Settings::implausible`. `robustness.rs` : 10 cas, 6 rouges avant correction (les intervalles à 9·10¹⁸ ne bouclaient pas sur cette source : refusés par la borne seulement) ; contre-preuves : 4 retraits rougissent. `otb-parity` 0 échec, `corpus validate` 697/712 comme la ligne de base |
 | 5 | À faire |
 | 6 | À faire |
-| 7 | Réservé (attend W-046) |
+| 7 | Réservé ; W-046 clos le 2026-11-05 (D-046), reste à détailler le lot |

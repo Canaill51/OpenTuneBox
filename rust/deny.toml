@@ -41,7 +41,9 @@ allow = [
     "Unlicense",
     "BSL-1.0",
     "0BSD",
-    # polices embarquées par egui (`epaint_default_fonts` : « (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0 »)
+    # polices embarquées par egui (`epaint_default_fonts` : « (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0 »). Licences propres
+    # aux polices, admises par D-046 malgré le refus du copyleft : leur condition ne vaut que pour le fichier de police, qui garde sa
+    # licence. Toute autre licence de police : lire son texte et en parler à Cédric avant de l'ajouter.
     "OFL-1.1",
     "Ubuntu-font-1.0",
 ]

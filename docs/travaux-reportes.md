@@ -64,7 +64,7 @@ Règles d'écriture :
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
 | W-047 | Test `install_linux` échoué une fois sur six exécutions de `verify`, cause non trouvée | TRAITÉ le 2026-11-05 (course `ETXTBSY` entre les cas du fichier : cause reproduite et corrigée, L-082) |
-| W-046 | Police Ubuntu Light (Ubuntu Font Licence 1.0) embarquée par egui : compatibilité avec la licence du projet | ouvert (la cause du conflit disparaît avec D-045, qui n'est pas un copyleft ; à clore par Cédric) |
+| W-046 | Police Ubuntu Light (Ubuntu Font Licence 1.0) embarquée par egui : compatibilité avec la licence du projet | TRAITÉ le 2026-11-05 (D-046 : police gardée sous sa licence, la cause du conflit a disparu avec D-045) |
 | W-045 | Icône de fenêtre sous X11 : `_NET_WM_ICON` vide alors que le PNG se décode (L-076) ; AppImage non intégrée au bureau : icône générique sous Wayland (intégration au premier lancement non décidée) | ouvert (X11 : à creuser si quelqu'un l'utilise ; AppImage : décision de Cédric) |
 | W-044 | Installateur Windows : suppression du dossier `_internal` de la version Python (mise à jour depuis la 0.8.0) à retirer plus tard ; `construire_windows.ps1` non essayé sur un vrai Windows (l'installateur l'a été par la CI) | ouvert (script : à l'occasion ; `_internal` : version qui suit la première publication Rust) |
 | W-043 | Polices embarquées par egui (`epaint_default_fonts` : OFL-1.1 et Ubuntu-font-1.0) : obligations de ces licences pour l'installateur et l'AppImage non vérifiées | TRAITÉ le 2026-11-04 (`THIRD-PARTY-LICENSES.txt` livré par les installateurs) ; reste ouvert : relire les textes avec Cédric, et le détail de 22 composants sans fichier de licence |
@@ -548,6 +548,8 @@ Règles d'écriture :
   accorde des droits sur le code du projet et n'exige pas que l'œuvre entière passe sous sa licence, chaque composant tiers gardant la sienne
   (`THIRD-PARTY-LICENSES.txt`). La cause du conflit (le copyleft de la GPL, qui demandait de relicencier l'ensemble, police comprise) **disparaît
   donc**. Statut **gardé ouvert** : cette lecture des textes est celle d'un agent, pas un avis juridique, et la clôture revient à Cédric.
+  **Clos le 2026-11-05 par Cédric (D-046)** : piste (b), Ubuntu Light et Hack gardées, chacune sous sa licence. Correction de la phrase
+  ci-dessus : Hack n'est pas sous MIT seule, elle porte aussi la licence Bitstream Vera (`Hack-Regular.txt`), absente de la liste de la FSF.
 
 ## Origine : lot 1 des chantiers, branche feat/dev-verify (2026-11-04)
 

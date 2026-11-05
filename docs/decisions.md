@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-046 | Polices embarquées (Ubuntu Light, Hack) gardées, chacune sous sa propre licence ; licences propres aux polices admises malgré « aucun copyleft » (D-045) ; W-046 clos | 2026-11-05 |
 | D-045 | Licence PolyForm Noncommercial 1.0.0 : code ouvert, tout usage commercial interdit, sans double licence ni exception vendue | 2026-11-04 |
 | D-044 | Décodeur : en-tête refusé au-delà de 512 champs ou hors de 1 à 65 535 pour les intervalles ; mémoire insuffisante = erreur ; réglages à zéro signalés | 2026-11-04 |
 | D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres | 2026-11-04 |
@@ -118,6 +119,39 @@ ici, jamais dans le code.
 
 ---
 
+## 2026-11-05 — Polices embarquées
+
+### D-046 : les polices d'egui restent embarquées, chacune sous sa propre licence
+
+Complète D-045 (sur les licences de polices seulement) et clôt W-046.
+
+**Contexte.** Sous GPL 3 (D-043), l'exécutable posait un conflit possible avec la police **Ubuntu Light** (Ubuntu Font Licence 1.0,
+crate `epaint_default_fonts`) : le copyleft de la GPL demandait de distribuer l'ensemble sous GPL, alors que l'article 4 de `UFL.txt` dit
+« The Font Software, modified or unmodified, in part or in whole, must be distributed entirely under this licence, and must not be
+distributed under any other licence. » D-045 remplace la GPL par PolyForm Noncommercial 1.0.0, qui n'est pas un copyleft : elle porte
+sur « the software the licensor makes available under these terms » (section *Definitions* de `LICENSE`), c'est-à-dire le code de
+Cédric, et n'exige rien des composants tiers. La police reste distribuée sous sa licence, ce que demande justement l'article 4. Reste une
+tension de vocabulaire : D-045 refuse toute dépendance « à copyleft », or les licences de polices (Ubuntu Font Licence, OFL) imposent
+qu'une police **modifiée** reste sous leur licence ; `rust/deny.toml` les acceptait déjà, sans décision écrite.
+
+**Décision** (accord de Cédric le 2026-11-05).
+- **Ubuntu Light et Hack restent embarquées** (polices par défaut d'egui, `rust/otb-gui/src/app.rs:setup` inchangé) ; chacune garde sa
+  licence, reproduite dans `THIRD-PARTY-LICENSES.txt` (`otb-dev licenses`), livré par les installateurs.
+- Les **licences propres aux polices** (`Ubuntu-font-1.0`, `OFL-1.1` dans `rust/deny.toml`) sont admises : leur condition ne porte que sur
+  le fichier de police, qui n'est jamais redistribué sous la licence du projet. Le refus de D-045 vaut toujours pour le **code** sous
+  copyleft (GPL, LGPL, AGPL, MPL). Une nouvelle licence de police s'ajoute seulement après lecture de son texte, avec Cédric.
+- W-046 est clos ; le lot 7 (première publication Rust) n'est plus bloqué.
+
+**Options écartées.** (a) Retirer Ubuntu Light et passer Hack en police du texte normal : la raison (le copyleft de la GPL) a disparu ;
+Hack porte elle aussi une licence de police (Bitstream Vera, en plus de MIT : `Hack-Regular.txt`), donc rien n'aurait été simplifié, et
+l'interface aurait pris un aspect à chasse fixe pour ≈ 365 Ko gagnés (Ubuntu Light : 361 676 octets, egui-icons : 3 484 octets). (b) DejaVu
+Sans (même licence Bitstream Vera, couvre tous les caractères des textes mais 759 720 octets). (c) Avis juridique : jugé inutile une fois la
+cause du conflit disparue.
+
+**Témoins.** Textes lus le 2026-11-05 dans le registre de cargo (`epaint_default_fonts` 0.37.0 : `UFL.txt`, `Hack-Regular.txt`) et dans
+`LICENSE`. Couverture mesurée avec `fc-query` sur les sources (`rust/otb-gui/src`, `rust/otb-gui/assets/guide`, `rust/otb-advisor/src`,
+`rust/otb-analysis/src`, `rust/otb-format/src`) : tout caractère non ASCII qu'Ubuntu Light dessine, Hack le dessine aussi. Ce n'est pas un avis juridique.
+
 ## 2026-11-04 — Licence non commerciale
 
 ### D-045 : la licence est PolyForm Noncommercial 1.0.0 ; tout usage commercial est interdit
@@ -163,7 +197,7 @@ Exposition du code déjà publié sous GPL 3 : `gh api repos/Canaill51/OpenTuneB
 changement. Livraison de la licence par les installateurs : `cargo test -p otb-dev --test install_linux`
 (`la_licence_du_projet_est_installee_avec_les_mentions_tierces`, rouge avant la correction des trois scripts, vert après).
 
-**Ouvert.** W-046 (police Ubuntu Light) : la cause du conflit disparaît avec cette licence, le point reste à clore par Cédric.
+**Ouvert.** W-046 (police Ubuntu Light) : la cause du conflit disparaît avec cette licence ; clos le 2026-11-05 par D-046.
 
 ## 2026-11-04 — Bornes du décodeur
 
