@@ -104,7 +104,8 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 - `icons.rs` : icônes Lucide (`rust/otb-gui/assets/icons/`, licence ISC) colorées selon le thème.
 - `plots.rs` : contournements d'egui_plot. `export.rs` : export PNG (nom `OTB_FIGS_AAAA-MM-JJ-N.png`, recadrage borné de la capture
   d'écran d'egui ; la boîte d'enregistrement est `App::save_dialog`, remplaçable dans les tests). `build.rs` : icône de l'exécutable Windows.
-- Captures sans fenêtre : `examples/capture.rs` (rendu wgpu) ; `examples/banc_carte.rs` mesure `Heatmap` contre `PlotImage`.
+- Captures sans fenêtre : `examples/capture.rs` (rendu wgpu) ; `examples/banc_carte.rs` mesure `Heatmap` contre `PlotImage` ;
+  `examples/banc_cadre.rs` mesure le temps de cadre de l'écran Guide et du viewer sur un vrai log (W-049, `docs/validation.md`).
   Banc de test : `with_context_setup(app::setup)` (L-066).
 
 ## Distribution

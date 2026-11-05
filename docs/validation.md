@@ -248,6 +248,32 @@ lecture échantillon par échantillon).
 - Documentation : liens, chemins, outils, modules, fichiers publiés et langue vérifiés à chaque `cargo test`
   (`cargo test -p otb-dev --test docs`).
 
+### Temps de cadre de l'interface (2026-11-05, W-049)
+
+Banc : `cargo run --release -p otb-gui --example banc_cadre -- LOG [--largeur 1920] [--cadres 60] [--gpu]` (la vraie `App` par
+`egui_kittest`, hors écran, sans vsync ni compositeur ; fenêtre de la largeur demandée × 1080, session la plus longue du log,
+3 cadres de chauffe puis 60 cadres chronométrés un par un). Poste Linux, i7-11800H (16 fils), version release, 3 essais :
+médianes des cadres, plage des 3 essais.
+
+| Log | Échantillons | Guide (aucune courbe) | Viewer, vue entière | Par échantillon (viewer − Guide) | Tessellation du viewer |
+|---|---|---|---|---|---|
+| `tests/data/jeno5_5s.bbl` | 8 262 | 0,44 ms | 0,89 ms | 54 ns (part fixe dominante) | |
+| `Cedric/JeNo 5/FINAL.bbl` | 321 729 | 0,41 à 0,43 ms | **7,4 à 8,3 ms** | 23 à 24 ns | 0,64 à 0,73 ms |
+| idem, `--largeur 640` | 321 729 | 0,36 à 0,37 ms | 6,2 ms | 18 ns | |
+| `1. PTB/st7ven3241/LOG00008.BFL` | 620 079 | 0,42 à 0,45 ms | **12,6 à 13,0 ms** | 20 ns | 0,69 à 0,73 ms |
+
+- **Étalonnage** : `FINAL.bbl` retrouve les valeurs de W-049, prises avec un banc écrit hors du dépôt puis perdu (viewer 7,94 ms,
+  Guide 0,43 ms, 5,96 ms à 640 px). À 640 px, trois fois moins de points rendus ne retirent que ≈ 1,6 ms : le coût est le
+  parcours de la série entière, pas le dessin.
+- **Mesure neuve** : `LOG00008.BFL`, la plus longue session du corpus, reste sous le budget de 16,7 ms (60 images par seconde) :
+  ≈ 13,7 ms processeur, tessellation comprise. À ≈ 20 ns par échantillon, le budget serait atteint vers 800 000 échantillons
+  (extrapolation, non mesurée).
+- **Carte graphique (`--gpu`), non reproduite** : `egui_kittest` choisit par défaut le rendu logiciel (llvmpipe : ≈ 44 ms par
+  cadre, c'est le processeur qui dessine) ; le banc prend une vraie carte (ici RTX 3050 Ti, Vulkan) et l'affiche. Même ainsi,
+  chaque rendu crée une texture et relit l'image : ≈ 10 ms fixes, **écran Guide compris**. L'écart viewer − Guide varie de 1 à
+  4 ms d'un essai à l'autre sur `FINAL.bbl` : c'est un majorant bruité. Les 0,34 ms de W-049 ne se retrouvent pas, et la façon
+  dont ils avaient été obtenus est perdue avec le banc. Le cadre se juge donc sur le temps du processeur.
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui
