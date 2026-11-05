@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-047 | `golden.rs` compare chaque fonction portée avec la tolérance mesurée de `registry::tolerance` (bit près si aucune n'est déclarée), comme `otb-parity check` ; W-048 clos | 2026-11-05 |
 | D-046 | Polices embarquées (Ubuntu Light, Hack) gardées, chacune sous sa propre licence ; licences propres aux polices admises malgré « aucun copyleft » (D-045) ; W-046 clos | 2026-11-05 |
 | D-045 | Licence PolyForm Noncommercial 1.0.0 : code ouvert, tout usage commercial interdit, sans double licence ni exception vendue | 2026-11-04 |
 | D-044 | Décodeur : en-tête refusé au-delà de 512 champs ou hors de 1 à 65 535 pour les intervalles ; mémoire insuffisante = erreur ; réglages à zéro signalés | 2026-11-04 |
@@ -118,6 +119,35 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-11-05 — Concordance avec les références figées
+
+### D-047 : `golden.rs` applique la tolérance mesurée de chaque fonction portée
+
+Remplace le choix du 2026-11-04 noté dans W-048 et au lot 9 de [plan-chantiers.md](plan-chantiers.md) (« le test garde
+`rtol: 0.0` »), et clôt W-048.
+
+**Contexte.** `rust/otb-parity/tests/golden.rs` rejoue les 1 728 appels figés des références Python (`OTB_GOLDEN`). Écrit le 2026-10-30
+quand toutes les fonctions portées étaient identiques au bit près, il exigeait `rtol: 0.0` pour toutes. Le même jour (phase 4b-1),
+les fonctions qui passent par une FFT, `sin` / `cos`, `exp` ou une SVD ont reçu une tolérance **mesurée** dans
+`rust/otb-parity/src/registry.rs:tolerance` (Rust et numpy n'additionnent pas dans le même ordre), appliquée par `otb-parity check` ;
+`golden.rs` n'a pas suivi. La CI n'a pas les références : le test y sautait sans bruit. Mesure du 2026-11-05 : 243 appels sur 1 728
+diffèrent au bit près, dans 8 fonctions (`spectral.spectrum`, `freq_throttle`, `freq_time`, `to_db`, `_numeric.xcorr_full`,
+`bf_filters.whatif_spectrum`, `sliders.slider_view`, `sliders.sliders_from_pids`), **tous** dans leur tolérance ; le test ne pouvait
+donc pas passer, et `verify --strict` non plus sur le poste qui a les références. Le 2026-11-04, seul le premier écart était connu
+(le test s'arrêtait dessus) et Cédric avait refusé d'affaiblir le test.
+
+**Décision** (accord de Cédric le 2026-11-05).
+- `golden.rs` compare chaque appel avec `registry::tolerance` de sa fonction : **le bit près** pour toute fonction sans tolérance
+  déclarée (la règle par défaut), la tolérance mesurée et documentée pour les autres ; c'est le contrat de `otb-parity check`. Aucune
+  fonction n'est comparée moins strictement que ce que le projet promet.
+- Le test liste **tous** les écarts au lieu de s'arrêter au premier.
+- Il reste plus strict que `check` sur un point : un appel dont Python ou Rust rend une erreur fait échouer le test.
+- Écarté : garder `rtol: 0.0` (le test serait rouge par construction, donc ignoré) ; une tolérance unique pour toutes les fonctions
+  (affaiblirait les fonctions exactes).
+
+**Preuve.** Avec `OTB_GOLDEN` : vert, 1 728 appels rejoués. Contre-preuves : tolérance remise à zéro → 243 écarts ; un bit de plus sur
+une valeur de `uniform_filter1d` (fonction exacte) → 40 écarts, un par appel. Leçon L-083.
 
 ## 2026-11-05 — Polices embarquées
 

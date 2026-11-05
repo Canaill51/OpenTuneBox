@@ -60,6 +60,19 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-083 : un test qui saute en CI n'a pas suivi le contrat qu'il vérifie (tolérances ajoutées après lui)
+- **Symptôme** — 2026-11-04 : `cargo test -p otb-parity --test golden` rouge avec `OTB_GOLDEN`, sur un seul fichier
+  (`spectral.spectrum`, écart au 15ᵉ chiffre), alors que `otb-parity check` sur les mêmes références donne 0 échec.
+- **Cause (mesurée le 2026-11-05)** — `golden.rs` exigeait le bit près pour toutes les fonctions depuis le 2026-10-30 ; le même jour,
+  les tolérances mesurées (FFT, `sin` / `cos`, `exp`, SVD) sont entrées dans `registry::tolerance` et seul `check` les a appliquées. Le
+  test ne tourne qu'avec les références, absentes de la CI : rouge par construction sans que personne le voie. Il s'arrêtait au
+  premier écart et cachait les 242 autres (8 fonctions).
+- **Règle** — un test et l'outil qui vérifient le même contrat lisent la **même** source de tolérance (`registry::tolerance`), jamais
+  une valeur recopiée ; un test de concordance liste tous ses écarts, pas le premier. Avant de dire « test à ne pas affaiblir », compter
+  ses écarts et les comparer au contrat documenté.
+- **Preuve** — D-047 ; `rust/otb-parity/tests/golden.rs` ; contre-preuves : tolérance à zéro → 243 écarts, un bit de plus sur
+  `uniform_filter1d` → 40.
+
 ### L-082 : exécuter un programme qu'on vient de copier échoue par intermittence (« Text file busy ») quand un test voisin lance un processus
 - **Symptôme** — 2026-11-05 : `rust/otb-dev/tests/install_linux.rs` échoue 2 fois sur 5 exécutions isolées après l'ajout d'un 3ᵉ cas de test, sur `spawn()` ligne 49 : `Os { code: 26, kind: ExecutableFileBusy, message: "Text file busy" }`. Le cas qui échoue n'est pas le nouveau, et le même fichier passait auparavant (un seul échec constaté en six exécutions de `verify` : W-047, cause alors non trouvée).
 - **Cause (reproduite)** — les cas d'un fichier de test tournent **en parallèle dans le même processus**. L'un copie `/bin/sh` puis l'exécute aussitôt ; les autres lancent le script d'installation. Quand un `fork` se produit pendant que la copie est encore ouverte en écriture, l'enfant hérite du descripteur le temps du `fork`/`exec`, et le noyau refuse d'exécuter un fichier ouvert en écriture (`ETXTBSY`). Plus il y a de cas qui lancent des processus, plus la fenêtre est touchée : d'où un piège qui dormait et devient fréquent.
@@ -900,6 +913,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 |---|---|---|
 | L-081 | Pic de mémoire de l'ouverture : mesurer par étape ; rendre la table `i64` dès que les colonnes utiles sont extraites, puis ranger en `i32` dès le décodeur (481 → 274 Mo) ; positions S/G/E via `main_rows` | Décodeur et logs |
 | L-082 | Exécuter un fichier qu'on vient de copier échoue par intermittence (« Text file busy », `ETXTBSY`) quand un test voisin lance un processus dans le même binaire de test : réessayer sur le code 26, sans toucher aux assertions | Tests |
+| L-083 | Test et outil qui vérifient le même contrat : même source de tolérance (`registry::tolerance`), jamais une copie ; lister tous les écarts (`golden.rs` rouge par construction, caché par la CI) | Tests |
 | L-080 | Allocation ratée = abandon du programme, `catch_unwind` ne la voit pas : `try_reserve` avant chaque ajout, et borner les nombres lus dans l'en-tête (D-044) | Décodeur et logs |
 | L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |
 | L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |
