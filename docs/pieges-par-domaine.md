@@ -77,6 +77,7 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 ## Interface egui et Rust
 
 - Fonction paramétrée par un système (`os`, comme `guide::cards_path_in`) : appliquer les règles de ce système, jamais celles de l'hôte (`Path::is_absolute` refuse `/data` sous Windows) ; la CI Windows est le seul témoin. L-074
+- Mesure de la carte graphique par `egui_kittest` : il prend par défaut le rendu logiciel (llvmpipe) et `render` relit l'image (≈ 10 ms fixes) ; choisir une vraie carte (`native_adapter_selector`), l'afficher, soustraire un écran sans courbe, décider sur le temps du processeur. L-084
 - Test egui qui attend un calcul en arrière-plan : `step()` dans la boucle d'attente puis `run_steps(n)`, jamais `run()` (il panique si le fil redemande une repeinte, CI Windows). L-077
 - Panneau egui redimensionnable : son contenu est toujours dans un `ScrollArea` qui remplit (`auto_shrink([false, false])`), même dans la branche « rien à montrer » ; sinon il garde la taille de son premier cadre. Un test part de l'état vide, et on regarde une capture. L-073
 - Tout ce qui ouvre une fenêtre du système (boîte de fichiers…) passe par un champ remplaçable, inerte dans `App::new` ; scripts de mutations lancés sans écran ni bus de session, avec délai. L-075

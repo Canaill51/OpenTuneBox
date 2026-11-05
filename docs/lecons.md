@@ -60,6 +60,18 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-084 : `egui_kittest` en `wgpu` choisit exprès le rendu logiciel : un « temps de carte graphique » mesuré ainsi est celui du processeur
+- **Symptôme** — 2026-11-05 (lot 8) : le banc `banc_cadre --gpu` donne ≈ 44 ms de rendu par cadre sur `FINAL.bbl`, quand W-049
+  annonçait 0,34 ms ; sur une vraie carte, encore ≈ 10 ms, **écran Guide (sans courbe) compris**.
+- **Cause (lue et mesurée)** — `egui_kittest::wgpu::default_wgpu_setup` trie les cartes en mettant `DeviceType::Cpu` (llvmpipe)
+  **en tête** (« CPU is the best for our purposes », pour des captures identiques partout). Et `Harness::render` refait la
+  tessellation, crée une texture et relit l'image (8 Mo en 1920 × 1080) à chaque appel : un coût fixe qui noie la part des courbes
+  (écart viewer − Guide de 1 à 4 ms d'un essai à l'autre).
+- **Règle** — pour mesurer la carte graphique, passer un `native_adapter_selector` qui préfère `DiscreteGpu` puis `IntegratedGpu`
+  et **afficher la carte retenue** ; toujours soustraire le rendu d'un écran sans courbe, et présenter le résultat comme un
+  majorant bruité, pas comme un temps de carte. Le temps du processeur (`step`) reste la mesure qui décide.
+- **Preuve** — `rust/otb-gui/examples/banc_cadre.rs:vraie_carte` ; `docs/validation.md`, « Temps de cadre de l'interface ».
+
 ### L-083 : un test qui saute en CI n'a pas suivi le contrat qu'il vérifie (tolérances ajoutées après lui)
 - **Symptôme** — 2026-11-04 : `cargo test -p otb-parity --test golden` rouge avec `OTB_GOLDEN`, sur un seul fichier
   (`spectral.spectrum`, écart au 15ᵉ chiffre), alors que `otb-parity check` sur les mêmes références donne 0 échec.
@@ -914,6 +926,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 | L-081 | Pic de mémoire de l'ouverture : mesurer par étape ; rendre la table `i64` dès que les colonnes utiles sont extraites, puis ranger en `i32` dès le décodeur (481 → 274 Mo) ; positions S/G/E via `main_rows` | Décodeur et logs |
 | L-082 | Exécuter un fichier qu'on vient de copier échoue par intermittence (« Text file busy », `ETXTBSY`) quand un test voisin lance un processus dans le même binaire de test : réessayer sur le code 26, sans toucher aux assertions | Tests |
 | L-083 | Test et outil qui vérifient le même contrat : même source de tolérance (`registry::tolerance`), jamais une copie ; lister tous les écarts (`golden.rs` rouge par construction, caché par la CI) | Tests |
+| L-084 | Banc `egui_kittest` en `wgpu` : le rendu logiciel (llvmpipe) est choisi par défaut et `render` relit l'image (≈ 10 ms fixes) ; prendre une vraie carte par `native_adapter_selector`, l'afficher, soustraire un écran sans courbe ; décider sur le temps du processeur | Interface |
 | L-080 | Allocation ratée = abandon du programme, `catch_unwind` ne la voit pas : `try_reserve` avant chaque ajout, et borner les nombres lus dans l'en-tête (D-044) | Décodeur et logs |
 | L-079 | Doc qui cite un fichier de compilation (`rust/target/…`) : le test de chemins passe chez soi, échoue sur la CI (dépôt propre) ; citer sans le préfixe du dépôt, et tester sur une copie propre des fichiers suivis (`git ls-files`) avant de pousser | Outillage |
 | L-078 | Test écrit avec `std::os::unix` (script shell, droits) : ne compile pas sous Windows, vu seulement sur la CI ; `#[cfg(unix)]`, chemins en `/`, `cargo check --target x86_64-pc-windows-gnu` avant de pousser | Tests |
