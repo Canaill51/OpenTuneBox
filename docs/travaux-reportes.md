@@ -65,7 +65,7 @@ Règles d'écriture :
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
 | W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
 | W-050 | Ouverture d'un log dominée par le décodage (83 % de 342 ms) ; fichiers ouverts les uns après les autres (×2,40 mesuré en parallèle, pic de mémoire à plafonner) | ouvert |
-| W-049 | Le tracé du viewer parcourt la série entière à chaque cadre (7,94 ms par cadre à 321 729 échantillons, dont 0,34 ms de carte graphique) : saccades attendues au-delà de ~700 000 échantillons | ouvert |
+| W-049 | Le tracé du viewer parcourt la série entière à chaque cadre (7,94 ms par cadre à 321 729 échantillons, 12,6 à 13,0 ms à 620 079, la plus longue session du corpus) : saccades attendues au-delà de ~800 000 échantillons | ouvert |
 | W-048 | `otb-parity --test golden` rouge avec `OTB_GOLDEN` défini (écart de 1e-15 relatif, `spectral.spectrum`), déjà sur `main` ; test volontairement non affaibli | TRAITÉ le 2026-11-05 (D-047 : tolérance mesurée de chaque fonction, bit près par défaut ; L-083) |
 | W-047 | Test `install_linux` échoué une fois sur six exécutions de `verify`, cause non trouvée | TRAITÉ le 2026-11-05 (course `ETXTBSY` entre les cas du fichier : cause reproduite et corrigée, L-082) |
 | W-046 | Police Ubuntu Light (Ubuntu Font Licence 1.0) embarquée par egui : compatibilité avec la licence du projet | TRAITÉ le 2026-11-05 (D-046 : police gardée sous sa licence, la cause du conflit a disparu avec D-045) |
@@ -563,10 +563,11 @@ Règles d'écriture :
 
 ## Origine : audit de performance processeur et carte graphique demandé par Cédric (2026-11-04)
 
-Bancs isolés **hors du dépôt** (ils dépendent des crates par chemin, rien n'a été ajouté à `rust/`) : i7-11800H (8 cœurs,
-16 fils), 15 Gio de mémoire, profil `release` du dépôt, cache disque chaud, meilleur de 3 essais. L'interface est mesurée par
+Bancs isolés **hors du dépôt** (ils dépendaient des crates par chemin et ont été perdus avec leur dossier temporaire ; celui
+de W-049 a été refait dans le dépôt le 2026-11-05 : `rust/otb-gui/examples/banc_cadre.rs`, lot 8 du plan des chantiers) :
+i7-11800H (8 cœurs, 16 fils), 15 Gio de mémoire, profil `release` du dépôt, cache disque chaud, meilleur de 3 essais. L'interface est mesurée par
 `egui_kittest` (la vraie `App`, les vraies pages, un vrai log, le rendu `wgpu`), donc **hors écran** : sans vsync ni
-compositeur. Les trois bancs sont relançables tels quels pour refaire chaque chiffre.
+compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
 
 - **W-049** — Le tracé du viewer parcourt la série **entière** à chaque cadre. Les graphiques sont réglés en
   `auto_bounds(false)` avec les bornes sur tout le log, et `visible_points` est appelé dans la fonction d'affichage, pour
@@ -574,14 +575,21 @@ compositeur. Les trois bancs sont relançables tels quels pour refaire chaque ch
   parcours, qui reste en O(n). Mesuré le 2026-11-04 sur la session de 321 729 échantillons de `Cedric/JeNo 5/FINAL.bbl`,
   fenêtre 1920 × 1080 : écran « Guide » (aucune courbe) 0,43 ms par cadre, viewer en vue entière 7,94 ms, dont 0,34 ms de
   rendu `wgpu` (relecture de l'image comprise, donc **majorant**) — le processeur fait 96 % du cadre, la carte graphique 4 %.
+  **Refait le 2026-11-05 avec `banc_cadre`** (`docs/validation.md`, « Temps de cadre de l'interface ») : viewer 7,4 à 8,3 ms,
+  Guide 0,41 à 0,43 ms, 6,2 ms à 640 px — les chiffres du processeur sont retrouvés. Les **0,34 ms de carte graphique ne le sont
+  pas** : `egui_kittest` prend par défaut le rendu logiciel (≈ 44 ms), et sur une vraie carte chaque rendu coûte ≈ 10 ms fixes
+  (texture et relecture de l'image, même sans courbe), si bien que l'écart viewer − Guide (1 à 4 ms) n'est qu'un majorant
+  bruité ; la méthode du banc perdu est inconnue.
   Le coût est linéaire en nombre d'échantillons : 2,90 ms à 97 208, 2,93 ms à 121 261, 3,33 ms à 123 295 et 7,94 ms à
   321 729, soit 21 à 26 ns par échantillon. Preuve que c'est le parcours et non le rendu : à 640 px de large (3 fois moins de
-  points rendus) le cadre ne descend qu'à 5,96 ms. **Extrapolation, non mesurée** (aucune session du corpus n'est assez
-  longue) : le budget de 16,7 ms (60 images par seconde) serait atteint vers 700 000 échantillons.
+  points rendus) le cadre ne descend qu'à 5,96 ms. **Mesuré le 2026-11-05** sur la plus longue session du corpus
+  (`1. PTB/st7ven3241/LOG00008.BFL`, 620 079 échantillons) : 12,6 à 13,0 ms par cadre, plus 0,7 ms de tessellation, sous le
+  budget de 16,7 ms (60 images par seconde) ; à ≈ 20 ns par échantillon, le budget serait atteint vers 800 000 échantillons
+  (**extrapolation, non mesurée** : aucune session du corpus n'est assez longue ; l'ancienne extrapolation disait 700 000).
   **Pourquoi reporté** : l'interface est réactive (elle ne redessine que sur évènement), donc au repos ce coût n'est pas payé ;
   il l'est pendant la lecture (qui demande un rafraîchissement continu), un glissement ou un zoom. Aucun log du corpus
   n'atteint la taille où cela se verrait, et le choix entre les deux parades revient à Cédric.
-  **Risque si on n'y touche pas** : sur un log de plus de ~700 000 échantillons (vol long, cadence élevée), la lecture et le
+  **Risque si on n'y touche pas** : sur un log de plus de ~800 000 échantillons (vol long, cadence élevée), la lecture et le
   glissement saccadent ; le défaut grandit avec la **taille des logs**, pas avec le nombre de courbes.
   **Reprise** : si un pilote signale une interface qui accroche, ou avant d'accepter des logs plus longs.
   **Piste** : (a) mettre en cache les points décimés, invalidés seulement quand les bornes du graphique, la largeur en pixels,
