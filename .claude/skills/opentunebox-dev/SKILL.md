@@ -20,19 +20,31 @@ mettre la documentation à jour avec la compétence `docs-sync` (un crochet bloq
 ## Contrôler la compilation Windows avant de pousser
 
 La CI Windows met 10 à 25 min et est le seul endroit où l'on voit un test qui ne compile pas sous Windows (L-078, L-074).
-La cible `x86_64-pc-windows-gnu` est installée sur le poste : une vérification de compilation (sans exécution) prend
-quelques secondes.
+Le poste Linux a la cible `x86_64-pc-windows-gnu` et, depuis le 2026-11-05, les paquets `binutils-mingw-w64-x86-64`
+(`windres`, pour l'icône d'`otb-gui`), `gcc-mingw-w64-x86-64` (éditeur de liens) et `wine64`.
 
 ```sh
-cd rust && cargo check -p CRATE --lib --profile test --target x86_64-pc-windows-gnu
+cd rust && cargo check --workspace --all-targets --target x86_64-pc-windows-gnu   # compilation seule : ≈ 12 s pour otb-gui à chaud
 ```
 
-- `otb-gui` (même en dépendance de test) exige `windres` pour l'icône, absent ici : pour `otb-dev`, retirer
-  **temporairement** la section `[dev-dependencies]` de `otb-dev/Cargo.toml` (sauvegarde dans le répertoire temporaire,
-  puis `git checkout rust/Cargo.lock`) et vérifier les tests d'intégration un par un (`--test corpus_labels` …) ; le test
-  `docs` dépend d'`otb-gui` et reste à la CI.
-- Pas de linker mingw ici : on ne peut pas **exécuter** les tests (`wine` est présent, mais sans linker il n'y a pas
-  d'exécutable). Le contrôle attrape les erreurs de compilation, pas les différences de comportement.
+Exécuter les tests sous `wine` (dossier `wine` 64 bits propre au projet, jamais `~/.wine`, qui est en 32 bits) :
+
+```sh
+export WINEPREFIX=$HOME/.local/share/wine-otb WINEDEBUG=-all CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine
+[ -f "$WINEPREFIX/system.reg" ] || WINEARCH=win64 wineboot -i   # une seule fois
+cd rust && cargo test --target x86_64-pc-windows-gnu --no-fail-fast   # ≈ 2 min ; sans tube (L-022)
+```
+
+Mesuré le 2026-11-05 (branche du lot 8, `main` + `banc_cadre`) : 85 exécutables de test sur 89 passent. Les 4 échecs **viennent de l'environnement**,
+la CI Windows les fait passer :
+- `otb-dev --test docs` : « `git ls-files` a échoué… program not found » (pas de `git` pour Windows dans le dossier `wine`) ;
+- `otb-advisor --test rules_rpm` (dernier chiffre), `otb-analysis --test open_loop` (1,4e-5) et `--test open_loop_spectra`
+  (5e-8) : comparaisons numériques fines. La CI compile pour `x86_64-pc-windows-msvc` (fonctions mathématiques de Microsoft) ;
+  ici, `windows-gnu` avec celles de `wine`. Cause **supposée** (la fonction en cause n'a pas été cherchée).
+
+Donc : `wine` fait foi pour la compilation, les chemins, les fichiers, les processus et l'interface hors écran ; **pas** pour un écart
+numérique au dernier chiffre, que seule la CI Windows (ou le PC Windows) tranche. Un nouvel échec hors de cette liste est à examiner.
+
 - Ne pas défaire un correctif avec `git checkout FICHIER` pendant une contre-épreuve : sauvegarder le fichier avant.
 
 ## Valider une modification du décodeur
