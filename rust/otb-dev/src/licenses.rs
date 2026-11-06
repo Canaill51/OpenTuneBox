@@ -5,6 +5,9 @@
 //! l'AppImage livrent. Les textes identiques (MIT, Apache…) sont écrits une fois, avec la liste des composants qui les portent ;
 //! un composant sans fichier de licence dans son paquet est listé à part, avec la licence qu'il déclare.
 //!
+//! `otb-dev licenses --check` refait le même texte en mémoire et le compare au fichier du dépôt sans jamais l'écrire : c'est ce que lancent
+//! `otb-dev verify` et la CI, pour qu'une dépendance ajoutée ou changée ne passe pas sans mettre les mentions à jour.
+//!
 //! Les composants viennent de `cargo metadata` pour Linux et pour Windows (les crates propres à un système en font partie) :
 //! seules les dépendances **normales** comptent, pas celles de construction ni de test, ni les macros procédurales (jamais liées).
 
@@ -240,8 +243,15 @@ pub fn render(assets: &[(String, String)], components: &[Component]) -> String {
     s
 }
 
-/// `otb-dev licenses` : écrit `THIRD-PARTY-LICENSES.txt` à la racine du dépôt ; rend le message à afficher.
-pub fn generate(root: &Path) -> Result<String, String> {
+/// Le fichier tel qu'il devrait être, avec le compte des composants et de ceux sans fichier de licence.
+pub struct Rendered {
+    pub text: String,
+    pub components: usize,
+    pub missing: usize,
+}
+
+/// Produit le texte en mémoire, sans rien écrire (les deux cibles de [`TARGETS`] sont interrogées).
+pub fn rendered(root: &Path) -> Result<Rendered, String> {
     let mut merged: BTreeSet<Component> = BTreeSet::new();
     let mut first: Option<Value> = None;
     for target in TARGETS {
@@ -252,13 +262,70 @@ pub fn generate(root: &Path) -> Result<String, String> {
     let md = first.ok_or("aucune cible")?;
     let components: Vec<Component> = merged.into_iter().collect();
     let text = render(&embedded_assets(root, &md)?, &components);
-    let path = root.join("THIRD-PARTY-LICENSES.txt");
-    fs::write(&path, &text).map_err(|e| format!("{} : {e}", path.display()))?;
     let missing = components.iter().filter(|c| license_files(&c.dir).is_empty()).count();
+    Ok(Rendered {
+        text,
+        components: components.len(),
+        missing,
+    })
+}
+
+/// Le chemin du fichier livré.
+pub fn path_in(root: &Path) -> PathBuf {
+    root.join("THIRD-PARTY-LICENSES.txt")
+}
+
+/// `otb-dev licenses` : écrit `THIRD-PARTY-LICENSES.txt` à la racine du dépôt ; rend le message à afficher.
+pub fn generate(root: &Path) -> Result<String, String> {
+    let r = rendered(root)?;
+    let path = path_in(root);
+    fs::write(&path, &r.text).map_err(|e| format!("{} : {e}", path.display()))?;
     Ok(format!(
-        "{} : {} composants, {} octets, dont {missing} sans fichier de licence dans leur paquet",
+        "{} : {} composants, {} octets, dont {} sans fichier de licence dans leur paquet",
         path.display(),
-        components.len(),
-        text.len()
+        r.components,
+        r.text.len(),
+        r.missing
     ))
+}
+
+/// Ce qu'il faut faire quand le fichier ne correspond plus aux dépendances.
+pub const RERUN: &str = "relancer `cargo run -p otb-dev -- licenses`";
+
+/// Compare le texte attendu au contenu du fichier du dépôt (`None` : fichier absent ou illisible).
+/// `Ok` : identique ; `Err` : l'écart et le message de réparation. Fonction pure : aucune lecture, aucun `cargo`.
+pub fn compare(expected: &str, on_disk: Option<&str>) -> Result<String, String> {
+    let Some(found) = on_disk else {
+        return Err(format!("THIRD-PARTY-LICENSES.txt est absent ou illisible : {RERUN}"));
+    };
+    if found == expected {
+        return Ok(format!(
+            "THIRD-PARTY-LICENSES.txt est à jour ({} octets)",
+            expected.len()
+        ));
+    }
+    let line = expected
+        .lines()
+        .zip(found.lines())
+        .position(|(a, b)| a != b)
+        .map_or_else(
+            || format!("longueurs différentes ({} lignes attendues)", expected.lines().count()),
+            |i| format!("première différence à la ligne {}", i + 1),
+        );
+    Err(format!(
+        "THIRD-PARTY-LICENSES.txt ne correspond plus aux dépendances livrées \
+         ({} octets attendus, {} trouvés ; {line}) : {RERUN}",
+        expected.len(),
+        found.len()
+    ))
+}
+
+/// `otb-dev licenses --check` : compare sans jamais écrire ; `Err` si le fichier diffère.
+pub fn check(root: &Path) -> Result<String, String> {
+    let r = rendered(root)?;
+    let path = path_in(root);
+    let on_disk = fs::read(&path)
+        .ok()
+        .map(|b| String::from_utf8_lossy(&b).replace("\r\n", "\n"));
+    compare(&r.text, on_disk.as_deref())
 }

@@ -1,7 +1,8 @@
 //! `otb-dev verify` : la vérification complète en une commande, code de sortie 0 seulement si tout passe (lot 1 de `docs/plan-chantiers.md`).
 //!
 //! Étapes : `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail : mêmes
-//! exécutables qu'avec la liste des `-p`, mesuré le 2026-11-04), puis `cargo deny check` si `cargo-deny` est installé (sauf `--quick`).
+//! exécutables qu'avec la liste des `-p`, mesuré le 2026-11-04), le contrôle des mentions de licences (`otb-dev licenses --check`, en
+//! mémoire : aucune commande lancée), puis `cargo deny check` si `cargo-deny` est installé (sauf `--quick`).
 //! Un test qui se saute faute de corpus écrit [`SKIP_MARKER`] sur la sortie standard ; `verify` les compte, et `--strict` en fait un échec.
 
 use std::path::Path;
@@ -35,31 +36,52 @@ pub fn parse_options(args: &[String]) -> Result<Options, String> {
     Ok(o)
 }
 
+/// Ce que fait une étape.
+pub enum Action {
+    /// Une commande `cargo` lancée depuis `rust/`, avec ses arguments.
+    Cargo(Vec<&'static str>),
+    /// Le contrôle des mentions de licences, fait dans ce processus (`crate::licenses::check`).
+    Licenses,
+}
+
 pub struct Step {
     pub name: &'static str,
-    /// Arguments de `cargo`.
-    pub args: Vec<&'static str>,
+    pub action: Action,
+}
+
+impl Step {
+    /// Les arguments `cargo` de l'étape, ou rien pour une étape interne.
+    pub fn cargo_args(&self) -> Option<&[&'static str]> {
+        match &self.action {
+            Action::Cargo(a) => Some(a),
+            Action::Licenses => None,
+        }
+    }
 }
 
 pub fn steps(o: Options) -> Vec<Step> {
     let mut v = vec![
         Step {
             name: "fmt",
-            args: vec!["fmt", "--check"],
+            action: Action::Cargo(vec!["fmt", "--check"]),
         },
         Step {
             name: "clippy",
-            args: vec!["clippy", "--all-targets", "--", "-D", "warnings"],
+            action: Action::Cargo(vec!["clippy", "--all-targets", "--", "-D", "warnings"]),
         },
         Step {
             name: "test",
-            args: vec!["test", "--no-fail-fast", "--", "--nocapture"],
+            action: Action::Cargo(vec!["test", "--no-fail-fast", "--", "--nocapture"]),
+        },
+        Step {
+            name: "licenses",
+            action: Action::Licenses,
         },
     ];
     if !o.quick {
         v.push(Step {
             name: "deny",
-            args: vec!["deny", "check"],
+            action: Action::Cargo(vec!["deny", "check"]),
         });
     }
     v
@@ -96,8 +118,20 @@ pub fn run(root: &Path, o: Options) -> (String, u8) {
             continue;
         }
         let t = Instant::now();
+        if let Action::Licenses = step.action {
+            let res = crate::licenses::check(root);
+            let secs = t.elapsed().as_secs_f32();
+            match res {
+                Ok(message) => report.push_str(&format!("licenses : ok ({secs:.0} s) — {message}\n")),
+                Err(e) => {
+                    ok = false;
+                    report.push_str(&format!("licenses : ÉCHEC ({secs:.0} s)\n{e}\n"));
+                }
+            }
+            continue;
+        }
         let out = Command::new("cargo")
-            .args(&step.args)
+            .args(step.cargo_args().unwrap_or_default())
             .current_dir(root.join("rust"))
             .output();
         let secs = t.elapsed().as_secs_f32();

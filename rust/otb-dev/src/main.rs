@@ -4,7 +4,7 @@
 //! otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]   numéro de version, CHANGELOG
 //! otb-dev release notes vX.Y.Z                        texte de la page Releases
 //! otb-dev icons [--svg CHEMIN]                        PNG Linux et .ico Windows depuis le SVG
-//! otb-dev licenses                                    THIRD-PARTY-LICENSES.txt (mentions de licences des composants livrés)
+//! otb-dev licenses [--check]                           THIRD-PARTY-LICENSES.txt (mentions de licences des composants livrés) ; --check : compare sans écrire
 //! otb-dev corpus <outil> …                            outils du corpus de vrais logs (`OTB_LOGS`)
 //! otb-dev verify [--quick] [--strict]                 fmt, clippy, tests, cargo deny : code 0 seulement si tout passe
 //! otb-dev bench-open LOG [ESSAIS]                     durée et pic de mémoire de l'ouverture d'un log (un processus par log)
@@ -13,7 +13,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG [ESSAIS]";
+const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG [ESSAIS]";
 
 /// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `CHANGELOG.md` et `rust/Cargo.toml`.
 fn repo_root() -> Result<PathBuf, String> {
@@ -37,6 +37,7 @@ fn run(args: &[String]) -> Result<String, String> {
         }
         ["release", "notes", tag] => otb_dev::release::notes(&repo_root()?, tag),
         ["licenses"] => otb_dev::licenses::generate(&repo_root()?),
+        ["licenses", "--check"] => otb_dev::licenses::check(&repo_root()?),
         ["bench-open", log] => otb_dev::bench_open::run(Path::new(log), 1),
         ["bench-open", log, n] => otb_dev::bench_open::run(Path::new(log), n.parse().map_err(|_| USAGE.to_string())?),
         ["icons"] => otb_dev::icons::generate(&repo_root()?, None),

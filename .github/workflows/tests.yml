@@ -21,6 +21,10 @@ jobs:
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
           cargo test --no-fail-fast
+      - name: "Mentions de licences à jour (THIRD-PARTY-LICENSES.txt)"
+        # Le fichier livré doit correspondre aux dépendances : sinon, relancer `cargo run -p otb-dev -- licenses`.
+        working-directory: rust
+        run: cargo run -p otb-dev -- licenses --check
 
   # Windows fait partie des livrables (D-031) : les mêmes tests y tournent à chaque envoi.
   windows:
@@ -32,3 +36,8 @@ jobs:
       - name: Tests Rust
         working-directory: rust
         run: cargo test --no-fail-fast
+      - name: "Mentions de licences : même fichier que sous Linux ?"
+        # Les mentions sont produites pour les deux cibles (D-042) depuis n'importe quel système : ce contrôle le prouve
+        # sous Windows (lot 7a de docs/plan-chantiers.md).
+        working-directory: rust
+        run: cargo run -p otb-dev -- licenses --check
