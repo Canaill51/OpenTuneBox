@@ -3,3 +3,4 @@ dist/
 /out/
 OTB_FIGS_*.png
 rust/target/
+rust/.cargo/

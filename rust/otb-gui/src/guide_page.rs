@@ -22,6 +22,10 @@ use crate::guide::*;
 use crate::icons::icon;
 use crate::state::AppState;
 use crate::theme::Theme;
+
+/// Texte du bouton d'aide d'une étape (nom accessible, lu par les tests) et son info-bulle.
+pub const AIDE_ETAPE: &str = "Aide";
+const AIDE_BULLE: &str = "Afficher l'aide de cette étape";
 use crate::worker::Runner;
 
 /// Ce que la page demande à l'application.
@@ -706,12 +710,12 @@ impl GuidePage {
                 if ui.checkbox(&mut checked, &step.title).changed() {
                     intents.push(Intent::Done(step.key.clone(), checked));
                 }
+                // Bouton d'aide : un vrai bouton à icône, pas un « ? » posé à côté du texte. Vu par Cédric le 2026-11-06 :
+                // `selectable_label` ne dessine qu'un cadre fin, qui se lit comme un encadré inerte et non comme un bouton.
                 let open = self.help_open.contains(&step.key);
-                if ui
-                    .selectable_label(open, "?")
-                    .on_hover_text("Afficher l'aide de cette étape")
-                    .clicked()
-                {
+                let aide =
+                    egui::Button::image_and_text(icon("info", 14.0).tint(th.accent("blue")), AIDE_ETAPE).selected(open);
+                if ui.add(aide).on_hover_text(AIDE_BULLE).clicked() {
                     intents.push(Intent::ToggleHelp(step.key.clone()));
                 }
                 if let Some(tool) = step.tool
