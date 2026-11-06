@@ -60,6 +60,36 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-090 : une capture d'écran « de la fenêtre active » photographie l'écran de Cédric, pas la fenêtre qu'on vient de lancer
+- **Symptôme** — 2026-11-06, essai de l'AppImage de la 0.9.0 : pour montrer la fenêtre d'OpenTuneBox, `spectacle -b -n -a` a
+  rendu une image du **navigateur de Cédric** (son contenu personnel), pas de l'application lancée juste avant. L'image a été
+  supprimée aussitôt, sans être lue ni décrite ; mais elle aurait pu être montrée ou envoyée.
+- **Cause** — `-a` veut dire *active window*, pas *la fenêtre de mon programme* : la fenêtre active est celle du bureau de
+  l'utilisateur, surtout quand le programme vient d'être lancé depuis un terminal et n'a pas encore le focus (sous Wayland, un
+  programme ne peut pas non plus se donner le focus). Aucun message d'erreur : la capture réussit, sur le mauvais sujet.
+- **Règle** — un agent ne photographie **jamais** l'écran de l'utilisateur, à aucun prétexte : pour voir l'interface, il n'y a
+  que les captures hors écran du dépôt (`cargo run --release -p otb-gui --example capture`), qui rendent une image de notre
+  fenêtre et de rien d'autre. Vérifier l'aspect d'un programme réellement lancé sur le bureau est le travail de Cédric. Si une
+  image prise par erreur contient son écran : la supprimer tout de suite, le dire, ne pas la décrire.
+- **Preuve** — incident du 2026-11-06 ; consigne corrigée dans la compétence `opentunebox-dev` (« Fabriquer les exécutables »),
+  qui conseillait `spectacle -b -n -a` pour l'AppImage.
+
+### L-089 : sans consigne, une fenêtre eframe s'ouvre en 800 × 600, quel que soit l'écran
+- **Symptôme** — 2026-11-06, essai de la 0.9.0 par Cédric sur l'AppImage : la fenêtre s'ouvre beaucoup trop petite pour six
+  graphiques et le panneau de réglages, alors que la version Python s'ouvrait grande. Invisible pour nous : nos captures hors
+  écran fixent elles-mêmes la taille (1500 × 900), et nos postes avaient déjà une taille enregistrée par un lancement précédent.
+- **Cause (lue dans les sources)** — `egui::ViewportBuilder::default()` laisse `inner_size` à `None` et eframe ne met aucune
+  taille à la place : winit ouvre alors sa fenêtre par défaut, 800 × 600. La version Python, elle, ouvrait à 95 % de l'écran
+  (`gui/geometry.py:fit_to_screen`, étalon `python-final`) — comportement perdu à la migration sans que personne le remarque.
+- **Règle** — une fenêtre d'application dit toujours comment elle s'ouvre : `.with_maximized(true)` pour la première ouverture,
+  plus `.with_inner_size(…)` comme taille de repli quand l'utilisateur la restaure. Les lancements suivants n'en dépendent plus :
+  eframe enregistre la géométrie laissée par l'utilisateur (clé `window` de son stockage) et ses réglages **l'emportent** sur ceux
+  du `ViewportBuilder` (`egui-winit/src/window_settings.rs:initialize_viewport_builder`), donc régler l'ouverture ne piège
+  personne dans une fenêtre agrandie. Plus largement : un comportement de la version Python qui ne se voit ni dans un test ni dans
+  une capture (taille, position, icône) se vérifie **sur un vrai premier lancement**, dossier de configuration vide.
+- **Preuve** — `rust/otb-gui/src/main.rs` ; `rust/otb-gui/tests/contracts.rs::la_fenetre_s_ouvre_grande_au_premier_lancement`
+  (retirer `.with_maximized(true)` : il rougit) ; sources d'eframe 0.37 et d'egui-winit 0.37 citées ci-dessus.
+
 ### L-088 : un résultat de calcul en arrière-plan sans numéro de demande s'affiche en revenant, même si plus personne ne l'attend
 - **Symptôme** — relevé à l'audit du 2026-11-04 (chantier C2) et reproduit par un test le même jour (lot 3) : dans une page
   d'outil, un calcul lancé puis rendu caduc revenait et s'affichait quand même. Après « Tout fermer », son résultat écrasait
@@ -183,7 +213,12 @@ est celle du commit qui les a introduites.
 ### L-076 : l'icône donnée à la fenêtre ne s'affiche pas sous Linux Wayland : il faut un `.desktop` nommé comme l'`app_id`
 - **Symptôme** — 2026-11-02 (6-6b), revu par Cédric le 2026-11-03 sur l'AppImage et sur l'exécutable de la CI : sous KDE Plasma (Wayland), la barre de titre montre un rond orange avec un « W » blanc (ressemble au logo de Wayland ; aucun fichier d'icône correspondant retrouvé dans le thème, donc **non confirmé**) au lieu de l'icône d'OpenTuneBox, alors que `ViewportBuilder::with_icon` était réglé.
 - **Cause (vérifiée)** — (1) dans winit 0.30.13, `set_window_icon` est **vide** sous Wayland (`platform_impl/linux/wayland/window/mod.rs`) : l'icône du programme n'est jamais envoyée. Sous Wayland, le bureau cherche l'icône d'après l'`app_id` de la fenêtre dans un fichier `.desktop` installé. (2) **Le nom du fichier compte, majuscules comprises** : essayé le 2026-11-03 sur KDE Plasma Wayland, programme installé dans `~/.local/bin` avec l'icône dans `hicolor` : `opentunebox.desktop` (avec `StartupWMClass=OpenTuneBox`) **ne change rien** (icône générique) ; `OpenTuneBox.desktop` (= `app_id`) donne la bonne icône. Une règle écrite avant cet essai (« fournir l'icône par le fichier `.desktop` ») était donc insuffisante.
-- **Règle** — le fichier `.desktop` s'appelle exactement comme l'`app_id` de la fenêtre (`OpenTuneBox.desktop`) : `packaging/linux/install_linux.sh` l'écrit sous ce nom (et supprime l'ancien `opentunebox.desktop`) et `build_appimage.sh` aussi ; garder `StartupWMClass=OpenTuneBox` pour X11. Une AppImage lancée telle quelle (non intégrée au bureau par AppImageLauncher ou équivalent) n'a pas de `.desktop` connu : elle garde l'icône générique sous Wayland, on n'y peut rien dans le programme. `with_icon` ne sert que sous X11 et Windows.
+- **Règle** — le fichier `.desktop` s'appelle exactement comme l'`app_id` de la fenêtre (`OpenTuneBox.desktop`) : `packaging/linux/install_linux.sh` l'écrit sous ce nom (et supprime l'ancien `opentunebox.desktop`) et `build_appimage.sh` aussi ; garder `StartupWMClass=OpenTuneBox` pour X11. Une AppImage lancée telle quelle n'a pas de `.desktop` connu du bureau : elle gardait l'icône générique sous Wayland (voir le complément). `with_icon` ne sert que sous X11 et Windows.
+- **Complément du 2026-11-06 (W-045)** — l'AppImage n'est pas condamnée à l'icône générique : son `AppRun` écrit lui-même
+  `~/.local/share/applications/OpenTuneBox.desktop` au **premier** lancement (`Exec` pointant vers `$APPIMAGE`, variable donnée par
+  le lanceur de l'AppImage) et copie l'icône dans `~/.local/share/icons/hicolor/256x256/apps/`. Deux garde-fous : ne rien écrire
+  si le fichier existe déjà (AppImage déplacée, ou `install_linux.sh` déjà passé), et ne rien écrire hors AppImage (`$APPIMAGE`
+  vide quand on lance le binaire du dépôt). Un échec de l'écriture ne doit **jamais** empêcher l'application de démarrer.
 - **Non élucidé** — sous X11 forcé (`WINIT_UNIX_BACKEND=x11`, `WAYLAND_DISPLAY` retiré), la propriété `_NET_WM_ICON` de la fenêtre existe mais est **vide** (`xprop`), alors que le PNG se décode (256 × 256 RGBA) et que winit sait l'écrire : cause non trouvée (voir W-045).
 - **Preuve** — source de winit citée ci-dessus ; captures de la barre de titre le 2026-11-03 (sans `.desktop` : icône générique ; `opentunebox.desktop` : générique ; `OpenTuneBox.desktop` : icône d'OpenTuneBox) ; `rust/otb-gui/tests/contracts.rs::le_fichier_desktop_porte_le_nom_de_l_app_id` (échouait avec le nom en minuscules).
 
@@ -982,6 +1017,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-090 | « Capture de la fenêtre active » (`spectacle -a`) : c'est la fenêtre de **Cédric** qui est photographiée, sans erreur visible ; un agent ne photographie jamais son écran, l'interface se regarde par les captures hors écran | Outillage |
+| L-089 | Fenêtre eframe sans `inner_size` : winit l'ouvre en 800 × 600 quel que soit l'écran ; dire comment la fenêtre s'ouvre (`with_maximized`, `with_inner_size`), la géométrie enregistrée l'emportant ensuite — et vérifier taille, position et icône sur un vrai **premier** lancement | Interface |
 | L-088 | Résultat d'un calcul en arrière-plan sans numéro de demande : il s'affiche en revenant (après « Tout fermer », ou avec l'ancienne sélection) ; numéroter chaque demande, jeter celle qui n'est plus la dernière, et tester en changeant l'état **pendant** le calcul | Interface |
 | L-087 | Crochet qui dépend d'un outil absent (`jq` sous Windows) : il rend 0 sans rien vérifier ni rien dire ; ne dépendre que du sûr, dire ce qui n'a pas été vérifié, échouer visiblement (code 2), jamais `exit 0` sur un chemin d'erreur | Outillage |
 | L-086 | Index min/max dont les blocs ne portent que des indices : chaque comparaison relit la courbe au loin, le cadre reste proportionnel au nombre d'échantillons (défauts de cache) ; ranger les valeurs **avec** les indices, et prouver l'indépendance sur le **même** log zoomé, jamais en comparant deux logs | Interface |

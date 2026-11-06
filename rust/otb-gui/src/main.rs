@@ -24,7 +24,14 @@ fn main() -> eframe::Result {
     // `app_id` : sous Linux (Wayland), le bureau ne lit pas l'icône de la fenêtre, il la cherche dans le fichier `.desktop` dont le
     // **nom** est cet identifiant, majuscules comprises (`OpenTuneBox.desktop`, écrit par `packaging/linux/*.sh` ; test
     // `contracts.rs::le_fichier_desktop_porte_le_nom_de_l_app_id`, L-076).
-    let mut viewport = egui::ViewportBuilder::default().with_app_id("OpenTuneBox");
+    // Taille au **premier** lancement : sans consigne, winit ouvre une fenêtre de 800 × 600, trop petite pour six graphiques et le
+    // panneau de réglages (la version Python ouvrait à 95 % de l'écran, `gui/geometry.py:fit_to_screen`). La fenêtre s'ouvre donc
+    // agrandie, et `with_inner_size` donne une taille correcte quand l'utilisateur la restaure. Les lancements suivants reprennent la
+    // taille laissée par l'utilisateur : eframe l'enregistre lui-même (clé `window`) et ses réglages l'emportent sur ceux-ci (L-089).
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_app_id("OpenTuneBox")
+        .with_inner_size([1280.0, 800.0])
+        .with_maximized(true);
     if let Some(icon) = window_icon() {
         viewport = viewport.with_icon(icon);
     }

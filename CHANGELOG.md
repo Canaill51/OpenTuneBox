@@ -12,8 +12,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 Première version **entièrement en Rust** : l'application a été réécrite de fond en comble ; la version
 Python (0.8.0) et tout ce qu'elle demandait disparaissent.
 
-- **Un seul fichier à installer, bien plus petit** : 7,5 Mo sous Windows et 10,6 Mo sous Linux, au lieu de
-  88 Mo et 167 Mo ; rien d'autre à installer (ni Python, ni bibliothèque).
+- **Un seul fichier à installer, bien plus petit** : environ 8 Mo sous Windows et 11 Mo sous Linux, au lieu
+  de 88 Mo et 167 Mo ; rien d'autre à installer (ni Python, ni bibliothèque).
 - **Plus rapide et plus légère** : le plus gros log du corpus s'ouvre en 0,54 s et tient dans 274 Mo (au lieu
   de 481 Mo), et l'affichage des courbes reste fluide sur les longs vols (moins de 5 ms par image).
 - **Les mêmes résultats** : chaque calcul a été comparé un par un à la version Python sur tout le corpus de
@@ -98,6 +98,8 @@ Le détail complet suit.
 - macOS abandonné : l'application sera livrée pour Windows et Linux seulement (D-042).
 
 ### Corrigé
+- La fenêtre s'ouvrait beaucoup trop petite au **premier** lancement (800 × 600, la taille par défaut de la bibliothèque de fenêtrage), alors que la version Python l'ouvrait à 95 % de l'écran : elle s'ouvre désormais agrandie, et garde ensuite la taille que vous lui laissez. Vu par Cédric à l'essai de la 0.9.0 ; invisible pour les tests, qui fixent eux-mêmes la taille de la fenêtre (L-089).
+- L'**AppImage** s'ajoute maintenant toute seule au menu de votre bureau, à son premier lancement : elle y écrit son raccourci (`~/.local/share/applications/OpenTuneBox.desktop`, pointant vers l'AppImage là où vous l'avez rangée) et son icône. La fenêtre a donc la bonne icône au lieu de l'icône générique du système, et OpenTuneBox apparaît dans le menu des applications. Rien n'est écrit si un raccourci existe déjà (AppImage déplacée, ou installation par `install_linux.sh`), et un échec n'empêche jamais le programme de démarrer (W-045, L-076).
 - Test `golden.rs` (concordance avec les références Python figées) : il exigeait le bit près pour toutes les fonctions, alors que 8 d'entre elles (FFT, `sin` / `cos`, `exp`, SVD) ont une tolérance mesurée ; rouge par construction avec `OTB_GOLDEN` (W-048). Il applique désormais la tolérance de chaque fonction, comme `otb-parity check` (bit près par défaut), et liste tous les écarts (D-047, L-083).
 - Test `install_linux` instable (W-047, cause enfin trouvée : L-082) : exécuter le programme fraîchement copié échouait par intermittence avec « Text file busy » (`ETXTBSY`), parce que les cas du fichier tournent en parallèle dans le même processus et qu'un `fork` pendant la copie empêche le noyau d'exécuter le fichier. Le lancement est réessayé sur ce code d'erreur ; aucune assertion n'a été touchée. Avant : 2 échecs sur 5 exécutions ; après : 10 au vert.
 - Interface : une page d'outil n'affiche plus le résultat d'un calcul périmé. `ToolPage` numérote ses demandes et jette le résultat d'une demande qui n'est plus la dernière : après le vidage des logs, un calcul encore en cours faisait réapparaître son résultat sous « Sélectionnez au moins un log. » ; après un changement de sélection, le résultat de l'ancienne sélection pouvait s'afficher (lot 3 du plan des chantiers).
