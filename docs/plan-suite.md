@@ -1,6 +1,6 @@
 # Plan de la suite : publier, puis solder la dette
 
-Suite de [plan-chantiers.md](plan-chantiers.md), dont les lots 0 à 5 et 8 à 10 sont faits. Les cinq chantiers de l'audit du
+Suite de [plan-chantiers.md](plan-chantiers.md), dont les lots 0 à 6 et 8 à 10 sont faits (le lot 6, le bilan des cinq chantiers, le 2026-11-06). Les cinq chantiers de l'audit du
 2026-11-04 sont traités ; ce qui reste tient en trois familles : **publier la première version Rust**, **solder les travaux
 reportés** (`W-xxx`), et **finir la calibration de l'assistant**.
 
@@ -21,8 +21,8 @@ La numérotation des lots **continue la même série** : les lots 6, 7 et 11 res
 
 | # | Lot | Sujet | Où il est décrit | Dépend de |
 |---|---|---|---|---|
-| 1 | **6** | Bilan des cinq chantiers, W clos, leçons | `plan-chantiers.md` | — |
-| 2 | **7** | Première publication Rust **0.9.0** (7a licences, 7b–7e publication) | `plan-chantiers.md` | lot 6 |
+| 1 | **6** | Bilan des cinq chantiers, W clos, leçons — **fait le 2026-11-06** | `plan-chantiers.md` | — |
+| 2 | **7** | Première publication Rust **0.9.0** (7a licences, 7b–7e publication) — **à faire en premier** | `plan-chantiers.md` | lot 6 (fait) |
 | 3 | **12** | Ménage des registres : solder les `W` devenus caducs sans le Python | ici | — (peut passer avant le 7) |
 | 4 | **13** | Nettoyage d'après publication : `_internal`, vrai Windows, AppImage, licences relues | ici | **0.9.0 publiée** |
 | 5 | **11** | Ouverture de plusieurs logs en parallèle (W-050) | `plan-chantiers.md` | plafond à trancher |
@@ -198,7 +198,7 @@ courbes à la fois ; un pilote signale une lenteur ; la mémoire du cache des ou
 
 | Lot | État |
 |---|---|
-| 6 | À faire (décrit dans `plan-chantiers.md`) |
+| 6 | Fait le 2026-11-06 (branche **docs/plan-suite**) : bilan des cinq chantiers dans `plan-chantiers.md`, L-087 et L-088 écrites, W-014 et W-016 clos |
 | 7 | À faire (décrit dans `plan-chantiers.md`) |
 | 11 | À faire (décrit dans `plan-chantiers.md`), après la réponse de Cédric sur le plafond |
 | 12 | À faire |
