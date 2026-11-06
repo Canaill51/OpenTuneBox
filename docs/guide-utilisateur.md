@@ -89,7 +89,10 @@ enlèvent (préfiltre en pointillés, filtré en trait plein). Volet « < 100 Hz
 le propwash, avec les **retards des filtres** (mesurables seulement si le vol contient des mouvements :
 sur un simple vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime et le retard affiché
 est marqué « peu fiable ») ; volet « bruit moteur » pour l'efficacité du filtre RPM
-sur chaque harmonique. Les courbes en S montrent où se situent les harmoniques moteur pendant le vol.
+sur chaque harmonique. Les courbes en S montrent où se situent les harmoniques moteur pendant le vol :
+**Harmoniques moteur** donne une case par harmonique (1re, 2e, 3e), à cocher séparément, et **Notchs
+dynamiques** une case par notch réellement enregistré (N1, N2…, seulement avec le mode débug FFT_FREQ) ;
+**Plage du filtre RPM** ajoute par-dessus les bandes couvertes par le filtre RPM.
 
 Les niveaux en dB sont sur la **même échelle que PIDtoolbox** (gyro filtré sous −30 dB, terme D sous
 −10 dB : les repères habituels se lisent directement), dans le Spectre comme dans Fréq. × gaz, Fréq. × temps

@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
+use otb_analysis::motors::dyn_notch_rows;
 use otb_analysis::spectral::{Mode, spectrum, to_ptb_db};
 use otb_gui::app::{App, Screen};
 use otb_gui::state::AppState;
@@ -235,24 +236,39 @@ fn le_diagnostic_apparait_a_cote_des_courbes_et_disparait_quand_on_decoche() {
 #[test]
 fn tous_les_choix_d_affichage_se_dessinent_sans_panique() {
     let mut h = banc();
-    // liste des harmoniques : la valeur affichée est « 1re, 2e, 3e » au départ ; on clique le bouton qui porte la valeur courante
-    let mut courant = "1re, 2e, 3e";
-    for choix in [
-        "Plage du filtre RPM",
-        "1re harmonique",
-        "Harmoniques : aucune",
-        "1re, 2e, 3e",
-    ] {
-        h.get_by_value(courant).click();
-        h.run_steps(2);
+    // chaque harmonique a sa case : on les décoche une à une, puis la plage du filtre RPM, puis on recoche
+    for choix in ["1re", "2e", "3e", "Plage du filtre RPM", "1re", "2e", "3e"] {
         h.get_by_label(choix).click();
         h.run_steps(4);
-        courant = choix;
     }
-    // notchs et moteurs
-    h.get_by_label("Notchs dynamiques").click();
+    // un notch à la fois, et les moteurs
+    h.get_by_label("N1").click();
     h.get_by_label("M1/5").click();
     h.run_steps(4);
+}
+
+/// Le but du découpage (2026-11-06) : montrer une seule harmonique, ou un seul notch, sans les autres.
+#[test]
+fn une_harmonique_et_un_notch_se_choisissent_seuls() {
+    let mut outil = SpectralTool::new();
+    assert_eq!(outil.ranks(), vec![1, 2, 3], "les trois harmoniques au départ");
+    outil.set_harmonic(0, false);
+    outil.set_harmonic(2, false);
+    assert_eq!(outil.ranks(), vec![2], "la 2e harmonique seule");
+    outil.set_harmonic(1, false);
+    assert!(outil.ranks().is_empty(), "aucune harmonique : aucune courbe en « S »");
+
+    let h = banc();
+    // une case par notch présent dans le log (ni plus, ni moins), et chacune se décoche seule
+    let notchs = dyn_notch_rows(&log5s()).len();
+    assert!(notchs >= 2, "le log d'essai doit avoir plusieurs notchs ({notchs})");
+    for n in 1..=notchs {
+        h.get_by_label(format!("N{n}").as_str());
+    }
+    assert!(
+        h.query_by_label(format!("N{}", notchs + 1).as_str()).is_none(),
+        "pas de case pour un notch absent du log"
+    );
 }
 
 #[test]
