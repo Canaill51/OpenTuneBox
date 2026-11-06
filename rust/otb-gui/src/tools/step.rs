@@ -18,7 +18,7 @@ use otb_analysis::open_loop;
 
 use crate::plots::{corner_text, nice_axes, swatch};
 use crate::state::AppState;
-use crate::theme::{AXIS_NAMES, Theme, plot, with_alpha};
+use crate::theme::{AXIS_NAMES, Theme, file_color, plot, with_alpha};
 use crate::tool::{LogInput, Tool};
 use crate::tools::common::{AxisToggles, FileSelection, ViewMemo, safe_text};
 use crate::tools::report_ui::finding_ui;
@@ -240,7 +240,7 @@ impl StepTool {
             metric1: 1,                             // latence
             metric2: 2,                             // retard consigne → gyro
             axes: AxisToggles([true, true, false]), // yaw : ni jugé par le diagnostic, ni souvent mesurable
-            files: FileSelection::new(true),
+            files: FileSelection::new(true).user_order(),
             view: ViewMemo::default(),
             raw_cache: (0, HashMap::new()),
         }
@@ -707,7 +707,7 @@ impl Tool for StepTool {
 
     fn compute(o: Options, logs: Vec<LogInput>) -> Result<StepOutput, String> {
         let mut files = Vec::with_capacity(logs.len());
-        for li in &logs {
+        for (rang, li) in logs.iter().enumerate() {
             // la clé contient les réglages de calcul ET la période : un résultat calculé avant un changement de période ne peut pas servir
             let key = format!("step:{:?}:{:?}", o.calc, li.period);
             let data = match li.cache.get::<FileData>(&key) {
@@ -719,10 +719,11 @@ impl Tool for StepTool {
                     d
                 }
             };
-            // couleur et nom à jour (le fichier a pu changer de rang)
+            // la couleur d'une courbe est sa place dans la sélection : c'est l'utilisateur qui décide de l'ordre
+            // et donc des couleurs (2026-11-06) ; le nom reste celui du fichier.
             files.push(FileStep {
                 label: li.label.clone(),
-                color: li.color,
+                color: file_color(rang),
                 data,
             });
         }

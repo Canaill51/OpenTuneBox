@@ -219,6 +219,47 @@ fn un_clic_choisit_un_fichier_et_le_choix_survit_a_la_fermeture_d_un_autre() {
     assert_eq!(one.borrow().indices(h.state()), vec![0]);
 }
 
+/// Réponse indicielle (2026-11-06) : l'ordre des courbes est celui des clics, et tout décocher est un choix.
+#[test]
+fn la_selection_ordonnee_suit_les_clics_et_peut_rester_vide() {
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let mut state = AppState::new();
+    for nom in ["a", "b", "c"] {
+        state.add(synthetic_log(nom, 10, 1000.0));
+    }
+    let sel = Rc::new(RefCell::new(FileSelection::new(true).user_order()));
+    let s2 = sel.clone();
+    let mut h = Harness::new_ui_state(move |ui, st: &mut AppState| s2.borrow_mut().ui(ui, st), state);
+    h.run();
+    assert_eq!(
+        sel.borrow().indices(h.state()),
+        vec![2],
+        "avant tout clic : le log courant"
+    );
+    h.get_by_label("b").click();
+    h.run();
+    h.get_by_label("a").click();
+    h.run();
+    assert_eq!(
+        sel.borrow().indices(h.state()),
+        vec![2, 1, 0],
+        "l'ordre des clics, pas l'ordre d'ouverture"
+    );
+    assert_eq!(sel.borrow().rank("a"), Some(2), "le dernier coché est le 3e tracé");
+    for nom in ["c", "b", "a"] {
+        h.get_by_label(nom).click();
+        h.run();
+    }
+    assert!(
+        sel.borrow().indices(h.state()).is_empty(),
+        "tout décocher laisse la page vide (pas de retour au log courant)"
+    );
+}
+
 #[test]
 fn les_rangs_des_harmoniques_cochees() {
     use otb_gui::tools::common::{HARMONICS, ranks};

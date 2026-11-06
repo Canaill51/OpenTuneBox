@@ -10,7 +10,7 @@ use egui_kittest::kittest::Queryable;
 use otb_analysis::open_loop;
 use otb_gui::app::{App, Screen};
 use otb_gui::state::AppState;
-use otb_gui::theme::CLAIR;
+use otb_gui::theme::{CLAIR, file_color};
 use otb_gui::tool::Tool;
 use otb_gui::tools::step::{
     Marker, Options, StepOutput, StepTool, interp, loop_marker, metric_value, metric_y_range, raw_segments, spread,
@@ -175,15 +175,30 @@ fn le_cache_sert_au_second_calcul_mais_ni_apres_un_changement_de_periode_ni_de_r
 }
 
 #[test]
-fn le_libelle_et_la_couleur_sont_ceux_du_fichier_meme_avec_le_cache() {
+fn le_libelle_est_celui_du_fichier_et_la_couleur_le_rang_dans_la_selection() {
     let mut st = etat();
     let a = calcule(StepOpts::default(), &st);
     st.add(log5s());
     st.remove(0);
     let b = calcule(StepOpts::default(), &st);
     assert_eq!(a.files[0].data.axes[1].res.n, b.files[0].data.axes[1].res.n);
-    assert_eq!(b.files[0].color, st.logs[0].color);
     assert_eq!(b.files[0].label, st.logs[0].label);
+    // la couleur d'une courbe est sa place dans la sélection, pas la couleur du log (2026-11-06)
+    assert_eq!(b.files[0].color, file_color(0));
+    st.add(log5s());
+    let deux = StepTool::compute(
+        Options {
+            calc: StepOpts::default(),
+        },
+        st.inputs(&[1, 0]),
+    )
+    .unwrap();
+    assert_eq!(
+        deux.files[0].label, st.logs[1].label,
+        "le log coché en premier est tracé en premier"
+    );
+    assert_eq!(deux.files[0].color, file_color(0));
+    assert_eq!(deux.files[1].color, file_color(1));
 }
 
 // ------------------------------------------------------------------ fonctions pures
