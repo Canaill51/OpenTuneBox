@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-090 : une capture d'écran « de la fenêtre active » photographie l'écran de Cédric, pas la fenêtre qu'on vient de lancer
+- **Symptôme** — 2026-11-06, essai de l'AppImage de la 0.9.0 : pour montrer la fenêtre d'OpenTuneBox, `spectacle -b -n -a` a
+  rendu une image du **navigateur de Cédric** (son contenu personnel), pas de l'application lancée juste avant. L'image a été
+  supprimée aussitôt, sans être lue ni décrite ; mais elle aurait pu être montrée ou envoyée.
+- **Cause** — `-a` veut dire *active window*, pas *la fenêtre de mon programme* : la fenêtre active est celle du bureau de
+  l'utilisateur, surtout quand le programme vient d'être lancé depuis un terminal et n'a pas encore le focus (sous Wayland, un
+  programme ne peut pas non plus se donner le focus). Aucun message d'erreur : la capture réussit, sur le mauvais sujet.
+- **Règle** — un agent ne photographie **jamais** l'écran de l'utilisateur, à aucun prétexte : pour voir l'interface, il n'y a
+  que les captures hors écran du dépôt (`cargo run --release -p otb-gui --example capture`), qui rendent une image de notre
+  fenêtre et de rien d'autre. Vérifier l'aspect d'un programme réellement lancé sur le bureau est le travail de Cédric. Si une
+  image prise par erreur contient son écran : la supprimer tout de suite, le dire, ne pas la décrire.
+- **Preuve** — incident du 2026-11-06 ; consigne corrigée dans la compétence `opentunebox-dev` (« Fabriquer les exécutables »),
+  qui conseillait `spectacle -b -n -a` pour l'AppImage.
+
 ### L-089 : sans consigne, une fenêtre eframe s'ouvre en 800 × 600, quel que soit l'écran
 - **Symptôme** — 2026-11-06, essai de la 0.9.0 par Cédric sur l'AppImage : la fenêtre s'ouvre beaucoup trop petite pour six
   graphiques et le panneau de réglages, alors que la version Python s'ouvrait grande. Invisible pour nous : nos captures hors
@@ -1003,6 +1017,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-090 | « Capture de la fenêtre active » (`spectacle -a`) : c'est la fenêtre de **Cédric** qui est photographiée, sans erreur visible ; un agent ne photographie jamais son écran, l'interface se regarde par les captures hors écran | Outillage |
 | L-089 | Fenêtre eframe sans `inner_size` : winit l'ouvre en 800 × 600 quel que soit l'écran ; dire comment la fenêtre s'ouvre (`with_maximized`, `with_inner_size`), la géométrie enregistrée l'emportant ensuite — et vérifier taille, position et icône sur un vrai **premier** lancement | Interface |
 | L-088 | Résultat d'un calcul en arrière-plan sans numéro de demande : il s'affiche en revenant (après « Tout fermer », ou avec l'ancienne sélection) ; numéroter chaque demande, jeter celle qui n'est plus la dernière, et tester en changeant l'état **pendant** le calcul | Interface |
 | L-087 | Crochet qui dépend d'un outil absent (`jq` sous Windows) : il rend 0 sans rien vérifier ni rien dire ; ne dépendre que du sûr, dire ce qui n'a pas été vérifié, échouer visiblement (code 2), jamais `exit 0` sur un chemin d'erreur | Outillage |

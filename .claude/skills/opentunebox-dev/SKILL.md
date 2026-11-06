@@ -100,8 +100,10 @@ Le programme livré est l'interface Rust seule (`cargo build --release -p otb-gu
 - Linux, en local : télécharger appimagetool 1.9.1 dans le répertoire temporaire (empreinte SHA-256 dans `construire.yml`), puis
   `(cd rust && cargo build --release -p otb-gui)` et
   `APPIMAGETOOL=… sh packaging/linux/build_appimage.sh rust/target/release/opentunebox-gui SORTIE.AppImage`.
-  Lancer l'AppImage avec un log en argument et capturer la fenêtre (`spectacle -b -n -a -o FICHIER.png`) ; pour l'arrêter,
-  `kill` par identifiant : `pkill -f` avec un motif présent dans la commande tue le shell lui-même.
+  Lancer l'AppImage avec un log en argument, puis **laisser Cédric la regarder** : ⚠️ ne jamais photographier son écran
+  (`spectacle -a` capture la fenêtre **active**, c'est-à-dire la sienne, pas celle qu'on vient de lancer — arrivé le 2026-11-06,
+  L-090). Pour voir l'interface, utiliser les captures hors écran (`--example capture`). Pour l'arrêter, `kill` par identifiant :
+  `pkill -f` avec un motif présent dans la commande tue le shell lui-même.
 - Windows : `packaging\windows\construire_windows.bat` sur le PC Windows (Rust installé par winget si absent ; les outils de
   compilation C++ de Visual Studio sont nécessaires, le script donne la commande si le lien échoue). Le script n'a pas été essayé sur
   un vrai Windows au 2026-11-03 (W-044) : à essayer à la première occasion.

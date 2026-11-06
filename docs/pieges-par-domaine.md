@@ -89,6 +89,9 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - Un crochet ou un script de vérification ne dépend que de ce qui est sûr d'être présent sur les deux postes (pas de `jq`) :
   ce qu'il n'a pas pu vérifier se dit sur la sortie d'erreur, ce qui l'empêche de travailler échoue **visiblement** (code 2),
   jamais `exit 0` sur un chemin d'erreur — sinon il rend « tout va bien » sans rien avoir lu. L-087
+- **Jamais de capture de l'écran de Cédric** : `spectacle -a` photographie la fenêtre *active* (la sienne), sans erreur visible ;
+  pour voir l'interface, les captures hors écran du dépôt (`--example capture`). Image prise par erreur : la supprimer, le dire,
+  ne pas la décrire. L-090
 - `verify` se lance sans tube (`| tail` masque son échec) ; le crochet `.claude/hooks/check-docs.sh` ne voit que `git commit`
   (avec `-c` ou `-C`). L-022
 
