@@ -481,3 +481,9 @@ en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cum
 | 9 | Non retenu le 2026-11-04 ; repris hors lot le 2026-11-05 (branche `test/golden-tolerance`, D-047, L-083) : `golden.rs` vert avec `OTB_GOLDEN` |
 | 10 | Fait le 2026-11-05 (branche `perf/viewer-pyramid`, D-048, L-085, L-086) : index multi-résolution min/max dans `otb-dsp`, cadre du viewer ÷ 2,2 (620 079 échantillons : 10,5–12,1 → 4,6–4,8 ms) à ÷ 6,5 (fenêtre étroite), autant pendant un glissement ; tracé identique au bit près, index à 6,4–7,8 % du pic de mémoire (pic inchangé, plafond de Cédric : 10 %). Décision de Cédric : piste (b). Écart au plan : exactitude obtenue **point pour point** et non seulement sur l'enveloppe, mais la règle des trous a dû changer (un paquet à trou est tracé comme un trou, D-048). Reste W-052 : le cadre est maintenant dominé par le tracé des ≈ 3 840 points de chaque courbe |
 | 11 | À faire, après la fusion du lot 5 (ouverture parallèle, W-050) |
+
+## Suite
+
+Les cinq chantiers de l'audit sont traités. Ce qui reste (lots 6, 7 et 11 ci-dessus, puis les lots 12 à 15) est ordonné dans
+[plan-suite.md](plan-suite.md) : publier la version 0.9.0, solder les travaux reportés, finir la calibration de l'assistant.
+La numérotation des lots y continue la même série.
