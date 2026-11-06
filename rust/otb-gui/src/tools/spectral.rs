@@ -12,13 +12,13 @@ use egui_plot::{Legend, Line, LineStyle, Plot, PlotPoints, Points, Span};
 use otb_advisor::noise::{NoiseReport, noise_report};
 use otb_analysis::datasets::{self, DATASETS, is_prefilt};
 use otb_analysis::delay::compute_delays;
-use otb_analysis::motors::{dyn_notch_centres, dyn_notch_rows, motor_noise};
+use otb_analysis::motors::{dyn_notch_centres, motor_noise};
 use otb_analysis::npstat::percentile_f32;
 use otb_analysis::spectral::{Mode, smooth_freq, spectrum, to_ptb_db};
 
 use super::common::{
-    AxisToggles, FileSelection, MotorToggles, ViewMemo, cdf, fmt_ms, harmonic_style, motor_freqs, rpm_filter_text,
-    sel_rows, sorted_above_zero, sorted_positive, wide,
+    AxisToggles, FileSelection, HARMONICS, MAX_NOTCHES, MotorToggles, ViewMemo, cdf, fmt_ms, harmonic_style,
+    harmonics_and_notches_ui, motor_freqs, ranks, rpm_filter_text, sel_rows, sorted_above_zero, sorted_positive, wide,
 };
 use super::report_ui::{REPORT_FOOTER, diagnosis_ui};
 use crate::plots::{corner_text, error_bars, nice_axes};
@@ -30,15 +30,6 @@ pub const RESOLUTIONS: [(f64, &str); 4] = [(0.5, "0,5 Hz"), (1.0, "1 Hz"), (2.0,
 /// Jeux de données cochés au départ.
 pub const DEFAULT_DATASETS: [&str; 2] = ["gyro", "gyro_prefilt"];
 const REPORT_WIDTH: f32 = 460.0;
-
-/// Harmoniques moteur proposées en courbes en « S », chacune sa case : (rang, libellé court, info-bulle).
-pub const HARMONICS: [(i64, &str, &str); 3] = [
-    (1, "1re", "1re harmonique moteur (trait plein)"),
-    (2, "2e", "2e harmonique moteur (tirets)"),
-    (3, "3e", "3e harmonique moteur (pointillés)"),
-];
-/// Nombre de notchs dynamiques qu'un réglage Betaflight peut demander (`dyn_notch_count`).
-pub const MAX_NOTCHES: usize = 6;
 
 /// Graphique de droite (`RIGHT_MODES`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -198,12 +189,7 @@ impl SpectralTool {
 
     /// Rangs des harmoniques cochées, dans l'ordre ; vide si aucune (aucune courbe en « S » moteur).
     pub fn ranks(&self) -> Vec<i64> {
-        HARMONICS
-            .iter()
-            .zip(self.harmonics)
-            .filter(|(_, on)| *on)
-            .map(|((h, ..), _)| *h)
-            .collect()
+        ranks(&self.harmonics)
     }
 
     /// Coche ou décoche l'harmonique de rang `HARMONICS[i].0` (rien si `i` est hors des harmoniques proposées).
@@ -211,18 +197,6 @@ impl SpectralTool {
         if let Some(case) = self.harmonics.get_mut(i) {
             *case = on;
         }
-    }
-
-    /// Nombre de notchs dynamiques proposés : le plus grand nombre présent dans les logs ouverts (0 : aucun à tracer).
-    /// Lu dans les réglages, pas dans le résultat : le panneau est dessiné avant que le calcul soit rendu.
-    pub fn notch_count(state: &AppState) -> usize {
-        state
-            .logs
-            .iter()
-            .map(|l| dyn_notch_rows(&l.log).len())
-            .max()
-            .unwrap_or(0)
-            .min(MAX_NOTCHES)
     }
 
     /// Passe du mode PSD à l'amplitude : l'échelle Y change aussi (`_on_mode_toggled`).
@@ -680,26 +654,9 @@ impl Tool for SpectralTool {
                 ui.end_row();
             });
             // Une case par harmonique et par notch : Cédric veut les comparer une à une, pas par paquets (2026-11-06).
-            ui.label("Harmoniques moteur");
-            ui.horizontal_wrapped(|ui| {
-                for (i, (_, court, bulle)) in HARMONICS.iter().enumerate() {
-                    ui.checkbox(&mut self.harmonics[i], *court).on_hover_text(*bulle);
-                }
-            });
+            harmonics_and_notches_ui(ui, &mut self.harmonics, &mut self.notches, state, theme.ui.muted);
             ui.checkbox(&mut self.rpm_band, "Plage du filtre RPM")
                 .on_hover_text("Bandes couvertes par les notchs du filtre RPM, par-dessus le spectre.");
-            let notchs = Self::notch_count(state);
-            ui.label("Notchs dynamiques");
-            if notchs == 0 {
-                ui.label(RichText::new("aucun dans ces logs (mode débug FFT_FREQ)").color(theme.ui.muted));
-            } else {
-                ui.horizontal_wrapped(|ui| {
-                    for n in 0..notchs {
-                        ui.checkbox(&mut self.notches[n], format!("N{}", n + 1))
-                            .on_hover_text(format!("Centre du notch dynamique n° {}", n + 1));
-                    }
-                });
-            }
             self.motors.ui(ui);
             ui.horizontal(|ui| {
                 ui.label("RPM estimé ×");

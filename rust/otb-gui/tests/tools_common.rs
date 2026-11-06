@@ -220,6 +220,15 @@ fn un_clic_choisit_un_fichier_et_le_choix_survit_a_la_fermeture_d_un_autre() {
 }
 
 #[test]
+fn les_rangs_des_harmoniques_cochees() {
+    use otb_gui::tools::common::{HARMONICS, ranks};
+    assert_eq!(HARMONICS.len(), 3);
+    assert_eq!(ranks(&[true, true, true]), vec![1, 2, 3]);
+    assert_eq!(ranks(&[false, true, false]), vec![2], "la 2e harmonique seule");
+    assert!(ranks(&[false; 3]).is_empty(), "aucune case : rien à tracer");
+}
+
+#[test]
 fn les_cases_d_axes_et_de_moteurs() {
     let mut a = AxisToggles::default();
     assert_eq!(a.enabled(), vec![0, 1, 2]);

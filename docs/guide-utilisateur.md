@@ -126,7 +126,8 @@ tache basse fréquence à mi-gaz = oscillation de réglage ou propwash.
 
 ### Fréquence × temps (Fréq. × temps)
 Bouton de l'outil Spectre. Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
-lecteur ; un clic sur un spectrogramme le déplace).
+lecteur ; un clic sur un spectrogramme le déplace). Les harmoniques moteur et les notchs dynamiques se cochent un par un,
+comme dans le Spectre.
 
 ### Réponse indicielle (Indicielle)
 La réaction du drone à un ordre de manche « en marche d'escalier », moyennée sur tout le vol.
