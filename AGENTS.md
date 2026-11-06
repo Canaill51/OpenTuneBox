@@ -82,7 +82,7 @@ Variables : `OTB_LOGS` (vrais logs, défaut `~/Documents/Drones/Logs`, avec `cor
 ## Pièges connus
 
 Règle courte de chaque piège ; histoire et preuve dans `docs/lecons.md`. Les pièges d'un domaine sont dans
-[docs/pieges-par-domaine.md](docs/pieges-par-domaine.md) (décodeur, analyses, filtres Betaflight, assistant, interface, exécutables) : le lire avant d'y travailler.
+[docs/pieges-par-domaine.md](docs/pieges-par-domaine.md) (décodeur, analyses, filtres Betaflight, assistant, interface, outillage, exécutables) : le lire avant d'y travailler.
 
 - Couleurs : jamais en dur hors de `rust/otb-gui/src/theme.rs` ; `rust/otb-gui/tests/contracts.rs` refuse `Color32::…` et `#` + 6 chiffres hexadécimaux
   (`#777` passe : ne pas s'y fier). Vérifier les deux thèmes. L-016

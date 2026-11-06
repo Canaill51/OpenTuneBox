@@ -73,8 +73,8 @@ différer. Variables à définir : `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golde
   (÷ 1,75 ; objectif ÷ 2 manqué, ÷ 1,5 atteint), **0,54 s** (0,63 s avant : plus rapide). Identité : empreinte de tous les `FlightLog`
   des 528 fichiers identique à celle de `main` ; `otb-parity check` 0 échec ; `corpus validate` 697/712, mêmes statuts. Contre-preuve : la
   position des trames lentes calculée sur une table vide (bogue rencontré en route) fait échouer `otb-decoder/tests/compact.rs`.
-  Le test `otb-parity --test golden` échoue avec `OTB_GOLDEN` défini (écart de 1e-15 relatif dans `spectral.spectrum`), **déjà sur `main`** :
-  à traiter à part.
+  Le test `otb-parity --test golden` échouait avec `OTB_GOLDEN` défini (écart de 1e-15 relatif dans `spectral.spectrum`), **déjà sur `main`** :
+  traité à part le 2026-11-05 (D-047, L-083 — il était rouge par construction, il applique désormais la tolérance de chaque fonction).
 
   Objectif du lot 5a (÷ 1,5) : passer sous ≈ 327 Mo sur `LOG00008.BFL`. Le « plus gros log » de W-014 (965 000 trames, 39 Mo)
   n'est plus dans le corpus : ses 364 Mo ne se comparent pas à ces chiffres. Ordinateur : 16 cœurs, 15 Go de mémoire.

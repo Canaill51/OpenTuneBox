@@ -82,6 +82,15 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - Panneau egui redimensionnable : son contenu est toujours dans un `ScrollArea` qui remplit (`auto_shrink([false, false])`), même dans la branche « rien à montrer » ; sinon il garde la taille de son premier cadre. Un test part de l'état vide, et on regarde une capture. L-073
 - Tout ce qui ouvre une fenêtre du système (boîte de fichiers…) passe par un champ remplaçable, inerte dans `App::new` ; scripts de mutations lancés sans écran ni bus de session, avec délai. L-075
 - Identité d'un log : `LoadedLog::uid` (ou `LogInput::uid`), jamais l'adresse de son `Arc` (elle peut resservir à un autre log). L-072
+- Calcul lancé dans un fil : chaque demande porte un numéro (`ToolPage`), un résultat qui n'a plus le dernier numéro se jette, et vider l'état compte comme une demande neuve ; le test change l'état **pendant** le calcul (barrière, une seule image), sinon il ne prouve rien. L-088
+
+## Outillage, vérification et crochets
+
+- Un crochet ou un script de vérification ne dépend que de ce qui est sûr d'être présent sur les deux postes (pas de `jq`) :
+  ce qu'il n'a pas pu vérifier se dit sur la sortie d'erreur, ce qui l'empêche de travailler échoue **visiblement** (code 2),
+  jamais `exit 0` sur un chemin d'erreur — sinon il rend « tout va bien » sans rien avoir lu. L-087
+- `verify` se lance sans tube (`| tail` masque son échec) ; le crochet `.claude/hooks/check-docs.sh` ne voit que `git commit`
+  (avec `-c` ou `-C`). L-022
 
 ## Construction des exécutables
 

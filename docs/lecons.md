@@ -60,6 +60,40 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-088 : un résultat de calcul en arrière-plan sans numéro de demande s'affiche en revenant, même si plus personne ne l'attend
+- **Symptôme** — relevé à l'audit du 2026-11-04 (chantier C2) et reproduit par un test le même jour (lot 3) : dans une page
+  d'outil, un calcul lancé puis rendu caduc revenait et s'affichait quand même. Après « Tout fermer », son résultat écrasait
+  l'état « Sélectionnez au moins un log. » et restait à l'écran ; après un changement de sélection, le résultat de l'**ancienne**
+  sélection s'affichait sous la nouvelle, sans aucun message.
+- **Cause (lue, puis mise en test)** — `ToolPage::update` prenait tout résultat que le `Runner` lui rendait : rien ne reliait un
+  résultat à la demande qui l'avait lancé. Le test qui existait ne pouvait pas le voir, parce qu'il vidait l'état **après** avoir
+  attendu la fin du calcul : l'ordre du test évitait précisément le cas fautif.
+- **Règle** — toute demande de calcul en arrière-plan porte un numéro (`latest`, `in_flight`, `queued` de `ToolPage`) et un
+  résultat qui ne porte pas le **dernier** numéro se jette ; un vidage de l'état compte comme une demande neuve (il incrémente
+  le compteur), sinon le calcul en cours redevient « le dernier ». Pour le prouver, bloquer le calcul par une barrière, changer
+  l'état, avancer **d'une seule image**, puis libérer : attendre la fin avant de changer l'état ne prouve rien.
+- **Preuve** — `rust/otb-gui/src/tool.rs:ToolPage::update` (commit e9014d8) ;
+  `rust/otb-gui/tests/tool.rs::un_calcul_termine_apres_le_vidage_n_affiche_rien` et
+  `le_resultat_de_l_ancienne_selection_ne_s_affiche_jamais` ; contre-preuve : rétablir l'ancien `update`, les deux rougissent.
+  Même famille que L-072 (identifier un chargement par un compteur, jamais par une adresse) et W-036 (8), où le Simulateur de
+  filtres s'était protégé seul.
+
+### L-087 : un crochet qui dépend d'un outil absent de la machine laisse passer tous les commits, sans rien dire
+- **Symptôme** — 2026-11-04 (audit du lot 1, trouvé par **lecture** du code et non en direct : le défaut est muet) :
+  `.claude/hooks/check-docs.sh` est censé bloquer un commit quand la documentation ne colle plus au code. Sur le poste Windows de
+  Cédric, où `jq` n'est pas installé, il n'a jamais rien vérifié ni rien affiché — il rendait 0, c'est-à-dire « tout va bien ».
+- **Cause (lue)** — il lisait la commande par `cmd=$(jq -r '.tool_input.command // empty')`. Sans `jq` dans le `PATH`, le shell
+  ne s'arrête pas : `cmd` reste vide, aucun motif ne correspond et le `case` tombe sur `*) exit 0` (« ce n'est pas un
+  `git commit` »). Le `cd "$CLAUDE_PROJECT_DIR" || exit 0` qui suivait sortait aussi en 0. Deux chemins d'échec rendaient donc le
+  code du succès.
+- **Règle** — un crochet ne dépend que de ce qui est sûr d'être présent (ici : lire l'entrée JSON telle quelle et la reconnaître
+  par un `grep -Eq`, guillemets échappés compris) ; ce qu'il n'a **pas pu** vérifier se dit sur la sortie d'erreur, et ce qui
+  l'empêche de travailler échoue **visiblement** (code 2, comme le dossier du projet introuvable). Jamais `exit 0` sur un chemin
+  d'erreur. Le vérifier sur les deux postes et sans l'outil dans le `PATH`.
+- **Preuve** — ancien crochet : `git show 963a74f^:.claude/hooks/check-docs.sh` ; contre-preuve du lot 1 : documentation sabotée
+  (lien cassé), le crochet rend **2** sans `jq` dans le `PATH`, pour `git commit`, `git -c … commit` et `git -C … commit`, et 0
+  sans sabotage. Voisin de L-022 (un commit passé malgré un test en échec) : là le tube masquait l'échec, ici c'est l'outil absent.
+
 ### L-086 : un index min/max qui ne range que des indices relit la courbe à chaque comparaison, et le cadre reste proportionnel au nombre d'échantillons
 - **Symptôme** — 2026-11-05 (lot 10) : la pyramide min/max en place, le cadre du viewer tombe de 10,9 à 5,7 ms sur
   620 079 échantillons, mais **pas** à la valeur attendue (le tracé seul) ; la même courbe zoomée sur un huitième donne 1,9 ms,
@@ -948,6 +982,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-088 | Résultat d'un calcul en arrière-plan sans numéro de demande : il s'affiche en revenant (après « Tout fermer », ou avec l'ancienne sélection) ; numéroter chaque demande, jeter celle qui n'est plus la dernière, et tester en changeant l'état **pendant** le calcul | Interface |
+| L-087 | Crochet qui dépend d'un outil absent (`jq` sous Windows) : il rend 0 sans rien vérifier ni rien dire ; ne dépendre que du sûr, dire ce qui n'a pas été vérifié, échouer visiblement (code 2), jamais `exit 0` sur un chemin d'erreur | Outillage |
 | L-086 | Index min/max dont les blocs ne portent que des indices : chaque comparaison relit la courbe au loin, le cadre reste proportionnel au nombre d'échantillons (défauts de cache) ; ranger les valeurs **avec** les indices, et prouver l'indépendance sur le **même** log zoomé, jamais en comparant deux logs | Interface |
 | L-085 | Décimation min/max par comparaison nue (`y[i] < y[lo]`) : un `NaN` en tête de paquet gagne toutes les comparaisons et efface le min/max réel ; règle non associative, donc tout index multi-résolution bâti dessus est faux | Analyses |
 | L-081 | Pic de mémoire de l'ouverture : mesurer par étape ; rendre la table `i64` dès que les colonnes utiles sont extraites, puis ranger en `i32` dès le décodeur (481 → 274 Mo) ; positions S/G/E via `main_rows` | Décodeur et logs |

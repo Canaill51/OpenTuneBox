@@ -31,6 +31,27 @@ Plan de travail issu de l'audit du dépôt du 2026-11-04 (architecture, vérific
 | C4 | Mémoire du décodeur | Fichier entier lu en mémoire (`rust/otb-decoder/src/file.rs:decode_file`), toutes les sessions décodées en `i64` avant conversion (`rust/otb-log/src/flightlog.rs:load`) : 8 octets × 52 champs par trame pour un log qui en pèse 40 ; W-016 mesurait 39 Mo → 364 Mo ; estimation ≈ 8 Go pour un log de 500 Mo | haute sur les gros logs | moyen |
 | C5 | Consignes et CI remises à jour | `AGENTS.md` : « interface Qt », branche `feat/rust-migration` encore présentée comme active (fusionnée, PR 96), « pas de compilateur C » (contredit par D-035), commande de capture incomplète, « 15 tests » faux, `gui-build.yml` non cité ; `tests.yml` et `audit.yml` écoutent encore `feat/rust-migration` | moyenne | nul |
 
+### Bilan des cinq chantiers (2026-11-06, lot 6)
+
+Les cinq sont **traités et prouvés**. Chaque ligne donne ce qui a changé, la preuve exigée par le plan, et ce qui en reste
+ouvert ; les mesures sont dans [validation.md](validation.md), les pièges dans [lecons.md](lecons.md).
+
+| # | État | Ce qui le prouve | Mesure | Ce qui reste |
+|---|---|---|---|---|
+| C1 | Fait au lot 4 (`fix/decoder-hostile-header`, D-044, L-080) | `rust/otb-decoder/tests/robustness.rs` : 10 cas, dont **6 rouges avant** la correction ; 4 contre-preuves (retirer un plafond rougit 2 à 4 cas) | 20 000 champs : 3,7 s puis abandon du processus → refusé instantanément ; aucun vrai log ne change (`otb-parity check` 0 écart, `corpus validate` 697/712, mêmes statuts) | rien ; limite écrite : sous Linux, une réservation énorme peut réussir (surengagement) |
+| C2 | Fait au lot 3 (commit e9014d8, L-088) | `rust/otb-gui/tests/tool.rs` : `un_calcul_termine_apres_le_vidage_n_affiche_rien` et `le_resultat_de_l_ancienne_selection_ne_s_affiche_jamais` ; **contre-preuve** : l'ancien `update` les rougit tous les deux | `check_tools` sans écart : la correction ne change aucun résultat d'outil | W-036 (8) : le garde-fou propre au Simulateur est gardé (il traite le résultat *précédent* encore affiché) |
+| C3 | Fait au lot 1 (`feat/dev-verify`, L-087) | 4 contre-preuves : test cassé, espace de formatage, `--strict` sans `OTB_GOLDEN`, documentation sabotée (le crochet rend 2 **sans `jq`**, pour `git commit`, `-c` et `-C`) | `verify` 63 à 67 s à chaud ; 74 exécutables de test avec et sans la liste des `-p` (elle était donc inutile) | rien ; W-041 (test sensible à la charge) reste ouvert, sans rapport avec la commande |
+| C4 | Fait au lot 5 (`perf/decoder-memory`, L-081) | Empreinte du `FlightLog` des **528 fichiers** du corpus identique avant et après ; `otb-parity check` 0 échec ; `corpus validate` 697/712 | Plus gros log : **481 → 274 Mo (÷ 1,75)** et **0,63 → 0,54 s** — objectif ÷ 1,5 atteint, ÷ 2 manqué | un décodage par blocs vers `f32` irait plus loin (non fait, non chiffré) ; W-014 et W-016 clos |
+| C5 | Fait au lot 2 (PR #103) | `cargo test -p otb-dev --test docs` vert ; `tests.yml` et `audit.yml` n'écoutent plus `feat/rust-migration` | `AGENTS.md` de 12,6 à 8,4 Ko | rien |
+
+Deux leçons manquaient à l'appel et sont écrites dans ce lot : **L-087** (un crochet qui dépend d'un outil absent rend 0 sans
+rien vérifier — C3) et **L-088** (un résultat de calcul en arrière-plan sans numéro de demande s'affiche en revenant — C2). La
+troisième prévue, l'allocation ratée non rattrapable par `catch_unwind`, avait déjà été écrite au lot 4 : **L-080**.
+
+Au-delà des cinq chantiers, les lots 8 et 10 ont traité l'audit de performance de l'interface (**W-049** clos, D-048 : cadre du
+viewer ÷ 2,2 à ÷ 6,5, tracé identique au bit près) et **W-051** reste sans suite (gains mesurés nuls ou négatifs). Il reste
+**W-052** (le tracé lui-même, conditionnel : lot 15) et **W-050** (ouverture de plusieurs logs, lot 11).
+
 ## Branches
 
 ```
@@ -41,7 +62,7 @@ main
  ├─ fix/tool-page-stale-result  lot 3 : C2
  ├─ fix/decoder-hostile-header  lot 4 : C1
  ├─ perf/decoder-memory         lot 5 : C4 (deux sous-lots, deux PR)
- ├─ docs/chantiers-bilan        lot 6 : bilan et mesures finales
+ ├─ docs/plan-suite             lot 6 : bilan et mesures finales (avec le plan de la suite ; prévu docs/chantiers-bilan)
  ├─ feat/licenses-check         lot 7a : contrôle de THIRD-PARTY-LICENSES.txt
  ├─ chore/release-0.9.0         lot 7b à 7e : première publication Rust (0.9.0)
  ├─ chore/viewer-frame-bench    lot 8 : banc de temps de cadre (W-049), part de perf/decoder-memory
@@ -265,12 +286,18 @@ l'audit de performance processeur / carte graphique (W-049 à W-051) et les lots
 mêmes fichiers que le lot 8 (`validation.md`, `CHANGELOG.md`, W-049, tableau d'avancement), d'où cet ordre. Les lots 10 et 11
 peuvent suivre le bilan : il les propose alors comme suite.
 
-- [ ] Relire les cinq chantiers : état, preuves, mesures ; mettre à jour `docs/validation.md` (robustesse, mémoire) et ce plan.
-- [ ] Clore ou mettre à jour les W concernés : W-014, W-016, W-035 (9), W-036 (8), W-041 si touché.
-- [ ] Leçons à ajouter dans `docs/lecons.md` : allocation ratée non rattrapable ; crochet dépendant d'un outil absent ;
-      résultat de thread sans étiquette.
-- [ ] Proposer à Cédric la suite : première publication Rust (débloquée : W-046 clos par D-046), cache borné (W-035 (9)), factorisation des
-      pages spectrales, lints pédantiques ciblés (**jamais** `suboptimal_flops` : L-051).
+- [x] Relire les cinq chantiers : état, preuves, mesures ; mettre à jour `docs/validation.md` (robustesse, mémoire) et ce plan.
+      Fait : « Bilan des cinq chantiers » ci-dessus. Les mesures de robustesse et de mémoire avaient déjà été écrites dans
+      `validation.md` par les lots 4 et 5 eux-mêmes (rien à refaire) ; seule la note périmée sur `golden.rs` a été corrigée.
+- [x] Clore ou mettre à jour les W concernés : **W-014** et **W-016** clos (leur constat portait sur le Python ; 0,54 s et
+      274 Mo aujourd'hui, la part restante est suivie par W-050), **W-035 (9)** renvoyé au lot 15, **W-036 (8)** généralisé par
+      le lot 3, **W-041** laissé ouvert avec sa condition vérifiée (25 dernières exécutions de la CI vertes).
+- [x] Leçons à ajouter dans `docs/lecons.md` : **L-087** (crochet dépendant d'un outil absent) et **L-088** (résultat de calcul
+      en arrière-plan sans numéro de demande). L'allocation ratée non rattrapable était déjà écrite au lot 4 : **L-080**.
+- [x] Proposer à Cédric la suite : fait le 2026-11-06 dans [plan-suite.md](plan-suite.md) — publication 0.9.0 (lot 7, débloquée
+      par D-046), ménage des registres (lot 12), nettoyage d'après publication (lot 13), ouverture parallèle (lot 11), derniers
+      seuils de l'assistant (lot 14), et la dette de l'interface **sur déclencheur mesuré seulement** (lot 15 : cache borné
+      W-035 (9), factorisation des pages spectrales, lints pédantiques ciblés — **jamais** `suboptimal_flops`, L-051).
 
 ## Lot 7 : première publication Rust, version 0.9.0 (Sonnet ; essais réels par Cédric)
 
@@ -475,7 +502,7 @@ en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cum
 | 3 | Fait le 2026-11-04 (PR #104) |
 | 4 | Fait le 2026-11-04 (branche `fix/decoder-hostile-header`, D-044, L-080) : `DecodeError`, bornes 512 champs / intervalles 1 à 65 535, `try_reserve`, `Settings::implausible`. `robustness.rs` : 10 cas, 6 rouges avant correction (les intervalles à 9·10¹⁸ ne bouclaient pas sur cette source : refusés par la borne seulement) ; contre-preuves : 4 retraits rougissent. `otb-parity` 0 échec, `corpus validate` 697/712 comme la ligne de base |
 | 5 | Fait le 2026-11-04 (branche `perf/decoder-memory`, poussée, PR non ouverte, L-081). Banc `otb-dev bench-open` fait (lot 5a). 5a (session par session) essayé et retiré : sans effet (une seule session, +32 Mo). Variante 1 : rendre la table `i64` avant les copies finales : 481 → 342 Mo. Variante 2 (accord de Cédric) : `CompactTable`, trames rangées en `i32` dès le décodeur : **274 Mo (÷ 1,75, objectif ÷ 1,5 atteint, ÷ 2 manqué), 0,54 s (plus rapide)**, `FlightLog` identiques sur 528 fichiers, `corpus validate` 697/712, `otb-parity` 0 échec. Un décodage par blocs vers `f32` irait plus loin (non fait). `golden.rs` rouge sur `main` avec `OTB_GOLDEN`, non traité |
-| 6 | À faire |
+| 6 | Fait le 2026-11-06 (branche **docs/plan-suite**, avec le plan de la suite : la branche prévue docs/chantiers-bilan aurait empilé une PR sur une PR non fusionnée, choix de Cédric). Bilan des cinq chantiers ci-dessus ; L-087 et L-088 écrites ; W-014 et W-016 clos, W-035 (9), W-036 (8) et W-041 mis à jour ; note périmée sur `golden.rs` corrigée dans `validation.md`. Aucun code livré. Écart au plan : les mesures de robustesse et de mémoire n'avaient pas à être reprises (les lots 4 et 5 les avaient déjà écrites dans `validation.md`), et la 3ᵉ leçon prévue existait déjà (L-080) |
 | 7 | Détaillé le 2026-11-05 (0.9.0, après les lots 5 et 6) ; à faire |
 | 8 | Fait le 2026-11-05 (branche `chore/viewer-frame-bench`, partie de `main` : le lot 5 était fusionné) : `examples/banc_cadre.rs`. Étalon retrouvé sur `FINAL.bbl` (viewer 7,4 à 8,3 ms, Guide 0,41 à 0,43, 6,2 ms à 640 px) ; `LOG00008.BFL` 12,6 à 13,0 ms à 620 079 échantillons, sous les 16,7 ms. Écart au plan : les 0,34 ms de carte graphique de W-049 ne se reproduisent pas (kittest prend le rendu logiciel par défaut ; sur vraie carte, ≈ 10 ms fixes de relecture même sans courbe) : `--gpu` gardé avec chiffres bruts (accord de Cédric), le lot 10 se juge sur le temps du processeur. Le banc ajoute la tessellation (0,7 ms) |
 | 9 | Non retenu le 2026-11-04 ; repris hors lot le 2026-11-05 (branche `test/golden-tolerance`, D-047, L-083) : `golden.rs` vert avec `OTB_GOLDEN` |
