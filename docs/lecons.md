@@ -60,6 +60,22 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-089 : sans consigne, une fenêtre eframe s'ouvre en 800 × 600, quel que soit l'écran
+- **Symptôme** — 2026-11-06, essai de la 0.9.0 par Cédric sur l'AppImage : la fenêtre s'ouvre beaucoup trop petite pour six
+  graphiques et le panneau de réglages, alors que la version Python s'ouvrait grande. Invisible pour nous : nos captures hors
+  écran fixent elles-mêmes la taille (1500 × 900), et nos postes avaient déjà une taille enregistrée par un lancement précédent.
+- **Cause (lue dans les sources)** — `egui::ViewportBuilder::default()` laisse `inner_size` à `None` et eframe ne met aucune
+  taille à la place : winit ouvre alors sa fenêtre par défaut, 800 × 600. La version Python, elle, ouvrait à 95 % de l'écran
+  (`gui/geometry.py:fit_to_screen`, étalon `python-final`) — comportement perdu à la migration sans que personne le remarque.
+- **Règle** — une fenêtre d'application dit toujours comment elle s'ouvre : `.with_maximized(true)` pour la première ouverture,
+  plus `.with_inner_size(…)` comme taille de repli quand l'utilisateur la restaure. Les lancements suivants n'en dépendent plus :
+  eframe enregistre la géométrie laissée par l'utilisateur (clé `window` de son stockage) et ses réglages **l'emportent** sur ceux
+  du `ViewportBuilder` (`egui-winit/src/window_settings.rs:initialize_viewport_builder`), donc régler l'ouverture ne piège
+  personne dans une fenêtre agrandie. Plus largement : un comportement de la version Python qui ne se voit ni dans un test ni dans
+  une capture (taille, position, icône) se vérifie **sur un vrai premier lancement**, dossier de configuration vide.
+- **Preuve** — `rust/otb-gui/src/main.rs` ; `rust/otb-gui/tests/contracts.rs::la_fenetre_s_ouvre_grande_au_premier_lancement`
+  (retirer `.with_maximized(true)` : il rougit) ; sources d'eframe 0.37 et d'egui-winit 0.37 citées ci-dessus.
+
 ### L-088 : un résultat de calcul en arrière-plan sans numéro de demande s'affiche en revenant, même si plus personne ne l'attend
 - **Symptôme** — relevé à l'audit du 2026-11-04 (chantier C2) et reproduit par un test le même jour (lot 3) : dans une page
   d'outil, un calcul lancé puis rendu caduc revenait et s'affichait quand même. Après « Tout fermer », son résultat écrasait
@@ -982,6 +998,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-089 | Fenêtre eframe sans `inner_size` : winit l'ouvre en 800 × 600 quel que soit l'écran ; dire comment la fenêtre s'ouvre (`with_maximized`, `with_inner_size`), la géométrie enregistrée l'emportant ensuite — et vérifier taille, position et icône sur un vrai **premier** lancement | Interface |
 | L-088 | Résultat d'un calcul en arrière-plan sans numéro de demande : il s'affiche en revenant (après « Tout fermer », ou avec l'ancienne sélection) ; numéroter chaque demande, jeter celle qui n'est plus la dernière, et tester en changeant l'état **pendant** le calcul | Interface |
 | L-087 | Crochet qui dépend d'un outil absent (`jq` sous Windows) : il rend 0 sans rien vérifier ni rien dire ; ne dépendre que du sûr, dire ce qui n'a pas été vérifié, échouer visiblement (code 2), jamais `exit 0` sur un chemin d'erreur | Outillage |
 | L-086 | Index min/max dont les blocs ne portent que des indices : chaque comparaison relit la courbe au loin, le cadre reste proportionnel au nombre d'échantillons (défauts de cache) ; ranger les valeurs **avec** les indices, et prouver l'indépendance sur le **même** log zoomé, jamais en comparant deux logs | Interface |

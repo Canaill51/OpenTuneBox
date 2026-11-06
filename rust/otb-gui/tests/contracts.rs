@@ -243,6 +243,23 @@ fn chaque_onglet_de_la_barre_a_son_icone_et_sa_couleur_comme_python() {
     );
 }
 
+/// L-089 : sans consigne, winit ouvre la fenêtre en 800 × 600, trop petit pour six graphiques et le panneau de réglages ; la version
+/// Python ouvrait à 95 % de l'écran. La fenêtre doit donc s'ouvrir agrandie, avec une taille de repli correcte quand on la restaure.
+#[test]
+fn la_fenetre_s_ouvre_grande_au_premier_lancement() {
+    let main = std::fs::read_to_string(racine().join("src/main.rs")).unwrap();
+    // ⚠️ Lignes entières, commentaires exclus : une recherche de texte serait satisfaite par un commentaire qui cite l'appel.
+    let appelle = |debut: &str| main.lines().any(|l| l.trim_start().starts_with(debut));
+    assert!(
+        appelle(".with_maximized(true)"),
+        "main.rs : la fenêtre doit s'ouvrir agrandie (`.with_maximized(true)`, L-089)"
+    );
+    assert!(
+        appelle(".with_inner_size("),
+        "main.rs : taille de repli de la fenêtre restaurée (`.with_inner_size(…)`, L-089)"
+    );
+}
+
 /// L-076 : sous Linux (Wayland), le bureau trouve l'icône de la fenêtre par un fichier `.desktop` dont le **nom** est l'`app_id`
 /// de la fenêtre, majuscules comprises (`OpenTuneBox.desktop` : bonne icône ; `opentunebox.desktop` avec `StartupWMClass` : icône
 /// générique, essayé sur KDE Plasma le 2026-11-03). Les deux scripts de `packaging/linux/` doivent donc écrire ce nom exact.
