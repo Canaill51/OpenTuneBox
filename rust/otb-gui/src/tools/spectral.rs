@@ -17,8 +17,8 @@ use otb_analysis::npstat::percentile_f32;
 use otb_analysis::spectral::{Mode, smooth_freq, spectrum, to_ptb_db};
 
 use super::common::{
-    AxisToggles, FileSelection, MotorToggles, ViewMemo, cdf, fmt_ms, harmonic_style, motor_freqs, rpm_filter_text,
-    sel_rows, sorted_above_zero, sorted_positive, wide,
+    AxisToggles, FileSelection, HARMONICS, MAX_NOTCHES, MotorToggles, ViewMemo, cdf, fmt_ms, harmonic_style,
+    harmonics_and_notches_ui, motor_freqs, ranks, rpm_filter_text, sel_rows, sorted_above_zero, sorted_positive, wide,
 };
 use super::report_ui::{REPORT_FOOTER, diagnosis_ui};
 use crate::plots::{corner_text, error_bars, nice_axes};
@@ -30,33 +30,6 @@ pub const RESOLUTIONS: [(f64, &str); 4] = [(0.5, "0,5 Hz"), (1.0, "1 Hz"), (2.0,
 /// Jeux de données cochés au départ.
 pub const DEFAULT_DATASETS: [&str; 2] = ["gyro", "gyro_prefilt"];
 const REPORT_WIDTH: f32 = 460.0;
-
-/// Harmoniques moteur tracées en courbes en « S » (`HARMONIC_CHOICES`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Harmonics {
-    None,
-    First,
-    Three,
-    /// Plage couverte par le filtre RPM.
-    Rpm,
-}
-
-impl Harmonics {
-    pub const ALL: [(Harmonics, &'static str); 4] = [
-        (Harmonics::None, "Harmoniques : aucune"),
-        (Harmonics::First, "1re harmonique"),
-        (Harmonics::Three, "1re, 2e, 3e"),
-        (Harmonics::Rpm, "Plage du filtre RPM"),
-    ];
-
-    pub fn ranks(self) -> &'static [i64] {
-        match self {
-            Harmonics::First => &[1],
-            Harmonics::Three => &[1, 2, 3],
-            _ => &[],
-        }
-    }
-}
 
 /// Graphique de droite (`RIGHT_MODES`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -165,8 +138,12 @@ pub struct SpectralTool {
     ymax: f64,
     smoothing: usize,
     resolution: usize,
-    harmonics: Harmonics,
-    notch: bool,
+    /// Une case par harmonique moteur (`HARMONICS`), indépendantes les unes des autres.
+    harmonics: [bool; HARMONICS.len()],
+    /// Plage couverte par le filtre RPM, affichée en bandes par-dessus le spectre.
+    rpm_band: bool,
+    /// Une case par notch dynamique ; seules celles qui existent dans les logs choisis sont proposées.
+    notches: [bool; MAX_NOTCHES],
     motors: MotorToggles,
     multiplier: f64,
     diagnosis: bool,
@@ -197,8 +174,9 @@ impl SpectralTool {
             ymax: 20.0,
             smoothing: 2,
             resolution: 0,
-            harmonics: Harmonics::Three,
-            notch: true,
+            harmonics: [true; HARMONICS.len()],
+            rpm_band: false,
+            notches: [true; MAX_NOTCHES],
             motors: MotorToggles::default(),
             multiplier: 2.1,
             diagnosis: false,
@@ -206,6 +184,18 @@ impl SpectralTool {
             files: FileSelection::new(true),
             goto: None,
             view: ViewMemo::default(),
+        }
+    }
+
+    /// Rangs des harmoniques cochées, dans l'ordre ; vide si aucune (aucune courbe en « S » moteur).
+    pub fn ranks(&self) -> Vec<i64> {
+        ranks(&self.harmonics)
+    }
+
+    /// Coche ou décoche l'harmonique de rang `HARMONICS[i].0` (rien si `i` est hors des harmoniques proposées).
+    pub fn set_harmonic(&mut self, i: usize, on: bool) {
+        if let Some(case) = self.harmonics.get_mut(i) {
+            *case = on;
         }
     }
 
@@ -241,10 +231,6 @@ impl SpectralTool {
 
     pub fn set_smoothing(&mut self, level: usize) {
         self.smoothing = level.min(5);
-    }
-
-    pub fn set_harmonics(&mut self, h: Harmonics) {
-        self.harmonics = h;
     }
 
     fn pen(key: &str) -> (f32, LineStyle) {
@@ -291,7 +277,7 @@ impl SpectralTool {
         let freqs: Vec<f64> = (0..800).map(|i| nyq * i as f64 / 799.0).collect();
         let span = y1 - y0;
         for f in &out.files {
-            if self.harmonics == Harmonics::Rpm {
+            if self.rpm_band {
                 for (h, a, b, w) in rpm_regions(f) {
                     pu.span(
                         Span::new("", a..=b)
@@ -301,32 +287,32 @@ impl SpectralTool {
                             .border_style(harmonic_style(h)),
                     );
                 }
-            } else {
-                for (m, vals) in f.motor_sorted.iter().enumerate() {
-                    if !enabled.contains(&(m % 4)) {
-                        continue;
-                    }
-                    for &h in self.harmonics.ranks() {
-                        let pts = s_curve(vals, h as f64, &freqs, y0, span);
-                        pu.line(
-                            Line::new("", PlotPoints::from(pts))
-                                .color(motor_color(m))
-                                .width(1.2)
-                                .style(harmonic_style(h)),
-                        );
-                    }
-                }
             }
-            if self.notch {
-                for vals in &f.notch_sorted {
-                    let pts = s_curve(vals, 1.0, &freqs, y0, span);
+            for (m, vals) in f.motor_sorted.iter().enumerate() {
+                if !enabled.contains(&(m % 4)) {
+                    continue;
+                }
+                for &h in &self.ranks() {
+                    let pts = s_curve(vals, h as f64, &freqs, y0, span);
                     pu.line(
                         Line::new("", PlotPoints::from(pts))
-                            .color(plot::NEUTRAL)
-                            .width(1.5)
-                            .style(LineStyle::dashed_dense()),
+                            .color(motor_color(m))
+                            .width(1.2)
+                            .style(harmonic_style(h)),
                     );
                 }
+            }
+            for (n, vals) in f.notch_sorted.iter().enumerate() {
+                if !self.notches.get(n).copied().unwrap_or(false) {
+                    continue;
+                }
+                let pts = s_curve(vals, 1.0, &freqs, y0, span);
+                pu.line(
+                    Line::new("", PlotPoints::from(pts))
+                        .color(plot::NEUTRAL)
+                        .width(1.5)
+                        .style(LineStyle::dashed_dense()),
+                );
             }
         }
     }
@@ -667,14 +653,10 @@ impl Tool for SpectralTool {
                     }).response.accessible_name("Résolution");
                 ui.end_row();
             });
-            egui::ComboBox::from_id_salt("harmoniques")
-                .selected_text(Harmonics::ALL.iter().find(|(h, _)| *h == self.harmonics).map_or("", |(_, l)| *l))
-                .show_ui(ui, |ui| {
-                    for (h, l) in Harmonics::ALL {
-                        ui.selectable_value(&mut self.harmonics, h, l);
-                    }
-                }).response.accessible_name("Harmoniques");
-            ui.checkbox(&mut self.notch, "Notchs dynamiques");
+            // Une case par harmonique et par notch : Cédric veut les comparer une à une, pas par paquets (2026-11-06).
+            harmonics_and_notches_ui(ui, &mut self.harmonics, &mut self.notches, state, theme.ui.muted);
+            ui.checkbox(&mut self.rpm_band, "Plage du filtre RPM")
+                .on_hover_text("Bandes couvertes par les notchs du filtre RPM, par-dessus le spectre.");
             self.motors.ui(ui);
             ui.horizontal(|ui| {
                 ui.label("RPM estimé ×");

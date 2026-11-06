@@ -12,8 +12,8 @@ use otb_analysis::motors::dyn_notch_centres;
 use otb_analysis::spectral::{freq_time, to_ptb_db};
 
 use super::common::{
-    AxisToggles, FileSelection, MotorToggles, ViewMemo, decimate, harmonic_style, motor_freqs, nan_unless_positive,
-    sel_rows, wide,
+    AxisToggles, FileSelection, HARMONICS, MAX_NOTCHES, MotorToggles, ViewMemo, decimate, harmonic_style,
+    harmonics_and_notches_ui, motor_freqs, nan_unless_positive, ranks, sel_rows, wide,
 };
 use crate::plots::{VDrag, colorbar, heatmap_texture, nice_axes};
 use crate::state::AppState;
@@ -24,14 +24,6 @@ use crate::tool::{LogInput, Tool};
 pub const FREQ_SMOOTHING: [(i64, &str); 4] = [(0, "aucun"), (2, "5 points"), (5, "10 points"), (10, "20 points")];
 /// Pas entre deux fenêtres de 300 ms : (diviseur, libellé).
 pub const TIME_STEPS: [(i64, &str); 4] = [(1, "300 ms"), (2, "150 ms"), (5, "60 ms"), (10, "30 ms")];
-/// Harmoniques moteur tracées : (rangs, libellé).
-pub const HARMONIC_CHOICES: [(&[i64], &str); 5] = [
-    (&[], "Harmoniques : aucune"),
-    (&[1], "1re harmonique"),
-    (&[2], "2e harmonique"),
-    (&[3], "3e harmonique"),
-    (&[1, 2, 3], "1re, 2e, 3e"),
-];
 pub const MAX_TRACE_POINTS: usize = 3000;
 /// Largeur maximale d'une texture de spectrogramme (limite des cartes graphiques) : au-delà, les colonnes sont moyennées.
 pub const MAX_TEXTURE_COLUMNS: usize = 4096;
@@ -122,8 +114,10 @@ pub struct FreqTimeTool {
     zmin: f64,
     zmax: f64,
     sub100: bool,
-    notch: bool,
-    harmonics: usize,
+    /// Une case par notch dynamique présent dans les logs (`MAX_NOTCHES`).
+    notches: [bool; MAX_NOTCHES],
+    /// Une case par harmonique moteur (`HARMONICS`), indépendantes les unes des autres.
+    harmonics: [bool; HARMONICS.len()],
     motors: MotorToggles,
     axes: AxisToggles,
     files: FileSelection,
@@ -152,8 +146,9 @@ impl FreqTimeTool {
             zmin: -30.0,
             zmax: 10.0,
             sub100: false,
-            notch: false,
-            harmonics: 1,
+            // comme avant le découpage des cases (2026-11-06) : la 1re harmonique seule, aucun notch
+            notches: [false; MAX_NOTCHES],
+            harmonics: [true, false, false],
             motors: MotorToggles::default(),
             axes: AxisToggles::default(),
             files: FileSelection::new(false),
@@ -365,16 +360,7 @@ impl Tool for FreqTimeTool {
                 ui.end_row();
             });
             ui.checkbox(&mut self.sub100, "< 100 Hz");
-            ui.checkbox(&mut self.notch, "Notchs dyn.");
-            egui::ComboBox::from_id_salt("ft-harmoniques")
-                .selected_text(HARMONIC_CHOICES[self.harmonics].1)
-                .show_ui(ui, |ui| {
-                    for (i, (_, l)) in HARMONIC_CHOICES.iter().enumerate() {
-                        ui.selectable_value(&mut self.harmonics, i, *l);
-                    }
-                })
-                .response
-                .accessible_name("Harmoniques");
+            harmonics_and_notches_ui(ui, &mut self.harmonics, &mut self.notches, state, theme.ui.muted);
             self.motors.ui(ui);
             ui.horizontal(|ui| {
                 ui.label("RPM estimé ×");
@@ -425,7 +411,7 @@ impl Tool for FreqTimeTool {
         let h = ((ui.available_height() - spacing.y * shown.len() as f32) / shown.len() as f32).max(110.0);
         let w = (ui.available_width() - 70.0 - spacing.x).max(200.0);
         let enabled = self.motors.enabled();
-        let ranks = HARMONIC_CHOICES[self.harmonics].0;
+        let ranks = ranks(&self.harmonics);
         let link = self.link;
         let press = ui.input(|i| i.pointer.press_origin()).map(|p| p.x);
         let mut xs = [state.cursor];
@@ -480,7 +466,7 @@ impl Tool for FreqTimeTool {
                             [span as f32, (df * nf as f64) as f32],
                         ));
                         if let Some(tt) = &out.motor_t {
-                            for &h in ranks {
+                            for &h in &ranks {
                                 for (m, hz) in out.motor_hz.iter().enumerate() {
                                     if !enabled.contains(&(m % 4)) {
                                         continue;
@@ -497,11 +483,12 @@ impl Tool for FreqTimeTool {
                                 }
                             }
                         }
-                        if self.notch {
-                            for (tt, hz) in &out.notches {
-                                for run in finite_runs(tt, hz) {
-                                    pu.line(Line::new("", PlotPoints::from(run)).color(plot::NOTCH_TRACE).width(1.0));
-                                }
+                        for (n, (tt, hz)) in out.notches.iter().enumerate() {
+                            if !self.notches.get(n).copied().unwrap_or(false) {
+                                continue;
+                            }
+                            for run in finite_runs(tt, hz) {
+                                pu.line(Line::new("", PlotPoints::from(run)).color(plot::NOTCH_TRACE).width(1.0));
                             }
                         }
                         pu.vline(

@@ -9,6 +9,7 @@ use otb_log::flightlog::{FlightLog, Rows};
 
 use crate::state::{AppState, MAX_LOGS};
 use crate::theme::{AXIS_NAMES, motor_color};
+use crate::tools::filter_sim_calc::DYN_COUNT_MAX;
 
 pub const MOTOR_LABELS: [&str; 4] = ["M1/5", "M2/6", "M3/7", "M4/8"];
 
@@ -234,6 +235,109 @@ impl FileSelection {
             }
         }
     }
+}
+
+/// Harmoniques moteur proposées, chacune sa case : (rang, libellé court, info-bulle). Partagées par le Spectre
+/// et Fréquence × temps, qui les tracent par-dessus leurs courbes.
+pub const HARMONICS: [(i64, &str, &str); 3] = [
+    (1, "1re", "1re harmonique moteur (trait plein)"),
+    (2, "2e", "2e harmonique moteur (tirets)"),
+    (3, "3e", "3e harmonique moteur (pointillés)"),
+];
+/// Nombre de notchs dynamiques qu'un réglage Betaflight peut demander (`dyn_notch_count`) : 7 depuis la 4.5
+/// (5 en 4.4). Même valeur que `filter_sim_calc::DYN_COUNT_MAX`, que l'éditeur du Simulateur fait respecter.
+pub const MAX_NOTCHES: usize = DYN_COUNT_MAX as usize;
+
+/// Rangs des harmoniques cochées, dans l'ordre (vide : aucune à tracer).
+pub fn ranks(cases: &[bool; HARMONICS.len()]) -> Vec<i64> {
+    HARMONICS
+        .iter()
+        .zip(cases)
+        .filter(|(_, on)| **on)
+        .map(|((h, ..), _)| *h)
+        .collect()
+}
+
+/// Nombre de notchs dynamiques proposés : le plus grand nombre présent dans les logs ouverts (0 : aucun à tracer).
+/// Lu dans les réglages, pas dans un résultat de calcul : le panneau est dessiné avant que le calcul soit rendu.
+pub fn notch_count(state: &AppState) -> usize {
+    state
+        .logs
+        .iter()
+        .map(|l| motors::dyn_notch_rows(&l.log).len())
+        .max()
+        .unwrap_or(0)
+        .min(MAX_NOTCHES)
+}
+
+/// Résumé du menu des notchs dynamiques, pour `n` notchs présents : « tous », « aucun », les numéros quand il y en a
+/// peu, sinon un compte. Le bouton du menu doit dire ce qui est affiché sans qu'on l'ouvre.
+pub fn notches_summary(cases: &[bool]) -> String {
+    let choisis: Vec<usize> = cases
+        .iter()
+        .enumerate()
+        .filter(|(_, on)| **on)
+        .map(|(i, _)| i + 1)
+        .collect();
+    if cases.is_empty() {
+        return "Notchs : aucun".into();
+    }
+    match choisis.len() {
+        0 => "Notchs : aucun".into(),
+        n if n == cases.len() => "Notchs : tous".into(),
+        1..=3 => format!(
+            "Notchs : {}",
+            choisis.iter().map(|n| format!("N{n}")).collect::<Vec<_>>().join(", ")
+        ),
+        n => format!("Notchs : {n} sur {}", cases.len()),
+    }
+}
+
+/// Cases à cocher des harmoniques moteur puis menu des notchs dynamiques présents (panneau de réglages d'un outil).
+pub fn harmonics_and_notches_ui(
+    ui: &mut Ui,
+    harmonics: &mut [bool; HARMONICS.len()],
+    notches: &mut [bool; MAX_NOTCHES],
+    state: &AppState,
+    muted: egui::Color32,
+) {
+    ui.label("Harmoniques moteur");
+    ui.horizontal_wrapped(|ui| {
+        for (i, (_, court, bulle)) in HARMONICS.iter().enumerate() {
+            ui.checkbox(&mut harmonics[i], *court).on_hover_text(*bulle);
+        }
+    });
+    let n = notch_count(state);
+    if n == 0 {
+        ui.label("Notchs dynamiques");
+        ui.label(RichText::new("aucun dans ces logs (mode débug FFT_FREQ)").color(muted));
+        return;
+    }
+    // le bouton du menu porte déjà le mot « Notchs » : pas de titre au-dessus, le panneau est étroit
+    // Menu déroulant plutôt qu'une rangée de cases : jusqu'à 7 notchs (Betaflight 4.5+), le panneau est étroit,
+    // et le bouton dit ce qui est tracé sans qu'on l'ouvre (demandé par Cédric le 2026-11-06).
+    egui::ComboBox::from_id_salt("notchs-dyn")
+        // ⚠️ sans cela, le menu se referme au premier clic (comportement d'une liste de choix) : on veut cocher
+        // plusieurs notchs de suite, le menu ne se ferme que par un clic à côté ou par Échap.
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .selected_text(notches_summary(&notches[..n]))
+        .show_ui(ui, |ui| {
+            ui.horizontal(|ui| {
+                if ui.button("Tous").clicked() {
+                    notches[..n].fill(true);
+                }
+                if ui.button("Aucun").clicked() {
+                    notches[..n].fill(false);
+                }
+            });
+            ui.separator();
+            for (i, case) in notches.iter_mut().enumerate().take(n) {
+                ui.checkbox(case, format!("N{}", i + 1))
+                    .on_hover_text(format!("Centre du notch dynamique n° {}", i + 1));
+            }
+        })
+        .response
+        .accessible_name("Notchs dynamiques");
 }
 
 /// Cases R, P, Y : axes affichés (réglage d'affichage, pas de recalcul).

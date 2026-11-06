@@ -8,6 +8,7 @@ use egui_kittest::Harness;
 use otb_gui::state::AppState;
 use otb_gui::theme::CLAIR;
 use otb_gui::tool::{Page, Tool, ToolPage};
+use otb_gui::tools::common::notch_count;
 use otb_gui::tools::freq_time::{FreqTimeOutput, FreqTimeTool, MAX_TRACE_POINTS, finite_runs, reduce_columns};
 
 fn log5s() -> otb_log::flightlog::FlightLog {
@@ -223,6 +224,37 @@ fn un_log_sans_moteurs_ni_notchs_donne_des_spectrogrammes_sans_traces() {
     let mut st = AppState::new();
     st.add(log);
     assert!(calcule(&FreqTimeTool::new(), &st).maps.is_empty());
+}
+
+/// 2026-11-06 : harmoniques et notchs se cochent un à un ici aussi, plus par une liste et une case « tous les notchs ».
+#[test]
+fn les_harmoniques_et_les_notchs_se_cochent_un_a_un() {
+    use egui_kittest::kittest::Queryable;
+    let mut h = banc(FreqTimeTool::new());
+    h.run();
+    for case in ["1re", "2e", "3e"] {
+        h.get_by_label(case).click();
+        h.run_steps(3);
+    }
+    // les notchs sont dans un menu : fermé, aucune case n'est à l'écran
+    let notchs = notch_count(&h.state().1);
+    assert!(notchs >= 2, "le log d'essai doit avoir plusieurs notchs ({notchs})");
+    assert!(
+        h.query_by_label("N1").is_none(),
+        "le menu des notchs est fermé au départ"
+    );
+    h.get_by_label("Notchs dynamiques").click(); // ouvrir le menu
+    h.run_steps(3);
+    for n in 1..=notchs {
+        h.get_by_label(format!("N{n}").as_str()).click();
+        h.run_steps(3);
+    }
+    assert!(
+        h.query_by_label(format!("N{}", notchs + 1).as_str()).is_none(),
+        "pas de case pour un notch absent du log"
+    );
+    // l'ancienne liste d'harmoniques a disparu
+    assert!(h.query_by_label("1re, 2e, 3e").is_none());
 }
 
 #[test]

@@ -49,20 +49,26 @@ pub fn motor_hz(log: &FlightLog, multiplier: Option<f64>) -> (Option<Rows>, bool
     (Some(out), true)
 }
 
-/// Centres des notchs dynamiques `(count, n)` en Hz, si le journal est en debug FFT_FREQ.
-pub fn dyn_notch_centres(log: &FlightLog) -> Option<Vec<Vec<f64>>> {
+/// Lignes du débug qui portent le centre d'un notch dynamique, dans l'ordre des notchs (vide : rien à tracer).
+/// Partagée par le calcul et par l'interface, qui propose une case par notch **présent** (jamais un numéro qui n'existe pas).
+pub fn dyn_notch_rows(log: &FlightLog) -> Vec<usize> {
     let s = &log.settings;
     if s.debug_mode != "FFT_FREQ" || s.dyn_notch_count <= 0 || log.debug.k == 0 {
-        return None;
+        return Vec::new();
     }
     let count = s.dyn_notch_count as usize;
     let k = log.debug.k;
-    let rows: Vec<usize> = if matches!(s.family(), "2025.12" | "2026.6") {
+    if matches!(s.family(), "2025.12" | "2026.6") {
         (1..k.min(1 + count)).collect()
     } else {
         // 4.x : debug[3] est écrasé par le gyro avant notch si count ≥ 4
         (0..k.min(count)).filter(|&p| p != 3).collect()
-    };
+    }
+}
+
+/// Centres des notchs dynamiques `(count, n)` en Hz, si le journal est en debug FFT_FREQ.
+pub fn dyn_notch_centres(log: &FlightLog) -> Option<Vec<Vec<f64>>> {
+    let rows = dyn_notch_rows(log);
     if rows.is_empty() {
         return None;
     }
