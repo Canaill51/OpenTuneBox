@@ -12,8 +12,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 Première version **entièrement en Rust** : l'application a été réécrite de fond en comble ; la version
 Python (0.8.0) et tout ce qu'elle demandait disparaissent.
 
-- **Un seul fichier à installer, bien plus petit** : 7,5 Mo sous Windows et 10,6 Mo sous Linux, au lieu de
-  88 Mo et 167 Mo ; rien d'autre à installer (ni Python, ni bibliothèque).
+- **Un seul fichier à installer, bien plus petit** : environ 8 Mo sous Windows et 11 Mo sous Linux, au lieu
+  de 88 Mo et 167 Mo ; rien d'autre à installer (ni Python, ni bibliothèque).
 - **Plus rapide et plus légère** : le plus gros log du corpus s'ouvre en 0,54 s et tient dans 274 Mo (au lieu
   de 481 Mo), et l'affichage des courbes reste fluide sur les longs vols (moins de 5 ms par image).
 - **Les mêmes résultats** : chaque calcul a été comparé un par un à la version Python sur tout le corpus de
