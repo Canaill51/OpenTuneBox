@@ -48,7 +48,7 @@ système, rien d'autre à installer (tout est inclus).
 | Système | Fichier | Installation |
 |---|---|---|
 | Windows 10 / 11 | `OpenTuneBox-Windows-Setup.exe` | double-clic, puis suivre l'assistant (menu Démarrer, Bureau, ouverture des `.bbl`) |
-| Linux (Ubuntu 22.04, Debian 12, Fedora 36… ou plus récent) | `OpenTuneBox-Linux.AppImage` | rendre le fichier exécutable, puis double-clic |
+| Linux (Ubuntu 22.04, Debian 12, Fedora 36… ou plus récent) | `OpenTuneBox-Linux.AppImage` | rendre le fichier exécutable, puis double-clic (au premier lancement, l'application s'ajoute au menu avec son icône) |
 
 Le programme n'est pas signé : Windows affiche un avertissement au premier lancement (marche à
 suivre dans le [guide](docs/guide-utilisateur.md#1-installer)). Pas de version macOS (D-042).

@@ -16,7 +16,10 @@ Le programme n'est pas signé : au premier lancement de l'installateur, SmartScr
 **Linux** (Ubuntu 22.04, Debian 12, Fedora 36… ou plus récent) : `OpenTuneBox-Linux.AppImage`, un seul
 fichier. Le rendre exécutable (clic droit → *Propriétés* → *Autoriser l'exécution*, ou
 `chmod +x OpenTuneBox-Linux.AppImage`), puis double-clic. S'il ne démarre pas (système sans FUSE) :
-`./OpenTuneBox-Linux.AppImage --appimage-extract-and-run`.
+`./OpenTuneBox-Linux.AppImage --appimage-extract-and-run`. Au premier lancement, OpenTuneBox s'ajoute au
+menu des applications et y met son icône ; si vous déplacez le fichier ensuite, relancez-le depuis son
+nouvel emplacement et corrigez ou supprimez l'ancien raccourci
+(`~/.local/share/applications/OpenTuneBox.desktop`).
 
 Lancer OpenTuneBox depuis ses sources ou fabriquer l'exécutable soi-même : voir la partie
 *Développement* du [README](../README.md#développement).

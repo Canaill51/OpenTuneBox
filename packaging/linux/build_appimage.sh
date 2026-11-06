@@ -33,13 +33,31 @@ cp "$ROOT/THIRD-PARTY-LICENSES.txt" "$APPDIR/usr/share/doc/opentunebox/THIRD-PAR
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
+# Intégration au bureau, au premier lancement seulement (W-045) : sans fichier `.desktop` portant l'app_id de la fenêtre, le bureau
+# ne connaît pas l'application et affiche une icône générique (le « W » de Wayland, L-076). On en écrit donc un, pointant vers
+# l'AppImage elle-même (`$APPIMAGE`, donné par son lanceur), avec son icône. Jamais écrasé ensuite : si le fichier existe déjà
+# (AppImage déplacée, ou `install_linux.sh` déjà passé), on n'y touche pas. Échec silencieux : l'application doit démarrer quand même.
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+DESKTOP="$DATA/applications/OpenTuneBox.desktop"
+if [ -n "${APPIMAGE:-}" ] && [ ! -e "$DESKTOP" ]; then
+    (
+        set -e
+        mkdir -p "$DATA/applications" "$DATA/icons/hicolor/256x256/apps"
+        cp -f "$HERE/opentunebox.png" "$DATA/icons/hicolor/256x256/apps/opentunebox.png"
+        # `Exec` doit lancer l'AppImage là où elle est ; les guillemets protègent un chemin à espaces (spécification Desktop Entry).
+        awk -v appimage="$APPIMAGE" '/^Exec=/ { print "Exec=\"" appimage "\" %F"; next } { print }' \
+            "$HERE/OpenTuneBox.desktop" > "$DESKTOP.tmp"
+        mv -f "$DESKTOP.tmp" "$DESKTOP"
+    ) || rm -f "$DESKTOP.tmp"
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
+fi
 exec "$HERE/usr/bin/OpenTuneBox" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 
 # Même nom que l'app_id de la fenêtre (L-076, voir install_linux.sh). Pas de MimeType : il n'existe pas de type standard pour les
-# logs Blackbox. ⚠️ L'AppImage n'est connue du bureau que si elle est intégrée (AppImageLauncher…) : lancée telle quelle, la fenêtre
-# garde une icône générique sous Wayland.
+# logs Blackbox. ⚠️ Ce fichier n'est qu'un modèle à l'intérieur de l'AppImage : le bureau ne le voit pas. C'est `AppRun` qui en
+# recopie une version dans le dossier de l'utilisateur au premier lancement (W-045).
 cat > "$APPDIR/OpenTuneBox.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
