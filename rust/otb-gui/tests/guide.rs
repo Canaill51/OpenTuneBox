@@ -13,7 +13,7 @@ use otb_advisor::profiles::PROFILES;
 use otb_advisor::tuning_path::phases;
 use otb_gui::app::{App, Screen};
 use otb_gui::guide::*;
-use otb_gui::guide_page::GuidePage;
+use otb_gui::guide_page::{AIDE_ETAPE, GuidePage};
 use otb_gui::tools::all_pages;
 use serde_json::Value;
 use std::ffi::OsString;
@@ -487,13 +487,16 @@ fn le_texte_de_la_case_suit_la_fiche_et_le_bouton_point_d_interrogation_affiche_
     );
     h.get_by_label(&titre);
     assert_eq!(
-        h.query_all_by_role_and_label(Role::Button, "?").count(),
+        h.query_all_by_role_and_label(Role::Button, AIDE_ETAPE).count(),
         11,
-        "un « ? » par case"
+        "un bouton d'aide par case"
     );
     // l'aide d'une case est repliée au départ, puis affichée par son « ? » (plus de textes à l'écran)
     let avant = h.query_all_by_role(Role::Label).count();
-    h.get_all_by_role_and_label(Role::Button, "?").next().unwrap().click();
+    h.get_all_by_role_and_label(Role::Button, AIDE_ETAPE)
+        .next()
+        .unwrap()
+        .click();
     h.run_steps(3);
     let apres = h.query_all_by_role(Role::Label).count();
     assert!(
@@ -501,7 +504,10 @@ fn le_texte_de_la_case_suit_la_fiche_et_le_bouton_point_d_interrogation_affiche_
         "l'aide de « {} » n'apparaît pas ({avant} → {apres} textes)",
         prep.steps[0].key
     );
-    h.get_all_by_role_and_label(Role::Button, "?").next().unwrap().click();
+    h.get_all_by_role_and_label(Role::Button, AIDE_ETAPE)
+        .next()
+        .unwrap()
+        .click();
     h.run_steps(3);
     assert_eq!(
         h.query_all_by_role(Role::Label).count(),

@@ -201,7 +201,7 @@ La méthode est le **parcours du guide intégré** (bouton **Guide**) : des case
   guide s'y adaptent et chaque drone garde son avancement ; **Recommencer** décoche toutes ses cases, **Supprimer** retire la fiche (les logs ne sont pas
   touchés).
 - **Frise et liste des phases** : où vous en êtes (cases faites / total).
-- **Cases** : un clic coche ; **?** affiche l'aide ; **Ouvrir …** ouvre l'outil utile, avec la période
+- **Cases** : un clic coche ; le bouton **ⓘ Aide** affiche l'aide ; **Ouvrir …** ouvre l'outil utile, avec la période
   d'analyse réglée sur la bonne partie du vol. Dès qu'un log du drone est ouvert, certaines cases se
   vérifient toutes seules (« ✔ Vérifié », ou « ▲ À revoir » avec la raison).
 - **Logs du drone** (sous les cases), en deux parties : **logs des filtres** et **logs des séries PID**.
