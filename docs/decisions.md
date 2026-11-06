@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-048 | Tracé du viewer : index multi-résolution min/max par courbe (`otb-dsp::minmax`), sortie identique point pour point à l'ancienne décimation ; un paquet contenant un trou est tracé comme un trou ; W-049 clos | 2026-11-05 |
 | D-047 | `golden.rs` compare chaque fonction portée avec la tolérance mesurée de `registry::tolerance` (bit près si aucune n'est déclarée), comme `otb-parity check` ; W-048 clos | 2026-11-05 |
 | D-046 | Polices embarquées (Ubuntu Light, Hack) gardées, chacune sous sa propre licence ; licences propres aux polices admises malgré « aucun copyleft » (D-045) ; W-046 clos | 2026-11-05 |
 | D-045 | Licence PolyForm Noncommercial 1.0.0 : code ouvert, tout usage commercial interdit, sans double licence ni exception vendue | 2026-11-04 |
@@ -119,6 +120,63 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
 
 ---
+
+## 2026-11-05 — Tracé du viewer indépendant du nombre d'échantillons
+
+### D-048 : index multi-résolution min/max, et un trou par paquet qui en contient un
+
+Clôt W-049 (lot 10 de [plan-chantiers.md](plan-chantiers.md)). **Tranché par Cédric** le 2026-11-05 : piste (b),
+index multi-résolution, plafond de mémoire « +10 % du pic ».
+
+**Contexte.** Le viewer trace ses courbes décimées min/max : la fenêtre visible est coupée en paquets et chaque
+paquet ne donne que son point le plus bas et son point le plus haut (≈ 3 840 points pour 1 920 pixels). L'ancienne
+`otb-gui::plots::visible_points` parcourait **tous les échantillons visibles** à chaque cadre : 10,5 à 12,1 ms par
+cadre sur la plus longue session du corpus (620 079 échantillons), et autant pendant un glissement, où les bornes
+changent à chaque image ([validation.md](validation.md), « Temps de cadre de l'interface »).
+
+**Option écartée (a) : cache des points décimés**, invalidé quand les bornes, la largeur, le lissage ou la courbe
+changent. Elle ne gagne **rien** pendant un glissement ou un zoom — c'est-à-dire dans le seul cas qui saccade —
+puisque les bornes y changent à chaque cadre.
+
+**Décidé (b) : un index multi-résolution par courbe** (`rust/otb-dsp/src/minmax.rs`, `MinMaxPyramid`) : minimum et
+maximum de chaque bloc de 8 échantillons, puis de chaque bloc de 8 blocs, etc. Une requête combine les plus gros
+blocs qui tiennent dans le paquet et ne parcourt que ses bords. Conséquences :
+
+- **le calcul reste hors de l'interface** (`otb-dsp`, règle d'[AGENTS.md](../AGENTS.md)) : il est testable sans écran,
+  et `otb-gui` n'en garde que le cache ;
+- **l'index vit avec la courbe lissée**, dans le cache du viewer (`viewer_page.rs:Series`), pas à l'ouverture du log :
+  rien n'est payé pour les courbes qu'on n'affiche pas, et changer de lissage refait les deux ensemble ;
+- **la sortie est identique point pour point** à celle de l'ancienne fonction sur toute courbe sans trou : ce n'est
+  pas « la même enveloppe », c'est la même liste de points (`rust/otb-dsp/tests/minmax.rs` compare à une copie figée
+  de l'ancienne implémentation) ; les captures hors écran du viewer sont identiques **au bit près**, aux deux thèmes ;
+- **un paquet qui contient au moins un `NaN` est tracé comme un trou** (un seul point `NaN`, la ligne est coupée).
+  L'ancienne règle, née d'une comparaison nue (`y[i] < y[lo]`), donnait un résultat qui dépendait de la position du
+  trou dans le découpage : un `NaN` en tête de paquet effaçait le minimum et le maximum réels, un `NaN` ailleurs
+  était ignoré. La nouvelle règle est déterministe et *associative*, condition nécessaire pour qu'un index soit exact
+  (L-085). Elle ne concerne que les courbes à trous (rotation des moteurs en Hz) ;
+- **8 blocs par niveau** (`minmax::FACTOR`) : l'index pèse 43 % d'une courbe `f64`. Mesuré à 16 blocs il tomberait à
+  20 %, mais coûterait 27 % de calcul en plus ; la mémoire n'étant pas le point dur ici (voir plus bas), la vitesse
+  l'emporte. Changer ce nombre ne change aucun résultat, seulement le compromis.
+
+**Preuves** (poste Linux, i7-11800H, release ; détail et plages dans [validation.md](validation.md)) :
+
+| Mesure | Avant | Après |
+|---|---|---|
+| Cadre du viewer, 620 079 échantillons, vue entière | 10,5 à 12,1 ms | **4,6 à 4,8 ms** |
+| idem, pendant un glissement | 10,3 à 10,8 ms | **4,8 à 4,9 ms** |
+| Cadre du viewer, 321 729 échantillons | 6,9 à 8,7 ms | **3,1 à 3,2 ms** |
+| Décimation seule, 620 079 échantillons (`otb-dsp --example banc_minmax`) | 0,99 ms | **0,17 ms** |
+| Pic de mémoire du processus (les deux logs) | 180 et 286 Mo | **180 et 286 Mo** |
+
+**Plafond de mémoire tenu.** L'index pèse 11,6 Mo (`FINAL.bbl`) et 22,3 Mo (`LOG00008.BFL`), soit 6,4 % et 7,8 % du
+pic, sous les 10 % fixés par Cédric. Mieux : le pic du processus **ne bouge pas** (mesuré avec et sans l'index) ; il
+est atteint pendant le décodage, avant que le viewer ne construise ses courbes.
+
+**Ce qui reste.** Le cadre n'est plus proportionnel au nombre d'échantillons mais il n'est pas constant pour autant :
+à nombre de points rendus égal, le même log mesure 4,7 ms en vue entière et 2,1 ms zoomé sur un huitième. Ce qui
+reste est le **tracé** des ≈ 3 840 points de chaque courbe (indépendant du log) et les bords de paquets, qui touchent
+la courbe sur toute son étendue (défauts de cache, L-086). Aller plus loin demanderait de réduire le nombre de points
+rendus, donc de toucher au rendu : W-052.
 
 ## 2026-11-05 — Concordance avec les références figées
 

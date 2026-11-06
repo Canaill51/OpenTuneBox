@@ -7,11 +7,12 @@ use std::sync::Arc;
 
 use egui::{Color32, Id, Ui};
 use egui_plot::{AxisHints, HPlacement, Line, LineStyle, Plot, PlotPoint, PlotPoints, Span, Text, VLine};
+use otb_dsp::minmax::{MinMaxPyramid, window_points};
 use otb_log::flightlog::FlightLog;
 use otb_log::modes::mode_changes;
 
 use crate::icons::icon;
-use crate::plots::{VDrag, right_axis_scale, visible_points};
+use crate::plots::{VDrag, right_axis_scale};
 use crate::state::AppState;
 use crate::theme::{self, AXIS_NAMES, Theme};
 use crate::viewer::{
@@ -22,12 +23,29 @@ use crate::viewer::{
 /// Groupe des axes X liés (zoom et déplacement communs aux quatre graphiques).
 const LINK: &str = "otb-viewer-x";
 
+/// Une courbe en cache : valeurs (lissage déjà appliqué) et index multi-résolution qui rend le tracé indépendant
+/// du nombre d'échantillons (D-048).
+///
+/// ⚠️ Les deux vont **ensemble** : les indices de l'index désignent des positions dans `y`. Les ranger dans le même
+/// objet de cache interdit de tracer une courbe avec l'index d'une autre (D-048).
+struct Series {
+    y: Vec<f64>,
+    pyramid: MinMaxPyramid,
+}
+
+impl Series {
+    fn new(y: Vec<f64>) -> Self {
+        let pyramid = MinMaxPyramid::build(&y);
+        Self { y, pyramid }
+    }
+}
+
 /// Une courbe prête à tracer : lissage déjà appliqué.
 struct Curve {
     name: String,
     color: Color32,
     width: f32,
-    y: Arc<Vec<f64>>,
+    data: Arc<Series>,
     dotted: bool,
 }
 
@@ -54,7 +72,7 @@ pub struct ViewerPage {
     shown: Option<usize>,
     /// Recadrer en X sur tout le log au prochain cadre.
     fit: bool,
-    series: HashMap<(&'static str, usize, usize), Arc<Vec<f64>>>,
+    series: HashMap<(&'static str, usize, usize), Arc<Series>>,
     present: HashMap<&'static str, bool>,
     modes: Vec<(f64, String)>,
     link: Id,
@@ -113,15 +131,23 @@ impl ViewerPage {
         }
     }
 
+    /// Mémoire du cache de courbes : valeurs d'un côté, index multi-résolution de l'autre (octets). Sert au banc
+    /// `otb-gui --example banc_cadre` à confronter le coût de l'index au pic de mémoire du processus (D-048).
+    pub fn cache_bytes(&self) -> (usize, usize) {
+        self.series.values().fold((0, 0), |(v, p), s| {
+            (v + s.y.len() * std::mem::size_of::<f64>(), p + s.pyramid.bytes())
+        })
+    }
+
     /// Recadre les graphiques sur tout le log (« Vue entière »).
     pub fn fit_all(&mut self) {
         self.fit = true;
     }
 
-    fn series(&mut self, key: &'static str, ax: usize, w: usize, make: impl FnOnce() -> Vec<f64>) -> Arc<Vec<f64>> {
+    fn series(&mut self, key: &'static str, ax: usize, w: usize, make: impl FnOnce() -> Vec<f64>) -> Arc<Series> {
         self.series
             .entry((key, ax, w))
-            .or_insert_with(|| Arc::new(make()))
+            .or_insert_with(|| Arc::new(Series::new(make())))
             .clone()
     }
 
@@ -144,12 +170,12 @@ impl ViewerPage {
                 if matches!(key, "dterm" | "dterm_prefilt") && !row.iter().any(|&v| v != 0.0) {
                     continue;
                 }
-                let y = self.series(key, ax, w, || smooth(row, w));
+                let data = self.series(key, ax, w, || smooth(row, w));
                 curves.push(Curve {
                     name: trace_label(key).into(),
                     color: th.trace_color(key),
                     width: self.width,
-                    y,
+                    data,
                     dotted: false,
                 });
             }
@@ -157,23 +183,23 @@ impl ViewerPage {
         let mut motors = Vec::new();
         if self.motors {
             for m in 0..log.n_motors() {
-                let y = self.series("motor", m, w, || smooth(log.motors.row(m), w));
+                let data = self.series("motor", m, w, || smooth(log.motors.row(m), w));
                 motors.push(Curve {
                     name: format!("Moteur {}", m + 1),
                     color: theme::motor_color(m),
                     width: self.width,
-                    y,
+                    data,
                     dotted: false,
                 });
             }
         }
         if self.throttle {
-            let y = self.series("throttle", 0, 1, || log.throttle.iter().map(|&v| v as f64).collect());
+            let data = self.series("throttle", 0, 1, || log.throttle.iter().map(|&v| v as f64).collect());
             motors.push(Curve {
                 name: "Gaz".into(),
                 color: th.trace_color("throttle"),
                 width: self.width + 1.0,
-                y,
+                data,
                 dotted: false,
             });
         }
@@ -183,14 +209,14 @@ impl ViewerPage {
             let top = hz.data.iter().copied().filter(|v| !v.is_nan()).fold(0.0f32, f32::max) as f64 * 1.05;
             k = right_axis_scale(100.0, top);
             for m in 0..hz.k {
-                let y = self.series("rps", m, w, || {
+                let data = self.series("rps", m, w, || {
                     smooth(hz.row(m), w).into_iter().map(|v| v * k).collect()
                 });
                 rps.push(Curve {
                     name: format!("Rotation {} (Hz)", m + 1),
                     color: theme::motor_color(m),
                     width: self.width,
-                    y,
+                    data,
                     dotted: true,
                 });
             }
@@ -546,7 +572,7 @@ impl ViewerPage {
                     for c in curves.iter().chain(extra) {
                         let mut line = Line::new(
                             c.name.as_str(),
-                            PlotPoints::from(visible_points(t, &c.y, x0, x1, max_points)),
+                            PlotPoints::from(window_points(t, &c.data.y, &c.data.pyramid, x0, x1, max_points)),
                         )
                         .color(c.color)
                         .width(c.width);

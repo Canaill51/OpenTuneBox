@@ -18,6 +18,7 @@ winresource = "0.1"
 [dependencies]
 otb-advisor = { path = "../otb-advisor" }
 otb-analysis = { path = "../otb-analysis" }
+otb-dsp = { path = "../otb-dsp" }
 otb-format = { path = "../otb-format" }
 otb-log = { path = "../otb-log" }
 eframe = { version = "0.37", features = ["persistence"] }

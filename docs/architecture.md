@@ -93,7 +93,8 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   recalcule qu'à son affichage. `main.rs` : démarrage (pas de console sous Windows, icône de fenêtre, ouvre les logs passés en
   argument).
 - `viewer.rs` (traces, lissage) et `viewer_page.rs` (page du visualiseur : traces groupées, traces absentes du log masquées,
-  sections repliables Affichage et Lecteur).
+  sections repliables Affichage et Lecteur). Chaque courbe affichée est gardée en cache avec son index multi-résolution
+  (`Series`, clé : trace, axe, lissage) ; le tracé n'appelle plus que `otb_dsp::minmax::window_points` (D-048).
 - `guide.rs` : le Guide sans egui (fichier des fiches `drones.json` dans le dossier de données de l'utilisateur, fichier illisible
   mis de côté : D-039 ; liens `otb:`, avancement, outils cités). `guide_page.rs` : la page **Guide** (accueil
   `rust/otb-gui/assets/guide/accueil.md`, frise et liste des phases, fiches drone, cases décrites par `tuning_path.rs`, logs du drone
@@ -131,7 +132,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   (prédicteurs et lecture d'une trame ou d'un événement), `reader.rs` (session décodée).
 - **otb-log** : rejet des trames impossibles et conversions float32 de l'ouverture d'un log (D-034) ; `debug_tables.rs` et `modes.rs`
   (tables de debug et de modes), `settings.rs` (`parse_settings`), `flightlog.rs` (`FlightLog`, `from_session`, `load`).
-- **otb-dsp** : noyaux des filtres Betaflight, de `step_response` et primitives numériques (`numeric.rs`) ; dépendances realfft et rayon (D-033).
+- **otb-dsp** : noyaux des filtres Betaflight, de `step_response`, primitives numériques (`numeric.rs`) et décimation min/max des
+  courbes (`minmax.rs` : `MinMaxPyramid`, index multi-résolution par courbe, `window_points` en O(points rendus) ; D-048) ;
+  dépendances realfft et rayon (D-033).
 - **otb-format** : formats de nombres (`{:.2f}`, `%g`, `repr`, `round`, D-035), pour que les textes restent identiques à ceux de l'ancienne version.
 - **otb-analysis** : voir « Modules d'analyse » ; dépend d'otb-dsp et de rayon (L-041, L-042).
 - **otb-advisor** : l'assistant. `profiles.rs` (profils de taille et seuils), `rules.rs` (constats), `noise.rs`, `step_tuning.rs`,

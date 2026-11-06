@@ -5,6 +5,7 @@
 
 use std::f64::consts::PI;
 
+pub mod minmax;
 pub mod numeric;
 pub mod step;
 

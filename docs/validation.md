@@ -248,26 +248,52 @@ lecture échantillon par échantillon).
 - Documentation : liens, chemins, outils, modules, fichiers publiés et langue vérifiés à chaque `cargo test`
   (`cargo test -p otb-dev --test docs`).
 
-### Temps de cadre de l'interface (2026-11-05, W-049)
+### Temps de cadre de l'interface (2026-11-05, W-049, D-048)
 
-Banc : `cargo run --release -p otb-gui --example banc_cadre -- LOG [--largeur 1920] [--cadres 60] [--gpu]` (la vraie `App` par
-`egui_kittest`, hors écran, sans vsync ni compositeur ; fenêtre de la largeur demandée × 1080, session la plus longue du log,
-3 cadres de chauffe puis 60 cadres chronométrés un par un). Poste Linux, i7-11800H (16 fils), version release, 3 essais :
-médianes des cadres, plage des 3 essais.
+Banc : `cargo run --release -p otb-gui --example banc_cadre -- LOG [--largeur 1920] [--cadres 60] [--gpu] [--glissement] [--zoom 8]`
+(la vraie `App` par `egui_kittest`, hors écran, sans vsync ni compositeur ; fenêtre de la largeur demandée × 1080, session la plus
+longue du log, 3 cadres de chauffe puis 60 cadres chronométrés un par un). Poste Linux, i7-11800H (16 fils), version release,
+3 essais : médianes des cadres, plage des 3 essais. Les colonnes « viewer » sont déjà diminuées du temps de l'écran Guide.
 
-| Log | Échantillons | Guide (aucune courbe) | Viewer, vue entière | Par échantillon (viewer − Guide) | Tessellation du viewer |
-|---|---|---|---|---|---|
-| `tests/data/jeno5_5s.bbl` | 8 262 | 0,44 ms | 0,89 ms | 54 ns (part fixe dominante) | |
-| `Cedric/JeNo 5/FINAL.bbl` | 321 729 | 0,41 à 0,43 ms | **7,4 à 8,3 ms** | 23 à 24 ns | 0,64 à 0,73 ms |
-| idem, `--largeur 640` | 321 729 | 0,36 à 0,37 ms | 6,2 ms | 18 ns | |
-| `1. PTB/st7ven3241/LOG00008.BFL` | 620 079 | 0,42 à 0,45 ms | **12,6 à 13,0 ms** | 20 ns | 0,69 à 0,73 ms |
+**Avant l'index multi-résolution** (mesures du lot 8, et du 2026-11-05 avant D-048) :
 
-- **Étalonnage** : `FINAL.bbl` retrouve les valeurs de W-049, prises avec un banc écrit hors du dépôt puis perdu (viewer 7,94 ms,
-  Guide 0,43 ms, 5,96 ms à 640 px). À 640 px, trois fois moins de points rendus ne retirent que ≈ 1,6 ms : le coût est le
-  parcours de la série entière, pas le dessin.
-- **Mesure neuve** : `LOG00008.BFL`, la plus longue session du corpus, reste sous le budget de 16,7 ms (60 images par seconde) :
-  ≈ 13,7 ms processeur, tessellation comprise. À ≈ 20 ns par échantillon, le budget serait atteint vers 800 000 échantillons
-  (extrapolation, non mesurée).
+| Log | Échantillons | Guide (aucune courbe) | Viewer, vue entière | Pendant un glissement | Par échantillon | Tessellation |
+|---|---|---|---|---|---|---|
+| `tests/data/jeno5_5s.bbl` | 8 262 | 0,44 ms | 0,89 ms | | 54 ns (part fixe dominante) | |
+| `Cedric/JeNo 5/FINAL.bbl` | 321 729 | 0,41 à 0,43 ms | **6,9 à 8,7 ms** | 8,5 ms | 21 à 27 ns | 0,64 à 0,73 ms |
+| idem, `--largeur 640` | 321 729 | 0,36 à 0,37 ms | 6,2 ms | | 18 ns | |
+| `1. PTB/st7ven3241/LOG00008.BFL` | 620 079 | 0,42 à 0,45 ms | **10,5 à 12,1 ms** | 10,3 à 10,8 ms | 17 à 20 ns | 0,69 à 0,73 ms |
+
+**Après** (D-048, index multi-résolution min/max par courbe) :
+
+| Log | Échantillons | Viewer, vue entière | Pendant un glissement | Zoomé sur 1/8 | Par échantillon | Gain |
+|---|---|---|---|---|---|---|
+| `Cedric/JeNo 5/FINAL.bbl` | 321 729 | **3,1 à 3,2 ms** | 3,7 à 3,8 ms | 1,4 ms | 9,8 ns | ×2,2 |
+| idem, `--largeur 640` | 321 729 | **0,95 ms** | | | 3,0 ns | ×6,5 |
+| `1. PTB/st7ven3241/LOG00008.BFL` | 620 079 | **4,6 à 4,8 ms** | 4,8 à 4,9 ms | 2,1 ms | 7,5 ns | ×2,3 |
+
+- **Le glissement coûtait autant que la vue entière** (bornes changeantes à chaque cadre) : c'est ce que mesure `--glissement`,
+  qui vérifie que les bornes bougent vraiment avant de publier un chiffre. Il gagne autant que la vue entière, ce qu'un cache de
+  points décimés n'aurait pas donné (option (a) écartée, D-048).
+- **Ce qui reste n'est plus le parcours mais le tracé** : à 640 px (trois fois moins de points rendus) le cadre passait de 7,4 à
+  6,2 ms avant (−16 %), il passe maintenant de 3,1 à 0,95 ms (−69 %). Autrement dit le coût suit désormais le nombre de points
+  rendus, comme voulu.
+- **Dépendance résiduelle au nombre d'échantillons**, mesurée sur le **même** log (`--zoom 8`, à nombre de points rendus égal) :
+  4,7 ms en vue entière contre 2,1 ms sur un huitième. Elle vient des bords de paquets, qui touchent la courbe sur toute son
+  étendue (défauts de cache, L-086). Comparer deux logs différents ne mesurerait pas cela : ils n'ont pas le même nombre de
+  courbes affichées.
+- **Décimation seule** (`cargo run --release -p otb-dsp --example banc_minmax`, 620 079 échantillons, 3 840 points rendus) :
+  parcours 0,992 ms, index 0,169 ms (**×5,9**) ; zoomé sur 1/8 : 0,143 contre 0,060 ms ; sur 1/64 : 0,023 contre 0,025 ms —
+  sous ≈ 10 000 échantillons visibles l'index ne sert plus à rien, et ne nuit pas. Construction de l'index : 1,6 ms.
+- **Mémoire** : l'index pèse 43 % des courbes en cache, soit 11,6 Mo (`FINAL.bbl`) et 22,3 Mo (`LOG00008.BFL`) ; 6,4 % et 7,8 %
+  du pic du processus, sous le plafond de 10 % fixé par Cédric. Le pic lui-même, mesuré avec et sans l'index, **ne change pas**
+  (180 et 286 Mo) : il est atteint pendant le décodage. Le banc affiche ces trois chiffres à chaque passage.
+- **Tracé inchangé** : les captures hors écran du viewer (`--example capture`, `courbes-clair.png` et `courbes-sombre.png`) sont
+  identiques **au bit près** avant et après, et les tests comparent la sortie de la nouvelle décimation, point pour point, à une
+  copie figée de l'ancienne (`rust/otb-dsp/tests/minmax.rs`).
+- **Budget de 60 images par seconde** : le cadre le plus coûteux du corpus passe de ≈ 13,7 ms (tessellation comprise) à ≈ 5,6 ms.
+  Le seuil de saccade, qui était attendu vers 800 000 échantillons, s'éloigne d'autant (extrapolation, non mesurée : aucune
+  session du corpus n'est assez longue).
 - **Carte graphique (`--gpu`), non reproduite** : `egui_kittest` choisit par défaut le rendu logiciel (llvmpipe : ≈ 44 ms par
   cadre, c'est le processeur qui dessine) ; le banc prend une vraie carte (ici RTX 3050 Ti, Vulkan) et l'affiche. Même ainsi,
   chaque rendu crée une texture et relit l'image : ≈ 10 ms fixes, **écran Guide compris**. L'écart viewer − Guide varie de 1 à
