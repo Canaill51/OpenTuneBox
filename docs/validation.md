@@ -300,6 +300,19 @@ longue du log, 3 cadres de chauffe puis 60 cadres chronométrés un par un). Pos
   4 ms d'un essai à l'autre sur `FINAL.bbl` : c'est un majorant bruité. Les 0,34 ms de W-049 ne se retrouvent pas, et la façon
   dont ils avaient été obtenus est perdue avec le banc. Le cadre se juge donc sur le temps du processeur.
 
+### Contrôles avant la version 0.9.0 (2026-11-06, branche `chore/release-0.9.0`, poste Linux)
+
+Les références figées (`$OTB_GOLDEN`) avaient disparu du poste : elles ont été **refaites** avec l'étalon Python
+(procédure ci-dessous, `golden.py record-modules DOSSIER --sample 20`, numpy 2.5.4), puis rejouées.
+
+- `cargo run --release -p otb-parity -- check "$OTB_GOLDEN"` : 3 128 fichiers, 90 fonctions (50 portées),
+  1 732 appels rejoués, **0 écart** au bit près (`rtol=0`). Le Rust rend donc exactement ce que rend le Python
+  d'aujourd'hui, et non seulement ce qu'il rendait au moment du portage.
+- `cargo run -p otb-dev -- verify --strict` (avec `OTB_GOLDEN` et `OTB_BITEXACT=1`) : **tout passe, 0 saut**, 131 s.
+- `cargo run --release -p otb-dev -- corpus validate` : **694 sessions conformes sur 709**, statuts
+  ok 624, gap 67, slow 8, values 5, refhang 3, rows 2. Les 15 non conformes sont exactement celles de la ligne de
+  base du 2026-11-04 ; l'écart sur le total vient du corpus lui-même, qui a perdu 3 fichiers (525 lus au lieu de 528).
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui
@@ -312,6 +325,11 @@ refaire un (par exemple après un changement voulu d'un seuil, voir la compéten
 3. Les scripts sont dans `scripts/` (`*_cases.py` pour les cas de `rust/*/tests/data/`, `golden.py record…` pour `$OTB_GOLDEN`) ; leur en-tête dit
    quel fichier ils écrivent. Copier le résultat dans `rust/` et lancer `otb-parity` ou les tests de la crate.
 4. Retirer le dossier : `git worktree remove ../otb-etalon`.
+
+Pour `$OTB_GOLDEN` seul, inutile de tout réenregistrer : `golden.py record-modules DOSSIER --sample 20` écrit le
+sous-dossier `modules/` (≈ 3 100 fichiers, 850 Mo), et c'est le **seul** que lisent `otb-parity check` et le test
+`rust/otb-parity/tests/golden.rs`. Les autres `record-…` servent à `otb-parity check-cli`, `check-advisor` et
+`check-guide`. Sans `$OTB_GOLDEN`, ce test saute (`[OTB-SAUT]`) et `verify --strict` reste rouge (L-023).
 
 Le Python n'est plus maintenu : un cas qui ne peut plus s'écrire ainsi (règle ou seuil modifié dans le Rust) se met à jour à la main, dans le
 test concerné, avec la raison.

@@ -2680,7 +2680,7 @@ dependencies = [
 
 [[package]]
 name = "otb-advisor"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "flate2",
  "otb-analysis",
@@ -2693,7 +2693,7 @@ dependencies = [
 
 [[package]]
 name = "otb-analysis"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "flate2",
  "otb-decoder",
@@ -2706,7 +2706,7 @@ dependencies = [
 
 [[package]]
 name = "otb-cli"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "otb-advisor",
  "otb-analysis",
@@ -2716,14 +2716,14 @@ dependencies = [
 
 [[package]]
 name = "otb-decoder"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "otb-dev"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "ico",
  "otb-advisor",
@@ -2742,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "otb-dsp"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "rayon",
  "realfft",
@@ -2751,11 +2751,11 @@ dependencies = [
 
 [[package]]
 name = "otb-format"
-version = "0.8.0"
+version = "0.9.0"
 
 [[package]]
 name = "otb-gui"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "eframe",
  "egui",
@@ -2779,7 +2779,7 @@ dependencies = [
 
 [[package]]
 name = "otb-log"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "otb-decoder",
  "otb-dsp",
@@ -2788,7 +2788,7 @@ dependencies = [
 
 [[package]]
 name = "otb-parity"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "otb-advisor",
  "otb-analysis",
