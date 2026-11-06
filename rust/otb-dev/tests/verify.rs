@@ -26,33 +26,36 @@ fn les_options_se_lisent_et_une_option_inconnue_est_refusee() {
 }
 
 #[test]
-fn les_etapes_sont_fmt_clippy_test_puis_deny_sauf_en_quick() {
+fn les_etapes_sont_fmt_clippy_test_licenses_puis_deny_sauf_en_quick() {
     let noms = |o: Options| steps(o).iter().map(|s| s.name).collect::<Vec<_>>();
     assert_eq!(
         noms(Options {
             quick: false,
             strict: false
         }),
-        ["fmt", "clippy", "test", "deny"]
+        ["fmt", "clippy", "test", "licenses", "deny"]
     );
     assert_eq!(
         noms(Options {
             quick: true,
             strict: false
         }),
-        ["fmt", "clippy", "test"]
+        ["fmt", "clippy", "test", "licenses"],
+        "--quick ne retire que cargo deny : le contrôle des licences ne lance aucune commande"
     );
     // l'étape des tests affiche la sortie des tests réussis, sinon les sauts restent invisibles
-    let test = steps(Options::default())
-        .into_iter()
-        .find(|s| s.name == "test")
-        .unwrap();
-    assert!(test.args.contains(&"--nocapture"));
-    assert!(test.args.contains(&"--no-fail-fast"));
+    let etapes = steps(Options::default());
+    let test = etapes.iter().find(|s| s.name == "test").unwrap();
+    let args = test.cargo_args().expect("étape cargo");
+    assert!(args.contains(&"--nocapture"));
+    assert!(args.contains(&"--no-fail-fast"));
     assert!(
-        !test.args.contains(&"-p"),
+        !args.contains(&"-p"),
         "pas de liste de -p : cargo test seul est équivalent"
     );
+    // le contrôle des licences est fait dans le processus : pas de commande cargo à lancer
+    let licences = etapes.iter().find(|s| s.name == "licenses").unwrap();
+    assert!(licences.cargo_args().is_none());
 }
 
 #[test]

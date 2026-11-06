@@ -55,11 +55,11 @@ Règles :
 Depuis `rust/` (`cd rust`) ; postes Linux et Windows 11 (commandes `cargo` identiques, chemins et variables à adapter).
 
 ```sh
-cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, cargo deny ; ≈ 70 s à chaud ; 0 seulement si tout passe (--quick sans deny ; --strict : un test sauté faute de corpus = échec)
+cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, mentions de licences, cargo deny ; ≈ 70 s à chaud ; 0 seulement si tout passe (--quick sans deny ; --strict : un test sauté faute de corpus = échec)
 cargo test -p otb-dev --test docs   # cohérence de la documentation
 cargo run --release -p otb-gui -- [LOG…]   # interface
 cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande
-cargo run -p otb-dev -- icons | licenses | release prepare X.Y.Z   # icônes, licences livrées (à refaire si une dépendance change), version
+cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version
 cargo run --release -p otb-dev -- corpus rates|calibrate|labels|validate   # calculs sur le corpus : compétence `calculs-corpus`
 cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées
 cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG…]   # captures sans écran (wgpu) : regarder l'image produite

@@ -180,3 +180,48 @@ fn les_deux_installateurs_livrent_le_fichier_de_mentions() {
         "AppImage"
     );
 }
+
+// --- `licenses --check` : comparaison du fichier du dépôt au texte attendu (lot 7a) ---
+
+#[test]
+fn le_controle_accepte_un_fichier_identique_et_refuse_tout_ecart() {
+    let attendu = "ligne 1\nligne 2\nligne 3\n";
+    let ok = compare(attendu, Some(attendu)).expect("identique");
+    assert!(ok.contains("à jour") && ok.contains(&attendu.len().to_string()), "{ok}");
+
+    // une ligne retirée : l'écart est refusé et la réparation est nommée
+    let ampute = "ligne 1\nligne 3\n";
+    let e = compare(attendu, Some(ampute)).expect_err("écart");
+    assert!(e.contains("ligne 2"), "la ligne en cause est repérée : {e}");
+    assert!(e.contains(RERUN), "{e}");
+
+    // longueurs identiques, contenu différent : l'écart est trouvé quand même
+    let e = compare(attendu, Some("ligne 1\nligne X\nligne 3\n")).expect_err("écart");
+    assert!(e.contains("ligne 2"), "{e}");
+
+    // fichier plus long que le texte attendu (une dépendance retirée)
+    let e = compare("ligne 1\n", Some(attendu)).expect_err("écart");
+    assert!(e.contains(RERUN), "{e}");
+
+    // fichier absent
+    let e = compare(attendu, None).expect_err("absent");
+    assert!(e.contains("absent") && e.contains(RERUN), "{e}");
+}
+
+#[test]
+fn le_controle_ne_touche_jamais_au_fichier() {
+    let dir = sandbox("check");
+    let path = dir.join("THIRD-PARTY-LICENSES.txt");
+    fs::write(&path, "contenu périmé\n").expect("fichier");
+    assert_eq!(path_in(&dir), path, "chemin du fichier livré");
+    // `compare` est pure : rien n'est écrit, même quand l'écart est refusé
+    let _ = compare("autre contenu\n", Some("contenu périmé\n"));
+    assert_eq!(fs::read_to_string(&path).expect("relecture"), "contenu périmé\n");
+}
+
+#[test]
+fn le_fichier_du_depot_correspond_aux_dependances_livrees() {
+    // le vrai contrôle : il lance `cargo metadata` sur les deux cibles (quelques secondes)
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    check(&root).expect("THIRD-PARTY-LICENSES.txt périmé");
+}
