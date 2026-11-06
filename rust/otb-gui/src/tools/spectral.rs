@@ -17,8 +17,9 @@ use otb_analysis::npstat::percentile_f32;
 use otb_analysis::spectral::{Mode, smooth_freq, spectrum, to_ptb_db};
 
 use super::common::{
-    AxisToggles, FileSelection, HARMONICS, MAX_NOTCHES, MotorToggles, ViewMemo, cdf, fmt_ms, harmonic_style,
-    harmonics_and_notches_ui, motor_freqs, ranks, rpm_filter_text, sel_rows, sorted_above_zero, sorted_positive, wide,
+    AxisToggles, FileSelection, HARMONICS, MAX_NOTCHES, MotorToggles, PTB_DB_RANGE, ViewMemo, cdf, fmt_ms,
+    harmonic_style, harmonics_and_notches_ui, motor_freqs, ranks, rpm_filter_text, sel_rows, sorted_above_zero,
+    sorted_positive, wide,
 };
 use super::report_ui::{REPORT_FOOTER, diagnosis_ui};
 use crate::plots::{corner_text, error_bars, nice_axes};
@@ -170,8 +171,8 @@ impl SpectralTool {
             datasets,
             psd: true,
             right: RightMode::Sub100,
-            ymin: -50.0,
-            ymax: 20.0,
+            ymin: PTB_DB_RANGE.0,
+            ymax: PTB_DB_RANGE.1,
             smoothing: 2,
             resolution: 0,
             harmonics: [true; HARMONICS.len()],
@@ -203,7 +204,7 @@ impl SpectralTool {
     pub fn set_psd(&mut self, psd: bool) {
         if self.psd != psd {
             self.psd = psd;
-            (self.ymin, self.ymax) = if psd { (-50.0, 20.0) } else { (0.0, 1.0) };
+            (self.ymin, self.ymax) = if psd { PTB_DB_RANGE } else { (0.0, 1.0) };
         }
     }
 

@@ -21,7 +21,7 @@ use crate::plots::{format_hz, log_grid, nice_axes, nice_grid};
 use crate::state::AppState;
 use crate::theme::{AXIS_NAMES, Theme, plot};
 use crate::tool::{LogInput, Tool};
-use crate::tools::common::{AxisToggles, FileSelection, safe_text};
+use crate::tools::common::{AxisToggles, FileSelection, PTB_DB_RANGE, safe_text};
 use crate::tools::filter_sim_calc::{
     Bode, DELAY_FREQS, DYN_COUNT_MAX, DYN_COUNT_MAX_44, DYN_MAX_RANGE, DYN_MIN_RANGE, DYN_Q_RANGE, Delays, EXPO_RANGE,
     Editor, FilterSimResult, HZ_RANGE, LPF_MODES, LPF_TYPES, Lpf1Edit, MOTOR_HZ_DEFAULT, MOTOR_HZ_RANGE,
@@ -261,18 +261,10 @@ pub fn delay_trend(actual: f64, modified: f64) -> Trend {
     }
 }
 
-/// Maximum du spectre au-dessus de 2 Hz (le continu écraserait l'échelle) ; `-inf` si rien n'est au-dessus.
-pub fn spectrum_top(freqs: &[f64], db: &[f64]) -> f64 {
-    freqs
-        .iter()
-        .zip(db)
-        .filter(|(f, _)| **f > 2.0)
-        .fold(f64::NEG_INFINITY, |m, (_, v)| m.max(*v))
-}
-
-/// Échelle verticale du spectre : de 70 dB sous le sommet à 5 dB au-dessus.
-pub fn y_bounds(top: f64) -> (f64, f64) {
-    (top - 70.0, top + 5.0)
+/// Échelle verticale des spectres simulés : celle de PIDtoolbox, la même que le Spectre (2026-11-06).
+/// ⚠️ Pas d'échelle calée sur le sommet des courbes : deux pages, ou les deux lignes gyro et D, ne se comparaient plus.
+pub fn y_bounds() -> (f64, f64) {
+    PTB_DB_RANGE
 }
 
 /// Courbe d'un spectre : nom, couleur, style, épaisseur et points.
@@ -454,7 +446,7 @@ impl FilterSimTool {
     // ------------------------------------------------------------ graphiques
 
     /// Courbes d'un spectre (gyro ou D) pour les axes choisis, et leur plus haut niveau au-dessus de 2 Hz.
-    fn series(&self, out: &FilterSimResult, gyro: bool, theme: &Theme) -> (Vec<Series>, f64) {
+    fn series(&self, out: &FilterSimResult, gyro: bool, theme: &Theme) -> Vec<Series> {
         let axes = self.axes.enabled();
         let spec: Vec<(&str, &'static str, Color32, LineStyle, f32)> = if gyro {
             let mut v = vec![
@@ -507,7 +499,6 @@ impl FilterSimTool {
             }
             v
         };
-        let mut top = f64::NEG_INFINITY;
         let mut lines = Vec::new();
         for (key, label, color, style, width) in spec {
             let arrs: Vec<&[f64]> = axes.iter().filter_map(|&a| out.spectrum(key, a)).collect();
@@ -515,7 +506,6 @@ impl FilterSimTool {
                 continue;
             }
             let db = mean_db(&arrs);
-            top = top.max(spectrum_top(&out.freqs, &db));
             let pts = out.freqs.iter().zip(&db).map(|(f, v)| [*f, *v]).collect();
             lines.push(Series {
                 label,
@@ -525,7 +515,7 @@ impl FilterSimTool {
                 pts,
             });
         }
-        (lines, top)
+        lines
     }
 
     fn plots(&mut self, ui: &mut Ui, out: &Arc<FilterSimResult>, theme: &Theme) {
@@ -573,7 +563,7 @@ impl FilterSimTool {
                 }
             });
             let link = self.link[row];
-            let (lines, top) = self.series(out, gyro, theme);
+            let lines = self.series(out, gyro, theme);
             ui.horizontal(|ui| {
                 for (col, name) in ["gain", "phase"].into_iter().enumerate() {
                     let (y_lo, y_hi) = bode_y_bounds(col);
@@ -632,10 +622,8 @@ impl FilterSimTool {
                 plot.show(ui, |pu| {
                     if fresh_spec {
                         pu.set_plot_bounds_x(0.0..=out.fs / 2.0);
-                        if top.is_finite() {
-                            let (lo, hi) = y_bounds(top);
-                            pu.set_plot_bounds_y(lo..=hi);
-                        }
+                        let (lo, hi) = y_bounds();
+                        pu.set_plot_bounds_y(lo..=hi);
                     }
                     for s in lines {
                         pu.line(
