@@ -241,8 +241,15 @@ fn tous_les_choix_d_affichage_se_dessinent_sans_panique() {
         h.get_by_label(choix).click();
         h.run_steps(4);
     }
-    // un notch à la fois, et les moteurs
+    // les notchs sont dans un menu : l'ouvrir, puis décocher un notch à la fois
+    h.get_by_label("Notchs dynamiques").click();
+    h.run_steps(2);
     h.get_by_label("N1").click();
+    h.run_steps(2);
+    h.get_by_label("Aucun").click();
+    h.run_steps(2);
+    h.get_by_label("Tous").click();
+    h.run_steps(2);
     h.get_by_label("M1/5").click();
     h.run_steps(4);
 }
@@ -258,10 +265,13 @@ fn une_harmonique_et_un_notch_se_choisissent_seuls() {
     outil.set_harmonic(1, false);
     assert!(outil.ranks().is_empty(), "aucune harmonique : aucune courbe en « S »");
 
-    let h = banc();
-    // une case par notch présent dans le log (ni plus, ni moins), et chacune se décoche seule
+    let mut h = banc();
+    // une case par notch présent dans le log (ni plus, ni moins), dans le menu des notchs
     let notchs = dyn_notch_rows(&log5s()).len();
     assert!(notchs >= 2, "le log d'essai doit avoir plusieurs notchs ({notchs})");
+    assert!(h.query_by_label("N1").is_none(), "le menu est fermé au départ");
+    h.get_by_label("Notchs dynamiques").click();
+    h.run_steps(2);
     for n in 1..=notchs {
         h.get_by_label(format!("N{n}").as_str());
     }

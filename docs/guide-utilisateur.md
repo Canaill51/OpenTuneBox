@@ -90,8 +90,9 @@ le propwash, avec les **retards des filtres** (mesurables seulement si le vol co
 sur un simple vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime et le retard affiché
 est marqué « peu fiable ») ; volet « bruit moteur » pour l'efficacité du filtre RPM
 sur chaque harmonique. Les courbes en S montrent où se situent les harmoniques moteur pendant le vol :
-**Harmoniques moteur** donne une case par harmonique (1re, 2e, 3e), à cocher séparément, et **Notchs
-dynamiques** une case par notch réellement enregistré (N1, N2…, seulement avec le mode débug FFT_FREQ) ;
+**Harmoniques moteur** donne une case par harmonique (1re, 2e, 3e), à cocher séparément, et le menu
+**Notchs** une case par notch réellement enregistré (N1 à N7, seulement avec le mode débug FFT_FREQ),
+avec « Tous » et « Aucun » ; le bouton du menu dit ce qui est tracé sans l'ouvrir ;
 **Plage du filtre RPM** ajoute par-dessus les bandes couvertes par le filtre RPM.
 
 Les niveaux en dB sont sur la **même échelle que PIDtoolbox** (gyro filtré sous −30 dB, terme D sous
@@ -126,7 +127,7 @@ tache basse fréquence à mi-gaz = oscillation de réglage ou propwash.
 
 ### Fréquence × temps (Fréq. × temps)
 Bouton de l'outil Spectre. Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
-lecteur ; un clic sur un spectrogramme le déplace). Les harmoniques moteur et les notchs dynamiques se cochent un par un,
+lecteur ; un clic sur un spectrogramme le déplace). Les harmoniques moteur et les notchs dynamiques se choisissent un par un,
 comme dans le Spectre.
 
 ### Réponse indicielle (Indicielle)

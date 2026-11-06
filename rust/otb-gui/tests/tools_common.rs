@@ -228,6 +228,21 @@ fn les_rangs_des_harmoniques_cochees() {
     assert!(ranks(&[false; 3]).is_empty(), "aucune case : rien à tracer");
 }
 
+/// Le bouton du menu dit ce qui est tracé sans qu'on l'ouvre (2026-11-06, jusqu'à 7 notchs).
+#[test]
+fn le_resume_du_menu_des_notchs() {
+    use otb_gui::tools::common::{MAX_NOTCHES, notches_summary};
+    assert_eq!(MAX_NOTCHES, 7, "Betaflight 4.5+ accepte 7 notchs dynamiques");
+    assert_eq!(notches_summary(&[true; 7]), "Notchs : tous");
+    assert_eq!(notches_summary(&[false; 7]), "Notchs : aucun");
+    assert_eq!(notches_summary(&[true, false, true, false, false]), "Notchs : N1, N3");
+    assert_eq!(
+        notches_summary(&[true, true, true, true, false, false, false]),
+        "Notchs : 4 sur 7"
+    );
+    assert_eq!(notches_summary(&[]), "Notchs : aucun", "aucun notch dans le log");
+}
+
 #[test]
 fn les_cases_d_axes_et_de_moteurs() {
     let mut a = AxisToggles::default();
