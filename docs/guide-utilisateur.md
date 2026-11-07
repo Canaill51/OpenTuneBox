@@ -52,6 +52,8 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 
 ## 4. Le visualiseur (fenêtre principale)
 
+- **Titre de la fenêtre** : le nom du programme suivi de sa **version** (« OpenTuneBox 0.9.0 ») — utile pour savoir
+  laquelle vous utilisez avant de signaler un problème.
 - **Barre d'outils** en haut : ouvrir et fermer les logs, puis les boutons **Guide**, **Visualiseur**, Spectre,
   Indicielle…, chacun avec sa couleur ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton
   pour sa description.

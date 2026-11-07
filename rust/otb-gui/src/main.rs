@@ -36,7 +36,7 @@ fn main() -> eframe::Result {
         viewport = viewport.with_icon(icon);
     }
     eframe::run_native(
-        "OpenTuneBox",
+        &otb_gui::app::window_title(),
         eframe::NativeOptions {
             viewport,
             ..Default::default()
