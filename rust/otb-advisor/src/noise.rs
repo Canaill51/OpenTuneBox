@@ -669,7 +669,7 @@ pub fn noise_report(
     Ok(nr)
 }
 
-/// Repère de Brian White affiché sous le tableau des niveaux (échelle de PIDtoolbox).
+/// Repère usuel affiché sous le tableau des niveaux (échelle de PIDtoolbox).
 pub fn level_note(kind: &str) -> String {
     if kind == "gyro" {
         return format!("Repère après filtres : sous {} dB.", fx0(GYRO_PTB_MAX_DB));

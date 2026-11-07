@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt | 2026-11-07 |
 | D-049 | Réponse indicielle : ordre des courbes et couleurs donnés par l'ordre où l'utilisateur coche les fichiers ; sélection vide permise ; les autres pages gardent la couleur attribuée à l'ouverture | 2026-11-06 |
 | D-048 | Tracé du viewer : index multi-résolution min/max par courbe (`otb-dsp::minmax`), sortie identique point pour point à l'ancienne décimation ; un paquet contenant un trou est tracé comme un trou ; W-049 clos | 2026-11-05 |
 | D-047 | `golden.rs` compare chaque fonction portée avec la tolérance mesurée de `registry::tolerance` (bit près si aucune n'est déclarée), comme `otb-parity check` ; W-048 clos | 2026-11-05 |
@@ -100,7 +101,7 @@ ici, jamais dans le code.
 | D-022 | Notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé | 2026-10-13 |
 | D-021 | Pas des curseurs conseillés, choisis par Cédric | 2026-10-12 |
 | D-020 | Aucune fenêtre d'analyse ne chevauche un trou du log | 2026-10-12 |
-| D-019 | Le vol chirp de Betaflight n'est pas conseillé : méthode de Brian White | 2026-10-12 |
+| D-019 | Le vol chirp de Betaflight n'est pas conseillé : méthode des séries de vols | 2026-10-12 |
 | D-018 | Décisions, leçons et travaux reportés ont chacun leur registre numéroté | 2026-10-12 |
 | D-017 | Deux fréquences minimales du log : filtres et séries PID | 2026-10-12 |
 | D-016 | Les spectres s'affichent sur l'échelle de PIDtoolbox, les calculs restent en densité physique | 2026-10-11 |
@@ -123,6 +124,32 @@ ici, jamais dans le code.
 ---
 
 ## 2026-11-05 — Tracé du viewer indépendant du nombre d'échantillons
+
+### D-050 : les sources sont citées sans nommer leurs auteurs
+
+**Tranché par Cédric** le 2026-11-07 : plus aucune information du projet ne doit indiquer le nom de l'auteur de PIDtoolbox.
+
+**Contexte.** Les méthodes de réglage, les repères de bruit et les objectifs de retard venaient de vidéos, d'un wiki et du
+README de PIDtoolbox, cités dans `docs/spec-methodes.md` sous la forme « [S33] Prénom Nom, *titre*, lien ». Le nom apparaissait
+aussi dans 78 endroits du dépôt : commentaires du code, tableau d'origine des seuils de `docs/assistant.md`, textes vus par
+l'utilisateur (assistant, guide intégré, rapport en ligne de commande), CHANGELOG et attendus de tests.
+
+**Décision.**
+- Aucun nom de personne, nulle part : ni dans le code, ni dans la documentation, ni dans les textes affichés.
+- Les **sources restent citées** : chaque entrée `[S…]` garde son titre, sa date, son lien et sa citation exacte. D-005
+  (chaque formule et chaque seuil justifiés par une méthode publiée) tient donc toujours, et la calibration reste vérifiable.
+- Dans les textes, « méthode de … » devient **« méthode des séries de vols »** (ce que la méthode fait : un seul curseur change
+  d'un vol à l'autre, par pas de 0,2) ; « repères de … » devient « repères usuels » ou « repères de PIDtoolbox » quand le
+  repère vient bien de l'outil.
+- Une citation de Cédric qui portait le nom le marque comme coupé (« se concentrer sur la méthode […] ») plutôt que de le
+  remplacer en silence.
+
+**Option écartée.** Remplacer le nom par « l'auteur de PIDtoolbox » : le nom propre disparaissait, mais la personne restait
+identifiable. Écartée par Cédric le 2026-11-07. Écartée aussi : supprimer les sources elles-mêmes, ce qui aurait laissé les
+seuils de l'assistant sans aucune justification écrite et contredit D-005.
+
+**Conséquence.** `docs/spec-methodes.md` reste la preuve de chaque repère ; les numéros `[S…]` ne changent pas, donc toutes
+les références du code et de `docs/assistant.md` restent valables.
 
 ### D-049 : la Réponse indicielle est ordonnée et colorée par l'utilisateur
 
@@ -967,7 +994,7 @@ W-011) ; seuil en retard gagné au lieu des 30 Hz (ne se déclencherait presque 
 ### D-021 : pas des curseurs conseillés, choisis par Cédric
 
 **Contexte.** Les conseils à un seul vol de l'assistant proposaient presque toujours ±0,1 (« Estimation »,
-W-003), alors que le Diagnostic du réglage suit Brian White [S32] : un pas de 0,1 ne se lit pas sur la
+W-003), alors que le Diagnostic du réglage suit les séries de vols [S32] : un pas de 0,1 ne se lit pas sur la
 réponse indicielle, les séries avancent par 0,2. Règle de Cédric, pilote (2026-10-12).
 
 **Décision.**
@@ -1023,12 +1050,12 @@ constats (13 « Oscillations basses fréquences », 5 « Gyro filtré bruité »
 
 ## 2026-10-12 — Vol chirp mis de côté
 
-### D-019 : le vol chirp de Betaflight n'est pas conseillé, OpenTuneBox suit la méthode de Brian White
+### D-019 : le vol chirp de Betaflight n'est pas conseillé, OpenTuneBox suit la méthode des séries de vols
 
 **Contexte.** W-004 proposait de conseiller un vol chirp quand le pic de sensibilité tombe au bord de la
 bande mesurée. Le constat essayé se déclenchait sur 44 % des sessions du corpus (310 sur 705), avec des
 conseils de réglage du chirp peu sûrs. Cédric : « mettre de côté la fonction CHIRP […] encore en mode
-expérimental » et « se concentrer sur la méthode de Brian White ». Vérifié le 2026-10-12 sur le dépôt de
+expérimental » et « se concentrer sur la méthode […] ». Vérifié le 2026-10-12 sur le dépôt de
 Betaflight : le chirp n'y est pas étiqueté expérimental (PR #13105, « MAJOR FEATURE », fusionnée le
 2025-01-21), mais il n'est pas dans le firmware de base (option de compilation `chirp` / `USE_CHIRP`) ; ses
 canaux de debug ont changé en avril 2026 (PR #15113) et son point d'injection en mode angle en
@@ -1038,7 +1065,7 @@ un mainteneur le juge « not a basic user option » (ticket #15012).
 **Décision.**
 - Ni l'assistant, ni le guide intégré, ni le guide utilisateur ne conseillent de vol chirp ni ne disent
   comment le régler. Pour faire aller la mesure plus loin, ils conseillent des wobbles plus rapides et plus
-  secs (protocole de Brian White, [S33] de `docs/spec-methodes.md`).
+  secs (protocole des séries de vols, [S33] de `docs/spec-methodes.md`).
 - La mesure reste capable de lire un log chirp (`log/flightlog.py:FlightLog.chirp_excitation`, D-012) :
   la retirer dégraderait la mesure des vols chirp déjà enregistrés, sans rien gagner.
 - Pas de constat séparé « marge mesurée en partie » : 44 % des sessions, il deviendrait du bruit ; l'action

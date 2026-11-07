@@ -9,7 +9,7 @@ calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux et Wind
 ## Outils
 
 Au premier lancement, la page **Guide** propose un parcours de réglage à cocher, par drone : préparer le
-drone, régler les filtres, puis les PID par séries (méthode de Brian White), puis les finitions. Les valeurs
+drone, régler les filtres, puis les PID par séries, puis les finitions. Les valeurs
 s'adaptent à la fiche du drone ; les logs ouverts cochent ce qu'ils prouvent et disent quoi corriger avant
 le prochain vol, curseur par curseur. Les logs des filtres et ceux des séries PID sont demandés et jugés à
 part (fréquence d'enregistrement, protocole), et chaque série d'un drone est reconnue.

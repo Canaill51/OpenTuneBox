@@ -19,6 +19,8 @@ Contexte, options écartées et preuves : `docs/decisions.md`.
 - Dépôt **public**, licence **PolyForm Noncommercial 1.0.0** : code ouvert, tout usage commercial interdit, aucune dépendance copyleft (polices : chacune sous sa licence, D-046). D-043, D-045
 - **Aucune copie de code PIDtoolbox** ni d'autres projets : tout est réimplémenté d'après le firmware Betaflight et des méthodes publiées
   (`docs/spec-*.md`). Seule exception : les icônes [Lucide](https://lucide.dev) (ISC) dans `rust/otb-gui/assets/icons/`, avec leur licence. D-004, D-005
+- **Les sources sont citées sans nommer leurs auteurs** : une entrée `[S…]` de `docs/spec-methodes.md` garde titre, date, lien et
+  citation, jamais de nom de personne — ni là, ni dans le code, ni dans les textes affichés. D-050
 - Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français. D-001
 
 ## Suivi du projet

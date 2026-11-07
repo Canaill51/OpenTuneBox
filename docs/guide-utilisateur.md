@@ -52,6 +52,8 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 
 ## 4. Le visualiseur (fenêtre principale)
 
+- **Titre de la fenêtre** : le nom du programme suivi de sa **version** (« OpenTuneBox 0.9.0 ») — utile pour savoir
+  laquelle vous utilisez avant de signaler un problème.
 - **Barre d'outils** en haut : ouvrir et fermer les logs, puis les boutons **Guide**, **Visualiseur**, Spectre,
   Indicielle…, chacun avec sa couleur ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton
   pour sa description.
@@ -152,7 +154,7 @@ latence et cassure. « Temps affiché » : 250 ms par défaut (la montée en gra
 150 ms pour bien voir la cassure. Le yaw est masqué au départ (case Y) : la méthode ne le juge pas et ses
 mouvements suffisent rarement. La colonne « Cassure (ripple) » suit la cassure d'un vol à l'autre.
 
-**Diagnostic du réglage**, toujours affiché à côté des courbes, d'après la méthode de Brian White. Chargez une **série de vols** du même drone, mêmes filtres, où un seul curseur change par pas
+**Diagnostic du réglage**, toujours affiché à côté des courbes, d'après la méthode des séries de vols. Chargez une **série de vols** du même drone, mêmes filtres, où un seul curseur change par pas
 de 0,2 ; l'outil reconnaît la série tout seul et lit, selon le curseur :
 - **Damping** (équilibre P/D) : jugé sur le **roll**, la première valeur sans dépassement visible (pic
   ≤ 1,05), ou celle au-delà de laquelle le pic ne baisse plus. Si le pitch dépasse encore, il a plus
@@ -191,7 +193,7 @@ Bouton **Configuration** en bas du panneau de droite du visualiseur. Tous les r�
 Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, filtres, moteurs,
 mécanique. Chaque constat donne la mesure et le seuil (calibré sur ~700 vols réels, en comparant votre
 drone à ceux de la même taille) et propose une action. Le bruit et le retard des filtres sont aussi comparés
-aux repères de Brian White, l'auteur de PIDtoolbox (gyro filtré sous −30 dB, terme D au plus −10 dB sur
+aux repères usuels de PIDtoolbox (gyro filtré sous −30 dB, terme D au plus −10 dB sur
 l'échelle de ses spectres, objectif de retard selon la taille). Quand plusieurs filtres sont à revoir, la **stratégie de filtrage**, en tête, ordonne les réglages à faire :
 enregistrement, bruit à corriger, mécanique, filtre RPM, notch dynamique, passe-bas du gyro puis du D, un
 changement à la fois. Les conseils fondés sur le retard des filtres demandent un vol avec des
@@ -231,7 +233,7 @@ Les quatre phases :
 2. **Filtres** : le vol de réglage, puis un changement à la fois : filtre RPM, notch dynamique, passe-bas du
    gyro puis du D. Fin quand les repères sont atteints (gyro filtré sous −30 dB, terme D au plus −10 dB,
    retard sous l'objectif de la taille).
-3. **PID par séries** (méthode de Brian White) : mode Angle (ou Acro avec le feedforward à 0), curseur I à 0,25, Dynamic Damping à 0 ; série
+3. **PID par séries** : mode Angle (ou Acro avec le feedforward à 0), curseur I à 0,25, Dynamic Damping à 0 ; série
    **Damping** (0,6 → 1,6, ou 1,0 → 1,6 pour un 6" et plus), **Master** (1,0 → 2,0), puis Pitch Damping et
    Pitch Tracking selon le diagnostic ; au moins 200 fenêtres par vol. Le « Diagnostic du réglage » de la
    Réponse indicielle lit chaque série.

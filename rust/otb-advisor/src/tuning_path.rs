@@ -164,7 +164,7 @@ fn defaults_help(c: &DroneCard) -> String {
 
 fn log_rates_help(c: &DroneCard) -> String {
     format!(
-        "Les mouvements de réglage se font en **mode Angle**, ou en **Acro avec le feedforward à 0**, avec des rates linéaires : la réponse est la même, le mode Angle rend les mouvements plus faciles à doser (le firmware y coupe le feedforward). Onglet **Réglages de PID**, choisissez un profil de rates libre (ex. 3) et nommez-le « LOG » : « Type de rates » ACTUAL, « Sensibilité au centre » {LOG_RATE_DPS}, « Max Vel » {LOG_RATE_DPS}, Expo 0, sur les trois axes. Puis « Limite de l'Angle » : **{LOG_ANGLE_LIMIT}** (Brian White ; elle appartient au profil PID, et ne sert qu'en mode Angle).\n\nCLI : `set rates_type = ACTUAL`, `set roll_rc_rate = {}`, `set roll_srate = {}`, `set roll_expo = 0` (idem pitch et yaw), `set {} = {LOG_ANGLE_LIMIT}`.",
+        "Les mouvements de réglage se font en **mode Angle**, ou en **Acro avec le feedforward à 0**, avec des rates linéaires : la réponse est la même, le mode Angle rend les mouvements plus faciles à doser (le firmware y coupe le feedforward). Onglet **Réglages de PID**, choisissez un profil de rates libre (ex. 3) et nommez-le « LOG » : « Type de rates » ACTUAL, « Sensibilité au centre » {LOG_RATE_DPS}, « Max Vel » {LOG_RATE_DPS}, Expo 0, sur les trois axes. Puis « Limite de l'Angle » : **{LOG_ANGLE_LIMIT}** (elle appartient au profil PID, et ne sert qu'en mode Angle).\n\nCLI : `set rates_type = ACTUAL`, `set roll_rc_rate = {}`, `set roll_srate = {}`, `set roll_expo = 0` (idem pitch et yaw), `set {} = {LOG_ANGLE_LIMIT}`.",
         LOG_RATE_DPS / 10,
         LOG_RATE_DPS / 10,
         c.angle_limit_setting()
@@ -210,7 +210,7 @@ const FF_HELP: &str = "Le **feedforward** pousse les moteurs dès que le manche 
 fn i_help(c: &DroneCard) -> String {
     let (lo, hi) = c.i_range();
     format!(
-        "Le **terme I** corrige les erreurs qui durent : dérive dans le vent, en virage, avec le centre de gravité décalé. Trop bas, le drone dérive ; trop haut, il oscille lentement après un mouvement (dépassement lent et étiré). Plage de départ : **{} à {}** (Brian White : il manque plus souvent d'I qu'il n'y en a trop).",
+        "Le **terme I** corrige les erreurs qui durent : dérive dans le vent, en virage, avec le centre de gravité décalé. Trop bas, le drone dérive ; trop haut, il oscille lentement après un mouvement (dépassement lent et étiré). Plage de départ : **{} à {}** (il manque plus souvent d'I qu'il n'y en a trop).",
         r(lo),
         r(hi)
     )
@@ -329,7 +329,7 @@ pub fn phases(card: &DroneCard) -> Vec<Phase> {
                 let mut s = Step::new(
                     "filter_targets",
                     "Repères atteints : gyro filtré sous −30 dB, terme D au plus −10 dB, retard sous l'objectif de la taille",
-                    "Mesurés sur le dernier log du drone : bruit sur la partie stationnaire (échelle de PIDtoolbox), retard sur la partie avec mouvements, objectif de Brian White pour la taille. La phase est terminée quand les quatre repères sont atteints.",
+                    "Mesurés sur le dernier log du drone : bruit sur la partie stationnaire (échelle de PIDtoolbox), retard sur la partie avec mouvements, objectif de référence pour la taille. La phase est terminée quand les quatre repères sont atteints.",
                 );
                 s.targets = true;
                 s
@@ -404,7 +404,7 @@ pub fn phases(card: &DroneCard) -> Vec<Phase> {
     let pid = Phase {
         key: "pid",
         title: "PID par séries",
-        intro: "Méthode de Brian White : une série de vols où **un seul curseur change**, par pas de 0,2. Ouvrez tous les logs de la série : l'outil **Réponse indicielle** (Diagnostic du réglage) dit quelle valeur garder. Les filtres ne changent plus pendant les séries.",
+        intro: "Méthode des séries de vols : **un seul curseur change** d'un vol à l'autre, par pas de 0,2. Ouvrez tous les logs de la série : l'outil **Réponse indicielle** (Diagnostic du réglage) dit quelle valeur garder. Les filtres ne changent plus pendant les séries.",
         steps: pid_steps,
     };
     let mut finish_steps = series("Stick Resp.", &FF_SERIES, FF_HELP, FF_FLIGHT_HELP, "ff_series");
