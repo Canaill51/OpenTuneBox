@@ -48,7 +48,7 @@ pub const STEP_SURE_WINDOWS: usize = 200;
 pub const FF_SERIES_ADVICE: &str = "série Feedforward du guide (curseur « Réponse des sticks » : 0, 0,5, 1… en Acro), en comparant \
 le retard consigne → gyro d'un vol à l'autre";
 pub const PHASE_MARGIN_LOW_DEG: f64 = 35.0;
-/// Repères de Brian White sur l'échelle des spectres de PIDtoolbox : terme D au plus −10 dB, gyro filtré sous −30 dB.
+/// Repères usuels sur l'échelle des spectres de PIDtoolbox : terme D au plus −10 dB, gyro filtré sous −30 dB.
 pub const DTERM_PTB_MAX_DB: f64 = -10.0;
 pub const GYRO_PTB_MAX_DB: f64 = -30.0;
 /// D dominant au croisement (|Ĉd/Ĉe|) : au-delà, la marge faible ne se corrige plus par du D.
@@ -1283,7 +1283,7 @@ pub fn dterm_lift_noise(
         CONSEIL,
         "Terme D propre : ses filtres peuvent être relevés",
         &format!(
-            "Sommet du terme D à {} dB sur l'échelle de PIDtoolbox, sous l'idéal de {} dB de Brian White.{delay} En relevant ses filtres de \
+            "Sommet du terme D à {} dB sur l'échelle de PIDtoolbox, sous l'idéal de {} dB.{delay} En relevant ses filtres de \
              {k} pas, le simulateur prévoit {} ms de retard en moins, un terme D à {} dB (seuil {}) et un sommet à {} dB PIDtoolbox (repère \
              {}).{hover_note}",
             fx(d_ptb, 1),
@@ -1316,10 +1316,7 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
     // `nominal_inch:g` n'est lu que si `target` existe (donc la taille aussi)
     let inch = |t: &Option<(f64, f64)>| t.map(|_| general(profile.nominal_inch.unwrap_or(f64::NAN), 6));
     let g_goal = match (&target, inch(&target)) {
-        (Some(t), Some(i)) => format!(
-            " Objectif de Brian White pour un {i} pouces : environ {} ms.",
-            fx(t.0, 2)
-        ),
+        (Some(t), Some(i)) => format!(" Objectif pour un {i} pouces : environ {} ms.", fx(t.0, 2)),
         _ => String::new(),
     };
     if !moving && (delays.gyro_ms.is_finite() || delays.dterm_ms.is_finite()) {
@@ -1421,7 +1418,7 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
         let max_ms = profile.dterm_delay_max_ms;
         let d_goal = match (&target, inch(&target)) {
             (Some(t), Some(i)) => format!(
-                " Objectif de Brian White pour un {i} pouces : environ {} ms lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms \
+                " Objectif pour un {i} pouces : environ {} ms lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms \
                  plus court qu'ici.",
                 fx(t.1, 2)
             ),

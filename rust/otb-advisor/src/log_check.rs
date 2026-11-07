@@ -33,12 +33,12 @@ pub const MIN_VERSION: [i64; 2] = [4, 4];
 /// Vols de test conseillés : 20 à 40 s (guide) ; en dessous de 15 s, trop peu de fenêtres.
 pub const MIN_DURATION_S: f64 = 15.0;
 
-// Protocole des vols avec mouvements (choix de Cédric du 2026-10-12, d'après Brian White [S24, S33])
+// Protocole des vols avec mouvements (choix de Cédric du 2026-10-12, d'après [S24, S33])
 /// `rates_type` : BETAFLIGHT 0, RACEFLIGHT 1, KISS 2, ACTUAL 3, QUICK 4 (firmware).
 pub const RATES_TYPE_ACTUAL: i64 = 3;
 /// Rates linéaires : sensibilité au centre = maximum = 200 °/s, expo 0, sur les trois axes.
 pub const LOG_RATE_DPS: i64 = 200;
-/// Limite d'angle conseillée par Brian White pour le wobble [S33] (degrés).
+/// Limite d'angle conseillée pour le wobble [S33] (degrés).
 pub const LOG_ANGLE_LIMIT: i64 = 30;
 /// Part du temps en mouvement où roll et pitch bougent ensemble (corpus, 2026-10-12).
 pub const AXES_MIXED_MIN: f64 = 0.4;
@@ -1061,7 +1061,7 @@ fn usages(c: &Check) -> Vec<Usage> {
 }
 
 /// Repères de fin de la phase Filtres : bruit sur la partie stationnaire (échelle de PIDtoolbox), retard des filtres sur la partie avec
-/// mouvements, objectif de retard de Brian White pour la taille.
+/// mouvements, objectif de retard de référence pour la taille.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FilterTargets {
     pub gyro_ptb_db: f64,
