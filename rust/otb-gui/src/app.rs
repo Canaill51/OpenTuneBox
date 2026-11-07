@@ -20,6 +20,16 @@ use crate::tool::Page;
 use crate::viewer_page::ViewerPage;
 use crate::worker::Runner;
 
+/// Titre de la fenêtre : le nom du programme **suivi de son numéro de version**, pour qu'on sache toujours quelle version on utilise,
+/// sous Linux comme sous Windows (demandé par Cédric à l'essai de la 0.9.0 ; `contracts.rs::le_titre_de_la_fenetre_porte_la_version`).
+/// Le numéro est celui du paquet (`rust/Cargo.toml`, `version.workspace`), jamais recopié à la main.
+///
+/// ⚠️ L'`app_id` de la fenêtre (`main.rs`) garde le nom **seul** : c'est le nom du fichier `.desktop`, qui ne change pas d'une version
+/// à l'autre (L-076).
+pub fn window_title() -> String {
+    format!("OpenTuneBox {}", env!("CARGO_PKG_VERSION"))
+}
+
 /// Fichiers à ouvrir au lancement : les arguments de la ligne de commande sans les options (même règle que la version Python).
 /// C'est ce que reçoit l'application par l'association `.bbl` / `.bfl` de Windows (`OpenTuneBox.exe "%1"`) et par l'AppImage (`%F`).
 pub fn files_from_args(args: impl IntoIterator<Item = std::ffi::OsString>) -> Vec<PathBuf> {
