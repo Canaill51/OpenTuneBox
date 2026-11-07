@@ -91,7 +91,8 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   `rust/otb-gui/src/tools/common.rs` : briques partagées (dont `ViewMemo`, la vue retenue d'un graphique : « Tout voir » l'oublie).
 - `app.rs` : fenêtre principale, écrans Guide / Courbes / outil, boutons de la barre qui servent d'onglets ; un outil caché ne
   recalcule qu'à son affichage. `main.rs` : démarrage (pas de console sous Windows, icône de fenêtre, ouvre les logs passés en
-  argument).
+  argument) ; le titre de la fenêtre vient d'`app.rs:window_title` (nom + numéro de version du paquet), tandis que
+  l'`app_id` garde le nom seul, qui est celui du fichier `.desktop` (L-076).
 - `viewer.rs` (traces, lissage) et `viewer_page.rs` (page du visualiseur : traces groupées, traces absentes du log masquées,
   sections repliables Affichage et Lecteur). Chaque courbe affichée est gardée en cache avec son index multi-résolution
   (`Series`, clé : trace, axe, lissage) ; le tracé n'appelle plus que `otb_dsp::minmax::window_points` (D-048).

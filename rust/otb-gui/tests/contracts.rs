@@ -260,6 +260,33 @@ fn la_fenetre_s_ouvre_grande_au_premier_lancement() {
     );
 }
 
+/// Le titre de la fenêtre doit porter le numéro de version : sans lui, impossible de savoir quelle version on essaie (vu par Cédric
+/// à l'essai de la 0.9.0). Le numéro vient du paquet, et `main.rs` doit vraiment s'en servir pour le titre.
+#[test]
+fn le_titre_de_la_fenetre_porte_la_version() {
+    let titre = otb_gui::app::window_title();
+    let version = env!("CARGO_PKG_VERSION");
+    assert!(
+        version.contains('.') && version.chars().next().is_some_and(|c| c.is_ascii_digit()),
+        "version du paquet inattendue : {version:?}"
+    );
+    assert!(
+        titre.starts_with("OpenTuneBox "),
+        "le titre doit commencer par le nom du programme : {titre:?}"
+    );
+    assert!(
+        titre.contains(version),
+        "le titre doit porter le numéro de version ({version}) : {titre:?}"
+    );
+    // ⚠️ Ligne entière, commentaires exclus : une recherche de texte serait satisfaite par un commentaire qui cite l'appel.
+    let main = std::fs::read_to_string(racine().join("src/main.rs")).unwrap();
+    assert!(
+        main.lines()
+            .any(|l| l.trim_start().starts_with("&otb_gui::app::window_title()")),
+        "main.rs : le titre de la fenêtre doit être `window_title()`, pas un nom écrit en dur"
+    );
+}
+
 /// W-045 : une AppImage lancée telle quelle n'est connue d'aucun bureau ; sans fichier `.desktop` portant l'`app_id`, Wayland affiche
 /// une icône générique. Son `AppRun` doit donc en écrire un, pointant vers l'AppImage (`$APPIMAGE`), et ne jamais écraser l'existant.
 #[test]
