@@ -112,7 +112,8 @@ ils viennent du bruit (`validation.md`).
   niveau 0 à 5 (largeur 1 + 2 × niveau). Échelle de PTB : −50..20 dB.
 - **Échelle affichée** : la DSP calculée est la densité physique (identique à `scipy.signal.welch`, intégrale
   = variance du signal). L'interface affiche toutes ses DSP en dB (Spectre, bruit moteur, fréquence × gaz
-  en mode DSP, fréquence × temps, simulateur de filtres) sur l'échelle de PIDtoolbox : densité − 6,5 dB
+  en mode DSP, fréquence × temps, simulateur de filtres) sur l'échelle de PIDtoolbox, bornes comprises
+  (−50..20 dB, `tools::common::PTB_DB_RANGE`) : densité − 6,5 dB
   (`spectral.to_ptb_db`, écart mesuré dans `validation.md`). Les calculs de l'assistant gardent la densité
   physique et convertissent eux-mêmes (`rules.band_peak_ptb_db`).
 - **Fréquence × gaz** : fenêtres de 300 ms, pas de 300 / {5, 3, 1} ms (log ≤ 20 s, 20–60 s, > 60 s), gaz moyen

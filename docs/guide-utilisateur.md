@@ -177,7 +177,9 @@ simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, co
 ### Simulateur de filtres (Filtres)
 Reconstitue exactement la chaîne de filtres de Betaflight à partir du log. Modifiez un filtre :
 le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
-le vrai gyro du vol. Copiez ensuite les commandes CLI.
+le vrai gyro du vol. Copiez ensuite les commandes CLI. Les deux spectres (gyro et terme D) sont sur
+l'échelle de PIDtoolbox, **−50 à 20 dB**, la même que la page Spectre : les deux lignes et les deux pages
+se lisent l'une contre l'autre.
 
 ### Infos de configuration (Configuration)
 Bouton **Configuration** en bas du panneau de droite du visualiseur. Tous les réglages des logs côte à côte ; les différences sont surlignées (« Seulement les différences »).

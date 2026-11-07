@@ -1388,15 +1388,18 @@ fn un_retard_est_vert_rouge_ou_inchange_a_5_microsecondes_pres() {
     assert_eq!(delay_trend(1.0, 1.0), Trend::Same);
 }
 
+/// 2026-11-06 : les spectres du Simulateur étaient calés sur le sommet de leurs courbes (sommet −70 … sommet +5),
+/// donc jamais sur la même échelle que le Spectre ni d'une ligne à l'autre. Ils prennent l'échelle de PIDtoolbox.
 #[test]
-fn l_echelle_du_spectre_part_du_sommet_au_dessus_de_2_hz() {
-    use otb_gui::tools::filter_sim::{spectrum_top, y_bounds};
-    // le continu (0 et 1 Hz, 50 et 40 dB) est ignoré : le sommet est -10 dB à 3 Hz
-    let top = spectrum_top(&[0.0, 1.0, 3.0, 5.0], &[50.0, 40.0, -10.0, -20.0]);
-    assert_eq!(top, -10.0);
-    assert_eq!(y_bounds(top), (-80.0, -5.0));
-    // 2 Hz exactement est exclu (strictement au-dessus)
-    assert_eq!(spectrum_top(&[2.0], &[9.0]), f64::NEG_INFINITY);
+fn l_echelle_du_spectre_simule_est_celle_de_pidtoolbox() {
+    use otb_gui::tools::common::PTB_DB_RANGE;
+    use otb_gui::tools::filter_sim::y_bounds;
+    use otb_gui::tools::spectral::SpectralTool;
+    assert_eq!(y_bounds(), (-50.0, 20.0));
+    assert_eq!(y_bounds(), PTB_DB_RANGE);
+    // le Spectre part de la même constante : les deux pages se lisent l'une contre l'autre
+    let spectre = SpectralTool::new();
+    assert_eq!(spectre.y_range(), PTB_DB_RANGE);
 }
 
 #[test]

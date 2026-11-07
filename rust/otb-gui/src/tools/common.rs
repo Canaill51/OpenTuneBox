@@ -339,6 +339,9 @@ pub fn harmonics_and_notches_ui(
         .response
         .accessible_name("Notchs dynamiques");
 }
+/// Échelle verticale des spectres en dB, celle de PIDtoolbox (`docs/spec-ecrans.md`, « Full Spectrum … −50..20 ») :
+/// le Spectre l'a par défaut, le Simulateur de filtres s'y tient aussi pour que les deux pages se comparent (2026-11-06).
+pub const PTB_DB_RANGE: (f64, f64) = (-50.0, 20.0);
 
 /// Cases R, P, Y : axes affichés (réglage d'affichage, pas de recalcul).
 #[derive(Clone, Copy, PartialEq, Debug)]
