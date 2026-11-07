@@ -1,6 +1,6 @@
 //! `advisor/step_tuning.py` en Rust (phase 5a-5) : diagnostic du réglage par la réponse indicielle (séries de vols).
 //!
-//! Méthode de Brian White (`docs/spec-methodes.md`, [S32]) : séries de vols où un seul curseur change par pas de 0,2, feedforward à 0 (ou
+//! Méthode des séries de vols (`docs/spec-methodes.md`, [S32]) : séries de vols où un seul curseur change par pas de 0,2, feedforward à 0 (ou
 //! mode Angle), curseur I à 0,2–0,3. Trois blocs, plus un quatrième en finitions : équilibre P/D (série Damping), niveau des gains (série
 //! Master), équilibre roll / pitch, série Feedforward reconnue mais pas jugée. Seuils et origine : `docs/assistant.md`.
 //!
@@ -23,7 +23,7 @@ pub const STEP_TOO_FINE: f64 = 0.15;
 pub const I_SLIDER_RANGE: (f64, f64) = (0.15, 0.35);
 /// Fenêtres exploitables par axe : en dessous, le vol n'est pas lu.
 pub const MIN_WINDOWS: usize = STEP_MIN_WINDOWS;
-/// En dessous, mesure moins sûre (avertissement) : consigne de Brian White [S35].
+/// En dessous, mesure moins sûre (avertissement) : consigne des sources [S35].
 pub const SURE_WINDOWS: usize = STEP_SURE_WINDOWS;
 /// Pic « sans dépassement » (repère 1,03 de `rules::STEP_PEAK_FLAT`, plus le bruit d'un vol).
 pub const PEAK_FLAT_MAX: f64 = 1.05;

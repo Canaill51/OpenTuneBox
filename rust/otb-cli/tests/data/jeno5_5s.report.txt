@@ -22,7 +22,7 @@
   [INFO     ] Bruit — Bruit du gyro filtré
       Sommet du spectre à -16 dB sur l'échelle de PIDtoolbox (repère : sous -30 dB) ; bruit moyen -30.6 dB, dans les 90 % du corpus (seuil -28.3 dB).
   [OK       ] Filtres — Retard des filtres gyro
-      1.18 ms (repère ≤ 1.9 ms pour 4 à 5 pouces). Objectif de Brian White pour un 5 pouces : environ 1.75 ms.
+      1.18 ms (repère ≤ 1.9 ms pour 4 à 5 pouces). Objectif pour un 5 pouces : environ 1.75 ms.
   [OK       ] Filtres — Retard des filtres D
-      1.96 ms (repère ≤ 2.7 ms pour 4 à 5 pouces). Objectif de Brian White pour un 5 pouces : environ 1.50 ms lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms plus court qu'ici.
+      1.96 ms (repère ≤ 2.7 ms pour 4 à 5 pouces). Objectif pour un 5 pouces : environ 1.50 ms lus par PIDtoolbox, qui mesure le retard du D environ 0,5 ms plus court qu'ici.
 

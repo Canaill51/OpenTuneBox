@@ -180,8 +180,8 @@ Règles d'écriture :
   son pic est au bord (`advisor/rules.py:_edge_actions`). Le vol chirp, seule excitation large bande à la
   portée du pilote, est mis de côté (D-019).
   **Risque si on n'y touche pas** : pic de sensibilité sous-estimé sur les vols sans excitation large bande.
-  **Reprise** : quand le chirp est compilé dans le firmware de base et qu'une méthode publiée (Betaflight,
-  Brian White) dit comment le voler.
+  **Reprise** : quand le chirp est compilé dans le firmware de base et qu'une méthode publiée (Betaflight, PIDtoolbox)
+  dit comment le voler.
   **Piste** : conseiller un vol chirp quand le pic est au bord de la bande ; constat séparé essayé le
   2026-10-12 : 44 % des sessions du corpus, à réserver aux marges proches du seuil.
   [`analysis/loop.py` (`sensitivity_peak_at_edge`), [validation.md](validation.md#autres-contrôles), D-012]

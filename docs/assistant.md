@@ -142,7 +142,7 @@ sinon à `SAME_DRONE_NAMES` (plus d'alerte).
 
 ### Repères de PIDtoolbox (2026-10-05)
 
-Brian White donne ses repères sur l'échelle de PIDtoolbox : gyro filtré sous −30 dB, terme D au plus
+Les repères usuels sont donnés sur l'échelle de PIDtoolbox : gyro filtré sous −30 dB, terme D au plus
 −10 dB (idéal sous −20 dB) [S20–S22], et un graphique d'objectifs de retard des filtres selon la taille
 [S26]. Pour les utiliser :
 
@@ -380,7 +380,7 @@ l'en-tête, mais 0 en mode Angle (au moins 90 % de la période), où le firmware
   feedforward ; leur terme F enregistré est nul (480 sur 483) et leur pic est celui des vols sans feedforward
   (p90 par drone 1,19 ; F = 0 seul : 1,14). Les anciens paliers (1,15 / 1,25 et 1,40 / 1,55) mélangeaient
   les deux groupes (récidive de L-005).
-- **Le feedforward gonfle le pic** (mesuré ici ; aussi dit par Brian White dans une vidéo de questions-réponses,
+- **Le feedforward gonfle le pic** (mesuré ici ; aussi dit dans une vidéo de questions-réponses de PIDtoolbox,
   non citée faute de citation vérifiée) : p90 par axe 1,19 sans, 1,58 avec. Un même palier pour les deux
   signalerait surtout les drones avec feedforward. Séries du corpus où seul F change (mêmes filtres, mêmes P,
   I, D, hors mode Angle ; 16 axes, 8 drones) : +100 de F monte le pic de 0,24 (p10 / p90 −0,04 / +0,45) et
@@ -399,7 +399,7 @@ l'en-tête, mais 0 en mode Angle (au moins 90 % de la période), où le firmware
   tout le corpus, les axes ainsi reconnus ont un terme F 2,85 fois plus fort que le terme P quand le manche
   bouge (médiane), contre 0,33 pour les autres dépassements avec feedforward.
 - **Repère sans dépassement** : série BlackSummer (`1. PTB/BlackSummer`, sans feedforward, seul le D change),
-  méthode de Brian White (garder la première valeur de Damping sans dépassement [S24, S25]) : pic roll 1,25 /
+  méthode des séries de vols (garder la première valeur de Damping sans dépassement [S24, S25]) : pic roll 1,25 /
   1,14 / 1,03 / 1,03 / 1,02 (D croissant ; 1,23 / 1,11 / 1,00 / 0,98 dans PIDtoolbox, `validation.md`) ;
   la série « Master multi » faite ensuite avec ce Damping donne 1,02 à 1,03. « Sans dépassement visible »
   ≈ **1,03** sur notre échelle (`rules.STEP_PEAK_FLAT`), un seul drone : repère indicatif, affiché dans les
@@ -413,13 +413,13 @@ l'en-tête, mais 0 en mode Angle (au moins 90 % de la période), où le firmware
   0,02 / 0,11 à 100, 0,015 / 0,07 à 200 ; latence p90 3,6 / 2,7 / 2,0 / 1,4 ms. L'écart compte aussi les
   changements de pilotage au cours du vol : c'est un majorant. À 20 fenêtres, le pic peut se tromper de plus
   que l'écart entre les paliers conseil et attention (0,10) : le vol reste lu dès 20 fenêtres
-  (`rules.STEP_MIN_WINDOWS`), mais sous 200 (`rules.STEP_SURE_WINDOWS`, consigne de Brian White [S35]) les
+  (`rules.STEP_MIN_WINDOWS`), mais sous 200 (`rules.STEP_SURE_WINDOWS`, consigne des sources [S35]) les
   constats du pic et de la latence disent « mesure moins sûre » (choix de Cédric). Dans le corpus, 46 sessions
   ont moins de 20 fenêtres sur les deux axes, 61 (9 %) entre 20 et 199, 598 au moins 200.
 
 ### Diagnostic du réglage par séries (2026-10-10)
 
-« Diagnostic du réglage » de la Réponse indicielle, toujours affiché (`rust/otb-advisor/src/step_tuning.rs`), méthode de Brian White
+« Diagnostic du réglage » de la Réponse indicielle, toujours affiché (`rust/otb-advisor/src/step_tuning.rs`), méthode des séries de vols
 (`spec-methodes.md`, [S32]). Séries reconnues dans tout le corpus (`rust/otb-analysis/src/step_series.rs:find_series` :
 mêmes filtres, un seul curseur changé) : 28 séries Master, 43 Damping, 6 Pitch Tracking / Pitch Damping Le choix final
 des pilotes est relu dans les vols faits ensuite (« FINAL », « FF », « tune »…), faute d'étiquette.
@@ -498,7 +498,7 @@ corpus en ont au moins un (53 sur 710), presque toutes des `.BFL`.
 
 ### Pas des curseurs (2026-10-12)
 
-Pas conseillés d'un vol au suivant, choisis par Cédric d'après la méthode de Brian White [S32] (un pas de
+Pas conseillés d'un vol au suivant, choisis par Cédric d'après la méthode des séries de vols [S32] (un pas de
 0,1 ne se lit pas sur la réponse indicielle) ; décision D-021. Ils remplacent les ±0,1 d'origine
 « Estimation » (W-003).
 
@@ -610,7 +610,7 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
 - **Filtrage trop prudent** : retard gyro > repère de la taille alors que gyro et D sont peu bruités
   (action en plus : `rpm_filter_q` + 100, par pas jusqu'à 1000, quand le filtre RPM est actif) ; retard D > repère
   alors que le D est peu bruité. Retard gyro au-dessus du repère avec du bruit : info. Les textes et les
-  lignes « ok » rappellent l'objectif du graphique de Brian White pour la taille (2–3,5" lu à 3", 8"+ à
+  lignes « ok » rappellent l'objectif du graphique de référence pour la taille (2–3,5" lu à 3", 8"+ à
   8" ; pas d'objectif pour les whoops, sous 2").
 - **Filtre RPM** (eRPM, gyro non filtré et filtre RPM actif) : raie moteur encore visible (> 4 dB au-dessus
   du bruit voisin après filtrage) alors que son poids est < 100 → remonter le poids ; en 4.5 et plus, si le
@@ -721,13 +721,13 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Fréquence du log trop basse | gyro 8 kHz : 2 kHz ; gyro 3,2 kHz : 1,6 kHz (plus petite fraction de la boucle PID ≥ 1,6 kHz) | Pilote expérimenté (Cédric, 2026-10-05) + firmware | Le blackbox sous-échantillonne sans filtre (`blackbox_sample_rate` 1/1 à 1/16 de la boucle PID, `cli/settings.c`) : tout bruit au-delà de la moitié de la fréquence du log se replie. 178 sessions sur 681 (26 %) en dessous, surtout des gyros à 8 kHz logués à 1 kHz |
 | Fréquence du log pour les PID | 1 kHz (bloquant pour une série sous 500 Hz) | Pilote expérimenté (Cédric, 2026-10-12) + théorie | Réponse indicielle et latence à la milliseconde près ; la bande analysée s'arrête à 0,4 × la fréquence du log (200 Hz à 500 Hz). Les mouvements du manche restent sous quelques dizaines de hertz : le repliement du bruit moteur pèse peu sur la réponse |
 | Harmoniques des petits drones | log ≥ 6 × fréquence moteur (3e harmonique sous la moitié de la fréquence du log) | Théorie (Nyquist) | 75 sessions de plus atteignent le minimum mais pas ce seuil |
-| Diagnostic du réglage : pas de série | 0,2 ; plus fin que 0,15 signalé | Communauté [S32] | Brian White : un pas de 0,1 ne se lit pas sur la réponse |
+| Diagnostic du réglage : pas de série | 0,2 ; plus fin que 0,15 signalé | Communauté [S32] | Un pas de 0,1 ne se lit pas sur la réponse |
 | Diagnostic du réglage : curseur I | 0,2–0,3 (signalé hors de 0,15–0,35) | Communauté [S32] | Le I déforme la réponse |
 | Diagnostic du réglage : fenêtres | moins de 20 : vol non lu ; moins de 200 : « mesure moins sûre » (avertissement) | Communauté [S35] + corpus | 89 % des 240 vols de série du corpus atteignent 200 (62 séries sur 77 entièrement) ; ~12 fenêtres par seconde de wobble (médiane), soit ~17 s (mesure du 2026-10-12) |
 | Guide : roll et pitch mêlés | les deux axes au-delà de 20 °/s pendant au moins 40 % du temps en mouvement | Corpus (choix de Cédric, 2026-10-12) | Deux groupes dans le corpus : wobbles mêlés 0,55–0,70, vols « un axe à la fois » 0–0,25. À 0,4 : 39 % des vols avec mouvements et 22 % des fichiers nommés « wobble » signalés (0,3 : 29 % et 13 %) |
-| Guide : protocole des mouvements | mode Angle ≥ 90 % ou Acro avec le feedforward à 0 (choix de Cédric, 2026-10-12 ; même réponse, [S24]) ; rates ACTUAL 200 / 200 / 0 sur les trois axes ; limite d'angle 30° (mode Angle seulement) ; Dynamic Damping à 0 | Communauté [S24, S33, S34] + choix de Cédric | Rates 200 / 200 / 0 choisies par Cédric (linéaires, comme [S33]) ; Brian White conseille 20° pour un gros drone, non retenu |
+| Guide : protocole des mouvements | mode Angle ≥ 90 % ou Acro avec le feedforward à 0 (choix de Cédric, 2026-10-12 ; même réponse, [S24]) ; rates ACTUAL 200 / 200 / 0 sur les trois axes ; limite d'angle 30° (mode Angle seulement) ; Dynamic Damping à 0 | Communauté [S24, S33, S34] + choix de Cédric | Rates 200 / 200 / 0 choisies par Cédric (linéaires, comme [S33]) ; 20° conseillé pour un gros drone [S33], non retenu |
 | Guide : séries | Damping 0,6 → 1,6 (jusqu'à 5") ou 1,0 → 1,6 (6" et plus) ; Master 1,0 → 2,0 ; Pitch Damping et Pitch Tracking : 3 vols dans le sens du diagnostic | Communauté [S25, S34] | Arrêt au premier vol « trop haut » |
-| Guide : finitions | I 0,8–1,0 (jusqu'à 5"), 0,6–0,8 (6" et plus) | Communauté [S34, S36] + choix de Cédric | Plages de départ, arrondies autour des valeurs de Brian White |
+| Guide : finitions | I 0,8–1,0 (jusqu'à 5"), 0,6–0,8 (6" et plus) | Communauté [S34, S36] + choix de Cédric | Plages de départ, arrondies autour des valeurs des sources |
 | Série Feedforward (finitions) | pas de 0,5 (0, 0,5, 1), Acro uniquement ; retard consigne → gyro par vol, dans l'Assistant et sous les logs du guide, sans valeur conseillée | Choix de Cédric (2026-10-12) + firmware | Remplace les plages de départ 0,8–1,2 / 0,5–1,0. Pas jugée par le Diagnostic du réglage : le feedforward fausse la réponse indicielle. Retard par intercorrélation (`rust/otb-analysis/src/delay.rs:xcorr_delay_ms`). Feedforward coupé en mode Angle (`pid.c`) : un vol de la série en mode Angle est signalé |
 | Guide : repères de fin des filtres | gyro filtré ≤ −30 dB, terme D ≤ −10 dB (échelle PIDtoolbox, partie stationnaire) ; retard sous l'objectif de la taille (D : + 0,5 ms, écart de mesure avec PIDtoolbox) | Communauté [S20, S21, S26] | Mêmes repères que l'assistant (`rules.GYRO_PTB_MAX_DB`, `DTERM_PTB_MAX_DB`, `profiles.filter_delay_target_ms`) |
 | Diagnostic du réglage : feedforward | F > 0 hors mode Angle (≥ 90 % du vol), sauf vols d'une série Feedforward | Firmware + communauté [S32] | Le feedforward est forcé à 0 en Angle (`pid.c`), pas en Horizon |
@@ -735,13 +735,13 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Diagnostic du réglage : Master, cassure | début 0,03 ; nette 0,065 ; forte 0,10 (pas d'affinage) | Corpus (10 séries) | Gardés ≤ 0,067, rejetés ≥ 0,064 : cas limites possibles |
 | Diagnostic du réglage : Master, plateau | gain de latence < 4 % par cran ; arrêt si cassure ≥ 0,05 et qui grandit de 0,02 | Corpus (10 séries) + communauté [S32] | Un drone qui progresse gagne 6 à 10 % par cran de 0,2 |
 | Diagnostic du réglage : vagues | 2,5 fois le bruit de mesure ; pas lues sous 200 fenêtres | Corpus + essais | Mesure à vide p99 2,35 sans feedforward ; vague d'environ 3 % détectée au-delà de 250 fenêtres (« Vagues », 2026-10-12) |
-| Diagnostic du réglage : roll / pitch | écart de latence ≤ 1 ms équilibré, ≤ 2 ms acceptable | Communauté [S32] | Pilote expérimenté (Cédric, d'après Brian White) : 1 à 2 ms selon l'inertie et les moteurs |
+| Diagnostic du réglage : roll / pitch | écart de latence ≤ 1 ms équilibré, ≤ 2 ms acceptable | Communauté [S32] | Pilote expérimenté (Cédric, d'après les sources) : 1 à 2 ms selon l'inertie et les moteurs |
 | Harmoniques hors de la plage visible | 3 × f moteur > Fs / 2 | Théorie | Fréquence de Nyquist |
 | Gyro non filtré absent, pas d'eRPM | présence des champs | Firmware | |
 | Trous dans l'enregistrement | au moins un trou (pas de temps > 4 périodes du log) dans la période analysée | Corpus | Constat informatif (fenêtres touchées écartées, D-020) ; 7 % des sessions signalées (« Trous dans l'enregistrement », 2026-10-12). Remplace le compteur de trames corrompues (> 20), qui comptait des tentatives de resynchronisation et non du temps perdu |
 | Mouvements de manche suffisants | ≥ 20 fenêtres ; « mesure moins sûre » sous 200 | Corpus + communauté [S35] | Écart du pic p90 0,20 à 20 fenêtres, 0,07 à 200 (« Pic de réponse indicielle », 2026-10-12) ; mêmes valeurs que le Diagnostic du réglage |
 | Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Code de PID-Analyzer (2018) et de PIDtoolbox v0.55 (2022) [S5, S2] |
-| Dépassement | sans feedforward : pic > 1,20 (conseil), > 1,25 (attention) ; avec feedforward : > 1,60, > 1,70 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon le feedforward en service, 0 en mode Angle (D-025, 2026-10-13, « Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode de Brian White [S24, S25]) |
+| Dépassement | sans feedforward : pic > 1,20 (conseil), > 1,25 (attention) ; avec feedforward : > 1,60, > 1,70 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon le feedforward en service, 0 en mode Angle (D-025, 2026-10-13, « Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode des séries de vols [S24, S25]) |
 | Dépassement dû au feedforward | feedforward en service (F > 0 hors mode Angle) et latence < p10 de la taille | Corpus | Séries du corpus où seul F change (2026-10-13, 8 drones) : +100 de F = pic +0,24 et latence −3,6 ms ; 7 des 8 dépassements dus au feedforward reconnus ; axes reconnus : terme F 2,85 fois le terme P (autres : 0,33). Voir « Pic de réponse indicielle » |
 | Réponse molle | pic < 1,01 et latence > p90 de la taille | Corpus | Pic : p10 des axes (« Pic de réponse indicielle », 2026-10-12) ; 1,3 % des sessions |
 | Roll et pitch différents | écart de pic > 0,08 (7") à 0,12 (commun) selon la taille | Corpus | Seuils mécaniques (`profiles.rs`, voir « Calibration ») |
@@ -750,12 +750,12 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Corpus | Choisit le conseil (Master −0,1 plutôt que plus de D). 55 séries Damping et Pitch Damping (« D dominant », 2026-10-12) : dès 1,0, un cran de D fait monter le pic de sensibilité ; aussi la simulation (`test_loop` de l'ancienne version Python) et la série BlackSummer (`validation.md`) |
 | Bandes de bruit | 80–500 Hz ; 20–80 Hz | Communauté + corpus | Propwash et oscillations « ~20Hz to ~100Hz » [S1], moteurs ~200–500 Hz [S7] ou au-delà de 250 Hz [S6] ; bornes vérifiées sur le corpus (« Bandes de bruit », 2026-10-13) : 80 Hz peu sensible (60–100 Hz : 92 à 100 % des mêmes sessions), 500 Hz = plus haute borne commune aux logs à 1 kHz (26 % des sessions), 20–80 Hz signale autant les vols stationnaires (11 %) que les vols avec mouvements (10 %) |
 | Bruit gyro, terme D, 20–80 Hz, harmonique moteur | p90 de la taille | Corpus | Relatif au corpus : « plus bruité que 90 % », pas « mauvais » dans l'absolu |
-| Terme D, échelle de PIDtoolbox | sommet > −10 dB (attention, avec le p90) ; idéal < −20 dB (texte) | Communauté | Brian White [S20] (« maybe minus 10 would be the highest ») ; 18 % des sessions (voir « Repères de PIDtoolbox ») |
+| Terme D, échelle de PIDtoolbox | sommet > −10 dB (attention, avec le p90) ; idéal < −20 dB (texte) | Communauté | [S20] (« maybe minus 10 would be the highest ») ; 18 % des sessions (voir « Repères de PIDtoolbox ») |
 | Gyro filtré, échelle de PIDtoolbox | sommet < −30 dB (affiché) | Communauté | « a good rule of thumb » [S21, S22] ; ne déclenche rien (35 % des sessions au-dessus) |
 | Passage à l'échelle de PIDtoolbox | −6,5 dB | Corpus | 5 sessions de 4 drones avec captures PIDtoolbox, ± 1 dB (`validation.md`) |
-| Retards des filtres gyro et D | p90 de la taille (vols avec mouvements), arrondi vers le haut | Corpus | Déclenche le conseil. Objectif affiché : graphique de Brian White [S26], 1 ms à 2" puis 0,25 ms (gyro) et 0,17 ms (D) par pouce (5" : 1,75 / 1,5 ms) ; dans la vidéo [S20] il citait de mémoire 1,5 ms pour un 5" et ≈ 5 ms pour un 10". Objectif D en valeurs PIDtoolbox, environ 0,5 ms sous notre mesure |
+| Retards des filtres gyro et D | p90 de la taille (vols avec mouvements), arrondi vers le haut | Corpus | Déclenche le conseil. Objectif affiché : graphique de référence [S26], 1 ms à 2" puis 0,25 ms (gyro) et 0,17 ms (D) par pouce (5" : 1,75 / 1,5 ms) ; dans la vidéo [S20], 1,5 ms pour un 5" et ≈ 5 ms pour un 10" sont cités de mémoire. Objectif D en valeurs PIDtoolbox, environ 0,5 ms sous notre mesure |
 | Taille pour l'objectif de retard | 2–3,5" → 3" ; 8"+ → 8" | Corpus | Médiane des drones de taille connue rangés dans le profil (étiquettes de `corpus.csv` et noms, 2026-10-12). 2–3,5" : 9 drones, 2" (Pavo20), 2,5" (Whisper25 ×2, FoxWhoop 25, Gerrykiki « Test Hélices 2.5 »), 3" (04Pro3, T3, Seeker 3), 3,5" (JeNo 3,5 ×2) → 3" ; un 5" mal classé écarté. 8"+ : 8" (demonsgalore, Mario8), 9" (Pulsar) → 8". Peu de drones : à revoir avec W-002. Le graphique [S26] commence à 2" : pas d'objectif pour les whoops |
-| `rpm_filter_q` pour gagner du retard | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | « stepwise increasing the Q from the default of 500 up to a max of 1000 » [S27] ; Brian White : 750 [S20, 34:12]. Pas de 100 : décision de Cédric (2026-10-10), à la place de 250. Proposé seulement dans le conseil « filtrage gyro trop prudent » (bruit faible) |
+| `rpm_filter_q` pour gagner du retard | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | « stepwise increasing the Q from the default of 500 up to a max of 1000 » [S27] ; 750 conseillé [S20, 34:12]. Pas de 100 : décision de Cédric (2026-10-10), à la place de 250. Proposé seulement dans le conseil « filtrage gyro trop prudent » (bruit faible) |
 | Poids RPM juste suffisant | 1 − 10^(−(hauteur + 3 dB)/20), arrondi au dixième supérieur | Firmware + corpus (marge) | Profondeur du notch tirée du code (`rpmNotchUpdate`) ; marge de 3 dB (2026-10-13, choix de Cédric) : raies invisibles après filtres dans plus de 99 % des cas jusqu'à 0 dB prévu, sur 1 186 harmoniques à poids réduit (voir « Filtre RPM : poids et Q ») ; avant : 6 dB, estimation ; seulement 2e et 3e harmoniques, comme [S27] ; presets officiels en tripale : 100, 0, 80 (AOS), 100, 20, 100 (Karatebrot), 90, 30, 90 (SupaflyFPV) [S28] |
 | Gain minimal pour proposer un poids | 0,5 | Firmware (retard calculé) | Baisse de 0,5 = environ 0,17 ms de retard en moins sur la 2e harmonique, 0,11 ms sur la 3e (4 moteurs, modèle des filtres du firmware, 2026-10-13) : l'unité d'arrondi des repères de retard (0,1 ms) ; choisi d'abord avec Cédric sur le taux de déclenchement |
 | Marge autour des harmoniques retirées | ± 5 % de la fréquence moteur, harmoniques 1 à 8 | Corpus | Raies du vol stationnaire comparées au hasard (« Stratégie de filtrage et vol stationnaire », 2026-10-13) : flancs jusqu'à 3 % (fondamentale), 1 % (2e), aucun (3e) ; avant : 5 % de l'harmonique pour les trois premières (estimation) |
@@ -788,7 +788,7 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Terme I décentré | moyenne > 31 (7") à 33 (commun, unités PID) selon la taille | Corpus | |
 | Saturation des moteurs | ≥ 98 % pendant > 1,5 % du temps | Corpus | La notion de « moteur à 98 % » est estimée : le firmware ne journalise pas de saturation (il renormalise le mixage quand l'écart entre moteurs dépasse 100 %) |
 | Pas des curseurs conseillés | filtre gyro 0,2 ; filtre D 0,1–0,2 ; Damping 0,2 (dégrossir) ou 0,1 (fin) ; roll / pitch 0,2 ; Master 0,2 puis retour de 0,1–0,2 ; feedforward : série de 0,5 depuis 0 | Communauté [S32] + choix de Cédric | D-021, voir « Pas des curseurs » ; le configurateur avance par 0,05 ; en mode de base il borne PI, D et FF à 0,70–1,40, le filtre gyro à 0,50–1,50 et le filtre D à 0,80–1,20 |
-| `rpm_filter_q` conseillé | −100 par pas (500 → 400) | Firmware (500) + décision (pas) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre selon Brian White [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où des pas de 100 (décision de Cédric, 2026-10-10). Monter Q : voir la ligne « pour gagner du retard ». Avec un poids < 100, la règle « poids trop bas » propose d'abord de le remonter |
+| `rpm_filter_q` conseillé | −100 par pas (500 → 400) | Firmware (500) + décision (pas) | Défaut 500, plage 250–3000. Les sources conseillent plutôt de **monter** Q (jusqu'à 750 [S9] ou 1000 [S6, S14] ; 750–1000 sur un 5" propre [S20]) et de redescendre seulement si le bruit moteur réapparaît, ce qui est le cas où la règle le propose (bruit moteur restant après filtrage) ; aucune ne donne de valeur sous 500, d'où des pas de 100 (décision de Cédric, 2026-10-10). Monter Q : voir la ligne « pour gagner du retard ». Avec un poids < 100, la règle « poids trop bas » propose d'abord de le remonter |
 | `motor_poles` | 14 (12 pour certains micro-moteurs) | Firmware (14) + communauté (12) | Défaut 14 dans Betaflight ; « Smaller motors have fewer magnets, often 12 » [S9], 12 pour les 08XX à 16XX [S13] |
 | Notch statique conseillé | seulement si le notch dynamique ne peut pas traiter la raie (boucle PID < 2 kHz, 7 notchs, raie > 980 Hz), jamais sous 100 Hz ; coupure tirée du Q nécessaire pour la raie, 0,62 à 0,89 × sa fréquence ; 0,7 sans mesure | Choix de Cédric + théorie + firmware | Même calcul que le Q du notch dynamique [S31], `filterGetNotchQ` ; repli 0,7 dans la plage des défauts de Betaflight 3.2.0 (0,5 à 0,75), voir « Règles » (2026-10-12) ; D-024 |
 

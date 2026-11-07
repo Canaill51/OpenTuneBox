@@ -26,10 +26,10 @@ pub const ESCS: [(&str, &str); 4] = [
 ];
 /// DShot bidirectionnel possible.
 pub const BIDIR_ESCS: [&str; 3] = ["BLHeli_32", "Bluejay", "AM32"];
-/// 6–7" et plus : autres listes et plages (Brian White [S34]).
+/// 6–7" et plus : autres listes et plages ([S34]).
 pub const LARGE_SIZES: [&str; 2] = ["seven", "large"];
 
-/// Séries de vols (méthode de Brian White, choix de Cédric du 2026-10-12) : valeurs du curseur, vol par vol.
+/// Séries de vols (méthode des séries, choix de Cédric du 2026-10-12) : valeurs du curseur, vol par vol.
 pub const DAMPING_SERIES_SMALL: [f64; 6] = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6];
 pub const DAMPING_SERIES_LARGE: [f64; 4] = [1.0, 1.2, 1.4, 1.6];
 /// Arrêt au premier vol « trop haut » [S34].
@@ -67,7 +67,7 @@ pub const DYN_NOTCH_DEFAULTS: DynNotchDefaults = DynNotchDefaults {
     max_hz: 600,
 };
 
-/// Finitions : plage de départ du I (Brian White [S34, S36], arrondie et choisie par Cédric).
+/// Finitions : plage de départ du I ([S34, S36], arrondie et choisie par Cédric).
 pub const I_RANGE_SMALL: (f64, f64) = (0.8, 1.0);
 pub const I_RANGE_LARGE: (f64, f64) = (0.6, 0.8);
 

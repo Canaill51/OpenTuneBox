@@ -86,6 +86,7 @@ Le détail complet suit.
 - Décodeur Blackbox en Rust (`rust/otb-decoder`), moteur par défaut : mêmes tableaux que l'ancien décodeur au bit près sur tout le corpus, environ 6 fois plus rapide (22 Mo : 1,94 s → 0,29 s) (D-031, L-032).
 
 ### Modifié
+- **Les sources sont désormais citées sans nommer leurs auteurs** (D-050) : les méthodes, repères de bruit et objectifs de retard gardent leur titre, leur date, leur lien et leur citation exacte dans `docs/spec-methodes.md`, mais plus aucun nom de personne n'apparaît dans le projet. Dans les textes que vous voyez (assistant, guide, rapport), « méthode de … » devient « méthode des séries de vols » et « repères de … » devient « repères usuels ». Aucun seuil, aucune valeur et aucun calcul ne change.
 - Captures du `README.md` refaites sur l'interface Rust (visualiseur, guide, réponse indicielle, assistant) : elles montraient encore l'interface Qt de la version Python. Prises sans écran par `cargo run --release -p otb-gui --example capture` sur `JeNo 5/FINAL.bbl` (et `LAST.bbl` pour la réponse indicielle à trois sessions), thème clair.
 - Visualiseur plus fluide sur les longs vols (lot 10 du plan des chantiers, W-049, D-048) : chaque courbe affichée reçoit un index multi-résolution min/max (minimum et maximum par blocs de 8 échantillons, puis de 8 blocs…), et le tracé ne parcourt plus toute la série à chaque image. Sur la plus longue session du corpus (620 079 échantillons) le cadre passe de 10,5–12,1 ms à 4,6–4,8 ms, **y compris pendant un glissement** (10,3–10,8 → 4,8–4,9 ms) ; sur `FINAL.bbl`, de 6,9–8,7 à 3,1–3,2 ms, et de 6,2 à 0,95 ms en fenêtre étroite. Le tracé est inchangé : les captures du viewer sont identiques au bit près, aux deux thèmes. L'index pèse 6,4 à 7,8 % du pic de mémoire, qui ne bouge pas (il est atteint pendant le décodage). Un seul changement visible, sur les courbes à trous (rotation des moteurs en Hz) : un paquet qui contient un trou est désormais toujours tracé comme un trou, là où l'ancien calcul coupait la ligne ou non selon la position du trou. Bancs : `otb-gui --example banc_cadre LOG [--glissement] [--zoom 8]` et `otb-dsp --example banc_minmax`.
 - Ouverture d'un log deux fois moins gourmande en mémoire et plus rapide (lot 5 du plan des chantiers, L-081) : le décodeur range les trames principales en `i32` (valeurs déjà ramenées aux 32 bits, seuls `loopIteration` et `time` restent en 64 bits) et la table est rendue dès que les colonnes utiles sont extraites. Log le plus gourmand du corpus : 481 → 274 Mo (÷ 1,75), 0,63 → 0,54 s ; les `FlightLog` des 528 fichiers du corpus sont identiques au bit près. Banc : `otb-dev bench-open LOG`.
@@ -267,7 +268,7 @@ Le détail complet suit.
   après le filtre RPM » 9 → 6 % des sessions), Q du notch dynamique calculé pour laisser 4 dB (W-003).
 - Le vol chirp de Betaflight n'est plus conseillé (guide utilisateur) : il faut le compiler à part dans le
   firmware, ses données changent encore d'une version à l'autre et aucune méthode publiée n'en tire un
-  réglage. OpenTuneBox suit la méthode de Brian White : quand le pic de sensibilité tombe au bord des
+  réglage. OpenTuneBox suit la méthode des séries de vols : quand le pic de sensibilité tombe au bord des
   fréquences mesurables, le constat « Marge de stabilité faible » conseille des wobbles plus rapides et plus
   secs. Un log chirp reste lu et mesuré comme avant (D-019, W-004).
 - Toutes les couleurs fixes de l'interface (courbes et repères des graphiques, badges de l'assistant, curseur et
@@ -330,7 +331,7 @@ Le détail complet suit.
   ce qui est à revoir, avec la raison. Logs des **filtres** et logs des **séries PID** demandés et jugés à
   part : bouton d'ouverture dans chaque phase, panneau des logs en deux parties, lien pour changer le rôle
   d'un log. Le vol de réglage des filtres (stationnaire puis wobbles) est découpé automatiquement ; protocole
-  de Brian White vérifié (mode Angle, ou Acro avec le feedforward à 0 ; rates ACTUAL 200 / 200 / 0 ; limite
+  des séries de vols vérifié (mode Angle, ou Acro avec le feedforward à 0 ; rates ACTUAL 200 / 200 / 0 ; limite
   d'angle 30° en mode Angle ; roll et pitch mêlés ; Dynamic Damping à 0 ; curseur I ; au moins 200
   fenêtres) ; chaque série d'un drone reconnue ; repères de fin des filtres mesurés ; copie des commandes
   CLI équivalentes.
@@ -345,7 +346,7 @@ Le détail complet suit.
   l'Assistant (simple conseil pour les filtres) ni bloqué par la vérification des logs du guide, qui indique
   les deux fréquences.
 - Réponse indicielle, Diagnostic du réglage : un vol de série avec moins de 200 fenêtres en roll ou en pitch
-  est signalé « mesure moins sûre » (consigne de Brian White) ; sous 20, il n'est toujours pas lu.
+  est signalé « mesure moins sûre » (consigne des sources) ; sous 20, il n'est toujours pas lu.
 - Spectre, Fréq. × gaz, Fréq. × temps et Filtres : les niveaux en dB sont affichés sur l'échelle de
   PIDtoolbox (6,5 dB plus bas qu'avant), pour lire directement les repères habituels (gyro sous −30 dB,
   terme D sous −10 dB) et comparer aux captures de PIDtoolbox.
@@ -354,7 +355,7 @@ Le détail complet suit.
 ## [0.5.0] — 2026-10-10
 
 ### Ajouté
-- Réponse indicielle : **Diagnostic du réglage**, toujours affiché à côté des courbes, méthode de Brian White. Reconnaît
+- Réponse indicielle : **Diagnostic du réglage**, toujours affiché à côté des courbes, méthode des séries de vols. Reconnaît
   les séries de vols chargées (un seul curseur changé, mêmes filtres) et conseille le Damping (équilibre P/D),
   le Master (cassure « ripple », vagues et plateau de la latence) et l'équilibre roll / pitch (écart de latence
   de 1 à 2 ms au plus) ; vérifie le feedforward (0 ou mode Angle), le curseur I (0,2–0,3) et le pas (0,2).
@@ -424,10 +425,10 @@ Le détail complet suit.
   d'erreur (jackknife) sur les marges ; point creux quand la valeur n'est qu'approchée (termes absents),
   triangle quand le pic de sensibilité n'est qu'un minimum (au-delà des fréquences mesurables).
 
-- Assistant : repères de Brian White (PIDtoolbox) sur l'échelle de ses spectres (nos DSP sont 6,5 dB
+- Assistant : repères usuels de PIDtoolbox sur l'échelle de ses spectres (nos DSP sont 6,5 dB
   plus hautes) : terme D signalé aussi quand le sommet de son spectre dépasse −10 dB ; niveau du gyro
   filtré affiché face au repère −30 dB ; objectifs de retard des filtres selon la taille (graphique de
-  Brian White) rappelés dans les textes ; conseil « filtrage gyro trop prudent » complété par
+  PIDtoolbox) rappelés dans les textes ; conseil « filtrage gyro trop prudent » complété par
   `rpm_filter_q` + 250, par pas jusqu'à 1000 (documentation de Betaflight 4.5).
 - Assistant : poids du filtre RPM (`rpm_filter_weights`, 4.5 et plus) — poids juste suffisant calculé pour
   chaque harmonique à partir de sa hauteur au-dessus du bruit voisin et de la formule du firmware ;
@@ -493,7 +494,7 @@ Le détail complet suit.
 - Documentation : chaque repère de réglage « communauté » a sa source (auteur, date, adresse, citation
   exacte) dans `docs/spec-methodes.md`, ou est reclassé en estimation. Les paliers chiffrés du pic de
   réponse (1,02–1,08, 1,10, 1,20) et le tableau des fréquences moteur par taille n'ont aucune source
-  publique : ce sont des estimations. Repères recoupés avec les vidéos de Brian White (chaîne PIDtoolbox),
+  publique : ce sont des estimations. Repères recoupés avec les vidéos de la chaîne PIDtoolbox,
   citées avec le moment de la vidéo : terme D sous −20 dB (−10 au plus), retard gyro ≤ 1,5 ms pour un 5".
 - Assistant : seuils mécaniques calibrés sur 90 drones (déséquilibre 11–14 % au lieu de 12 %, terme I
   29–33 au lieu de 40, saturation 1,5 % du temps au lieu de 5 %, écart roll / pitch 0,07–0,12 au lieu

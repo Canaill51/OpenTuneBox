@@ -32,7 +32,7 @@ Entrées : consigne SP = setpoint[axe], GY = gyroADC[axe] sur la période choisi
 8. Réponse sur 500 ms ; moyenne ± écart-type et nombre de fenêtres n. Séparation possible à max|SP| 500 °/s.
 9. Mesures sur la moyenne : pic = maximum sur t ≤ max(150 ms, 3 × latence) et son instant ;
    latence = passage à 50 % interpolé ; temps de montée 10–90 % ; établissement à ±5 %.
-10. Forme de la montée (`step.shape_metrics`), pour la méthode de Brian White [S32] :
+10. Forme de la montée (`step.shape_metrics`), pour la méthode des séries de vols [S32] :
     - **cassure** (« ripple ») : la montée s'arrête avant la consigne puis reprend lentement. Courbe lissée
       sur 2,5 ms ; arrêt = premier instant après la pente maximale où la pente retombe sous 10 % de
       celle-ci ; cassure = min(palier, 1) − réponse à cet instant, palier = médiane sur
@@ -180,14 +180,14 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - **Pic de réponse** : seules des règles de sens sont publiées. Plus de P → montée plus rapide, plus de
   dépassement ; plus de D → moins de dépassement, montée plus lente [S1, S4] ; rebond après les flips → plus
   de D [S3, S4]. Objectif : « fast rise time and peak time with not too much overshoot » [S1] ; UAV Tech vise
-  une réponse sans dépassement (« critically damped ») [S4]. Méthode de Brian White : série de vols en
-  faisant varier le curseur Damping, puis garder la première valeur sans pic de dépassement, jugée à l'œil
+  une réponse sans dépassement (« critically damped ») [S4]. Méthode des séries de vols : faire varier le curseur
+  Damping d'un vol à l'autre, puis garder la première valeur sans pic de dépassement, jugée à l'œil
   [S24, S25]. Les paliers chiffrés qui circulent (1,02–1,08 optimal, > 1,20 plus de D…) n'ont aucune
   source, vidéos comprises : l'assistant utilise les percentiles du corpus, séparés selon le feedforward,
   et le pic de la première valeur sans dépassement de la série BlackSummer (1,03), voir `assistant.md`.
 - **Fenêtres de la réponse indicielle** : consigne ≥ 20 °/s [S5, S2] ; séparation à 500 °/s [S5, S1].
   Réponse indicielle en mode angle pratiquement identique à l'acro [S24].
-- **Séries de vols (méthode de Brian White)** [S32] : un seul curseur change d'un vol à l'autre, par pas
+- **Séries de vols** [S32] : un seul curseur change d'un vol à l'autre, par pas
   de 0,2 (0,1 ne se lit pas sur la réponse) ; feedforward à 0 en Acro, ou vol en mode Angle (le firmware
   y force à 0 le feedforward de la boucle de vitesse, `pid.c`, voir `spec-betaflight.md`) ; curseur I à
   0,2–0,3 (le I déforme la réponse). Ordre : Damping (équilibre P/D) avec Master 1,0 (0,8 pour un drone
@@ -195,7 +195,7 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   ms près, selon le drone), puis affinage, et parfois retouche du filtrage. Gains trop hauts :
   cassure, vagues sur le palier et latence qui ne baisse plus (plateau), à lire ensemble.
 - **Bandes (5")** : < 20 Hz mouvements commandés, ~20–100 Hz propwash / oscillations [S1] ; 100–250 Hz
-  résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (Brian White situait les
+  résonance de châssis ou pièces desserrées, > 250 Hz moteurs et hélices [S6] (le README de PIDtoolbox situait les
   moteurs vers 200–500 Hz [S7]). Propwash le plus souvent vers 30–50 Hz [S23].
 - **Niveaux de bruit** (échelle en dB des spectres de PIDtoolbox, celle qu'affiche l'interface, 6,5 dB
   sous la densité physique, `validation.md`) : gyro filtré sous −30 dB, « a good rule of thumb »
@@ -204,9 +204,9 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   = fréquence fixe quel que soit le gaz [S6, S9] (ligne horizontale ou verticale selon l'axe des
   fréquences de l'outil).
 - **Retard des filtres** : « aim for < 5ms total latency if possible » [S1, retard gyro estimé par
-  PIDtoolbox par intercorrélation, roll seul : pas tout à fait notre méthode de phase] ; Brian White vise
-  désormais 1,5 ms au plus pour le gyro filtré d'un 5", jusqu'à ≈ 5 ms pour un 10" (« rough
-  guestimate ») [S20] ; son graphique « Rough guide to ideal filter delay » donne des droites de 1 ms à 2"
+  PIDtoolbox par intercorrélation, roll seul : pas tout à fait notre méthode de phase] ; le repère le plus récent est
+  de 1,5 ms au plus pour le gyro filtré d'un 5", jusqu'à ≈ 5 ms pour un 10" (« rough
+  guestimate ») [S20] ; le graphique « Rough guide to ideal filter delay » donne des droites de 1 ms à 2"
   jusqu'à 4 ms (gyro) et 3 ms (D) à 14", soit 1,75 / 1,5 ms pour un 5" [S26] (valeurs lues par PIDtoolbox,
   dont le retard D est environ 0,5 ms sous le nôtre, `validation.md`) ; 4–5 ms « raisonnable » pour un 5"
   [S10] ; 7–8 ms = filtrage très lourd [S11].
@@ -224,7 +224,7 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   officiels 7–10" restent entre 80 et 125 Hz [S16] (20 Hz n'est que la limite du firmware). Sur un 5", pas
   de filtrage plus bas que ≈ 100 Hz [S22].
   `rpm_filter_q` : 500 par défaut [S17] ; le monter tant que le bruit moteur ne réapparaît pas, sans
-  dépasser 750 [S9] ou 1000 [S6, S14] selon les sources ; Brian White conseille 750 à 1000 sur un 5"
+  dépasser 750 [S9] ou 1000 [S6, S14] selon les sources ; 750 à 1000 sont conseillés sur un 5"
   propre pour réduire le retard [S20] ; documentation de Betaflight 4.5 : avec des tripales, monter Q par
   pas de 500 jusqu'à 1000 au plus, puis baisser les poids de la 2e et de la 3e harmonique (« the second
   almost invisible ») pour n'avoir que juste assez de filtrage [S27] ; presets officiels [S28].
@@ -234,11 +234,11 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 
 ### Sources des repères
 
-- [S1] Brian White, *PIDtoolbox user guide*, wiki GitHub, modifié le 2022-02-26 (texte déjà présent en
+- [S1] *PIDtoolbox user guide*, wiki GitHub, modifié le 2022-02-26 (texte déjà présent en
   2019). Dépôt supprimé : lu sur [l'archive](https://web.archive.org/web/20220422084353/https://github.com/bw1129/PIDtoolbox/wiki/PIDtoolbox-user-guide).
   « higher P gains will produce more overshoot, faster rise time » ; « ~20Hz to ~100Hz […] propwash » ;
   « aim for < 5ms total latency ».
-- [S2] Brian White, code de PIDtoolbox v0.55 (2022-03-30, archive Wayback) : `minInput = 20;` sur des
+- [S2] Code de PIDtoolbox v0.55 (2022-03-30, archive Wayback) : `minInput = 20;` sur des
   fenêtres de 2 s (`PTstepcalc.m`).
 - [S3] Wiki Betaflight, [PID Tuning Guide](https://betaflight.com/docs/wiki/guides/current/PID-Tuning-Guide)
   (sans auteur ni date ; historique 2023–2026) : « bounce back, increase D ».
@@ -251,7 +251,7 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   2024-06-27 (modifié 2026-03-03) : « 100Hz – 250Hz: Frame resonance » ; « Above 250Hz: Noise from
   motors » ; « below -30dB above 50Hz » et « below -10dB » pour le D, attribués à l'auteur de PIDtoolbox
   (gyro filtré : réponse de l'auteur dans les commentaires) ; `rpm_filter_q` : « Do not exceed 1000 ».
-- [S7] Brian White, README de PIDtoolbox, 2019 (copie [ianrmurphy/PIDtoolbox](https://github.com/ianrmurphy/PIDtoolbox)) :
+- [S7] README de PIDtoolbox, 2019 (copie [ianrmurphy/PIDtoolbox](https://github.com/ianrmurphy/PIDtoolbox)) :
   « particularly in the ~200-500Hz range associated with motor vibration ».
 - [S8] Plasmatree, wiki [Noise analysis](https://github.com/Plasmatree/PID-Analyzer/wiki/Noise-analysis),
   2018-06-06 : « The diagonal 'line' is the motor noise ».
@@ -284,31 +284,31 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   « Q values around 300-450 » ; sans filtre RPM, « three or four notches and Q
   values around 120-150 » ; « For 250hz RC links […] 40-50 », « For 500hx RC links […] 65-70 »
   (`feedforward_smooth_factor`) ; jitter « 12-15 […] for freestyle/cinematic ».
-- [S20] Brian White, chaîne YouTube PIDtoolbox, [*PTB Q&A #16 : Filter tuning for performance*](https://www.youtube.com/watch?v=TiwaQEkOdyo),
+- [S20] Chaîne YouTube PIDtoolbox, [*PTB Q&A #16 : Filter tuning for performance*](https://www.youtube.com/watch?v=TiwaQEkOdyo),
   2026-04-29 : D-term « ideally below about minus 20 dB. Maybe minus 10 would be the highest »
   ([5:28](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=328s)) ; « you could dial this back to say Q of
   750 » ([34:12](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2052s)) ; « For a 5-in drone, gyro filter
   delay of 1.5 milliseconds or less » ([35:52](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2152s)) ;
   « 5-in 1 and 1/2 milliseconds up to 10-in 5 » ([40:57](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2457s)).
-- [S21] Brian White, direct d'analyse de logs (suite), [vidéo du 2022-01-24](https://www.youtube.com/watch?v=14wlm7yhrOY) :
+- [S21] Direct d'analyse de logs (suite), [vidéo du 2022-01-24](https://www.youtube.com/watch?v=14wlm7yhrOY) :
   « as long as the filter gyro is below minus 30 it's going to be pretty clean » ; « a good rule of thumb »
   ([51:47](https://www.youtube.com/watch?v=14wlm7yhrOY&t=3107s)).
-- [S22] Brian White, direct d'analyse de logs, [vidéo du 2022-01-17](https://www.youtube.com/watch?v=5bBFlnCTsNM) :
+- [S22] Direct d'analyse de logs, [vidéo du 2022-01-17](https://www.youtube.com/watch?v=5bBFlnCTsNM) :
   bruit « below minus 30 » sur un simple balayage de gaz ([7:34](https://www.youtube.com/watch?v=5bBFlnCTsNM&t=454s)) ;
   « in a five inch […] don't want to go lower than say 100 » ([1:12:27](https://www.youtube.com/watch?v=5bBFlnCTsNM&t=4347s)).
-- [S23] Brian White, [*PTB Q&A #1*](https://www.youtube.com/watch?v=LO7ZuliPsos), 2021-04-02 : « prop wash
+- [S23] [*PTB Q&A #1*](https://www.youtube.com/watch?v=LO7ZuliPsos), 2021-04-02 : « prop wash
   oscillation is happening around 30 to 50 hertz » ([15:26](https://www.youtube.com/watch?v=LO7ZuliPsos&t=926s)).
-- [S24] Brian White, [réglage en mode angle](https://www.youtube.com/watch?v=sqT4MACi3d8), 2022-02-14 :
+- [S24] [Réglage en mode angle](https://www.youtube.com/watch?v=sqT4MACi3d8), 2022-02-14 :
   acro et angle « for all intents and purposes, these curves are identical »
   ([2:56](https://www.youtube.com/watch?v=sqT4MACi3d8&t=176s)) ; Damping 0,6 à 1,4, « somewhere between 1.2
   to 1.4 is optimal » ([3:40](https://www.youtube.com/watch?v=sqT4MACi3d8&t=220s)).
-- [S25] Brian White, [réglage Betaflight avec PIDtoolbox](https://www.youtube.com/watch?v=ehvQm8Rqrzk),
+- [S25] [Réglage Betaflight avec PIDtoolbox](https://www.youtube.com/watch?v=ehvQm8Rqrzk),
   2025-09-04 : Damping 0,6 à 1,2, « the 1.2 is even really overdampened […] 0.8 or 1.0 is fine »
   ([13:30](https://www.youtube.com/watch?v=ehvQm8Rqrzk&t=810s)).
-- [S26] Brian White, graphique « Rough guide to ideal filter delay » (axe X « Drone size (inch) » de 2 à
+- [S26] Graphique « Rough guide to ideal filter delay » (axe X « Drone size (inch) » de 2 à
   14, axe Y « Target Filter Delay (msec) » ; droites « gyro » de 1 à 4 ms et « dterm » de 1 à 3 ms),
   publié sur le serveur Discord de PIDtoolbox, date non relevée ; capture transmise par Cédric le
-  2026-10-05. Brian White l'évoque dans [S20] ([40:24](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2424s) :
+  2026-10-05. Il est évoqué dans [S20] ([40:24](https://www.youtube.com/watch?v=TiwaQEkOdyo&t=2424s) :
   « I made this little chart […] purely out of experience »).
 - [S27] Documentation Betaflight, [*4.5 Release Notes*, § 10 « Dimmable RPM Harmonics »](https://betaflight.com/docs/wiki/release/Betaflight-4-5-Release-Notes)
   (source `betaflight.com`, commit 711c78d du 2026-06-26, [PR 12838](https://github.com/betaflight/betaflight/pull/12838)) :
@@ -336,26 +336,26 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   « between -3 dB frequencies for BPF and notch ». Le notch dynamique de Betaflight est de cette forme
   (`svfNotchUpdate`, `common/filter.c`, Q = `dyn_notch_q` / 100) : largeur à −3 dB = fréquence / Q, et à
   l'écart d du centre |H| ≈ 2d / √((2d)² + (f0/Q)²).
-- [S32] Brian White, consignes de réglage par séries de vols (discussions et vidéos), transmises par
+- [S32] Consignes de réglage par séries de vols (discussions et vidéos), transmises par
   Cédric le 2026-10-10 : pas de 0,2, feedforward à 0 ou mode Angle, curseur I à 0,2–0,3, ordre des séries,
   cassure (« ripple ») dans la montée, vagues et plateau de la latence comme signes de gains trop hauts.
   Exemple : capture PIDtoolbox de l'Air65 de Cédric (`Cedric/Air65/MM.bbl`, retiré du corpus le 2026-10-12 ; Master 1,0 puis 1,2 ; cassure
   roll visible à 1,2, Master 1,0 gardé).
-- [S33] Brian White, [*Optimize Angle Mode For Wobble Test*](https://www.youtube.com/watch?v=AUTkbv8wYdk),
+- [S33] [*Optimize Angle Mode For Wobble Test*](https://www.youtube.com/watch?v=AUTkbv8wYdk),
   2024-08-08 (Betaflight 4.5) : rates ACTUAL linéaires pour le wobble, « `set angle_limit = 30` »
   ([4:00](https://www.youtube.com/watch?v=AUTkbv8wYdk&t=240s)), 20° pour un gros drone ou un pilote peu sûr
   ([7:30](https://www.youtube.com/watch?v=AUTkbv8wYdk&t=450s)) ; 40–45° seulement pour retrouver la sensation
   de l'angle mode d'avant 4.5.
-- [S34] Brian White, [*Betaflight 4.5 Tuning Workflow using PIDtoolbox*](https://www.youtube.com/watch?v=4lZ8BY_9KBs),
+- [S34] [*Betaflight 4.5 Tuning Workflow using PIDtoolbox*](https://www.youtube.com/watch?v=4lZ8BY_9KBs),
   2024-04-13 : tests PID en mode Angle, Dynamic Damping à 0, I bas, feedforward inactif en Angle (qui a son
   propre feedforward) ; feedforward 0,5–1,0 pour les porteurs. Avec [S25] (Damping de départ 0,6 sur un
   5", Master 1,0, Dynamic Damping à 0 « pour que le D ne soit pas une cible mobile ») : séries Damping 0,6 →
   1,6 (1,0 → 1,6 pour un 7–8"), Master 1,0 → 2,0 par pas de 0,2 (synthèse des vidéos, dépôt
   PTB-Videos-Analyse).
-- [S35] Brian White, consigne transmise par Cédric le 2026-10-12 : au moins 20 s de wobbles roll et pitch
+- [S35] Consigne transmise par Cédric le 2026-10-12 : au moins 20 s de wobbles roll et pitch
   mêlés, et N ≥ 200 fenêtres par axe pour une réponse indicielle représentative.
-- [S36] Brian White, [*PTB Q&A #22 : PID fundamentals 2*](https://www.youtube.com/watch?v=Ylb8mYi91DI)
+- [S36] [*PTB Q&A #22 : PID fundamentals 2*](https://www.youtube.com/watch?v=Ylb8mYi91DI)
   (2025-05-11) : Drift-Wobble (I) entre 0,5 et 1,0, 1,0 pour 5" et moins, plus bas pour les gros drones
-  (porteurs ~0,5–0,6, qu'il trouve désormais un peu justes) ; à régler après le Master. [*Tuning Feed
+  (porteurs ~0,5–0,6, jugés désormais un peu justes) ; à régler après le Master. [*Tuning Feed
   Forward*](https://www.youtube.com/watch?v=8z_glqhw4pE) (2022-01-17) : feedforward essayé à 0,5, 1,0, 2,0 ;
   trop haut, le gyro dépasse la consigne et la croise sans cesse.
