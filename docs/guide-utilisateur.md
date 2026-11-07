@@ -132,6 +132,9 @@ comme dans le Spectre.
 
 ### Réponse indicielle (Indicielle)
 La réaction du drone à un ordre de manche « en marche d'escalier », moyennée sur tout le vol.
+**L'ordre des courbes et leurs couleurs sont les vôtres** : elles suivent l'ordre dans lequel vous cochez
+les fichiers (la 1re cochée prend la 1re couleur), et vous pouvez tout décocher pour vider la page. C'est
+propre à cette page : ailleurs, chaque log garde la couleur reçue à son ouverture.
 Objectifs : montée rapide, **pic proche de 1** (sans feedforward, une réponse sans dépassement visible donne
 environ 1,03 ; le feedforward fait monter le pic), pas de rebond. Colonnes de mesures au choix :
 latence, temps de montée, bande passante, pic de sensibilité (< 7 dB), marge de phase (> 35°), marge de

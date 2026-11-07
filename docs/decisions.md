@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-049 | Réponse indicielle : ordre des courbes et couleurs donnés par l'ordre où l'utilisateur coche les fichiers ; sélection vide permise ; les autres pages gardent la couleur attribuée à l'ouverture | 2026-11-06 |
 | D-048 | Tracé du viewer : index multi-résolution min/max par courbe (`otb-dsp::minmax`), sortie identique point pour point à l'ancienne décimation ; un paquet contenant un trou est tracé comme un trou ; W-049 clos | 2026-11-05 |
 | D-047 | `golden.rs` compare chaque fonction portée avec la tolérance mesurée de `registry::tolerance` (bit près si aucune n'est déclarée), comme `otb-parity check` ; W-048 clos | 2026-11-05 |
 | D-046 | Polices embarquées (Ubuntu Light, Hack) gardées, chacune sous sa propre licence ; licences propres aux polices admises malgré « aucun copyleft » (D-045) ; W-046 clos | 2026-11-05 |
@@ -122,6 +123,36 @@ ici, jamais dans le code.
 ---
 
 ## 2026-11-05 — Tracé du viewer indépendant du nombre d'échantillons
+
+### D-049 : la Réponse indicielle est ordonnée et colorée par l'utilisateur
+
+**Tranché par Cédric** le 2026-11-06, à l'essai de la 0.9.0 : « la réponse indicielle doit afficher les courbes en fonction
+de l'ordre de sélection de l'utilisateur. Il doit être possible de ne pas sélectionner de courbe. C'est l'utilisateur qui
+doit définir l'ordre d'affichage des courbes. Leurs couleurs doivent s'adapter à cet ordre / sélection. »
+
+**Contexte.** Jusqu'ici, un log recevait sa couleur **à l'ouverture** (première couleur libre de la palette,
+`state.rs:add`) et la gardait sur toutes les pages ; les courbes étaient tracées dans l'ordre d'ouverture des fichiers,
+et une page sans choix retombait sur le log courant (impossible de n'afficher aucune courbe). Comparer deux vols dans
+l'ordre voulu, ou isoler une courbe, demandait de fermer et rouvrir les logs dans le bon ordre.
+
+**Décidé : la règle change pour cette page seulement** (`FileSelection::user_order`, `tools/step.rs`) :
+
+- les courbes, la légende et les colonnes de mesures suivent **l'ordre des clics**, pas l'ordre d'ouverture ;
+- la couleur d'une courbe est son **rang dans la sélection** (1re cochée = 1re couleur de la palette) ; la liste des
+  fichiers de la page montre ces couleurs-là, et un fichier non coché y est écrit en gris ;
+- **tout décocher est un choix** : la page reste vide au lieu de revenir au log courant. Avant le premier clic, le log
+  courant reste coché, comme sur les autres pages.
+
+**Option écartée : appliquer la règle partout** (comme PIDtoolbox). Un même log changerait alors de couleur d'une page
+à l'autre selon la sélection de chaque page, ce qui casse la lecture croisée Spectre ↔ Réponse indicielle ↔ Courbes.
+Autre option écartée : garder les couleurs fixes et ne changer que l'ordre — elle ne répond pas à la demande.
+
+**Conséquence assumée.** Un même log peut avoir une couleur sur la Réponse indicielle et une autre ailleurs. Si cela
+gêne à l'usage, la décision se remplace (ici, ou partout).
+
+**Témoins.** `rust/otb-gui/tests/tools_common.rs::la_selection_ordonnee_suit_les_clics_et_peut_rester_vide` et
+`rust/otb-gui/tests/step_tools.rs::le_libelle_est_celui_du_fichier_et_la_couleur_le_rang_dans_la_selection`
+(vus en échec en rétablissant l'ancienne règle).
 
 ### D-048 : index multi-résolution min/max, et un trou par paquet qui en contient un
 

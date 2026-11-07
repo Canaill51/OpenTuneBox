@@ -8,7 +8,7 @@ use otb_analysis::motors;
 use otb_log::flightlog::{FlightLog, Rows};
 
 use crate::state::{AppState, MAX_LOGS};
-use crate::theme::{AXIS_NAMES, motor_color};
+use crate::theme::{AXIS_NAMES, file_color, motor_color};
 use crate::tools::filter_sim_calc::DYN_COUNT_MAX;
 
 pub const MOTOR_LABELS: [&str; 4] = ["M1/5", "M2/6", "M3/7", "M4/8"];
@@ -169,7 +169,12 @@ pub fn nan_unless_positive(row: &[f64]) -> Vec<f64> {
 /// premier) est pris.
 pub struct FileSelection {
     multi: bool,
+    /// Libellés choisis, **dans l'ordre où l'utilisateur les a cochés**.
     labels: Vec<String>,
+    /// Réponse indicielle : les courbes suivent cet ordre, leur couleur est leur rang, et la sélection peut être vide.
+    user_order: bool,
+    /// Vrai dès le premier clic : avant, une page sans choix montre le log courant (comme les autres outils).
+    touched: bool,
 }
 
 impl FileSelection {
@@ -177,10 +182,31 @@ impl FileSelection {
         Self {
             multi,
             labels: Vec::new(),
+            user_order: false,
+            touched: false,
         }
     }
 
+    /// Ordre et couleurs donnés par l'utilisateur, et droit de tout décocher (Réponse indicielle, demandé le 2026-11-06).
+    pub fn user_order(mut self) -> Self {
+        self.user_order = true;
+        self
+    }
+
+    /// Place d'un log dans la sélection (0 = coché en premier), s'il est coché. Donne sa couleur en mode `user_order`.
+    pub fn rank(&self, label: &str) -> Option<usize> {
+        self.labels.iter().position(|l| l == label)
+    }
+
     fn explicit(&self, state: &AppState) -> Vec<usize> {
+        if self.user_order {
+            // l'ordre des cases cochées, pas celui des logs ouverts
+            return self
+                .labels
+                .iter()
+                .filter_map(|lab| state.logs.iter().position(|l| l.label == *lab))
+                .collect();
+        }
         state
             .logs
             .iter()
@@ -190,11 +216,15 @@ impl FileSelection {
             .collect()
     }
 
-    /// Indices des logs choisis, dans l'ordre d'ouverture.
+    /// Indices des logs choisis : dans l'ordre d'ouverture, ou dans l'ordre où l'utilisateur les a cochés (`user_order`).
     pub fn indices(&self, state: &AppState) -> Vec<usize> {
         let mut v = self.explicit(state);
         if !self.multi {
             v.truncate(1);
+        }
+        // une sélection vide est un choix dès que l'utilisateur a cliqué ; avant, la page montre le log courant
+        if self.user_order && self.touched {
+            return v;
         }
         Self::fallback(v, state)
     }
@@ -217,7 +247,14 @@ impl FileSelection {
         ui.label(format!("Fichiers (max {MAX_LOGS})"));
         for l in &state.logs {
             let on = self.labels.contains(&l.label);
-            let text = RichText::new(&l.label).color(l.color);
+            // en mode `user_order`, la couleur montrée est celle de la courbe : le rang dans la sélection,
+            // et un log non coché n'a pas de couleur (texte effacé).
+            let couleur = match (self.user_order, self.rank(&l.label)) {
+                (false, _) => l.color,
+                (true, Some(rang)) => file_color(rang),
+                (true, None) => ui.visuals().weak_text_color(),
+            };
+            let text = RichText::new(&l.label).color(couleur);
             let clicked = if self.multi {
                 let mut v = on;
                 ui.checkbox(&mut v, text).changed()
@@ -225,6 +262,7 @@ impl FileSelection {
                 ui.radio(on, text).clicked()
             };
             if clicked {
+                self.touched = true;
                 if !self.multi {
                     self.labels = vec![l.label.clone()];
                 } else if on {
