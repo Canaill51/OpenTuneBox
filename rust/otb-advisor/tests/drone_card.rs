@@ -332,3 +332,19 @@ fn la_fiche_se_preremplit_d_apres_le_log() {
         assert!(c.done.is_empty() && !c.pid_khz_int);
     }
 }
+
+/// Une fiche construite à la main peut porter une taille que `from_value` n'aurait jamais laissée passer : les méthodes
+/// qui lisent le profil doivent alors se replier sur `five`, **jamais** faire mourir l'application (W-029 point 3).
+#[test]
+fn une_taille_inconnue_se_replie_sur_le_defaut_sans_paniquer() {
+    let mut card = DroneCard::new("A");
+    card.size = "n-importe-quoi".to_string();
+    let attendu = DroneCard::new("A");
+    assert_eq!(card.log_rate(), attendu.log_rate(), "log_rate");
+    assert_eq!(card.pid_log_rate(), attendu.pid_log_rate(), "pid_log_rate");
+    assert_eq!(card.i_range(), attendu.i_range(), "i_range");
+    assert_eq!(card.damping_series(), attendu.damping_series(), "damping_series");
+    // `from_value` continue, lui, à ramener la taille elle-même à `five`
+    let lue = DroneCard::from_value(&json!({"name": "A", "size": "n-importe-quoi"})).unwrap();
+    assert_eq!(lue.size, DEFAULT_SIZE);
+}

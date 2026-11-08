@@ -646,7 +646,7 @@ fn protocol_items(c: &mut Check, exact: bool) -> Result<(), String> {
         let (sp32, gy32) = (part(&log.setpoint, a), part(&log.gyro, a));
         let (sp, gy) = (up(&sp32), up(&gy32));
         sp_delay.push(if std_f32(&sp32) >= 5.0f32 {
-            xcorr_delay_ms(&sp, &gy, fs, 100.0, 0)?
+            xcorr_delay_ms(&sp, &gy, fs, 100.0)?
         } else {
             f64::NAN
         });

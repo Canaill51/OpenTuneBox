@@ -457,7 +457,7 @@ pub fn phases(card: &DroneCard) -> Vec<Phase> {
 // ------------------------------------------------------------------ état automatique
 /// État d'une case d'après les logs du drone (le plus récent compte) : `AUTO_OK`, `AUTO_BAD` ou `None` (rien à dire), avec une
 /// explication courte. Seuls comptent les logs du rôle de la case (`Step::logs`) ; `targets` : repères du dernier log des filtres.
-/// `Err` : l'usage de la case manque dans un log (Python lève `AttributeError` ; `check_log` rend toujours les quatre usages).
+/// `Err` : l'usage de la case manque dans un log (cas sans appelant : `check_log` rend toujours les quatre usages).
 pub fn auto_status(
     step: &Step,
     checks: &[LogCheck],
@@ -499,7 +499,7 @@ pub fn auto_status(
         };
         let u = last
             .usage(step.flight_usage)
-            .ok_or("AttributeError : 'NoneType' object has no attribute 'ok'")?;
+            .ok_or_else(|| format!("usage « {} » absent de la vérification du log", step.flight_usage))?;
         return Ok((
             Some(if u.ok { AUTO_OK } else { AUTO_BAD }),
             format!("{} : {}", last.label, u.reason),

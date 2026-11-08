@@ -4,8 +4,8 @@
 //! parabolique. `phase_delay_ms` : fonction de transfert de Welch (fenêtres de 0,5 s), retard = −phase / (2π f) moyenné
 //! pondéré par la cohérence. Les produits complexes reproduisent numpy (FMA, division de Smith : L-051).
 //!
-//! ⚠️ Le paramètre `smooth` de `xcorr_delay_ms` n'est pas porté : aucun appelant de l'application ne le fournit
-//! (`np.convolve` passe par BLAS) ; une valeur > 1 rend une erreur (W-024).
+//! `xcorr_delay_ms` ne lisse pas les signaux : le paramètre `smooth` de l'origine n'a jamais eu d'appelant et a été
+//! retiré le 2026-11-08 (W-024 clos).
 
 use crate::npstat::{argmax_f64, cdiv, conj_mul_fma, percentile_f32, std_f32, unwrap};
 use crate::numpy_mean;
@@ -20,10 +20,7 @@ use std::ops::Range;
 pub const MOVING_SETPOINT_DPS: f64 = 30.0;
 
 /// Retard (ms) de `y` par rapport à `x` (positif si `y` est en retard). NaN si moins de 32 points ou un signal constant.
-pub fn xcorr_delay_ms(x: &[f64], y: &[f64], fs: f64, max_ms: f64, smooth: i64) -> Result<f64, String> {
-    if smooth > 1 {
-        return Err("xcorr_delay_ms : smooth > 1 non porté (W-024)".into());
-    }
+pub fn xcorr_delay_ms(x: &[f64], y: &[f64], fs: f64, max_ms: f64) -> Result<f64, String> {
     let n = x.len().min(y.len());
     if n < 32 {
         return Ok(f64::NAN);
@@ -250,7 +247,7 @@ pub fn compute_delays(log: &FlightLog, sel: Range<usize>) -> Result<Delays, Stri
         // `np.std(x) < 5.0` : pas assez de mouvements de manche sur cet axe (faux pour un NaN : le retard est calculé)
         let sd = std_f32(x);
         if sd >= 5.0f32 || sd.is_nan() {
-            *slot = xcorr_delay_ms(&wide(x), &wide(&log.gyro.row(a)[sel.clone()]), fs, 100.0, 0)?;
+            *slot = xcorr_delay_ms(&wide(x), &wide(&log.gyro.row(a)[sel.clone()]), fs, 100.0)?;
         }
     }
     Ok(Delays {

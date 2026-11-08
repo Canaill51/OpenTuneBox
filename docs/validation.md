@@ -319,12 +319,17 @@ La version Python (application, tests, scripts) a été supprimée du dépôt à
 servent de référence aux tests Rust (`rust/*/tests/data/*.json`, `$OTB_GOLDEN`, souvent `$OTB_LOGS/golden`) ont été écrits par elle. Pour en
 refaire un (par exemple après un changement voulu d'un seuil, voir la compétence `assistant-seuils`) :
 
-1. `git worktree add ../otb-etalon python-final` : le dernier état qui contient encore Python. L'étiquette `python-etalon` est plus ancienne
-   (elle n'a pas les scripts `*_cases.py`).
+1. `git worktree list` **d'abord** : le dossier peut déjà être en place d'un réenregistrement précédent (sur le poste de Cédric il l'est, sur
+   `python-final`, avec son `.venv` déjà installé : ≈ 1,5 Go, l'étape 2 est alors inutile). S'il n'y est pas :
+   `git worktree add ../otb-etalon python-final`, le dernier état qui contient encore Python. L'étiquette `python-etalon` est plus ancienne
+   (elle n'a pas les scripts `*_cases.py`). ⚠️ `git worktree add` **échoue si le dossier existe déjà** : ne pas le supprimer à la main, c'est
+   `git worktree remove` qui le fait proprement.
 2. Dans ce dossier : `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'` (Rust est requis : l'extension est compilée à l'installation).
 3. Les scripts sont dans `scripts/` (`*_cases.py` pour les cas de `rust/*/tests/data/`, `golden.py record…` pour `$OTB_GOLDEN`) ; leur en-tête dit
    quel fichier ils écrivent. Copier le résultat dans `rust/` et lancer `otb-parity` ou les tests de la crate.
-4. Retirer le dossier : `git worktree remove ../otb-etalon`.
+4. Retirer le dossier : `git worktree remove ../otb-etalon` — ou le **garder** si un autre réenregistrement est prévu (W-028 en attend un) :
+   son `.venv` représente une installation complète de numpy, scipy et numba avec l'extension Rust compilée. Dans ce cas, `git worktree list` le
+   montre et ce n'est pas un oubli.
 
 Pour `$OTB_GOLDEN` seul, inutile de tout réenregistrer : `golden.py record-modules DOSSIER --sample 20` écrit le
 sous-dossier `modules/` (≈ 3 100 fichiers, 850 Mo), et c'est le **seul** que lisent `otb-parity check` et le test

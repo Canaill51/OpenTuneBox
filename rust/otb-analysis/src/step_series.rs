@@ -185,7 +185,7 @@ pub fn flight_step(log: &FlightLog, sel: Range<usize>, label: &str) -> Result<Fl
         // `np.std(sp) >= 5.0` sur le tableau float32 du journal
         let sd = std_f32(&sp32);
         f.sp_delay_ms.push(if sd >= 5.0f32 {
-            xcorr_delay_ms(&sp, &gy, log.fs, 100.0, 0)?
+            xcorr_delay_ms(&sp, &gy, log.fs, 100.0)?
         } else {
             f64::NAN
         });

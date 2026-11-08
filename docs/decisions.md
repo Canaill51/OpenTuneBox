@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-051 | Ouverture de plusieurs logs : **3 fichiers décodés en même temps** au plus, plafond posé en nombre de fichiers et non en mémoire | 2026-11-08 |
 | D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt | 2026-11-07 |
 | D-049 | Réponse indicielle : ordre des courbes et couleurs donnés par l'ordre où l'utilisateur coche les fichiers ; sélection vide permise ; les autres pages gardent la couleur attribuée à l'ouverture | 2026-11-06 |
 | D-048 | Tracé du viewer : index multi-résolution min/max par courbe (`otb-dsp::minmax`), sortie identique point pour point à l'ancienne décimation ; un paquet contenant un trou est tracé comme un trou ; W-049 clos | 2026-11-05 |
@@ -120,6 +121,36 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
+
+---
+
+## 2026-11-08 — Ouverture de plusieurs logs en parallèle
+
+### D-051 : au plus trois logs décodés en même temps
+
+Débloque W-050 (lot 11 de [plan-suite.md](plan-suite.md)). **Tranché par Cédric** le 2026-11-08, sur les mesures du lot 5.
+
+**Contexte.** L'interface ouvre les fichiers **les uns après les autres** (`rust/otb-gui/src/app.rs`, une file `queue` et un
+seul `opening`). Décoder en parallèle va **×2,40** (6 logs : 0,830 s → 0,345 s), mais chaque fichier décodé en même temps
+coûte **168 à 181 Mo** de pic mémoire : sans plafond, ouvrir dix logs d'un coup demanderait près de 2 Go.
+
+**Décidé : au plus trois fichiers décodés en même temps**, soit environ 540 Mo au pire — l'ordre de grandeur de ce que la
+version Python 0.8.0 demandait pour **un seul** log (481 Mo). Le gain mesuré sur six logs est conservé pour l'essentiel, et une
+machine modeste reste servie.
+
+**Option écartée : un plafond exprimé en mémoire** (« ne pas dépasser 1 Go »). Elle est plus souple, mais elle demande de
+mesurer le pic du processus pendant le décodage pour décider s'il faut lancer le fichier suivant — une mesure qui n'est pas
+portable entre Windows et Linux, et qui se teste mal. Un compteur de fichiers se **vérifie dans un test** (lot 11), une
+mémoire non.
+
+**Option écartée : décoder en parallèle les sessions d'un même fichier.** ×1,10 seulement sur `FINAL.bbl`, et elle cumulerait
+plusieurs tables compactes du même log.
+
+**Conséquence assumée.** Au-delà de trois logs ouverts d'un coup, les suivants attendent : le temps total ne descend plus en
+dessous d'un tiers du temps séquentiel, quel que soit le nombre de cœurs.
+
+**Témoin attendu** (lot 11) : un test qui compte les fichiers en cours de décodage et exige qu'il n'en passe jamais plus de
+trois, et l'égalité **bit pour bit** des `FlightLog` avec l'ouverture séquentielle.
 
 ---
 

@@ -5,6 +5,32 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Corrigé
+- **Une fiche drone dont la taille est inconnue ne fait plus mourir l'application.** `DroneCard::log_rate` (et toute méthode qui
+  lit le profil de la taille) **paniquait** pour une fiche construite à la main dont le champ `size` ne correspondait à aucun
+  profil ; le profil se replie maintenant sur celui de 5 pouces, exactement comme la lecture d'un `drones.json` le fait déjà
+  (`DEFAULT_SIZE`). Le cas n'a pas d'appelant connu dans l'application — c'est pourquoi il restait ouvert (W-029 point 3) — mais
+  une panique tue toute la fenêtre pour un simple champ mal rempli. Test
+  `rust/otb-advisor/tests/drone_card.rs:une_taille_inconnue_se_replie_sur_le_defaut_sans_paniquer`, contre-preuve vue en échec
+  (la panique remise fait mourir le test).
+- Un message d'erreur de l'assistant n'imite plus une exception Python (« AttributeError : 'NoneType' object has no attribute
+  'ok' ») : il dit « usage « … » absent de la vérification du log » (W-029 point 2). Il reste 45 messages du même genre dans le
+  code, hérités de la comparaison avec la version Python : ils sont recensés par W-053, avec leur risque (certains peuvent
+  remonter dans la barre d'état ou dans `opentunebox report`).
+
+### Modifié
+- `opentunebox report` : sa sortie **redirigée vers un fichier** est désormais couverte par un test
+  (`rust/otb-cli/tests/sortie_redirigee.rs`), lancé par la CI sous Ubuntu **et sous Windows**. Le rapport contient « → », « − »,
+  « ≈ » et « ≤ », quatre caractères qui n'existent pas en cp1252 et faisaient échouer la version Python dans ce cas précis
+  (W-018). Rien ne change à l'usage : c'est la preuve qui manquait, le binaire Rust écrivait déjà de l'UTF-8.
+- `otb-analysis` : le paramètre `smooth` de `xcorr_delay_ms`, hérité de la version Python et jamais calculé, est retiré de la
+  signature et des cinq appelants (W-024 clos). Aucun résultat ne change.
+- Ménage des registres après la 0.9.0 (lot 12 de `docs/plan-suite.md`) : dix travaux reportés clos ou requalifiés, avec leur
+  raison écrite — dont W-020, qui se clôt **autrement que prévu** (la condition de reprise était arrivée, et le tri par nom des
+  paramètres bruts a été retenu, D-038). Cinq points en attente de Cédric sont tranchés, dont le plafond de l'ouverture en
+  parallèle : **trois logs décodés en même temps** au plus (D-051), ce qui débloque le lot 11.
+
+
 ## [0.9.0] — 2026-11-08
 
 ### Ce qui change pour vous

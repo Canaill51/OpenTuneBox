@@ -182,7 +182,7 @@ pub fn compute_file_data(log: &FlightLog, sel: Range<usize>, o: &StepOpts) -> Re
         let (seg_peak, seg_latency) = segment_metrics(&res.t_ms, &res.responses, res.n)?;
         // `np.std(sp) >= 5.0` sur le tableau float32 du journal
         let sp_delay_ms = if std_f32(&sp32) >= 5.0f32 {
-            xcorr_delay_ms(&sp, &gy, log.fs, 100.0, 0)?
+            xcorr_delay_ms(&sp, &gy, log.fs, 100.0)?
         } else {
             f64::NAN
         };
