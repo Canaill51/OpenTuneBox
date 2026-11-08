@@ -5,7 +5,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
-## [0.9.0] — 2026-11-06
+## [0.9.0] — 2026-11-08
 
 ### Ce qui change pour vous
 

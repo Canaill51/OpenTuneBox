@@ -20,8 +20,18 @@ mettre la documentation à jour avec la compétence `docs-sync` (un crochet bloq
 ## Contrôler la compilation Windows avant de pousser
 
 La CI Windows met 10 à 25 min et est le seul endroit où l'on voit un test qui ne compile pas sous Windows (L-078, L-074).
-Le poste Linux a la cible `x86_64-pc-windows-gnu` et, depuis le 2026-11-05, les paquets `binutils-mingw-w64-x86-64`
-(`windres`, pour l'icône d'`otb-gui`), `gcc-mingw-w64-x86-64` (éditeur de liens) et `wine64`.
+Cela demande sur le poste Linux la cible `x86_64-pc-windows-gnu` et les paquets `binutils-mingw-w64-x86-64` (`windres`, pour
+l'icône d'`otb-gui`), `gcc-mingw-w64-x86-64` (éditeur de liens) et `wine64` (pour exécuter les tests).
+
+⚠️ **Vérifier leur présence, ne pas la supposer** : elle a déjà été perdue (2026-11-08, cible et paquets absents alors que cette
+page les disait installés depuis le 2026-11-05). Sans eux, `cargo check --target` échoue sur « can't find crate for `core` »
+(cible) ou « ajout de l'icône à l'exécutable Windows: NotFound » (`windres`), ce qui n'a rien à voir avec le code en cours.
+
+```sh
+command -v x86_64-w64-mingw32-windres x86_64-w64-mingw32-gcc wine   # les trois doivent répondre
+rustup target list --installed | grep windows                        # sinon : rustup target add x86_64-pc-windows-gnu
+sudo apt install binutils-mingw-w64-x86-64 gcc-mingw-w64-x86-64 wine64   # à lancer par Cédric
+```
 
 ```sh
 cd rust && cargo check --workspace --all-targets --target x86_64-pc-windows-gnu   # compilation seule : ≈ 12 s pour otb-gui à chaud
@@ -35,12 +45,17 @@ export WINEPREFIX=$HOME/.local/share/wine-otb WINEDEBUG=-all CARGO_TARGET_X86_64
 cd rust && cargo test --target x86_64-pc-windows-gnu --no-fail-fast   # ≈ 2 min ; sans tube (L-022)
 ```
 
-Mesuré le 2026-11-05 (branche du lot 8, `main` + `banc_cadre`) : 85 exécutables de test sur 89 passent. Les 4 échecs **viennent de l'environnement**,
-la CI Windows les fait passer :
+Mesuré le 2026-11-08 (`main` après la 0.9.0) : **85 exécutables de test sur 90 passent**. Les 5 échecs **viennent de
+l'environnement**, la CI Windows les fait passer :
 - `otb-dev --test docs` : « `git ls-files` a échoué… program not found » (pas de `git` pour Windows dans le dossier `wine`) ;
+- `otb-dev --test licenses` : « `cargo metadata` : program not found » (même cause ; ce test est né avec le lot 7a, après le
+  premier relevé du 2026-11-05, qui annonçait donc 4 échecs sur 89 exécutables) ;
 - `otb-advisor --test rules_rpm` (dernier chiffre), `otb-analysis --test open_loop` (1,4e-5) et `--test open_loop_spectra`
   (5e-8) : comparaisons numériques fines. La CI compile pour `x86_64-pc-windows-msvc` (fonctions mathématiques de Microsoft) ;
   ici, `windows-gnu` avec celles de `wine`. Cause **supposée** (la fonction en cause n'a pas été cherchée).
+
+Un échec dont le message cite un programme absent (`git`, `cargo`…) est donc un signe de `wine`, pas du code : le vérifier avant
+de chercher ailleurs.
 
 Donc : `wine` fait foi pour la compilation, les chemins, les fichiers, les processus et l'interface hors écran ; **pas** pour un écart
 numérique au dernier chiffre, que seule la CI Windows (ou le PC Windows) tranche. Un nouvel échec hors de cette liste est à examiner.
