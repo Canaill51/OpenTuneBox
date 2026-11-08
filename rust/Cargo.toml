@@ -7,6 +7,9 @@ members = ["otb-advisor", "otb-analysis", "otb-cli", "otb-decoder", "otb-dev", "
 version = "0.9.0"
 edition = "2024"
 publish = false
+# La licence du projet (D-045). Identifiant SPDX « LicenseRef- » : PolyForm Noncommercial n'est pas dans la liste
+# SPDX officielle. Les crates ne sont pas publiées (`publish = false`), mais le manifeste ne disait rien du tout.
+license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
 
 # Les tests de `otb-gui` lient chacun egui et wgpu : ≈ 490 Mo par binaire avec toutes les infos de débogage, 186 Mo avec les seules
 # tables de lignes (mesuré le 2026-11-01). Sans cela, `cargo test` remplissait le disque du runner Ubuntu de la CI (L-069).

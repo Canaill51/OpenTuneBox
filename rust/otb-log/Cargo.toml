@@ -4,6 +4,7 @@ description = "Ouverture d'un log : réglages de l'en-tête, rejet des trames im
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 otb-decoder = { path = "../otb-decoder" }

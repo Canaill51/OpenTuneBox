@@ -4,6 +4,7 @@ description = "Boucles par fenêtre de analysis/motors.py (atténuation des notc
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 otb-dsp = { path = "../otb-dsp" }

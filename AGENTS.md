@@ -55,6 +55,8 @@ Règles :
 ## Commandes
 
 Depuis `rust/` (`cd rust`) ; postes Linux et Windows 11 (commandes `cargo` identiques, chemins et variables à adapter).
+La version de Rust est **figée** par `rust/rust-toolchain.toml` (poste et CI) : la changer est un geste volontaire, suivi
+d'un `verify` et d'une ligne au CHANGELOG.
 
 ```sh
 cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, mentions de licences, cargo deny ; ≈ 70 s à chaud ; 0 seulement si tout passe (--quick sans deny ; --strict : un test sauté faute de corpus = échec)

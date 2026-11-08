@@ -5,6 +5,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- **La version de Rust est figée** (`rust/rust-toolchain.toml`, 1.99.1) sur le poste comme dans la CI. Chaque passage
+  installait « stable », donc une version qui change toute seule : une nouvelle version de Rust ou de clippy pouvait
+  rendre la CI rouge du jour au lendemain, sans qu'on ait touché au projet. En changer devient un geste volontaire.
+- **Le code propre à Windows est enfin passé au lint** : `cargo clippy -D warnings` ne tournait que sous Ubuntu, donc
+  tout ce qui est sous `cfg(windows)` y échappait. Il tourne maintenant sur les deux systèmes (`tests.yml`).
+
 ### Corrigé
 - **Une fiche drone dont la taille est inconnue ne fait plus mourir l'application.** `DroneCard::log_rate` (et toute méthode qui
   lit le profil de la taille) **paniquait** pour une fiche construite à la main dont le champ `size` ne correspondait à aucun
@@ -17,6 +24,19 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   'ok' ») : il dit « usage « … » absent de la vérification du log » (W-029 point 2). Il reste 45 messages du même genre dans le
   code, hérités de la comparaison avec la version Python : ils sont recensés par W-053, avec leur risque (certains peuvent
   remonter dans la barre d'état ou dans `opentunebox report`).
+
+- **L'installateur Windows ne peut plus sortir en version « 0.0.0 »** : le numéro de version manquant (ou vide, quand
+  sa lecture échoue) arrête la construction au lieu de produire un installateur que Windows afficherait tel quel dans
+  la liste des programmes.
+- **Le crochet de documentation ne bloque plus un commit à tort** : sur un poste sans la commande `timeout`, il
+  interprétait son absence comme un échec des documents et refusait le commit avec un message qui accusait la
+  documentation. Il distingue maintenant les trois cas, et dit clairement quand le contrôle n'a **pas** été fait.
+- **La chaîne de publication ne confond plus une panne de réseau avec une page de version absente** : elle tentait
+  alors d'en créer une, avec un message trompeur à la clé. Et un échec de la commande qui liste les fichiers d'une
+  version n'est plus avalé par un tube.
+- L'envoi d'artefact du workflow « Interface Rust » ne se fait plus que sur lancement manuel. Il partait aussi sur les
+  demandes de fusion touchant ce fichier, alors que le quota d'artefacts d'un dépôt gratuit, une fois plein, bloque
+  **tout** envoi — y compris celui d'une version.
 
 ### Modifié
 - `opentunebox report` : sa sortie **redirigée vers un fichier** est désormais couverte par un test

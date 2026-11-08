@@ -35,6 +35,8 @@ Copy-Item (Join-Path $root "rust\target\release\opentunebox-gui.exe") $exe -Forc
 Etape "3/3 Installateur (facultatif)"
 $meta = cargo metadata --no-deps --format-version 1 --manifest-path (Join-Path $root "rust\Cargo.toml") | ConvertFrom-Json
 $version = ($meta.packages | Where-Object { $_.name -eq "otb-gui" }).version
+# Sans ce contrôle, une lecture ratée du numéro donnait un installateur « 0.0.0 » sans le moindre avertissement.
+if (-not $version) { throw "numéro de version introuvable dans rust\Cargo.toml" }
 # Inno Setup 6 installé pour tous les utilisateurs (Program Files) ou « pour moi seulement » (%LOCALAPPDATA%\Programs : dossier
 # `{autopf}` en mode non administrateur, déduit du script d'installation officiel is-6_7_4 ; non essayé sur un vrai Windows, W-044).
 $iscc = @(

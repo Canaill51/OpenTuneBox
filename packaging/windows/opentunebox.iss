@@ -6,8 +6,16 @@
 ; Raccourci du menu Démarrer, raccourci du Bureau et ouverture des .bbl / .bfl en option, désinstallation
 ; depuis les Paramètres de Windows.
 
+; La version ne se devine pas : sans /DAppVersion=X.Y.Z, un installateur « 0.0.0 » sortait sans le moindre
+; avertissement, et Windows l'aurait affiché tel quel dans la liste des programmes. Mieux vaut refuser de
+; construire que livrer une version fantaisiste.
 #ifndef AppVersion
-  #define AppVersion "0.0.0"
+  #error AppVersion manquant : lancer iscc avec /DAppVersion=X.Y.Z (le numéro de rust/Cargo.toml)
+#endif
+; Une version VIDE passerait le test ci-dessus : c'est le cas qui arrive pour de vrai, quand la commande qui lit
+; le numéro dans Cargo.toml échoue et rend une chaîne vide.
+#if AppVersion == ""
+  #error AppVersion vide : la lecture du numéro de version a échoué
 #endif
 #ifndef ExePath
   #define ExePath "..\..\rust\target\release\opentunebox-gui.exe"

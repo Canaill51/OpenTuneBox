@@ -53,6 +53,11 @@ Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`),
 pas le nom d'une branche : c'est normal. On les fusionne à la main, une fois la CI verte et après avoir lu
 les notes de la nouvelle version.
 
+La **version de Rust** est figée par [`rust/rust-toolchain.toml`](rust/rust-toolchain.toml), sur le poste comme en CI.
+Sans ce fichier, chaque passage prenait « stable » : une nouvelle version de Rust ou de clippy pouvait rendre la CI
+rouge du jour au lendemain, en plein travail sur autre chose. Pour en changer : modifier le numéro, lancer
+`(cd rust && cargo run -p otb-dev -- verify)`, corriger ce que le nouveau clippy signale, et l'écrire au CHANGELOG.
+
 Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connues dans les bibliothèques
 livrées (`cargo-deny`, réglages dans `rust/deny.toml`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
 a une faille publiée : la mettre à jour. En local : `(cd rust && cargo deny check)` (failles RustSec, licences, origine des crates ; la base d'avis est téléchargée à

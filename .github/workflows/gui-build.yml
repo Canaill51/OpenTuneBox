@@ -1,5 +1,5 @@
 # Interface Rust (egui) à essayer à la main : compile `opentunebox-gui` pour Windows et Linux et l'envoie en artefact (1 jour).
-# Se lance à la demande, et une fois sur toute demande de fusion qui modifie ce fichier.
+# Se lance à la demande, et une fois sur toute demande de fusion qui modifie ce fichier (là, sans envoyer d'artefact).
 name: Interface Rust
 on:
   workflow_dispatch:
@@ -20,12 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Rust
-        run: rustup toolchain install stable --profile minimal
+        # Version et composants : rust/rust-toolchain.toml (rustup la pose au premier appel à cargo).
+        working-directory: rust
+        run: rustup toolchain install
       - name: Compilation
         working-directory: rust
         run: cargo build --release -p otb-gui
       # Fichier envoyé tel quel (droits d'exécution conservés sous Linux).
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      # ⚠️ Seulement en lancement manuel : les artefacts d'un dépôt privé gratuit sont plafonnés à 500 Mo, et un quota
+      # plein bloque TOUT envoi, y compris celui d'une version. Les fichiers d'une version passent par la page
+      # Releases (construire.yml), jamais par un artefact.
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: rust/target/release/${{ matrix.exe }}
           archive: false
