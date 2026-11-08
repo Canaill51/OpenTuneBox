@@ -42,7 +42,7 @@ PIDtoolbox (`PTB_FIGS_*`), pour **709 sessions** lues.
 
 ### Ligne de base avant les chantiers du décodeur (2026-11-04, `main` au commit 11f1a71, poste Linux)
 
-Sert de point de comparaison aux lots 4 et 5 de `plan-chantiers.md` : après leurs changements, **rien de plus** ne doit
+Sert de point de comparaison aux lots 4 et 5 de `docs/plan.md` : après leurs changements, **rien de plus** ne doit
 différer. Variables à définir : `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golden` et
 `OTB_REF_DECODER=$HOME/.local/share/PIDtoolboxProV094/blackbox_decode` (fourni avec PIDtoolbox).
 

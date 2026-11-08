@@ -94,6 +94,9 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - **Jamais de capture de l'écran de Cédric** : `spectacle -a` photographie la fenêtre *active* (la sienne), sans erreur visible ;
   pour voir l'interface, les captures hors écran du dépôt (`--example capture`). Image prise par erreur : la supprimer, le dire,
   ne pas la décrire. L-090
+- **Un seul plan**, `docs/plan.md` : il dit ce qu'il reste à faire et garde une ligne par lot fait. Il **cite** les `W-xxx`
+  sans recopier leur état (leur maître est `docs/travaux-reportes.md`, D-018), et un lot terminé ne laisse pas son plan
+  derrière lui. Aucun test ne protège un plan : une copie périmée s'y installe sans rien faire rougir. L-092
 
 ## Construction des exécutables
 
