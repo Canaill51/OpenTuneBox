@@ -260,6 +260,52 @@ fn la_fenetre_s_ouvre_grande_au_premier_lancement() {
     );
 }
 
+/// L-091 : egui synchronise seul la barre de titre à la fin du cadre où le thème change — donc au **premier** cadre, trop tôt
+/// pour Windows, qui ne repeint pas le contour d'une fenêtre qu'il vient de créer : barre sombre et nom du programme illisible.
+/// L'interface doit donc retirer cette synchronisation à egui et annoncer le thème elle-même une fois la fenêtre posée.
+#[test]
+fn le_theme_de_la_fenetre_est_annonce_apres_le_premier_cadre() {
+    use otb_gui::theme::{WINDOW_THEME_DELAY, should_send_window_theme, window_theme};
+
+    // Annoncer dès le premier cadre ne servirait à rien (L-091) : vérifié à la compilation.
+    const _: () = assert!(otb_gui::theme::WINDOW_THEME_DELAY >= 2);
+    // Trop tôt : rien n'est envoyé, quel que soit l'état.
+    for f in 0..WINDOW_THEME_DELAY {
+        assert!(
+            !should_send_window_theme(f, None, "clair"),
+            "cadre {f} : trop tôt pour annoncer le thème"
+        );
+    }
+    // La fenêtre est posée : on annonce une fois, puis plus rien tant que le thème ne change pas.
+    assert!(should_send_window_theme(WINDOW_THEME_DELAY, None, "clair"));
+    assert!(!should_send_window_theme(WINDOW_THEME_DELAY, Some("clair"), "clair"));
+    // Changement de thème : on réannonce.
+    assert!(should_send_window_theme(
+        WINDOW_THEME_DELAY + 50,
+        Some("clair"),
+        "sombre"
+    ));
+
+    assert_eq!(window_theme(&theme::CLAIR), egui::SystemTheme::Light);
+    assert_eq!(window_theme(&theme::SOMBRE), egui::SystemTheme::Dark);
+
+    // ⚠️ Lignes entières, commentaires exclus : une recherche de texte serait satisfaite par un commentaire qui cite l'appel.
+    let ligne = |fichier: &str, debut: &str| {
+        std::fs::read_to_string(racine().join(fichier))
+            .unwrap()
+            .lines()
+            .any(|l| l.trim_start().starts_with(debut))
+    };
+    assert!(
+        ligne("src/theme.rs", "ctx.options_mut(|o| o.sync_window_theme = false);"),
+        "theme.rs doit retirer à egui la synchronisation de la barre de titre (L-091)"
+    );
+    assert!(
+        ligne("src/app.rs", "ctx.send_viewport_cmd(egui::ViewportCommand::SetTheme("),
+        "app.rs doit annoncer lui-même le thème à la fenêtre (L-091)"
+    );
+}
+
 /// Le titre de la fenêtre doit porter le numéro de version : sans lui, impossible de savoir quelle version on essaie (vu par Cédric
 /// à l'essai de la 0.9.0). Le numéro vient du paquet, et `main.rs` doit vraiment s'en servir pour le titre.
 #[test]

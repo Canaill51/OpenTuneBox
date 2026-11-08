@@ -97,6 +97,9 @@ pub struct App {
     had_logs: bool,
     pub theme: Theme,
     applied: Option<&'static str>,
+    /// Thème déjà annoncé à la fenêtre du système, et cadres écoulés depuis le lancement (L-091).
+    window_theme_sent: Option<&'static str>,
+    frames: u32,
     opening: Runner<Vec<FlightLog>>,
     /// Fichiers qui attendent leur tour.
     queue: Vec<PathBuf>,
@@ -178,6 +181,8 @@ impl App {
             had_logs: false,
             theme: theme::CLAIR,
             applied: None,
+            window_theme_sent: None,
+            frames: 0,
             opening: Runner::default(),
             queue: Vec::new(),
             errors: Vec::new(),
@@ -317,6 +322,14 @@ impl App {
             theme::apply(&ctx, &self.theme);
             self.applied = Some(self.theme.name);
             ctx.request_repaint(); // le thème ne vaut qu'au cadre suivant
+        }
+        // Barre de titre et bordures : annoncées nous-mêmes, une fois la fenêtre posée (L-091).
+        self.frames = self.frames.saturating_add(1);
+        if theme::should_send_window_theme(self.frames, self.window_theme_sent, self.theme.name) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::SetTheme(theme::window_theme(&self.theme)));
+            self.window_theme_sent = Some(self.theme.name);
+        } else if self.frames < theme::WINDOW_THEME_DELAY {
+            ctx.request_repaint(); // sans cela, une interface au repos n'atteindrait jamais le cadre d'envoi
         }
         // glisser-déposer de fichiers sur la fenêtre
         let dropped: Vec<PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
