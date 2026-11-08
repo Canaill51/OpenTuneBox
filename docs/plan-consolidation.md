@@ -152,9 +152,13 @@ Défauts vérifiés dans le code, qui trompent un utilisateur :
 - [x] **Aucun champ `license` dans les 11 `Cargo.toml`.** Le dépôt est sous PolyForm Noncommercial 1.0.0 ; les
       manifestes ne le déclarent pas. Sans effet (les crates ne sont pas publiées), mais c'est une information
       manquante. Geste : ajouter `license-file` ou l'identifiant.
-- [ ] **Preuve exigée, toujours en attente** : la demande de fusion fait tourner la CI sous Ubuntu **et** Windows, et le
-      nouveau test de sortie redirigée (W-018, lot 12) y reçoit sa confirmation Windows. C'est la **seule** case du lot qui
-      dépende d'autre chose que du dépôt : elle se cochera quand la CI de la demande de fusion sera verte des deux côtés.
+- [x] **Preuve reçue le 2026-11-08** : la demande de fusion #129 a fait tourner la CI sous Ubuntu **et** Windows, et le
+      nouveau test de sortie redirigée (W-018, lot 12) a reçu sa **confirmation Windows** —
+      `otb-cli/tests/sortie_redirigee.rs::le_rapport_redirige_reste_en_utf8`, « ok » dans le job `windows`
+      (passage 42500378005). Ce premier passage a aussi trouvé une **récidive de L-079** dans l'étape 16a : le README citait
+      le fichier `target/release/opentunebox` du dossier `rust` **avec son préfixe**, que seule une machine ayant compilé
+      possède. Corrigé, et le contrôle
+      refuse maintenant un tel chemin même quand il existe, pour que la faute se voie en local.
 
 ### 16d — Chiffres faux et affirmations périmées dans la documentation
 

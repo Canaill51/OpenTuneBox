@@ -72,6 +72,47 @@ fn chemins_et_symboles() {
 }
 
 #[test]
+fn un_chemin_de_compilation_est_refuse_meme_quand_il_existe() {
+    let root = sandbox("chemins-compilation");
+    write(&root, "docs/a.md", "");
+    // le cas décisif : le fichier **existe** dans le bac à sable, comme sur un poste où l'on vient de construire.
+    // Si le contrôle se contentait de son existence, il passerait ici et chez Cédric, et n'échouerait que sur la CI (L-079).
+    write(&root, "rust/target/release/opentunebox", "");
+    assert!(
+        missing_paths(&root, "`rust/target/release/opentunebox`", false)[0].contains("fichier de compilation"),
+        "un chemin de compilation préfixé du dépôt est refusé même s'il existe"
+    );
+    // et refusé aussi quand il n'existe pas, sans se tromper de message
+    assert!(
+        missing_paths(&root, "`rust/target/debug/absent`", false)[0].contains("fichier de compilation"),
+        "le message doit dire la cause, pas « introuvable »"
+    );
+    // `dist/` et `build/` comptent autant que `target/`
+    assert_eq!(missing_paths(&root, "`packaging/dist/OpenTuneBox.exe`", false).len(), 1);
+    assert_eq!(missing_paths(&root, "`rust/build/x.o`", false).len(), 1);
+    // la forme prescrite par L-079 — le même chemin sans le préfixe du dépôt — reste acceptée
+    assert!(
+        missing_paths(
+            &root,
+            "`target/release/opentunebox` `target/release/opentunebox-gui`",
+            false
+        )
+        .is_empty(),
+        "« le fichier `target/release/…` du dossier `rust` » est la façon correcte de citer une sortie de compilation"
+    );
+    // un dossier qui commence par les mêmes lettres n'est pas un dossier de compilation
+    write(
+        &root,
+        "rust/otb-x/src/targeting.rs",
+        "pub fn viser() {}
+",
+    );
+    assert!(missing_paths(&root, "`rust/otb-x/src/targeting.rs`", false).is_empty());
+    // un bloc de code reste hors du contrôle, comme pour les autres chemins
+    assert!(missing_paths(&root, "```\n`rust/target/release/opentunebox`\n```", false).is_empty());
+}
+
+#[test]
 fn chemins_python_disparus_acceptes_seulement_dans_l_historique() {
     let root = sandbox("chemins-python");
     write(&root, "docs/a.md", "");

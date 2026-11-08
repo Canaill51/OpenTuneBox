@@ -68,8 +68,8 @@ cargo run --release -p otb-cli -- info LOG.bbl                     # sessions, f
 cargo run --release -p otb-cli -- report LOG.bbl [--profil five]   # diagnostic
 ```
 
-Le programme compilé s'appelle `opentunebox` (`cargo build --release -p otb-cli`, puis
-`rust/target/release/opentunebox`) : les deux commandes s'écrivent alors `opentunebox info LOG.bbl` et
+Le programme compilé s'appelle `opentunebox` (`cargo build --release -p otb-cli`, puis le fichier
+`target/release/opentunebox` du dossier `rust`) : les deux commandes s'écrivent alors `opentunebox info LOG.bbl` et
 `opentunebox report LOG.bbl`. Profils : `whoop`, `micro`, `five`, `seven`, `large` — la taille du drone, que
 l'assistant détecte seul si on ne la donne pas.
 

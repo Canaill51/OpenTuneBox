@@ -13,6 +13,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   tout ce qui est sous `cfg(windows)` y échappait. Il tourne maintenant sur les deux systèmes (`tests.yml`).
 
 ### Corrigé
+
+- **Un chemin produit par la compilation ne peut plus passer le contrôle de documentation chez celui qui a compilé.**
+  Le README citait le fichier `target/release/opentunebox` du dossier `rust` en le préfixant du dépôt — un fichier qui
+  n'existe que sur une machine où l'on a construit, donc le
+  contrôle passait en local et échouait sur la CI. C'était la deuxième fois (L-079). Le contrôle refuse désormais un tel
+  chemin **qu'il existe ou non**, donc la faute se voit en local ; la forme correcte — le même chemin sans le préfixe du
+  dépôt — reste acceptée.
 - **Une fiche drone dont la taille est inconnue ne fait plus mourir l'application.** `DroneCard::log_rate` (et toute méthode qui
   lit le profil de la taille) **paniquait** pour une fiche construite à la main dont le champ `size` ne correspondait à aucun
   profil ; le profil se replie maintenant sur celui de 5 pouces, exactement comme la lecture d'un `drones.json` le fait déjà

@@ -153,6 +153,18 @@ pub fn is_removed_python_path(path: &str) -> bool {
         || matches!(ext, "py" | "spec" | "icns")
 }
 
+/// Dossiers produits par la compilation : leur contenu existe sur un poste où l'on a construit, jamais dans un dépôt
+/// fraîchement cloné.
+pub const BUILD_DIRS: [&str; 3] = ["target/", "dist/", "build/"];
+
+/// Le chemin désigne un fichier **produit par la compilation** *et* porte le préfixe du dépôt (`rust/target/release/…`).
+/// La forme admise par L-079 — le même chemin **sans** ce préfixe (« le fichier `target/release/…` du dossier `rust` ») —
+/// rend `false` : c'est justement celle qu'il faut écrire.
+/// ⚠️ Un tel chemin est signalé qu'il existe ou non : sinon le contrôle passe chez celui qui a compilé et échoue sur la CI (L-079)
+pub fn is_build_output_path(path: &str) -> bool {
+    REPO_PREFIXES.iter().any(|p| path.starts_with(p)) && BUILD_DIRS.iter().any(|d| path.contains(&format!("/{d}")))
+}
+
 /// Le symbole est déclaré dans un fichier Rust : `fn`, `struct`, `enum`, `trait`, `const`, `static`, `type`, `mod`, `macro_rules!`.
 pub fn rs_symbol_defined(text: &str, name: &str) -> bool {
     let n = regex::escape(name);
@@ -182,6 +194,13 @@ pub fn missing_paths(root: &Path, text: &str, historical: bool) -> Vec<String> {
             continue;
         }
         if historical && is_removed_python_path(path) && !root.join(path).exists() {
+            continue;
+        }
+        // ⚠️ signalé même s'il existe : sinon le contrôle passe sur un poste qui a compilé et échoue sur la CI (L-079)
+        if is_build_output_path(path) {
+            missing.push(format!(
+                "{span} (fichier de compilation : le citer sans le préfixe du dépôt)"
+            ));
             continue;
         }
         let candidates: Vec<PathBuf> = if REPO_PREFIXES.iter().any(|p| path.starts_with(p)) {
