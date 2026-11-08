@@ -292,3 +292,40 @@ fn seuils_de_l_assistant() {
             .contains("lignes du tableau")
     );
 }
+
+/// Preuve du contrôle : une valeur changée dans le code et pas dans la documentation doit être signalée.
+#[test]
+fn seuils_cites_par_la_documentation() {
+    let seuils = [SeuilCite {
+        constante: "SENSITIVITY_HIGH_DB",
+        format: |v| format!("{v:.0} dB"),
+        quoi: "pic de sensibilité",
+    }];
+    let rules = "pub const SENSITIVITY_HIGH_DB: f64 = 7.0;";
+    let doc = "le pic de sensibilité doit rester sous 7 dB";
+
+    assert_eq!(
+        seuils_cites_concordent(&[("guide", doc)], rules, &seuils),
+        Vec::<String>::new()
+    );
+
+    // Le code change, la documentation garde l'ancienne valeur : c'est le cas à attraper.
+    let rules_change = "pub const SENSITIVITY_HIGH_DB: f64 = 6.0;";
+    let p = seuils_cites_concordent(&[("guide", doc)], rules_change, &seuils);
+    assert_eq!(p.len(), 1, "{p:?}");
+    assert!(p[0].contains("6 dB"), "{p:?}");
+
+    // Un document qui ne parle pas du seuil n'est pas en faute.
+    assert_eq!(
+        seuils_cites_concordent(&[("guide", "rien à dire ici")], rules_change, &seuils),
+        Vec::<String>::new()
+    );
+
+    // Une constante absente du code est signalée au lieu d'être ignorée en silence.
+    let p = seuils_cites_concordent(&[("guide", doc)], "", &seuils);
+    assert!(p[0].contains("introuvable"), "{p:?}");
+
+    // La valeur se lit bien, signe compris.
+    assert_eq!(constante_f64("pub const X: f64 = -30.0;", "X"), Some(-30.0));
+    assert_eq!(constante_f64("pub const X: f64 = -30.0;", "Y"), None);
+}

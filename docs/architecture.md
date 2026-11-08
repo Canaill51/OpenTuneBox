@@ -160,7 +160,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   `advisor_layer.rs`, `cli_layer.rs`, `guide_layer.rs` et `tuning_layer.rs` (une couche par famille de références, L-062).
 - **otb-dev** : outils de développement, jamais livrés.
   - `docs.rs` : les contrôles de la documentation (liens, chemins et symboles cités, outils, guide, modules, index de `docs/`, fichiers
-    publiés, commandes de la CLI, langue, registres D / L / W, seuils de `docs/assistant.md`). `rust/otb-dev/tests/docs.rs` les lance sur
+    publiés, commandes de la CLI, langue, registres D / L / W, seuils de `docs/assistant.md`, et **concordance des seuils
+    recopiés avec leur constante Rust** : une valeur changée dans le code et oubliée dans un document est signalée). `rust/otb-dev/tests/docs.rs` les lance sur
     la vraie documentation (`OTB_DOCS_ROOT` désigne une autre racine) et `rust/otb-dev/tests/checks.rs` prouve que chacun échoue sur un
     cas fabriqué. Les registres d'histoire (`HISTORICAL_DOCS` : CHANGELOG, decisions, lecons, migration-rust, travaux-reportes) peuvent
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.

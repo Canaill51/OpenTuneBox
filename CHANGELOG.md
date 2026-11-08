@@ -45,6 +45,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   des logs), et le guide précise que le Simulateur de filtres ne recalcule ses spectres **qu'au clic sur Appliquer**
   (environ une seconde) : rien ne le disait, et on pouvait croire l'outil figé.
 
+- **Un seuil changé dans le code et oublié dans la documentation est maintenant signalé** : les valeurs que le guide
+  recopie de `docs/assistant.md` (pic de sensibilité, marge de phase) sont comparées à leur **constante Rust**, pas à
+  un autre texte — comparer deux documents entre eux laissait passer le changement, la même valeur apparaissant
+  ailleurs pour d'autres raisons. `otb-dev --test docs` le vérifie à chaque commit.
+
 ### Modifié
 - **Chiffres du corpus remesurés et rassemblés** : `docs/architecture.md` annonçait « environ 780 sessions (582 fichiers)
   et 638 captures » ; la mesure du 2026-11-08 donne **525 fichiers, 709 sessions et 595 captures**. Ces chiffres ne

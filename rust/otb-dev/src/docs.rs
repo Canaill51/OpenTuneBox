@@ -508,6 +508,52 @@ fn close(a: f64, b: f64) -> bool {
     (a - b).abs() <= 1e-6 * b.abs().max(a.abs()) + 1e-12
 }
 
+/// Seuils que la documentation recopie, et la **constante du code** qui fait foi.
+///
+/// ⚠️ Le guide s'adresse aux pilotes : lui faire dire « voir assistant.md » serait moins utile que de donner la
+/// valeur. Elle y est donc recopiée. Ce contrôle la compare à la **constante Rust**, et non à un autre document :
+/// comparer deux textes entre eux laissait passer un changement, puisque la même valeur apparaît à plusieurs
+/// endroits pour d'autres raisons (D-018, un maître par sujet)
+pub struct SeuilCite {
+    /// Nom de la constante dans `rust/otb-advisor/src/rules.rs`.
+    pub constante: &'static str,
+    /// Comment la valeur s'écrit dans les documents, à partir du nombre (ex. 7 → « 7 dB »).
+    pub format: fn(f64) -> String,
+    /// Ce que le seuil décide, pour le message d'erreur.
+    pub quoi: &'static str,
+}
+
+/// Valeur d'une constante `pub const NOM: f64 = …;` lue dans le source Rust.
+pub fn constante_f64(source: &str, nom: &str) -> Option<f64> {
+    let motif = format!(r"pub const {nom}: f64 = (-?[0-9.]+);");
+    re(&motif).captures(source)?.get(1)?.as_str().parse().ok()
+}
+
+/// Chaque seuil recopié dans un document doit porter la valeur de sa constante.
+///
+/// Un document qui ne cite pas le seuil n'est pas en faute : il renvoie alors à son maître. Ce qui est refusé, c'est
+/// de citer une valeur **différente** de celle du code.
+pub fn seuils_cites_concordent(documents: &[(&str, &str)], rules_rs: &str, seuils: &[SeuilCite]) -> Vec<String> {
+    let mut problems = Vec::new();
+    for s in seuils {
+        let Some(valeur) = constante_f64(rules_rs, s.constante) else {
+            problems.push(format!("constante {} introuvable dans rules.rs", s.constante));
+            continue;
+        };
+        let attendu = (s.format)(valeur);
+        for (nom, texte) in documents {
+            // Le document parle-t-il de ce seuil ? On le repère par son unité et son rôle, pas par la valeur.
+            if !texte.contains(&attendu) && texte.contains(s.quoi) {
+                problems.push(format!(
+                    "{nom} parle de « {} » sans citer « {attendu} » ({} = {valeur}) : la valeur a changé d'un seul côté",
+                    s.quoi, s.constante
+                ));
+            }
+        }
+    }
+    problems
+}
+
 /// `docs/assistant.md` est la référence des seuils (compétence `assistant-seuils`) : chaque valeur des profils y figure, dans « Seuils retenus »
 /// (bruit, latence, retards) et dans le tableau des seuils mécaniques (colonne commune pour whoop, 2–3,5" et 8"+).
 pub fn assistant_doc_problems(text: &str, profiles: &[ProfileView]) -> Vec<String> {
