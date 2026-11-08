@@ -228,6 +228,12 @@ courbes à la fois ; un pilote signale une lenteur ; la mémoire du cache des ou
 | 11 | À faire : plafond tranché (D-051, 3 fichiers) |
 | 15 | Conditionnel : attend un déclencheur mesuré |
 
+## Revue intégrale du projet : lot 16
+
+Le 2026-11-08, Cédric a demandé une revue de **tout ce qui existe déjà** (code, tests, documentation, outillage), et pas
+seulement de ce qui restait à faire. Elle a son propre plan : [plan-consolidation.md](plan-consolidation.md) (lot 16).
+Elle ne remplace pas les lots 13 à 15 ci-dessus, elle s'y ajoute.
+
 ## Ce qui reste ouvert après ce plan
 
 Pour mémoire, et sans y revenir : **W-002** et **W-004** (bloqués par les données et par la physique), **W-001** (logs KISS et
