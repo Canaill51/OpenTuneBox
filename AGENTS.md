@@ -63,9 +63,9 @@ cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, mentions de lice
 cargo test -p otb-dev --test docs   # cohérence de la documentation
 cargo run --release -p otb-gui -- [LOG…]   # interface
 cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande
-cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version
+cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z | release notes vX.Y.Z | bench-open LOG…   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version, notes de la page Releases, banc d'ouverture d'un log
 cargo run --release -p otb-dev -- corpus rates|calibrate|labels|validate   # calculs sur le corpus : compétence `calculs-corpus`
-cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées
+cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées (aussi : list, check-header|decoder|settings|flightlog|sliders|analysis|advisor|guide|tuning|cli)
 cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG…]   # captures sans écran (wgpu) : regarder l'image produite
 ```
 

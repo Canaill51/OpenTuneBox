@@ -38,6 +38,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   demandes de fusion touchant ce fichier, alors que le quota d'artefacts d'un dépôt gratuit, une fois plein, bloque
   **tout** envoi — y compris celui d'une version.
 
+- **Le guide dit enfin où sont rangées vos fiches drone** (`drones.json`, dans le dossier de données de
+  l'application) : c'est ce fichier qu'il faut copier pour sauvegarder votre avancement ou le reprendre sur une autre
+  machine. La désinstallation sous Linux y est décrite aussi — elle n'existait qu'en commentaire d'un script.
+- **Les boutons communs à tous les outils sont décrits** (« Calculer », « Tout voir », « Exporter image », fermeture
+  des logs), et le guide précise que le Simulateur de filtres ne recalcule ses spectres **qu'au clic sur Appliquer**
+  (environ une seconde) : rien ne le disait, et on pouvait croire l'outil figé.
+
 ### Modifié
 - **Chiffres du corpus remesurés et rassemblés** : `docs/architecture.md` annonçait « environ 780 sessions (582 fichiers)
   et 638 captures » ; la mesure du 2026-11-08 donne **525 fichiers, 709 sessions et 595 captures**. Ces chiffres ne

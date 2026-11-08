@@ -150,8 +150,12 @@ pub fn progress(card: &DroneCard, checks: &[LogCheck], targets: Option<&FilterTa
 // ------------------------------------------------------------------ fichier des fiches
 /// Dossier de données de Qt (`QStandardPaths.AppDataLocation`, avec le nom de l'organisation puis celui de l'application, tous deux
 /// « OpenTuneBox » dans `gui/app.py`) : le même fichier que la version Python.
-/// Linux : mesuré sur le poste (`~/.local/share/OpenTuneBox/OpenTuneBox/drones.json`). Windows et macOS : d'après la documentation de Qt
-/// (`%APPDATA%` = AppData/Roaming ; `~/Library/Application Support`) ; **non essayés** sur ces systèmes.
+/// Linux : mesuré sur le poste (`~/.local/share/OpenTuneBox/OpenTuneBox/drones.json`). Windows : d'après la documentation
+/// de Qt (`%APPDATA%` = AppData/Roaming), non essayé séparément.
+///
+/// La branche `macos` est **gardée sans être livrée** (macOS abandonné, D-042) : cette fonction prend le système en
+/// argument et ses tests couvrent les trois cas, donc la retirer coûterait des tests sans rien alléger du programme.
+/// Elle reste juste si macOS revenait un jour.
 pub fn cards_path_in(os: &str, var: &dyn Fn(&str) -> Option<OsString>) -> PathBuf {
     let get = |k: &str| var(k).filter(|v| !v.is_empty());
     let home = get("HOME").or_else(|| get("USERPROFILE")).map(PathBuf::from);

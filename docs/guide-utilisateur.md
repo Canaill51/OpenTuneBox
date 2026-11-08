@@ -21,6 +21,11 @@ menu des applications et y met son icône ; si vous déplacez le fichier ensuite
 nouvel emplacement et corrigez ou supprimez l'ancien raccourci
 (`~/.local/share/applications/OpenTuneBox.desktop`).
 
+Pour **désinstaller** sous Linux : supprimer l'AppImage et son raccourci
+(`~/.local/share/applications/OpenTuneBox.desktop`, et l'icône dans
+`~/.local/share/icons/hicolor/256x256/apps/`). Vos fiches drone ne sont pas touchées : elles restent dans
+`~/.local/share/OpenTuneBox/`.
+
 Lancer OpenTuneBox depuis ses sources ou fabriquer l'exécutable soi-même : voir la partie
 *Développement* du [README](../README.md#développement).
 
@@ -87,6 +92,16 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 
 Chaque outil s'affiche par son bouton dans la barre d'outils. Le titre ci-dessous est celui du bouton ;
 entre parenthèses, le nom plus court que les pages du Guide emploient pour le même outil.
+
+**Les boutons communs à tous les outils**, en haut de chaque page :
+
+- **Calculer** : relance le calcul. Il se fait déjà tout seul quand vous changez un réglage ; ce bouton sert à le
+  refaire à la demande.
+- **Tout voir** : remet le graphique à sa vue d'ensemble après un zoom.
+- **Exporter image** : enregistre la page en PNG (nom proposé `OTB_FIGS_AAAA-MM-JJ-N.png`). L'icône tout à droite de
+  la barre, elle, capture la fenêtre entière.
+- La **liste des fichiers** : une case par log ouvert ; un clic ajoute ou retire une courbe.
+- Fermer un log : les deux boutons à gauche de la barre (**Fermer** le log affiché, **Tout fermer**).
 
 ### Analyse spectrale (Spectre)
 Spectres (FFT) du gyro et des termes PID : on y voit où se trouve le bruit et ce que les filtres
@@ -183,9 +198,10 @@ Positions des curseurs (lues dans le log, ou estimées si le réglage simplifié
 simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, copiez les commandes CLI.
 
 ### Simulateur de filtres (Filtres)
-Reconstitue exactement la chaîne de filtres de Betaflight à partir du log. Modifiez un filtre :
-le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
-le vrai gyro du vol. Copiez ensuite les commandes CLI. Les deux spectres (gyro et terme D) sont sur
+Reconstitue exactement la chaîne de filtres de Betaflight à partir du log. Modifiez un filtre, puis cliquez sur
+**Appliquer** : le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
+le vrai gyro du vol (comptez environ une seconde de calcul). Les spectres ne bougent **pas** tant que vous n'avez pas
+cliqué sur Appliquer ; **Réinitialiser** revient aux réglages du log. Copiez ensuite les commandes CLI. Les deux spectres (gyro et terme D) sont sur
 l'échelle de PIDtoolbox, **−50 à 20 dB**, la même que la page Spectre : les deux lignes et les deux pages
 se lisent l'une contre l'autre.
 
@@ -215,6 +231,10 @@ La méthode est le **parcours du guide intégré** (bouton **Guide**) : des case
   lui), version de Betaflight, taille, boucle PID, ESC ; préremplie d'après le log ouvert. Les valeurs du
   guide s'y adaptent et chaque drone garde son avancement ; **Recommencer** décoche toutes ses cases, **Supprimer** retire la fiche (les logs ne sont pas
   touchés).
+- **Où sont rangées vos fiches** : dans un fichier `drones.json`, à côté des réglages de l'application —
+  `%APPDATA%\OpenTuneBox\OpenTuneBox\` sous Windows, `~/.local/share/OpenTuneBox/OpenTuneBox/` sous Linux. C'est ce
+  fichier qu'il faut copier pour sauvegarder votre avancement ou le reprendre sur une autre machine. S'il devient
+  illisible, l'application ne l'écrase pas : elle le met de côté sous `drones.json.illisible` et le dit dans le Guide.
 - **Frise et liste des phases** : où vous en êtes (cases faites / total).
 - **Cases** : un clic coche ; le bouton **ⓘ Aide** affiche l'aide ; **Ouvrir …** ouvre l'outil utile, avec la période
   d'analyse réglée sur la bonne partie du vol. Dès qu'un log du drone est ouvert, certaines cases se

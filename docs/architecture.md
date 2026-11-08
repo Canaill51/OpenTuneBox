@@ -108,8 +108,14 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 - `icons.rs` : icônes Lucide (`rust/otb-gui/assets/icons/`, licence ISC) colorées selon le thème.
 - `plots.rs` : contournements d'egui_plot. `export.rs` : export PNG (nom `OTB_FIGS_AAAA-MM-JJ-N.png`, recadrage borné de la capture
   d'écran d'egui ; la boîte d'enregistrement est `App::save_dialog`, remplaçable dans les tests). `build.rs` : icône de l'exécutable Windows.
-- Captures sans fenêtre : `examples/capture.rs` (rendu wgpu) ; `examples/banc_carte.rs` mesure `Heatmap` contre `PlotImage` ;
-  `examples/banc_cadre.rs` mesure le temps de cadre de l'écran Guide et du viewer sur un vrai log (W-049, `docs/validation.md`).
+- Exemples d'`otb-gui` : `examples/capture.rs` (captures sans fenêtre, rendu wgpu) ; `examples/banc_carte.rs` mesure
+  `Heatmap` contre `PlotImage` ; `examples/banc_cadre.rs` mesure le temps de cadre de l'écran Guide et du viewer sur un
+  vrai log (W-049, `docs/validation.md`) ; `examples/check_tools.rs` **rejoue les sept outils sur les références figées
+  et compare chaque clé** (`cargo run --release -p otb-gui --example check_tools -- $OTB_LOGS/golden`) — c'est la seule
+  preuve que les outils de l'interface rendent ce que rendait la version Python sur de vrais vols, et ce n'est pas un
+  test : la CI le compile sans le lancer (W-054).
+- Bancs d'`otb-dsp` (mesures, jamais livrés) : `examples/banc_4b0.rs` et `examples/banc_4c0.rs` (primitives numériques,
+  L-051) et `examples/banc_minmax.rs` (index multi-résolution du viewer, D-048).
   Banc de test : `with_context_setup(app::setup)` (L-066).
 
 ## Distribution
@@ -145,8 +151,10 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   reproduisent les classes d'expressions régulières de Python, nécessaires pour que les noms de drone se comparent comme avant.
 - **otb-cli** : binaire `opentunebox info` / `report` ; `lib.rs` produit le texte, `main.rs` l'écrit au fil de l'eau.
 - **otb-gui** : l'interface (voir « Interface ») ; `colormaps.rs` : palettes des cartes de fréquence (tables d'octets, licences en tête du fichier).
-- **otb-parity** : comparateur avec les références de l'ancienne version (`otb-parity check $OTB_LOGS/golden`, `check-header`,
-  `check-settings`, `check-flightlog`, `check-decoder`…, D-035) ; modules : `registry.rs` (fonctions rejouables par nom), `value.rs`
+- **otb-parity** : comparateur avec les références de l'ancienne version (D-035). Onze modes : `check` (fonctions par nom)
+  et `list`, puis une couche par étage — `check-header`, `check-decoder`, `check-settings`, `check-flightlog`,
+  `check-sliders`, `check-analysis`, `check-advisor`, `check-guide`, `check-tuning`, `check-cli`. Tous demandent le
+  dossier des références et `$OTB_LOGS` ; seuls `check_decoder` et `check_header` ont des tests (W-054) ; modules : `registry.rs` (fonctions rejouables par nom), `value.rs`
   (valeurs des fichiers de référence), `compare.rs`, `layers.rs` (couches par fichier du corpus : en-têtes), `decoded.rs` et
   `flightlog_digest.rs` (empreintes des sessions décodées et des `FlightLog`), `settings_json.rs` (`Settings` en JSON), `analysis_layer.rs`,
   `advisor_layer.rs`, `cli_layer.rs`, `guide_layer.rs` et `tuning_layer.rs` (une couche par famille de références, L-062).
