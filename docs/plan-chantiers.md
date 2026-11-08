@@ -384,18 +384,33 @@ Deux autres demandes sont arrivées pendant l'essai, sans être des défauts de 
 voit pas — taille et contour de la fenêtre, intégration au bureau, ergonomie. Prévoir plusieurs tours d'essai, et poser l'étiquette
 d'essai sur `main` plutôt que sur une branche, pour que chaque correctif suive le circuit normal.
 
-Étape 7d, publication :
+Étape 7d, publication — **faite le 2026-11-08** :
 
-- [ ] Cédric fusionne la PR de 7b, puis pose **lui-même** l'étiquette `v0.9.0` sur `main` à jour (`CONTRIBUTING.md`, point 2).
-- [ ] Suivre le run : page publiée, marquée « dernière version », deux fichiers, notes de la 0.9.0. Télécharger depuis la page
-      publique et relancer un démarrage rapide de chaque fichier. En cas d'échec : `gh run rerun ID --failed` (le brouillon est
-      réutilisé) ; ne jamais supprimer l'étiquette `v0.9.0` sans l'accord de Cédric.
+- [x] PR du bilan fusionnée, puis étiquette `v0.9.0` posée par Cédric sur `main` à jour (`cfe464c`).
+- [x] Run `construire.yml` vert : page publiée, marquée « dernière version » (`releases/latest` rend `v0.9.0`), deux fichiers,
+      notes de la 0.9.0. Fichiers retéléchargés depuis la **page publique** et contrôlés : l'AppImage contient bien le titre avec
+      la version, aucun nom d'auteur, les textes des séries de vols et le raccourci de bureau de son `AppRun`.
+      Le démarrage des deux fichiers est essayé par le workflow lui-même (Windows : installateur posé puis lancé sur un log ;
+      Linux : AppImage sous `xvfb` avec un log, arrêtée à 20 s) — vert.
+- [x] Brouillon d'essai et son étiquette supprimés une fois la vraie page publiée.
 
-Étape 7e, consigner :
+Étape 7e, consigner — **faite le 2026-11-08** :
 
-- [ ] Remplir « Avancement » ; mettre à jour W-044 (retirer la suppression de `_internal` à la version qui suit la 0.9.0), W-045
-      (décision de Cédric), W-043 (relecture des textes de licences avec Cédric : faite ou reportée) ; leçons nouvelles dans
-      `docs/lecons.md`.
+- [x] « Avancement » rempli ; section 7c réécrite d'après ce qui s'est passé (quatre tours, sept défauts).
+- [x] W-045 : point (2) **soldé**, confirmé sur la machine de Cédric le 2026-11-07 ; le revers du garde-fou (un raccourci laissé
+      par une AppImage supprimée empêche la suivante d'en écrire un bon) y est noté. Point (3), X11, reste ouvert.
+- [x] W-044 : ⚠️ **la mise à jour par-dessus la 0.8.0 n'a pas été essayée**. Cédric a vérifié la désinstallation (propre), pas
+      l'installation par-dessus l'ancienne version. La suppression de `{app}\_internal`, écrite exactement pour ce cas, n'a donc
+      jamais été exercée sur une vraie machine : ne pas retirer cette ligne avant de l'avoir vue marcher. Le script
+      `construire_windows.ps1` n'a toujours pas été lancé sur un vrai Windows.
+- [x] W-043 : l'échéance « avant la première version Rust » **est passée sans que la relecture des textes de licences soit
+      faite** ; la 0.9.0 est publiée avec son `THIRD-PARTY-LICENSES.txt`, non relu ligne à ligne. Nouvelle échéance : avant la 1.0.
+- [x] Leçons nouvelles : L-089 (taille de la fenêtre au premier lancement), L-090 (ne jamais photographier l'écran de Cédric),
+      L-091 (le contour d'une fenêtre échappe aux tests, à `wine` et aux captures). Décisions : D-049 (ordre des courbes),
+      D-050 (sources citées sans nommer leurs auteurs).
+
+**Ce qui reste ouvert après la 0.9.0** : W-043 (relecture des licences), W-044 (mise à jour depuis la 0.8.0 et script Windows),
+W-045 point 3 (icône sous X11).
 
 ## Lot 8 : banc de temps de cadre de l'interface (Opus) — W-049
 
@@ -527,7 +542,7 @@ en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cum
 | 4 | Fait le 2026-11-04 (branche `fix/decoder-hostile-header`, D-044, L-080) : `DecodeError`, bornes 512 champs / intervalles 1 à 65 535, `try_reserve`, `Settings::implausible`. `robustness.rs` : 10 cas, 6 rouges avant correction (les intervalles à 9·10¹⁸ ne bouclaient pas sur cette source : refusés par la borne seulement) ; contre-preuves : 4 retraits rougissent. `otb-parity` 0 échec, `corpus validate` 697/712 comme la ligne de base |
 | 5 | Fait le 2026-11-04 (branche `perf/decoder-memory`, poussée, PR non ouverte, L-081). Banc `otb-dev bench-open` fait (lot 5a). 5a (session par session) essayé et retiré : sans effet (une seule session, +32 Mo). Variante 1 : rendre la table `i64` avant les copies finales : 481 → 342 Mo. Variante 2 (accord de Cédric) : `CompactTable`, trames rangées en `i32` dès le décodeur : **274 Mo (÷ 1,75, objectif ÷ 1,5 atteint, ÷ 2 manqué), 0,54 s (plus rapide)**, `FlightLog` identiques sur 528 fichiers, `corpus validate` 697/712, `otb-parity` 0 échec. Un décodage par blocs vers `f32` irait plus loin (non fait). `golden.rs` rouge sur `main` avec `OTB_GOLDEN`, non traité |
 | 6 | Fait le 2026-11-06 (branche **docs/plan-suite**, avec le plan de la suite : la branche prévue docs/chantiers-bilan aurait empilé une PR sur une PR non fusionnée, choix de Cédric). Bilan des cinq chantiers ci-dessus ; L-087 et L-088 écrites ; W-014 et W-016 clos, W-035 (9), W-036 (8) et W-041 mis à jour ; note périmée sur `golden.rs` corrigée dans `validation.md`. Aucun code livré. Écart au plan : les mesures de robustesse et de mémoire n'avaient pas à être reprises (les lots 4 et 5 les avaient déjà écrites dans `validation.md`), et la 3ᵉ leçon prévue existait déjà (L-080) |
-| 7 | Détaillé le 2026-11-05 (0.9.0, après les lots 5 et 6). **7a fait le 2026-11-06** (branche `feat/licenses-check`) : `otb-dev licenses --check`, étape `licenses` de `verify`, contrôle dans `tests.yml` sous Ubuntu **et sous Windows**. Hypothèse du constat de départ **fausse** : le fichier du dépôt n'était pas périmé (régénéré sous Linux, identique octet pour octet, 324 composants et 607 849 octets), car `zip` n'est pas une dépendance livrée d'`otb-gui` (construction et test seulement) et n'apparaît pas dans le fichier ; la mise à jour de la PR #99 ne pouvait donc rien changer. Les crates propres à Windows (`clipboard-win`, `accesskit_windows`, `windows_x86_64_msvc`) sont déjà prises depuis Linux, textes de licence compris. Contre-preuves : une ligne retirée → `--check` rend 1 en nommant la ligne 250, et `verify --quick` rend 1 avec l'étape `licenses : ÉCHEC`. **7b fait le 2026-11-06** (branche `chore/release-0.9.0`) : résumé « Ce qui change pour vous » en tête du CHANGELOG (9 entrées de l'époque Python retirées avec l'accord de Cédric, ligne du décodeur reformulée), captures du README refaites sur l'interface Rust, `release prepare 0.9.0`, et les trois vérifications au vert (détail dans la section du lot). **7c fait du 2026-11-06 au 2026-11-08** : quatre tours d'essai sur de vraies machines, sept défauts trouvés et corrigés (PR #118 à #126), aucun vu par les tests ; détail et enseignement dans la section du lot. 7d et 7e : à faire |
+| 7 | Détaillé le 2026-11-05 (0.9.0, après les lots 5 et 6). **7a fait le 2026-11-06** (branche `feat/licenses-check`) : `otb-dev licenses --check`, étape `licenses` de `verify`, contrôle dans `tests.yml` sous Ubuntu **et sous Windows**. Hypothèse du constat de départ **fausse** : le fichier du dépôt n'était pas périmé (régénéré sous Linux, identique octet pour octet, 324 composants et 607 849 octets), car `zip` n'est pas une dépendance livrée d'`otb-gui` (construction et test seulement) et n'apparaît pas dans le fichier ; la mise à jour de la PR #99 ne pouvait donc rien changer. Les crates propres à Windows (`clipboard-win`, `accesskit_windows`, `windows_x86_64_msvc`) sont déjà prises depuis Linux, textes de licence compris. Contre-preuves : une ligne retirée → `--check` rend 1 en nommant la ligne 250, et `verify --quick` rend 1 avec l'étape `licenses : ÉCHEC`. **7b fait le 2026-11-06** (branche `chore/release-0.9.0`) : résumé « Ce qui change pour vous » en tête du CHANGELOG (9 entrées de l'époque Python retirées avec l'accord de Cédric, ligne du décodeur reformulée), captures du README refaites sur l'interface Rust, `release prepare 0.9.0`, et les trois vérifications au vert (détail dans la section du lot). **7c fait du 2026-11-06 au 2026-11-08** : quatre tours d'essai sur de vraies machines, sept défauts trouvés et corrigés (PR #118 à #126), aucun vu par les tests ; détail et enseignement dans la section du lot. **7d et 7e faits le 2026-11-08** : 0.9.0 publiée (page « dernière version », deux fichiers), brouillon d'essai supprimé, W-045 point 2 soldé ; restent ouverts W-043 (licences non relues, échéance passée), W-044 (mise à jour depuis la 0.8.0 **jamais essayée**, script Windows) et W-045 point 3. **Lot 7 terminé** |
 | 8 | Fait le 2026-11-05 (branche `chore/viewer-frame-bench`, partie de `main` : le lot 5 était fusionné) : `examples/banc_cadre.rs`. Étalon retrouvé sur `FINAL.bbl` (viewer 7,4 à 8,3 ms, Guide 0,41 à 0,43, 6,2 ms à 640 px) ; `LOG00008.BFL` 12,6 à 13,0 ms à 620 079 échantillons, sous les 16,7 ms. Écart au plan : les 0,34 ms de carte graphique de W-049 ne se reproduisent pas (kittest prend le rendu logiciel par défaut ; sur vraie carte, ≈ 10 ms fixes de relecture même sans courbe) : `--gpu` gardé avec chiffres bruts (accord de Cédric), le lot 10 se juge sur le temps du processeur. Le banc ajoute la tessellation (0,7 ms) |
 | 9 | Non retenu le 2026-11-04 ; repris hors lot le 2026-11-05 (branche `test/golden-tolerance`, D-047, L-083) : `golden.rs` vert avec `OTB_GOLDEN` |
 | 10 | Fait le 2026-11-05 (branche `perf/viewer-pyramid`, D-048, L-085, L-086) : index multi-résolution min/max dans `otb-dsp`, cadre du viewer ÷ 2,2 (620 079 échantillons : 10,5–12,1 → 4,6–4,8 ms) à ÷ 6,5 (fenêtre étroite), autant pendant un glissement ; tracé identique au bit près, index à 6,4–7,8 % du pic de mémoire (pic inchangé, plafond de Cédric : 10 %). Décision de Cédric : piste (b). Écart au plan : exactitude obtenue **point pour point** et non seulement sur l'enveloppe, mais la règle des trous a dû changer (un paquet à trou est tracé comme un trou, D-048). Reste W-052 : le cadre est maintenant dominé par le tracé des ≈ 3 840 points de chaque courbe |
