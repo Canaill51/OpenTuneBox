@@ -63,6 +63,7 @@ Règles d'écriture :
 | W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | 🚫 SANS SUITE (2026-11-08) — plus de Python à égaler, aucun appelant ; écarts gardés en commentaire du code |
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | 🚫 SANS SUITE (2026-11-08) — mêmes raisons que W-026 |
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
+| W-054 | Comparateurs des couches hautes d'`otb-parity` (analyses, assistant, guide, réglage, ligne de commande, réglages, journaux, curseurs) toujours sans test : seuls `check_decoder` et `check_header` en ont | ouvert (fabriquer une référence Python pour ces couches est le vrai coût) |
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
 | W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
@@ -722,3 +723,29 @@ compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
   **Piste** : trier d'abord les messages atteignables (ceux que `log_check`, `noise`, `rules` et les pages d'outils peuvent
   remonter) et les réécrire en français ; laisser les autres, ou les remplacer par un texte court qui dit la cause.
   [`rust/otb-advisor/src/noise.rs:noise_report`, `rust/otb-analysis/src/datasets.rs:get`, `rust/otb-analysis/src/npstat.rs:arange_f64`]
+
+## Origine : revue intégrale du projet (2026-11-08)
+
+- **W-054** — **Huit des dix comparateurs d'`otb-parity` n'ont toujours aucun test.** Le lot 16 en a couvert deux :
+  `check_decoder` et `check_header` (`rust/otb-parity/tests/comparateurs.rs` : référence fidèle acceptée, puis cinq
+  sabotages refusés). Restent sans test : `check_settings`, `check_flightlog`, `check_sliders`
+  (`rust/otb-parity/src/layers.rs:check_settings`), `check_analysis`
+  (`rust/otb-parity/src/analysis_layer.rs:check_analysis`, 822 lignes), `check_advisor`
+  (`rust/otb-parity/src/advisor_layer.rs:check_advisor`), `check_guide`
+  (`rust/otb-parity/src/guide_layer.rs:check_guide`), `check_tuning`
+  (`rust/otb-parity/src/tuning_layer.rs:check_tuning`) et `check_cli`
+  (`rust/otb-parity/src/cli_layer.rs:check_cli`).
+  **Pourquoi reporté** : pour les deux couches basses, la référence se fabrique à partir du log d'essai en quelques
+  lignes. Pour les couches hautes, il faut une référence au format de `golden.py record-…` — matrices `.npz`,
+  centaines de clés par session, réglages d'outils — que seule l'ancienne chaîne Python produit. L'écrire à la main
+  reviendrait à réimplémenter le format, et une référence inventée ne prouverait pas grand-chose.
+  **Risque si on n'y touche pas** : un comparateur qui ne compare rien rend « 0 écart » sur tout le corpus, et son
+  silence passe pour une preuve de justesse. C'est arrivé une fois (W-030, relecture de `loop` : deux grandeurs
+  comparées à elles-mêmes).
+  **Reprise** : au prochain réenregistrement des références (W-028), qui produira justement ces fichiers — en garder
+  **un** par couche, réduit, comme cas de test versionné.
+  **Piste** : le dossier `../otb-etalon` (étalon Python, gardé exprès) sert à produire ces références.
+
+  *Trouvé en écrivant les deux premiers tests* : `compare_header` faisait `session - 1` sur un entier non signé, donc
+  une référence annonçant la session `0` (ou sans ce champ) faisait **paniquer** le comparateur en debug — donc en CI.
+  Corrigé : erreur nommée au lieu de la panique, avec son test.

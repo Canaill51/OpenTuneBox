@@ -73,15 +73,68 @@ fn le_code_de_sortie_vaut_1_si_une_etape_echoue_ou_si_un_saut_est_refuse() {
     assert_eq!(exit_code(false, 0, false), 1);
 }
 
+/// Tous les fichiers de tests de l'espace de travail.
+fn fichiers_de_tests() -> Vec<std::path::PathBuf> {
+    let racine = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let mut v = Vec::new();
+    for crate_dir in std::fs::read_dir(&racine).unwrap().filter_map(Result::ok) {
+        let tests = crate_dir.path().join("tests");
+        let Ok(entries) = std::fs::read_dir(&tests) else {
+            continue;
+        };
+        for e in entries.filter_map(Result::ok) {
+            let p = e.path();
+            if p.extension().is_some_and(|x| x == "rs") {
+                v.push(p);
+            }
+        }
+    }
+    assert!(v.len() > 20, "trop peu de fichiers de tests trouvés : {}", v.len());
+    v
+}
+
+/// ⚠️ Un test qui se saute sans le dire se fait passer pour un test qui passe. Ce garde-fou **cherche** les sauts
+/// au lieu d'en tenir une liste : une liste écrite à la main laisse passer le prochain (W-054)
 #[test]
 fn les_tests_qui_se_sautent_ecrivent_le_marqueur_sur_la_sortie_standard() {
-    let racine = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    for f in ["otb-parity/tests/golden.rs", "otb-advisor/tests/smooth.rs"] {
-        let texte = std::fs::read_to_string(racine.join(f)).unwrap();
-        assert!(
-            // `cargo fmt` peut couper l'appel après la parenthèse : on ne fige pas la mise en forme
-            texte.contains("println!(") && texte.contains(&format!("\"{SKIP_MARKER} ")),
-            "{f} : saut sans marqueur sur stdout"
-        );
+    let mut sans_marqueur = Vec::new();
+    for p in fichiers_de_tests() {
+        let texte = std::fs::read_to_string(&p).unwrap();
+        // Un saut conditionné par l'environnement : la variable est lue, puis le test rend la main.
+        let saute = texte.contains("env::var(\"OTB_") && (texte.contains("return;") || texte.contains("else {"));
+        if saute && !texte.contains(&format!("\"{SKIP_MARKER} ")) {
+            sans_marqueur.push(p.display().to_string());
+        }
     }
+    assert!(
+        sans_marqueur.is_empty(),
+        "sauts sans marqueur sur stdout : {sans_marqueur:?}"
+    );
+}
+
+/// Un fichier entier réservé à un système (`#![cfg(unix)]`) disparaît **sans rien afficher** ailleurs. Il doit alors
+/// être annoncé par `sauts_par_systeme.rs`, qui, lui, est compilé partout.
+#[test]
+fn les_fichiers_reserves_a_un_systeme_sont_annonces() {
+    let annonce =
+        std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/sauts_par_systeme.rs"))
+            .unwrap();
+    let mut oublies = Vec::new();
+    for p in fichiers_de_tests() {
+        // le fichier d'annonce cite ces attributs dans son propre commentaire
+        if p.ends_with("sauts_par_systeme.rs") {
+            continue;
+        }
+        let texte = std::fs::read_to_string(&p).unwrap();
+        if texte.contains("#![cfg(unix)]") || texte.contains("#![cfg(windows)]") {
+            let nom = p.file_name().unwrap().to_string_lossy().to_string();
+            if !annonce.contains(&nom) {
+                oublies.push(nom);
+            }
+        }
+    }
+    assert!(
+        oublies.is_empty(),
+        "fichiers réservés à un système, non annoncés dans sauts_par_systeme.rs : {oublies:?}"
+    );
 }
