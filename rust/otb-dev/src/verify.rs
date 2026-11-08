@@ -1,4 +1,4 @@
-//! `otb-dev verify` : la vérification complète en une commande, code de sortie 0 seulement si tout passe (lot 1 de `docs/plan-chantiers.md`).
+//! `otb-dev verify` : la vérification complète en une commande, code de sortie 0 seulement si tout passe (lot 1 de `docs/plan.md`).
 //!
 //! Étapes : `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail : mêmes
 //! exécutables qu'avec la liste des `-p`, mesuré le 2026-11-04), le contrôle des mentions de licences (`otb-dev licenses --check`, en

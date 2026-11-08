@@ -1,4 +1,4 @@
-//! Banc d'ouverture d'un log : durée et pic de mémoire (lot 5 de `docs/plan-chantiers.md`).
+//! Banc d'ouverture d'un log : durée et pic de mémoire (lot 5 de `docs/plan.md`).
 //!
 //! ```text
 //! otb-dev bench-open LOG [ESSAIS]

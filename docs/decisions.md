@@ -129,7 +129,7 @@ ici, jamais dans le code.
 
 ### D-052 : seul `step_tuning.json` est stocké compressé
 
-**Tranché par Cédric** le 2026-11-08, sur les mesures de l'étape 16g de [plan-consolidation.md](plan-consolidation.md).
+**Tranché par Cédric** le 2026-11-08, sur les mesures de l'étape 16g du lot 16 ([plan.md](plan.md)).
 
 **Contexte.** Les 31 fichiers de cas de `rust/*/tests/data/` pèsent **133 Mo**, soit la quasi-totalité du poids du dépôt.
 `common::cas` (`rust/otb-analysis/tests/common/mod.rs`) lit déjà indifféremment `<nom>.json` ou `<nom>.json.gz`, et
@@ -162,7 +162,7 @@ panique en nommant les deux chemins essayés si aucun des deux n'existe.
 
 ### D-051 : au plus trois logs décodés en même temps
 
-Débloque W-050 (lot 11 de [plan-suite.md](plan-suite.md)). **Tranché par Cédric** le 2026-11-08, sur les mesures du lot 5.
+Débloque W-050 (lot 11 de [plan.md](plan.md)). **Tranché par Cédric** le 2026-11-08, sur les mesures du lot 5.
 
 **Contexte.** L'interface ouvre les fichiers **les uns après les autres** (`rust/otb-gui/src/app.rs`, une file `queue` et un
 seul `opening`). Décoder en parallèle va **×2,40** (6 logs : 0,830 s → 0,345 s), mais chaque fichier décodé en même temps
@@ -256,7 +256,7 @@ gêne à l'usage, la décision se remplace (ici, ou partout).
 
 ### D-048 : index multi-résolution min/max, et un trou par paquet qui en contient un
 
-Clôt W-049 (lot 10 de [plan-chantiers.md](plan-chantiers.md)). **Tranché par Cédric** le 2026-11-05 : piste (b),
+Clôt W-049 (lot 10 de [plan.md](plan.md)). **Tranché par Cédric** le 2026-11-05 : piste (b),
 index multi-résolution, plafond de mémoire « +10 % du pic ».
 
 **Contexte.** Le viewer trace ses courbes décimées min/max : la fenêtre visible est coupée en paquets et chaque
@@ -313,7 +313,7 @@ rendus, donc de toucher au rendu : W-052.
 
 ### D-047 : `golden.rs` applique la tolérance mesurée de chaque fonction portée
 
-Remplace le choix du 2026-11-04 noté dans W-048 et au lot 9 de [plan-chantiers.md](plan-chantiers.md) (« le test garde
+Remplace le choix du 2026-11-04 noté dans W-048 et au lot 9 de [plan.md](plan.md) (« le test garde
 `rtol: 0.0` »), et clôt W-048.
 
 **Contexte.** `rust/otb-parity/tests/golden.rs` rejoue les 1 728 appels figés des références Python (`OTB_GOLDEN`). Écrit le 2026-10-30

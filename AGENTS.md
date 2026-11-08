@@ -35,6 +35,9 @@ Trois registres numérotés, un maître par sujet (D-018) ; `cargo test -p otb-d
 - `docs/travaux-reportes.md` (`W-xxx`) : ce qui est vu et laissé de côté, avec la condition de reprise (défaut hors sujet : l'y noter).
 - Dans le code : `# ⚠️ <ce qui casse si on l'ignore> (L-xxx)` ; la PR liste les numéros touchés ; pas de numéro dans le sujet des commits.
 
+**Un seul plan** : `docs/plan.md` — ce qu'il reste à faire (une session = un lot = une PR), ce qui est écarté, et l'historique d'une
+ligne par lot fait. Ne jamais ouvrir un second document de plan : un plan qui tient son propre historique contredit les registres (L-092).
+
 ## Organisation
 
 `rust/` est l'espace de travail Cargo (D-031) ; détail de chaque crate et fichier : `docs/architecture.md`.

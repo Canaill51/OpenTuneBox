@@ -60,6 +60,25 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-092 : un plan qui tient son propre historique finit par contredire les registres
+- **Symptôme** — 2026-11-08 : le projet comptait **quatre** documents de plan (`plan-chantiers.md` 557 lignes,
+  `plan-consolidation.md` 297, `plan-suite.md` 247, `migration-rust.md` 159), dont trois décrivaient surtout du travail
+  **déjà fait**. Le lot 11, à faire, était décrit dans un fichier et ordonné dans un autre. Surtout, la liste « ce qui reste
+  ouvert » de `plan-suite.md` **omettait W-054** (huit des dix comparateurs d'`otb-parity` sans test), ouvert le même jour
+  par le lot 16 : un lecteur qui se fiait au plan croyait le sujet clos. Aucune erreur, aucun test rouge — un plan n'est
+  pas vérifié par `otb-dev --test docs`, qui ne contrôle que l'existence des numéros cités.
+- **Cause** — **mesurée** (relecture des quatre fichiers et recoupement avec l'index des `W-xxx`) : deux maîtres pour le
+  même sujet, contre D-018. Un plan vit pendant qu'on travaille, les registres après ; dès qu'un plan recopie l'état d'un
+  travail reporté, cette copie se périme au premier `W-xxx` ouvert, et rien ne le signale.
+- **Règle** — **un seul plan**, `docs/plan.md` : ce qu'il reste à faire, et une ligne par lot fait. L'état d'un travail
+  reporté se lit dans `docs/travaux-reportes.md`, jamais dans un plan ; un plan le **cite** (`W-050`) sans le recopier.
+  Un lot terminé ne laisse pas son plan derrière lui : il devient une ligne du tableau d'historique, et sa preuve reste
+  dans `CHANGELOG.md`, `docs/validation.md` et les registres. Ne jamais créer un second document de plan « pour cette
+  fois-ci ».
+- **Preuve** — `docs/plan.md` (lot 17) remplace les trois fichiers, 1 101 lignes devenues 240 ; `AGENTS.md`
+  (« Suivi du projet ») nomme le plan unique ; `cargo test -p otb-dev --test docs` vert, les chemins cités ayant tous été
+  repointés (`docs_index_complete` exige une ligne de `docs/README.md` par `.md` du dossier).
+
 ### L-091 : egui habille la barre de titre au tout premier cadre, trop tôt pour Windows
 - **Symptôme** — 2026-11-08, essai de la 0.9.0 par Cédric sous Windows : à **chaque** lancement, l'application s'ouvre en
   thème clair mais sa barre de titre reste sombre, si bien que le nom du programme (« OpenTuneBox 0.9.0 ») n'y est pas
@@ -1052,6 +1071,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-092 | Un plan qui tient son propre historique contredit les registres (la liste « reste ouvert » d'un plan omettait un `W-xxx` ouvert le même jour, sans aucun test rouge) : **un seul plan**, `docs/plan.md`, qui cite les `W-xxx` sans recopier leur état ; un lot fini devient une ligne d'historique | Outillage |
 | L-091 | Barre de titre, bordures, icône : egui les habille au **premier** cadre, trop tôt pour Windows, qui ne repeint pas le contour d'une fenêtre qu'il vient de créer ; annoncer le thème soi-même une fois la fenêtre posée, et se rappeler que le contour d'une fenêtre n'est vu ni par les tests ni par les captures | Interface |
 | L-090 | « Capture de la fenêtre active » (`spectacle -a`) : c'est la fenêtre de **Cédric** qui est photographiée, sans erreur visible ; un agent ne photographie jamais son écran, l'interface se regarde par les captures hors écran | Outillage |
 | L-089 | Fenêtre eframe sans `inner_size` : winit l'ouvre en 800 × 600 quel que soit l'écran ; dire comment la fenêtre s'ouvre (`with_maximized`, `with_inner_size`), la géométrie enregistrée l'emportant ensuite — et vérifier taille, position et icône sur un vrai **premier** lancement | Interface |

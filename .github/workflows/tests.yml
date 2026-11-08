@@ -46,6 +46,6 @@ jobs:
         run: cargo test --no-fail-fast
       - name: "Mentions de licences : même fichier que sous Linux ?"
         # Les mentions sont produites pour les deux cibles (D-042) depuis n'importe quel système : ce contrôle le prouve
-        # sous Windows (lot 7a de docs/plan-chantiers.md).
+        # sous Windows (lot 7a de docs/plan.md).
         working-directory: rust
         run: cargo run -p otb-dev -- licenses --check
