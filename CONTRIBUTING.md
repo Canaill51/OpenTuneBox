@@ -59,7 +59,7 @@ rouge du jour au lendemain, en plein travail sur autre chose. Pour en changer : 
 `(cd rust && cargo run -p otb-dev -- verify)`, corriger ce que le nouveau clippy signale, et l'écrire au CHANGELOG.
 
 Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connues dans les bibliothèques
-livrées (`cargo-deny`, réglages dans `rust/deny.toml`) à chaque envoi, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
+livrées (`cargo-deny`, réglages dans `rust/deny.toml`) à chaque envoi **sur `main`**, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
 a une faille publiée : la mettre à jour. En local : `(cd rust && cargo deny check)` (failles RustSec, licences, origine des crates ; la base d'avis est téléchargée à
 chaque passage). Un avis « non maintenu » sans correctif ne se retire pas du contrôle : il entre dans `ignore` de
 `rust/deny.toml` avec sa raison et un numéro `W-xxx`. Une licence nouvelle se discute avec Cédric avant d'entrer dans la liste
@@ -68,16 +68,19 @@ redistribué sous une licence qui interdit l'usage commercial (D-045). Dependabo
 
 ## Publier une version
 
-1. Sur une branche (`chore/release-0.2.0`) : `(cd rust && cargo run -p otb-dev -- licenses)` (refait `THIRD-PARTY-LICENSES.txt`, que les
+Dans les exemples ci-dessous, `X.Y.Z` est le **prochain** numéro (celui de `rust/Cargo.toml` une fois préparé) :
+`0.2.0` servait d'exemple, or cette étiquette existe déjà — la recopier telle quelle fait échouer la publication.
+
+1. Sur une branche (`chore/release-X.Y.Z`) : `(cd rust && cargo run -p otb-dev -- licenses)` (refait `THIRD-PARTY-LICENSES.txt`, que les
    deux installateurs livrent : à relancer si une dépendance a changé ; `otb-dev verify` et la CI le contrôlent par
-   `licenses --check`, qui compare sans rien écrire et rend 1 avec le message « relancer `cargo run -p otb-dev -- licenses` »), puis `(cd rust && cargo run -p otb-dev -- release prepare 0.2.0)`. Cet outil met le
+   `licenses --check`, qui compare sans rien écrire et rend 1 avec le message « relancer `cargo run -p otb-dev -- licenses` »), puis `(cd rust && cargo run -p otb-dev -- release prepare X.Y.Z)`. Cet outil met le
    numéro dans `rust/Cargo.toml`, transforme la section *Non publié* de
-   `CHANGELOG.md` en `[0.2.0] — date du jour` et en rouvre une vide. Relire le CHANGELOG (c'est le texte
+   `CHANGELOG.md` en `[X.Y.Z] — date du jour` et en rouvre une vide. Relire le CHANGELOG (c'est le texte
    de la page de téléchargement), puis demande de fusion vers `main` comme d'habitude.
 2. Une fois fusionnée, sur `main` à jour :
    ```sh
    git switch main && git pull
-   git tag v0.2.0 && git push origin v0.2.0
+   git tag vX.Y.Z && git push origin vX.Y.Z
    ```
 3. Le workflow `construire.yml` vérifie que l'étiquette correspond au numéro du projet (sinon il s'arrête
    tout de suite) et crée un **brouillon** de la page **Releases** avec la section du CHANGELOG. Il
@@ -89,7 +92,8 @@ redistribué sous une licence qui interdit l'usage commercial (D-045). Dependabo
 
 **Essayer la publication sans rien publier** (avant la première version d'une nouvelle chaîne de construction) : pousser une
 étiquette `essai-v` suivie du numéro **déjà** présent dans `rust/Cargo.toml` et le CHANGELOG, par exemple
-`git tag essai-v0.8.0 && git push origin essai-v0.8.0` sur la branche à essayer. Le workflow fait tout le parcours
+`git tag essai-vX.Y.Z && git push origin essai-vX.Y.Z` sur la branche à essayer (avec le numéro du moment : une
+étiquette d'une version déjà publiée ferait échouer le contrôle). Le workflow fait tout le parcours
 (notes, brouillon, construction, envoi des deux fichiers, contrôle de la liste) mais laisse la page en **brouillon**,
 invisible, et ne la déclare jamais « dernière version ». Regarder le brouillon, puis le supprimer avec son étiquette :
 `gh release delete essai-v0.8.0 --cleanup-tag --yes`.

@@ -41,7 +41,7 @@ Trois registres numérotés, un maître par sujet (D-018) ; `cargo test -p otb-d
 - `otb-decoder` (BBL/BFL → valeurs brutes), `otb-log` (FlightLog en unités physiques, float32 : D-029), `otb-dsp` (noyaux de calcul, D-033),
   `otb-analysis` (calculs purs), `otb-advisor` (assistant et guide intégré), `otb-format` (formats de nombres), `otb-cli` (`opentunebox info` / `report`),
   `otb-gui` (egui), `otb-parity` (comparateur avec les références Python), `otb-dev` (outils de développement, jamais livrés).
-- `tests/data/jeno5_5s.bbl` : 5 s d'un vrai log, lu par 11 fichiers de tests ; les autres tests sont dans `rust/<crate>/tests/` ;
+- `tests/data/jeno5_5s.bbl` : 5 s d'un vrai log, lu par une quinzaine de fichiers de tests ; les autres tests sont dans `rust/<crate>/tests/` ;
   `rust/otb-gui/tests/support/mod.rs:synthetic_log` fabrique un vol sans corpus. `packaging/` : installateurs. `docs/` : index dans `docs/README.md`.
 
 Règles :

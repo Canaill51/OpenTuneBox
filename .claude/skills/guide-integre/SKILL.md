@@ -14,7 +14,7 @@ description: Modifier ou relire le guide intégré d'OpenTuneBox (page Guide : f
   mode de débogage, listes des séries, plages de finitions, filtres par défaut du firmware). Fiches en JSON
   dans le dossier de données de l'utilisateur ; un log est relié à la fiche par `craft_name`.
 - **Contrôles des logs** : `rust/otb-advisor/src/log_check.rs:check_log` (un point par clé ; parties du vol par
-  `rust/otb-analysis/src/period.rs:flight_parts` ; `exact=True` et `filter_targets` sont lents : arrière-plan).
+  `rust/otb-analysis/src/period.rs:flight_parts` ; l'argument `exact` de `check_log` et `filter_targets` sont lents : arrière-plan).
 - **Interface** : `rust/otb-gui/src/guide.rs` (logique) et `guide_page.rs` (fiche, frise, phases, cases, logs du drone). Accueil :
   `rust/otb-gui/assets/guide/accueil.md`, seul fichier Markdown ; liens `otb:phase/<clé>` et `otb:tool/<clé>`.
 - `cargo test -p otb-dev --test docs` vérifie les liens de l'accueil, les outils, parties et points de contrôle cités par

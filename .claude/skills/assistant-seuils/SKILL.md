@@ -44,7 +44,7 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
   font la majorité des sessions d'une taille (cas du whoop : un AIR65 = 63 sessions sur 78), utiliser
   une voix par drone.
 - **Moins d'environ 20 drones** dans une taille : percentile instable (un seul drone le fixe). Utiliser le
-  seuil commun à tout le corpus (seuils mécaniques), ou marquer le profil `provisional=True`.
+  seuil commun à tout le corpus (seuils mécaniques), ou marquer le profil `provisional: true` (`rust/otb-advisor/src/profiles.rs`).
 - Rejeter un percentile sans sens physique (ex. saturation p90 = 0 % en 7" → la moindre saturation
   serait signalée) : seuil commun à la place, et l'écrire dans la doc.
 - Vérifier le **taux de déclenchement** d'un seuil sur le corpus (part des sessions signalées,
@@ -60,8 +60,9 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 
 ## 3. Sourcer une valeur qui ne vient pas du corpus
 
-- **Firmware / configurateur** : clones dans `/home/cedric/Documents/Github/betaflight` et
-  `betaflight-configurator`. Citer fichier et commit dans `docs/assistant.md` (« Sources vérifiées »).
+- **Firmware / configurateur** : clones locaux de `betaflight` et `betaflight-configurator`, à côté de ce dépôt
+  (sur le poste de Cédric : `~/Documents/Github/`). S'ils manquent, lire la source sur GitHub plutôt que de citer
+  de mémoire. Citer fichier et commit dans `docs/assistant.md` (« Sources vérifiées »).
 - **Théorie** : citer l'ouvrage, la section et la page, vérifiées dans le texte (pas de mémoire).
   Déjà vérifiés : Skogestad et Postlethwaite 2005 § 2.4.3 (Ms ≤ 2) ; Åström et Murray 2008 § 9.3
   (marge de phase 30–60°).

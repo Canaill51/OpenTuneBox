@@ -78,7 +78,7 @@ ici, jamais dans le code.
 | D-046 | Polices embarquées (Ubuntu Light, Hack) gardées, chacune sous sa propre licence ; licences propres aux polices admises malgré « aucun copyleft » (D-045) ; W-046 clos | 2026-11-05 |
 | D-045 | Licence PolyForm Noncommercial 1.0.0 : code ouvert, tout usage commercial interdit, sans double licence ni exception vendue | 2026-11-04 |
 | D-044 | Décodeur : en-tête refusé au-delà de 512 champs ou hors de 1 à 65 535 pour les intervalles ; mémoire insuffisante = erreur ; réglages à zéro signalés | 2026-11-04 |
-| D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres | 2026-11-04 |
+| D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres **(amendée par D-045)** | 2026-11-04 |
 | D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
 | D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
 | D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
@@ -87,11 +87,11 @@ ici, jamais dans le code.
 | D-037 | Outils egui : cache des résultats par log, partagé avec le thread de calcul, clé = réglages de calcul + période | 2026-11-02 |
 | D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris | 2026-11-01 |
 | D-035 | Migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome | 2026-10-30 |
-| D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé | 2026-10-29 |
+| D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé **(amendée par D-035)** | 2026-10-29 |
 | D-033 | Phase 2b limitée à un pilote : le noyau de `step_response` en Rust (FFT seule écartée : gain ≤ 5 %) | 2026-10-29 |
 | D-032 | Phase 2 de la migration en deux temps : scipy remplacé par numpy, noyaux de filtres en Rust, scipy et numba réservés aux tests | 2026-10-29 |
-| D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python | 2026-10-29 |
-| D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant | 2026-10-14 |
+| D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python **(amendée par D-035)** | 2026-10-29 |
+| D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant **(remplacée par D-035)** | 2026-10-14 |
 | D-029 | Les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64 | 2026-10-13 |
 | D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
 | D-027 | Raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre | 2026-10-13 |
@@ -111,16 +111,16 @@ ici, jamais dans le code.
 | D-013 | Linux : fenêtres de fichiers par le portail XDG | 2026-10-05 |
 | D-012 | Boucle ouverte mesurée par estimateur instrumental | 2026-10-05 |
 | D-011 | Seuils de l'assistant : 90e percentile du corpus par taille, origine notée | 2026-10-05 |
-| D-010 | Retard des filtres jugé seulement sur un vol avec des mouvements | 2026-10-05 |
-| D-009 | Style Qt Fusion imposé sur tous les systèmes | 2026-10-01 |
+| D-010 | Retard des filtres jugé seulement sur un vol avec des mouvements **(amendée par D-026)** | 2026-10-05 |
+| D-009 | Style Qt Fusion imposé sur tous les systèmes **(remplacée par D-035)** | 2026-10-01 |
 | D-008 | Simulateur de filtres en méthode relative | 2026-10-01 |
 | D-007 | Retards mesurés par la phase, pas par l'intercorrélation | 2026-10-01 |
-| D-006 | Aucune dépendance à compiler | 2026-10-01 |
+| D-006 | Aucune dépendance à compiler **(amendée par D-031)** | 2026-10-01 |
 | D-005 | Exception à D-004 : icônes Lucide | 2026-10-01 |
-| D-004 | Aucune copie de code de PIDtoolbox ni d'autres projets | 2026-10-01 |
+| D-004 | Aucune copie de code de PIDtoolbox ni d'autres projets **(amendée par D-005)** | 2026-10-01 |
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
-| D-002 | Décodeur Python accéléré par numba | 2026-10-01 |
-| D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
+| D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
+| D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
 
@@ -809,6 +809,8 @@ Plan complet : [migration-rust.md](migration-rust.md).
 
 ### D-030 : lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant
 
+🔁 REMPLACÉE par D-035 (plus de Python à linter ; `cargo fmt` et `cargo clippy -D warnings` tiennent ce rôle, et le formatage **est** automatique).
+
 **Contexte.** Superview (autre projet de Cédric) a une CI plus fournie qu'OpenTuneBox. En comparant, on a
 remplacé `pyflakes` par `ruff`, plus rapide et extensible (formatage, règles de style, sécurité). Mesures du
 2026-10-14 (ruff 0.15.0) : règles `F` (celles de pyflakes) → 0 signalement ; règles par défaut → 51 signalements
@@ -1243,6 +1245,8 @@ associé : L-007.
 
 ### D-009 : style Qt Fusion imposé sur tous les systèmes
 
+🔁 REMPLACÉE par D-035 (l'interface est en egui depuis la 0.9.0 : il n'y a plus de Qt).
+
 **Contexte.** Sous Windows 11, les textes des boutons étaient gris et à peine lisibles (L-014).
 
 **Décision.**
@@ -1314,6 +1318,8 @@ référence de résultats, pas de source.
 **Témoins.** Aucune dépendance réseau dans `pyproject.toml`.
 
 ### D-002 : décodeur Python accéléré par numba
+
+🔁 REMPLACÉE par D-035 (plus de Python ni de numba dans le dépôt depuis la phase 7-5 : le décodeur est en Rust).
 
 ✏️ AMENDÉE par D-031 et D-035 (sur `feat/rust-migration` seulement).
 

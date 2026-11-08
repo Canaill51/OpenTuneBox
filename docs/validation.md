@@ -1,7 +1,12 @@
 # Validation
 
-Mesures du 2026-10-01 sur le corpus de Cédric. À refaire après toute modification du décodeur ou des
-analyses (`otb-dev corpus validate`, `otb-parity`, tests de chaque crate).
+Mesures sur le corpus de Cédric, **de la plus ancienne (2026-10-01) à la plus récente** : chaque section est datée,
+c'est la date qui compte, pas celle de cette ligne. À refaire après toute modification du décodeur ou des analyses
+(`otb-dev corpus validate`, `otb-parity`, tests de chaque crate).
+
+**Ce document est le maître des chiffres du corpus** : les autres documents y renvoient au lieu de les recopier.
+Taille du corpus au **2026-11-08** : **525 fichiers** de logs (`.bbl` / `.bfl`, hors `golden/`) et **595 captures**
+PIDtoolbox (`PTB_FIGS_*`), pour **709 sessions** lues.
 
 ## Décodeur
 

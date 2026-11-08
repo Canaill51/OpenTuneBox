@@ -39,6 +39,22 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   **tout** envoi — y compris celui d'une version.
 
 ### Modifié
+- **Chiffres du corpus remesurés et rassemblés** : `docs/architecture.md` annonçait « environ 780 sessions (582 fichiers)
+  et 638 captures » ; la mesure du 2026-11-08 donne **525 fichiers, 709 sessions et 595 captures**. Ces chiffres ne
+  sont plus recopiés d'un document à l'autre : `docs/validation.md` en est le maître et les autres y renvoient, pour
+  qu'ils ne vieillissent plus en silence. Même correction pour le nombre d'exécutables de test et la durée de la CI
+  Windows (annoncée « 10 à 25 min », mesurée à **6–8 min** sur douze passages).
+- **L'objectif de concordance du décodeur n'est plus un chiffre inatteignable** : la compétence de développement visait
+  « 95 % de sessions `ok` », valeur d'avant la distinction `gap` / `slow` ; le repère en vigueur est celui de
+  `docs/validation.md` (624 `ok` sur 709, soit 88 %).
+- **L'index des décisions dit enfin lesquelles ne font plus foi** : les marques « remplacée » et « amendée »
+  n'existaient que dans le corps du document. Trois décisions de l'ère Python (numba, style Qt, lint ruff) sont
+  marquées comme remplacées par la migration (D-035).
+- **Procédure de publication utilisable telle quelle** : `CONTRIBUTING.md` donnait `0.2.0` en exemple et conseillait une
+  étiquette d'essai `essai-v0.8.0` — deux numéros déjà pris, qui font échouer le contrôle de version. Les exemples
+  emploient `X.Y.Z`. Il annonçait aussi l'audit des dépendances « à chaque envoi » alors qu'il n'écoute que `main`.
+- Les compétences de développement ne citent plus de code de la version Python supprimée (`provisional=True`,
+  `exact=True`, `NUMBA_BOUNDSCHECK`, `PYTHONHASHSEED`) ni un chemin propre au poste de Cédric.
 - `opentunebox report` : sa sortie **redirigée vers un fichier** est désormais couverte par un test
   (`rust/otb-cli/tests/sortie_redirigee.rs`), lancé par la CI sous Ubuntu **et sous Windows**. Le rapport contient « → », « − »,
   « ≈ » et « ≤ », quatre caractères qui n'existent pas en cp1252 et faisaient échouer la version Python dans ce cas précis

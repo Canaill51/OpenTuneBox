@@ -6,9 +6,11 @@ PIDtoolbox Pro V0.94 est un logiciel MATLAB fermé et payant, disponible sous Li
 MATLAB Runtime. OpenTuneBox couvre les mêmes outils avec un code entièrement réécrit, multiplateforme et
 hors ligne, pour régler des drones de toutes tailles (whoops 65–75 mm jusqu'aux 8"+).
 
-Le corpus de mise au point (`OTB_LOGS`, par défaut `~/Documents/Drones/Logs`) contient environ 780 sessions
-(582 fichiers, Betaflight 4.4.2 → 2026.6.2, DShot bidirectionnel, majoritairement 2 kHz, debug `FFT_FREQ`)
-et 638 captures PIDtoolbox (`PTB_FIGS_*`) servant de référence visuelle.
+Le corpus de mise au point (`OTB_LOGS`, par défaut `~/Documents/Drones/Logs`) rassemble les vrais logs Betaflight de
+Cédric (4.4.2 → 2026.6.2, DShot bidirectionnel, majoritairement 2 kHz, debug `FFT_FREQ`) et les captures PIDtoolbox
+(`PTB_FIGS_*`) qui servent de référence visuelle. Il grossit à chaque vol : ses chiffres à jour (nombre de fichiers,
+de sessions et de captures) sont dans [validation.md](validation.md), qui en est le maître — les recopier ici
+revenait à les laisser vieillir sans que personne ne s'en aperçoive.
 
 ## Décisions
 
@@ -126,7 +128,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 ## Espace de travail Rust
 
 Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de cas et de références
-(`tests/data/*.json`, `$OTB_LOGS/golden`) ont été écrits par l'ancienne version Python (tag `python-final`) : pour en refaire un, voir
+(`rust/*/tests/data/*.json`, `$OTB_LOGS/golden`) ont été écrits par l'ancienne version Python (tag `python-final`) : pour en refaire un, voir
 « Refaire une référence Python » dans [validation](validation.md).
 
 - **otb-decoder** : décodeur, Rust pur. `header.rs` (en-têtes et sessions), `file.rs` (`decode_file` de bout en bout ; `decode_bytes_compact` range les trames principales en `CompactTable`, `i32` sauf `loopIteration` et `time`, pour `otb_log::flightlog::load` : L-081), `error.rs` (`DecodeError` : en-tête hors bornes, mémoire insuffisante ; D-044), `frame.rs`
@@ -154,7 +156,7 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     la vraie documentation (`OTB_DOCS_ROOT` désigne une autre racine) et `rust/otb-dev/tests/checks.rs` prouve que chacun échoue sur un
     cas fabriqué. Les registres d'histoire (`HISTORICAL_DOCS` : CHANGELOG, decisions, lecons, migration-rust, travaux-reportes) peuvent
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.
-  - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail : mêmes 74 exécutables qu'avec la liste des `-p`), le contrôle des mentions de licences (`licenses::check`, dans le processus : aucune commande lancée) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard (`golden.rs`, `smooth.rs`) : `verify` les compte et `--strict` en fait un échec.
+  - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail, et non plus une liste de `-p` à tenir à jour), le contrôle des mentions de licences (`licenses::check`, dans le processus : aucune commande lancée) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard : `verify` les compte et `--strict` en fait un échec. Deux contrôles d'`otb-dev` cherchent eux-mêmes les sauts (et les fichiers réservés à un système, annoncés par `sauts_par_systeme.rs`), pour qu'un nouveau test conditionnel ne passe pas inaperçu.
   - `bench_open.rs` : `otb-dev bench-open LOG [ESSAIS]` ouvre un log (`otb_log::flightlog::load`) et affiche durées et pic de mémoire (`VmHWM` de `/proc/self/status`, Linux seulement) ; un processus par log, car le pic ne redescend pas.
   - `release.rs` : `otb-dev release prepare X.Y.Z | notes vX.Y.Z` (numéro de version dans `rust/Cargo.toml`, CHANGELOG).
   - `icons.rs` : `otb-dev icons` (PNG Linux et `.ico` Windows depuis `opentunebox.svg`, par `resvg` et `ico`, Rust pur ; pas de `.icns` : D-042).
