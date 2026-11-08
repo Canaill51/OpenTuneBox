@@ -94,7 +94,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   argument) ; le titre de la fenêtre vient d'`app.rs:window_title` (nom + numéro de version du paquet), tandis que
   l'`app_id` garde le nom seul, qui est celui du fichier `.desktop` (L-076).
 - `viewer.rs` (traces, lissage) et `viewer_page.rs` (page du visualiseur : traces groupées, traces absentes du log masquées,
-  sections repliables Affichage et Lecteur). Chaque courbe affichée est gardée en cache avec son index multi-résolution
+  section repliable Affichage, étiquette Lecteur). Chaque courbe affichée est gardée en cache avec son index multi-résolution
   (`Series`, clé : trace, axe, lissage) ; le tracé n'appelle plus que `otb_dsp::minmax::window_points` (D-048).
 - `guide.rs` : le Guide sans egui (fichier des fiches `drones.json` dans le dossier de données de l'utilisateur, fichier illisible
   mis de côté : D-039 ; liens `otb:`, avancement, outils cités). `guide_page.rs` : la page **Guide** (accueil

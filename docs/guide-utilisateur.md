@@ -3,8 +3,8 @@
 ## 1. Installer
 
 Télécharger le fichier de son système sur la page **Releases** du dépôt GitHub (colonne de droite de la
-page d'accueil), section *Assets* de la dernière version. Un seul fichier par système ; Python et les
-bibliothèques sont inclus.
+page d'accueil), section *Assets* de la dernière version. Un seul fichier par système, qui contient tout : rien
+d'autre à installer.
 
 **Windows 10 / 11** : `OpenTuneBox-Windows-Setup.exe`. Double-cliquer, puis suivre l'assistant ; en
 option, raccourci sur le Bureau et ouverture des `.bbl` / `.bfl` par double-clic. Pas besoin des droits
@@ -30,8 +30,9 @@ Au premier lancement, OpenTuneBox s'ouvre sur la page **Guide** : le parcours de
 drone (voir [6. Méthode de réglage](#6-méthode-de-réglage)). Le bouton **Guide** de la barre
 d'outils y ramène à tout moment.
 
-Bouton bleu **Ouvrir** de la barre d'outils (ou Ctrl+O), glisser-déposer dans la fenêtre, ou double-clic
-sur un `.bbl` / `.bfl` (Windows, voir ci-dessus). Sous Linux, la fenêtre d'ouverture est celle
+Bouton bleu **Ouvrir…** de la barre d'outils, glisser-déposer dans la fenêtre, ou double-clic
+sur un `.bbl` / `.bfl` (Windows, voir ci-dessus). Un log enregistré par liaison série, avec l'extension
+`.txt`, s'ouvre aussi : c'est son contenu qui compte, pas son nom. Sous Linux, la fenêtre d'ouverture est celle
 du bureau (KDE, GNOME…). Chaque session d'un fichier (un armement = une session) apparaît comme un log
 séparé ; 10 logs au maximum, chacun avec sa couleur, que l'on retrouve dans tous les outils.
 
@@ -54,11 +55,12 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 
 - **Titre de la fenêtre** : le nom du programme suivi de sa **version** (« OpenTuneBox 0.9.0 ») — utile pour savoir
   laquelle vous utilisez avant de signaler un problème.
-- **Barre d'outils** en haut : ouvrir et fermer les logs, puis les boutons **Guide**, **Visualiseur**, Spectre,
-  Indicielle…, chacun avec sa couleur ; l'icône tout à droite exporte la fenêtre en image. Survolez un bouton
-  pour sa description.
+- **Barre d'outils** en haut : ouvrir et fermer les logs, puis les boutons **Guide**, **Courbes**,
+  **Analyse spectrale**, **Réponse indicielle**…, chacun avec sa couleur ; la case **Thème sombre** et l'icône
+  qui exporte la fenêtre en image sont tout à droite. Survolez un bouton pour sa description.
+  Les pages du Guide désignent les mêmes outils par un nom plus court (« Spectre », « Filtres », « Visualiseur »).
 - **Les boutons servent d'onglets** : un clic remplace l'affichage par l'outil choisi, dans la même fenêtre
-  (aucune nouvelle fenêtre) ; le bouton de l'affichage en cours est mis en valeur. **Visualiseur** ramène aux
+  (aucune nouvelle fenêtre) ; le bouton de l'affichage en cours est mis en valeur. **Courbes** ramène aux
   courbes du vol. Un outil garde ses réglages et ses résultats quand on passe à un autre. Fréq. × gaz et
   Fréq. × temps s'ouvrent depuis l'outil Spectre ; Configuration, depuis le bouton en bas du panneau de
   droite du visualiseur.
@@ -76,14 +78,15 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   résultat s'affiche en haut des graphiques et à côté du bouton. Glissez un repère pour ajuster ; un
   nouveau clic recommence la mesure ; désenfoncez le bouton pour l'effacer.
 - **Lecteur** : curseur temporel, manches et valeurs à l'instant choisi ; ▶ pour rejouer le vol.
-- **Affichage** (section repliable à droite) : lissage et épaisseur des traces, thème clair ou sombre.
-  Les sections Affichage et Lecteur se replient d'un clic sur leur titre.
+- **Affichage** (section repliable d'un clic sur son titre, à droite) : lissage et épaisseur des traces. Le
+  thème clair ou sombre se change par la case **Thème sombre** de la barre du haut, pas ici.
 - Zoom : molette ; déplacement : clic-glisser ; **Vue entière** pour tout revoir.
 - **Tous / Roll / Pitch / Yaw** : un seul axe sur toute la hauteur.
 
 ## 5. Les outils
 
-Chaque outil s'affiche par son bouton dans la barre d'outils (nom du bouton entre parenthèses).
+Chaque outil s'affiche par son bouton dans la barre d'outils. Le titre ci-dessous est celui du bouton ;
+entre parenthèses, le nom plus court que les pages du Guide emploient pour le même outil.
 
 ### Analyse spectrale (Spectre)
 Spectres (FFT) du gyro et des termes PID : on y voit où se trouve le bruit et ce que les filtres
@@ -132,7 +135,7 @@ Bouton de l'outil Spectre. Le même bruit dans le temps : utile pour relier un b
 lecteur ; un clic sur un spectrogramme le déplace). Les harmoniques moteur et les notchs dynamiques se choisissent un par un,
 comme dans le Spectre.
 
-### Réponse indicielle (Indicielle)
+### Réponse indicielle
 La réaction du drone à un ordre de manche « en marche d'escalier », moyennée sur tout le vol.
 **L'ordre des courbes et leurs couleurs sont les vôtres** : elles suivent l'ordre dans lequel vous cochez
 les fichiers (la 1re cochée prend la 1re couleur), et vous pouvez tout décocher pour vider la page. C'est
