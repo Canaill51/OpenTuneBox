@@ -20,7 +20,8 @@ Contexte, options écartées et preuves : `docs/decisions.md`.
 - **Aucune copie de code PIDtoolbox** ni d'autres projets : tout est réimplémenté d'après le firmware Betaflight et des méthodes publiées
   (`docs/spec-*.md`). Seule exception : les icônes [Lucide](https://lucide.dev) (ISC) dans `rust/otb-gui/assets/icons/`, avec leur licence. D-004, D-005
 - **Les sources sont citées sans nommer leurs auteurs** : une entrée `[S…]` de `docs/spec-methodes.md` garde titre, date, lien et
-  citation, jamais de nom de personne — ni là, ni dans le code, ni dans les textes affichés. D-050
+  citation, jamais de nom de personne — ni là, ni dans le code, ni dans les textes affichés. **Exception** : les **ouvrages
+  publiés** gardent leurs auteurs (c'est ainsi qu'on cite un livre, et D-005 exige une source vérifiable à la page). D-050
 - Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français. D-001
 
 ## Suivi du projet

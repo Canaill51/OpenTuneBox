@@ -182,6 +182,14 @@ seuils de l'assistant sans aucune justification écrite et contredit D-005.
 **Conséquence.** `docs/spec-methodes.md` reste la preuve de chaque repère ; les numéros `[S…]` ne changent pas, donc toutes
 les références du code et de `docs/assistant.md` restent valables.
 
+**Précisé le 2026-11-08 (revue intégrale, accord de Cédric).** La formulation « aucun nom de personne, nulle part » visait
+**l'auteur de PIDtoolbox**, et elle seule. Les **ouvrages publiés** gardent le nom de leurs auteurs : c'est ainsi qu'on cite
+un livre, et D-005 exige que chaque seuil soit justifié par une méthode publiée et vérifiable à la page. `docs/assistant.md`
+peut donc continuer à écrire « Skogestad et Postlethwaite, *Multivariable Feedback Control*, § 2.4.3 » ou « Åström et Murray,
+*Feedback Systems*, § 9.3 » — sans ces noms, la source serait introuvable et la justification du seuil, invérifiable.
+La règle reste entière pour les sources dont la personne est elle-même le sujet (vidéos, wiki, README de PIDtoolbox) : titre,
+date, lien et citation, jamais de nom.
+
 ### D-049 : la Réponse indicielle est ordonnée et colorée par l'utilisateur
 
 **Tranché par Cédric** le 2026-11-06, à l'essai de la 0.9.0 : « la réponse indicielle doit afficher les courbes en fonction

@@ -50,6 +50,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   un autre texte — comparer deux documents entre eux laissait passer le changement, la même valeur apparaissant
   ailleurs pour d'autres raisons. `otb-dev --test docs` le vérifie à chaque commit.
 
+- **D-050 précisée** : « aucun nom de personne, nulle part » visait l'auteur de PIDtoolbox. Les **ouvrages publiés**
+  gardent le nom de leurs auteurs — c'est ainsi qu'on cite un livre, et D-005 exige une source vérifiable à la page.
+  Sans eux, la justification des seuils de stabilité serait introuvable. Accord de Cédric.
+- Quatre fonctions publiques sans aucun appelant sont retirées, et les 19 garde-fous de lint désactivés disent
+  désormais **pourquoi** ils le sont.
+
 ### Modifié
 - **Chiffres du corpus remesurés et rassemblés** : `docs/architecture.md` annonçait « environ 780 sessions (582 fichiers)
   et 638 captures » ; la mesure du 2026-11-08 donne **525 fichiers, 709 sessions et 595 captures**. Ces chiffres ne

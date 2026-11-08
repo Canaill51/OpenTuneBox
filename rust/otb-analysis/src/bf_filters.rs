@@ -556,6 +556,8 @@ fn np_min(a: f64, b: f64) -> f64 {
 
 /// `_apply` : applique un filtre (fréquence et poids constants ou par échantillon) à `k` lignes de `n` valeurs, via ses étages
 /// biquad. Une fréquence au-delà de 0,48·fs du log est ignorée (la composante est de toute façon repliée).
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 fn apply(
     x: &[f64],
@@ -874,6 +876,8 @@ fn np_round(x: f64, scale: f64) -> f64 {
 /// multiplie par |H_mod|² / |H_base|², les deux chaînes évaluées à la vraie cadence PID avec le gaz, la vitesse des moteurs et
 /// les centres des notchs dynamiques de la fenêtre. Réglages inchangés : on retrouve exactement le log. Là où les filtres actuels
 /// écrasent tout (|H_base|² < 1 %), on repart du signal avant filtres × |H_mod|².
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn whatif_spectrum(
     x_logged: &[f64],

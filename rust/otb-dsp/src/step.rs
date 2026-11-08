@@ -78,6 +78,8 @@ fn min_max(v: &[f64]) -> (f64, f64) {
     (lo, hi)
 }
 
+// Noyau de calcul porté tel quel du firmware et de l'étalon : l'ordre des arguments suit la formule d'origine,
+// ce qui se relit mieux à côté de la source qu'une structure de réglages.
 #[allow(clippy::too_many_arguments)]
 fn window(
     sp: &[f64],

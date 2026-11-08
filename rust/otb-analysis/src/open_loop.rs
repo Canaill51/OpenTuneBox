@@ -373,6 +373,8 @@ fn array_split(n: usize, k: usize) -> Vec<(usize, usize)> {
 
 /// `loop_spectra` : spectres croisés sur les fenêtres où la consigne dépasse `min_input` (et reste sous `max_input`).
 /// `None` quand il n'y a pas assez de fenêtres (Python rend `None`).
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn loop_spectra(
     r: &[f64],
@@ -724,6 +726,8 @@ fn jackknife(spec: &LoopSpectra, lm: &LoopMetrics) -> Result<Vec<(&'static str, 
 
 /// `loop_from_terms` : boucle ouverte mesurée. `approx` (méthode approchée, même période) fournit la bande passante et le pic de suivi,
 /// et sert de repli, avec une note, si la mesure est impossible.
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn loop_from_terms(
     r: &[f64],

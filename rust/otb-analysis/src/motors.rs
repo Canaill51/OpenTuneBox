@@ -373,6 +373,8 @@ pub struct NotchTargets {
 }
 
 /// Pics que le notch dynamique de Betaflight suivrait dans `band`, d'après le gyro non filtré.
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn dyn_notch_targets(
     x: &[f64],
@@ -553,6 +555,8 @@ fn half_power_width(f: &[f64], s: &[f64], f0: f64) -> f64 {
 
 /// (largeur à mi-puissance en Hz, hauteur au-dessus du bruit voisin en dB) des raies `freqs` du gyro non filtré, bandes des
 /// harmoniques moteur retirées ; avec `rpm`, une raie non mesurable l'est sur le spectre après filtre RPM.
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn line_shapes(
     x_raw: &[f64],
@@ -601,6 +605,8 @@ pub fn line_heights(
 }
 
 /// Raies qui ne viennent pas des moteurs (résonances, bruit résiduel), avant et après filtres, la plus haute d'abord.
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn spectrum_lines(
     x_raw: &[f64],

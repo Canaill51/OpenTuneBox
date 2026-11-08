@@ -215,19 +215,36 @@ Le projet a la règle « un maître par sujet » (D-018). Elle est enfreinte à 
 
 ### 16g — Amendement de D-050 et mesure des données de test
 
-- [ ] **Amender D-050** (choix de Cédric) : sa formulation « aucun nom de personne, nulle part » visait l'auteur de
+- [x] **D-050 amendée** (choix de Cédric) : sa formulation « aucun nom de personne, nulle part » visait l'auteur de
       PIDtoolbox ; les **références bibliographiques** d'ouvrages publiés gardent leurs auteurs, comme l'exige D-005.
       Écrire l'amendement dans `docs/decisions.md`, et ajuster la phrase correspondante d'`AGENTS.md`.
-- [ ] **Mesurer la compression des données de test** (choix de Cédric) : compresser les dix plus gros JSON sur une
+- [x] **Compression des données de test : mesurée le 2026-11-08, décision à prendre.** Les 31 fichiers de cas pèsent
+      **133 Mo**, soit la quasi-totalité du dépôt. Sur les dix plus gros :
+
+      | | actuel | compressé | gain | décompression |
+      |---|---|---|---|---|
+      | `step.json` | 15,8 Mo | 7,2 Mo | ÷2,2 | 53 ms |
+      | `step_tuning.json` | 10,5 Mo | 0,6 Mo | **÷17,9** | 7 ms |
+      | `loop_spectra.json` | 12,5 Mo | 4,8 Mo | ÷2,6 | 35 ms |
+      | **les dix** | **93 Mo** | **31 Mo** | **÷3,0** | **215 ms en tout** |
+
+      **Ce que ça coûte** : 215 ms de décompression répartis sur une suite qui dure 126 s — invisible. `flate2` est déjà
+      une dépendance de test et `log_check.json.gz` prouve que le procédé marche (26 → 5,2 Mo).
+      **Ce que ça coûte vraiment** : un `.gz` est **opaque pour git**. Aujourd'hui, regénérer un fichier de cas ne
+      stocke que l'écart ; compressé, chaque régénération stocke un fichier entier. Le dépôt gagnerait ~60 Mo au
+      clone mais grossirait plus vite à chaque réenregistrement des références (W-028).
+      **Reste à trancher par Cédric** : tout compresser, ne compresser que `step_tuning.json` (÷17,9, le seul gain
+      vraiment hors norme), ou ne rien changer. : compresser les dix plus gros JSON sur une
       branche d'essai, mesurer la taille d'un clone neuf, la taille sur disque et la **durée des tests** avant/après,
       puis présenter les chiffres. Ne rien livrer sans son accord. Repère : `log_check.json.gz` est passé de 26 à
       5,2 Mo et se lit par `flate2`, déjà une dépendance.
-- [ ] **Code mort** : `list_sessions` (`rust/otb-decoder/src/file.rs:list_sessions`), `set_right` et `set_smoothing`
-      (`rust/otb-gui/src/tools/spectral.rs:SpectralTool`), `set_profile`
-      (`rust/otb-gui/src/tools/advisor.rs:AdvisorTool`) n'ont **aucun appelant**, nulle part. Geste : les retirer.
-- [ ] **20 `#[allow(clippy::too_many_arguments)]` sans raison écrite** : leur donner une raison d'une ligne, ou les
-      retirer là où la fonction peut prendre une structure de réglages. Le projet exige qu'un garde-fou désactivé dise
-      pourquoi.
+- [x] **Code mort retiré** : quatre fonctions publiques sans **aucun** appelant, nulle part (ni code, ni test, ni
+      exemple) — `list_sessions` du décodeur, `set_right` et `set_smoothing` de la page Spectre, `set_profile` de la
+      page Assistant. Vérifié une par une avant de les retirer ; l'espace de travail compile sans elles.
+- [x] **Les 19 `#[allow(clippy::too_many_arguments)]` disent maintenant pourquoi.** Trois raisons distinctes, écrites
+      d'après ce que fait le code : la boucle du décodeur passe ses champs à plat (une structure par trame dans le
+      chemin le plus chaud), les analyses et l'assistant gardent la signature de l'étalon (`otb-parity` les rejoue par
+      nom avec leurs arguments dans l'ordre), les fonctions de dessin prennent des grandeurs d'écran.
 
 ## Ce qui est volontairement écarté
 

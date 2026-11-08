@@ -254,14 +254,6 @@ fn decode_session(
     }))
 }
 
-/// En-têtes de toutes les sessions d'un fichier (rapide, sans décoder les trames).
-pub fn list_sessions(data: &[u8]) -> Vec<LogHeader> {
-    let starts = find_log_starts(data);
-    (0..starts.len())
-        .map(|k| parse_header(data, starts[k], starts.get(k + 1).copied().unwrap_or(data.len())))
-        .collect()
-}
-
 /// Décode toutes les sessions (ou seulement la n° `only`, à partir de 1) ; une session sans définition I complète est écartée.
 pub fn decode_bytes(data: &[u8], only: Option<usize>) -> Result<Vec<DecodedSession>, DecodeError> {
     decode_bytes_with(data, only, false)

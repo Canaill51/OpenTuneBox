@@ -218,20 +218,12 @@ impl SpectralTool {
         self.diagnosis = on;
     }
 
-    pub fn set_right(&mut self, r: RightMode) {
-        self.right = r;
-    }
-
     pub fn y_range(&self) -> (f64, f64) {
         (self.ymin, self.ymax)
     }
 
     pub fn set_y_range(&mut self, lo: f64, hi: f64) {
         (self.ymin, self.ymax) = (lo, hi);
-    }
-
-    pub fn set_smoothing(&mut self, level: usize) {
-        self.smoothing = level.min(5);
     }
 
     fn pen(key: &str) -> (f32, LineStyle) {
