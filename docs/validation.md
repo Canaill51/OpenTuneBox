@@ -332,6 +332,10 @@ refaire un (par exemple après un changement voulu d'un seuil, voir la compéten
 2. Dans ce dossier : `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'` (Rust est requis : l'extension est compilée à l'installation).
 3. Les scripts sont dans `scripts/` (`*_cases.py` pour les cas de `rust/*/tests/data/`, `golden.py record…` pour `$OTB_GOLDEN`) ; leur en-tête dit
    quel fichier ils écrivent. Copier le résultat dans `rust/` et lancer `otb-parity` ou les tests de la crate.
+   ⚠️ Deux fichiers de cas sont stockés **compressés** (D-052) : `log_check.json.gz`, que son script écrit directement ainsi, et
+   `step_tuning.json.gz`, dont le script écrit en clair — le recompresser par `gzip -9 -n` (`-n` : sans horodatage, donc mêmes octets à
+   contenu identique) et ne garder que le `.gz`. Les tests lisent indifféremment l'un ou l'autre (`common::cas`), mais laisser les deux
+   ferait lire le plus ancien.
 4. Retirer le dossier : `git worktree remove ../otb-etalon` — ou le **garder** si un autre réenregistrement est prévu (W-028 en attend un) :
    son `.venv` représente une installation complète de numpy, scipy et numba avec l'extension Rust compilée. Dans ce cas, `git worktree list` le
    montre et ce n'est pas un oubli.

@@ -134,7 +134,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 ## Espace de travail Rust
 
 Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de cas et de références
-(`rust/*/tests/data/*.json`, `$OTB_LOGS/golden`) ont été écrits par l'ancienne version Python (tag `python-final`) : pour en refaire un, voir
+(`rust/*/tests/data/*.json`, deux d'entre eux compressés en `.json.gz` : D-052, et `$OTB_LOGS/golden`) ont été écrits par l'ancienne version Python (tag `python-final`) : pour en refaire un, voir
 « Refaire une référence Python » dans [validation](validation.md).
 
 - **otb-decoder** : décodeur, Rust pur. `header.rs` (en-têtes et sessions), `file.rs` (`decode_file` de bout en bout ; `decode_bytes_compact` range les trames principales en `CompactTable`, `i32` sauf `loopIteration` et `time`, pour `otb_log::flightlog::load` : L-081), `error.rs` (`DecodeError` : en-tête hors bornes, mémoire insuffisante ; D-044), `frame.rs`

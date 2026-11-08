@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-052 | Données de test : seul `step_tuning.json` est stocké compressé (`.gz`) ; les autres gros fichiers de cas restent en clair | 2026-11-08 |
 | D-051 | Ouverture de plusieurs logs : **3 fichiers décodés en même temps** au plus, plafond posé en nombre de fichiers et non en mémoire | 2026-11-08 |
 | D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt | 2026-11-07 |
 | D-049 | Réponse indicielle : ordre des courbes et couleurs donnés par l'ordre où l'utilisateur coche les fichiers ; sélection vide permise ; les autres pages gardent la couleur attribuée à l'ouverture | 2026-11-06 |
@@ -121,6 +122,39 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-08 — Stockage des données de test
+
+### D-052 : seul `step_tuning.json` est stocké compressé
+
+**Tranché par Cédric** le 2026-11-08, sur les mesures de l'étape 16g de [plan-consolidation.md](plan-consolidation.md).
+
+**Contexte.** Les 31 fichiers de cas de `rust/*/tests/data/` pèsent **133 Mo**, soit la quasi-totalité du poids du dépôt.
+`common::cas` (`rust/otb-analysis/tests/common/mod.rs`) lit déjà indifféremment `<nom>.json` ou `<nom>.json.gz`, et
+`log_check.json.gz` prouvait le procédé (26 → 5,2 Mo). Mesure sur les dix plus gros : 93 Mo → 31 Mo (÷3,0) pour 215 ms de
+décompression sur une suite qui dure 126 s.
+
+**Décidé : `step_tuning.json` seul passe en `.gz`** — 10,5 Mo → 0,53 Mo, soit **÷19,4**, mesuré avec `gzip -9 -n`. C'est le seul
+fichier dont le gain sort de l'ordinaire : les neuf autres tournent autour de ÷2,2 à ÷2,6, parce qu'ils portent des flottants
+écrits en hexadécimal, presque incompressibles. Le dépôt perd 10 Mo pour 7 ms de décompression.
+
+**Option écartée : compresser les dix plus gros.** Elle gagnerait ~60 Mo au clone, mais un `.gz` est **opaque pour git** :
+aujourd'hui, régénérer un fichier de cas ne stocke que l'écart entre deux versions ; compressé, chaque régénération stocke un
+fichier entier. Le réenregistrement des références (W-028) ferait alors grossir le dépôt plus vite qu'il ne l'allège, pour un
+gain par fichier de ÷2,5 seulement.
+
+**Option écartée : ne rien changer.** Elle laissait 10 Mo sur la table sans raison : le gain de ce fichier-là est hors norme et
+sa lecture est déjà prévue par le code.
+
+**Conséquence assumée.** Une régénération de ce fichier depuis l'étalon Python (`scripts/step_tuning_cases.py`, qui écrit en
+clair) doit passer par `gzip -9 -n` — `-n` sans quoi l'horodatage change les octets à contenu identique. La procédure le dit
+(`docs/validation.md`, « Refaire une référence Python »), et `.gitattributes` déclare `*.gz binary` pour que git ne tente jamais
+de normaliser ses fins de ligne.
+
+**Témoin.** `cargo test -p otb-advisor --test step_tuning` passe sur le fichier compressé (2 tests, 0,80 s) ; `common::cas`
+panique en nommant les deux chemins essayés si aucun des deux n'existe.
 
 ---
 

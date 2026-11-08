@@ -57,6 +57,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   désormais **pourquoi** ils le sont.
 
 ### Modifié
+
+- **Le plus gros fichier de données de test est stocké compressé** : `step_tuning.json` passe de 10,5 Mo à 0,53 Mo
+  (÷19,4), soit autant de moins à télécharger en clonant le dépôt, pour 7 ms de décompression sur une suite de tests qui
+  dure deux minutes. Les autres gros fichiers de cas restent en clair : leur gain est trois fois moindre et un fichier
+  compressé est opaque pour git, qui ne saurait plus stocker que l'écart d'une régénération à l'autre (D-052).
 - **Chiffres du corpus remesurés et rassemblés** : `docs/architecture.md` annonçait « environ 780 sessions (582 fichiers)
   et 638 captures » ; la mesure du 2026-11-08 donne **525 fichiers, 709 sessions et 595 captures**. Ces chiffres ne
   sont plus recopiés d'un document à l'autre : `docs/validation.md` en est le maître et les autres y renvoient, pour
