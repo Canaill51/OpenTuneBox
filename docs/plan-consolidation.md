@@ -132,9 +132,11 @@ Défauts vérifiés dans le code, qui trompent un utilisateur :
 - [x] **Un installateur « 0.0.0 » peut sortir en silence.** `packaging/windows/opentunebox.iss` prend `AppVersion`
       par défaut à `0.0.0` quand `/DAppVersion=` est oublié, sans erreur. Geste : échouer au lieu de produire une
       version fantaisiste.
-- [x] **Workflow fantôme.** GitHub liste encore « Interface Windows » comme actif alors que son fichier
-      (`gui-windows.yml`) a été supprimé. Il ne peut plus se déclencher, mais il encombre la liste. Geste : le
-      supprimer côté GitHub (action manuelle de Cédric, ou `gh api`).
+- [x] **Workflow fantôme : rien à faire, le relevé se trompait.** GitHub garde bien une entrée « Interface Windows »
+      dont le fichier (`gui-windows.yml`) a été supprimé, mais son état est `disabled_manually`, pas `active` : vérifié le
+      2026-11-08 par `gh api repos/:owner/:repo/actions/workflows`. Il ne se déclenche pas et ne compte pas parmi les
+      workflows actifs. L'API ne sait de toute façon que désactiver un workflow, jamais le supprimer : l'entrée restera
+      tant que GitHub gardera l'historique de ses passages. **Sixième constat des relevés corrigé après vérification.**
 - [x] **`gui-build.yml` envoie un artefact hors lancement manuel.** Son `upload-artifact` tourne aussi sur les demandes
       de fusion qui modifient ce fichier, alors que la règle de Cédric ne le tolère qu'en lancement manuel.
       `retention-days: 1` est bien respecté. Geste : conditionner l'étape à `workflow_dispatch`.
