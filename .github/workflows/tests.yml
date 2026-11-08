@@ -13,8 +13,10 @@ jobs:
       - name: Bibliothèques système de l'interface
         # Gardées telles qu'avant la suppression du Python : leur utilité pour les tests d'otb-gui n'est pas vérifiée seule.
         run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libgl1 libfontconfig1
-      - name: Rust (compilateur, formatage, lint)
-        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+      - name: Rust
+        # Version et composants : rust/rust-toolchain.toml (rustup la pose au premier appel à cargo).
+        working-directory: rust
+        run: rustup toolchain install
       - name: "Rust : formatage, lint et tests"
         working-directory: rust
         run: |
@@ -32,7 +34,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Rust
-        run: rustup toolchain install stable --profile minimal
+        # La version et les composants viennent de rust/rust-toolchain.toml : rustup la pose au premier appel à cargo.
+        working-directory: rust
+        run: rustup toolchain install
+      - name: "Lint du code propre à Windows"
+        # fmt et clippy ne tournaient que sous Ubuntu : tout le code `cfg(windows)` échappait au lint.
+        working-directory: rust
+        run: cargo clippy --all-targets -- -D warnings
       - name: Tests Rust
         working-directory: rust
         run: cargo test --no-fail-fast

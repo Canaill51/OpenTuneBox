@@ -59,12 +59,18 @@ fn with_fields(data: &[u8], n: usize) -> Vec<u8> {
     d
 }
 
+/// Plafond de durée d'un décodage hostile.
+///
+/// ⚠️ Ce test vise une **boucle sans fin** (D-044), pas une performance : un plafond serré (1 s au départ) échoue au
+/// hasard sur une machine chargée sans rien prouver de plus — une boucle sans fin dépasse n'importe quel plafond (W-054)
+const LIMITE: Duration = Duration::from_secs(30);
+
 /// Le décodage rend une erreur ou zéro session, vite ; un résultat avec des sessions n'est pas admis pour un cas hostile.
 fn refuse(nom: &str, data: &[u8]) {
     let t = Instant::now();
     let r = decode_bytes(data, None);
     let dt = t.elapsed();
-    assert!(dt < Duration::from_secs(1), "{nom} : {dt:?} (plus d'une seconde)");
+    assert!(dt < LIMITE, "{nom} : {dt:?} (plus de {LIMITE:?})");
     match r {
         Err(e) => assert!(!e.to_string().is_empty(), "{nom} : message vide"),
         Ok(s) => assert!(
@@ -81,7 +87,7 @@ fn survit(nom: &str, data: &[u8]) {
     let r = std::panic::catch_unwind(|| decode_bytes(data, None));
     let dt = t.elapsed();
     assert!(r.is_ok(), "{nom} : panique");
-    assert!(dt < Duration::from_secs(1), "{nom} : {dt:?} (plus d'une seconde)");
+    assert!(dt < LIMITE, "{nom} : {dt:?} (plus de {LIMITE:?})");
 }
 
 #[test]

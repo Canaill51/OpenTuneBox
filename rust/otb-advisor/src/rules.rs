@@ -1012,6 +1012,8 @@ fn scaled_dterm(s: &Settings, factor: f64) -> Result<Settings, String> {
 }
 
 /// `_gyro_lpf1_off` : LPF1 du gyro superflu avec le filtre RPM, si le simulateur prévoit un bruit encore sous les repères.
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn gyro_lpf1_off(
     log: &FlightLog,
@@ -1077,6 +1079,8 @@ pub fn gyro_lpf1_off(
 
 /// `_dterm_lift` : retard du D au-dessus du repère avec un D peu bruité : relever ses filtres seulement si le simulateur prévoit un D encore
 /// sous les repères avec le curseur « filtre D » +0,1.
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn dterm_lift(
     log: &FlightLog,
@@ -1169,6 +1173,8 @@ fn fr1(x: f64) -> String {
 
 /// `_dterm_lift_noise` : terme D sous −20 dB PIDtoolbox : plus grand relèvement de ses filtres (pas de +0,1 du curseur « filtre D », ou
 /// coupures × 1,1 sans curseur) pour lequel le simulateur prévoit un D encore sous les repères.
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn dterm_lift_noise(
     log: &FlightLog,

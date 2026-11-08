@@ -690,6 +690,8 @@ impl GuidePage {
         ui.add_space(6.0);
     }
 
+    // Fonction de dessin : chaque argument est une grandeur de l'écran (bornes, échelle, couleurs). Les réunir en
+    // structure n'ajouterait qu'un type intermédiaire, utilisé une seule fois.
     #[allow(clippy::too_many_arguments)]
     fn step_ui(
         &mut self,

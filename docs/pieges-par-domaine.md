@@ -1,7 +1,8 @@
 # Pièges par domaine
 
-Règles courtes déplacées de `AGENTS.md` (mot pour mot) ; histoire, cause et preuve de chacune dans [lecons.md](lecons.md) sous le numéro indiqué.
-Les pièges qui valent pour presque toute tâche restent dans `AGENTS.md`.
+Règles courtes des pièges **propres à un domaine** ; histoire, cause et preuve de chacune dans [lecons.md](lecons.md) sous
+le numéro indiqué. Les pièges qui valent pour presque **toute** tâche sont dans `AGENTS.md` (« Pièges connus ») et ne sont
+pas répétés ici : une règle écrite à deux endroits finit par ne plus dire la même chose des deux côtés.
 
 ## Décodeur et journaux de vol
 
@@ -93,8 +94,6 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - **Jamais de capture de l'écran de Cédric** : `spectacle -a` photographie la fenêtre *active* (la sienne), sans erreur visible ;
   pour voir l'interface, les captures hors écran du dépôt (`--example capture`). Image prise par erreur : la supprimer, le dire,
   ne pas la décrire. L-090
-- `verify` se lance sans tube (`| tail` masque son échec) ; le crochet `.claude/hooks/check-docs.sh` ne voit que `git commit`
-  (avec `-c` ou `-C`). L-022
 
 ## Construction des exécutables
 

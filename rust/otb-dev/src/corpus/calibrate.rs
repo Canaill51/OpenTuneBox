@@ -108,7 +108,7 @@ fn measure_session(lg: &FlightLog, sel: &Range<usize>, f: &Path, root: &Path) ->
             let unf = row_of(unf, a, sel);
             r.insert(
                 format!("gdelayx_{a}"),
-                num(xcorr_delay_ms(&wide(unf), &wide(gyro), fs, 30.0, 0)?),
+                num(xcorr_delay_ms(&wide(unf), &wide(gyro), fs, 30.0)?),
             );
             if let Some(mhz) = &mhz {
                 // hauteur des harmoniques au-dessus du bruit voisin, avant / après filtres

@@ -20,7 +20,8 @@ Contexte, options écartées et preuves : `docs/decisions.md`.
 - **Aucune copie de code PIDtoolbox** ni d'autres projets : tout est réimplémenté d'après le firmware Betaflight et des méthodes publiées
   (`docs/spec-*.md`). Seule exception : les icônes [Lucide](https://lucide.dev) (ISC) dans `rust/otb-gui/assets/icons/`, avec leur licence. D-004, D-005
 - **Les sources sont citées sans nommer leurs auteurs** : une entrée `[S…]` de `docs/spec-methodes.md` garde titre, date, lien et
-  citation, jamais de nom de personne — ni là, ni dans le code, ni dans les textes affichés. D-050
+  citation, jamais de nom de personne — ni là, ni dans le code, ni dans les textes affichés. **Exception** : les **ouvrages
+  publiés** gardent leurs auteurs (c'est ainsi qu'on cite un livre, et D-005 exige une source vérifiable à la page). D-050
 - Interface, messages et documentation en français ; code et identifiants en anglais ; commentaires en français. D-001
 
 ## Suivi du projet
@@ -41,7 +42,7 @@ Trois registres numérotés, un maître par sujet (D-018) ; `cargo test -p otb-d
 - `otb-decoder` (BBL/BFL → valeurs brutes), `otb-log` (FlightLog en unités physiques, float32 : D-029), `otb-dsp` (noyaux de calcul, D-033),
   `otb-analysis` (calculs purs), `otb-advisor` (assistant et guide intégré), `otb-format` (formats de nombres), `otb-cli` (`opentunebox info` / `report`),
   `otb-gui` (egui), `otb-parity` (comparateur avec les références Python), `otb-dev` (outils de développement, jamais livrés).
-- `tests/data/jeno5_5s.bbl` : 5 s d'un vrai log, lu par 11 fichiers de tests ; les autres tests sont dans `rust/<crate>/tests/` ;
+- `tests/data/jeno5_5s.bbl` : 5 s d'un vrai log, lu par une quinzaine de fichiers de tests ; les autres tests sont dans `rust/<crate>/tests/` ;
   `rust/otb-gui/tests/support/mod.rs:synthetic_log` fabrique un vol sans corpus. `packaging/` : installateurs. `docs/` : index dans `docs/README.md`.
 
 Règles :
@@ -55,15 +56,17 @@ Règles :
 ## Commandes
 
 Depuis `rust/` (`cd rust`) ; postes Linux et Windows 11 (commandes `cargo` identiques, chemins et variables à adapter).
+La version de Rust est **figée** par `rust/rust-toolchain.toml` (poste et CI) : la changer est un geste volontaire, suivi
+d'un `verify` et d'une ligne au CHANGELOG.
 
 ```sh
 cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, mentions de licences, cargo deny ; ≈ 70 s à chaud ; 0 seulement si tout passe (--quick sans deny ; --strict : un test sauté faute de corpus = échec)
 cargo test -p otb-dev --test docs   # cohérence de la documentation
 cargo run --release -p otb-gui -- [LOG…]   # interface
 cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande
-cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version
+cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z | release notes vX.Y.Z | bench-open LOG…   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version, notes de la page Releases, banc d'ouverture d'un log
 cargo run --release -p otb-dev -- corpus rates|calibrate|labels|validate   # calculs sur le corpus : compétence `calculs-corpus`
-cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées
+cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées (aussi : list, check-header|decoder|settings|flightlog|sliders|analysis|advisor|guide|tuning|cli)
 cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG…]   # captures sans écran (wgpu) : regarder l'image produite
 ```
 

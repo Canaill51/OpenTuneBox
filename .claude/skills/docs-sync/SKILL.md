@@ -16,7 +16,7 @@ tant que les documents concernés n'ont pas été relus et corrigés.
 
 Elle contrôle : liens et ancres entre documents, chemins et fonctions cités (`rust/otb-gui/src/app.rs:App`),
 chaque bouton d'outil dans le README et le guide, chaque module dans `AGENTS.md` / `docs/architecture.md`,
-l'index `docs/README.md`, les fichiers publiés (`construire.yml`) dans le README et le guide, les commandes
+l'index `docs/README.md`, les fichiers publiés (`construire.yml`) dans le README et le guide, la concordance des seuils que la documentation recopie avec leur constante Rust, les commandes
 de la CLI (`rust/otb-cli`) dans le README, la langue (français), les numéros des registres (`D-`, `L-`, `W-` : uniques,
 et chaque numéro cité existe). Elle tourne à chaque commit (crochet
 de Claude Code) et sur chaque demande de fusion (GitHub). Un échec = documentation à corriger, **pas** test

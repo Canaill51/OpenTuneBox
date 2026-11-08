@@ -93,10 +93,6 @@ impl AdvisorTool {
         }
     }
 
-    pub fn set_profile(&mut self, key: Option<&'static str>) {
-        self.profile = key;
-    }
-
     fn profile_label(key: Option<&'static str>) -> &'static str {
         key.and_then(profile).map_or("Détection automatique", |p| p.label)
     }

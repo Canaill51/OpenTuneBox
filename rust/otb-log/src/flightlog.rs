@@ -886,8 +886,14 @@ impl FlightLog {
         i.min(self.n().saturating_sub(1))
     }
 
+    /// Rangée de lignes couvrant la période `t0`–`t1`, bornes comprises.
+    ///
+    /// ⚠️ Les bornes sont remises dans l'ordre ici : une période inversée rendait une plage vide à l'envers, et
+    /// **tout découpage de ligne qui s'en servait paniquait**. L'ordre était tenu par les appelants (`state::set_period`,
+    /// le glissement du viewer), jamais par cette fonction (W-054)
     pub fn slice_time(&self, t0: f64, t1: f64) -> Range<usize> {
-        self.index_of(t0)..self.index_of(t1) + 1
+        let (a, b) = (self.index_of(t0), self.index_of(t1));
+        a.min(b)..a.max(b) + 1
     }
 }
 

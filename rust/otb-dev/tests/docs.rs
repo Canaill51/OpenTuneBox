@@ -225,3 +225,30 @@ fn assistant_doc_matches_profiles() {
     let problems = assistant_doc_problems(&text(&root, "docs/assistant.md"), &views);
     assert!(problems.is_empty(), "{problems:#?}");
 }
+
+/// Les seuils que le guide et `assistant.md` recopient doivent porter la valeur de leur constante Rust.
+#[test]
+fn les_seuils_recopies_portent_la_valeur_du_code() {
+    let root = root();
+    let seuils = [
+        SeuilCite {
+            constante: "SENSITIVITY_HIGH_DB",
+            format: |v| format!("{v:.0} dB"),
+            quoi: "pic de sensibilité",
+        },
+        SeuilCite {
+            constante: "PHASE_MARGIN_LOW_DEG",
+            format: |v| format!("{v:.0}°"),
+            quoi: "marge de phase",
+        },
+    ];
+    let guide = text(&root, "docs/guide-utilisateur.md");
+    let assistant = text(&root, "docs/assistant.md");
+    let rules = text(&root, "rust/otb-advisor/src/rules.rs");
+    let problems = seuils_cites_concordent(
+        &[("docs/guide-utilisateur.md", &guide), ("docs/assistant.md", &assistant)],
+        &rules,
+        &seuils,
+    );
+    assert!(problems.is_empty(), "{problems:#?}");
+}

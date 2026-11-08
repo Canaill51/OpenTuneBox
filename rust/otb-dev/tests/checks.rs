@@ -72,6 +72,47 @@ fn chemins_et_symboles() {
 }
 
 #[test]
+fn un_chemin_de_compilation_est_refuse_meme_quand_il_existe() {
+    let root = sandbox("chemins-compilation");
+    write(&root, "docs/a.md", "");
+    // le cas décisif : le fichier **existe** dans le bac à sable, comme sur un poste où l'on vient de construire.
+    // Si le contrôle se contentait de son existence, il passerait ici et chez Cédric, et n'échouerait que sur la CI (L-079).
+    write(&root, "rust/target/release/opentunebox", "");
+    assert!(
+        missing_paths(&root, "`rust/target/release/opentunebox`", false)[0].contains("fichier de compilation"),
+        "un chemin de compilation préfixé du dépôt est refusé même s'il existe"
+    );
+    // et refusé aussi quand il n'existe pas, sans se tromper de message
+    assert!(
+        missing_paths(&root, "`rust/target/debug/absent`", false)[0].contains("fichier de compilation"),
+        "le message doit dire la cause, pas « introuvable »"
+    );
+    // `dist/` et `build/` comptent autant que `target/`
+    assert_eq!(missing_paths(&root, "`packaging/dist/OpenTuneBox.exe`", false).len(), 1);
+    assert_eq!(missing_paths(&root, "`rust/build/x.o`", false).len(), 1);
+    // la forme prescrite par L-079 — le même chemin sans le préfixe du dépôt — reste acceptée
+    assert!(
+        missing_paths(
+            &root,
+            "`target/release/opentunebox` `target/release/opentunebox-gui`",
+            false
+        )
+        .is_empty(),
+        "« le fichier `target/release/…` du dossier `rust` » est la façon correcte de citer une sortie de compilation"
+    );
+    // un dossier qui commence par les mêmes lettres n'est pas un dossier de compilation
+    write(
+        &root,
+        "rust/otb-x/src/targeting.rs",
+        "pub fn viser() {}
+",
+    );
+    assert!(missing_paths(&root, "`rust/otb-x/src/targeting.rs`", false).is_empty());
+    // un bloc de code reste hors du contrôle, comme pour les autres chemins
+    assert!(missing_paths(&root, "```\n`rust/target/release/opentunebox`\n```", false).is_empty());
+}
+
+#[test]
 fn chemins_python_disparus_acceptes_seulement_dans_l_historique() {
     let root = sandbox("chemins-python");
     write(&root, "docs/a.md", "");
@@ -291,4 +332,41 @@ fn seuils_de_l_assistant() {
         assistant_doc_problems(&ASSISTANT.replace("| Écart de pic roll / pitch", "| Autre"), &profils)[0]
             .contains("lignes du tableau")
     );
+}
+
+/// Preuve du contrôle : une valeur changée dans le code et pas dans la documentation doit être signalée.
+#[test]
+fn seuils_cites_par_la_documentation() {
+    let seuils = [SeuilCite {
+        constante: "SENSITIVITY_HIGH_DB",
+        format: |v| format!("{v:.0} dB"),
+        quoi: "pic de sensibilité",
+    }];
+    let rules = "pub const SENSITIVITY_HIGH_DB: f64 = 7.0;";
+    let doc = "le pic de sensibilité doit rester sous 7 dB";
+
+    assert_eq!(
+        seuils_cites_concordent(&[("guide", doc)], rules, &seuils),
+        Vec::<String>::new()
+    );
+
+    // Le code change, la documentation garde l'ancienne valeur : c'est le cas à attraper.
+    let rules_change = "pub const SENSITIVITY_HIGH_DB: f64 = 6.0;";
+    let p = seuils_cites_concordent(&[("guide", doc)], rules_change, &seuils);
+    assert_eq!(p.len(), 1, "{p:?}");
+    assert!(p[0].contains("6 dB"), "{p:?}");
+
+    // Un document qui ne parle pas du seuil n'est pas en faute.
+    assert_eq!(
+        seuils_cites_concordent(&[("guide", "rien à dire ici")], rules_change, &seuils),
+        Vec::<String>::new()
+    );
+
+    // Une constante absente du code est signalée au lieu d'être ignorée en silence.
+    let p = seuils_cites_concordent(&[("guide", doc)], "", &seuils);
+    assert!(p[0].contains("introuvable"), "{p:?}");
+
+    // La valeur se lit bien, signe compris.
+    assert_eq!(constante_f64("pub const X: f64 = -30.0;", "X"), Some(-30.0));
+    assert_eq!(constante_f64("pub const X: f64 = -30.0;", "Y"), None);
 }

@@ -70,14 +70,16 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
-| D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt | 2026-11-07 |
+| D-052 | Données de test : seul `step_tuning.json` est stocké compressé (`.gz`) ; les autres gros fichiers de cas restent en clair | 2026-11-08 |
+| D-051 | Ouverture de plusieurs logs : **3 fichiers décodés en même temps** au plus, plafond posé en nombre de fichiers et non en mémoire | 2026-11-08 |
+| D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt **(précisée le 2026-11-08 : les ouvrages publiés gardent leurs auteurs)** | 2026-11-07 |
 | D-049 | Réponse indicielle : ordre des courbes et couleurs donnés par l'ordre où l'utilisateur coche les fichiers ; sélection vide permise ; les autres pages gardent la couleur attribuée à l'ouverture | 2026-11-06 |
 | D-048 | Tracé du viewer : index multi-résolution min/max par courbe (`otb-dsp::minmax`), sortie identique point pour point à l'ancienne décimation ; un paquet contenant un trou est tracé comme un trou ; W-049 clos | 2026-11-05 |
 | D-047 | `golden.rs` compare chaque fonction portée avec la tolérance mesurée de `registry::tolerance` (bit près si aucune n'est déclarée), comme `otb-parity check` ; W-048 clos | 2026-11-05 |
 | D-046 | Polices embarquées (Ubuntu Light, Hack) gardées, chacune sous sa propre licence ; licences propres aux polices admises malgré « aucun copyleft » (D-045) ; W-046 clos | 2026-11-05 |
 | D-045 | Licence PolyForm Noncommercial 1.0.0 : code ouvert, tout usage commercial interdit, sans double licence ni exception vendue | 2026-11-04 |
 | D-044 | Décodeur : en-tête refusé au-delà de 512 champs ou hors de 1 à 65 535 pour les intervalles ; mémoire insuffisante = erreur ; réglages à zéro signalés | 2026-11-04 |
-| D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres | 2026-11-04 |
+| D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres **(amendée par D-045)** | 2026-11-04 |
 | D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
 | D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
 | D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
@@ -86,11 +88,11 @@ ici, jamais dans le code.
 | D-037 | Outils egui : cache des résultats par log, partagé avec le thread de calcul, clé = réglages de calcul + période | 2026-11-02 |
 | D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris | 2026-11-01 |
 | D-035 | Migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome | 2026-10-30 |
-| D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé | 2026-10-29 |
+| D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé **(amendée par D-035)** | 2026-10-29 |
 | D-033 | Phase 2b limitée à un pilote : le noyau de `step_response` en Rust (FFT seule écartée : gain ≤ 5 %) | 2026-10-29 |
 | D-032 | Phase 2 de la migration en deux temps : scipy remplacé par numpy, noyaux de filtres en Rust, scipy et numba réservés aux tests | 2026-10-29 |
-| D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python | 2026-10-29 |
-| D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant | 2026-10-14 |
+| D-031 | Migration vers Rust sur une branche d'intégration, `main` reste en Python **(amendée par D-035)** | 2026-10-29 |
+| D-030 | Lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant **(remplacée par D-035)** | 2026-10-14 |
 | D-029 | Les courbes d'un `FlightLog` sont en float32 ; le temps reste en float64 | 2026-10-13 |
 | D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
 | D-027 | Raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre | 2026-10-13 |
@@ -110,16 +112,79 @@ ici, jamais dans le code.
 | D-013 | Linux : fenêtres de fichiers par le portail XDG | 2026-10-05 |
 | D-012 | Boucle ouverte mesurée par estimateur instrumental | 2026-10-05 |
 | D-011 | Seuils de l'assistant : 90e percentile du corpus par taille, origine notée | 2026-10-05 |
-| D-010 | Retard des filtres jugé seulement sur un vol avec des mouvements | 2026-10-05 |
-| D-009 | Style Qt Fusion imposé sur tous les systèmes | 2026-10-01 |
+| D-010 | Retard des filtres jugé seulement sur un vol avec des mouvements **(amendée par D-026)** | 2026-10-05 |
+| D-009 | Style Qt Fusion imposé sur tous les systèmes **(remplacée par D-035)** | 2026-10-01 |
 | D-008 | Simulateur de filtres en méthode relative | 2026-10-01 |
 | D-007 | Retards mesurés par la phase, pas par l'intercorrélation | 2026-10-01 |
-| D-006 | Aucune dépendance à compiler | 2026-10-01 |
+| D-006 | Aucune dépendance à compiler **(amendée par D-031)** | 2026-10-01 |
 | D-005 | Exception à D-004 : icônes Lucide | 2026-10-01 |
-| D-004 | Aucune copie de code de PIDtoolbox ni d'autres projets | 2026-10-01 |
+| D-004 | Aucune copie de code de PIDtoolbox ni d'autres projets **(amendée par D-005)** | 2026-10-01 |
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
-| D-002 | Décodeur Python accéléré par numba | 2026-10-01 |
-| D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français | 2026-10-01 |
+| D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
+| D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-08 — Stockage des données de test
+
+### D-052 : seul `step_tuning.json` est stocké compressé
+
+**Tranché par Cédric** le 2026-11-08, sur les mesures de l'étape 16g de [plan-consolidation.md](plan-consolidation.md).
+
+**Contexte.** Les 31 fichiers de cas de `rust/*/tests/data/` pèsent **133 Mo**, soit la quasi-totalité du poids du dépôt.
+`common::cas` (`rust/otb-analysis/tests/common/mod.rs`) lit déjà indifféremment `<nom>.json` ou `<nom>.json.gz`, et
+`log_check.json.gz` prouvait le procédé (26 → 5,2 Mo). Mesure sur les dix plus gros : 93 Mo → 31 Mo (÷3,0) pour 215 ms de
+décompression sur une suite qui dure 126 s.
+
+**Décidé : `step_tuning.json` seul passe en `.gz`** — 10,5 Mo → 0,53 Mo, soit **÷19,4**, mesuré avec `gzip -9 -n`. C'est le seul
+fichier dont le gain sort de l'ordinaire : les neuf autres tournent autour de ÷2,2 à ÷2,6, parce qu'ils portent des flottants
+écrits en hexadécimal, presque incompressibles. Le dépôt perd 10 Mo pour 7 ms de décompression.
+
+**Option écartée : compresser les dix plus gros.** Elle gagnerait ~60 Mo au clone, mais un `.gz` est **opaque pour git** :
+aujourd'hui, régénérer un fichier de cas ne stocke que l'écart entre deux versions ; compressé, chaque régénération stocke un
+fichier entier. Le réenregistrement des références (W-028) ferait alors grossir le dépôt plus vite qu'il ne l'allège, pour un
+gain par fichier de ÷2,5 seulement.
+
+**Option écartée : ne rien changer.** Elle laissait 10 Mo sur la table sans raison : le gain de ce fichier-là est hors norme et
+sa lecture est déjà prévue par le code.
+
+**Conséquence assumée.** Une régénération de ce fichier depuis l'étalon Python (`scripts/step_tuning_cases.py`, qui écrit en
+clair) doit passer par `gzip -9 -n` — `-n` sans quoi l'horodatage change les octets à contenu identique. La procédure le dit
+(`docs/validation.md`, « Refaire une référence Python »), et `.gitattributes` déclare `*.gz binary` pour que git ne tente jamais
+de normaliser ses fins de ligne.
+
+**Témoin.** `cargo test -p otb-advisor --test step_tuning` passe sur le fichier compressé (2 tests, 0,80 s) ; `common::cas`
+panique en nommant les deux chemins essayés si aucun des deux n'existe.
+
+---
+
+## 2026-11-08 — Ouverture de plusieurs logs en parallèle
+
+### D-051 : au plus trois logs décodés en même temps
+
+Débloque W-050 (lot 11 de [plan-suite.md](plan-suite.md)). **Tranché par Cédric** le 2026-11-08, sur les mesures du lot 5.
+
+**Contexte.** L'interface ouvre les fichiers **les uns après les autres** (`rust/otb-gui/src/app.rs`, une file `queue` et un
+seul `opening`). Décoder en parallèle va **×2,40** (6 logs : 0,830 s → 0,345 s), mais chaque fichier décodé en même temps
+coûte **168 à 181 Mo** de pic mémoire : sans plafond, ouvrir dix logs d'un coup demanderait près de 2 Go.
+
+**Décidé : au plus trois fichiers décodés en même temps**, soit environ 540 Mo au pire — l'ordre de grandeur de ce que la
+version Python 0.8.0 demandait pour **un seul** log (481 Mo). Le gain mesuré sur six logs est conservé pour l'essentiel, et une
+machine modeste reste servie.
+
+**Option écartée : un plafond exprimé en mémoire** (« ne pas dépasser 1 Go »). Elle est plus souple, mais elle demande de
+mesurer le pic du processus pendant le décodage pour décider s'il faut lancer le fichier suivant — une mesure qui n'est pas
+portable entre Windows et Linux, et qui se teste mal. Un compteur de fichiers se **vérifie dans un test** (lot 11), une
+mémoire non.
+
+**Option écartée : décoder en parallèle les sessions d'un même fichier.** ×1,10 seulement sur `FINAL.bbl`, et elle cumulerait
+plusieurs tables compactes du même log.
+
+**Conséquence assumée.** Au-delà de trois logs ouverts d'un coup, les suivants attendent : le temps total ne descend plus en
+dessous d'un tiers du temps séquentiel, quel que soit le nombre de cœurs.
+
+**Témoin attendu** (lot 11) : un test qui compte les fichiers en cours de décodage et exige qu'il n'en passe jamais plus de
+trois, et l'égalité **bit pour bit** des `FlightLog` avec l'ouverture séquentielle.
 
 ---
 
@@ -150,6 +215,14 @@ seuils de l'assistant sans aucune justification écrite et contredit D-005.
 
 **Conséquence.** `docs/spec-methodes.md` reste la preuve de chaque repère ; les numéros `[S…]` ne changent pas, donc toutes
 les références du code et de `docs/assistant.md` restent valables.
+
+**Précisé le 2026-11-08 (revue intégrale, accord de Cédric).** La formulation « aucun nom de personne, nulle part » visait
+**l'auteur de PIDtoolbox**, et elle seule. Les **ouvrages publiés** gardent le nom de leurs auteurs : c'est ainsi qu'on cite
+un livre, et D-005 exige que chaque seuil soit justifié par une méthode publiée et vérifiable à la page. `docs/assistant.md`
+peut donc continuer à écrire « Skogestad et Postlethwaite, *Multivariable Feedback Control*, § 2.4.3 » ou « Åström et Murray,
+*Feedback Systems*, § 9.3 » — sans ces noms, la source serait introuvable et la justification du seuil, invérifiable.
+La règle reste entière pour les sources dont la personne est elle-même le sujet (vidéos, wiki, README de PIDtoolbox) : titre,
+date, lien et citation, jamais de nom.
 
 ### D-049 : la Réponse indicielle est ordonnée et colorée par l'utilisateur
 
@@ -778,6 +851,8 @@ Plan complet : [migration-rust.md](migration-rust.md).
 
 ### D-030 : lint par ruff limité aux règles pyflakes ; pas de formatage automatique pour l'instant
 
+🔁 REMPLACÉE par D-035 (plus de Python à linter ; `cargo fmt` et `cargo clippy -D warnings` tiennent ce rôle, et le formatage **est** automatique).
+
 **Contexte.** Superview (autre projet de Cédric) a une CI plus fournie qu'OpenTuneBox. En comparant, on a
 remplacé `pyflakes` par `ruff`, plus rapide et extensible (formatage, règles de style, sécurité). Mesures du
 2026-10-14 (ruff 0.15.0) : règles `F` (celles de pyflakes) → 0 signalement ; règles par défaut → 51 signalements
@@ -1212,6 +1287,8 @@ associé : L-007.
 
 ### D-009 : style Qt Fusion imposé sur tous les systèmes
 
+🔁 REMPLACÉE par D-035 (l'interface est en egui depuis la 0.9.0 : il n'y a plus de Qt).
+
 **Contexte.** Sous Windows 11, les textes des boutons étaient gris et à peine lisibles (L-014).
 
 **Décision.**
@@ -1283,6 +1360,8 @@ référence de résultats, pas de source.
 **Témoins.** Aucune dépendance réseau dans `pyproject.toml`.
 
 ### D-002 : décodeur Python accéléré par numba
+
+🔁 REMPLACÉE par D-035 (plus de Python ni de numba dans le dépôt depuis la phase 7-5 : le décodeur est en Rust).
 
 ✏️ AMENDÉE par D-031 et D-035 (sur `feat/rust-migration` seulement).
 

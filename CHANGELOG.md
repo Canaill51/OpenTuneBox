@@ -5,6 +5,98 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Ajouté
+- **La version de Rust est figée** (`rust/rust-toolchain.toml`, 1.99.1) sur le poste comme dans la CI. Chaque passage
+  installait « stable », donc une version qui change toute seule : une nouvelle version de Rust ou de clippy pouvait
+  rendre la CI rouge du jour au lendemain, sans qu'on ait touché au projet. En changer devient un geste volontaire.
+- **Le code propre à Windows est enfin passé au lint** : `cargo clippy -D warnings` ne tournait que sous Ubuntu, donc
+  tout ce qui est sous `cfg(windows)` y échappait. Il tourne maintenant sur les deux systèmes (`tests.yml`).
+
+### Corrigé
+
+- **Un chemin produit par la compilation ne peut plus passer le contrôle de documentation chez celui qui a compilé.**
+  Le README citait le fichier `target/release/opentunebox` du dossier `rust` en le préfixant du dépôt — un fichier qui
+  n'existe que sur une machine où l'on a construit, donc le
+  contrôle passait en local et échouait sur la CI. C'était la deuxième fois (L-079). Le contrôle refuse désormais un tel
+  chemin **qu'il existe ou non**, donc la faute se voit en local ; la forme correcte — le même chemin sans le préfixe du
+  dépôt — reste acceptée.
+- **Une fiche drone dont la taille est inconnue ne fait plus mourir l'application.** `DroneCard::log_rate` (et toute méthode qui
+  lit le profil de la taille) **paniquait** pour une fiche construite à la main dont le champ `size` ne correspondait à aucun
+  profil ; le profil se replie maintenant sur celui de 5 pouces, exactement comme la lecture d'un `drones.json` le fait déjà
+  (`DEFAULT_SIZE`). Le cas n'a pas d'appelant connu dans l'application — c'est pourquoi il restait ouvert (W-029 point 3) — mais
+  une panique tue toute la fenêtre pour un simple champ mal rempli. Test
+  `rust/otb-advisor/tests/drone_card.rs:une_taille_inconnue_se_replie_sur_le_defaut_sans_paniquer`, contre-preuve vue en échec
+  (la panique remise fait mourir le test).
+- Un message d'erreur de l'assistant n'imite plus une exception Python (« AttributeError : 'NoneType' object has no attribute
+  'ok' ») : il dit « usage « … » absent de la vérification du log » (W-029 point 2). Il reste 45 messages du même genre dans le
+  code, hérités de la comparaison avec la version Python : ils sont recensés par W-053, avec leur risque (certains peuvent
+  remonter dans la barre d'état ou dans `opentunebox report`).
+
+- **L'installateur Windows ne peut plus sortir en version « 0.0.0 »** : le numéro de version manquant (ou vide, quand
+  sa lecture échoue) arrête la construction au lieu de produire un installateur que Windows afficherait tel quel dans
+  la liste des programmes.
+- **Le crochet de documentation ne bloque plus un commit à tort** : sur un poste sans la commande `timeout`, il
+  interprétait son absence comme un échec des documents et refusait le commit avec un message qui accusait la
+  documentation. Il distingue maintenant les trois cas, et dit clairement quand le contrôle n'a **pas** été fait.
+- **La chaîne de publication ne confond plus une panne de réseau avec une page de version absente** : elle tentait
+  alors d'en créer une, avec un message trompeur à la clé. Et un échec de la commande qui liste les fichiers d'une
+  version n'est plus avalé par un tube.
+- L'envoi d'artefact du workflow « Interface Rust » ne se fait plus que sur lancement manuel. Il partait aussi sur les
+  demandes de fusion touchant ce fichier, alors que le quota d'artefacts d'un dépôt gratuit, une fois plein, bloque
+  **tout** envoi — y compris celui d'une version.
+
+- **Le guide dit enfin où sont rangées vos fiches drone** (`drones.json`, dans le dossier de données de
+  l'application) : c'est ce fichier qu'il faut copier pour sauvegarder votre avancement ou le reprendre sur une autre
+  machine. La désinstallation sous Linux y est décrite aussi — elle n'existait qu'en commentaire d'un script.
+- **Les boutons communs à tous les outils sont décrits** (« Calculer », « Tout voir », « Exporter image », fermeture
+  des logs), et le guide précise que le Simulateur de filtres ne recalcule ses spectres **qu'au clic sur Appliquer**
+  (environ une seconde) : rien ne le disait, et on pouvait croire l'outil figé.
+
+- **Un seuil changé dans le code et oublié dans la documentation est maintenant signalé** : les valeurs que le guide
+  recopie de `docs/assistant.md` (pic de sensibilité, marge de phase) sont comparées à leur **constante Rust**, pas à
+  un autre texte — comparer deux documents entre eux laissait passer le changement, la même valeur apparaissant
+  ailleurs pour d'autres raisons. `otb-dev --test docs` le vérifie à chaque commit.
+
+- **D-050 précisée** : « aucun nom de personne, nulle part » visait l'auteur de PIDtoolbox. Les **ouvrages publiés**
+  gardent le nom de leurs auteurs — c'est ainsi qu'on cite un livre, et D-005 exige une source vérifiable à la page.
+  Sans eux, la justification des seuils de stabilité serait introuvable. Accord de Cédric.
+- Quatre fonctions publiques sans aucun appelant sont retirées, et les 19 garde-fous de lint désactivés disent
+  désormais **pourquoi** ils le sont.
+
+### Modifié
+
+- **Le plus gros fichier de données de test est stocké compressé** : `step_tuning.json` passe de 10,5 Mo à 0,53 Mo
+  (÷19,4), soit autant de moins à télécharger en clonant le dépôt, pour 7 ms de décompression sur une suite de tests qui
+  dure deux minutes. Les autres gros fichiers de cas restent en clair : leur gain est trois fois moindre et un fichier
+  compressé est opaque pour git, qui ne saurait plus stocker que l'écart d'une régénération à l'autre (D-052).
+- **Chiffres du corpus remesurés et rassemblés** : `docs/architecture.md` annonçait « environ 780 sessions (582 fichiers)
+  et 638 captures » ; la mesure du 2026-11-08 donne **525 fichiers, 709 sessions et 595 captures**. Ces chiffres ne
+  sont plus recopiés d'un document à l'autre : `docs/validation.md` en est le maître et les autres y renvoient, pour
+  qu'ils ne vieillissent plus en silence. Même correction pour le nombre d'exécutables de test et la durée de la CI
+  Windows (annoncée « 10 à 25 min », mesurée à **6–8 min** sur douze passages).
+- **L'objectif de concordance du décodeur n'est plus un chiffre inatteignable** : la compétence de développement visait
+  « 95 % de sessions `ok` », valeur d'avant la distinction `gap` / `slow` ; le repère en vigueur est celui de
+  `docs/validation.md` (624 `ok` sur 709, soit 88 %).
+- **L'index des décisions dit enfin lesquelles ne font plus foi** : les marques « remplacée » et « amendée »
+  n'existaient que dans le corps du document. Trois décisions de l'ère Python (numba, style Qt, lint ruff) sont
+  marquées comme remplacées par la migration (D-035).
+- **Procédure de publication utilisable telle quelle** : `CONTRIBUTING.md` donnait `0.2.0` en exemple et conseillait une
+  étiquette d'essai `essai-v0.8.0` — deux numéros déjà pris, qui font échouer le contrôle de version. Les exemples
+  emploient `X.Y.Z`. Il annonçait aussi l'audit des dépendances « à chaque envoi » alors qu'il n'écoute que `main`.
+- Les compétences de développement ne citent plus de code de la version Python supprimée (`provisional=True`,
+  `exact=True`, `NUMBA_BOUNDSCHECK`, `PYTHONHASHSEED`) ni un chemin propre au poste de Cédric.
+- `opentunebox report` : sa sortie **redirigée vers un fichier** est désormais couverte par un test
+  (`rust/otb-cli/tests/sortie_redirigee.rs`), lancé par la CI sous Ubuntu **et sous Windows**. Le rapport contient « → », « − »,
+  « ≈ » et « ≤ », quatre caractères qui n'existent pas en cp1252 et faisaient échouer la version Python dans ce cas précis
+  (W-018). Rien ne change à l'usage : c'est la preuve qui manquait, le binaire Rust écrivait déjà de l'UTF-8.
+- `otb-analysis` : le paramètre `smooth` de `xcorr_delay_ms`, hérité de la version Python et jamais calculé, est retiré de la
+  signature et des cinq appelants (W-024 clos). Aucun résultat ne change.
+- Ménage des registres après la 0.9.0 (lot 12 de `docs/plan-suite.md`) : dix travaux reportés clos ou requalifiés, avec leur
+  raison écrite — dont W-020, qui se clôt **autrement que prévu** (la condition de reprise était arrivée, et le tri par nom des
+  paramètres bruts a été retenu, D-038). Cinq points en attente de Cédric sont tranchés, dont le plafond de l'ouverture en
+  parallèle : **trois logs décodés en même temps** au plus (D-051), ce qui débloque le lot 11.
+
+
 ## [0.9.0] — 2026-11-08
 
 ### Ce qui change pour vous

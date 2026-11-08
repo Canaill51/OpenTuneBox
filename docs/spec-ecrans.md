@@ -1,4 +1,4 @@
-# Écrans de PIDtoolbox Pro V0.94 (d'après les 638 captures exportées par Cédric)
+# Écrans de PIDtoolbox Pro V0.94 (d'après les captures exportées par Cédric, `PTB_FIGS_*`)
 
 Chemins relatifs à `~/Documents/Drones/Logs/`. Les exports sont des captures de fenêtre entière
 `PTB_FIGS_AAAA-MM-JJ-N.png`. Écrans visibles : visualiseur de log (Log Viewer), analyse spectrale

@@ -19,7 +19,7 @@ mettre la documentation à jour avec la compétence `docs-sync` (un crochet bloq
 
 ## Contrôler la compilation Windows avant de pousser
 
-La CI Windows met 10 à 25 min et est le seul endroit où l'on voit un test qui ne compile pas sous Windows (L-078, L-074).
+La CI Windows met 6 à 8 min (12 passages mesurés le 2026-11-08) et est le seul endroit où l'on voit un test qui ne compile pas sous Windows (L-078, L-074).
 Cela demande sur le poste Linux la cible `x86_64-pc-windows-gnu` et les paquets `binutils-mingw-w64-x86-64` (`windres`, pour
 l'icône d'`otb-gui`), `gcc-mingw-w64-x86-64` (éditeur de liens) et `wine64` (pour exécuter les tests).
 
@@ -45,8 +45,10 @@ export WINEPREFIX=$HOME/.local/share/wine-otb WINEDEBUG=-all CARGO_TARGET_X86_64
 cd rust && cargo test --target x86_64-pc-windows-gnu --no-fail-fast   # ≈ 2 min ; sans tube (L-022)
 ```
 
-Mesuré le 2026-11-08 (`main` après la 0.9.0) : **85 exécutables de test sur 90 passent**. Les 5 échecs **viennent de
-l'environnement**, la CI Windows les fait passer :
+Mesuré le 2026-11-08 (`main` après la 0.9.0) : **85 exécutables de test sur 90 passent**. ⚠️ Ce total **change à chaque
+fichier de tests ajouté** : ne pas s'en servir comme d'un objectif, seulement comme d'un ordre de grandeur, et recompter
+sur place (`cargo test --no-run --workspace`). Les 5 échecs **viennent de l'environnement**, la CI Windows les fait
+passer :
 - `otb-dev --test docs` : « `git ls-files` a échoué… program not found » (pas de `git` pour Windows dans le dossier `wine`) ;
 - `otb-dev --test licenses` : « `cargo metadata` : program not found » (même cause ; ce test est né avec le lot 7a, après le
   premier relevé du 2026-11-05, qui annonçait donc 4 échecs sur 89 exécutables) ;
@@ -72,7 +74,9 @@ Statuts : `ok`, `gap` (trames tronquées avant un trou SD, tolérées), `slow` (
 par la référence), `rows` / `values` (à examiner), `refhang` (référence bloquée, délai 180 s), `noref`
 (la référence n'a rien écrit ; une référence introuvable arrête l'outil avec un message).
 Référence : `blackbox_decode` de PIDtoolbox (`OTB_REF_DECODER`, défaut `~/.local/share/PIDtoolboxProV094/`).
-Objectif : ne pas faire baisser la proportion de sessions `ok` (95 %).
+Objectif : **ne pas faire baisser** la proportion de sessions `ok`. Le repère en vigueur est celui de
+`docs/validation.md`, qui est le maître de ce chiffre (624 `ok` sur 709 sessions au 2026-11-08, soit 88 %) — et non
+les 95 % de la toute première mesure du 2026-10-01, d'avant la distinction `gap` / `slow`.
 
 ## Recouper une analyse avec PIDtoolbox
 

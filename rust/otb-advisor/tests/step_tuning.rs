@@ -1,5 +1,6 @@
 //! `advisor/step_tuning.py` en Rust (phase 5a-5) sur des listes de `FlightStep` fabriquées : cas écrits par `scripts/step_tuning_cases.py`
-//! (régénérer `tests/data/step_tuning.json` avec ce script si `step_tuning.py` ou `step_series.py` change).
+//! (régénérer `tests/data/step_tuning.json.gz` avec ce script si `step_tuning.py` ou `step_series.py` change : le script écrit en clair,
+//! recompresser par `gzip -9 -n` — `-n`, sans quoi l'horodatage change les octets à contenu identique. D-052).
 //!
 //! - formats : `fmt`, `n_text`, `gap_action` pour des valeurs aux frontières (arrondi au pair, NaN, infinis, -0,0) ;
 //! - `step_tuning` sur des vols fabriqués (grilles de pics aux seuils, tirages libres de séries, conditions du protocole, ex æquo, erreurs) ;

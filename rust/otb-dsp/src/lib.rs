@@ -172,6 +172,8 @@ pub fn sections_response(s: &Sections, freqs: &[f64]) -> Result<(Vec<f64>, Vec<f
 /// Applique un étage biquad (forme directe I) à `x` (`n_ax` lignes de `n` valeurs, rangées à la suite),
 /// coefficients variables. `freq` et `weight` : `n` valeurs ; une fréquence ≤ 0 ou ≥ `f_limit` rend l'étage
 /// transparent. L'état initial est l'état stationnaire pour la première valeur (gain statique 1).
+// Noyau de calcul porté tel quel du firmware et de l'étalon : l'ordre des arguments suit la formule d'origine,
+// ce qui se relit mieux à côté de la source qu'une structure de réglages.
 #[allow(clippy::too_many_arguments)]
 pub fn run_section(
     x: &[f64],

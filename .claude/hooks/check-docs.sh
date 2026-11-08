@@ -14,16 +14,23 @@ failed=0
 out=""
 if [ -d rust/otb-dev ]; then
     if command -v cargo >/dev/null 2>&1; then
-        out=$(cd rust && timeout 50 cargo test -q -p otb-dev --test docs 2>&1)
+        # `timeout` n'existe pas partout (ni sous Windows hors Git Bash). Sans ce test, son absence donnait le code 127,
+        # pris pour un échec de la documentation : le commit était bloqué avec un message qui accusait les documents.
+        if command -v timeout >/dev/null 2>&1; then
+            out=$(cd rust && timeout 50 cargo test -q -p otb-dev --test docs 2>&1)
+        else
+            out=$(cd rust && cargo test -q -p otb-dev --test docs 2>&1)
+        fi
         status=$?
         if [ "$status" = 124 ]; then
-            echo "Avertissement : la vérification Rust de la documentation a dépassé 50 s (compilation à froid ?) et n'a pas été faite." >&2
-            echo "Lancer : (cd rust && cargo test -p otb-dev --test docs)" >&2
+            echo "Avertissement : la vérification de la documentation a dépassé 50 s (compilation à froid ?) et n'a PAS été faite." >&2
+            echo "Le commit passe sans ce contrôle. Lancer : (cd rust && cargo test -p otb-dev --test docs)" >&2
         elif [ "$status" != 0 ]; then
             failed=1
         fi
     else
-        echo "Avertissement : cargo introuvable, la vérification Rust de la documentation n'a pas été faite." >&2
+        echo "Avertissement : cargo introuvable, la vérification de la documentation n'a PAS été faite." >&2
+        echo "Le commit passe sans ce contrôle." >&2
     fi
 fi
 [ "$failed" = 0 ] && exit 0

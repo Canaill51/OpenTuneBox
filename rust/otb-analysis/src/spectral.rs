@@ -275,6 +275,8 @@ fn to_bin(t: f64, nbins: usize) -> usize {
 
 /// `freq_throttle` : chaque fenêtre de `seg_ms` est rangée selon la moyenne de `xaxis` ; elle compte aussi pour les deux
 /// tranches voisines (comme PIDtoolbox). Erreur si `xaxis` ne donne pas les mêmes fenêtres que `x`.
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn freq_throttle(
     x: &[f64],

@@ -39,12 +39,17 @@ fn xcorr_delay_ms_conforme() {
     for k in c["xcorr"].as_array().unwrap() {
         let what = format!("xcorr {}", k["label"]);
         let (x, y) = (input(&c, &k["x"]), input(&c, &k["y"]));
-        let got = delay::xcorr_delay_ms(&x, &y, f1(&k["fs"]), f1(&k["max_ms"]), k["smooth"].as_i64().unwrap());
-        if !k["ported"].as_bool().unwrap() {
-            assert!(got.is_err(), "{what} : smooth > 1 doit être refusé");
+        // Le lissage n'existe plus (W-024, 2026-11-08) : les cas de référence qui le demandaient sont hors de portée
+        // de la fonction. Ils restent comptés, pour qu'un fichier de cas appauvri ne passe pas inaperçu.
+        if k["smooth"].as_i64().unwrap() > 1 {
+            assert!(
+                !k["ported"].as_bool().unwrap(),
+                "{what} : un cas lissé ne peut pas être porté"
+            );
             unported += 1;
             continue;
         }
+        let got = delay::xcorr_delay_ms(&x, &y, f1(&k["fs"]), f1(&k["max_ms"]));
         if is_error(k) {
             assert!(got.is_err(), "{what} : Python lève, Rust rend {got:?}");
             errors += 1;

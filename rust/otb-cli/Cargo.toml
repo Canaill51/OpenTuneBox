@@ -4,6 +4,7 @@ description = "Ligne de commande `opentunebox info|report` (cli.py de Python), p
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [lib]
 name = "otb_cli"

@@ -11,9 +11,9 @@ comparer), et le noyau de `step_response` partage ce même pool. Toujours en `--
 
 | Commande (dans `rust/`) | Rôle | Durée |
 |---|---|---|
-| `cargo run --release -p otb-dev -- corpus calibrate 600 SCRATCH/stats.json` | mesures brutes des seuils ; `--resume SCRATCH/stats.json` : percentiles p10 / p50 / p90 par taille | non mesurée en Rust (Python : 2 min 40, le 2026-10-05) |
-| `… corpus rates SCRATCH/rates.json` | assistant complet sur chaque session, taux de chaque constat ; `--resume` : tableau seul | non mesurée en Rust (Python : 2 min 10) |
-| `… corpus labels [--csv COPIE]` | tableau `$OTB_LOGS/corpus.csv` | non mesurée en Rust (Python : 40 s) |
+| `cargo run --release -p otb-dev -- corpus calibrate 600 SCRATCH/stats.json` | mesures brutes des seuils ; `--resume SCRATCH/stats.json` : percentiles p10 / p50 / p90 par taille | non mesurée (l'ordre de grandeur sous Python était de 2 à 3 min) |
+| `… corpus rates SCRATCH/rates.json` | assistant complet sur chaque session, taux de chaque constat ; `--resume` : tableau seul | non mesurée (idem) |
+| `… corpus labels [--csv COPIE]` | tableau `$OTB_LOGS/corpus.csv` | non mesurée (moins d'une minute sous Python) |
 | `… corpus rates --compare AVANT.json APRÈS.json` | sessions dont un constat a changé (texte complet, chiffres compris) ; code 1 si différence | quasi instantanée |
 | `… corpus validate [--limit N] [--start N] [-j N]` | décodeur contre `blackbox_decode` | 6 min, corpus entier, 4 fichiers à la fois |
 
@@ -63,7 +63,7 @@ programme jetable.
 - **Inversions de bits sur le poste de Cédric** (diagnostic du 2026-10-05) : sous pleine charge, environ
   un décodage sur 70 contient **un bit inversé** (bit 3 ou 23 d'une valeur, à un endroit différent à chaque
   fois), recopié dans les trames P jusqu'à la trame I suivante. Pas de lecture hors limites
-  (`NUMBA_BOUNDSCHECK=1`, test fait avec l'ancien décodeur numba), pas d'ordre de `set` (`PYTHONHASHSEED`) : matériel (RAM ou processeur instable,
+  (le test d'alors portait sur l'ancien décodeur Python, avec ses propres garde-fous) : matériel (RAM ou processeur instable,
   pas d'ECC). Effets : quelques sessions aux valeurs légèrement différentes entre deux passages, et de rares
   `IndexError` aux indices énormes. Les percentiles n'en sont pas changés ; pour une session précise qui
   surprend, la recalculer seule (`-j 1`). Ne pas chercher de défaut logiciel au décodeur pour ce symptôme.

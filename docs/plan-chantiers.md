@@ -546,10 +546,12 @@ en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cum
 | 8 | Fait le 2026-11-05 (branche `chore/viewer-frame-bench`, partie de `main` : le lot 5 était fusionné) : `examples/banc_cadre.rs`. Étalon retrouvé sur `FINAL.bbl` (viewer 7,4 à 8,3 ms, Guide 0,41 à 0,43, 6,2 ms à 640 px) ; `LOG00008.BFL` 12,6 à 13,0 ms à 620 079 échantillons, sous les 16,7 ms. Écart au plan : les 0,34 ms de carte graphique de W-049 ne se reproduisent pas (kittest prend le rendu logiciel par défaut ; sur vraie carte, ≈ 10 ms fixes de relecture même sans courbe) : `--gpu` gardé avec chiffres bruts (accord de Cédric), le lot 10 se juge sur le temps du processeur. Le banc ajoute la tessellation (0,7 ms) |
 | 9 | Non retenu le 2026-11-04 ; repris hors lot le 2026-11-05 (branche `test/golden-tolerance`, D-047, L-083) : `golden.rs` vert avec `OTB_GOLDEN` |
 | 10 | Fait le 2026-11-05 (branche `perf/viewer-pyramid`, D-048, L-085, L-086) : index multi-résolution min/max dans `otb-dsp`, cadre du viewer ÷ 2,2 (620 079 échantillons : 10,5–12,1 → 4,6–4,8 ms) à ÷ 6,5 (fenêtre étroite), autant pendant un glissement ; tracé identique au bit près, index à 6,4–7,8 % du pic de mémoire (pic inchangé, plafond de Cédric : 10 %). Décision de Cédric : piste (b). Écart au plan : exactitude obtenue **point pour point** et non seulement sur l'enveloppe, mais la règle des trous a dû changer (un paquet à trou est tracé comme un trou, D-048). Reste W-052 : le cadre est maintenant dominé par le tracé des ≈ 3 840 points de chaque courbe |
-| 11 | À faire, après la fusion du lot 5 (ouverture parallèle, W-050) |
+| 11 | À faire : ouverture parallèle (W-050). Le lot 5 est fusionné et le plafond est tranché (D-051 : 3 fichiers) |
 
 ## Suite
 
-Les cinq chantiers de l'audit sont traités. Ce qui reste (lots 6, 7 et 11 ci-dessus, puis les lots 12 à 15) est ordonné dans
-[plan-suite.md](plan-suite.md) : publier la version 0.9.0, solder les travaux reportés, finir la calibration de l'assistant.
-La numérotation des lots y continue la même série.
+Les cinq chantiers de l'audit sont traités, la **0.9.0 est publiée** (lot 7, le 2026-11-08) et les travaux reportés sont
+soldés (lot 12). Seul le **lot 11** de ce document reste à faire. La suite est ordonnée dans
+[plan-suite.md](plan-suite.md), et la revue intégrale du projet dans
+[plan-consolidation.md](plan-consolidation.md) (lot 16). La numérotation des lots continue la même série dans les trois
+documents.

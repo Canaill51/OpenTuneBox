@@ -6,9 +6,11 @@ PIDtoolbox Pro V0.94 est un logiciel MATLAB fermé et payant, disponible sous Li
 MATLAB Runtime. OpenTuneBox couvre les mêmes outils avec un code entièrement réécrit, multiplateforme et
 hors ligne, pour régler des drones de toutes tailles (whoops 65–75 mm jusqu'aux 8"+).
 
-Le corpus de mise au point (`OTB_LOGS`, par défaut `~/Documents/Drones/Logs`) contient environ 780 sessions
-(582 fichiers, Betaflight 4.4.2 → 2026.6.2, DShot bidirectionnel, majoritairement 2 kHz, debug `FFT_FREQ`)
-et 638 captures PIDtoolbox (`PTB_FIGS_*`) servant de référence visuelle.
+Le corpus de mise au point (`OTB_LOGS`, par défaut `~/Documents/Drones/Logs`) rassemble les vrais logs Betaflight de
+Cédric (4.4.2 → 2026.6.2, DShot bidirectionnel, majoritairement 2 kHz, debug `FFT_FREQ`) et les captures PIDtoolbox
+(`PTB_FIGS_*`) qui servent de référence visuelle. Il grossit à chaque vol : ses chiffres à jour (nombre de fichiers,
+de sessions et de captures) sont dans [validation.md](validation.md), qui en est le maître — les recopier ici
+revenait à les laisser vieillir sans que personne ne s'en aperçoive.
 
 ## Décisions
 
@@ -94,7 +96,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   argument) ; le titre de la fenêtre vient d'`app.rs:window_title` (nom + numéro de version du paquet), tandis que
   l'`app_id` garde le nom seul, qui est celui du fichier `.desktop` (L-076).
 - `viewer.rs` (traces, lissage) et `viewer_page.rs` (page du visualiseur : traces groupées, traces absentes du log masquées,
-  sections repliables Affichage et Lecteur). Chaque courbe affichée est gardée en cache avec son index multi-résolution
+  section repliable Affichage, étiquette Lecteur). Chaque courbe affichée est gardée en cache avec son index multi-résolution
   (`Series`, clé : trace, axe, lissage) ; le tracé n'appelle plus que `otb_dsp::minmax::window_points` (D-048).
 - `guide.rs` : le Guide sans egui (fichier des fiches `drones.json` dans le dossier de données de l'utilisateur, fichier illisible
   mis de côté : D-039 ; liens `otb:`, avancement, outils cités). `guide_page.rs` : la page **Guide** (accueil
@@ -106,8 +108,14 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 - `icons.rs` : icônes Lucide (`rust/otb-gui/assets/icons/`, licence ISC) colorées selon le thème.
 - `plots.rs` : contournements d'egui_plot. `export.rs` : export PNG (nom `OTB_FIGS_AAAA-MM-JJ-N.png`, recadrage borné de la capture
   d'écran d'egui ; la boîte d'enregistrement est `App::save_dialog`, remplaçable dans les tests). `build.rs` : icône de l'exécutable Windows.
-- Captures sans fenêtre : `examples/capture.rs` (rendu wgpu) ; `examples/banc_carte.rs` mesure `Heatmap` contre `PlotImage` ;
-  `examples/banc_cadre.rs` mesure le temps de cadre de l'écran Guide et du viewer sur un vrai log (W-049, `docs/validation.md`).
+- Exemples d'`otb-gui` : `examples/capture.rs` (captures sans fenêtre, rendu wgpu) ; `examples/banc_carte.rs` mesure
+  `Heatmap` contre `PlotImage` ; `examples/banc_cadre.rs` mesure le temps de cadre de l'écran Guide et du viewer sur un
+  vrai log (W-049, `docs/validation.md`) ; `examples/check_tools.rs` **rejoue les sept outils sur les références figées
+  et compare chaque clé** (`cargo run --release -p otb-gui --example check_tools -- $OTB_LOGS/golden`) — c'est la seule
+  preuve que les outils de l'interface rendent ce que rendait la version Python sur de vrais vols, et ce n'est pas un
+  test : la CI le compile sans le lancer (W-054).
+- Bancs d'`otb-dsp` (mesures, jamais livrés) : `examples/banc_4b0.rs` et `examples/banc_4c0.rs` (primitives numériques,
+  L-051) et `examples/banc_minmax.rs` (index multi-résolution du viewer, D-048).
   Banc de test : `with_context_setup(app::setup)` (L-066).
 
 ## Distribution
@@ -126,7 +134,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 ## Espace de travail Rust
 
 Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de cas et de références
-(`tests/data/*.json`, `$OTB_LOGS/golden`) ont été écrits par l'ancienne version Python (tag `python-final`) : pour en refaire un, voir
+(`rust/*/tests/data/*.json`, deux d'entre eux compressés en `.json.gz` : D-052, et `$OTB_LOGS/golden`) ont été écrits par l'ancienne version Python (tag `python-final`) : pour en refaire un, voir
 « Refaire une référence Python » dans [validation](validation.md).
 
 - **otb-decoder** : décodeur, Rust pur. `header.rs` (en-têtes et sessions), `file.rs` (`decode_file` de bout en bout ; `decode_bytes_compact` range les trames principales en `CompactTable`, `i32` sauf `loopIteration` et `time`, pour `otb_log::flightlog::load` : L-081), `error.rs` (`DecodeError` : en-tête hors bornes, mémoire insuffisante ; D-044), `frame.rs`
@@ -143,18 +151,21 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   reproduisent les classes d'expressions régulières de Python, nécessaires pour que les noms de drone se comparent comme avant.
 - **otb-cli** : binaire `opentunebox info` / `report` ; `lib.rs` produit le texte, `main.rs` l'écrit au fil de l'eau.
 - **otb-gui** : l'interface (voir « Interface ») ; `colormaps.rs` : palettes des cartes de fréquence (tables d'octets, licences en tête du fichier).
-- **otb-parity** : comparateur avec les références de l'ancienne version (`otb-parity check $OTB_LOGS/golden`, `check-header`,
-  `check-settings`, `check-flightlog`, `check-decoder`…, D-035) ; modules : `registry.rs` (fonctions rejouables par nom), `value.rs`
+- **otb-parity** : comparateur avec les références de l'ancienne version (D-035). Onze modes : `check` (fonctions par nom)
+  et `list`, puis une couche par étage — `check-header`, `check-decoder`, `check-settings`, `check-flightlog`,
+  `check-sliders`, `check-analysis`, `check-advisor`, `check-guide`, `check-tuning`, `check-cli`. Tous demandent le
+  dossier des références et `$OTB_LOGS` ; seuls `check_decoder` et `check_header` ont des tests (W-054) ; modules : `registry.rs` (fonctions rejouables par nom), `value.rs`
   (valeurs des fichiers de référence), `compare.rs`, `layers.rs` (couches par fichier du corpus : en-têtes), `decoded.rs` et
   `flightlog_digest.rs` (empreintes des sessions décodées et des `FlightLog`), `settings_json.rs` (`Settings` en JSON), `analysis_layer.rs`,
   `advisor_layer.rs`, `cli_layer.rs`, `guide_layer.rs` et `tuning_layer.rs` (une couche par famille de références, L-062).
 - **otb-dev** : outils de développement, jamais livrés.
   - `docs.rs` : les contrôles de la documentation (liens, chemins et symboles cités, outils, guide, modules, index de `docs/`, fichiers
-    publiés, commandes de la CLI, langue, registres D / L / W, seuils de `docs/assistant.md`). `rust/otb-dev/tests/docs.rs` les lance sur
+    publiés, commandes de la CLI, langue, registres D / L / W, seuils de `docs/assistant.md`, et **concordance des seuils
+    recopiés avec leur constante Rust** : une valeur changée dans le code et oubliée dans un document est signalée). `rust/otb-dev/tests/docs.rs` les lance sur
     la vraie documentation (`OTB_DOCS_ROOT` désigne une autre racine) et `rust/otb-dev/tests/checks.rs` prouve que chacun échoue sur un
     cas fabriqué. Les registres d'histoire (`HISTORICAL_DOCS` : CHANGELOG, decisions, lecons, migration-rust, travaux-reportes) peuvent
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.
-  - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail : mêmes 74 exécutables qu'avec la liste des `-p`), le contrôle des mentions de licences (`licenses::check`, dans le processus : aucune commande lancée) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard (`golden.rs`, `smooth.rs`) : `verify` les compte et `--strict` en fait un échec.
+  - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail, et non plus une liste de `-p` à tenir à jour), le contrôle des mentions de licences (`licenses::check`, dans le processus : aucune commande lancée) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard : `verify` les compte et `--strict` en fait un échec. Deux contrôles d'`otb-dev` cherchent eux-mêmes les sauts (et les fichiers réservés à un système, annoncés par `sauts_par_systeme.rs`), pour qu'un nouveau test conditionnel ne passe pas inaperçu.
   - `bench_open.rs` : `otb-dev bench-open LOG [ESSAIS]` ouvre un log (`otb_log::flightlog::load`) et affiche durées et pic de mémoire (`VmHWM` de `/proc/self/status`, Linux seulement) ; un processus par log, car le pic ne redescend pas.
   - `release.rs` : `otb-dev release prepare X.Y.Z | notes vX.Y.Z` (numéro de version dans `rust/Cargo.toml`, CHANGELOG).
   - `icons.rs` : `otb-dev icons` (PNG Linux et `.ico` Windows depuis `opentunebox.svg`, par `resvg` et `ico`, Rust pur ; pas de `.icns` : D-042).

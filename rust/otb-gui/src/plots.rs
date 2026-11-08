@@ -102,6 +102,8 @@ pub fn heatmap_pixels(
 
 /// Texture d'une carte (voir `heatmap_pixels`), à afficher avec `PlotImage` : `Heatmap` d'egui_plot coûte 30 ms par
 /// cadre à 10⁵ cases (mesuré en 6-0, docs/migration-rust.md).
+// Fonction de dessin : chaque argument est une grandeur de l'écran (bornes, échelle, couleurs). Les réunir en
+// structure n'ajouterait qu'un type intermédiaire, utilisé une seule fois.
 #[allow(clippy::too_many_arguments)]
 pub fn heatmap_texture(
     ctx: &Context,

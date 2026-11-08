@@ -27,6 +27,9 @@ pub const ESCS: [(&str, &str); 4] = [
 /// DShot bidirectionnel possible.
 pub const BIDIR_ESCS: [&str; 3] = ["BLHeli_32", "Bluejay", "AM32"];
 /// 6–7" et plus : autres listes et plages ([S34]).
+/// Taille d'une fiche neuve, et repli de toute taille inconnue.
+pub const DEFAULT_SIZE: &str = "five";
+
 pub const LARGE_SIZES: [&str; 2] = ["seven", "large"];
 
 /// Séries de vols (méthode des séries, choix de Cédric du 2026-10-12) : valeurs du curseur, vol par vol.
@@ -94,7 +97,7 @@ impl DroneCard {
         DroneCard {
             name: name.to_string(),
             bf: "4.5".to_string(),
-            size: "five".to_string(),
+            size: DEFAULT_SIZE.to_string(),
             pid_khz: 4.0,
             pid_khz_int: false,
             esc: "BLHeli_32".to_string(),
@@ -149,7 +152,7 @@ impl DroneCard {
             card.done = m.iter().map(|(k, v)| (k.clone(), truthy(v))).collect();
         }
         if profile(&card.size).is_none() {
-            card.size = "five".to_string();
+            card.size = DEFAULT_SIZE.to_string();
         }
         Ok(card)
     }
@@ -175,9 +178,14 @@ impl DroneCard {
         (hz, sample_rate_cli(pid_hz, hz))
     }
 
+    /// Profil de la taille de la fiche, ou celui de `five` si la taille est inconnue.
+    ///
+    /// ⚠️ Repli volontaire, jamais une panique : une fiche construite à la main (hors `from_value`, qui ramène déjà
+    /// toute taille inconnue à `five`) ferait sinon mourir l'application sur un simple champ mal rempli (W-029)
     fn profile(&self) -> &'static crate::profiles::CraftProfile {
-        // Python : `PROFILES[self.size]` lève `KeyError` pour une taille inconnue ; `from_value` les ramène à `five`.
-        profile(&self.size).unwrap_or_else(|| panic!("taille inconnue : {}", self.size))
+        profile(&self.size)
+            .or_else(|| profile(DEFAULT_SIZE))
+            .expect("le profil `five` existe toujours")
     }
 
     /// « small » (jusqu'à 5") ou « large » (6–7" et plus).

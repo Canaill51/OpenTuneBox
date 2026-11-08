@@ -60,21 +60,23 @@ Règles d'écriture :
 
 | ID | Sujet | Statut |
 |---|---|---|
-| W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | ouvert (à voir en phase 7) |
-| W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | ouvert (à voir en phase 7) |
+| W-026 | Rust / Python : zéros signés de `np.max` / `np.min`, et entrées jamais fournies par l'application (`fs` NaN dans `xcorr`…) | 🚫 SANS SUITE (2026-11-08) — plus de Python à égaler, aucun appelant ; écarts gardés en commentaire du code |
+| W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | 🚫 SANS SUITE (2026-11-08) — mêmes raisons que W-026 |
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
+| W-054 | Comparateurs des couches hautes d'`otb-parity` (analyses, assistant, guide, réglage, ligne de commande, réglages, journaux, curseurs) toujours sans test : seuls `check_decoder` et `check_header` en ont | ouvert (fabriquer une référence Python pour ces couches est le vrai coût) |
+| W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
 | W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
-| W-050 | Ouverture d'un log dominée par le décodage (83 % de 342 ms) ; fichiers ouverts les uns après les autres (×2,40 mesuré en parallèle, pic de mémoire à plafonner) | ouvert |
+| W-050 | Ouverture d'un log dominée par le décodage (83 % de 342 ms) ; fichiers ouverts les uns après les autres (×2,40 mesuré en parallèle, pic de mémoire à plafonner) | ouvert — **débloqué le 2026-11-08** : plafond fixé par Cédric à **3 fichiers décodés en même temps** (D-051) ; lot 11 de `plan-suite.md` |
 | W-049 | Le tracé du viewer parcourt la série entière à chaque cadre (7,94 ms par cadre à 321 729 échantillons, 12,6 à 13,0 ms à 620 079, la plus longue session du corpus) : saccades attendues au-delà de ~800 000 échantillons | TRAITÉ le 2026-11-05 (D-048 : index multi-résolution min/max, cadre ÷ 2,2 à ÷ 6,5, tracé identique au bit près ; L-085, L-086 ; reste W-052) |
 | W-048 | `otb-parity --test golden` rouge avec `OTB_GOLDEN` défini (écart de 1e-15 relatif, `spectral.spectrum`), déjà sur `main` ; test volontairement non affaibli | TRAITÉ le 2026-11-05 (D-047 : tolérance mesurée de chaque fonction, bit près par défaut ; L-083) |
 | W-047 | Test `install_linux` échoué une fois sur six exécutions de `verify`, cause non trouvée | TRAITÉ le 2026-11-05 (course `ETXTBSY` entre les cas du fichier : cause reproduite et corrigée, L-082) |
 | W-046 | Police Ubuntu Light (Ubuntu Font Licence 1.0) embarquée par egui : compatibilité avec la licence du projet | TRAITÉ le 2026-11-05 (D-046 : police gardée sous sa licence, la cause du conflit a disparu avec D-045) |
-| W-045 | Icône de fenêtre sous X11 : `_NET_WM_ICON` vide alors que le PNG se décode (L-076) ; AppImage non intégrée au bureau : icône générique sous Wayland | AppImage : **SOLDÉ** — traité le 2026-11-06, **confirmé sur la machine de Cédric le 2026-11-07** (Wayland) ; X11 : ouvert (à creuser si quelqu'un l'utilise) |
+| W-045 | Icône de fenêtre sous X11 : `_NET_WM_ICON` vide alors que le PNG se décode (L-076) ; AppImage non intégrée au bureau : icône générique sous Wayland | ✅ CLOS (2026-11-08) — AppImage soldée le 2026-11-06, confirmée sur la machine de Cédric le 2026-11-07 (Wayland) ; X11 **sans suite** par arbitrage de Cédric (cause non trouvée, aucun utilisateur connu sous X11), à rouvrir sur signalement |
 | W-044 | Installateur Windows : suppression du dossier `_internal` de la version Python (mise à jour depuis la 0.8.0) à retirer plus tard ; `construire_windows.ps1` non essayé sur un vrai Windows ; **mise à jour par-dessus la 0.8.0 toujours jamais essayée**, désinstallation vérifiée le 2026-11-08 | ouvert (script : à l'occasion ; `_internal` : 0.10.0 ou plus tard, **après** une vraie mise à jour depuis la 0.8.0) |
 | W-043 | Polices embarquées par egui (`epaint_default_fonts` : OFL-1.1 et Ubuntu-font-1.0) : obligations de ces licences pour l'installateur et l'AppImage non vérifiées | TRAITÉ le 2026-11-04 (`THIRD-PARTY-LICENSES.txt` livré par les installateurs) ; reste ouvert : relire les textes avec Cédric, et le détail de 22 composants sans fichier de licence — **l'échéance « avant la première version Rust » est passée** (0.9.0 publiée le 2026-11-08), nouvelle échéance : avant la 1.0 |
-| W-042 | `cargo-deny` : 4 avis RustSec « non maintenu » sans correctif, hérités d'eframe (`zbus`, `zvariant`, `zvariant_derive`, `zbus_names`, `ttf-parser`), ignorés dans `rust/deny.toml` | ouvert (à la prochaine mise à jour d'eframe) |
-| W-041 | Test d'`otb-gui` sensible à la charge : `le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi` (délai de capture de 150 ms) échoue de temps en temps quand les tests tournent en parallèle | ouvert — condition non atteinte au 2026-11-06 (25 dernières exécutions de la CI vertes) ; à traiter au premier échec au hasard de la CI |
+| W-042 | `cargo-deny` : 4 avis RustSec « non maintenu » sans correctif, hérités d'eframe (`zbus`, `zvariant`, `zvariant_derive`, `zbus_names`, `ttf-parser`), ignorés dans `rust/deny.toml` | ⏸ BLOQUÉ — **attend une version d'eframe qui change ces dépendances** (rien à faire de notre côté) ; revérifier à chaque mise à jour d'eframe proposée par Dependabot |
+| W-041 | Test d'`otb-gui` sensible à la charge : `le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi` (délai de capture de 150 ms) échoue de temps en temps quand les tests tournent en parallèle | ⏸ BLOQUÉ — **attend un échec au hasard de la CI sur ce test** ; condition toujours non atteinte au 2026-11-08 (CI verte depuis le 2026-11-05, publication de la 0.9.0 comprise) ; le corriger sans l'avoir vu échouer reviendrait à deviner le délai qui suffit |
 | W-040 | Simulateur de filtres (Rust et Python) : notchs dynamiques ajoutés placés aux centres initiaux du firmware, d'où des creux sans lien avec le bruit | TRAITÉ le 2026-11-02 (Python sur `main`, PR #84, D-041 ; Rust sur `feat/rust-dnf-added-notches`) |
 | W-039 | Barre du haut egui (6-6b) : boutons « Fermer » / « Tout fermer » et bouton « Ouvrir… » mis en valeur de Python absents ; icône de la fenêtre Linux à confirmer | TRAITÉ le 2026-11-03 (D-040, `feat/rust-toolbar-close`) |
 | W-038 | Export d'image et boutons « Calculer » / « Tout voir » egui (6-6a) : écarts connus avec `MainWindow.save_figure` et `ToolWindow`, capture réelle essayée à la main sous Linux (2026-11-02) ; le reste décidé (D-040) |
@@ -84,17 +86,17 @@ Règles d'écriture :
 | W-033 | Visualiseur egui : lissage plus large que la courbe (numpy rend `w` valeurs, Rust `n`) ; échelle Y fixe (pas de zoom vertical) ; molette = défilement désactivé, zoom par Ctrl + molette | 6-1c |
 | W-035 | Réponse indicielle et Curseurs PID egui (6-3) : écarts connus avec les fenêtres Qt (tracé des brutes, sélecteurs, légendes sans « ● ○ ⚠ », copie des commandes) | point (7) traité en 6-6a ; le reste décidé (D-040), sauf le point (9) (cache des outils non borné, à mesurer au lot 15 de `plan-suite.md`) |
 | W-032 | Socle egui (6-0) : écarts connus avec `ToolWindow.run` de Python | traité en 6-3 (points 1 à 4) |
-| W-031 | Ligne de commande Rust : pas de texte d'aide détaillé, messages d'usage et d'erreur rédigés autrement que ceux d'argparse | ouvert (depuis 7-5 il n'y a plus de Python à égaler : aide en ligne détaillée seulement si Cédric la veut) |
+| W-031 | Ligne de commande Rust : pas de texte d'aide détaillé, messages d'usage et d'erreur rédigés autrement que ceux d'argparse | 🚫 SANS SUITE (2026-11-08) — **arbitrage de Cédric** : l'interface graphique est la voie normale, la ligne de commande sert au diagnostic |
 | W-030 | `rules.py:analyze` plantait (`np.convolve` d'un tableau vide) sur 2 logs du corpus | TRAITÉ le 2026-11-01 (Python sur `main`, PR #75 ; Rust sur `fix/rust-short-session`) |
-| W-029 | Rust / Python : types faux refusés par `DroneCard::from_value`, `pid_khz` toujours en flottant, `auto_status` en erreur si un usage manque, `log_rate` panique sur une taille inconnue, pas de crash réel dans le corpus du guide | point 1 TRAITÉ en 6-5 (D-039) ; points 2 à 4 ouverts (depuis 7-5, défauts propres du Rust sans appelant réel) |
-| W-025 | `motors` (Rust) n'accepte que des vitesses moteur `float32` (journaux) ; Python accepte aussi `float64` et choisit alors la précision des noyaux | ouvert (à voir en phase 6) |
-| W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ouvert (code mort sans appelant depuis 7-5 : retirer le paramètre ou le porter si un outil veut lisser) |
+| W-029 | Rust / Python : types faux refusés par `DroneCard::from_value`, `pid_khz` toujours en flottant, `auto_status` en erreur si un usage manque, `log_rate` panique sur une taille inconnue, pas de crash réel dans le corpus du guide | points 1 à 3 TRAITÉS (1 en 6-5, D-039 ; 2 et 3 le 2026-11-08 : plus aucune panique, plus aucun message imitant Python) ; **point 4 ouvert** (aucun crash réel dans le corpus : la branche « crash » ne repose que sur des cas fabriqués) |
+| W-025 | `motors` (Rust) n'accepte que des vitesses moteur `float32` (journaux) ; Python accepte aussi `float64` et choisit alors la précision des noyaux | 🚫 SANS SUITE (2026-11-08) — tous les journaux sont en `float32` (D-029), aucun appelant ne calcule en `float64` |
+| W-024 | `delay::xcorr_delay_ms` (Rust) refuse `smooth > 1` : l'argument existe en Python mais aucun appelant de l'application ne le fournit | ✅ CLOS (2026-11-08) — paramètre retiré de la signature et des cinq appelants |
 | W-023 | `FlightLog::d_term_prefilter` (Rust) planteait (index hors limites) pour un journal d'un point au terme D non nul, Python lève `ValueError` (`np.gradient`) | TRAITÉ le 2026-10-30 (4c-A : `Err`, relecture) |
-| W-022 | `otb-parity check` : une seule tolérance par fonction, y compris pour les champs exacts (`freqs`, `bins`) | ouvert (à voir en phase 7) |
-| W-021 | Écarts connus Rust / Python sur entrées irréalistes (`nbins = 0`, `fs = 0`, `astype(int)` sur ARM, message d'erreur) | macOS abandonné (D-042) : reste ouvert seulement pour un futur ARM Linux ou Windows |
-| W-020 | `LogHeader.raw` et `Settings.raw` du Rust sont triés par clé, le dict Python garde l'ordre du fichier | ouvert (à voir en phase 5c / 6) |
-| W-019 | Phase 3 repoussée : `spectral`, `loop`, `delay`, `stats`, `sliders`, `step_series`, `settings`, `datasets`, `period` restent en Python | EN COURS (D-035 : repris par la phase 4) |
-| W-018 | `opentunebox report` plante sous Windows quand sa sortie est redirigée (cp1252) | ouvert |
+| W-022 | `otb-parity check` : une seule tolérance par fonction, y compris pour les champs exacts (`freqs`, `bins`) | ouvert — D-047 a donné une tolérance **par fonction**, pas par champ ; reprise : si un écart est soupçonné sur `freqs` / `bins` / `resolution_hz` |
+| W-021 | Écarts connus Rust / Python sur entrées irréalistes (`nbins = 0`, `fs = 0`, `astype(int)` sur ARM, message d'erreur) | 🚫 SANS SUITE (2026-11-08) — plus de Python à égaler ; aucune cible ARM livrée (D-042), à rouvrir le jour d'un portage ARM |
+| W-020 | `LogHeader.raw` et `Settings.raw` du Rust sont triés par clé, le dict Python garde l'ordre du fichier | ✅ CLOS (2026-11-08) — la condition est arrivée (la Configuration affiche les paramètres bruts) et le **tri par nom a été retenu** (D-038) |
+| W-019 | Phase 3 repoussée : `spectral`, `loop`, `delay`, `stats`, `sliders`, `step_series`, `settings`, `datasets`, `period` restent en Python | ✅ CLOS (2026-11-08) — tous ces modules sont en Rust depuis la 7-5 ; il n'y a plus de Python dans le dépôt |
+| W-018 | `opentunebox report` plante sous Windows quand sa sortie est redirigée (cp1252) | ✅ CLOS (2026-11-08) — sans objet en Rust, **prouvé** par `otb-cli/tests/sortie_redirigee.rs` (lancé aussi sous Windows par `tests.yml`) |
 | W-017 | Lint : règles de style, formatage ruff et seuil de couverture reportés | TRAITÉ sur `feat/rust-migration` (D-031) |
 | W-016 | Pic de mémoire du décodeur : tableau provisoire deux fois trop grand | ✅ CLOS (2026-11-06, bilan du lot 6) — D-031 puis lot 5 : 274 Mo sur le plus gros log |
 | W-015 | Taille : numba impose llvmlite (37 % de l'exécutable) ; extension compilée à décider | TRAITÉ (D-031, D-032, D-035 : numba, scipy et tout le Python supprimés en 7-5 ; installateurs de 7,5 Mo (Windows) et 10 Mo (AppImage)) |
@@ -403,6 +405,12 @@ Règles d'écriture :
   **Reprise** : phase 5 (ligne de commande en binaire Rust) ou dès qu'on touche à `cli.py`.
   **Piste** : `sys.stdout.reconfigure(encoding="utf-8")` au début de `cli.main` (en vérifiant `sys.stdout is not None`,
   L-021), avec un test qui redirige la sortie. [`src/opentunebox/cli.py`]
+  ✅ **CLOS le 2026-11-08 — sans objet depuis la 7-5, et prouvé.** `otb_cli::run_stdio` écrit de l'UTF-8 quoi qu'il arrive
+  (aucun appel à l'API console de Windows). La supposition ne suffisait pas : `rust/otb-cli/tests/sortie_redirigee.rs` lance
+  le vrai binaire avec sa sortie **redirigée vers un fichier**, relit le fichier en octets, exige de l'UTF-8 valide, le même
+  rapport **octet pour octet** que `report()` dans le processus, et la présence des quatre caractères absents de cp1252
+  (« → », « − », « ≈ », « ≤ ») — sans eux le test ne prouverait plus rien sous Windows. `tests.yml` le lance sous Ubuntu
+  **et sous Windows**. Contre-preuve vue en échec : `run_stdio` saboté pour remplacer « ≈ » par « ~ » → test rouge.
 
 ## Origine : exploration de la phase 3 (2026-10-29)
 
@@ -418,6 +426,9 @@ Règles d'écriture :
   (`_numeric`, `spectral`, `settings` sans la partie modifiable).
   **Piste** : `PidTerms` doit d'abord quitter `analysis/loop.py` (dépendance circulaire avec `log/flightlog.py`) ;
   garder `Settings.raw` exposé (lu par clés arbitraires hors de `log/`). [`docs/migration-rust.md`]
+  ✅ **CLOS le 2026-11-08.** La reprise prévue a eu lieu et a dépassé l'entrée : la migration complète (D-035) a porté ces
+  neuf modules **et** `FlightLog`, puis la 7-5 a supprimé tout le Python du dépôt (`docs/migration-rust.md`). Le risque décrit
+  (« Python et numpy restent nécessaires ») n'existe plus : la 0.9.0 est un binaire sans dépendance d'exécution.
 
 ## Origine : relecture indépendante de la phase 4a (2026-10-30)
 
@@ -429,6 +440,11 @@ Règles d'écriture :
   dans un autre ordre que l'étalon.
   **Reprise** : quand une sortie parcourt `raw` : passer à une liste ordonnée avec index (ou `indexmap`) et comparer l'ordre
   dans `layers.rs:check_header`.
+  ✅ **CLOS le 2026-11-08 — la condition est arrivée, et l'ordre trié a été retenu.** La Configuration affiche bien les
+  paramètres bruts de l'en-tête (`rust/otb-gui/src/tools/setup.rs:LogSetup::new`, qui écarte les lignes `Field …` et `H …`),
+  donc une sortie parcourt `raw`. Le tri **par nom** n'est pas un défaut mais le choix d'affichage de la Configuration
+  (D-038 : lignes alignées par nom) : une liste de réglages se lit par nom, pas dans l'ordre où le firmware les a écrits.
+  Aucun passage à `indexmap` : il n'y a plus d'étalon Python dont il faudrait reproduire l'ordre.
 
 ## Origine : relecture indépendante de la phase 4b (2026-10-30)
 
@@ -441,11 +457,18 @@ Règles d'écriture :
   **Pourquoi reporté** : entrées irréalistes ou plate-forme non utilisée par Cédric.
   **Risque si on n'y touche pas** : un écart de résultat sur Mac ARM pour des gaz NaN.
   **Reprise** : si une entrée réelle produit l'un de ces cas, ou si une version ARM est un jour livrée (macOS abandonné, D-042).
+  🚫 **SANS SUITE le 2026-11-08.** (a), (b) et (d) sont des écarts avec un étalon qui n'existe plus : il n'y a plus de Python à
+  égaler, et la bibliothèque Rust ne panique sur aucun de ces cas. (c) ne concerne qu'ARM, et aucune cible ARM n'est livrée
+  (D-042 : Windows et Linux x86-64 seulement). À rouvrir **le jour d'un portage ARM**, pas avant.
 - **W-022** — `otb-parity check` applique une seule tolérance à tout le résultat d'une fonction, y compris les champs
   documentés « identiques au bit près » (`freqs`, `bins`, `resolution_hz`). Les tests de cas écrits, eux, les exigent exacts.
   **Pourquoi reporté** : demande une tolérance par champ dans `registry::tolerance` ; les fréquences sont identiques
   partout où on les a comparées.
   **Reprise** : quand on resserre la couche corpus (phase 7), ou si un écart sur ces champs est soupçonné.
+  *Statut au 2026-11-08* : **reste ouvert**, requalifié. D-047 a donné à chaque fonction **sa** tolérance mesurée (bit près par
+  défaut), ce qui a réglé W-048 mais pas celle-ci : la tolérance est par fonction, pas par champ. Les références figées servent
+  toujours (`otb-dev verify --strict` les rejoue). **Reprise** : si un écart est un jour soupçonné sur `freqs`, `bins` ou
+  `resolution_hz` ; les tests de cas écrits, eux, continuent de les exiger exacts.
 - **W-023** — **TRAITÉ le 2026-10-30 (relecture de la 4c-A).** Pour un journal d'un **seul point** dont le terme D n'est pas nul, `FlightLog.d_term_prefilter`
   de Python lève `ValueError` (`np.gradient` demande au moins 2 points). Le Rust (4a-5) **plantait** (`index out of bounds` dans `gradient`, et non
   « rendait des zéros » comme écrit d'abord) ; `datasets.available` et `delay.compute_delays` en héritaient. Depuis, `d_term_prefilter` rend un
@@ -459,11 +482,19 @@ Règles d'écriture :
   **Reprise** : si un outil de la phase 6 veut lisser les signaux avant l'intercorrélation (alors porter la convolution avec sa tolérance), ou à
   la suppression du Python en phase 7 (retirer le paramètre).
   *Statut après 7-5 (2026-11-04)* : le Python a disparu ; le paramètre reste ouvert comme code mort sans appelant (le retirer ou le porter si un outil veut lisser).
+  ✅ **CLOS le 2026-11-08 — paramètre retiré.** `xcorr_delay_ms(x, y, fs, max_ms)` n'a plus d'argument `smooth` ; les cinq
+  appelants (`log_check`, `step_series`, `delay::compute_delays`, `otb-gui/tools/step_common`, `otb-dev/corpus/calibrate`)
+  passaient tous `0`. Les cas de référence qui demandaient un lissage restent dans `delay.json` et restent **comptés** par
+  `rust/otb-analysis/tests/delay.rs` (au moins quatre), pour qu'un fichier de cas appauvri ne passe pas inaperçu : la fonction
+  ne peut simplement plus les représenter. Aucun résultat ne change (le lissage n'a jamais été calculé).
 - **W-025** — les fonctions de `analysis/motors.py` acceptent une vitesse moteur `mhz` en `float32` ou en `float64` (`_mhz_args`, L-041) ; le port Rust
   (`otb-analysis/src/motors.rs`) ne prend que des `Rows` `float32`, ce que rendent tous les journaux (D-029) et `motor_hz`. Aucun appelant de
   l'application ne fournit du `float64`.
   **Pourquoi reporté** : double chemin de test sans appelant réel.
   **Reprise** : si un outil de la phase 6 passe des vitesses moteur calculées en `float64` (alors rendre les fonctions génériques `Real`).
+  🚫 **SANS SUITE le 2026-11-08.** La phase 6 est écrite : aucun outil ne calcule de vitesse moteur en `float64`. Tous les
+  journaux sont en `float32` (D-029) et `motor_hz` en rend du `float32`. Rendre ces fonctions génériques ajouterait un second
+  chemin de calcul — donc un second chemin à tester — sans un seul appelant. À rouvrir si un outil en a besoin.
 - **W-026** — écarts de détail connus entre le Rust et numpy, **inatteignables** depuis l'application, relevés par la relecture de la 4c-A :
   (1) `npstat::max_f32` / `min_f32` gardent le premier de deux zéros de signes opposés alors que numpy rend le dernier (`max([-0.0, 0.0])` = +0,
   `max([0.0, -0.0])` = −0, selon l'ordre de réduction) : les valeurs passent par `abs` et aucun −0 ne sort du décodeur ; (2) `crash_time`, `phase_delay_ms`,
@@ -472,6 +503,10 @@ Règles d'écriture :
   élément, pas case par case (leurs valeurs sont peu nombreuses et proches de la dizaine de dB).
   **Pourquoi reporté** : aucun appelant ne les atteint ; les corriger sans cas réel serait deviner la règle de numpy.
   **Reprise** : si un outil de la phase 6 passe des valeurs à zéros signés ou des arguments non finis, ou à la suppression du Python (phase 7).
+  🚫 **SANS SUITE le 2026-11-08.** Les deux conditions de reprise sont arrivées et aucune n'a produit d'appelant : la phase 6
+  est écrite, et le Python a disparu en 7-5. (1) reste noté dans le code (`rust/otb-analysis/src/npstat.rs`, `max_f32`) ;
+  (2) et (3) étaient des écarts avec un étalon qui n'existe plus. Les corriger sans cas réel reviendrait à deviner la règle de
+  numpy, ce que le projet refuse.
 - **W-027** — `open_loop.rs` (port de `analysis/loop.py`) suppose les entrées que `loop_spectra` produit ; deux écarts à numpy sur des entrées que l'application ne
   construit jamais, relevés par la relecture de la 4c-B : (1) `margins` avec un masque `valid` d'**un seul élément** : numpy le diffuse, Rust rend une erreur
   « tailles différentes » ; (2) `estimate` sur des spectres à la main dont la grille de fréquences a un **pas nul** (fréquences en double) : `astype(int)` de NaN
@@ -479,6 +514,9 @@ Règles d'écriture :
   **Pourquoi reporté** : `loop_spectra` rend toujours une grille strictement croissante et un masque de la longueur de la grille ; reproduire ces cas sans appelant
   réel serait deviner.
   **Reprise** : si un outil de la phase 6 construit des spectres ou un masque à la main, ou à la suppression du Python (phase 7).
+  🚫 **SANS SUITE le 2026-11-08.** Mêmes raisons que W-026 : la phase 6 n'a produit aucun appelant qui construise un spectre ou
+  un masque à la main — `loop_spectra` rend toujours une grille strictement croissante et un masque de sa longueur — et il n'y
+  a plus de Python à égaler. L'écart reste noté dans `rust/otb-analysis/src/open_loop.rs`.
 
 - **W-028** — trois écarts de couverture connus de la 5a-4 / 5a-5, relevés par la relecture : (1) `1. PTB/PiloteB/Hover_Test5.bbl` est dans le corpus (500 fichiers) mais pas dans `flightlog.json` (499) ni dans `advisor/` ni dans `analysis/` : les références de ces couches sont plus anciennes que le corpus, seul le réglage par séries (`advisor_tuning/`) le couvre ; (2) `tuning_layer.rs` compare les erreurs par leur seule présence (Python lève ⇒ Rust lève), sans vérifier que c'est à la même étape, et le corpus actuel n'en contient aucune ; (3) `step_tuning` sur des curseurs contenant un NaN : Python trie sans erreur dans un ordre arbitraire, Rust rend une erreur (inatteignable depuis `find_series`).
   **Pourquoi reporté** : (1) demande de réenregistrer `advisor/` et `analysis/` (≈ 25 min) sans changer le code ; (2) et (3) n'ont aucun appelant réel.
@@ -491,6 +529,17 @@ Règles d'écriture :
   *Réglé le 2026-10-31 (hors liste)* : `log_check.json` (dans `rust/otb-advisor/tests/data/`) pesait 26 Mo. Colonnes que `check_log` ne lit pas (termes P, I, F, commande radio, debug, moteurs) écrites en zéros — **les réponses de Python, calculées sur ces journaux-là, sont identiques** (la gaz, `d_term` et `gyro_unfilt` restent : les retirer change des réponses) — puis gzip : `log_check.json.gz`, 5,2 Mo ; lu par `flate2` (Rust pur). Les 66 mutations restent détectées (une perdue en raccourcissant des journaux, retrouvée par un cas ajouté : `fenêtres : pitch sans consigne`).
   *Point 1 traité le 2026-11-02 (6-5, D-039)* : `DroneCard::from_value` est tolérant (une clé absente ou d'un type faux reprend son défaut ; seuls un `name` absent ou faux et une fiche qui n'est pas un objet restent des erreurs) et `pid_khz` entier est réécrit entier (`pid_khz_int`). Points 2 à 4 inchangés.
   *Statut après 7-5 (2026-11-04)* : il n'y a plus de Python à égaler ; les points 2 à 4 restent ouverts comme défauts propres du Rust (aucun appelant réel), à traiter si un appelant apparaît.
+  *Points 2 et 3 traités le 2026-11-08* : (3) `DroneCard::log_rate` ne **panique** plus. `profile()` se replie sur le profil
+  `five` (constante `DEFAULT_SIZE`, celle que `from_value` applique déjà), parce qu'une panique tue toute l'application pour un
+  simple champ mal rempli, alors qu'une taille inconnue a un repli évident. Test
+  `rust/otb-advisor/tests/drone_card.rs:une_taille_inconnue_se_replie_sur_le_defaut_sans_paniquer` (`log_rate`, `pid_log_rate`,
+  `i_range`, `damping_series` identiques à la fiche par défaut), **contre-preuve vue en échec** : la panique remise, le test
+  meurt sur « taille inconnue : n-importe-quoi ». (2) `auto_status` rend toujours une erreur quand l'usage manque — le cas est
+  inatteignable (`check_log` rend toujours les quatre usages) et une erreur signale franchement un défaut de code — mais son
+  message imitait Python (« AttributeError : 'NoneType' object has no attribute 'ok' ») : il dit maintenant « usage « … » absent
+  de la vérification du log ». Sans appelant réel, il n'y a rien à tester de plus. **Point 4 : toujours ouvert** (aucun crash au
+  sens de `crash_time` dans le corpus ; la branche « crash » ne repose que sur des cas fabriqués) — reprise : si un vrai log de
+  crash entre au corpus.
 
 ## Origine : phase 5c, comparaison de la ligne de commande sur le corpus (2026-11-01)
 
@@ -511,6 +560,9 @@ Règles d'écriture :
   (mesuré sur 3.14.4). La sortie s'écrit au fil de l'eau, session par session, comme Python.
   **Pourquoi reporté** : aucune de ces différences ne change un résultat.
   **Reprise** : à la phase 7 (suppression de Python : `scripts/cli_args_check.py` disparaît avec lui), ou si Cédric veut une vraie aide en ligne.
+  🚫 **SANS SUITE le 2026-11-08.** **Arbitrage de Cédric** : l'interface graphique est la voie normale, la ligne de commande
+  sert au diagnostic (`info`, `report`) ; une page d'aide par commande ne vaut pas le travail de l'écrire et de la tenir à jour.
+  `opentunebox -h` garde sa ligne d'usage. À rouvrir si la ligne de commande est un jour diffusée à d'autres pilotes.
   *Statut après 7-5 (2026-11-04)* : Python supprimé ; reste ouvert seulement si Cédric veut une vraie aide en ligne.
   [`rust/otb-cli/src/lib.rs:parse`]
 
@@ -553,6 +605,9 @@ Règles d'écriture :
   *Vérifié et traité le 2026-11-04* (sources de `epaint_default_fonts` 0.37.0 lues dans le registre de cargo) : les polices compilées par défaut sont **Hack** (MIT, Source Foundry ; base Bitstream Vera et DejaVu), **Ubuntu Light** (Ubuntu Font Licence 1.0) et **egui-icons** (MIT, sous-ensemble de emoji-icon-font) ; l'OFL-1.1 ne concerne que **NotoEmoji**, compilée seulement avec l'option `monochrome_emoji_fonts` (absente de notre arbre de dépendances ; aucune trace de « Noto » dans l'exécutable Linux du 2026-11-03). Les licences demandent que chaque copie contienne l'avis de copyright et le texte de la licence ; les polices portent déjà leur copyright dans leurs métadonnées (« Copyright 2011 Canonical Ltd. Licensed under the Ubuntu Font Licence 1.0 »). Ni l'installateur Windows ni l'AppImage ne livraient de mentions : `otb-dev licenses` écrit `THIRD-PARTY-LICENSES.txt` (polices, icônes Lucide, 324 crates), livré par les deux installateurs et par `install_linux.sh`, avec un test qui vérifie le contenu et la présence dans les installateurs. **Reste ouvert** : (1) 22 crates (famille egui, accesskit, spirv, enum-map, profiling, clipboard-win) n'ont pas de fichier de licence dans leur paquet publié : le fichier donne leur licence et leurs auteurs déclarés dans le manifeste, pas leur texte de copyright exact ; (2) ce qui précède n'est pas un avis juridique ; (3) l'obligation de joindre les avis vaut aussi pour les versions déjà distribuées (0.8.0 était en Python, avec d'autres composants : non examinée).
 - **W-044** — Installateur Windows de la phase 7-4. (1) `opentunebox.iss` supprime `{app}\_internal` à chaque installation : le dossier PyInstaller de la 0.8.0 (Python, Qt, numpy…) y est resté sinon, des centaines de Mo inutiles après une mise à jour par-dessus (structure confirmée : `COLLECT` dans `packaging/opentunebox.spec`). Écart voulu avec le plan global, qui proposait de le retirer. **Reprise** : retirer la ligne une ou deux versions après la première publication Rust. (2) `packaging/windows/construire_windows.ps1` (Rust par winget, `cargo build --release -p otb-gui` avec `crt-static`, `cargo metadata` pour la version, Inno Setup facultatif ; il cherche `ISCC.exe` dans `Program Files (x86)` puis dans `%LOCALAPPDATA%\Programs\Inno Setup 6`, ce second chemin étant **déduit** du script d'installation officiel is-6_7_4 et de la doc Microsoft, aucune page d'Inno Setup ne le citant) n'a été ni exécuté ni analysé ici (pas de Windows ni de PowerShell) ; les identifiants winget (`Rustlang.Rustup`, `JRSoftware.InnoSetup`, `Microsoft.VisualStudio.2022.BuildTools`) sont écrits de mémoire, **non vérifiés**. L'installateur lui-même a été compilé et essayé par la CI le 2026-11-03 (installation, lancement, désinstallation : ok ; `opentunebox.iss` n'est donc plus « non essayé »). **Reprise** : premier passage du script sur un Windows, et **mise à jour par-dessus la 0.8.0**. ⚠️ Au 2026-11-08, après la publication de la 0.9.0, aucun des deux n'a été fait : Cédric a vérifié la **désinstallation** (propre), mais pas l'installation par-dessus la 0.8.0. La suppression de `{app}\_internal` — écrite précisément pour ce cas — n'a donc **jamais été exercée sur une vraie machine** ; ne pas retirer cette ligne avant qu'une vraie mise à jour depuis la 0.8.0 ait été vue.
 - **W-045** — Icône de la fenêtre sous Linux (vu par Cédric le 2026-11-03, hors du sujet de la branche `feat/rust-packaging`). (1) Sous Wayland le programme installé par `install_linux.sh` a la bonne icône depuis que le `.desktop` s'appelle `OpenTuneBox.desktop` (L-076). (2) Une **AppImage lancée telle quelle** n'a aucun `.desktop` connu de KDE : icône générique, vérifié sur la capture du 2026-11-03. Pistes : documenter « intégrer l'AppImage (AppImageLauncher) ou lancer `install_linux.sh` » (rien à coder) ; ou faire écrire par l'AppImage, au premier lancement, un `OpenTuneBox.desktop` pointant vers `$APPIMAGE` (code à ajouter, comportement à décider avec Cédric). (3) Sous X11 forcé, `_NET_WM_ICON` est vide (`xprop`) alors que `window_icon()` renvoie bien une image : cause non trouvée (winit 0.30.13 / egui-winit 0.37 : aucune commande `Icon(None)` trouvée dans le code d'eframe, egui et egui-winit lus). **Point (2) TRAITÉ le 2026-11-06** (branche `fix/premiere-ouverture`), Cédric ayant choisi l'intégration au premier lancement : l'`AppRun` de l'AppImage écrit `~/.local/share/applications/OpenTuneBox.desktop` (`Exec` vers `$APPIMAGE`) et l'icône dans `~/.local/share/icons/hicolor/256x256/apps/`, une seule fois, jamais par-dessus un fichier existant, et sans empêcher le démarrage en cas d'échec (`packaging/linux/build_appimage.sh`, test `rust/otb-gui/tests/contracts.rs::l_appimage_s_integre_au_bureau_au_premier_lancement`, L-076). **Point (2) confirmé sur une vraie machine le 2026-11-07** (poste de Cédric, Wayland) : l'AppImage lancée depuis `~/AppImages/` a écrit son `.desktop` avec le bon `Exec`, la bonne icône et le bon `StartupWMClass` ; le point est **soldé**. ⚠️ Le garde-fou « jamais par-dessus un fichier existant » a son revers : un raccourci laissé par une AppImage supprimée empêche la suivante d'en écrire un bon (vu le 2026-11-07). **Reprise** : (3) si un utilisateur X11 le signale, ou avec winit 0.31 (v0.31.0-beta.4 existe ; eframe 0.37 utilise winit 0.30).
+  ✅ **CLOS le 2026-11-08.** Points (1) et (2) faits et confirmés sur la machine de Cédric. Point (3) : 🚫 **sans suite** par
+  **arbitrage de Cédric** — la cause n'a pas été trouvée après lecture d'eframe, egui et egui-winit, son poste est sous Wayland
+  et aucun utilisateur X11 n'est connu. À rouvrir sur signalement, ou gratuitement le jour où eframe passe à winit 0.31.
 
 ## Origine : passage du dépôt en public (2026-11-04)
 
@@ -650,3 +705,47 @@ compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
   **Reprise** : aucune. Si une analyse nouvelle dépassait quelques dizaines de millisecondes de calcul homogène, refaire la
   mesure avant de conclure.
   [`rust/otb-dsp/src/numeric.rs:rfft_rows`, `rust/otb-analysis/src/spectral.rs:seg_spectra`]
+
+## Origine : ménage des registres après la 0.9.0 (2026-11-08)
+
+- **W-053** — **45 messages d'erreur du code Rust imitent encore les exceptions de Python** : « KeyError : 'delays' »
+  (`noise.rs`), « ValueError : negative dimensions are not allowed » (`motors.rs`), « KeyError: {key} » (`datasets.rs`),
+  « ValueError : arange: cannot compute length » (`npstat.rs`)… Ils ont été écrits pour que la couche de parité puisse exiger
+  « erreur des deux côtés » face à l'étalon Python. Compté le 2026-11-08 : 45 occurrences dans `rust/otb-*/src/` après la
+  correction du 46ᵉ (W-029 point 2).
+  **Pourquoi reporté** : hors du sujet de la branche `chore/registers-cleanup`, qui solde des statuts ; le corriger touche six
+  crates et demande de vérifier, message par message, qui peut l'afficher.
+  **Risque si on n'y touche pas** : une erreur d'analyse remonte dans la barre d'état de l'interface (`tool::error_status`) et
+  dans la sortie de `opentunebox report`. Un pilote y lirait un nom d'exception d'un langage qui n'est plus dans le projet,
+  en anglais, alors que D-001 demande des messages en français. **Non vérifié** : lesquels de ces 45 messages sont réellement
+  atteignables depuis l'interface — c'est la première chose à établir.
+  **Reprise** : au prochain travail qui touche ces modules, ou dès qu'un message de ce genre est vu à l'écran.
+  **Piste** : trier d'abord les messages atteignables (ceux que `log_check`, `noise`, `rules` et les pages d'outils peuvent
+  remonter) et les réécrire en français ; laisser les autres, ou les remplacer par un texte court qui dit la cause.
+  [`rust/otb-advisor/src/noise.rs:noise_report`, `rust/otb-analysis/src/datasets.rs:get`, `rust/otb-analysis/src/npstat.rs:arange_f64`]
+
+## Origine : revue intégrale du projet (2026-11-08)
+
+- **W-054** — **Huit des dix comparateurs d'`otb-parity` n'ont toujours aucun test.** Le lot 16 en a couvert deux :
+  `check_decoder` et `check_header` (`rust/otb-parity/tests/comparateurs.rs` : référence fidèle acceptée, puis cinq
+  sabotages refusés). Restent sans test : `check_settings`, `check_flightlog`, `check_sliders`
+  (`rust/otb-parity/src/layers.rs:check_settings`), `check_analysis`
+  (`rust/otb-parity/src/analysis_layer.rs:check_analysis`, 822 lignes), `check_advisor`
+  (`rust/otb-parity/src/advisor_layer.rs:check_advisor`), `check_guide`
+  (`rust/otb-parity/src/guide_layer.rs:check_guide`), `check_tuning`
+  (`rust/otb-parity/src/tuning_layer.rs:check_tuning`) et `check_cli`
+  (`rust/otb-parity/src/cli_layer.rs:check_cli`).
+  **Pourquoi reporté** : pour les deux couches basses, la référence se fabrique à partir du log d'essai en quelques
+  lignes. Pour les couches hautes, il faut une référence au format de `golden.py record-…` — matrices `.npz`,
+  centaines de clés par session, réglages d'outils — que seule l'ancienne chaîne Python produit. L'écrire à la main
+  reviendrait à réimplémenter le format, et une référence inventée ne prouverait pas grand-chose.
+  **Risque si on n'y touche pas** : un comparateur qui ne compare rien rend « 0 écart » sur tout le corpus, et son
+  silence passe pour une preuve de justesse. C'est arrivé une fois (W-030, relecture de `loop` : deux grandeurs
+  comparées à elles-mêmes).
+  **Reprise** : au prochain réenregistrement des références (W-028), qui produira justement ces fichiers — en garder
+  **un** par couche, réduit, comme cas de test versionné.
+  **Piste** : le dossier `../otb-etalon` (étalon Python, gardé exprès) sert à produire ces références.
+
+  *Trouvé en écrivant les deux premiers tests* : `compare_header` faisait `session - 1` sur un entier non signé, donc
+  une référence annonçant la session `0` (ou sans ce champ) faisait **paniquer** le comparateur en debug — donc en CI.
+  Corrigé : erreur nommée au lieu de la panique, avec son test.

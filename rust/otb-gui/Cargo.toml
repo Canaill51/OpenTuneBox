@@ -4,6 +4,7 @@ description = "Interface egui d'OpenTuneBox (phase 6, D-035) : socle commun (th√
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [lib]
 name = "otb_gui"

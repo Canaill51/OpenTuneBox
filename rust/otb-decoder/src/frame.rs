@@ -57,6 +57,8 @@ fn at(a: &[i64], i: i64) -> i64 {
 }
 
 /// Valeur prédite ; `prev` / `prev2` ne servent que si `has_prev`.
+// Boucle de décodage : les champs sont passés à plat, trame après trame. Les réunir en structure ajouterait
+// une construction par trame dans le chemin le plus chaud du programme.
 #[allow(clippy::too_many_arguments)]
 fn predict(
     i: usize,
@@ -98,6 +100,8 @@ pub struct FrameDef<'a> {
 }
 
 /// Lit une trame et écrit ses champs dans `cur`.
+// Boucle de décodage : les champs sont passés à plat, trame après trame. Les réunir en structure ajouterait
+// une construction par trame dans le chemin le plus chaud du programme.
 #[allow(clippy::too_many_arguments)]
 pub fn parse_frame(
     s: &mut Stream,

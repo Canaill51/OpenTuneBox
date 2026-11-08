@@ -4,6 +4,7 @@ description = "Assistant de réglage (advisor/ de Python) : profils de taille, r
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 otb-analysis = { path = "../otb-analysis" }
@@ -12,6 +13,9 @@ otb-format = { path = "../otb-format" }
 otb-log = { path = "../otb-log" }
 serde_json = { version = "1", features = ["preserve_order"] }
 
+# ⚠️ Utilisées non pas ici mais par le module partagé `otb-analysis/tests/common/mod.rs`, que les tests de cette
+# crate incluent par `#[path]` : un grep sur `rust/otb-advisor/` seul les croit inutilisées et les fait retirer
 [dev-dependencies]
 flate2 = "1"
 otb-decoder = { path = "../otb-decoder" }
+

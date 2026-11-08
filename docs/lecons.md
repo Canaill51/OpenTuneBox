@@ -218,7 +218,20 @@ est celle du commit qui les a introduites.
 - **Symptôme** — 2026-11-03 (CI de la PR #93, jobs `tests` et `windows`) : `otb-dev/tests/docs.rs` panique, `chemins ou symboles introuvables : ["README.md : rust/target/release/opentunebox-gui"]`, alors que le même test passait en local juste avant le push.
 - **Cause (mesurée)** — le README citait en code (`…`) la sortie de `cargo build`. Ce fichier existe sur le poste de développement (on y a compilé), pas dans un dépôt fraîchement cloné : le test de chemins exige que tout chemin cité qui commence par un dossier du dépôt (`rust/`, `packaging/`…) existe. Sur une copie propre, le même test échoue comme la CI (essayé).
 - **Règle** — un fichier de compilation (`target/…`, `dist/…`) se cite sans le préfixe du dépôt (« le fichier `target/release/…` du dossier `rust` ») ou dans un bloc de code ; ne pas assouplir le test. **Avant de pousser un changement de documentation, lancer les deux contrôles sur une copie propre des fichiers suivis par git** : `git ls-files -z | xargs -0 -I{} cp --parents {} /tmp/copie/`, puis `cd /tmp/copie/rust && OTB_DOCS_ROOT=/tmp/copie cargo test -p otb-dev --test docs` et `cd /tmp/copie && python -m pytest tests/test_docs.py`.
-- **Preuve** — `otb-dev/tests/docs.rs::code_paths_and_symbols_exist` : échoue sur la copie propre avec l'ancienne phrase du README, passe avec la nouvelle.
+- **Récidive — 2026-11-08 (CI de la PR #129, jobs `tests` et `windows`)** : même panique, même fichier, autre phrase du README
+  (le fichier `target/release/opentunebox` du dossier `rust`, préfixé : le programme en ligne de commande cette fois).
+  Écrite dans l'étape 16a d'une revue dont
+  le but était justement d'aligner la documentation. La règle était connue, écrite, et relue le jour même : **elle n'a pas
+  suffi**, parce que rien ne la faisait respecter — le contrôle se contentait de l'existence du fichier, qui est vraie sur le
+  poste de développement. Une règle qu'on ne peut pas voir échouer chez soi se réenfreint.
+- **Garde-fou (2026-11-08)** — `missing_paths` refuse désormais un chemin de compilation préfixé du dépôt
+  (`rust/target/…`, `…/dist/…`, `…/build/…`) **qu'il existe ou non** (`docs::is_build_output_path`). Le contrôle échoue donc
+  sur le poste de Cédric exactement comme sur la CI. La forme prescrite ci-dessus — le même chemin **sans** le préfixe du
+  dépôt — reste acceptée : c'est elle qu'il faut écrire.
+- **Preuve** — `otb-dev/tests/docs.rs::code_paths_and_symbols_exist` : échoue sur la copie propre avec l'ancienne phrase du
+  README, passe avec la nouvelle. Et `otb-dev/tests/checks.rs::un_chemin_de_compilation_est_refuse_meme_quand_il_existe`, dont
+  le cas décisif **crée** le fichier dans son bac à sable : rendre au contrôle sa condition d'existence le fait échouer, lui
+  seul (sabotage vu en échec le 2026-11-08).
 
 ### L-078 : un test écrit avec `std::os::unix` ne compile pas sous Windows, et la CI Windows est le dernier endroit où on le voit
 - **Symptôme** — 2026-11-03 (CI de la PR #91) : job `windows` en échec après 8 min, `error[E0433]: cannot find 'unix' in 'os'` et `error[E0599]: no associated function … 'from_mode'`, alors que tout passait sous Ubuntu. Un test échoue donc à la compilation, avant de tourner, et la même erreur coupe tous les tests du crate.

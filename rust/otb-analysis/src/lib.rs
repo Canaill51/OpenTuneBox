@@ -207,6 +207,8 @@ pub struct Levels {
     pub used: Vec<bool>,
 }
 
+// Signature calquée sur celle de l'étalon : `otb-parity` rejoue ces fonctions par leur nom avec leurs arguments
+// dans le même ordre, et les regrouper en structure casserait cette correspondance.
 #[allow(clippy::too_many_arguments)]
 pub fn harmonic_levels<T: Real>(
     f: &[f64],

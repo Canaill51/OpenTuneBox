@@ -34,7 +34,9 @@ jobs:
           # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
           persist-credentials: false
       - name: Rust
-        run: rustup toolchain install stable --profile minimal
+        # Version et composants : rust/rust-toolchain.toml (rustup la pose au premier appel à cargo).
+        working-directory: rust
+        run: rustup toolchain install
       - name: Notes de version (section du CHANGELOG)
         # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette : les jobs de
         # construction ne partent pas (« needs: brouillon »), ce contrôle n'a donc pas à y être refait.
@@ -46,9 +48,19 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           numero="${GITHUB_REF_NAME#essai-}"; numero="${numero#v}" # essai-v0.8.0 et v0.8.0 donnent 0.8.0
-          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
-            gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
-              --title "OpenTuneBox $numero" --notes-file notes.md
+          # `gh release view` échoue aussi bien parce que la page n'existe pas que parce que le réseau est coupé :
+          # tout traiter comme « absente » ferait tenter une création vouée à l'échec, avec un message trompeur.
+          # On distingue les deux par le message de `gh` (« release not found »).
+          erreur=$(gh release view "$GITHUB_REF_NAME" 2>&1 > /dev/null) && existe=1 || existe=0
+          if [ "$existe" = 0 ]; then
+            case "$erreur" in
+              *"release not found"*|*"Not Found"*)
+                gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+                  --title "OpenTuneBox $numero" --notes-file notes.md ;;
+              *)
+                echo "::error::impossible de lire la page de la version : $erreur" >&2; exit 1 ;;
+            esac
+          fi
 
   construire:
     needs: brouillon
@@ -74,7 +86,9 @@ jobs:
           # macros de centaines de crates tierces y tournent. `gh` reçoit le jeton par GH_TOKEN, il n'en a pas besoin.
           persist-credentials: false
       - name: Rust
-        run: rustup toolchain install stable --profile minimal
+        # Version et composants : rust/rust-toolchain.toml (rustup la pose au premier appel à cargo).
+        working-directory: rust
+        run: rustup toolchain install
       - name: Bibliothèques pour l'essai de démarrage (Linux)
         if: runner.os == 'Linux'
         # Les serveurs n'ont ni écran ni carte graphique : écran virtuel (xvfb) et pilote Vulkan logiciel (lavapipe, dans
@@ -116,6 +130,7 @@ jobs:
         run: |
           $meta = cargo metadata --no-deps --format-version 1 --manifest-path rust\Cargo.toml | ConvertFrom-Json
           $version = ($meta.packages | Where-Object { $_.name -eq "otb-gui" }).version
+          if (-not $version) { Write-Error "numéro de version introuvable dans rust\Cargo.toml"; exit 1 }
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=$version" packaging\windows\opentunebox.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Move-Item dist\OpenTuneBox-Windows-Setup.exe ${{ matrix.package }}
@@ -198,6 +213,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          # `set -o pipefail` : sans lui, un échec de `gh` était avalé par le tube et seul le `diff` suivant le
+          # rattrapait, par accident. On veut l'erreur de `gh`, pas une liste vide comparée à deux noms.
+          set -o pipefail
           gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name' | LC_ALL=C sort | tee fichiers.txt
           # Exactement les deux fichiers attendus (Windows, Linux), sinon on s'arrête.
           printf '%s\n' OpenTuneBox-Linux.AppImage OpenTuneBox-Windows-Setup.exe | diff - fichiers.txt

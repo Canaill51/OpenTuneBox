@@ -18,7 +18,13 @@ fn ints(v: &Value) -> Vec<i64> {
 }
 
 fn compare_header(rec: &Value, data: &[u8], starts: &[usize]) -> Result<(), String> {
-    let k = rec["session"].as_u64().unwrap() as usize - 1;
+    // ⚠️ Les sessions des références Python sont numérotées à partir de 1. Un `0` (ou un champ absent) faisait
+    // déborder la soustraction : panique en debug, donc en CI. Une référence abîmée doit rendre une erreur, pas
+    // tuer le comparateur (W-054)
+    let k = rec["session"]
+        .as_u64()
+        .and_then(|n| (n as usize).checked_sub(1))
+        .ok_or_else(|| format!("numéro de session attendu à partir de 1, reçu {}", rec["session"]))?;
     let start = *starts.get(k).ok_or("session absente du fichier")?;
     let end = starts.get(k + 1).copied().unwrap_or(data.len());
     if (rec["start"].as_u64(), rec["end"].as_u64()) != (Some(start as u64), Some(end as u64)) {
