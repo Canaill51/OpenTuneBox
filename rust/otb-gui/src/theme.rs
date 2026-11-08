@@ -309,6 +309,26 @@ impl Palette {
 /// Taille du texte un peu plus grande que celle d'egui (`FONT_SCALE` de Python : 1,15).
 pub const FONT_SCALE: f32 = 1.15;
 
+/// Nombre de cadres à laisser passer avant d'annoncer le thème à la fenêtre du système : au premier cadre, Windows vient de
+/// créer la fenêtre et ne repeint pas son contour (L-091).
+pub const WINDOW_THEME_DELAY: u32 = 3;
+
+/// Thème à annoncer à la fenêtre du système (barre de titre et bordures) pour un thème d'OpenTuneBox.
+pub fn window_theme(theme: &Theme) -> egui::SystemTheme {
+    if theme.dark {
+        egui::SystemTheme::Dark
+    } else {
+        egui::SystemTheme::Light
+    }
+}
+
+/// Faut-il annoncer le thème à la fenêtre sur ce cadre ? Oui une fois la fenêtre posée, puis à chaque changement de thème.
+///
+/// ⚠️ Annoncer trop tôt ne sert à rien (L-091) : c'est tout l'intérêt de `WINDOW_THEME_DELAY`.
+pub fn should_send_window_theme(frames: u32, sent: Option<&str>, wanted: &str) -> bool {
+    frames >= WINDOW_THEME_DELAY && sent != Some(wanted)
+}
+
 /// Applique un thème à egui (couleurs des panneaux, des boutons, de la sélection).
 pub fn apply(ctx: &Context, theme: &Theme) {
     let u = &theme.ui;
@@ -341,6 +361,11 @@ pub fn apply(ctx: &Context, theme: &Theme) {
     v.widgets.active.fg_stroke.color = u.text;
     v.widgets.open.bg_fill = u.hover;
     v.widgets.open.weak_bg_fill = u.hover;
+    // ⚠️ egui synchronise seul la barre de titre de la fenêtre (`Options::sync_window_theme`) à la fin du cadre où le thème
+    // change, donc au tout **premier** cadre : sous Windows la fenêtre vient d'être créée et ne repeint pas son contour, la
+    // barre de titre reste sombre et le nom du programme devient illisible. egui retient ce qu'il a envoyé et ne réessaie
+    // jamais. On lui retire donc ce travail : `app.rs` envoie `SetTheme` lui-même une fois la fenêtre posée (L-091).
+    ctx.options_mut(|o| o.sync_window_theme = false);
     // préférence fixée : sans cela egui suit le thème du système et abandonne notre palette quand il change
     ctx.set_theme(if theme.dark {
         egui::ThemePreference::Dark

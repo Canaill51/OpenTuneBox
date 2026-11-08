@@ -60,6 +60,28 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-091 : egui habille la barre de titre au tout premier cadre, trop tôt pour Windows
+- **Symptôme** — 2026-11-08, essai de la 0.9.0 par Cédric sous Windows : à **chaque** lancement, l'application s'ouvre en
+  thème clair mais sa barre de titre reste sombre, si bien que le nom du programme (« OpenTuneBox 0.9.0 ») n'y est pas
+  lisible. Passer en thème sombre puis revenir au clair remet tout d'aplomb. Rien à l'écran sous Linux, rien dans les tests,
+  rien dans les captures hors écran : elles ne rendent que l'intérieur de la fenêtre, jamais son contour, qui appartient au
+  système.
+- **Cause** — egui synchronise lui-même la barre de titre avec son thème (`Options::sync_window_theme`, vrai par défaut
+  depuis 0.37) : il envoie `ViewportCommand::SetTheme` à la fin du cadre où la préférence change, c'est-à-dire au **premier**
+  cadre, puisque l'interface applique son thème dès son premier passage. Sous Windows la fenêtre vient d'être créée : elle a
+  déjà peint son contour avec le thème du système et rien ne l'invalide, car `winit` pose l'attribut de thème sans forcer de
+  repeinte du contour (`try_theme`, pas de `SetWindowPos`). Et comme egui retient ce qu'il a envoyé (`last_sent_window_theme`),
+  il ne réessaie jamais : seul un vrai changement de thème par l'utilisateur rattrape l'affichage.
+- **Règle** — ne pas laisser egui s'en charger : `theme.rs` met `sync_window_theme` à faux et `app.rs` envoie lui-même
+  `SetTheme` une fois la fenêtre posée (`WINDOW_THEME_DELAY` cadres), puis à chaque changement de thème. Plus largement :
+  **tout ce qui touche au contour de la fenêtre (barre de titre, bordures, icône) échappe aux tests et aux captures** et ne se
+  vérifie que sur une vraie machine, Windows comme Linux.
+- **Preuve** — mécanisme lu dans les sources des bibliothèques livrées : `egui-0.37.0/src/context.rs:sync_window_theme`
+  (envoi unique, mémorisé) et `winit-0.30.13/src/platform_impl/windows/dark_mode.rs:try_theme` (aucune repeinte forcée).
+  Garde-fou : `rust/otb-gui/tests/contracts.rs::le_theme_de_la_fenetre_est_annonce_apres_le_premier_cadre` ; retirer la ligne
+  `sync_window_theme = false` fait échouer le test. ⚠️ La correction elle-même ne peut être constatée que sur un vrai
+  Windows : ni la CI, ni `wine`, ni les captures hors écran ne montrent la barre de titre.
+
 ### L-090 : une capture d'écran « de la fenêtre active » photographie l'écran de Cédric, pas la fenêtre qu'on vient de lancer
 - **Symptôme** — 2026-11-06, essai de l'AppImage de la 0.9.0 : pour montrer la fenêtre d'OpenTuneBox, `spectacle -b -n -a` a
   rendu une image du **navigateur de Cédric** (son contenu personnel), pas de l'application lancée juste avant. L'image a été
@@ -1017,6 +1039,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-091 | Barre de titre, bordures, icône : egui les habille au **premier** cadre, trop tôt pour Windows, qui ne repeint pas le contour d'une fenêtre qu'il vient de créer ; annoncer le thème soi-même une fois la fenêtre posée, et se rappeler que le contour d'une fenêtre n'est vu ni par les tests ni par les captures | Interface |
 | L-090 | « Capture de la fenêtre active » (`spectacle -a`) : c'est la fenêtre de **Cédric** qui est photographiée, sans erreur visible ; un agent ne photographie jamais son écran, l'interface se regarde par les captures hors écran | Outillage |
 | L-089 | Fenêtre eframe sans `inner_size` : winit l'ouvre en 800 × 600 quel que soit l'écran ; dire comment la fenêtre s'ouvre (`with_maximized`, `with_inner_size`), la géométrie enregistrée l'emportant ensuite — et vérifier taille, position et icône sur un vrai **premier** lancement | Interface |
 | L-088 | Résultat d'un calcul en arrière-plan sans numéro de demande : il s'affiche en revenant (après « Tout fermer », ou avec l'ancienne sélection) ; numéroter chaque demande, jeter celle qui n'est plus la dernière, et tester en changeant l'état **pendant** le calcul | Interface |

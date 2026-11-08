@@ -76,6 +76,7 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 
 ## Interface egui et Rust
 
+- **Contour de la fenêtre** (barre de titre, bordures, icône) : il appartient au système, ni les tests ni les captures hors écran ne le voient — il se vérifie sur une vraie machine. egui l'habille au **premier** cadre (`sync_window_theme`), trop tôt pour Windows, qui ne repeint pas le contour d'une fenêtre qu'il vient de créer : lui retirer ce travail et annoncer le thème une fois la fenêtre posée. L-091
 - Fonction paramétrée par un système (`os`, comme `guide::cards_path_in`) : appliquer les règles de ce système, jamais celles de l'hôte (`Path::is_absolute` refuse `/data` sous Windows) ; la CI Windows est le seul témoin. L-074
 - Mesure de la carte graphique par `egui_kittest` : il prend par défaut le rendu logiciel (llvmpipe) et `render` relit l'image (≈ 10 ms fixes) ; choisir une vraie carte (`native_adapter_selector`), l'afficher, soustraire un écran sans courbe, décider sur le temps du processeur. L-084
 - Test egui qui attend un calcul en arrière-plan : `step()` dans la boucle d'attente puis `run_steps(n)`, jamais `run()` (il panique si le fil redemande une repeinte, CI Windows). L-077
