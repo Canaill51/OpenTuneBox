@@ -352,21 +352,37 @@ Sous-lot 7b, préparation de la version (PR `chore/release-0.9.0`) :
       Python d'aujourd'hui. Captures du README refaites : elles montraient l'interface Qt. Détail dans
       [validation.md](validation.md), « Contrôles avant la version 0.9.0 ».
 
-Étape 7c, essai complet sans rien publier (sur la branche de 7b, **avant** sa fusion) :
+Étape 7c, essai complet sans rien publier — **faite** (2026-11-06 au 2026-11-08). Le scénario d'origine (étiquette posée sur la
+branche de 7b, avant sa fusion) n'a pas tenu : 7b a été fusionné avant l'essai, et chaque défaut trouvé est devenu sa propre branche
+sur `main`. Il a fallu **quatre tours** d'essai au lieu d'un, et **sept défauts** ont été trouvés — tous sur de vraies machines,
+aucun par les tests :
 
-- [ ] Étiquette `essai-v0.9.0` sur la branche (poussée avec la confirmation de Cédric) ; run `construire.yml` vert ; le brouillon
-      porte les deux fichiers et les notes (résumé puis détail) ; la page reste en brouillon.
-- [ ] Télécharger les deux fichiers (`gh release download essai-v0.9.0`) et les donner à Cédric, qui essaie **à la main** :
-      - Windows (son poste) : installation par-dessus la 0.8.0 si elle est encore là (dossier `_internal` supprimé, raccourcis,
-        numéro dans « Applications installées »), ouverture d'un vrai log, page Guide, désinstallation propre ; si possible
-        `construire_windows.ps1` (W-044).
-      - Linux (son poste) : AppImage lancée (X11 et Wayland si possible ; icône : W-045), log passé en argument ouvert,
-        `install_linux.sh`.
-- [ ] Décision de Cédric sur W-045 (AppImage non intégrée au bureau : documenter, ou écrire un `.desktop` au premier lancement)
-      après l'avoir vue ; un correctif éventuel = sa propre branche `fix/…`, puis nouvel essai.
-- [ ] Supprimer le brouillon : `gh release delete essai-v0.9.0 --cleanup-tag --yes`.
-- [ ] **Critère d'arrêt** : un défaut sur une vraie machine → pas d'étiquette `v0.9.0` ; le consigner, le corriger dans une
-      branche à part, refaire l'essai.
+- [x] Étiquette `essai-v0.9.0`, run `construire.yml` vert, brouillon avec les deux fichiers et les notes, page restée en brouillon.
+      Reposée à chaque tour (`gh release delete … --cleanup-tag`, puis nouvelle étiquette sur `main` à jour).
+- [x] Les deux fichiers téléchargés et essayés **à la main** par Cédric, Windows et Linux.
+- [x] Décision de Cédric sur W-045 : l'AppImage **écrit elle-même** son raccourci de bureau au premier lancement (point 2 soldé).
+      Vérifié sur son poste le 2026-11-07 : raccourci écrit avec le bon chemin, la bonne icône et le bon `StartupWMClass`, sous Wayland.
+- [x] **Critère d'arrêt appliqué quatre fois** : chaque défaut a eu sa branche `fix/…` ou `feat/…`, puis un nouvel essai complet.
+- [ ] Supprimer le brouillon : `gh release delete essai-v0.9.0 --cleanup-tag --yes` (à faire une fois la 0.9.0 publiée).
+
+Les sept défauts, dans l'ordre où Cédric les a vus :
+
+| # | Défaut vu sur une vraie machine | Correction | Pourquoi aucun test ne l'avait vu |
+|---|---|---|---|
+| 1 | Fenêtre minuscule au premier lancement (800 × 600) | PR #118, `with_maximized` | Les tests et les captures fixent eux-mêmes la taille de la fenêtre (L-089) |
+| 2 | AppImage sans icône ni entrée de menu | PR #118, l'`AppRun` écrit le `.desktop` | L'intégration au bureau n'existe que sur un vrai bureau (W-045) |
+| 3 | Bouton « ? » du Guide trop discret | PR #119, bouton « ⓘ Aide » | Jugement d'usage, pas de règle testable |
+| 4 | Harmoniques et notchs non choisissables un par un | PR #120, menu jusqu'à 7 | Manque fonctionnel, vu à l'usage |
+| 5 | Spectres du Simulateur hors de l'échelle PIDtoolbox | PR #121, échelle −50..20 dB | Recoupement visuel avec PIDtoolbox |
+| 6 | Réponse indicielle : ordre et couleurs imposés | PR #122, ordre de sélection (D-049) | Choix d'ergonomie de Cédric |
+| 7 | Version invisible, puis barre de titre sombre sous Windows | PR #123 (titre + version), PR #126 (L-091) | Le **contour** d'une fenêtre appartient au système : ni les tests, ni `wine`, ni les captures hors écran ne le voient |
+
+Deux autres demandes sont arrivées pendant l'essai, sans être des défauts de la 0.9.0 : les sources citées sans nommer leurs auteurs
+(PR #124, D-050) et les captures du README refaites sur l'interface d'alors (PR #125).
+
+**Ce que cet essai a appris.** Un programme livré ne se juge pas depuis le dépôt : six défauts sur sept portaient sur ce que la CI ne
+voit pas — taille et contour de la fenêtre, intégration au bureau, ergonomie. Prévoir plusieurs tours d'essai, et poser l'étiquette
+d'essai sur `main` plutôt que sur une branche, pour que chaque correctif suive le circuit normal.
 
 Étape 7d, publication :
 
@@ -511,7 +527,7 @@ en parallèle est **écarté** ici : ×1,10 seulement sur `FINAL.bbl`, et il cum
 | 4 | Fait le 2026-11-04 (branche `fix/decoder-hostile-header`, D-044, L-080) : `DecodeError`, bornes 512 champs / intervalles 1 à 65 535, `try_reserve`, `Settings::implausible`. `robustness.rs` : 10 cas, 6 rouges avant correction (les intervalles à 9·10¹⁸ ne bouclaient pas sur cette source : refusés par la borne seulement) ; contre-preuves : 4 retraits rougissent. `otb-parity` 0 échec, `corpus validate` 697/712 comme la ligne de base |
 | 5 | Fait le 2026-11-04 (branche `perf/decoder-memory`, poussée, PR non ouverte, L-081). Banc `otb-dev bench-open` fait (lot 5a). 5a (session par session) essayé et retiré : sans effet (une seule session, +32 Mo). Variante 1 : rendre la table `i64` avant les copies finales : 481 → 342 Mo. Variante 2 (accord de Cédric) : `CompactTable`, trames rangées en `i32` dès le décodeur : **274 Mo (÷ 1,75, objectif ÷ 1,5 atteint, ÷ 2 manqué), 0,54 s (plus rapide)**, `FlightLog` identiques sur 528 fichiers, `corpus validate` 697/712, `otb-parity` 0 échec. Un décodage par blocs vers `f32` irait plus loin (non fait). `golden.rs` rouge sur `main` avec `OTB_GOLDEN`, non traité |
 | 6 | Fait le 2026-11-06 (branche **docs/plan-suite**, avec le plan de la suite : la branche prévue docs/chantiers-bilan aurait empilé une PR sur une PR non fusionnée, choix de Cédric). Bilan des cinq chantiers ci-dessus ; L-087 et L-088 écrites ; W-014 et W-016 clos, W-035 (9), W-036 (8) et W-041 mis à jour ; note périmée sur `golden.rs` corrigée dans `validation.md`. Aucun code livré. Écart au plan : les mesures de robustesse et de mémoire n'avaient pas à être reprises (les lots 4 et 5 les avaient déjà écrites dans `validation.md`), et la 3ᵉ leçon prévue existait déjà (L-080) |
-| 7 | Détaillé le 2026-11-05 (0.9.0, après les lots 5 et 6). **7a fait le 2026-11-06** (branche `feat/licenses-check`) : `otb-dev licenses --check`, étape `licenses` de `verify`, contrôle dans `tests.yml` sous Ubuntu **et sous Windows**. Hypothèse du constat de départ **fausse** : le fichier du dépôt n'était pas périmé (régénéré sous Linux, identique octet pour octet, 324 composants et 607 849 octets), car `zip` n'est pas une dépendance livrée d'`otb-gui` (construction et test seulement) et n'apparaît pas dans le fichier ; la mise à jour de la PR #99 ne pouvait donc rien changer. Les crates propres à Windows (`clipboard-win`, `accesskit_windows`, `windows_x86_64_msvc`) sont déjà prises depuis Linux, textes de licence compris. Contre-preuves : une ligne retirée → `--check` rend 1 en nommant la ligne 250, et `verify --quick` rend 1 avec l'étape `licenses : ÉCHEC`. **7b fait le 2026-11-06** (branche `chore/release-0.9.0`) : résumé « Ce qui change pour vous » en tête du CHANGELOG (9 entrées de l'époque Python retirées avec l'accord de Cédric, ligne du décodeur reformulée), captures du README refaites sur l'interface Rust, `release prepare 0.9.0`, et les trois vérifications au vert (détail dans la section du lot). 7c à 7e : à faire |
+| 7 | Détaillé le 2026-11-05 (0.9.0, après les lots 5 et 6). **7a fait le 2026-11-06** (branche `feat/licenses-check`) : `otb-dev licenses --check`, étape `licenses` de `verify`, contrôle dans `tests.yml` sous Ubuntu **et sous Windows**. Hypothèse du constat de départ **fausse** : le fichier du dépôt n'était pas périmé (régénéré sous Linux, identique octet pour octet, 324 composants et 607 849 octets), car `zip` n'est pas une dépendance livrée d'`otb-gui` (construction et test seulement) et n'apparaît pas dans le fichier ; la mise à jour de la PR #99 ne pouvait donc rien changer. Les crates propres à Windows (`clipboard-win`, `accesskit_windows`, `windows_x86_64_msvc`) sont déjà prises depuis Linux, textes de licence compris. Contre-preuves : une ligne retirée → `--check` rend 1 en nommant la ligne 250, et `verify --quick` rend 1 avec l'étape `licenses : ÉCHEC`. **7b fait le 2026-11-06** (branche `chore/release-0.9.0`) : résumé « Ce qui change pour vous » en tête du CHANGELOG (9 entrées de l'époque Python retirées avec l'accord de Cédric, ligne du décodeur reformulée), captures du README refaites sur l'interface Rust, `release prepare 0.9.0`, et les trois vérifications au vert (détail dans la section du lot). **7c fait du 2026-11-06 au 2026-11-08** : quatre tours d'essai sur de vraies machines, sept défauts trouvés et corrigés (PR #118 à #126), aucun vu par les tests ; détail et enseignement dans la section du lot. 7d et 7e : à faire |
 | 8 | Fait le 2026-11-05 (branche `chore/viewer-frame-bench`, partie de `main` : le lot 5 était fusionné) : `examples/banc_cadre.rs`. Étalon retrouvé sur `FINAL.bbl` (viewer 7,4 à 8,3 ms, Guide 0,41 à 0,43, 6,2 ms à 640 px) ; `LOG00008.BFL` 12,6 à 13,0 ms à 620 079 échantillons, sous les 16,7 ms. Écart au plan : les 0,34 ms de carte graphique de W-049 ne se reproduisent pas (kittest prend le rendu logiciel par défaut ; sur vraie carte, ≈ 10 ms fixes de relecture même sans courbe) : `--gpu` gardé avec chiffres bruts (accord de Cédric), le lot 10 se juge sur le temps du processeur. Le banc ajoute la tessellation (0,7 ms) |
 | 9 | Non retenu le 2026-11-04 ; repris hors lot le 2026-11-05 (branche `test/golden-tolerance`, D-047, L-083) : `golden.rs` vert avec `OTB_GOLDEN` |
 | 10 | Fait le 2026-11-05 (branche `perf/viewer-pyramid`, D-048, L-085, L-086) : index multi-résolution min/max dans `otb-dsp`, cadre du viewer ÷ 2,2 (620 079 échantillons : 10,5–12,1 → 4,6–4,8 ms) à ÷ 6,5 (fenêtre étroite), autant pendant un glissement ; tracé identique au bit près, index à 6,4–7,8 % du pic de mémoire (pic inchangé, plafond de Cédric : 10 %). Décision de Cédric : piste (b). Écart au plan : exactitude obtenue **point pour point** et non seulement sur l'enveloppe, mais la règle des trous a dû changer (un paquet à trou est tracé comme un trou, D-048). Reste W-052 : le cadre est maintenant dominé par le tracé des ≈ 3 840 points de chaque courbe |
