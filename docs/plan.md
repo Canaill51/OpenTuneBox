@@ -58,12 +58,12 @@ le budget de 60 images par seconde est tenu avec une marge de 3 sur la plus long
 (5,6 ms contre 16,7). Il attend un **déclencheur mesuré**.
 
 **Déclencheurs** (l'un suffit) : le viewer accroche sur un log plus long que le corpus ; on veut afficher
-beaucoup plus de courbes à la fois ; un pilote signale une lenteur ; la mémoire du cache des outils devient
-visible.
+beaucoup plus de courbes à la fois ; un pilote signale une lenteur. (La mémoire du cache des outils était le
+quatrième : elle a été mesurée le 2026-11-10, et le cache est borné depuis — D-053.)
 
 **Branche** : `perf/viewer-draw` (W-052) ou `refactor/spectral-pages` selon le déclencheur.
 
-**À lire** : [travaux-reportes.md](travaux-reportes.md) W-052 et W-035 (point 9),
+**À lire** : [travaux-reportes.md](travaux-reportes.md) W-052 (W-035 est clos : son point 9 a été mesuré puis borné, D-053),
 `rust/otb-gui/src/viewer_page.rs:ui`, `rust/otb-gui/src/tools/freq_time.rs` (la texture en cache, le modèle
 à suivre), [decisions.md](decisions.md) D-037 et D-048, [lecons.md](lecons.md) L-085, L-086.
 
@@ -99,7 +99,9 @@ visible.
 Ces travaux reportés sont **vus et laissés** : aucun n'empêche un pilote d'utiliser OpenTuneBox aujourd'hui.
 Leur détail et leur condition de reprise sont dans [travaux-reportes.md](travaux-reportes.md) ; ne pas les
 rouvrir ici sans cette condition. Deux d'entre eux (W-043 et W-044) viennent du lot 13 supprimé : ils n'ont
-jamais dépendu de la 0.8.0, et gardent donc leur condition de reprise.
+jamais dépendu de la 0.8.0, et gardent donc leur condition de reprise. **W-041 a quitté ce tableau le
+2026-11-10** : sa condition de reprise — un échec au hasard de la CI sur ce test — a été atteinte, et il est
+clos (L-095). C'est à cela que sert une condition de reprise écrite d'avance.
 
 | ID | Pourquoi il n'est pas dans un lot |
 |---|---|
@@ -109,7 +111,6 @@ jamais dépendu de la 0.8.0, et gardent donc leur condition de reprise.
 | W-022 | Tolérance par fonction et non par champ dans `otb-parity` : reprise si un écart est soupçonné sur `freqs` / `bins` / `resolution_hz` |
 | W-028 | Écarts des références figées : se règle au **prochain réenregistrement**, pas avant |
 | W-029 (4) | Branche « crash » du guide : aucun crash réel dans le corpus, seuls des cas fabriqués |
-| W-041 | Test sensible à la charge : ⏸ attend un échec au hasard de la CI ; le corriger avant reviendrait à deviner le délai |
 | W-042 | Avis RustSec hérités d'eframe : ⏸ attend une version d'eframe qui change ses dépendances |
 | W-043 | Relecture des textes de licence livrés (22 composants sans fichier de licence) : **échéance avant la 1.0** — laissée hors lot par Cédric le 2026-11-10, à reprendre en préparant la 1.0 |
 | W-044 (2) | `construire_windows.ps1` jamais essayé sur un vrai Windows : la CI fabrique l'installateur livré, ce script ne sert qu'à construire chez soi — à l'occasion. Son point 1 (`_internal`) est **clos** |
