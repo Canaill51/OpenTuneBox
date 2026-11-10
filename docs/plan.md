@@ -59,8 +59,10 @@ vraiment.
 à la **justesse des conseils donnés au pilote** : un seuil mal placé fait déclencher un constat trop souvent
 (le pilote n'y croit plus) ou jamais (le défaut passe).
 
-**Branche** : `feat/calibrate-last-thresholds` (une branche par seuil si le lot est trop gros :
-`feat/calibrate-<seuil>`).
+**Branche** : docs/source-last-thresholds — écart voulu avec le nom prévu
+(`feat/calibrate-last-thresholds`) : **aucune valeur de seuil n'a changé**, parce qu'aucune des deux ne peut
+l'être par un calcul (voir ci-dessous) ; ce lot est donc de la documentation et des sources, pas une
+calibration.
 
 **À lire d'abord** : la compétence `assistant-seuils` (c'est elle qui donne la méthode), la compétence
 `calculs-corpus` (pour ne pas gaspiller des heures de calcul), [assistant.md](assistant.md) section
@@ -77,21 +79,32 @@ restant est **W-005**.
 | « Taille par le nom » | bornes de détection de la taille d'après le nom du fichier (3,8 / 5,8 / 7,8 pouces, « whoop », 65, 75) | repli quand ni l'eRPM ni la tension ne donnent la taille ; lecture corrigée le 2026-10-12. **Calibration des bornes mise de côté par Cédric le 2026-10-12**, à reprendre à sa demande |
 | « Seuils du profil 8"+ » | seuils du profil 8 pouces et plus | **6 drones, 20 sessions** seulement : c'est W-002 (manque de données), pas un défaut de calcul — plus de logs, pas plus de calcul |
 
-- [ ] Lister les seuils « Estimation » restants, avec pour chacun : le constat qu'il déclenche, son taux
+- [x] Lister les seuils « Estimation » restants, avec pour chacun : le constat qu'il déclenche, son taux
       actuel sur le corpus (`otb-dev corpus rates`), et s'il existe une source publiée (firmware, guide RPM,
-      configurateur).
-- [ ] **Accord de Cédric sur la liste et l'ordre** avant de calibrer (critère d'arrêt : ne pas improviser).
-- [ ] Un seuil à la fois : mesure sur le corpus, taux avant / après, valeur proposée, et **ce qui change
-      pour le pilote** (quels logs gagnent ou perdent le constat). Chaque changement de valeur est tranché
-      par Cédric et devient un `D-xxx`.
-- [ ] **W-005** (formule de l'erreur aléatoire attribuée à un ouvrage sans vérification à la page) : soit on
+      configurateur). **Résultat (2026-11-10)** : deux seuils, et **ni l'un ni l'autre ne déclenche de
+      constat** — le premier choisit un **profil** (un taux n'a donc pas de sens), le second **est** le jeu de
+      seuils d'un profil. `corpus rates` ne s'applique à aucun des deux. Surtout : le corpus **n'exerce
+      jamais** le premier (0 drone sur 96, 685 sessions, sans fréquence moteur mesurée — compté sur
+      `corpus.csv`), et le second manque de drones (6 pour 8"+, W-002).
+- [x] **Accord de Cédric sur la liste et l'ordre** avant de calibrer (critère d'arrêt : ne pas improviser).
+      Accord du 2026-11-10 : **ne toucher à aucune valeur**, écrire les deux conditions de levée.
+- [x] ~~Un seuil à la fois : mesure sur le corpus, taux avant / après…~~ **Sans objet** : aucune valeur
+      changée, donc aucun `D-xxx` et aucun cas de test à reprendre. Les deux lignes passent à « Estimation
+      assumée » avec leur condition de levée, au lieu de « à vérifier en priorité » qui laissait croire à une
+      calibration possible et négligée.
+- [x] **W-005** (formule de l'erreur aléatoire attribuée à un ouvrage sans vérification à la page) : soit on
       trouve l'ouvrage et on vérifie la page, soit on remplace la citation par ce qui est réellement prouvé
       (le recoupement par simulation, déjà fait). Pas de calcul faux connu : c'est une question d'honnêteté
-      de la documentation.
-- [ ] **Critère d'arrêt** : un seuil dont la calibration changerait les conseils sur plus de 10 % du corpus
-      → s'arrêter et revenir vers Cédric avant de livrer.
-- [ ] **Consigner** : [assistant.md](assistant.md) (origine de chaque seuil), [decisions.md](decisions.md),
-      W-003 (« Avancement »), `CHANGELOG.md`.
+      de la documentation. **Fait** : Cédric n'a pas l'ouvrage ; recherche en ligne → un tableau d'erreurs
+      aléatoires reproduit dans un article publié, **lu à la page**, annonçant « Table 9.6, p. 312 » et donnant
+      **exactement** notre formule → entrée [S37] de [spec-methodes.md](spec-methodes.md), avec ses trois
+      limites écrites (livre non ouvert, étiquette `nd` divergente, c'est la simulation qui tranche). W-005 clos.
+- [x] **Critère d'arrêt** : un seuil dont la calibration changerait les conseils sur plus de 10 % du corpus
+      → s'arrêter et revenir vers Cédric avant de livrer. **Non atteint** : 0 % du corpus touché, aucune
+      valeur changée.
+- [x] **Consigner** : [assistant.md](assistant.md) (origine de chaque seuil), ~~[decisions.md](decisions.md)~~
+      (aucune décision : aucune valeur changée), W-003 (« Avancement »), `CHANGELOG.md`. **W-055 ouvert** au
+      passage : cinq entrées `[S…]` nomment encore une personne, arbitrage de Cédric sur D-050.
 
 ---
 

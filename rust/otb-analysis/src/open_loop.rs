@@ -543,6 +543,9 @@ fn smooth_variable(z: &[C], widths: &[i64]) -> Vec<C> {
 }
 
 /// `_rand_err` : erreur aléatoire relative du module d'une fonction de transfert estimée (cohérence γ², n moyennes).
+/// Formule classique de l'analyse spectrale, source [S37] de `docs/spec-methodes.md` (W-005) ; `n` est bien un **nombre de
+/// moyennes**, pas un nombre d'échantillons. Ne sert qu'à fermer la bande analysée (points gardés tant que l'erreur ≤ 0,2),
+/// jamais à produire un chiffre affiché : c'est la simulation qui valide la bande retenue (`docs/validation.md`).
 fn rand_err(coh: f64, n_avg: f64) -> f64 {
     let nan_to_num = |v: f64| {
         if v.is_nan() {
