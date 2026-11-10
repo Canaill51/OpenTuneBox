@@ -248,6 +248,13 @@ impl App {
         ctx.request_repaint();
     }
 
+    /// Expéditeur du canal des captures, **pour les tests** : poser une image dedans imite egui-wgpu sans attendre un
+    /// vrai rendu, et permet de vérifier l'ordre « relever la capture, puis examiner l'échéance » sans dépendre d'une
+    /// horloge (L-095). Même rôle que le champ remplaçable `save_dialog` pour la boîte d'enregistrement.
+    pub fn shot_sender(&self) -> Sender<Arc<egui::ColorImage>> {
+        self.shot_tx.clone()
+    }
+
     /// Recadre la capture reçue, demande le fichier, l'écrit. Python n'affiche rien ; ici le résultat va dans la barre du bas (W-038).
     fn finish_export(&mut self, ctx: &egui::Context, shot: &egui::ColorImage) {
         self.shot_at = None;
@@ -377,6 +384,12 @@ impl App {
             self.open(dropped);
         }
         self.poll_opening(&ctx);
+        // ⚠️ Relever la capture **avant** d'examiner l'échéance : l'inverse jetait `shot_rect` au cadre où le délai
+        // expirait, et `finish_export` ressortait alors sans rien écrire bien que l'image fût là — l'export échouait
+        // avec « la capture d'écran n'est pas arrivée » alors qu'elle venait d'arriver (L-095).
+        if let Ok(shot) = self.shot_rx.try_recv() {
+            self.finish_export(&ctx, &shot);
+        }
         if let Some(at) = self.shot_at {
             if at.elapsed() > self.capture_timeout {
                 self.shot_at = None;
@@ -385,9 +398,6 @@ impl App {
             } else {
                 ctx.request_repaint_after(self.capture_timeout); // pour constater l'échéance même sans autre événement
             }
-        }
-        if let Ok(shot) = self.shot_rx.try_recv() {
-            self.finish_export(&ctx, &shot);
         }
         // premier log ouvert depuis l'accueil du guide : on passe aux courbes
         if !self.state.logs.is_empty() && !self.had_logs && self.screen == Screen::Guide && self.guide.at_home() {

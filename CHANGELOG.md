@@ -41,6 +41,14 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Corrigé
 
+- **Un export d'image ne peut plus échouer alors que la capture a bien été prise.** L'application regardait si le délai
+  d'attente était dépassé **avant** d'aller chercher l'image : sur une machine très chargée, l'image arrivait juste à
+  l'échéance et était jetée, avec le message « Export impossible : la capture d'écran n'est pas arrivée » — alors qu'elle
+  l'était. L'image est maintenant relevée d'abord, et le délai n'abandonne que ce qui n'est vraiment jamais venu. Le test
+  qui aurait dû le voir **dormait** 400 ms pour mesurer ce délai : il échouait au hasard selon la charge de la machine
+  (14 échecs sur 15 sous charge, reproduit), il ne dépend plus d'aucune horloge, et le fichier de tests passe de 6–8 s à
+  1,0 s (W-041 clos, L-095).
+
 - **Un chemin produit par la compilation ne peut plus passer le contrôle de documentation chez celui qui a compilé.**
   Le README citait le fichier `target/release/opentunebox` du dossier `rust` en le préfixant du dépôt — un fichier qui
   n'existe que sur une machine où l'on a construit, donc le

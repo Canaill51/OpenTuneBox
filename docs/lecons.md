@@ -60,6 +60,31 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-095 : une échéance examinée avant de relever le résultat jette un travail déjà terminé, et le test qui l'aurait vu dormait
+
+- **Symptôme** — 2026-11-10 : la CI échoue sur `main` (run 42820099528) dans
+  `le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi` : « Export impossible : la capture d'écran n'est pas
+  arrivée. » La CI de la PR du **même commit** était verte, et le test passe sur le poste. C'était la condition de reprise de
+  W-041, attendue depuis le 2026-11-03.
+- **Cause** — **mesurée**, en deux étages :
+  1. *Dans l'application* : `App::ui` examinait l'échéance de la capture **avant** de relever l'image dans son canal
+     (`shot_rx.try_recv`). Au cadre où le délai expirait, `shot_rect` était jeté, puis `finish_export` recevait l'image et
+     ressortait aussitôt faute de zone à découper : l'export échouait **alors que la capture était arrivée**. Avec le vrai
+     délai de 3 s, il faut une machine très chargée ; avec les 150 ms du test, il suffit de la CI.
+  2. *Dans le test* : il ramenait le délai à 150 ms puis **dormait 400 ms** pour vérifier qu'aucune fausse erreur ne venait
+     après coup. Un test qui mesure une horloge murale sous charge est un test qui échoue au hasard. Reproduit à volonté :
+     **14 échecs sur 15** exécutions du fichier sous 96 processus de charge (24 cœurs), 0 sur 20 à charge égale au nombre de
+     cœurs — c'est pourquoi il ne s'était jamais vu sur le poste.
+- **Règle** — relever d'abord ce qui est **déjà là**, n'examiner l'échéance qu'ensuite : une échéance ne doit jamais abandonner
+  un travail terminé. Et un test ne prouve pas une règle de temps en **dormant** : rendre la condition immédiate (ici, un délai
+  ramené à `Duration::ZERO` fait expirer l'échéance au cadre suivant) et poser l'image dans le canal par une prise de test
+  (`App::shot_sender`), comme le projet remplace déjà la boîte d'enregistrement. Voir aussi L-077 (attendre un calcul en
+  arrière-plan dans un test egui).
+- **Preuve** — `rust/otb-gui/tests/app.rs` : `une_capture_arrivee_a_l_echeance_est_utilisee_et_non_jetee` (contre-preuve :
+  remettre l'ancien ordre dans `app.rs:ui` le fait rougir) et `le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi`,
+  réécrit sans horloge (contre-preuve : laisser l'échéance armée après un export réussi le fait rougir). Après correction :
+  **0 échec sur 20** exécutions sous la même charge, et le fichier de tests passe de 6–8 s à 1,0 s.
+
 ### L-094 : un résultat rangé dans un cache emporte tout ce que son type contient, y compris ce que personne n'affiche
 
 - **Symptôme** — 2026-11-10 (lot 15) : aucun. L'interface ne ralentit pas, rien ne plante ; le cache des outils
@@ -1102,6 +1127,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-095 | Une échéance examinée **avant** de relever le résultat déjà arrivé le jette (l'export d'image échouait sur « capture pas arrivée » alors qu'elle l'était) ; et un test qui **dort** pour prouver une règle de temps échoue au hasard sous charge : rendre la condition immédiate et poser le résultat par une prise de test | Interface |
 | L-094 | Un résultat rangé dans un cache emporte **tout** ce que son type contient : le rapport de l'assistant transportait les fenêtres individuelles de la réponse indicielle (69 % de son poids, jusqu'à 72 Mo) que personne n'affiche ; peser un cache avec un allocateur qui compte, et libérer ce qu'aucun lecteur n'utilise | Interface |
 | L-093 | Deux tests d'un même fichier qui partagent un dossier temporaire nommé d'après le seul `pid` s'effacent leurs fichiers (ils tournent en parallèle dans un même processus) : nommer le dossier d'après le test | Tests |
 | L-092 | Un plan qui tient son propre historique contredit les registres (la liste « reste ouvert » d'un plan omettait un `W-xxx` ouvert le même jour, sans aucun test rouge) : **un seul plan**, `docs/plan.md`, qui cite les `W-xxx` sans recopier leur état ; un lot fini devient une ligne d'historique | Outillage |
