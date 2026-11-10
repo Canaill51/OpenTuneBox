@@ -10,10 +10,10 @@ installateur Windows), les huit outils de PIDtoolbox Pro V0.94 sont tous couvert
 verte, et `cargo run -p otb-dev -- verify --strict` avec le corpus, les références figées et la comparaison
 au bit près : **0 saut, tout passe**.
 
-Le programme est donc complet et publié. Ce qui reste tient en deux familles : **finir la calibration de
-l'assistant** (lot 14), et **du confort** (lots 11 et 15). La troisième famille — vérifier ce que seule une
-vraie machine vérifie — a disparu le 2026-11-10 : **personne n'a jamais utilisé la 0.8.0**, donc le lot 13
-n'avait plus d'objet (voir l'historique en bas).
+Le programme est donc complet et publié, et depuis le 2026-11-10 **il ne reste que du confort** (lots 11
+et 15). Les deux autres familles ont disparu le même jour : vérifier ce que seule une vraie machine vérifie
+(lot 13) n'avait plus d'objet, **personne n'ayant jamais utilisé la 0.8.0** ; et **plus aucun seuil de
+l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur ait eu à changer.
 
 ## Comment s'en servir
 
@@ -32,66 +32,22 @@ n'avait plus d'objet (voir l'historique en bas).
   vers Cédric ; ne pas improviser un autre découpage.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
-- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 10, 12, 13, 16 et 17
+- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 10 et 12 à 14, 16 et 17
   sont au tableau en bas (faits, non retenus ou supprimés), le prochain numéro libre est **18**.
 
 ## Ordre des étapes
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **14** | Derniers seuils « Estimation » de l'assistant (W-003) et source de W-005 | **à faire — en tête** (corpus requis) |
-| 2 | **11** | Ouverture de plusieurs logs en parallèle (W-050) | à faire (plafond tranché : D-051) |
-| 3 | **15** | Dette de l'interface (W-052, cache, pages spectrales) — **conditionnel** | attend un déclencheur mesuré |
+| 1 | **11** | Ouverture de plusieurs logs en parallèle (W-050) | **à faire — en tête** (plafond tranché : D-051) |
+| 2 | **15** | Dette de l'interface (W-052, cache, pages spectrales) — **conditionnel** | attend un déclencheur mesuré |
 
-Raison de cet ordre, arrêtée le 2026-11-10 : le **lot 14 passe en tête** parce que c'est le seul qui touche
-à la **justesse des conseils donnés au pilote** — un seuil mal placé fait déclencher un constat trop souvent
-(le pilote n'y croit plus) ou jamais (le défaut passe). Il était second derrière le lot 13, qui portait le
-seul point pouvant gêner un vrai utilisateur (une mise à jour depuis la 0.8.0 jamais essayée) ; ce point
-s'est avéré sans objet. Les lots 11 et 15 sont du confort, mesuré comme tel (le budget de 60 images par
-seconde est tenu avec une marge de 3) : ils attendent que les retours des pilotes disent ce qui gêne
-vraiment.
-
----
-
-## Lot 14 : derniers seuils « Estimation » de l'assistant (Opus ; corpus requis)
-
-**But** : qu'aucun seuil de l'assistant ne soit plus « ni calibré ni sourcé ». C'est le seul lot qui touche
-à la **justesse des conseils donnés au pilote** : un seuil mal placé fait déclencher un constat trop souvent
-(le pilote n'y croit plus) ou jamais (le défaut passe).
-
-**Branche** : `feat/calibrate-last-thresholds` (une branche par seuil si le lot est trop gros :
-`feat/calibrate-<seuil>`).
-
-**À lire d'abord** : la compétence `assistant-seuils` (c'est elle qui donne la méthode), la compétence
-`calculs-corpus` (pour ne pas gaspiller des heures de calcul), [assistant.md](assistant.md) section
-« Origine des seuils », [travaux-reportes.md](travaux-reportes.md) W-003 (son « Avancement » liste tout ce
-qui a déjà été calibré depuis le 2026-10-12 : **ne pas refaire ce travail**).
-
-**Compté le 2026-11-08** : il reste **deux seuils** réellement marqués « Estimation » (les trois autres
-occurrences du mot sont la définition de l'origine, un renvoi à W-003 et une estimation d'effet). Ce lot est
-donc plus petit qu'on ne le croyait, et sa seconde ligne est bloquée par les données : l'essentiel du travail
-restant est **W-005**.
-
-| Ligne d'`assistant.md` | Seuil | Ce qu'on sait déjà |
-|---|---|---|
-| « Taille par le nom » | bornes de détection de la taille d'après le nom du fichier (3,8 / 5,8 / 7,8 pouces, « whoop », 65, 75) | repli quand ni l'eRPM ni la tension ne donnent la taille ; lecture corrigée le 2026-10-12. **Calibration des bornes mise de côté par Cédric le 2026-10-12**, à reprendre à sa demande |
-| « Seuils du profil 8"+ » | seuils du profil 8 pouces et plus | **6 drones, 20 sessions** seulement : c'est W-002 (manque de données), pas un défaut de calcul — plus de logs, pas plus de calcul |
-
-- [ ] Lister les seuils « Estimation » restants, avec pour chacun : le constat qu'il déclenche, son taux
-      actuel sur le corpus (`otb-dev corpus rates`), et s'il existe une source publiée (firmware, guide RPM,
-      configurateur).
-- [ ] **Accord de Cédric sur la liste et l'ordre** avant de calibrer (critère d'arrêt : ne pas improviser).
-- [ ] Un seuil à la fois : mesure sur le corpus, taux avant / après, valeur proposée, et **ce qui change
-      pour le pilote** (quels logs gagnent ou perdent le constat). Chaque changement de valeur est tranché
-      par Cédric et devient un `D-xxx`.
-- [ ] **W-005** (formule de l'erreur aléatoire attribuée à un ouvrage sans vérification à la page) : soit on
-      trouve l'ouvrage et on vérifie la page, soit on remplace la citation par ce qui est réellement prouvé
-      (le recoupement par simulation, déjà fait). Pas de calcul faux connu : c'est une question d'honnêteté
-      de la documentation.
-- [ ] **Critère d'arrêt** : un seuil dont la calibration changerait les conseils sur plus de 10 % du corpus
-      → s'arrêter et revenir vers Cédric avant de livrer.
-- [ ] **Consigner** : [assistant.md](assistant.md) (origine de chaque seuil), [decisions.md](decisions.md),
-      W-003 (« Avancement »), `CHANGELOG.md`.
+Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
+de 3 sur la plus longue session du corpus. Les deux lots qui touchaient à un utilisateur réel ont été réglés
+le 2026-11-10 : le **13** s'est avéré sans objet (personne n'a eu la 0.8.0) et le **14**, qui portait la
+justesse des conseils donnés au pilote, est fait sans qu'aucune valeur de seuil ait eu à changer. Le lot 11
+passe donc en tête, et le 15 attend toujours son déclencheur mesuré — les deux peuvent attendre que les
+retours des pilotes disent ce qui gêne vraiment.
 
 ---
 
@@ -220,6 +176,7 @@ prouvés.**
 | 10 | 2026-11-05 | Tracé du viewer sans parcourir toute la série (`perf/viewer-pyramid`, D-048, L-085, L-086) : index multi-résolution min/max dans `otb-dsp`, cadre **÷ 2,2 à ÷ 6,5**, tracé **identique au bit près**, pic de mémoire inchangé | W-049 clos ; **W-052 ouvert** (le tracé domine maintenant) → lot 15 |
 | 12 | 2026-11-08 | Ménage des registres (PR #129, `chore/registers-cleanup`) : 10 travaux reportés clos ou requalifiés, une **panique** corrigée (`log_rate`, W-029 point 3), un paramètre mort retiré (W-024), D-051 écrite. `verify --strict` 0 saut (125 s) | W-053 ouvert au passage |
 | 13 | — | **Supprimé le 2026-11-10** : « nettoyage d'après publication ». Cédric a indiqué que **personne n'a jamais utilisé la 0.8.0** — l'essai de mise à jour 0.8.0 → 0.9.0 et son filet dans l'installateur devenaient sans objet. Le filet (`[InstallDelete]` de `opentunebox.iss`) est retiré dans la foulée (branche `chore/drop-python-upgrade-net`), W-044 point 1 clos | W-043 (licences, échéance 1.0) et W-044 point 2 (script Windows) ne dépendaient pas de la 0.8.0 → « Hors plan », avec leur condition |
+| 14 | 2026-11-10 | **Derniers seuils sans origine** (branche docs/source-last-thresholds) : **aucune valeur changée**, parce qu'aucun des deux seuils restants ne peut être calibré — le corpus n'emprunte **jamais** la détection de taille par le nom (0 drone sur 96 sans fréquence moteur) et le profil 8"+ n'a que 6 drones (W-002). Chacun porte désormais sa **condition de levée**. W-005 clos : formule de la bande lue à la page sur une reproduction ([S37]), avec ses trois limites écrites. `verify --strict` 0 saut (126 s) | W-055 ouvert (cinq sources nomment une personne : arbitrage D-050) ; W-003 reste ouvert, mais borné à deux lignes assumées |
 | 16 | 2026-11-08 | **Revue intégrale** du code, des tests, de la documentation et de l'outillage (PR #129) : 4 relevés (~41 000 lignes de code, ~20 500 de tests, 30 `.md`, 4 workflows), 53 cases, **2 défauts réels** corrigés (`compare_header`, `slice_time`), **6 constats de relevé faux** corrigés après vérification, chaîne Rust figée (`rust-toolchain.toml`), clippy sous Windows, D-052 écrite, D-050 précisée, récidive de L-079 bridée | **W-054 ouvert** : seuls 2 des 10 comparateurs d'`otb-parity` ont reçu un test |
 | 17 | 2026-11-08 | **Rassemblement des plans** (branche « docs/rassembler-les-plans ») : les quatre documents de plan deviennent ce seul `docs/plan.md`, L-092 écrite | rien |
 

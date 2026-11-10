@@ -64,6 +64,7 @@ Règles d'écriture :
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | 🚫 SANS SUITE (2026-11-08) — mêmes raisons que W-026 |
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
 | W-054 | Comparateurs des couches hautes d'`otb-parity` (analyses, assistant, guide, réglage, ligne de commande, réglages, journaux, curseurs) toujours sans test : seuls `check_decoder` et `check_header` en ont | ouvert (fabriquer une référence Python pour ces couches est le vrai coût) |
+| W-055 | Cinq entrées `[S…]` de `docs/spec-methodes.md` nomment encore une personne (S4, S5, S6, S13, S16) alors que D-050 écrit « aucun nom de personne, nulle part », l'exception étant les **ouvrages publiés** | ouvert — arbitrage de Cédric : ces guides, outils et articles sont-ils des « ouvrages publiés » (on les cite par leur auteur) ou tombent-ils sous la règle ? |
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
 | W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
@@ -109,9 +110,9 @@ Règles d'écriture :
 | W-008 | Couleurs en dur dans `gui/` : liste d'exceptions à valider | clos |
 | W-007 | Tests du corpus en échec quand un log a été déplacé | clos |
 | W-006 | Écart de 2 dB sous 100 Hz avec PIDtoolbox sur un vol | sans suite |
-| W-005 | Référence de l'erreur aléatoire non vérifiée à la page | ouvert |
+| W-005 | Référence de l'erreur aléatoire non vérifiée à la page | ✅ CLOS (2026-11-10) — formule identique lue à la page sur une reproduction du tableau d'origine ([S37]) ; l'ouvrage reste non ouvert, et c'est la simulation qui valide la bande |
 | W-004 | Boucle ouverte mesurable seulement jusqu'à 20–40 Hz | bloqué |
-| W-003 | Seuils de l'assistant d'origine « Estimation » | ouvert |
+| W-003 | Seuils de l'assistant d'origine « Estimation » | ouvert — **il n'en reste que deux** (2026-11-10), tous deux **bloqués par les données**, chacun avec sa condition de levée écrite dans [assistant.md](assistant.md#origine-des-seuils) |
 | W-002 | Profils provisoires whoop, 2–3,5" et 8"+ | bloqué |
 | W-001 | Logs KISS et INAV | ouvert |
 
@@ -173,6 +174,20 @@ Règles d'écriture :
   Angle (D-025).
   Vol avec mouvements : seuil 50 → 30 °/s (D-026), les wobbles du protocole en mode Angle plafonnant vers
   47 °/s ; repères de retard gardés. Raies près de la fondamentale : test des deux trajets (D-027, W-013 clos).
+  **2026-11-10 (lot 14, branche docs/source-last-thresholds)** : relevé des lignes « Estimation » restantes.
+  Il n'en reste que **deux**, et **aucune valeur n'a été changée** parce qu'aucune des deux ne peut l'être par un
+  calcul :
+  • **Taille par le nom** (bornes 3,8 / 5,8 / 7,8) — ce chemin de repli demande qu'il n'y ait **ni** fréquence
+  moteur **ni** batterie 1S ; or les **96 drones (685 sessions)** du corpus ont tous une fréquence moteur mesurée
+  (compté sur `corpus.csv` : 0 ligne sans `freq_moteur_hz`). Le corpus n'exerce donc jamais ce code : il ne peut
+  pas calibrer ces bornes, et un taux de déclenchement n'a pas de sens ici (ce seuil choisit un **profil**, il ne
+  déclenche aucun constat). Seule justification disponible, désormais écrite : les bornes tombent entre deux
+  tailles d'hélices du commerce. Levée : des logs sans eRPM à taille connue, ou la demande de Cédric.
+  • **Seuils du profil 8"+** — 6 drones, 20 sessions : un percentile y serait fixé par un seul drone (seuil de
+  ~20 drones de la compétence `assistant-seuils`). C'est **W-002**, pas un défaut de calcul. Déjà marqué
+  `provisional: true` et dit à l'utilisateur. Levée : ~20 drones de 8" et plus dans le corpus.
+  Les deux lignes sont donc requalifiées « **Estimation assumée** » avec leur condition de levée, au lieu de
+  « à vérifier en priorité » — ce qui laissait croire à un travail de calibration possible et non fait.
 
 - **W-004** — La boucle ouverte mesurée s'arrête vers 20–40 Hz (énergie du manche) : le pic de
   sensibilité tombe au bord de la bande pour 57 axes sur 133 et n'est alors qu'un minorant.
@@ -188,9 +203,23 @@ Règles d'écriture :
   2026-10-12 : 44 % des sessions du corpus, à réserver aux marges proches du seuil.
   [`analysis/loop.py` (`sensitivity_peak_at_edge`), [validation.md](validation.md#autres-contrôles), D-012]
 
-- **W-005** — La formule de l'erreur aléatoire d'une fonction de transfert est attribuée à Bendat et
+- **W-005** — La formule de l'erreur aléatoire d'une fonction de transfert était attribuée à Bendat et
   Piersol (*Random Data*, chap. 9) sans vérification à la page.
   **Pourquoi reporté** : formule classique, résultats recoupés par simulation ; source non relue.
+  **✅ CLOS le 2026-11-10** (lot 14, branche docs/source-last-thresholds). Cédric n'a pas l'ouvrage : recherche
+  en ligne, puis écriture de ce qui est réellement prouvé. Trouvé et **lu à la page** : un tableau d'erreurs
+  aléatoires reproduit dans les informations complémentaires d'un article publié, annoncé « Modified version of
+  Bendat & Piersol, Table 9.6, p. 312 », qui donne pour le module d'une fonction de transfert
+  « [1 − γ̂²xy(f)]^½ / (|γ̂xy(f)| √(2·nd)) » — **exactement** notre √((1 − γ²)/(2·n·γ²)). Entrée [S37] de
+  [spec-methodes.md](spec-methodes.md) (titre, date, DOI, citation). Trois limites écrites noir sur blanc plutôt
+  que passées sous silence : (1) **l'ouvrage lui-même n'a pas été ouvert** — la page est citée par la
+  reproduction, pas lue dans le livre ; (2) la reproduction se dit « modified » et note « nd = number of data
+  points » alors que notre n est un **nombre de moyennes** ; (3) ce qui tranche, donc, n'est pas la citation mais
+  la **simulation** : cette formule ne sert qu'à fermer la bande analysée (points gardés tant que l'erreur
+  ≤ 0,2), elle ne produit aucun chiffre affiché, et la bande qu'elle choisit donne une marge de phase juste à
+  ±2,6° en simulation ([validation.md](validation.md)). Deux recoupements au passage : la même expression y
+  donne l'écart-type de la phase en radians, ce qui retrouve nos deux repères (0,2 → ±1,6 dB, ±11°).
+  **Rouvrir** seulement si quelqu'un ouvre l'ouvrage et trouve une autre expression à la page 312.
   **Risque si on n'y touche pas** : citation inexacte dans la documentation, pas de calcul faux connu.
   **Reprise** : quand l'ouvrage est disponible.
   [[spec-methodes.md](spec-methodes.md), boucle ouverte, étape 5]
@@ -749,3 +778,19 @@ compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
   *Trouvé en écrivant les deux premiers tests* : `compare_header` faisait `session - 1` sur un entier non signé, donc
   une référence annonçant la session `0` (ou sans ce champ) faisait **paniquer** le comparateur en debug — donc en CI.
   Corrigé : erreur nommée au lieu de la panique, avec son test.
+
+- **W-055** — **Cinq entrées `[S…]` nomment encore une personne** : S4 et S16 (même auteur de guides et de
+  presets), S5 (auteur d'un outil libre), S6 et S13 (articles d'un site de référence). D-050 dit « aucun nom de
+  personne, ni dans le code, ni dans la documentation, ni dans les textes affichés », et sa précision du
+  2026-11-08 n'ouvre l'exception qu'aux **ouvrages publiés** (livres), en gardant la règle entière pour « les
+  sources dont la personne est elle-même le sujet (vidéos, wiki, README de PIDtoolbox) ». Ces cinq entrées sont
+  entre les deux : ce sont des **documents publiés et signés**, dont la personne n'est pas le sujet.
+  **Pourquoi reporté** : vu en écrivant la source [S37] du lot 14, hors du sujet de la branche ; et surtout,
+  trancher entre « c'est ainsi qu'on cite un document signé » et « aucun nom nulle part » est une **décision de
+  Cédric** (D-050 est la sienne), pas un défaut à corriger en silence.
+  **Risque si on n'y touche pas** : D-050 paraît appliquée à moitié ; le prochain qui ajoute une source ne saura
+  pas laquelle des deux règles suivre (le lot 14 a tranché pour lui-même : [S37] cite l'article **sans aucun nom**,
+  par son DOI, et ne nomme que les auteurs du **livre** reproduit).
+  **Reprise** : à la prochaine question de Cédric sur les sources, ou avant la 1.0 avec la relecture des licences
+  (W-043). Deux issues possibles : préciser D-050 (« tout document publié et signé garde ses auteurs »), ou
+  retirer ces cinq noms en gardant titre, date, lien et citation.

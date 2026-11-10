@@ -138,6 +138,8 @@ pub const PROFILES: [CraftProfile; 5] = [
         resonance_hz: (40.0, 160.0),
         nominal_inch: Some(8.0),
         latency_ms: (18.0, 30.0),
+        // Seuils posés à la main dans le prolongement du profil 7" : 6 drones et 20 sessions seulement, un percentile y
+        // serait fixé par un seul drone. `provisional` le dit à l'utilisateur ; levée vers 20 drones (W-002, W-003).
         gyro_delay_max_ms: 3.5,
         dterm_delay_max_ms: 3.1,
         gyro_noise_high_db: -31.0,
@@ -327,6 +329,9 @@ pub fn detect_profile_from(hz: Option<f64>, cells: Option<i64>, craft_name: &str
     // taille en pouces : 1 ou 2 chiffres (« 10in »), décimale facultative (« 3.5" »)
     if let Some(text) = size_in_name(&name) {
         let size = parse_size(&text);
+        // Bornes entre deux tailles d'hélices du commerce (3 et 3,5" / 5" / 6 et 7" / 8" et plus) : estimation assumée,
+        // que le corpus ne peut pas calibrer — aucune de ses 685 sessions n'arrive ici (toutes ont une fréquence moteur
+        // mesurée). Condition de levée dans `docs/assistant.md`, « Origine des seuils » (W-003).
         let key = if size < 3.8 {
             "micro"
         } else if size < 5.8 {

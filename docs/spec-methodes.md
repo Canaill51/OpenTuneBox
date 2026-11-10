@@ -75,9 +75,10 @@ S = 1/(1 + L).
 5. bande valide : points **contigus** depuis 2 Hz, jusqu'à min(200 Hz ; 0,4 × fréquence du log), tant que
    l'erreur aléatoire de Ĝ reste ≤ 0,2 (≈ ±1,6 dB, ±11°) et que les cohérences erreur → P+I et gyro → D
    restent ≥ 0,8. Erreur aléatoire relative d'une fonction de transfert estimée avec la cohérence γ² sur
-   n moyennes : √((1 − γ²)/(2·n·γ²)) (formule classique de l'analyse spectrale, Bendat et Piersol,
-   *Random Data*, chap. 9 ; non vérifiée à la page), cumulée sur instrument → gyro et instrument → u, avec
-   n = fenêtres × largeur du lissage / 2. Une cohérence gyro → D faible signale aussi un **biais** de Ĉd
+   n moyennes : √((1 − γ²)/(2·n·γ²)) (formule classique de l'analyse spectrale, [S37] : même expression,
+   lue à la page sur une reproduction du tableau d'origine — l'ouvrage lui-même n'a pas été ouvert, et c'est
+   la **simulation** qui valide la bande ainsi retenue, marge de phase à ±2,6° près, [validation.md](validation.md)),
+   cumulée sur instrument → gyro et instrument → u, avec n = fenêtres × largeur du lissage / 2. Une cohérence gyro → D faible signale aussi un **biais** de Ĉd
    (bruit du gyro replié par le sous-échantillonnage du log, absent du D) ;
 6. marges de L (ci-dessous) sur la bande valide ; rapport |Ĉd/Ĉe| au croisement (le D domine au-delà
    de 1) ; incertitude de chaque marge par **jackknife** sur 8 blocs (écart-type, barres d'erreur de
@@ -359,3 +360,14 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   (porteurs ~0,5–0,6, jugés désormais un peu justes) ; à régler après le Master. [*Tuning Feed
   Forward*](https://www.youtube.com/watch?v=8z_glqhw4pE) (2022-01-17) : feedforward essayé à 0,5, 1,0, 2,0 ;
   trop haut, le gyro dépasse la consigne et la croise sans cesse.
+- [S37] Tableau S1 « Random Error Formulas » des informations complémentaires de
+  [*H-bonds in Crambin: Coherence in an α-helix*](https://doi.org/10.1021/acsomega.3c00181) (*ACS Omega* 8,
+  13920–13934, 2023-02-28), reproduction annoncée comme « Modified version of Bendat & Piersol, Table 9.6,
+  p. 312 » (*Random Data: Analysis and Measurement Procedures*, Bendat et Piersol, 4e édition, Wiley, 2010 ;
+  un ouvrage publié garde ses auteurs, D-050). Erreur aléatoire du module d'une fonction de transfert :
+  « [1 − γ̂²xy(f)]^½ / (|γ̂xy(f)| √(2·nd)) », soit exactement notre √((1 − γ²)/(2·n·γ²)). La même expression y
+  donne l'écart-type de la **phase** en radians, ce qui recoupe les deux repères écrits plus haut (erreur
+  0,2 → ±1,6 dB et ±11°). ⚠️ La note du tableau écrit « nd = number of data points », alors que notre n est
+  un **nombre de moyennes** ; le tableau se dit lui-même « modified » et l'ouvrage n'a pas été ouvert. La
+  lecture classique (nombre de moyennes) est gardée parce que c'est elle que la simulation valide :
+  [validation.md](validation.md), boucle ouverte mesurée. W-005.

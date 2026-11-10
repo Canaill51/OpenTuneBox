@@ -65,6 +65,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Modifié
 
+- **Les deux derniers seuils de l'assistant sans origine portent désormais leur condition de levée.** Aucune valeur
+  n'a changé : les conseils donnés au pilote sont **identiques**. Ce qui change est ce que la documentation en dit.
+  Les bornes de taille devinée d'après le nom du drone (3,8 / 5,8 / 7,8 pouces) ne servent que si le log n'a ni
+  fréquence moteur ni batterie 1S : aucun des 96 drones du corpus (685 sessions) n'est dans ce cas, donc ce code
+  n'y est jamais emprunté et le corpus ne peut pas calibrer ces bornes ; leur seule justification — les bornes
+  tombent entre deux tailles d'hélices du commerce — est maintenant écrite. Les seuils du profil 8 pouces et plus
+  reposent sur 6 drones : le profil reste marqué « provisoire », et il faut environ 20 drones pour les mesurer.
+- **La formule qui ferme la bande d'analyse de la boucle ouverte est enfin sourcée.** Elle était attribuée à un
+  ouvrage « non vérifiée à la page », ce que la règle du projet interdit. La même formule, au signe près, a été
+  lue à la page dans un tableau reproduit par un article publié (source [S37]) ; les limites de cette lecture sont
+  écrites à côté, et ce qui tranche reste la simulation (la bande retenue donne une marge de phase juste à ±2,6°).
+
 - **Un seul plan de travail.** Le projet gardait quatre documents de plan (1 260 lignes), dont trois ne décrivaient
   presque que du travail déjà fait : un lot à faire était décrit dans l'un et ordonné dans l'autre, et la liste « ce qui
   reste ouvert » de l'un d'eux **omettait un travail reporté ouvert le même jour** (W-054, huit des dix comparateurs
