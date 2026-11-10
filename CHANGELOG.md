@@ -7,6 +7,14 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Modifié
 
+- **L'interface ne garde plus indéfiniment ses résultats de calcul.** Chaque outil range ses résultats pour que revenir
+  sur un réglage soit instantané, mais rien n'était jamais jeté : en essayant les réglages de la Réponse indicielle sur un
+  gros log, l'application pouvait retenir jusqu'à **5,1 Go pour un seul fichier ouvert**. Chaque outil garde désormais un
+  nombre fixe de résultats — 3 pour la Réponse indicielle, 20 pour le Simulateur de filtres, un par profil pour
+  l'Assistant, les deux vérifications du Guide — et jette le plus ancien dont on ne s'est pas servi. Pire cas : **223 Mo**
+  au lieu de 5,1 Go. Seul effet visible : revenir sur un réglage de Réponse indicielle essayé quatre réglages plus tôt
+  relance un calcul, qui redonne exactement le même résultat (D-053).
+
 - **L'assistant garde 24 fois moins de mémoire par rapport** (médiane ; jusqu'à 165 fois moins). Chaque rapport
   transportait **toutes les fenêtres individuelles** de la réponse indicielle — 69 % de son poids, jusqu'à 72 Mo sur une
   session de 174 s — alors que rien ne les affiche : les règles n'utilisent que le nombre de fenêtres et les mesures, et

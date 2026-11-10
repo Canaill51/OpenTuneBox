@@ -371,6 +371,10 @@ la réponse indicielle où le réglage change le nombre de fenêtres).
   sur `Jerome/Valkyrie 2/AntiGravity.10.bbl` (174 s à 2 kHz) **avant** ; 536 Mo, 1 154 Mo et **5,1 Go** **après** (le
   simulateur compté pour 20 coups de curseur). Le gaspillage est supprimé, mais **le cache reste non borné** et l'outil
   Réponse indicielle peut à lui seul retenir 72 entrées de 71 Mo : la question du bornage reste ouverte (W-035 point 9).
+- **Après le bornage** (D-053, plafond par outil, en nombre d'entrées) : le pire cas d'un log ouvert tombe de 5,1 Go à
+  **≈ 223 Mo** (3 × 71,3 + 20 × 0,20 + 6 × 0,83 + 2 × 0,01). Les 28 captures hors écran (toutes les pages, les deux
+  thèmes) sont **identiques au bit près** avant et après : le plafond ne change rien à ce qui s'affiche, seulement au
+  moment où un résultat est recalculé.
 - Poids par million d'échantillons analysés (p50) : assistant 114 Mo avant / 4,2 Mo après, réponse indicielle 112 Mo,
   simulateur 1,2 Mo, guide 0,07 Mo. Le poids suit donc la **longueur de session**, pas le nombre de logs ouverts.
 

@@ -17,7 +17,7 @@ use otb_advisor::step_tuning::{RIPPLE_EARLY, TuningReport, step_tuning};
 use otb_analysis::open_loop;
 
 use crate::plots::{corner_text, nice_axes, swatch};
-use crate::state::AppState;
+use crate::state::{AppState, Famille};
 use crate::theme::{AXIS_NAMES, Theme, file_color, plot, with_alpha};
 use crate::tool::{LogInput, Tool};
 use crate::tools::common::{AxisToggles, FileSelection, ViewMemo, safe_text};
@@ -715,7 +715,7 @@ impl Tool for StepTool {
                 None => {
                     let sel = li.log.slice_time(li.period.0, li.period.1);
                     let d = Arc::new(compute_file_data(&li.log, sel, &o.calc)?);
-                    li.cache.put(key, d.clone());
+                    li.cache.put(Famille::Step, key, d.clone());
                     d
                 }
             };

@@ -26,39 +26,133 @@ pub fn default_period(log: &FlightLog) -> (f64, f64) {
     })
 }
 
+/// Outil propriétaire d'une entrée du cache : c'est lui qui porte le **plafond**.
+///
+/// Un plafond par outil, et non un plafond global : sans cela, vingt coups de curseur du simulateur de filtres (90 ko
+/// l'entrée) chasseraient les résultats de la réponse indicielle (jusqu'à 71 Mo l'entrée). Plafond en **nombre
+/// d'entrées** et non en Mo, comme D-051 l'a tranché pour l'ouverture de plusieurs logs : un compteur se teste, une
+/// mémoire non. Chiffres et pire cas mesurés : `docs/validation.md`, « Mémoire du cache des outils » (L-094).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Famille {
+    /// Réponse indicielle : 72 jeux de réglages atteignables, jusqu'à 71 Mo l'entrée — le poste le plus lourd.
+    Step,
+    /// Simulateur de filtres : une entrée par jeu de réglages modifiés, donc un nombre **non borné** de clés possibles.
+    Filtres,
+    /// Assistant : une entrée par profil demandé (détection automatique + les profils de `PROFILES`).
+    Assistant,
+    /// Guide : vérification rapide et vérification complète d'une même période.
+    Guide,
+}
+
+impl Famille {
+    /// Nombre d'entrées gardées pour cet outil, par log. Au-delà, la **moins récemment utilisée** est jetée : son
+    /// résultat sera recalculé si on y revient, à l'identique (un cache ne fait jamais perdre que du temps).
+    ///
+    /// ⚠️ Baisser un de ces chiffres sous le nombre d'entrées qu'un seul cadre demande ferait évincer un résultat
+    /// **en cours d'affichage**, donc recalculer à chaque cadre : `Guide` en demande deux (rapide et complète),
+    /// `Assistant` une par profil choisi (L-094).
+    pub fn plafond(self) -> usize {
+        match self {
+            // le réglage affiché et les deux précédents : c'est l'aller-retour entre deux ou trois réglages qu'on fait
+            // en réglant (arbitré par Cédric le 2026-11-10) ; pire cas 3 × 71 Mo au lieu de 72 × 71 Mo
+            Famille::Step => 3,
+            // 20 × 0,2 Mo au pire : de quoi comparer une longue série de coups de curseur sans jamais peser
+            Famille::Filtres => 20,
+            // détection automatique + les 5 profils : aucun rapport n'est jamais évincé, ils pèsent 0,83 Mo au pire
+            Famille::Assistant => 6,
+            // les deux vérifications d'une même période, toutes deux demandées au même cadre
+            Famille::Guide => 2,
+        }
+    }
+}
+
+/// Une valeur rangée, avec son outil et la date de son dernier usage.
+struct Entree {
+    valeur: Arc<dyn Any + Send + Sync>,
+    famille: Famille,
+    /// Numéro du dernier `get` ou `put` : le plus petit est le premier jeté.
+    vu: u64,
+}
+
+#[derive(Default)]
+struct Table {
+    entrees: HashMap<String, Entree>,
+    /// Compteur monotone des usages (jamais remis à zéro tant que le log est ouvert).
+    tic: u64,
+}
+
 /// Cache des résultats de calcul d'un log (W-032 point 1 : `e.extras` de Python).
 ///
 /// Partagé avec le thread de calcul (un clone voit le même contenu). La **clé** est écrite par l'outil et doit contenir tout ce qui change le
 /// résultat : réglages de calcul **et période** ; ainsi un calcul lancé avant un changement de période ne peut jamais servir après. Vidé quand la
-/// période change, pour borner la mémoire.
+/// période change, et borné par [`Famille::plafond`] entre deux changements de période (W-035 point 9, L-094).
 #[derive(Clone, Default)]
-pub struct Cache(Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>);
+pub struct Cache(Arc<Mutex<Table>>);
 
 impl Cache {
-    fn map(&self) -> std::sync::MutexGuard<'_, HashMap<String, Arc<dyn Any + Send + Sync>>> {
+    fn table(&self) -> std::sync::MutexGuard<'_, Table> {
         self.0.lock().unwrap_or_else(|e| e.into_inner()) // un calcul qui a paniqué ne doit pas bloquer les suivants
     }
 
-    /// Valeur rangée sous `key`, si elle existe **et** a le type `T`.
+    /// Valeur rangée sous `key`, si elle existe **et** a le type `T`. Un accès rajeunit l'entrée : ce qu'on affiche
+    /// n'est jamais ce qu'on jette.
     pub fn get<T: Any + Send + Sync>(&self, key: &str) -> Option<Arc<T>> {
-        self.map().get(key).cloned()?.downcast::<T>().ok()
+        let mut t = self.table();
+        t.tic += 1;
+        let tic = t.tic;
+        let e = t.entrees.get_mut(key)?;
+        e.vu = tic;
+        e.valeur.clone().downcast::<T>().ok()
     }
 
-    pub fn put<T: Any + Send + Sync>(&self, key: impl Into<String>, value: Arc<T>) {
-        self.map().insert(key.into(), value);
+    /// Range `value` sous `key` pour l'outil `famille`, puis jette les entrées de **cette famille** au-delà de son
+    /// plafond, la moins récemment utilisée d'abord.
+    pub fn put<T: Any + Send + Sync>(&self, famille: Famille, key: impl Into<String>, value: Arc<T>) {
+        let mut t = self.table();
+        t.tic += 1;
+        let (tic, key) = (t.tic, key.into());
+        t.entrees.insert(
+            key,
+            Entree {
+                valeur: value,
+                famille,
+                vu: tic,
+            },
+        );
+        let plafond = famille.plafond();
+        loop {
+            let mut miennes: Vec<(u64, &String)> = t
+                .entrees
+                .iter()
+                .filter(|(_, e)| e.famille == famille)
+                .map(|(k, e)| (e.vu, k))
+                .collect();
+            if miennes.len() <= plafond {
+                break;
+            }
+            miennes.sort_unstable();
+            let vieille = miennes[0].1.clone();
+            t.entrees.remove(&vieille);
+        }
     }
 
     pub fn clear(&self) {
-        self.map().clear();
+        let mut t = self.table();
+        t.entrees.clear();
     }
 
     pub fn is_empty(&self) -> bool {
-        self.map().is_empty()
+        self.table().entrees.is_empty()
     }
 
-    /// Nombre d'entrées gardées (aucune éviction : voir le point 9 de W-035, mesuré par `examples/banc_cache.rs`).
+    /// Nombre d'entrées gardées, tous outils confondus.
     pub fn len(&self) -> usize {
-        self.map().len()
+        self.table().entrees.len()
+    }
+
+    /// Nombre d'entrées gardées pour un outil : ce que les tests du plafond comparent à [`Famille::plafond`].
+    pub fn len_of(&self, famille: Famille) -> usize {
+        self.table().entrees.values().filter(|e| e.famille == famille).count()
     }
 }
 

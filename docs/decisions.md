@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-053 | Cache des outils borné **par outil**, en nombre d'entrées (3 réponses indicielles, 20 simulations de filtres, 6 rapports, 2 vérifications du Guide), la moins récemment utilisée jetée la première | 2026-11-10 |
 | D-052 | Données de test : seul `step_tuning.json` est stocké compressé (`.gz`) ; les autres gros fichiers de cas restent en clair | 2026-11-08 |
 | D-051 | Ouverture de plusieurs logs : **3 fichiers décodés en même temps** au plus, plafond posé en nombre de fichiers et non en mémoire | 2026-11-08 |
 | D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt **(précisée le 2026-11-08 : les ouvrages publiés gardent leurs auteurs)** | 2026-11-07 |
@@ -122,6 +123,51 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-10 — Mémoire du cache des outils
+
+### D-053 : le cache des outils est borné par outil, en nombre d'entrées
+
+Clôt le point 9 de W-035 et la dernière case « cache » du lot 15 de [plan.md](plan.md). **Tranché par Cédric** le
+2026-11-10, sur la mesure du même jour (L-094, [validation.md](validation.md), « Mémoire du cache des outils »).
+
+**Contexte.** Le cache des résultats (`rust/otb-gui/src/state.rs:Cache`, une table par log) n'était vidé qu'au changement de
+période : entre deux réglages, il **n'évinçait rien**. Mesuré sur tout le corpus (535 logs, 642 sessions), une entrée pèse
+7,4 Mo (p50) et jusqu'à **71,3 Mo** pour la réponse indicielle, dont 72 jeux de réglages sont atteignables (3 fenêtres ×
+4 lissages × 3 consignes × 2 « Y corr. ») : **5,1 Go pour un seul log ouvert**.
+
+**Décidé : un plafond par outil, exprimé en nombre d'entrées**, la moins récemment utilisée jetée la première
+(`state.rs:Famille::plafond`) :
+
+| Outil | Entrées gardées | Pire cas avant | Pire cas après |
+|---|---|---|---|
+| Réponse indicielle | **3** | 72 × 71,3 Mo = 5 112 Mo | 214 Mo |
+| Simulateur de filtres | **20** | non borné | 4 Mo |
+| Assistant | **6** (tous les profils) | 5 Mo | 5 Mo (rien n'est jamais évincé) |
+| Guide | **2** (rapide, complète) | 0,02 Mo | 0,02 Mo |
+| **Un log ouvert** | | **≈ 5,1 Go** | **≈ 223 Mo** |
+
+Le **3** de la réponse indicielle est le seul chiffre qui se voit à l'usage : revenir sur un réglage essayé quatre réglages
+plus tôt relance un calcul au lieu d'être instantané. Un cache ne fait jamais perdre que du **temps** : le résultat recalculé
+est identique.
+
+**Option écartée : un plafond global en Mo** (« ne pas dépasser 500 Mo par log »). Elle demanderait d'écrire à la main le
+poids de chaque type rangé (`dyn Any` ne le dit pas) : du code qui dérive dès qu'un champ est ajouté, et qu'aucun test ne
+rattrape. Même arbitrage que D-051 : un compteur se vérifie dans un test, une mémoire non.
+
+**Option écartée : un plafond unique pour tous les outils.** Vingt coups de curseur du simulateur de filtres (90 ko l'entrée)
+chasseraient les résultats de la réponse indicielle (71 Mo l'entrée), c'est-à-dire exactement ceux qu'il faut garder.
+
+⚠️ **Conséquence à tenir** : baisser un plafond sous le nombre d'entrées qu'un **même cadre** demande ferait évincer un
+résultat en cours d'affichage, donc recalculer sans fin. Le Guide en demande deux (rapide et complète) : son plafond ne peut
+pas descendre sous 2.
+
+**Témoin** : `rust/otb-gui/tests/state.rs`, module `plafond` — quatre tests (le plafond est tenu, un accès rajeunit l'entrée
+affichée, un outil ne chasse pas les autres, le Guide garde ses deux vérifications). Contre-preuves vues en échec : retirer
+l'éviction fait rougir trois d'entre eux, retirer le rajeunissement fait rougir celui qui le vise. Les 28 captures hors écran
+(toutes les pages, les deux thèmes) sont **identiques au bit près** avant et après.
 
 ---
 

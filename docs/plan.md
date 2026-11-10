@@ -39,16 +39,15 @@ l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **15** | Dette de l'interface (W-052, cache, pages spectrales) — **conditionnel** | cache : mesuré, bornage à décider ; le reste attend un déclencheur mesuré |
+| 1 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
 de 3 sur la plus longue session du corpus. Les lots qui touchaient à un utilisateur réel ont été réglés le
 2026-11-10 : le **13** s'est avéré sans objet (personne n'a eu la 0.8.0), le **14** est fait sans qu'aucune
 valeur de seuil ait eu à changer, et le **11** a livré l'ouverture de plusieurs logs à la fois (× 2,26). Il ne
-reste que le **15**. Son volet « cache des outils » est **mesuré le 2026-11-10** (L-094) : le gaspillage trouvé au
-passage est supprimé, et le bornage du cache a désormais son déclencheur chiffré (72 entrées de 71 Mo possibles pour un
-seul log). Ses autres volets (tracé du viewer, pages spectrales) attendent toujours le leur : ils peuvent attendre que
-les retours des pilotes disent ce qui gêne vraiment.
+reste que le **15**, dont le volet « cache des outils » est **soldé le 2026-11-10** : mesuré (L-094), allégé, puis borné
+(D-053) — **W-035 est clos**. Ses autres volets (tracé du viewer, pages spectrales) attendent toujours leur déclencheur
+mesuré : ils peuvent attendre que les retours des pilotes disent ce qui gêne vraiment.
 
 ---
 
@@ -79,10 +78,11 @@ visible.
       parce que son nombre d'entrées n'est pas borné, ne pèse que 90 ko. **69 % du rapport de l'assistant** était les
       fenêtres individuelles de la réponse indicielle, que personne n'y lit : libérées, l'entrée tombe d'un facteur 24
       (médiane) à 165 (L-094, `rust/otb-advisor/tests/rapport_memoire.rs`, contre-preuve vue en échec).
-- [ ] **Cache des outils borné (W-035 point 9)** : le gaspillage est supprimé, mais le cache n'évince toujours rien et
-      l'outil « Réponse indicielle » peut à lui seul retenir **72 entrées** (3 fenêtres × 4 lissages × 3 consignes × 2
-      « Y corr. ») de 71 Mo au pire, soit 5,1 Go pour **un** log ouvert. Le déclencheur mesuré existe donc : reste à
-      choisir le plafond et l'ordre d'éviction avec Cédric.
+- [x] **Cache des outils borné** (2026-11-10, D-053) : plafond **par outil**, en nombre d'entrées — 3 réponses
+      indicielles, 20 simulations de filtres, 6 rapports, 2 vérifications du Guide — la moins récemment utilisée jetée la
+      première. Le pire cas d'un log ouvert passe de **5,1 Go à ≈ 223 Mo**. Quatre tests dans
+      `rust/otb-gui/tests/state.rs` (module `plafond`), contre-preuves vues en échec ; 28 captures identiques au bit
+      près. **W-035 est clos.**
 - [ ] **Factorisation des pages spectrales** : les pages `spectral`, `freq_throttle` et `freq_time` répètent
       la même mécanique, comme la découpe de période (×6), `breaks` (×5), la découpe bornée (×9), les listes
       déroulantes (×5) et `reset_view` (×5). À ne faire que si une page de plus est prévue, sinon c'est du

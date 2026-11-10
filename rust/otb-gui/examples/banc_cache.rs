@@ -34,7 +34,7 @@ use otb_advisor::rules::analyze;
 use otb_dev::corpus::json::{dump, num};
 use otb_dev::corpus::{Args, analysed, log_files, logs_root, map_files, rel};
 use otb_gui::guide_page::run_check;
-use otb_gui::state::Cache;
+use otb_gui::state::{Cache, Famille};
 use otb_gui::tools::filter_sim_calc::{Editor, simulate_filters};
 use otb_gui::tools::step_common::{StepOpts, compute_file_data};
 use otb_log::flightlog::{FlightLog, load};
@@ -147,38 +147,38 @@ fn mesure_session(lg: &FlightLog, f: &Path, root: &Path) -> Result<Option<Value>
         .iter()
         .map(|st| st.result.responses.len() * std::mem::size_of::<f64>())
         .sum();
-    cache.put("advisor:1", std::sync::Arc::new(rep));
+    cache.put(Famille::Assistant, "advisor:1", std::sync::Arc::new(rep));
     let autre_profil = otb_advisor::profiles::profile("five");
     let (rep2, o2) = poids(|| analyze(lg, Some(sel.clone()), autre_profil));
-    cache.put("advisor:2", std::sync::Arc::new(rep2?));
+    cache.put(Famille::Assistant, "advisor:2", std::sync::Arc::new(rep2?));
     mesure("advisor", o1, o2);
 
     // réponse indicielle : une entrée par jeu de réglages de calcul
     let (fd, o1) = poids(|| compute_file_data(lg, sel.clone(), &StepOpts::default()));
-    cache.put("step:1", std::sync::Arc::new(fd?));
+    cache.put(Famille::Step, "step:1", std::sync::Arc::new(fd?));
     let autres = StepOpts {
         seg_s: 1.5,
         ..StepOpts::default()
     };
     let (fd2, o2) = poids(|| compute_file_data(lg, sel.clone(), &autres));
-    cache.put("step:2", std::sync::Arc::new(fd2?));
+    cache.put(Famille::Step, "step:2", std::sync::Arc::new(fd2?));
     mesure("step", o1, o2);
 
     // guide : une rapide et une complète par période (deux entrées distinctes, pas deux fois la même)
     let (gq, o1) = poids(|| run_check(lg, sel.clone(), "banc", false, None));
-    cache.put("guide-quick", std::sync::Arc::new(gq));
+    cache.put(Famille::Guide, "guide-quick", std::sync::Arc::new(gq));
     let (gf, o2) = poids(|| run_check(lg, sel.clone(), "banc", true, None));
-    cache.put("guide-full", std::sync::Arc::new(gf));
+    cache.put(Famille::Guide, "guide-full", std::sync::Arc::new(gf));
     mesure("guide", o1, o2);
 
     // simulateur de filtres : la clé contient tous les réglages modifiés, donc une entrée par coup de curseur
     let e = Editor::from_settings(base);
     let modf = e.modified_settings(base);
     let (fs1, o1) = poids(|| simulate_filters(lg, sel.clone(), base, &modf, true));
-    cache.put("filtres:1", std::sync::Arc::new(fs1?));
+    cache.put(Famille::Filtres, "filtres:1", std::sync::Arc::new(fs1?));
     let modf2 = autre_reglage(&e).modified_settings(base);
     let (fs2, o2) = poids(|| simulate_filters(lg, sel.clone(), base, &modf2, true));
-    cache.put("filtres:2", std::sync::Arc::new(fs2?));
+    cache.put(Famille::Filtres, "filtres:2", std::sync::Arc::new(fs2?));
     mesure("filtres", o1, o2);
 
     for (k, v) in poids_mesures {
