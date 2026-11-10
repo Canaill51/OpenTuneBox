@@ -60,6 +60,24 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-094 : un résultat rangé dans un cache emporte tout ce que son type contient, y compris ce que personne n'affiche
+
+- **Symptôme** — 2026-11-10 (lot 15) : aucun. L'interface ne ralentit pas, rien ne plante ; le cache des outils
+  (`otb-gui/src/state.rs:Cache`, une table par log, jamais évincée) n'avait simplement jamais été pesé. Mesuré sur tout le
+  corpus (642 sessions), **une seule** entrée de l'assistant pèse 7,5 Mo (p50), 16 Mo (p90) et **72,6 Mo** au pire, et le
+  pire cas d'un log ouvert, toutes les entrées atteignables, dépasse **5 Go**.
+- **Cause** — **mesurée** : 69 % (médiane) de ce poids est `StepResult::responses`, le tableau de **toutes** les fenêtres
+  individuelles de la réponse indicielle (`n` × `len(t_ms)` flottants). Le rapport le transportait parce qu'il range un
+  `StepResult` entier, pas parce qu'il en a besoin : les règles lisent `n`, `metrics` et `loop_`, la page Assistant trace
+  `mean`, `std` et `t_ms`. Le gros morceau était invisible : il n'apparaît ni à l'écran, ni dans un profil de temps.
+- **Règle** — avant de ranger un résultat dans un cache, regarder **ce que son type contient** et libérer ce qu'aucun
+  lecteur n'utilise ; un cache rend permanent ce qui aurait été temporaire. Et une mémoire ne se suppose pas : se la faire
+  dire par un allocateur qui compte (`rust/otb-gui/examples/banc_cache.rs`), avec un témoin de taille connue qui panique
+  si l'instrument ment.
+- **Preuve** — `rust/otb-advisor/tests/rapport_memoire.rs` (contre-preuve vue en échec : remettre `r.responses` dans
+  `rules.rs:step_section` fait rougir le test) ; chiffres avant / après dans `docs/validation.md`, « Mémoire du cache des
+  outils ».
+
 ### L-093 : deux tests d'un même fichier qui partagent un dossier temporaire s'effacent leurs fichiers, et l'échec se déplace
 
 - **Symptôme** — 2026-11-10 (lot 11) : `au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes` échoue **au bout de
@@ -1084,6 +1102,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-094 | Un résultat rangé dans un cache emporte **tout** ce que son type contient : le rapport de l'assistant transportait les fenêtres individuelles de la réponse indicielle (69 % de son poids, jusqu'à 72 Mo) que personne n'affiche ; peser un cache avec un allocateur qui compte, et libérer ce qu'aucun lecteur n'utilise | Interface |
 | L-093 | Deux tests d'un même fichier qui partagent un dossier temporaire nommé d'après le seul `pid` s'effacent leurs fichiers (ils tournent en parallèle dans un même processus) : nommer le dossier d'après le test | Tests |
 | L-092 | Un plan qui tient son propre historique contredit les registres (la liste « reste ouvert » d'un plan omettait un `W-xxx` ouvert le même jour, sans aucun test rouge) : **un seul plan**, `docs/plan.md`, qui cite les `W-xxx` sans recopier leur état ; un lot fini devient une ligne d'historique | Outillage |
 | L-091 | Barre de titre, bordures, icône : egui les habille au **premier** cadre, trop tôt pour Windows, qui ne repeint pas le contour d'une fenêtre qu'il vient de créer ; annoncer le thème soi-même une fois la fenêtre posée, et se rappeler que le contour d'une fenêtre n'est vu ni par les tests ni par les captures | Interface |

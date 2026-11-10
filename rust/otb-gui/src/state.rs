@@ -55,6 +55,11 @@ impl Cache {
     pub fn is_empty(&self) -> bool {
         self.map().is_empty()
     }
+
+    /// Nombre d'entrées gardées (aucune éviction : voir le point 9 de W-035, mesuré par `examples/banc_cache.rs`).
+    pub fn len(&self) -> usize {
+        self.map().len()
+    }
 }
 
 pub struct LoadedLog {

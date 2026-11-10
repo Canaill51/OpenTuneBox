@@ -35,4 +35,6 @@ serde_json = { version = "1", features = ["preserve_order"] }
 [dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 otb-decoder = { path = "../otb-decoder" }
+# `examples/banc_cache.rs` seulement : liste des logs du corpus et répartition sur les fils (jamais dans la bibliothèque).
+otb-dev = { path = "../otb-dev" }
 otb-parity = { path = "../otb-parity" }
