@@ -57,11 +57,6 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "associate"; Description: "Ouvrir les logs Blackbox (.bbl, .bfl) avec OpenTuneBox"; GroupDescription: "Fichiers :"
 
-[InstallDelete]
-; Mise à jour par-dessus la version Python (0.8.0 et avant, PyInstaller) : son dossier `_internal` (Python, Qt, numpy…, des
-; centaines de Mo) ne sert plus à rien. À retirer quand plus personne n'aura la version Python (W-044).
-Type: filesandordirs; Name: "{app}\_internal"
-
 [Files]
 Source: "{#ExePath}"; DestDir: "{app}"; DestName: "OpenTuneBox.exe"; Flags: ignoreversion
 ; Licence du projet : ses termes doivent accompagner toute copie du programme (section « Notices » de PolyForm Noncommercial, D-045).

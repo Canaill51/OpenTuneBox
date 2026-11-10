@@ -125,7 +125,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   `otb-dev release`, procédure dans `CONTRIBUTING.md`) ; macOS abandonné (D-042). Le workflow compile
   `cargo build --release -p otb-gui` (Windows : `crt-static`), vérifie les DLL demandées, démarre le programme 20 s avec un petit log,
   installe / lance / désinstalle l'installateur, et démarre l'AppImage sous un écran virtuel (xvfb) avec le pilote Vulkan logiciel lavapipe :
-  Windows `packaging/windows/opentunebox.iss` (Inno Setup ; un seul fichier, l'exécutable Rust installé sous le nom `OpenTuneBox.exe` ; 7,5 Mo mesurés par la CI le 2026-11-03 ; le dossier `_internal` de l'ancienne version Python est supprimé à la mise à jour, W-044),
+  Windows `packaging/windows/opentunebox.iss` (Inno Setup ; un seul fichier, l'exécutable Rust installé sous le nom `OpenTuneBox.exe` ; 7,5 Mo mesurés par la CI le 2026-11-03),
   Linux `packaging/linux/build_appimage.sh` (AppImage de l'exécutable Rust `opentunebox-gui`, appimagetool 1.9.1 et runtime type2 figé `20251108`, tous deux vérifiés par leur SHA-256 dans `construire.yml`, construite sur Ubuntu 22.04 ; 10 Mo mesurés le 2026-11-03 ; son `AppRun` écrit le raccourci du menu et l'icône dans `~/.local/share` au premier lancement, jamais par-dessus un fichier existant, W-045).
 - Icônes : `otb-dev icons` fabrique le `.png` (Linux) et le `.ico` (Windows) depuis `rust/otb-gui/assets/opentunebox.svg`.
 - Depuis les sources : `packaging/linux/install_linux.sh` (compile `otb-gui`, l'installe dans `~/.local/bin` et ajoute le raccourci du menu Linux) ;

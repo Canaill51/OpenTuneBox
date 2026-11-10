@@ -105,6 +105,14 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
   parallèle : **trois logs décodés en même temps** au plus (D-051), ce qui débloque le lot 11.
 
 
+### Retiré
+
+- **L'installateur Windows ne supprime plus de dossier `_internal`.** Il effaçait à chaque installation le dossier
+  que laissait la version Python (0.8.0 et avant) : des centaines de Mo de Python, Qt et numpy inutiles après une
+  mise à jour par-dessus. Personne n'a jamais utilisé la 0.8.0, donc aucune machine ne peut porter ce dossier : ce
+  filet ne protégeait personne et ne pouvait plus être essayé sur une vraie machine. Rien ne change pour qui
+  installe OpenTuneBox aujourd'hui.
+
 ## [0.9.0] — 2026-11-08
 
 ### Ce qui change pour vous

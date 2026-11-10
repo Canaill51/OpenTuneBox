@@ -4,15 +4,16 @@
 tableau en bas, une ligne par lot. Il n'y a **pas d'autre document de plan** : l'état d'un travail reporté
 se lit dans [travaux-reportes.md](travaux-reportes.md), jamais ici (L-092).
 
-**État au 2026-11-08, vérifié** : la **0.9.0 est publiée** (page « dernière version », AppImage et
+**État au 2026-11-10, vérifié** : la **0.9.0 est publiée** (page « dernière version », AppImage et
 installateur Windows), les huit outils de PIDtoolbox Pro V0.94 sont tous couverts
 ([spec-ecrans.md](spec-ecrans.md), `rust/otb-gui/src/tools/mod.rs:all_pages`), `main` est propre, la CI est
 verte, et `cargo run -p otb-dev -- verify --strict` avec le corpus, les références figées et la comparaison
 au bit près : **0 saut, tout passe**.
 
-Le programme est donc complet et publié. Ce qui reste tient en trois familles : **vérifier ce que seule une
-vraie machine vérifie** (lot 13), **finir la calibration de l'assistant** (lot 14), et **du confort**
-(lots 11 et 15).
+Le programme est donc complet et publié. Ce qui reste tient en deux familles : **finir la calibration de
+l'assistant** (lot 14), et **du confort** (lots 11 et 15). La troisième famille — vérifier ce que seule une
+vraie machine vérifie — a disparu le 2026-11-10 : **personne n'a jamais utilisé la 0.8.0**, donc le lot 13
+n'avait plus d'objet (voir l'historique en bas).
 
 ## Comment s'en servir
 
@@ -31,55 +32,24 @@ vraie machine vérifie** (lot 13), **finir la calibration de l'assistant** (lot 
   vers Cédric ; ne pas improviser un autre découpage.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
-- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 10, 12 et 16 sont
-  faits (tableau en bas), le prochain numéro libre est **18**.
+- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 10, 12, 13, 16 et 17
+  sont au tableau en bas (faits, non retenus ou supprimés), le prochain numéro libre est **18**.
 
 ## Ordre des étapes
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **13** | Nettoyage d'après publication : `_internal`, vrai Windows, licences relues | **à faire — en tête** |
-| 2 | **14** | Derniers seuils « Estimation » de l'assistant (W-003) et source de W-005 | à faire (corpus requis) |
-| 3 | **11** | Ouverture de plusieurs logs en parallèle (W-050) | à faire (plafond tranché : D-051) |
-| 4 | **15** | Dette de l'interface (W-052, cache, pages spectrales) — **conditionnel** | attend un déclencheur mesuré |
+| 1 | **14** | Derniers seuils « Estimation » de l'assistant (W-003) et source de W-005 | **à faire — en tête** (corpus requis) |
+| 2 | **11** | Ouverture de plusieurs logs en parallèle (W-050) | à faire (plafond tranché : D-051) |
+| 3 | **15** | Dette de l'interface (W-052, cache, pages spectrales) — **conditionnel** | attend un déclencheur mesuré |
 
-Raison de cet ordre, arrêtée le 2026-11-08 après la publication : le **lot 13 passe en tête** parce qu'il
-porte le seul point qui peut gêner un vrai utilisateur aujourd'hui — une mise à jour par-dessus la 0.8.0
-**jamais essayée** (W-044) — et parce qu'il demande des essais de Cédric, qui peuvent se faire pendant
-qu'autre chose avance. Le **lot 14** vient ensuite : c'est le seul qui touche à la **justesse des conseils
-donnés au pilote**. Les lots 11 et 15 sont du confort, mesuré comme tel (le budget de 60 images par seconde
-est tenu avec une marge de 3) : ils attendent que les retours des pilotes disent ce qui gêne vraiment.
-
----
-
-## Lot 13 : nettoyage d'après publication (Sonnet ; essais réels par Cédric)
-
-**But** : retirer les derniers restes de la version Python et vérifier ce que seule une vraie machine peut
-vérifier. Sa condition de démarrage est remplie depuis le 2026-11-08 (0.9.0 publiée).
-
-**Branche** : `chore/post-release-cleanup`.
-
-**À lire** : [travaux-reportes.md](travaux-reportes.md) W-043, W-044, W-045 ;
-`packaging/windows/opentunebox.iss` ; `packaging/windows/construire_windows.ps1` ;
-`packaging/linux/build_appimage.sh` et `packaging/linux/install_linux.sh` ; `rust/otb-dev/src/licenses.rs`.
-
-- [ ] **Mise à jour par-dessus la 0.8.0 (W-044)** : installer la 0.8.0 Python puis la 0.9.0 Rust sur le vrai
-      Windows de Cédric, vérifier qu'aucun dossier `_internal` ne reste, puis **retirer** le code de
-      nettoyage de `_internal` du `.iss` une fois la 0.9.0 diffusée. Ordre important : d'abord prouver que
-      ça marche, ensuite seulement retirer le filet.
-- [ ] **`construire_windows.ps1` (W-044)** : jamais exécuté sur un vrai Windows (seul le `.iss` l'a été, par
-      la CI). Cédric le lance une fois ; consigner la sortie et corriger ce qui bloque.
-- [ ] **Licences (W-043)** : relire avec Cédric les obligations des licences livrées, et traiter les
-      22 composants sans fichier de licence (les lister avec leur licence déclarée suffit-il ? le vérifier
-      texte en main). Échéance fixée : **avant la 1.0**.
-- [ ] **Vérifier** : `verify` vert ; installateur reconstruit et réinstallé après le retrait du `_internal`.
-- [ ] **Consigner** : W-043, W-044 ; `CHANGELOG.md` ; [validation.md](validation.md) si un essai réel donne
-      un chiffre.
-
-**Déjà fait, rien à reprendre ici** : W-045 (AppImage) est **clos** — elle écrit son raccourci de bureau au
-premier lancement, confirmé sur la machine de Cédric le 2026-11-07 sous Wayland ; l'icône vide sous X11 est
-sans suite (cause non trouvée, aucun utilisateur X11 connu). ⚠️ Revers connu : un raccourci laissé par une
-AppImage **supprimée** empêche la suivante d'en écrire un bon.
+Raison de cet ordre, arrêtée le 2026-11-10 : le **lot 14 passe en tête** parce que c'est le seul qui touche
+à la **justesse des conseils donnés au pilote** — un seuil mal placé fait déclencher un constat trop souvent
+(le pilote n'y croit plus) ou jamais (le défaut passe). Il était second derrière le lot 13, qui portait le
+seul point pouvant gêner un vrai utilisateur (une mise à jour depuis la 0.8.0 jamais essayée) ; ce point
+s'est avéré sans objet. Les lots 11 et 15 sont du confort, mesuré comme tel (le budget de 60 images par
+seconde est tenu avec une marge de 3) : ils attendent que les retours des pilotes disent ce qui gêne
+vraiment.
 
 ---
 
@@ -198,7 +168,8 @@ visible.
 
 Ces travaux reportés sont **vus et laissés** : aucun n'empêche un pilote d'utiliser OpenTuneBox aujourd'hui.
 Leur détail et leur condition de reprise sont dans [travaux-reportes.md](travaux-reportes.md) ; ne pas les
-rouvrir ici sans cette condition.
+rouvrir ici sans cette condition. Deux d'entre eux (W-043 et W-044) viennent du lot 13 supprimé : ils n'ont
+jamais dépendu de la 0.8.0, et gardent donc leur condition de reprise.
 
 | ID | Pourquoi il n'est pas dans un lot |
 |---|---|
@@ -210,6 +181,8 @@ rouvrir ici sans cette condition.
 | W-029 (4) | Branche « crash » du guide : aucun crash réel dans le corpus, seuls des cas fabriqués |
 | W-041 | Test sensible à la charge : ⏸ attend un échec au hasard de la CI ; le corriger avant reviendrait à deviner le délai |
 | W-042 | Avis RustSec hérités d'eframe : ⏸ attend une version d'eframe qui change ses dépendances |
+| W-043 | Relecture des textes de licence livrés (22 composants sans fichier de licence) : **échéance avant la 1.0** — laissée hors lot par Cédric le 2026-11-10, à reprendre en préparant la 1.0 |
+| W-044 (2) | `construire_windows.ps1` jamais essayé sur un vrai Windows : la CI fabrique l'installateur livré, ce script ne sert qu'à construire chez soi — à l'occasion. Son point 1 (`_internal`) est **clos** |
 | W-051 | Pistes de performance écartées **par la mesure** le 2026-11-04 : ne pas les rouvrir sans mesure nouvelle |
 | W-053 | 45 messages d'erreur imitant les exceptions de Python : atteignabilité non établie |
 | W-054 | Huit des dix comparateurs d'`otb-parity` sans test : fabriquer une référence Python pour ces couches est le vrai coût |
@@ -223,7 +196,7 @@ Cargo en CI (une mécanique à entretenir pour une CI qui dure 7 min).
 
 ## Historique des lots
 
-Une ligne par lot fait. Le détail est dans `CHANGELOG.md`, les mesures dans [validation.md](validation.md),
+Une ligne par lot fait — ou par lot abandonné, pour que son numéro ne serve jamais à autre chose. Le détail est dans `CHANGELOG.md`, les mesures dans [validation.md](validation.md),
 les pièges dans [lecons.md](lecons.md) et les choix dans [decisions.md](decisions.md) — ce tableau ne fait
 que dire quand et par quoi chaque lot est prouvé.
 
@@ -241,11 +214,12 @@ prouvés.**
 | 4 | 2026-11-04 | **C1** — décodeur robuste (`fix/decoder-hostile-header`, D-044, L-080) : bornes 512 champs / intervalles 1 à 65 535, `try_reserve`. 10 cas dont **6 rouges avant** ; 20 000 champs : 3,7 s puis abandon → refus instantané | limite écrite : sous Linux une réservation énorme peut réussir (surengagement) |
 | 5 | 2026-11-04 | **C4** — mémoire du décodeur (`perf/decoder-memory`, L-081) : `CompactTable` en `i32` dès le décodeur, **481 → 274 Mo (÷ 1,75)** et 0,63 → 0,54 s ; `FlightLog` identiques sur 528 fichiers | un décodage par blocs vers `f32` irait plus loin (non fait, non chiffré) ; W-014 et W-016 clos |
 | 6 | 2026-11-06 | Bilan des cinq chantiers (branche « docs/plan-suite ») : L-087 et L-088 écrites, W-014 et W-016 clos. Aucun code livré | rien |
-| 7 | 2026-11-08 | **Première publication Rust, 0.9.0.** 7a `otb-dev licenses --check` (`feat/licenses-check`) ; 7b CHANGELOG et captures (`chore/release-0.9.0`) ; 7c **quatre tours** d'essai sur de vraies machines et **sept défauts** corrigés (PR #118 à #126), **aucun vu par les tests** ; 7d–7e publication, page « dernière version », brouillon d'essai supprimé | W-043 (licences non relues, échéance repoussée à la 1.0) et W-044 (mise à jour depuis la 0.8.0 jamais essayée) → **lot 13** |
+| 7 | 2026-11-08 | **Première publication Rust, 0.9.0.** 7a `otb-dev licenses --check` (`feat/licenses-check`) ; 7b CHANGELOG et captures (`chore/release-0.9.0`) ; 7c **quatre tours** d'essai sur de vraies machines et **sept défauts** corrigés (PR #118 à #126), **aucun vu par les tests** ; 7d–7e publication, page « dernière version », brouillon d'essai supprimé | W-043 (licences non relues, échéance repoussée à la 1.0) et W-044 (mise à jour depuis la 0.8.0 jamais essayée) → passés au lot 13, puis « Hors plan » quand il a été supprimé (ligne 13) |
 | 8 | 2026-11-05 | Banc de temps de cadre (`chore/viewer-frame-bench`) : `examples/banc_cadre.rs`. Étalon retrouvé sur `FINAL.bbl` (7,4 à 8,3 ms) ; `LOG00008.BFL` 12,6 à 13,0 ms à 620 079 échantillons, sous les 16,7 ms | les 0,34 ms de carte graphique de W-049 ne se reproduisent pas (L-084) |
 | 9 | — | **Non retenu** : W-048 ne devait pas se régler en affaiblissant un test. Repris hors lot le 2026-11-05 (`test/golden-tolerance`, D-047, L-083) | W-048 clos |
 | 10 | 2026-11-05 | Tracé du viewer sans parcourir toute la série (`perf/viewer-pyramid`, D-048, L-085, L-086) : index multi-résolution min/max dans `otb-dsp`, cadre **÷ 2,2 à ÷ 6,5**, tracé **identique au bit près**, pic de mémoire inchangé | W-049 clos ; **W-052 ouvert** (le tracé domine maintenant) → lot 15 |
 | 12 | 2026-11-08 | Ménage des registres (PR #129, `chore/registers-cleanup`) : 10 travaux reportés clos ou requalifiés, une **panique** corrigée (`log_rate`, W-029 point 3), un paramètre mort retiré (W-024), D-051 écrite. `verify --strict` 0 saut (125 s) | W-053 ouvert au passage |
+| 13 | — | **Supprimé le 2026-11-10** : « nettoyage d'après publication ». Cédric a indiqué que **personne n'a jamais utilisé la 0.8.0** — l'essai de mise à jour 0.8.0 → 0.9.0 et son filet dans l'installateur devenaient sans objet. Le filet (`[InstallDelete]` de `opentunebox.iss`) est retiré dans la foulée (branche `chore/drop-python-upgrade-net`), W-044 point 1 clos | W-043 (licences, échéance 1.0) et W-044 point 2 (script Windows) ne dépendaient pas de la 0.8.0 → « Hors plan », avec leur condition |
 | 16 | 2026-11-08 | **Revue intégrale** du code, des tests, de la documentation et de l'outillage (PR #129) : 4 relevés (~41 000 lignes de code, ~20 500 de tests, 30 `.md`, 4 workflows), 53 cases, **2 défauts réels** corrigés (`compare_header`, `slice_time`), **6 constats de relevé faux** corrigés après vérification, chaîne Rust figée (`rust-toolchain.toml`), clippy sous Windows, D-052 écrite, D-050 précisée, récidive de L-079 bridée | **W-054 ouvert** : seuls 2 des 10 comparateurs d'`otb-parity` ont reçu un test |
 | 17 | 2026-11-08 | **Rassemblement des plans** (branche « docs/rassembler-les-plans ») : les quatre documents de plan deviennent ce seul `docs/plan.md`, L-092 écrite | rien |
 
