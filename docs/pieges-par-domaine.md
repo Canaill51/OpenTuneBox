@@ -77,6 +77,10 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 
 ## Interface egui et Rust
 
+- Échéance (délai d'abandon) et résultat asynchrone : **relever d'abord** ce qui est déjà arrivé, n'examiner l'échéance
+  qu'ensuite — sinon elle jette un travail terminé (l'export d'image échouait sur « capture pas arrivée » alors qu'elle
+  l'était). Et un test ne prouve pas une règle de temps en **dormant** : rendre la condition immédiate (délai à zéro) et
+  poser le résultat par une prise de test (`App::shot_sender`). L-095
 - Résultat rangé dans le cache des outils (`state.rs:Cache`, jamais évincé) : regarder **ce que son type contient** et libérer
   ce qu'aucun lecteur n'affiche — le rapport de l'assistant transportait les fenêtres individuelles de la réponse indicielle,
   69 % de son poids (jusqu'à 72 Mo) pour rien. Une mémoire se **mesure** (`--example banc_cache`, allocateur compteur et

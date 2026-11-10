@@ -539,7 +539,6 @@ fn ouvrir_un_fichier_efface_le_resultat_du_dernier_export() {
 fn le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi() {
     let dir = dossier_temp("delai");
     let mut h = banc_export(Some(dir.join("a.png")), Rc::new(RefCell::new(Vec::new())));
-    h.state_mut().capture_timeout = Duration::from_millis(150);
     h.run();
     h.get_by_label("Exporter la fenêtre en image PNG").click();
     attendre_export(&mut h);
@@ -548,14 +547,47 @@ fn le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi() {
         "{}",
         h.state().export_status
     );
-    // bien après le délai : le message de réussite n'est pas remplacé par une fausse erreur
-    std::thread::sleep(Duration::from_millis(400));
+    // ⚠️ Aucune horloge ici : un délai ramené à zéro fait expirer l'échéance **au cadre suivant**, donc si l'export
+    // réussi avait laissé une capture en attente, la fausse erreur tomberait tout de suite. Le test qui dormait
+    // 400 ms à la place échouait au hasard sous charge (W-041, L-095).
+    h.state_mut().capture_timeout = Duration::ZERO;
     h.run_steps(3);
     assert!(
         h.state().export_status.starts_with("Image enregistrée"),
         "{}",
         h.state().export_status
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn une_capture_arrivee_a_l_echeance_est_utilisee_et_non_jetee() {
+    // ⚠️ L'échéance était examinée **avant** que la capture ne soit relevée dans son canal : au cadre où le délai
+    // expirait, `shot_rect` était jeté et l'image, pourtant là, ne pouvait plus être découpée — l'export échouait sur
+    // « la capture d'écran n'est pas arrivée » alors qu'elle venait d'arriver (W-041, L-095).
+    let dir = dossier_temp("echeance");
+    let cible = dir.join("a.png");
+    let mut h = banc_export(Some(cible.clone()), Rc::new(RefCell::new(Vec::new())));
+    h.run();
+    let ppp = h.ctx.pixels_per_point();
+    let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 500.0));
+    // l'échéance est déjà dépassée au cadre qui suit, et la capture est **déjà** dans le canal : les deux au même cadre
+    h.state_mut().capture_timeout = Duration::ZERO;
+    let tx = h.state().shot_sender();
+    let image = egui::ColorImage::new(
+        [(900.0 * ppp).round() as usize, (500.0 * ppp).round() as usize],
+        vec![egui::Color32::from_rgb(1, 2, 3); ((900.0 * ppp).round() * (500.0 * ppp).round()) as usize],
+    );
+    let ctx = h.ctx.clone();
+    h.state_mut().request_export(&ctx, rect);
+    tx.send(std::sync::Arc::new(image)).expect("canal ouvert");
+    h.run_steps(2);
+    assert!(
+        h.state().export_status.starts_with("Image enregistrée"),
+        "la capture était dans le canal et a pourtant été perdue : {}",
+        h.state().export_status
+    );
+    assert!(cible.exists(), "aucun fichier écrit");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
