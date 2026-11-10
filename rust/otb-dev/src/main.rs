@@ -7,13 +7,13 @@
 //! otb-dev licenses [--check]                           THIRD-PARTY-LICENSES.txt (mentions de licences des composants livrés) ; --check : compare sans écrire
 //! otb-dev corpus <outil> …                            outils du corpus de vrais logs (`OTB_LOGS`)
 //! otb-dev verify [--quick] [--strict]                 fmt, clippy, tests, cargo deny : code 0 seulement si tout passe
-//! otb-dev bench-open LOG [ESSAIS]                     durée et pic de mémoire de l'ouverture d'un log (un processus par log)
+//! otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]   durée et pic de mémoire de l'ouverture de logs (--jobs 1 : les uns après les autres)
 //! ```
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG [ESSAIS]";
+const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]";
 
 /// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `CHANGELOG.md` et `rust/Cargo.toml`.
 fn repo_root() -> Result<PathBuf, String> {
@@ -28,6 +28,42 @@ fn repo_root() -> Result<PathBuf, String> {
         .ok_or_else(|| "racine du dépôt introuvable (lancer depuis le dépôt ou définir OTB_DEV_ROOT)".into())
 }
 
+/// `bench-open LOG… [--jobs N] [--trials N]` : les options peuvent être n'importe où, le reste est la liste des logs.
+fn bench_open(args: &[&str]) -> Result<String, String> {
+    let mut logs: Vec<PathBuf> = Vec::new();
+    let mut jobs = otb_log::parallel::MAX_PARALLEL_FILES;
+    let mut trials = 1usize;
+    let mut drop_logs = false;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i] {
+            "--jobs" | "--trials" => {
+                let v: usize = args
+                    .get(i + 1)
+                    .and_then(|v| v.parse().ok())
+                    .filter(|n| *n >= 1)
+                    .ok_or_else(|| format!("{} attend un nombre ≥ 1", args[i]))?;
+                if args[i] == "--jobs" {
+                    jobs = v
+                } else {
+                    trials = v
+                }
+                i += 2;
+            }
+            "--drop" => {
+                drop_logs = true;
+                i += 1;
+            }
+            other if other.starts_with("--") => return Err(USAGE.into()),
+            other => {
+                logs.push(PathBuf::from(other));
+                i += 1;
+            }
+        }
+    }
+    otb_dev::bench_open::run(&logs, jobs, trials, drop_logs)
+}
+
 fn run(args: &[String]) -> Result<String, String> {
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     match args.as_slice() {
@@ -38,8 +74,7 @@ fn run(args: &[String]) -> Result<String, String> {
         ["release", "notes", tag] => otb_dev::release::notes(&repo_root()?, tag),
         ["licenses"] => otb_dev::licenses::generate(&repo_root()?),
         ["licenses", "--check"] => otb_dev::licenses::check(&repo_root()?),
-        ["bench-open", log] => otb_dev::bench_open::run(Path::new(log), 1),
-        ["bench-open", log, n] => otb_dev::bench_open::run(Path::new(log), n.parse().map_err(|_| USAGE.to_string())?),
+        ["bench-open", rest @ ..] if !rest.is_empty() => bench_open(rest),
         ["icons"] => otb_dev::icons::generate(&repo_root()?, None),
         ["icons", "--svg", path] => otb_dev::icons::generate(&repo_root()?, Some(Path::new(path))),
         _ => Err(USAGE.into()),

@@ -60,6 +60,19 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-093 : deux tests d'un même fichier qui partagent un dossier temporaire s'effacent leurs fichiers, et l'échec se déplace
+
+- **Symptôme** — 2026-11-10 (lot 11) : `au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes` échoue **au bout de
+  30 s** (son attente maximale) quand tout le fichier `otb-gui/tests/app.rs` tourne, et passe en 0,5 s lancé seul. Rien dans le
+  message ne désigne la cause : il dit seulement que les logs attendus ne sont jamais arrivés.
+- **Cause** — les deux nouveaux tests copiaient le log d'essai dans un dossier nommé d'après le **seul** identifiant de
+  processus (`otb-gui-copies-<pid>`), et `cargo test` lance les tests d'un même fichier **en parallèle dans un seul
+  processus** : le second test effaçait (`remove_dir_all`) les fichiers que le premier était en train d'ouvrir.
+- **Règle** — un dossier temporaire de test porte le nom du **test**, pas seulement celui du processus. Le modèle est déjà dans
+  `rust/otb-parity/tests/comparateurs.rs:dossier`, qui prend un nom en argument pour cette raison exacte.
+- **Preuve** — remettre le même nom de dossier pour les deux tests fait réapparaître l'échec, et seulement quand le fichier de
+  tests est lancé en entier.
+
 ### L-092 : un plan qui tient son propre historique finit par contredire les registres
 - **Symptôme** — 2026-11-08 : le projet comptait **quatre** documents de plan (`plan-chantiers.md` 557 lignes,
   `plan-consolidation.md` 297, `plan-suite.md` 247, `migration-rust.md` 159), dont trois décrivaient surtout du travail
@@ -1071,6 +1084,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-093 | Deux tests d'un même fichier qui partagent un dossier temporaire nommé d'après le seul `pid` s'effacent leurs fichiers (ils tournent en parallèle dans un même processus) : nommer le dossier d'après le test | Tests |
 | L-092 | Un plan qui tient son propre historique contredit les registres (la liste « reste ouvert » d'un plan omettait un `W-xxx` ouvert le même jour, sans aucun test rouge) : **un seul plan**, `docs/plan.md`, qui cite les `W-xxx` sans recopier leur état ; un lot fini devient une ligne d'historique | Outillage |
 | L-091 | Barre de titre, bordures, icône : egui les habille au **premier** cadre, trop tôt pour Windows, qui ne repeint pas le contour d'une fenêtre qu'il vient de créer ; annoncer le thème soi-même une fois la fenêtre posée, et se rappeler que le contour d'une fenêtre n'est vu ni par les tests ni par les captures | Interface |
 | L-090 | « Capture de la fenêtre active » (`spectacle -a`) : c'est la fenêtre de **Cédric** qui est photographiée, sans erreur visible ; un agent ne photographie jamais son écran, l'interface se regarde par les captures hors écran | Outillage |

@@ -10,6 +10,7 @@ use otb_decoder::CompactTable;
 pub mod debug_tables;
 pub mod flightlog;
 pub mod modes;
+pub mod parallel;
 pub mod settings;
 
 /// Colonne ignorée (`loopIteration`, `time`) : ni ramenée aux 32 bits ni contrôlée.

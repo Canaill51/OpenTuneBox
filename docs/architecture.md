@@ -140,7 +140,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
 - **otb-decoder** : décodeur, Rust pur. `header.rs` (en-têtes et sessions), `file.rs` (`decode_file` de bout en bout ; `decode_bytes_compact` range les trames principales en `CompactTable`, `i32` sauf `loopIteration` et `time`, pour `otb_log::flightlog::load` : L-081), `error.rs` (`DecodeError` : en-tête hors bornes, mémoire insuffisante ; D-044), `frame.rs`
   (prédicteurs et lecture d'une trame ou d'un événement), `reader.rs` (session décodée).
 - **otb-log** : rejet des trames impossibles et conversions float32 de l'ouverture d'un log (D-034) ; `debug_tables.rs` et `modes.rs`
-  (tables de debug et de modes), `settings.rs` (`parse_settings`), `flightlog.rs` (`FlightLog`, `from_session`, `load`).
+  (tables de debug et de modes), `settings.rs` (`parse_settings`), `flightlog.rs` (`FlightLog`, `from_session`, `load`),
+  `parallel.rs` (`load_many` : plusieurs fichiers ouverts à la fois, au plus `MAX_PARALLEL_FILES` = 3 décodés en même temps,
+  ordre des fichiers conservé ; D-051). Dépendances : otb-decoder, otb-dsp et rayon.
 - **otb-dsp** : noyaux des filtres Betaflight, de `step_response`, primitives numériques (`numeric.rs`) et décimation min/max des
   courbes (`minmax.rs` : `MinMaxPyramid`, index multi-résolution par courbe, `window_points` en O(points rendus) ; D-048) ;
   dépendances realfft et rayon (D-033).

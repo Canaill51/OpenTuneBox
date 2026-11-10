@@ -168,9 +168,14 @@ Débloque W-050 (lot 11 de [plan.md](plan.md)). **Tranché par Cédric** le 2026
 seul `opening`). Décoder en parallèle va **×2,40** (6 logs : 0,830 s → 0,345 s), mais chaque fichier décodé en même temps
 coûte **168 à 181 Mo** de pic mémoire : sans plafond, ouvrir dix logs d'un coup demanderait près de 2 Go.
 
-**Décidé : au plus trois fichiers décodés en même temps**, soit environ 540 Mo au pire — l'ordre de grandeur de ce que la
-version Python 0.8.0 demandait pour **un seul** log (481 Mo). Le gain mesuré sur six logs est conservé pour l'essentiel, et une
+**Décidé : au plus trois fichiers décodés en même temps.** Le gain mesuré sur six logs est conservé pour l'essentiel, et une
 machine modeste reste servie.
+
+⚠️ **Chiffre de mémoire corrigé le 2026-11-10 (lot 11, mesuré)** : la décision annonçait « environ 540 Mo au pire », en comptant
+180 Mo par fichier. Le pic réel à trois fichiers est de **663 Mo**, parce que le plus gros log du corpus (`LOG00008.BFL`) en
+coûte 324 Mo à lui seul. Cédric a **gardé le plafond de trois** en connaissance de ce chiffre : le gain est de × 2,26 (1,835 s
+→ 0,811 s), et dans l'interface le surcoût du parallélisme n'est que de + 164 Mo, les logs déjà ouverts pesant de toute façon.
+Mesures et conditions : [validation.md](validation.md), « Ouverture de plusieurs logs ».
 
 **Option écartée : un plafond exprimé en mémoire** (« ne pas dépasser 1 Go »). Elle est plus souple, mais elle demande de
 mesurer le pic du processus pendant le décodage pour décider s'il faut lancer le fichier suivant — une mesure qui n'est pas
@@ -183,8 +188,10 @@ plusieurs tables compactes du même log.
 **Conséquence assumée.** Au-delà de trois logs ouverts d'un coup, les suivants attendent : le temps total ne descend plus en
 dessous d'un tiers du temps séquentiel, quel que soit le nombre de cœurs.
 
-**Témoin attendu** (lot 11) : un test qui compte les fichiers en cours de décodage et exige qu'il n'en passe jamais plus de
-trois, et l'égalité **bit pour bit** des `FlightLog` avec l'ouverture séquentielle.
+**Témoin** (lot 11, livré le 2026-11-10) : `rust/otb-log/tests/parallel.rs` compte les fichiers en cours de décodage et exige
+qu'il n'en passe jamais plus de trois ; `rust/otb-parity/tests/parallel_identique.rs` compare les empreintes complètes des
+`FlightLog` entre ouverture parallèle et séquentielle. Le plafond est tenu par un pool `rayon` **propre à l'appel**
+(`otb_log::parallel::map_bounded`), jamais par le pool global : il ne dépend donc pas du nombre de cœurs de la machine.
 
 ---
 

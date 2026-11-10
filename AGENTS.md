@@ -42,7 +42,7 @@ ligne par lot fait. Ne jamais ouvrir un second document de plan : un plan qui ti
 
 `rust/` est l'espace de travail Cargo (D-031) ; détail de chaque crate et fichier : `docs/architecture.md`.
 
-- `otb-decoder` (BBL/BFL → valeurs brutes), `otb-log` (FlightLog en unités physiques, float32 : D-029), `otb-dsp` (noyaux de calcul, D-033),
+- `otb-decoder` (BBL/BFL → valeurs brutes), `otb-log` (FlightLog en unités physiques, float32 : D-029 ; `parallel.rs` : plusieurs fichiers à la fois, D-051), `otb-dsp` (noyaux de calcul, D-033),
   `otb-analysis` (calculs purs), `otb-advisor` (assistant et guide intégré), `otb-format` (formats de nombres), `otb-cli` (`opentunebox info` / `report`),
   `otb-gui` (egui), `otb-parity` (comparateur avec les références Python), `otb-dev` (outils de développement, jamais livrés).
 - `tests/data/jeno5_5s.bbl` : 5 s d'un vrai log, lu par une quinzaine de fichiers de tests ; les autres tests sont dans `rust/<crate>/tests/` ;
@@ -67,7 +67,7 @@ cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, mentions de lice
 cargo test -p otb-dev --test docs   # cohérence de la documentation
 cargo run --release -p otb-gui -- [LOG…]   # interface
 cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande
-cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z | release notes vX.Y.Z | bench-open LOG…   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version, notes de la page Releases, banc d'ouverture d'un log
+cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z | release notes vX.Y.Z | bench-open LOG… [--jobs N]   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version, notes de la page Releases, banc d'ouverture de logs (`--jobs 1` : les uns après les autres)
 cargo run --release -p otb-dev -- corpus rates|calibrate|labels|validate   # calculs sur le corpus : compétence `calculs-corpus`
 cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées (aussi : list, check-header|decoder|settings|flightlog|sliders|analysis|advisor|guide|tuning|cli)
 cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG…]   # captures sans écran (wgpu) : regarder l'image produite
