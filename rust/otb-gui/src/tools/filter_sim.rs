@@ -18,7 +18,7 @@ use otb_analysis::motors::hover_motor_hz;
 use otb_log::settings::Settings;
 
 use crate::plots::{format_hz, log_grid, nice_axes, nice_grid};
-use crate::state::AppState;
+use crate::state::{AppState, Famille};
 use crate::theme::{AXIS_NAMES, Theme, plot};
 use crate::tool::{LogInput, Tool};
 use crate::tools::common::{AxisToggles, FileSelection, PTB_DB_RANGE, safe_text};
@@ -763,7 +763,7 @@ impl Tool for FilterSimTool {
         let mut r = simulate_filters(&li.log, sel, base, &modf, o.with_current)?;
         r.log_id = id;
         let r = Arc::new(r);
-        li.cache.put(key, r.clone());
+        li.cache.put(Famille::Filtres, key, r.clone());
         Ok(r)
     }
 

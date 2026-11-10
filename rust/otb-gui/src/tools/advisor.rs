@@ -9,7 +9,7 @@ use otb_advisor::profiles::{PROFILES, profile};
 use otb_advisor::rules::{Report, analyze};
 
 use crate::plots::{corner_text, nice_axes};
-use crate::state::AppState;
+use crate::state::{AppState, Famille};
 use crate::theme::{Theme, with_alpha};
 use crate::tool::{LogInput, Tool};
 use crate::tools::common::{FileSelection, safe_text};
@@ -211,7 +211,7 @@ impl Tool for AdvisorTool {
                     None => None,
                 };
                 let r = Arc::new(analyze(&li.log, Some(sel), prof)?);
-                li.cache.put(key, r.clone());
+                li.cache.put(Famille::Assistant, key, r.clone());
                 r
             }
         };

@@ -20,7 +20,7 @@ use otb_log::flightlog::FlightLog;
 
 use crate::guide::*;
 use crate::icons::icon;
-use crate::state::AppState;
+use crate::state::{AppState, Famille};
 use crate::theme::Theme;
 
 /// Texte du bouton d'aide d'une étape (nom accessible, lu par les tests) et son info-bulle.
@@ -355,7 +355,7 @@ impl GuidePage {
         if let Some(ll) = state.logs.iter().find(|l| l.uid == uid)
             && period_key("guide-full", ll.period, self.inch()) == key
         {
-            ll.extras.put(key, Arc::new(res));
+            ll.extras.put(Famille::Guide, key, Arc::new(res));
         }
     }
 
@@ -380,7 +380,7 @@ impl GuidePage {
                 }
                 budget -= 1;
                 let r = Arc::new(run_check(&ll.log, ll.sel(), &ll.label, false, inch));
-                ll.extras.put(qk.clone(), r.clone());
+                ll.extras.put(Famille::Guide, qk.clone(), r.clone());
                 Some(r)
             });
             if full.is_none() && wanted.is_none() && self.running.as_ref().is_none_or(|r| r.0 != ll.uid) {
