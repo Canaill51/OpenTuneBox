@@ -1,11 +1,13 @@
-//! Fenêtre principale : thème conservé quand le système change de thème, ouverture de fichiers fichier par fichier.
+//! Fenêtre principale : thème conservé quand le système change de thème, ouverture de fichiers par paquets (D-051).
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use egui_kittest::Harness;
 use otb_gui::app::{App, Screen};
+use otb_gui::state::MAX_LOGS;
 use otb_gui::theme;
+use otb_log::parallel::MAX_PARALLEL_FILES;
 
 fn banc(app: App) -> Harness<'static, App> {
     Harness::builder()
@@ -96,6 +98,96 @@ fn un_fichier_illisible_n_empeche_pas_les_suivants() {
         a.status
     );
     assert_eq!(a.state.logs[1].label, format!("{} (2)", a.state.logs[0].label));
+}
+
+/// Taille du prochain paquet : le plafond de D-051, et jamais plus de fichiers qu'il reste de places.
+#[test]
+fn le_paquet_ne_depasse_ni_le_plafond_ni_les_places_restantes() {
+    use otb_gui::app::taille_du_paquet;
+    assert_eq!(taille_du_paquet(1, 0), 1);
+    assert_eq!(
+        taille_du_paquet(6, 0),
+        MAX_PARALLEL_FILES,
+        "plafond de fichiers décodés en même temps"
+    );
+    assert_eq!(
+        taille_du_paquet(6, MAX_LOGS - 2),
+        2,
+        "deux places restantes : deux fichiers décodés"
+    );
+    assert_eq!(
+        taille_du_paquet(6, MAX_LOGS),
+        1,
+        "plus de place : un seul, pour afficher le message"
+    );
+}
+
+/// Attend que l'ouverture en cours aboutisse (ou s'arrête après 30 s).
+///
+/// ⚠️ `run()` panique si le fil de calcul redemande une repeinte pendant qu'il tourne (« exceeded max_steps ») :
+/// on avance au pas, comme dans le test ci-dessus.
+fn attendre_logs(h: &mut Harness<'static, App>, combien: usize) {
+    let debut = Instant::now();
+    while h.state().state.logs.len() < combien {
+        h.step();
+        assert!(
+            debut.elapsed() < Duration::from_secs(30),
+            "{} logs ouverts sur {combien}",
+            h.state().state.logs.len()
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    h.run_steps(3);
+}
+
+/// Copie le log d'essai sous `noms` dans un dossier temporaire : des libellés différents rendent l'ordre visible.
+///
+/// ⚠️ `essai` nomme le dossier : les tests d'un même fichier tournent **en parallèle dans le même processus**, et deux
+/// tests qui partageraient un dossier s'effaceraient leurs fichiers l'un l'autre (L-093).
+fn copies(essai: &str, noms: &[&str]) -> (PathBuf, Vec<PathBuf>) {
+    let dir = std::env::temp_dir().join(format!("otb-gui-copies-{essai}-{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(&dir).unwrap();
+    let paths = noms
+        .iter()
+        .map(|n| {
+            let p = dir.join(format!("{n}.bbl"));
+            std::fs::copy(donnees(), &p).unwrap();
+            p
+        })
+        .collect();
+    (dir, paths)
+}
+
+/// Six logs demandés d'un coup s'ouvrent en deux paquets de trois (D-051) et s'affichent **dans l'ordre demandé**,
+/// pas dans l'ordre où les fils ont fini.
+#[test]
+fn six_logs_s_ouvrent_dans_l_ordre_demande() {
+    let noms = ["a", "b", "c", "d", "e", "f"];
+    let (dir, paths) = copies("ordre", &noms);
+    let mut h = banc(App::new(Vec::new()));
+    h.state_mut().open(paths);
+    attendre_logs(&mut h, 6);
+    let labels: Vec<String> = h.state().state.logs.iter().map(|l| l.label.clone()).collect();
+    assert_eq!(labels, noms.iter().map(|n| n.to_string()).collect::<Vec<_>>());
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// ⚠️ Au-delà de `MAX_LOGS`, les fichiers restants sont abandonnés : sans cela, un paquet de trois serait décodé
+/// (≈ 500 Mo) pour être jeté.
+#[test]
+fn au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes() {
+    let noms: Vec<String> = (0..MAX_LOGS + 4).map(|i| format!("log{i:02}")).collect();
+    let refs: Vec<&str> = noms.iter().map(String::as_str).collect();
+    let (dir, paths) = copies("maximum", &refs);
+    let mut h = banc(App::new(Vec::new()));
+    h.state_mut().open(paths);
+    attendre_logs(&mut h, MAX_LOGS);
+    h.run_steps(5);
+    let a = h.state();
+    assert_eq!(a.state.logs.len(), MAX_LOGS);
+    assert!(a.status.contains("logs au plus"), "{}", a.status);
+    std::fs::remove_dir_all(&dir).ok();
 }
 
 // ---- export PNG de la fenêtre et des outils (6-6a) ----

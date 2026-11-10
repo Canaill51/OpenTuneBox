@@ -68,7 +68,7 @@ Règles d'écriture :
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
 | W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
-| W-050 | Ouverture d'un log dominée par le décodage (83 % de 342 ms) ; fichiers ouverts les uns après les autres (×2,40 mesuré en parallèle, pic de mémoire à plafonner) | ouvert — **débloqué le 2026-11-08** : plafond fixé par Cédric à **3 fichiers décodés en même temps** (D-051) ; lot 11 de `docs/plan.md` |
+| W-050 | Ouverture d'un log dominée par le décodage (83 % de 342 ms) ; fichiers ouverts les uns après les autres (×2,40 mesuré en parallèle, pic de mémoire à plafonner) | ✅ CLOS (2026-11-10, lot 11) — ouverture par paquets de 3 (D-051), × 2,26 sur 6 logs, `FlightLog` identiques au bit près |
 | W-049 | Le tracé du viewer parcourt la série entière à chaque cadre (7,94 ms par cadre à 321 729 échantillons, 12,6 à 13,0 ms à 620 079, la plus longue session du corpus) : saccades attendues au-delà de ~800 000 échantillons | TRAITÉ le 2026-11-05 (D-048 : index multi-résolution min/max, cadre ÷ 2,2 à ÷ 6,5, tracé identique au bit près ; L-085, L-086 ; reste W-052) |
 | W-048 | `otb-parity --test golden` rouge avec `OTB_GOLDEN` défini (écart de 1e-15 relatif, `spectral.spectrum`), déjà sur `main` ; test volontairement non affaibli | TRAITÉ le 2026-11-05 (D-047 : tolérance mesurée de chaque fonction, bit près par défaut ; L-083) |
 | W-047 | Test `install_linux` échoué une fois sur six exécutions de `verify`, cause non trouvée | TRAITÉ le 2026-11-05 (course `ETXTBSY` entre les cas du fichier : cause reproduite et corrigée, L-082) |
@@ -705,7 +705,7 @@ compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
   en O(points rendus) et gagnerait aussi pendant le glissement, au prix d'une structure de données à valider par des tests.
   [`rust/otb-gui/src/viewer_page.rs:ui`, `rust/otb-dsp/src/minmax.rs:window_points`]
 
-- **W-050** — L'ouverture d'un log est dominée par le décodage, et les fichiers s'ouvrent les uns après les autres. Mesuré le
+- ~~**W-050** — L'ouverture d'un log est dominée par le décodage, et les fichiers s'ouvrent les uns après les autres.~~ Mesuré le
   2026-11-04 sur `1. PTB/ram/BTFL_BLACKBOX_LOG_MARIO_8_…TMOTORVELOXF7SE.bbl` (22,3 Mo, 9 sessions, 515 239 trames) :
   ouverture complète 342 ms, dont lecture du fichier 3 ms, **décodage 283 ms (83 %, soit 0,55 µs par trame)** et construction
   des séries f32 56 ms (16 %). Deux leviers mesurés : décoder en parallèle les sessions d'un même fichier (possible sans
@@ -721,6 +721,11 @@ compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
   **Piste** : `rayon` sur les fichiers, avec un plafond de concurrence et l'ordre des logs conservé (`par_iter().collect()` le
   garantit) ; le décodage par session seulement si un corpus montre des sessions de tailles comparables.
   [`rust/otb-log/src/flightlog.rs:load`, `rust/otb-decoder/src/file.rs:decode_bytes_compact`, `rust/otb-gui/src/app.rs:open`]
+  ✅ **CLOS (2026-11-10, lot 11)** — `rust/otb-log/src/parallel.rs` ouvre les fichiers par paquets d'au plus 3 décodés en même
+  temps (D-051), dans un pool `rayon` propre à l'appel ; l'interface prend la file par paquets et remonte les erreurs fichier
+  par fichier. Mesuré sur 6 logs : 1,835 s → 0,811 s (× 2,26), pic 663 Mo contre 324 Mo en séquentiel, un seul fichier non
+  dégradé ([validation.md](validation.md), « Ouverture de plusieurs logs »). Le décodage par session reste écarté (× 1,10 sur
+  `FINAL.bbl`, D-051).
 
 - ~~**W-051** — Trois pistes d'optimisation écartées par la mesure du 2026-11-04, notées pour ne pas les reprendre.~~
   🚫 **SANS SUITE (2026-11-04)** — mesuré : le gain est nul ou négatif. (1) le plan FFT recréé à chaque appel de `rfft_rows` coûte 8 µs

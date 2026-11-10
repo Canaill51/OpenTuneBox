@@ -97,6 +97,10 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - **Un seul plan**, `docs/plan.md` : il dit ce qu'il reste à faire et garde une ligne par lot fait. Il **cite** les `W-xxx`
   sans recopier leur état (leur maître est `docs/travaux-reportes.md`, D-018), et un lot terminé ne laisse pas son plan
   derrière lui. Aucun test ne protège un plan : une copie périmée s'y installe sans rien faire rougir. L-092
+- **Dossier temporaire d'un test : le nommer d'après le test**, pas seulement d'après le `pid`. Les tests d'un même fichier
+  tournent en parallèle dans un seul processus, et deux tests qui partagent un dossier s'effacent leurs fichiers — l'échec se
+  montre ailleurs, et seulement quand le fichier est lancé en entier. Modèle :
+  `rust/otb-parity/tests/comparateurs.rs:dossier`. L-093
 
 ## Construction des exécutables
 

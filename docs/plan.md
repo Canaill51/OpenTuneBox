@@ -10,8 +10,8 @@ installateur Windows), les huit outils de PIDtoolbox Pro V0.94 sont tous couvert
 verte, et `cargo run -p otb-dev -- verify --strict` avec le corpus, les références figées et la comparaison
 au bit près : **0 saut, tout passe**.
 
-Le programme est donc complet et publié, et depuis le 2026-11-10 **il ne reste que du confort** (lots 11
-et 15). Les deux autres familles ont disparu le même jour : vérifier ce que seule une vraie machine vérifie
+Le programme est donc complet et publié, et depuis le 2026-11-10 **il ne reste que du confort** (lot 15 ;
+le lot 11 est fait le même jour). Les deux autres familles ont disparu le même jour : vérifier ce que seule une vraie machine vérifie
 (lot 13) n'avait plus d'objet, **personne n'ayant jamais utilisé la 0.8.0** ; et **plus aucun seuil de
 l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur ait eu à changer.
 
@@ -32,57 +32,21 @@ l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur
   vers Cédric ; ne pas improviser un autre découpage.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
-- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 10 et 12 à 14, 16 et 17
+- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14, 16 et 17
   sont au tableau en bas (faits, non retenus ou supprimés), le prochain numéro libre est **18**.
 
 ## Ordre des étapes
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **11** | Ouverture de plusieurs logs en parallèle (W-050) | **à faire — en tête** (plafond tranché : D-051) |
-| 2 | **15** | Dette de l'interface (W-052, cache, pages spectrales) — **conditionnel** | attend un déclencheur mesuré |
+| 1 | **15** | Dette de l'interface (W-052, cache, pages spectrales) — **conditionnel** | attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
-de 3 sur la plus longue session du corpus. Les deux lots qui touchaient à un utilisateur réel ont été réglés
-le 2026-11-10 : le **13** s'est avéré sans objet (personne n'a eu la 0.8.0) et le **14**, qui portait la
-justesse des conseils donnés au pilote, est fait sans qu'aucune valeur de seuil ait eu à changer. Le lot 11
-passe donc en tête, et le 15 attend toujours son déclencheur mesuré — les deux peuvent attendre que les
-retours des pilotes disent ce qui gêne vraiment.
-
----
-
-## Lot 11 : ouverture de plusieurs logs en parallèle (Opus) — W-050
-
-**But** : ouvrir plusieurs fichiers à la fois (×2,4 mesuré sur 6 logs, 0,830 s → 0,345 s) **sans que le pic
-de mémoire dépasse le plafond**. Le plafond est tranché : **3 fichiers décodés en même temps** au plus
-(D-051), compté en **nombre de fichiers** et non en mémoire — un compteur se vérifie dans un test, une
-mesure de mémoire non.
-
-**Branche** : `perf/open-parallel`.
-
-**À lire** : [travaux-reportes.md](travaux-reportes.md) W-050, [validation.md](validation.md) (« Ouverture
-d'un log »), `rust/otb-gui/src/app.rs:open` et `rust/otb-gui/src/app.rs:poll_opening` (aujourd'hui **un
-seul** fichier à la fois : la file `queue` et un unique `opening`), `rust/otb-log/src/flightlog.rs:load`,
-`rust/otb-dev/src/bench_open.rs`, [lecons.md](lecons.md) L-081 et L-066, [decisions.md](decisions.md) D-051.
-
-Le décodage de sessions d'un **même** fichier en parallèle est **écarté** : ×1,10 seulement sur `FINAL.bbl`,
-et il cumulerait plusieurs tables compactes.
-
-- [ ] Banc multi-fichiers d'abord (le lot 5 n'en mesurait qu'un seul par processus) : `otb-dev bench-open`
-      accepte plusieurs logs et un nombre de fichiers simultanés, et donne durée totale et pic de mémoire du
-      processus. Mesure « avant » (séquentiel) consignée sur 6 logs dont `LOG00008.BFL`.
-- [ ] Ouverture parallèle avec plafond (`rayon`, ordre des logs conservé, `par_iter().collect()`), dans le
-      calcul pur (`otb-log`) ; l'interface garde son rôle : afficher, annuler, remonter les erreurs
-      **fichier par fichier**.
-- [ ] Tests : ordre conservé quelle que soit la durée de chaque fichier ; un fichier illisible n'empêche pas
-      les autres ; le plafond est respecté (compteur de fichiers en cours dans un test, pas une mesure de
-      mémoire) ; résultat identique au séquentiel (empreinte de tous les `FlightLog`, comme au lot 5).
-- [ ] Mesure « après » : ×2 attendu au moins sur les 6 logs ; **pic de mémoire ≤ plafond** ; un seul
-      fichier : temps non dégradé.
-- [ ] **Critères d'arrêt** : un `FlightLog` qui diffère d'un bit ; un pic au-dessus du plafond sur les
-      6 logs ; un gain inférieur à ×1,5.
-- [ ] **Consigner** : W-050 traité, [validation.md](validation.md), [architecture.md](architecture.md),
-      `CHANGELOG.md`, leçon si un piège coûte du temps.
+de 3 sur la plus longue session du corpus. Les lots qui touchaient à un utilisateur réel ont été réglés le
+2026-11-10 : le **13** s'est avéré sans objet (personne n'a eu la 0.8.0), le **14** est fait sans qu'aucune
+valeur de seuil ait eu à changer, et le **11** a livré l'ouverture de plusieurs logs à la fois (× 2,26). Il ne
+reste que le **15**, qui attend toujours son déclencheur mesuré : il peut attendre que les retours des pilotes
+disent ce qui gêne vraiment.
 
 ---
 
@@ -174,6 +138,7 @@ prouvés.**
 | 8 | 2026-11-05 | Banc de temps de cadre (`chore/viewer-frame-bench`) : `examples/banc_cadre.rs`. Étalon retrouvé sur `FINAL.bbl` (7,4 à 8,3 ms) ; `LOG00008.BFL` 12,6 à 13,0 ms à 620 079 échantillons, sous les 16,7 ms | les 0,34 ms de carte graphique de W-049 ne se reproduisent pas (L-084) |
 | 9 | — | **Non retenu** : W-048 ne devait pas se régler en affaiblissant un test. Repris hors lot le 2026-11-05 (`test/golden-tolerance`, D-047, L-083) | W-048 clos |
 | 10 | 2026-11-05 | Tracé du viewer sans parcourir toute la série (`perf/viewer-pyramid`, D-048, L-085, L-086) : index multi-résolution min/max dans `otb-dsp`, cadre **÷ 2,2 à ÷ 6,5**, tracé **identique au bit près**, pic de mémoire inchangé | W-049 clos ; **W-052 ouvert** (le tracé domine maintenant) → lot 15 |
+| 11 | 2026-11-10 | **Ouverture de plusieurs logs en parallèle** (branche `perf/open-parallel`, D-051, L-093) : `otb_log::parallel`, paquets d'au plus 3 fichiers décodés en même temps dans un pool `rayon` propre à l'appel. 6 logs : **1,835 s → 0,811 s (× 2,26)**, un seul fichier non dégradé, `FlightLog` identiques (empreintes) ; 4 contre-preuves | **W-050 clos** ; le chiffre de mémoire de D-051 était trop bas (663 Mo et non ≈ 540), plafond gardé par Cédric |
 | 12 | 2026-11-08 | Ménage des registres (PR #129, `chore/registers-cleanup`) : 10 travaux reportés clos ou requalifiés, une **panique** corrigée (`log_rate`, W-029 point 3), un paramètre mort retiré (W-024), D-051 écrite. `verify --strict` 0 saut (125 s) | W-053 ouvert au passage |
 | 13 | — | **Supprimé le 2026-11-10** : « nettoyage d'après publication ». Cédric a indiqué que **personne n'a jamais utilisé la 0.8.0** — l'essai de mise à jour 0.8.0 → 0.9.0 et son filet dans l'installateur devenaient sans objet. Le filet (`[InstallDelete]` de `opentunebox.iss`) est retiré dans la foulée (branche `chore/drop-python-upgrade-net`), W-044 point 1 clos | W-043 (licences, échéance 1.0) et W-044 point 2 (script Windows) ne dépendaient pas de la 0.8.0 → « Hors plan », avec leur condition |
 | 14 | 2026-11-10 | **Derniers seuils sans origine** (branche docs/source-last-thresholds) : **aucune valeur changée**, parce qu'aucun des deux seuils restants ne peut être calibré — le corpus n'emprunte **jamais** la détection de taille par le nom (0 drone sur 96 sans fréquence moteur) et le profil 8"+ n'a que 6 drones (W-002). Chacun porte désormais sa **condition de levée**. W-005 clos : formule de la bande lue à la page sur une reproduction ([S37]), avec ses trois limites écrites. `verify --strict` 0 saut (126 s) | W-055 ouvert (cinq sources nomment une personne : arbitrage D-050) ; W-003 reste ouvert, mais borné à deux lignes assumées |

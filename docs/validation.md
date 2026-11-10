@@ -84,6 +84,34 @@ différer. Variables à définir : `OTB_GOLDEN=$HOME/Documents/Drones/Logs/golde
   Objectif du lot 5a (÷ 1,5) : passer sous ≈ 327 Mo sur `LOG00008.BFL`. Le « plus gros log » de W-014 (965 000 trames, 39 Mo)
   n'est plus dans le corpus : ses 364 Mo ne se comparent pas à ces chiffres. Ordinateur : 16 cœurs, 15 Go de mémoire.
 
+### Ouverture de plusieurs logs (2026-11-10, lot 11, D-051)
+
+Banc : `otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]` (version release, 3 essais, même ordinateur : 16 cœurs,
+15 Go). `--jobs 1` = les fichiers les uns après les autres (l'ouverture d'avant le lot 11) ; `--jobs 3` = le plafond livré.
+Les six logs mesurés, dans cet ordre : `1. PTB/st7ven3241/LOG00008.BFL` (32 Mo), `1. PTB/ram/BTFL_BLACKBOX_LOG_MARIO_8_…bbl`
+(21 Mo), `Cedric/JeNo 5/FINAL.bbl`, `Cedric/BF Chirp/Air65-4.bbl`, `Jerome/Valkyrie/M1.4.bbl`, `1. PTB/TomZboril/openracer 5136.bbl`
+(16 Mo chacun) — 1 416 000 trames en tout.
+
+| Fichiers décodés en même temps | Durée totale | Gain | Pic, logs relâchés (`--drop`) | Pic, logs gardés (comme l'interface) |
+|---|---|---|---|---|
+| 1 (avant le lot 11) | 1,835 s | — | 324 Mo | 640 Mo |
+| 2 | 1,082 s | × 1,70 | 574 Mo | 737 Mo |
+| **3 (livré, D-051)** | **0,811 s** | **× 2,26** | **663 Mo** | **804 Mo** |
+| 4 | 0,633 s | × 2,90 | 740 Mo | 931 Mo |
+
+Objectif du lot (× 2) atteint. **Un seul fichier n'est pas dégradé** : `LOG00008.BFL` seul, 0,484 s avec `--jobs 1`, 0,498 s
+avec `--jobs 3` (le plafond est ramené au nombre de fichiers : aucun fil n'est lancé), 324 Mo dans les deux cas.
+
+⚠️ **Le chiffre de mémoire annoncé par D-051 était trop bas** : il comptait 180 Mo par fichier décodé, mais le plus gros log
+du corpus en coûte 324 Mo à lui seul, d'où 663 Mo à trois fichiers et non « environ 540 Mo ». Le plafond en nombre de
+fichiers est conservé (Cédric, 2026-11-10) et D-051 porte désormais la mesure. Dans l'interface, le surcoût réel du
+parallélisme n'est que de **+ 164 Mo** (640 → 804 Mo) : les logs déjà ouverts pèsent de toute façon.
+
+Identité : `rust/otb-parity/tests/parallel_identique.rs` compare les empreintes complètes des `FlightLog` (`flightlog_digest`)
+entre `--jobs 1` et `--jobs 3`, sans corpus. Contre-preuve : un seul échantillon modifié dans le chemin parallèle fait
+échouer le test. Le plafond lui-même est compté dans `rust/otb-log/tests/parallel.rs` (contre-preuve : sans plafond, douze
+appels se chevauchent et le test rougit).
+
 ### Robustesse face à un en-tête hostile (2026-11-04, D-044)
 
 `rust/otb-decoder/tests/robustness.rs` fabrique en mémoire des variantes de `tests/data/jeno5_5s.bbl` (aucun fichier de plus dans le dépôt) ;

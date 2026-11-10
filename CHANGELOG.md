@@ -6,6 +6,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 ## [Non publié]
 
 ### Ajouté
+- **Plusieurs logs s'ouvrent maintenant en même temps.** Cocher six fichiers d'un coup prenait 1,8 s, il en prend 0,8 s
+  (× 2,26) : ils sont décodés par paquets de trois, ce qui garde la mémoire sous contrôle sur une machine modeste (D-051).
+  Ils s'affichent dans l'ordre où ils ont été choisis, quelle que soit leur taille, et un fichier illisible n'empêche plus
+  les autres de s'ouvrir — son nom apparaît dans la barre d'état. Ouvrir un seul fichier reste aussi rapide qu'avant.
 - **La version de Rust est figée** (`rust/rust-toolchain.toml`, 1.99.1) sur le poste comme dans la CI. Chaque passage
   installait « stable », donc une version qui change toute seule : une nouvelle version de Rust ou de clippy pouvait
   rendre la CI rouge du jour au lendemain, sans qu'on ait touché au projet. En changer devient un geste volontaire.

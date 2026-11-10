@@ -8,7 +8,8 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
-use otb_log::flightlog::{FlightLog, load};
+use otb_log::flightlog::FlightLog;
+use otb_log::parallel::{MAX_PARALLEL_FILES, load_many};
 
 use crate::export::{crop, default_export_path, today_utc, with_png_extension, write_png};
 use crate::guide::ToolTarget;
@@ -100,7 +101,8 @@ pub struct App {
     /// Thème déjà annoncé à la fenêtre du système, et cadres écoulés depuis le lancement (L-091).
     window_theme_sent: Option<&'static str>,
     frames: u32,
-    opening: Runner<Vec<FlightLog>>,
+    /// Paquet de fichiers en cours d'ouverture : un résultat par fichier, dans l'ordre demandé.
+    opening: Runner<Vec<(PathBuf, std::io::Result<Vec<FlightLog>>)>>,
     /// Fichiers qui attendent leur tour.
     queue: Vec<PathBuf>,
     errors: Vec<String>,
@@ -157,6 +159,21 @@ fn home_dir() -> PathBuf {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map_or_else(|| PathBuf::from("."), PathBuf::from)
+}
+
+/// Nombre de fichiers du prochain paquet : au plus [`MAX_PARALLEL_FILES`] décodés en même temps (D-051), et jamais
+/// plus que les places restantes — décoder un fichier coûte ≈ 180 Mo (L-081), autant ne pas le faire pour le jeter.
+///
+/// Rend au moins 1 quand il reste des fichiers : le dernier sert à afficher le message « N logs au plus ».
+pub fn taille_du_paquet(en_attente: usize, deja_ouverts: usize) -> usize {
+    let places = crate::state::MAX_LOGS.saturating_sub(deja_ouverts).max(1);
+    en_attente.min(MAX_PARALLEL_FILES).min(places)
+}
+
+/// Nom du fichier seul, pour un message d'état court (le chemin complet reste dans les erreurs de lecture).
+fn nom_court(path: &Path) -> String {
+    path.file_name()
+        .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned())
 }
 
 impl App {
@@ -278,8 +295,9 @@ impl App {
         self.open(paths);
     }
 
-    /// Ouvre des fichiers `.bbl` / `.bfl` en arrière-plan, un par un : un fichier illisible n'empêche pas les
-    /// suivants, et chaque erreur est écrite dans la barre d'état.
+    /// Ouvre des fichiers `.bbl` / `.bfl` en arrière-plan, par paquets de [`MAX_PARALLEL_FILES`] décodés en même
+    /// temps (D-051) : un fichier illisible n'empêche pas les autres, et chaque erreur est écrite dans la barre
+    /// d'état avec le nom de son fichier.
     pub fn open(&mut self, paths: Vec<PathBuf>) {
         self.errors.clear();
         self.export_status.clear();
@@ -287,33 +305,55 @@ impl App {
     }
 
     fn poll_opening(&mut self, ctx: &egui::Context) {
-        match self.opening.poll(ctx) {
-            Some(Ok(logs)) if logs.is_empty() => self.errors.push("fichier sans session exploitable".into()),
-            Some(Ok(logs)) => {
-                for log in logs {
-                    if let Some(m) = log.settings.implausible() {
-                        self.errors.push(format!("{} : {m}", log.name()));
-                    }
-                    if !self.state.add(log) {
-                        self.errors.push(format!(
-                            "{} logs au plus : les suivants sont ignorés.",
-                            crate::state::MAX_LOGS
-                        ));
-                        self.queue.clear();
-                        break;
+        if let Some(res) = self.opening.poll(ctx) {
+            match res {
+                Ok(paquet) => {
+                    for (path, r) in paquet {
+                        if !self.accepte(&path, r) {
+                            break; // plus de place : les fichiers restants du paquet et de la file sont abandonnés
+                        }
                     }
                 }
+                // une panique du décodage : sans nom de fichier, elle vaut pour tout le paquet
+                Err(e) => self.errors.push(e),
             }
-            Some(Err(e)) => self.errors.push(e),
-            None => {}
         }
         if !self.opening.busy() && !self.queue.is_empty() {
-            let p = self.queue.remove(0);
-            self.opening.request(ctx, move || {
-                load(&p).map_err(|e| format!("{} illisible : {e}", p.display()))
-            });
+            let n = taille_du_paquet(self.queue.len(), self.state.logs.len());
+            let paquet: Vec<PathBuf> = self.queue.drain(..n).collect();
+            self.opening.request(ctx, move || Ok(load_many(&paquet)));
         }
         self.status = self.errors.join(" · ");
+    }
+
+    /// Range les sessions d'un fichier ouvert (ou son erreur) ; `false` quand il n'y a plus de place pour un log.
+    fn accepte(&mut self, path: &Path, r: std::io::Result<Vec<FlightLog>>) -> bool {
+        let logs = match r {
+            Ok(logs) if logs.is_empty() => {
+                self.errors
+                    .push(format!("{} : fichier sans session exploitable", nom_court(path)));
+                return true;
+            }
+            Ok(logs) => logs,
+            Err(e) => {
+                self.errors.push(format!("{} illisible : {e}", path.display()));
+                return true;
+            }
+        };
+        for log in logs {
+            if let Some(m) = log.settings.implausible() {
+                self.errors.push(format!("{} : {m}", log.name()));
+            }
+            if !self.state.add(log) {
+                self.errors.push(format!(
+                    "{} logs au plus : les suivants sont ignorés.",
+                    crate::state::MAX_LOGS
+                ));
+                self.queue.clear();
+                return false;
+            }
+        }
+        true
     }
 
     pub fn ui(&mut self, root: &mut egui::Ui) {
