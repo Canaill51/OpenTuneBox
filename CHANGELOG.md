@@ -5,7 +5,22 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ## [Non publié]
 
+### Modifié
+
+- **L'assistant garde 24 fois moins de mémoire par rapport** (médiane ; jusqu'à 165 fois moins). Chaque rapport
+  transportait **toutes les fenêtres individuelles** de la réponse indicielle — 69 % de son poids, jusqu'à 72 Mo sur une
+  session de 174 s — alors que rien ne les affiche : les règles n'utilisent que le nombre de fenêtres et les mesures, et
+  la page Assistant ne trace que la moyenne et l'écart-type. Comme l'interface garde ces rapports en cache, un par profil
+  et par log ouvert, c'était autant de mémoire retenue pour rien. L'outil « Réponse indicielle », lui, ne change pas : il
+  refait son propre calcul et garde les fenêtres, qui servent à sa case « Brutes ». Rien ne change à l'écran (L-094).
+
 ### Ajouté
+
+- **Un banc mesure ce que le cache des outils retient** (`cargo run --release -p otb-gui --example banc_cache`) : un
+  allocateur compte les octets réellement vivants, un témoin de taille connue arrête le banc si le compteur ment, et tout
+  le corpus se passe en plusieurs processus (`--part i/K`). Première mesure sur 535 logs et 642 sessions, chiffres et
+  conclusions dans `docs/validation.md` (« Mémoire du cache des outils ») : le cache n'évince toujours rien, et l'outil
+  « Réponse indicielle » peut à lui seul retenir 72 résultats de 71 Mo au pire pour un seul log (W-035 point 9).
 - **Plusieurs logs s'ouvrent maintenant en même temps.** Cocher six fichiers d'un coup prenait 1,8 s, il en prend 0,8 s
   (× 2,26) : ils sont décodés par paquets de trois, ce qui garde la mémoire sous contrôle sur une machine modeste (D-051).
   Ils s'affichent dans l'ordre où ils ont été choisis, quelle que soit leur taille, et un fichier illisible n'empêche plus

@@ -333,6 +333,47 @@ longue du log, 3 cadres de chauffe puis 60 cadres chronométrés un par un). Pos
   4 ms d'un essai à l'autre sur `FINAL.bbl` : c'est un majorant bruité. Les 0,34 ms de W-049 ne se retrouvent pas, et la façon
   dont ils avaient été obtenus est perdue avec le banc. Le cadre se juge donc sur le temps du processeur.
 
+### Mémoire du cache des outils (2026-11-10, lot 15, W-035 point 9, L-094)
+
+Banc : `cargo run --release -p otb-gui --example banc_cache -- SORTIE.json [--limit N] [--part i/K]`. Il mesure ce que
+**retient** chaque valeur rangée dans le cache des outils (`otb-gui/src/state.rs:Cache`, une table par log, vidée au
+changement de période, **sans aucune éviction** entre réglages) : octets vivants relevés avant et après le calcul par un
+allocateur qui compte, donc aucun poids écrit à la main. Un **témoin** (un `Vec<f64>` de taille connue) fait paniquer le
+banc si le compteur ne retrouve pas ses octets.
+
+Un seul fil par processus (le compteur est global) ; le corpus a été passé en 12 processus (`--part i/12`). Poste Linux,
+version release. **Corpus entier : 535 logs, 642 sessions analysables, 0 erreur**, chiffres identiques d'un passage à
+l'autre. Chaque type est mesuré deux fois, avec deux jeux de réglages : la deuxième mesure est le coût d'une entrée
+**de plus**, et l'écart entre les deux dénoncerait une allocation faite une fois pour toutes (écart médian nul, sauf pour
+la réponse indicielle où le réglage change le nombre de fenêtres).
+
+| Ce qui est rangé | p50 | p90 | max | Entrées atteignables pour **un** log |
+|---|---|---|---|---|
+| Assistant (`Report`), **avant** | 7,53 Mo | 16,16 Mo | **72,63 Mo** | 6 (auto + 5 profils) |
+| Assistant (`Report`), **après** | **0,29 Mo** | 0,38 Mo | 0,83 Mo | 6 |
+| Réponse indicielle (`FileData`) | 7,39 Mo | 15,97 Mo | **71,31 Mo** | **72** (3 fenêtres × 4 lissages × 3 consignes × 2 « Y corr. ») |
+| Simulateur de filtres (`FilterSimResult`) | 0,09 Mo | 0,09 Mo | 0,20 Mo | non borné (une par jeu de réglages) |
+| Guide (`CheckResult`) | 0,01 Mo | 0,01 Mo | 0,01 Mo | 2 (rapide, complète) |
+
+- **Le poids ne venait pas d'où on le croyait.** Le simulateur de filtres est le seul dont le nombre d'entrées n'est pas
+  borné (sa clé contient tous les réglages modifiés) : c'est lui qui était suspecté, et il pèse 90 **ko**. Ce sont les
+  deux outils à nombre d'entrées **borné** qui pèsent, parce que chaque entrée est énorme.
+- **69 % du rapport de l'assistant (médiane) était `StepResult::responses`**, le tableau de toutes les fenêtres
+  individuelles de la réponse indicielle — que **personne ne lit** dans un rapport : les règles se servent de `n`,
+  `metrics` et `loop_`, la page Assistant trace `mean`, `std` et `t_ms`. Elles sont libérées depuis (L-094) :
+  **l'entrée tombe d'un facteur 24 (médiane, par session), jusqu'à 165**, soit 7,26 Mo libérés par entrée (p50), 72,19 Mo
+  au maximum. La longueur des fenêtres explique 74 % du gain ; le reste est la **capacité** du tableau, agrandi paquet par
+  paquet (`otb-dsp/src/step.rs:step_windows`), donc toujours au-delà de sa longueur utile.
+- **L'outil « Réponse indicielle » n'est pas touché** : il refait son propre calcul et garde les fenêtres, qui servent à
+  sa case « Brutes (toutes les fenêtres) ». Vérifié : son entrée pèse exactement le même nombre d'octets avant et après
+  (642 sessions sur 642).
+- **Pire cas par log ouvert**, toutes les entrées atteignables, sans éviction : 576 Mo (p50), 1 248 Mo (p90), **5,5 Go**
+  sur `Jerome/Valkyrie 2/AntiGravity.10.bbl` (174 s à 2 kHz) **avant** ; 536 Mo, 1 154 Mo et **5,1 Go** **après** (le
+  simulateur compté pour 20 coups de curseur). Le gaspillage est supprimé, mais **le cache reste non borné** et l'outil
+  Réponse indicielle peut à lui seul retenir 72 entrées de 71 Mo : la question du bornage reste ouverte (W-035 point 9).
+- Poids par million d'échantillons analysés (p50) : assistant 114 Mo avant / 4,2 Mo après, réponse indicielle 112 Mo,
+  simulateur 1,2 Mo, guide 0,07 Mo. Le poids suit donc la **longueur de session**, pas le nombre de logs ouverts.
+
 ### Contrôles avant la version 0.9.0 (2026-11-06, branche `chore/release-0.9.0`, poste Linux)
 
 Les références figées (`$OTB_GOLDEN`) avaient disparu du poste : elles ont été **refaites** avec l'étalon Python

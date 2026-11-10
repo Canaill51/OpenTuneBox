@@ -44,7 +44,8 @@ pub struct GuideCheck {
     pub exact: bool,
 }
 
-type CheckResult = Result<GuideCheck, String>;
+/// Résultat d'une vérification de log du Guide (rangé dans le cache : `banc_cache` le mesure).
+pub type CheckResult = Result<GuideCheck, String>;
 
 /// Un log du drone tel que les cases et le panneau le voient pour ce cadre.
 struct LogView {
@@ -171,7 +172,15 @@ fn period_key(prefix: &str, period: (f64, f64), extra: Option<f64>) -> String {
     )
 }
 
-fn run_check(log: &FlightLog, sel: std::ops::Range<usize>, label: &str, exact: bool, inch: Option<f64>) -> CheckResult {
+/// Vérification d'un log pour le Guide : rapide, ou complète avec les repères des filtres. Le résultat est rangé dans
+/// le cache du log (`period_key`), d'où l'accès public : `examples/banc_cache.rs` le pèse comme l'interface le range.
+pub fn run_check(
+    log: &FlightLog,
+    sel: std::ops::Range<usize>,
+    label: &str,
+    exact: bool,
+    inch: Option<f64>,
+) -> CheckResult {
     let check = check_log(log, Some(sel), label, exact)?;
     let targets = if exact {
         filter_targets(log, check.hover, check.moving_part, inch)?

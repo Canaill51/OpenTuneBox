@@ -121,6 +121,10 @@ impl Finding {
 }
 
 /// `AxisStep` : la réponse indicielle d'un axe.
+///
+/// ⚠️ Dans un rapport rendu par [`analyze`], `result.responses` est **toujours vide** : les fenêtres individuelles sont
+/// libérées (voir `step_section`), seules la moyenne, l'écart-type et le nombre de fenêtres restent. Qui a besoin des
+/// fenêtres appelle `step_response` lui-même, comme le fait l'outil « Réponse indicielle » (L-094).
 #[derive(Debug, Clone)]
 pub struct AxisStep {
     pub axis: String,
@@ -1726,7 +1730,13 @@ fn step_section(a: &mut Analysis) -> Result<(), String> {
     let (log, sel, profile) = (a.log, a.sel.clone(), a.profile);
     let mut steps = Vec::new();
     for (ax, name) in AXES.iter().enumerate() {
-        let r = axis_step(log, &sel, ax, &a.br)?;
+        let mut r = axis_step(log, &sel, ax, &a.br)?;
+        // ⚠️ Le rapport ne garde **pas** les fenêtres individuelles : le cache des outils en garde une copie par profil
+        // demandé, et elles pesaient 69 % du rapport (jusqu'à 72 Mo sur une session de 174 s à 2 kHz,
+        // `docs/validation.md`). Personne ne les lit ici : les règles se servent de `n`, `metrics` et `loop_`, la page
+        // Assistant trace `mean`, `std` et `t_ms`. L'outil « Réponse indicielle », lui, refait son propre calcul et les
+        // garde (case « Brutes »). `n` reste le nombre de fenêtres mesurées (L-094).
+        r.responses = Vec::new();
         steps.push(AxisStep {
             axis: name.to_string(),
             result: r,
