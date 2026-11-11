@@ -1,0 +1,49 @@
+# Contrôle de chaque demande de fusion, pour les notes de version générées par GitHub (D-056, rubriques : .github/release.yml) :
+# - exactement une étiquette « RN: … » de la liste ci-dessous (une demande sans rubrique disparaîtrait des notes) ;
+#   Dependabot : l'étiquette « dependencies » suffit, ou son auteur dependabot[bot] ;
+# - un titre en phrase, pas un nom de branche (« fix/… ») : ce titre devient la ligne des notes.
+# Relancé quand on pose ou retire une étiquette, change le titre ou envoie un commit : le contrôle exigé par la règle
+# protection-main porte sur le dernier commit.
+# Aucun checkout ni droit : tout est lu dans l'événement. Titre et étiquettes passent par des variables d'environnement,
+# jamais par ${{ }} dans le script (un titre est écrit par n'importe qui et serait exécuté comme du bash).
+name: Étiquette de la demande de fusion
+on:
+  pull_request:
+    types: [opened, edited, labeled, unlabeled, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  etiquette:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Titre en phrase et une étiquette RN
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          # Même liste que les rubriques et exclusions de .github/release.yml (otb-dev la compare : tests/release.rs).
+          connues='["RN: nouveauté majeure","RN: nouveauté","RN: amélioration","RN: sécurité","RN: refonte","RN: correction","RN: ignorer"]'
+          echo "titre : $TITLE"
+          echo "étiquettes : $LABELS"
+          erreur=0
+          if [[ "$TITLE" =~ ^(feat|fix|docs|refactor|test|chore|perf)/ ]]; then
+            echo "::error::le titre est un nom de branche : écrire une phrase en français qui dit l'effet du changement (elle devient la ligne des notes de version)"
+            erreur=1
+          fi
+          rn=$(jq -r '.[] | select(startswith("RN: "))' <<< "$LABELS")
+          nombre=$(jq '[.[] | select(startswith("RN: "))] | length' <<< "$LABELS")
+          inconnues=$(jq -r --argjson connues "$connues" '.[] | select(startswith("RN: ")) | select(. as $e | $connues | index($e) | not)' <<< "$LABELS")
+          dependabot=$(jq 'index("dependencies") != null' <<< "$LABELS")
+          if [ -n "$inconnues" ]; then
+            echo "::error::étiquette inconnue de .github/release.yml : $inconnues"
+            erreur=1
+          fi
+          if [ "$nombre" -eq 0 ] && { [ "$dependabot" = true ] || [ "$AUTHOR" = "dependabot[bot]" ]; }; then
+            echo "Dependabot : absente des notes de version"
+          elif [ "$nombre" -ne 1 ]; then
+            echo "::error::il faut exactement une étiquette « RN: … » (trouvé : $nombre${rn:+ — $rn}) ; « RN: ignorer » pour la CI, les outils de développement, les plans et les registres"
+            erreur=1
+          fi
+          exit "$erreur"

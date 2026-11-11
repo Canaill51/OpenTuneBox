@@ -128,13 +128,12 @@ pub const REPO_PREFIXES: [&str; 8] = [
     ".claude/",
     "rust/",
 ];
-/// Chemins supprimés du dépôt mais cités par les registres et le journal des versions (l'historique les garde) : jamais signalés.
+/// Chemins supprimés du dépôt mais cités par les registres d'histoire (l'historique les garde) : jamais signalés.
 pub const REMOVED_PATHS: [&str; 2] = ["rust/otb-spike-egui", "rust/otb-py"];
 pub const PKG_DIRS: [&str; 5] = ["decoder/", "log/", "analysis/", "advisor/", "gui/"];
 /// Documents qui racontent l'histoire du projet : ils peuvent citer des fichiers Python disparus à la phase 7-5 (D-035). Les autres
 /// documents décrivent le dépôt tel qu'il est et ne citent que des chemins qui existent.
-pub const HISTORICAL_DOCS: [&str; 5] = [
-    "CHANGELOG.md",
+pub const HISTORICAL_DOCS: [&str; 4] = [
     "docs/decisions.md",
     "docs/lecons.md",
     "docs/migration-rust.md",

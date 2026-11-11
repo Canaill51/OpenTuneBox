@@ -1,87 +1,61 @@
-//! Publication : préparation du CHANGELOG, numéros de version, notes de version (cas de `tests/test_release.py` repris, plus les fichiers).
+//! Publication : numéros de version, traduction de la liste générée par GitHub, notes de version (D-056).
 
 use otb_dev::release::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const CHANGELOG: &str = "# Journal des versions
+/// Liste telle que `POST /repos/…/releases/generate-notes` la rend avec `.github/release.yml` (relevée le 2026-11-11, format
+/// réel ; titres et numéros inventés).
+const GENERATED: &str = "<!-- Release notes generated using configuration in .github/release.yml at main -->
 
-## [Non publié]
+## What's Changed
+### Nouveautés
+* Ouverture de plusieurs logs à la fois by @Canaill51 in https://github.com/Canaill51/OpenTuneBox/pull/134
+### Corrections
+* L'export d'image n'attend plus indéfiniment by @Canaill51 in https://github.com/Canaill51/OpenTuneBox/pull/137
+* Analyse du rapport par écrit (by design) by @pilote-x in https://github.com/Canaill51/OpenTuneBox/pull/150
 
-### Ajouté
-- Page de téléchargement.
+## New Contributors
+* @pilote-x made their first contribution in https://github.com/Canaill51/OpenTuneBox/pull/150
 
-## [0.1.0] — 2026-10-01
-
-### Ajouté
-- Première version.
-
-[Non publié]: ../../compare/v0.1.0...HEAD
-[0.1.0]: ../../releases/tag/v0.1.0
+**Full Changelog**: https://github.com/Canaill51/OpenTuneBox/compare/v0.9.0...v0.10.0
 ";
 
+const TRANSLATED: &str = "## Changements
+### Nouveautés
+* Ouverture de plusieurs logs à la fois par @Canaill51 dans https://github.com/Canaill51/OpenTuneBox/pull/134
+### Corrections
+* L'export d'image n'attend plus indéfiniment par @Canaill51 dans https://github.com/Canaill51/OpenTuneBox/pull/137
+* Analyse du rapport par écrit (by design) par @pilote-x dans https://github.com/Canaill51/OpenTuneBox/pull/150
+
+## Nouveaux contributeurs
+* @pilote-x a contribué pour la première fois dans https://github.com/Canaill51/OpenTuneBox/pull/150
+
+**Toutes les modifications** : https://github.com/Canaill51/OpenTuneBox/compare/v0.9.0...v0.10.0";
+
 #[test]
-fn prepare_changelog_dates_section_and_links() {
-    let text = prepare_changelog(CHANGELOG, "0.2.0", "2026-10-05").expect("préparation");
-    assert!(text.contains("## [Non publié]\n\n## [0.2.0] — 2026-10-05\n\n### Ajouté\n- Page de téléchargement."));
-    assert!(text.contains("[Non publié]: ../../compare/v0.2.0...HEAD\n[0.2.0]: ../../releases/tag/v0.2.0\n[0.1.0]:"));
+fn generated_notes_are_translated() {
+    assert_eq!(translate_generated_notes(GENERATED).as_deref(), Ok(TRANSLATED));
+    // Fins de ligne Windows : même résultat.
     assert_eq!(
-        changelog_section(&text, "0.2.0").as_deref(),
-        Some("### Ajouté\n- Page de téléchargement.")
+        translate_generated_notes(&GENERATED.replace('\n', "\r\n")).as_deref(),
+        Ok(TRANSLATED)
     );
-    assert_eq!(
-        changelog_section(&text, "0.1.0").as_deref(),
-        Some("### Ajouté\n- Première version.")
-    );
-    // La nouvelle section « Non publié » est vide.
-    assert_eq!(changelog_section(&text, "Non publié").as_deref(), Some(""));
 }
 
 #[test]
-fn prepare_changelog_refuses_existing_version_and_missing_section() {
+fn empty_or_untranslated_lists_are_refused() {
+    // Aucune demande de fusion (mauvaise version de départ, ou toutes exclues) : pas de page sans notes.
+    let empty = "**Full Changelog**: https://github.com/Canaill51/OpenTuneBox/compare/v0.9.0...v0.10.0\n";
     assert!(
-        prepare_changelog(CHANGELOG, "0.1.0", "2026-10-05")
+        translate_generated_notes(empty)
             .unwrap_err()
-            .contains("déjà une section")
+            .contains("aucune demande de fusion")
     );
-    assert!(
-        prepare_changelog("# rien\n", "0.2.0", "2026-10-05")
-            .unwrap_err()
-            .contains("introuvable")
-    );
-}
-
-#[test]
-fn changelog_section_missing_and_last_section() {
-    assert_eq!(changelog_section(CHANGELOG, "9.9.9"), None);
-    // Dernière section sans lien de bas de page : elle va jusqu'à la fin du texte.
-    assert_eq!(
-        changelog_section("## [1.0.0] — x\n\nfin\n", "1.0.0").as_deref(),
-        Some("fin")
-    );
-    // « 0.1.0 » ne correspond pas à « 0.1.01 » ni à « 10.1.0 ».
-    assert_eq!(changelog_section("## [10.1.0] — x\n\na\n", "0.1.0"), None);
-}
-
-#[test]
-fn dates_must_be_real() {
-    for ok in ["2026-11-03", "2024-02-29", "2000-02-29", "2026-12-31"] {
-        assert!(is_valid_date(ok), "{ok}");
-    }
-    for bad in [
-        "2026-13-45",
-        "0000-00-00",
-        "2026-00-10",
-        "2026-02-29",
-        "2100-02-29",
-        "2026-04-31",
-        "2026-1-3",
-        "hier",
-        "2026-11-03x",
-        "",
-    ] {
-        assert!(!is_valid_date(bad), "{bad}");
-    }
+    // GitHub change un mot fixe : on s'arrête plutôt que publier un mélange de français et d'anglais.
+    let changed = GENERATED.replace("made their first contribution", "made their first contribution!");
+    let err = translate_generated_notes(&changed).unwrap_err();
+    assert!(err.contains("made their first contribution"), "{err}");
 }
 
 #[test]
@@ -113,26 +87,10 @@ fn read_and_write_version_files() {
     assert_eq!(write_version(src, "rien", "0.9.0"), None);
 }
 
-#[test]
-fn iso_dates() {
-    assert_eq!(iso_date(0), "1970-01-01");
-    assert_eq!(iso_date(86_399), "1970-01-01");
-    assert_eq!(iso_date(86_400), "1970-01-02");
-    assert_eq!(iso_date(951_782_400), "2000-02-29", "année bissextile");
-    assert_eq!(iso_date(1_782_000_000), "2026-06-21");
-    assert_eq!(iso_date(1_793_664_000), "2026-11-03");
-    // Cas limites recoupés avec `date -u -d` : fin de siècle non bissextile, bissextile ordinaire, dernière seconde d'un i32.
-    assert_eq!(iso_date(4_107_456_000), "2100-02-28");
-    assert_eq!(iso_date(4_107_542_400), "2100-03-01", "2100 n'est pas bissextile");
-    assert_eq!(iso_date(1_709_164_800), "2024-02-29");
-    assert_eq!(iso_date(2_147_483_647), "2038-01-19");
-}
-
 fn sandbox(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("otb-release-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(dir.join("rust")).expect("dossier");
-    fs::write(dir.join("CHANGELOG.md"), CHANGELOG).expect("changelog");
     fs::write(
         dir.join("rust/Cargo.toml"),
         "[workspace.package]\nversion = \"0.1.0\"\n",
@@ -148,82 +106,53 @@ fn text(root: &Path, file: &str) -> String {
 #[test]
 fn prepare_then_notes_on_a_repository() {
     let root = sandbox("complet");
-    // Avant : l'étiquette 0.2.0 est incohérente.
+    // Avant : l'étiquette 0.2.0 est incohérente, quelle que soit la liste.
+    let err = notes(&root, "v0.2.0", GENERATED).unwrap_err();
     assert!(
-        notes(&root, "v0.2.0")
-            .unwrap_err()
-            .contains("rust/Cargo.toml indique 0.1.0")
-    );
-    let msg = prepare(&root, "0.2.0", Some("2026-10-05")).expect("prepare");
-    assert!(
-        msg.contains("0.1.0 → 0.2.0 (2026-10-05)") && msg.contains("git tag v0.2.0"),
-        "{msg}"
-    );
-    assert!(text(&root, "rust/Cargo.toml").contains("version = \"0.2.0\""));
-    assert!(text(&root, "CHANGELOG.md").contains("## [0.2.0] — 2026-10-05"));
-    assert_eq!(
-        notes(&root, "v0.2.0").as_deref(),
-        Ok("### Ajouté\n- Page de téléchargement.")
-    );
-    // Une étiquette qui n'est pas le numéro du projet est refusée, avec la liste des fichiers en retard.
-    let err = notes(&root, "v0.3.0").unwrap_err();
-    assert!(
-        err.contains("rust/Cargo.toml indique 0.2.0")
-            && err.contains("pas de section [0.3.0]")
-            && err.contains("otb-dev release prepare 0.3.0"),
+        err.contains("rust/Cargo.toml indique 0.1.0") && err.contains("otb-dev release prepare 0.2.0"),
         "{err}"
     );
-}
-
-#[test]
-fn prepare_refusals_and_second_preparation() {
-    let root = sandbox("refus");
-    assert!(prepare(&root, "v0.2.0", None).unwrap_err().contains("Numéro invalide"));
-    assert!(
-        prepare(&root, "0.2.0", Some("hier"))
-            .unwrap_err()
-            .contains("Date invalide")
-    );
-    assert!(
-        prepare(&root, "0.2.0", Some("2026-13-45"))
-            .unwrap_err()
-            .contains("Date invalide")
-    );
-    prepare(&root, "0.2.0", Some("2026-10-05")).expect("préparation");
+    let msg = prepare(&root, "0.2.0").expect("prepare");
+    assert!(msg.contains("0.1.0 → 0.2.0") && msg.contains("git tag v0.2.0"), "{msg}");
+    assert!(text(&root, "rust/Cargo.toml").contains("version = \"0.2.0\""));
+    // Le texte de la page : Téléchargements en tête, puis la liste traduite.
     assert_eq!(
-        notes(&root, "0.2.0").as_deref(),
-        Ok("### Ajouté\n- Page de téléchargement."),
+        notes(&root, "v0.2.0", GENERATED).as_deref(),
+        Ok(format!("{DOWNLOADS}\n\n{TRANSLATED}").as_str())
+    );
+    assert!(DOWNLOADS.contains("OpenTuneBox-Windows-Setup.exe") && DOWNLOADS.contains("OpenTuneBox-Linux.AppImage"));
+    assert_eq!(
+        notes(&root, "0.2.0", GENERATED).as_deref(),
+        Ok(format!("{DOWNLOADS}\n\n{TRANSLATED}").as_str()),
         "l'étiquette sans « v » est acceptée"
     );
-    // Une seconde préparation du même numéro échoue sans rien modifier.
-    let before = (text(&root, "CHANGELOG.md"), text(&root, "rust/Cargo.toml"));
+    // Liste vide : refusée même quand le numéro est bon.
     assert!(
-        prepare(&root, "0.2.0", Some("2026-10-06"))
+        notes(&root, "v0.2.0", "")
             .unwrap_err()
-            .contains("déjà une section")
+            .contains("aucune demande de fusion")
     );
-    assert_eq!(before, (text(&root, "CHANGELOG.md"), text(&root, "rust/Cargo.toml")));
 }
 
 #[test]
-fn prepare_changes_nothing_when_a_version_file_is_unreadable() {
-    let root = sandbox("incomplet");
-    fs::write(root.join("rust/Cargo.toml"), "[workspace.package]\nname = \"x\"\n").expect("Cargo.toml sans numéro");
-    let before = (text(&root, "CHANGELOG.md"), text(&root, "rust/Cargo.toml"));
-    assert!(
-        prepare(&root, "0.2.0", Some("2026-10-05"))
-            .unwrap_err()
-            .contains("rust/Cargo.toml")
-    );
+fn prepare_refuses_bad_numbers_and_changes_nothing_when_a_version_file_is_unreadable() {
+    let root = sandbox("refus");
+    assert!(prepare(&root, "v0.2.0").unwrap_err().contains("Numéro invalide"));
     assert_eq!(
-        before,
-        (text(&root, "CHANGELOG.md"), text(&root, "rust/Cargo.toml")),
+        text(&root, "rust/Cargo.toml"),
+        "[workspace.package]\nversion = \"0.1.0\"\n"
+    );
+    fs::write(root.join("rust/Cargo.toml"), "[workspace.package]\nname = \"x\"\n").expect("Cargo.toml sans numéro");
+    assert!(prepare(&root, "0.2.0").unwrap_err().contains("rust/Cargo.toml"));
+    assert_eq!(
+        text(&root, "rust/Cargo.toml"),
+        "[workspace.package]\nname = \"x\"\n",
         "aucun fichier à moitié modifié"
     );
 }
 
 #[test]
-fn the_real_repository_has_one_version_and_a_changelog_section() {
+fn the_real_repository_has_one_version() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
     let versions = project_versions(&root).expect("versions");
     assert!(!versions.is_empty());
@@ -231,10 +160,26 @@ fn the_real_repository_has_one_version_and_a_changelog_section() {
         versions.iter().all(|(_, v)| *v == versions[0].1),
         "numéros différents : {versions:?}"
     );
-    let body = changelog_section(&text(&root, "CHANGELOG.md"), &versions[0].1);
-    assert!(
-        body.is_some_and(|b| !b.is_empty()),
-        "pas de section [{}] dans le CHANGELOG",
-        versions[0].1
+}
+
+/// Étiquettes `RN: …` citées dans un fichier, entre guillemets.
+fn rn_labels(text: &str) -> std::collections::BTreeSet<String> {
+    regex::Regex::new(r#""(RN: [^"]+)""#)
+        .expect("motif")
+        .captures_iter(text)
+        .map(|c| c[1].to_string())
+        .collect()
+}
+
+/// ⚠️ Une étiquette que le contrôle accepte sans que `release.yml` la range ferait disparaître la demande des notes (D-056).
+#[test]
+fn label_check_and_release_sections_use_the_same_labels() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let sections = rn_labels(&text(&root, ".github/release.yml"));
+    let check = rn_labels(&text(&root, ".github/workflows/etiquette-pr.yml"));
+    assert_eq!(sections.len(), 7, "{sections:?}");
+    assert_eq!(
+        sections, check,
+        "release.yml et etiquette-pr.yml n'ont pas les mêmes étiquettes « RN: … »"
     );
 }

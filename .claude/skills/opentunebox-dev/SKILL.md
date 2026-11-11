@@ -96,7 +96,7 @@ les 95 % de la toute première mesure du 2026-10-01, d'avant la distinction `gap
 4. Tests : `rust/otb-gui/tests/contracts.rs` couvre les couleurs, les icônes citées et les deux thèmes ; ajouter les assertions propres
    à l'outil (modèles : `rust/otb-gui/tests/step_tools.rs`, `rust/otb-gui/tests/spectral.rs` ; `Tool::compute` se teste directement), puis une capture et une
    vérification visuelle.
-5. Section dans `docs/guide-utilisateur.md`, ligne dans le tableau du `README.md`, ligne dans `CHANGELOG.md`.
+5. Section dans `docs/guide-utilisateur.md`, ligne dans le tableau du `README.md` ; PR étiquetée `RN: nouveauté`.
 
 ## Captures hors écran
 

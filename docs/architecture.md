@@ -124,7 +124,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 
 - Installateurs, un par système, fabriqués et essayés par `.github/workflows/construire.yml`, envoyés dans un
   brouillon de la page Releases à chaque étiquette `v…`, publiée quand les deux y sont (sans *Artifacts* :
-  `otb-dev release`, procédure dans `CONTRIBUTING.md`) ; macOS abandonné (D-042). Le workflow compile
+  `otb-dev release`, procédure dans `CONTRIBUTING.md`) ; macOS abandonné (D-042). Notes de la page : liste que GitHub génère des PR
+  fusionnées depuis la dernière version publiée, rangées par leur étiquette `RN: …` (`.github/release.yml`, contrôlée sur chaque PR par
+  `.github/workflows/etiquette-pr.yml`), traduite par `otb-dev release notes` (D-056). Le workflow compile
   `cargo build --release -p otb-gui` (Windows : `crt-static`), vérifie les DLL demandées, démarre le programme 20 s avec un petit log,
   installe / lance / désinstalle l'installateur, et démarre l'AppImage sous un écran virtuel (xvfb) avec le pilote Vulkan logiciel lavapipe :
   Windows `packaging/windows/opentunebox.iss` (Inno Setup ; un seul fichier, l'exécutable Rust installé sous le nom `OpenTuneBox.exe` ; 7,5 Mo mesurés par la CI le 2026-11-03),
@@ -167,11 +169,13 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     publiés, commandes de la CLI, langue, registres D / L / W, seuils de `docs/assistant.md`, et **concordance des seuils
     recopiés avec leur constante Rust** : une valeur changée dans le code et oubliée dans un document est signalée). `rust/otb-dev/tests/docs.rs` les lance sur
     la vraie documentation (`OTB_DOCS_ROOT` désigne une autre racine) et `rust/otb-dev/tests/checks.rs` prouve que chacun échoue sur un
-    cas fabriqué. Les registres d'histoire (`HISTORICAL_DOCS` : CHANGELOG, decisions, lecons, migration-rust, travaux-reportes) peuvent
+    cas fabriqué. Les registres d'histoire (`HISTORICAL_DOCS` : decisions, lecons, migration-rust, travaux-reportes) peuvent
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.
   - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail, et non plus une liste de `-p` à tenir à jour), le contrôle des mentions de licences (`licenses::check`, dans le processus : aucune commande lancée) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard : `verify` les compte et `--strict` en fait un échec. Deux contrôles d'`otb-dev` cherchent eux-mêmes les sauts (et les fichiers réservés à un système, annoncés par `sauts_par_systeme.rs`), pour qu'un nouveau test conditionnel ne passe pas inaperçu.
   - `bench_open.rs` : `otb-dev bench-open LOG [ESSAIS]` ouvre un log (`otb_log::flightlog::load`) et affiche durées et pic de mémoire (`VmHWM` de `/proc/self/status`, Linux seulement) ; un processus par log, car le pic ne redescend pas.
-  - `release.rs` : `otb-dev release prepare X.Y.Z | notes vX.Y.Z` (numéro de version dans `rust/Cargo.toml`, CHANGELOG).
+  - `release.rs` : `otb-dev release prepare X.Y.Z` (numéro de version dans `rust/Cargo.toml`) et `otb-dev release notes vX.Y.Z FICHIER` (contrôle
+    du numéro, puis `translate_generated_notes`, fonction pure : traduit la liste générée par GitHub, ajoute le bloc Téléchargements,
+    refuse une liste vide ou restée en anglais ; D-056).
   - `icons.rs` : `otb-dev icons` (PNG Linux et `.ico` Windows depuis `opentunebox.svg`, par `resvg` et `ico`, Rust pur ; pas de `.icns` : D-042).
   - `licenses.rs` : `otb-dev licenses` écrit `THIRD-PARTY-LICENSES.txt` à la racine : les fichiers de licence de chaque crate que `otb-gui` embarque (dépendances normales pour Linux et Windows, via `cargo metadata`, sans construction, test ni macros procédurales), les polices (Hack, Ubuntu Light, logos d'egui) et les icônes Lucide ; les textes identiques sont écrits une fois, les composants sans fichier de licence sont listés avec leur licence et leurs auteurs déclarés. L'installateur Windows et l'AppImage livrent ce fichier (W-043). À refaire à chaque changement de dépendance (voir « Publier une version » dans `CONTRIBUTING.md`).
     `otb-dev licenses --check` refait le même texte en mémoire et le compare au fichier du dépôt sans jamais l'écrire : `licenses::compare` est pure (elle rend l'écart et la ligne en cause), `verify` en fait une étape et `tests.yml` la lance sous Ubuntu et sous Windows, de sorte qu'une dépendance ajoutée ou changée ne passe pas sans mettre les mentions à jour. Le fichier est identique sous les deux systèmes : les composants des deux cibles sont demandés à `cargo metadata --filter-platform` depuis n'importe quel poste.

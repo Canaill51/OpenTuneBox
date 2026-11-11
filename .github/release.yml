@@ -1,0 +1,23 @@
+# Rubriques de la liste que GitHub génère pour une page « Releases » (D-056), sur le modèle du dépôt de Betaflight.
+# Chaque demande de fusion porte exactement une étiquette « RN: … » (contrôlé par le workflow etiquette-pr.yml) et un titre
+# en phrase : ce titre devient la ligne des notes. Une demande sans rubrique n'apparaît pas : pas de rubrique attrape-tout,
+# c'est le contrôle d'étiquette qui l'empêche. Les mots fixes de GitHub (« What's Changed »…) sont traduits par
+# `otb-dev release notes` dans le workflow construire.yml.
+changelog:
+  exclude:
+    labels:
+      - "RN: ignorer"   # CI, outils de développement, plans, registres
+      - "dependencies"  # Dependabot
+  categories:
+    - title: Nouveautés
+      labels:
+        - "RN: nouveauté majeure"
+        - "RN: nouveauté"
+    - title: Améliorations
+      labels:
+        - "RN: amélioration"
+        - "RN: sécurité"
+        - "RN: refonte"
+    - title: Corrections
+      labels:
+        - "RN: correction"

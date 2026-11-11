@@ -1,8 +1,8 @@
 //! `otb-dev` : outils de développement d'OpenTuneBox, jamais livrés (phase 7, D-035).
 //!
 //! ```text
-//! otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]   numéro de version, CHANGELOG
-//! otb-dev release notes vX.Y.Z                        texte de la page Releases
+//! otb-dev release prepare X.Y.Z                       numéro de version
+//! otb-dev release notes vX.Y.Z FICHIER                texte de la page Releases (FICHIER : liste générée par GitHub)
 //! otb-dev icons [--svg CHEMIN]                        PNG Linux et .ico Windows depuis le SVG
 //! otb-dev licenses [--check]                           THIRD-PARTY-LICENSES.txt (mentions de licences des composants livrés) ; --check : compare sans écrire
 //! otb-dev corpus <outil> …                            outils du corpus de vrais logs (`OTB_LOGS`)
@@ -13,9 +13,9 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z [--date AAAA-MM-JJ]\n  otb-dev release notes vX.Y.Z\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]";
+const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z\n  otb-dev release notes vX.Y.Z FICHIER\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]";
 
-/// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `CHANGELOG.md` et `rust/Cargo.toml`.
+/// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `AGENTS.md` et `rust/Cargo.toml`.
 fn repo_root() -> Result<PathBuf, String> {
     if let Some(dir) = std::env::var_os("OTB_DEV_ROOT") {
         return Ok(PathBuf::from(dir));
@@ -23,7 +23,7 @@ fn repo_root() -> Result<PathBuf, String> {
     let start = std::env::current_dir().map_err(|e| format!("dossier courant illisible : {e}"))?;
     start
         .ancestors()
-        .find(|d| d.join("CHANGELOG.md").exists() && d.join("rust").join("Cargo.toml").exists())
+        .find(|d| d.join("AGENTS.md").exists() && d.join("rust").join("Cargo.toml").exists())
         .map(PathBuf::from)
         .ok_or_else(|| "racine du dépôt introuvable (lancer depuis le dépôt ou définir OTB_DEV_ROOT)".into())
 }
@@ -67,11 +67,12 @@ fn bench_open(args: &[&str]) -> Result<String, String> {
 fn run(args: &[String]) -> Result<String, String> {
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     match args.as_slice() {
-        ["release", "prepare", version] => otb_dev::release::prepare(&repo_root()?, version, None),
-        ["release", "prepare", version, "--date", date] => {
-            otb_dev::release::prepare(&repo_root()?, version, Some(date))
+        ["release", "prepare", version] => otb_dev::release::prepare(&repo_root()?, version),
+        ["release", "notes", tag, generated] => {
+            let text =
+                std::fs::read_to_string(generated).map_err(|e| format!("lecture de {generated} impossible : {e}"))?;
+            otb_dev::release::notes(&repo_root()?, tag, &text)
         }
-        ["release", "notes", tag] => otb_dev::release::notes(&repo_root()?, tag),
         ["licenses"] => otb_dev::licenses::generate(&repo_root()?),
         ["licenses", "--check"] => otb_dev::licenses::check(&repo_root()?),
         ["bench-open", rest @ ..] if !rest.is_empty() => bench_open(rest),

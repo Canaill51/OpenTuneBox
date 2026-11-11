@@ -18,11 +18,11 @@ l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur
 ## Comment s'en servir
 
 - **Une session = un lot = une PR.** Faire `/clear`, puis demander « Lot N de `docs/plan.md` ». La branche
-  porte le nom indiqué dans le lot ; le titre de la PR est exactement ce nom (`CONTRIBUTING.md`).
+  porte le nom indiqué dans le lot ; la PR a pour titre une phrase en français qui dit l'effet du changement et
+  une seule étiquette `RN: …` (`CONTRIBUTING.md`, D-056).
 - Chaque lot suit les phases **explorer → planifier → implémenter → vérifier → livrer → consigner**.
   Explorer = lire les fichiers listés dans « À lire ». Planifier = présenter le découpage et attendre
-  l'accord de Cédric. Consigner = cocher les cases du lot, mettre à jour `CHANGELOG.md` (section *Non
-  publié*) et les registres ([decisions.md](decisions.md), [lecons.md](lecons.md),
+  l'accord de Cédric. Consigner = cocher les cases du lot, mettre à jour les registres ([decisions.md](decisions.md), [lecons.md](lecons.md),
   [travaux-reportes.md](travaux-reportes.md)) selon la compétence `docs-sync`.
 - **Un nouveau test se prouve par contre-preuve** : réintroduire le défaut (ou le casser à la main), voir le
   test rougir, le noter dans la PR (L-071).
@@ -78,13 +78,15 @@ sans rubrique de fin, **`CHANGELOG.md` supprimé** (plus de double saisie).
 | `RN: correction` | Corrections |
 | `RN: ignorer` (CI, outils de développement, plans, registres), `dependencies` (Dependabot) | absente des notes |
 
-- [ ] **Nouvelle décision** (la suivante de D-055) : titre de PR = phrase en français qui dit l'effet du changement, une étiquette `RN: …` par PR ;
+- [x] **Nouvelle décision** (la suivante de D-055) : titre de PR = phrase en français qui dit l'effet du changement, une étiquette `RN: …` par PR ;
       notes de version générées par GitHub ; `CHANGELOG.md` supprimé. Remplace la règle « titre = nom de la
       branche » (le nommage des branches ne change pas). Y dire où retrouver l'ancien journal : `git show
-      v0.9.0:CHANGELOG.md` — c'est le **seul** endroit qui garde les notes des versions 0.1.0 à 0.8.0 (leurs
-      pages Releases n'existent plus) et le détail des PR #128 à #145.
-- [ ] **Étiquettes GitHub** : créer les six `RN: …` (`gh label create`), **avec l'accord de Cédric** (geste visible).
-- [ ] **Fichier `release.yml` dans `.github/`** : les trois rubriques ci-dessus, `RN: ignorer` et `dependencies` exclues. Pas de
+      2cd2416:CHANGELOG.md` — c'est le **seul** endroit qui garde les notes des versions 0.1.0 à 0.8.0 (leurs
+      pages Releases n'existent plus) et le détail des PR #128 à #146. *Fait : D-056. Corrigé en route : `v0.9.0`
+      ne convenait pas, les PR #128 et suivantes ont été fusionnées après cette étiquette.*
+- [x] **Étiquettes GitHub** : créer les six `RN: …` (`gh label create`), **avec l'accord de Cédric** (geste visible).
+      *Fait le 2026-11-11 : les sept `RN: …` du tableau, plus `dependencies`, qui n'existait pas (L-096).*
+- [x] **Fichier `release.yml` dans `.github/`** : les trois rubriques ci-dessus, `RN: ignorer` et `dependencies` exclues. Pas de
       rubrique attrape-tout, comme Betaflight : c'est le contrôle de la case suivante qui empêche une PR de
       disparaître des notes faute d'étiquette (règle de GitHub : une PR sans rubrique n'apparaît pas).
 - [ ] **Contrôle d'étiquette sur chaque PR** : nouveau workflow léger (sans `checkout`, `permissions: {}`), lancé
@@ -93,28 +95,34 @@ sans rubrique de fin, **`CHANGELOG.md` supprimé** (plus de double saisie).
       `dependencies` suffit) ou si son titre ressemble à un nom de branche (`^(feat|fix|docs|refactor|test|chore|perf)/`).
       Titre et étiquettes passés par variables d'environnement, jamais `${{ }}` dans le script. Contre-preuve :
       une PR sans étiquette doit rougir. Puis **Cédric** l'ajoute aux contrôles exigés de `protection-main`.
-- [ ] **`otb-dev release notes`** : ne lit plus le CHANGELOG. Il garde le contrôle « l'étiquette `vX.Y.Z` = numéro
+      *Fait : `.github/workflows/etiquette-pr.yml` ; contre-preuve sur la PR #147, rouge sans étiquette, verte avec
+      `RN: ignorer`. Reste à Cédric : l'ajouter aux contrôles exigés de `protection-main` (nom du contrôle : `etiquette`).*
+- [x] **`otb-dev release notes`** : ne lit plus le CHANGELOG. Il garde le contrôle « l'étiquette `vX.Y.Z` = numéro
       du projet » et reçoit la liste générée par GitHub ; une **fonction pure** la traduit (« What's Changed »,
       « Full Changelog », « New Contributors », « by @… in … », commentaire HTML de tête retiré) et ajoute en tête
       le bloc **Téléchargements** (`OpenTuneBox-Windows-Setup.exe`, `OpenTuneBox-Linux.AppImage`). Testée sur un
       texte figé, contre-preuve vue en échec (L-071). `release prepare` ne touche plus que les numéros de version.
-- [ ] **`construire.yml`, tâche `brouillon`** : `gh api -X POST repos/$GH_REPO/releases/generate-notes` avec
+- [x] **`construire.yml`, tâche `brouillon`** : `gh api -X POST repos/$GH_REPO/releases/generate-notes` avec
       `tag_name` et `previous_tag_name` = la dernière version **publiée** (aussi pour une étiquette `essai-v…`),
       passage par `otb-dev release notes`, puis `gh release create … --notes-file`. Liste vide ou appel refusé =
-      échec visible, pas un brouillon sans notes. `actionlint` vert.
-- [ ] **Supprimer `CHANGELOG.md`** : `docs.rs` le retire de `HISTORICAL_DOCS` et l'ajoute à `REMOVED_PATHS`
+      échec visible, pas un brouillon sans notes. `actionlint` vert. *Fait, `actionlint` vert sur la PR #147. Pas encore
+      éprouvé : l'appel avec le jeton de la CI lui-même ; il le sera à la première étiquette `essai-v…` ou `v…`.*
+- [x] **Supprimer `CHANGELOG.md`** : `docs.rs` le retire de `HISTORICAL_DOCS` et l'ajoute à `REMOVED_PATHS`
       (les registres d'histoire le citent encore) ; le lien « Journal des versions » du README pointe vers la page
-      Releases.
-- [ ] **Documents qui citent l'ancienne règle ou le CHANGELOG** : `CONTRIBUTING.md` (titre, tableau des étiquettes,
+      Releases. *Fait, sans `REMOVED_PATHS` : ce contrôle ne lit que les chemins avec un `/`, et le test de la
+      documentation est vert sans lui. La racine du dépôt d'`otb-dev` se repère désormais par `AGENTS.md`.*
+- [x] **Documents qui citent l'ancienne règle ou le CHANGELOG** : `CONTRIBUTING.md` (titre, tableau des étiquettes,
       « Publier une version », Dependabot), `.github/PULL_REQUEST_TEMPLATE.md` (la case CHANGELOG devient « titre en
       phrase et étiquette `RN: …` »), `AGENTS.md` (Méthode 3 et 5, ligne `rust-toolchain.toml`), compétences
       `docs-sync`, `opentunebox-dev` et `assistant-seuils`, `rust/rust-toolchain.toml`, [decisions.md](decisions.md)
       (en-tête : où se lit l'avancement), [architecture.md](architecture.md) (`release.rs`), ce plan (« Comment s'en
       servir », en-tête de l'historique). Vérifier que `claude.yml` peut poser une étiquette (`pull-requests: write`).
-- [ ] **PR déjà fusionnées depuis la 0.9.0** (#128 à #145, plus celle du lot 20 et celle qui a écrit ce lot) :
+- [x] **PR déjà fusionnées depuis la 0.9.0** (#128 à #145, plus celle du lot 20 et celle qui a écrit ce lot) :
       titre réécrit en phrase et étiquette posée (`gh pr edit`), **avec l'accord de Cédric** sur la liste avant
-      de lancer. Sans cela, la prochaine version listerait des noms de branche ou perdrait ces PR.
-- [ ] **Essai sans rien publier** : `gh api -X POST …/releases/generate-notes -f tag_name=v0.10.0 -f
+      de lancer. Sans cela, la prochaine version listerait des noms de branche ou perdrait ces PR. *Fait le 2026-11-11 par
+      l'API (`gh pr edit` échoue sur ce dépôt, à cause des projets « classic ») : 5 PR dans les notes, 11 en `RN: ignorer`,
+      #131 en `dependencies`, #147 en `RN: ignorer`.*
+- [x] **Essai sans rien publier** : `gh api -X POST …/releases/generate-notes -f tag_name=v0.10.0 -f
       target_commitish=main -f previous_tag_name=v0.9.0`, passé par `otb-dev release notes` ; relire le texte
       obtenu (tout en français, rubriques justes, aucune PR `RN: ignorer` ni Dependabot) et le joindre à la PR.
 - [ ] **Page de la 0.9.0 refaite avec la nouvelle méthode** (dernière case, une fois le contrôle d'étiquette et la
@@ -209,7 +217,8 @@ Cargo en CI (une mécanique à entretenir pour une CI qui dure 7 min).
 
 ## Historique des lots
 
-Une ligne par lot fait — ou par lot abandonné, pour que son numéro ne serve jamais à autre chose. Le détail est dans `CHANGELOG.md`, les mesures dans [validation.md](validation.md),
+Une ligne par lot fait — ou par lot abandonné, pour que son numéro ne serve jamais à autre chose. Le détail est dans les demandes de fusion et les pages Releases (jusqu'au lot 20 : l'ancien journal,
+`git show 2cd2416:CHANGELOG.md`), les mesures dans [validation.md](validation.md),
 les pièges dans [lecons.md](lecons.md) et les choix dans [decisions.md](decisions.md) — ce tableau ne fait
 que dire quand et par quoi chaque lot est prouvé.
 
