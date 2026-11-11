@@ -32,8 +32,8 @@ l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur
   vers Cédric ; ne pas improviser un autre découpage.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
-- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 18
-  sont au tableau en bas (faits, non retenus ou supprimés), le prochain numéro libre est **19**.
+- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 19
+  sont au tableau en bas (faits, non retenus ou supprimés), le prochain numéro libre est **20**.
 
 ## Ordre des étapes
 
@@ -156,6 +156,7 @@ prouvés.**
 | 16 | 2026-11-08 | **Revue intégrale** du code, des tests, de la documentation et de l'outillage (PR #129) : 4 relevés (~41 000 lignes de code, ~20 500 de tests, 30 `.md`, 4 workflows), 53 cases, **2 défauts réels** corrigés (`compare_header`, `slice_time`), **6 constats de relevé faux** corrigés après vérification, chaîne Rust figée (`rust-toolchain.toml`), clippy sous Windows, D-052 écrite, D-050 précisée, récidive de L-079 bridée | **W-054 ouvert** : seuls 2 des 10 comparateurs d'`otb-parity` ont reçu un test |
 | 17 | 2026-11-08 | **Rassemblement des plans** (branche « docs/rassembler-les-plans ») : les quatre documents de plan deviennent ce seul `docs/plan.md`, L-092 écrite | rien |
 | 18 | 2026-11-11 | **Audit de sécurité** (branche `chore/security-hardening`, D-054) : réglages GitHub relus et complétés par Cédric (versions immuables, CodeQL, actions autorisées, approbation des contributions extérieures) ; `claude.yml` refuse les forks ; `--locked` en CI ; `unsafe_code = "deny"` ; crochet `guard-git.sh` ; essai de mutations (100 000 cas pour le décodeur, 20 000 de bout en bout, 0 plantage). Contre-épreuves notées dans D-054 | épinglage SHA obligatoire et signature de l'installateur Windows : ouverts dans D-054 |
+| 19 | 2026-11-11 | **Relecture des workflows en CI** (branche `chore/lint-workflows`, D-055) : job `actionlint` 1.7.12 dans `tests.yml`, vérifié par empreinte ; rien à installer sur le poste. Avant l'envoi : 19 scripts bash passés à `shellcheck`, rien à signaler | mettre le job dans les contrôles exigés de `protection-main` (réglage de Cédric) |
 
 La migration Python → Rust elle-même, terminée le 2026-11-04, garde son propre document :
 [migration-rust.md](migration-rust.md) (phases, preuves d'équivalence, verdict du prototype d'interface).

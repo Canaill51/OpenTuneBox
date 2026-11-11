@@ -58,6 +58,11 @@ Sans ce fichier, chaque passage prenait « stable » : une nouvelle version de R
 rouge du jour au lendemain, en plein travail sur autre chose. Pour en changer : modifier le numéro, lancer
 `(cd rust && cargo run -p otb-dev -- verify)`, corriger ce que le nouveau clippy signale, et l'écrire au CHANGELOG.
 
+Les **workflows** eux-mêmes sont relus par `actionlint` (job de [`tests.yml`](.github/workflows/tests.yml)) à chaque
+demande de fusion : syntaxe, expressions, paramètres des actions, et scripts bash des étapes passés à `shellcheck`. Rien à
+installer sur le poste. Sa version est figée et vérifiée par son empreinte ; Dependabot ne la voit pas : pour la monter,
+changer le numéro **et** l'empreinte (D-055).
+
 Le workflow [`audit.yml`](.github/workflows/audit.yml) cherche les failles connues dans les bibliothèques
 livrées (`cargo-deny`, réglages dans `rust/deny.toml`) à chaque envoi **sur `main`**, chaque demande de fusion et chaque lundi. S'il échoue, une dépendance
 a une faille publiée : la mettre à jour. En local : `(cd rust && cargo deny check)` (failles RustSec, licences, origine des crates ; la base d'avis est téléchargée à

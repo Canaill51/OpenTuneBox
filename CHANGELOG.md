@@ -24,6 +24,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Ajouté
 
+- **Les workflows de GitHub sont relus automatiquement** (`actionlint`, à chaque demande de fusion) : une erreur dans le
+  workflow qui fabrique les installateurs se voit désormais avant la fusion, et non le jour d'une publication (D-055).
+
 - **Le programme est essayé sur des dizaines de milliers de fichiers abîmés.** Un fichier Blackbox est la porte d'entrée
   d'OpenTuneBox : un log abîmé ou piégé ne doit ni le faire planter ni le bloquer. Six sortes de dégâts (octets changés,
   en-tête modifié, fichier coupé, trou, morceau doublé, 1 % des octets) sont essayées sur le décodeur seul et sur tout le
