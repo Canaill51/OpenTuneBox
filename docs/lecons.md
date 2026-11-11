@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-096 : une étiquette demandée dans `dependabot.yml` mais absente du dépôt n'est jamais posée, sans aucun message
+
+- **Symptôme** — 2026-11-11, en préparant le lot 20 : le plan comptait sur l'étiquette `dependencies`, demandée par
+  `.github/dependabot.yml` depuis sa création, pour exclure Dependabot des notes de version. Or la PR #131 de Dependabot
+  n'avait **aucune** étiquette, et `gh label list` ne connaissait pas `dependencies`. Aucune erreur, ni dans la PR ni dans
+  l'onglet Dependabot.
+- **Cause** — constatée (étiquette absente du dépôt, PR sans étiquette) ; le mécanisme, supposé d'après la documentation de
+  GitHub : Dependabot n'utilise que les étiquettes qui existent déjà et passe les autres sous silence.
+- **Règle** — une étiquette qu'un réglage ou un workflow attend se **crée** sur le dépôt (`gh label create`) et se vérifie
+  sur une vraie PR ; un contrôle qui repose sur elle accepte aussi un autre signe sûr (ici, l'auteur `dependabot[bot]`
+  dans `.github/workflows/etiquette-pr.yml`).
+- **Preuve** — `gh pr view 131 --json labels` : liste vide ; `gh label list` du 2026-11-11 : dix étiquettes, sans `dependencies`.
+  Étiquette créée avec les sept `RN: …` du lot 20 (D-056).
+
 ### L-095 : une échéance examinée avant de relever le résultat jette un travail déjà terminé, et le test qui l'aurait vu dormait
 
 - **Symptôme** — 2026-11-10 : la CI échoue sur `main` (run 42820099528) dans
@@ -1127,6 +1141,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-096 | Étiquette demandée par `dependabot.yml` mais absente du dépôt : Dependabot ne la pose jamais, sans un mot (`dependencies` manquait, sa PR #131 n'avait aucune étiquette) ; créer sur le dépôt toute étiquette qu'un réglage attend, la vérifier sur une vraie PR, et ne pas faire reposer un contrôle sur elle seule | Outillage |
 | L-095 | Une échéance examinée **avant** de relever le résultat déjà arrivé le jette (l'export d'image échouait sur « capture pas arrivée » alors qu'elle l'était) ; et un test qui **dort** pour prouver une règle de temps échoue au hasard sous charge : rendre la condition immédiate et poser le résultat par une prise de test | Interface |
 | L-094 | Un résultat rangé dans un cache emporte **tout** ce que son type contient : le rapport de l'assistant transportait les fenêtres individuelles de la réponse indicielle (69 % de son poids, jusqu'à 72 Mo) que personne n'affiche ; peser un cache avec un allocateur qui compte, et libérer ce qu'aucun lecteur n'utilise | Interface |
 | L-093 | Deux tests d'un même fichier qui partagent un dossier temporaire nommé d'après le seul `pid` s'effacent leurs fichiers (ils tournent en parallèle dans un même processus) : nommer le dossier d'après le test | Tests |

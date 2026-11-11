@@ -110,6 +110,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
   tournent en parallèle dans un seul processus, et deux tests qui partagent un dossier s'effacent leurs fichiers — l'échec se
   montre ailleurs, et seulement quand le fichier est lancé en entier. Modèle :
   `rust/otb-parity/tests/comparateurs.rs:dossier`. L-093
+- **Étiquette attendue par un réglage (`dependabot.yml`) ou un workflow** : la créer sur le dépôt et la vérifier sur une vraie
+  PR ; absente, elle n'est jamais posée et rien ne le dit. L-096
 
 ## Construction des exécutables
 
