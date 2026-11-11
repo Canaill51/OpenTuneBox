@@ -5,3 +5,6 @@ edition.workspace = true
 publish.workspace = true
 license.workspace = true
 description = "Formats de nombres identiques à ceux de Python (f-strings, repr, round) : les textes du Rust doivent être ceux de l'étalon (D-035)"
+
+[lints]
+workspace = true

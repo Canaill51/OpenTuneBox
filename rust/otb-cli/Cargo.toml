@@ -18,3 +18,6 @@ otb-advisor = { path = "../otb-advisor" }
 otb-analysis = { path = "../otb-analysis" }
 otb-format = { path = "../otb-format" }
 otb-log = { path = "../otb-log" }
+
+[lints]
+workspace = true

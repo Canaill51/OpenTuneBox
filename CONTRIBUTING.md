@@ -70,7 +70,9 @@ Le workflow [`claude.yml`](.github/workflows/claude.yml) fait intervenir Claude 
 fusion. Il ne part **que** si Cédric écrit « @claude » — dans un commentaire, ou dans le titre ou le corps d'une
 issue qu'il ouvre. Pas de relecture automatique, parce que
 chaque passage consomme l'abonnement Claude et des minutes GitHub Actions. Le dépôt étant public, le workflow refuse
-aussi tout commentaire qui ne vient pas du propriétaire. Il a besoin du secret `CLAUDE_CODE_OAUTH_TOKEN` du dépôt,
+aussi tout commentaire qui ne vient pas du propriétaire, et toute demande de fusion venue d'un **fork** : Claude y lancerait
+`cargo`, donc le code d'un inconnu, avec le jeton de l'abonnement (D-054). Pour faire relire une telle contribution, lire
+ses changements, les reprendre sur une branche du dépôt, puis écrire « @claude » sur la nouvelle demande de fusion. Il a besoin du secret `CLAUDE_CODE_OAUTH_TOKEN` du dépôt,
 fabriqué par `claude setup-token` ; sans ce secret, le passage échoue. Pour une relecture avant d'ouvrir la demande de
 fusion, `/code-review` en local ne coûte aucune minute GitHub.
 

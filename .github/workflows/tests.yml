@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Lecture seule, écrit ici plutôt que laissé au réglage du dépôt (déjà « read ») : il le reste si ce réglage change un jour.
+permissions:
+  contents: read
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -21,12 +25,12 @@ jobs:
         working-directory: rust
         run: |
           cargo fmt --check
-          cargo clippy --all-targets -- -D warnings
-          cargo test --no-fail-fast
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --no-fail-fast --locked
       - name: "Mentions de licences à jour (THIRD-PARTY-LICENSES.txt)"
         # Le fichier livré doit correspondre aux dépendances : sinon, relancer `cargo run -p otb-dev -- licenses`.
         working-directory: rust
-        run: cargo run -p otb-dev -- licenses --check
+        run: cargo run --locked -p otb-dev -- licenses --check
 
   # Windows fait partie des livrables (D-031) : les mêmes tests y tournent à chaque envoi.
   windows:
@@ -40,12 +44,12 @@ jobs:
       - name: "Lint du code propre à Windows"
         # fmt et clippy ne tournaient que sous Ubuntu : tout le code `cfg(windows)` échappait au lint.
         working-directory: rust
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
       - name: Tests Rust
         working-directory: rust
-        run: cargo test --no-fail-fast
+        run: cargo test --no-fail-fast --locked
       - name: "Mentions de licences : même fichier que sous Linux ?"
         # Les mentions sont produites pour les deux cibles (D-042) depuis n'importe quel système : ce contrôle le prouve
         # sous Windows (lot 7a de docs/plan.md).
         working-directory: rust
-        run: cargo run -p otb-dev -- licenses --check
+        run: cargo run --locked -p otb-dev -- licenses --check

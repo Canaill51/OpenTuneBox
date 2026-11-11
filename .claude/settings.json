@@ -19,6 +19,11 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-docs.sh",
             "timeout": 60,
             "statusMessage": "Vérification de la documentation…"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-git.sh",
+            "timeout": 10
           }
         ]
       }

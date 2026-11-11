@@ -11,6 +11,13 @@ publish = false
 # SPDX officielle. Les crates ne sont pas publiées (`publish = false`), mais le manifeste ne disait rien du tout.
 license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
 
+# Aucun code `unsafe` dans le projet : le décodeur lit des fichiers venus d'ailleurs, et seul du code `unsafe` pourrait faire d'un
+# fichier piégé une lecture ou une écriture hors des données du programme. « deny » et non « forbid » : l'exemple
+# `otb-gui/examples/banc_cache.rs` (jamais livré) compte les allocations avec du code `unsafe` et lève l'interdiction pour lui seul.
+# Chaque crate s'y rattache par `[lints] workspace = true`.
+[workspace.lints.rust]
+unsafe_code = "deny"
+
 # Les tests de `otb-gui` lient chacun egui et wgpu : ≈ 490 Mo par binaire avec toutes les infos de débogage, 186 Mo avec les seules
 # tables de lignes (mesuré le 2026-11-01). Sans cela, `cargo test` remplissait le disque du runner Ubuntu de la CI (L-069).
 # Les messages de panique gardent leurs numéros de ligne.

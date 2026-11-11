@@ -16,6 +16,7 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
   abîmé par ses trous (`FlightLog.recording_gaps`). Toute analyse à fenêtres prend `breaks=log.breaks(sel)` :
   sans lui, chaque trou ajoute un faux bruit (jusqu'à +18 dB). D-020, L-027
 - L'en-tête n'est jamais cru sur parole : 512 champs au plus, intervalles de 1 à 65 535, sinon `DecodeError` (message en français) ; les tampons grandissent par `try_reserve`, car une allocation ratée abandonne le programme et `catch_unwind` ne la rattrape pas. D-044, L-080
+- Toute modification du décodeur ou de la conversion (`otb-log`) passe l'essai de mutations prolongé (`OTB_MUTATIONS`, en `--release` ; commandes dans `docs/validation.md`) : la CI n'en fait que 30 cas. Un cas rouge se refait d'après son numéro. D-054
 - Numéros de `debug_mode` différents selon la version (FFT_FREQ = 17 en 4.x, 16 depuis 2025.12) → `rust/otb-log/src/debug_tables.rs`. L-003
 - 4.4/4.5 : `rollPID` D = D max et `d_min` = D de base ; 2025.12+ : l'inverse avec `d_max` → normalisé dans `rust/otb-log/src/settings.rs`. L-004
 

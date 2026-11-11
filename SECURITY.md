@@ -23,6 +23,13 @@ OpenTuneBox est conçu pour fonctionner **hors ligne** : l'assistant n'appelle a
 
 Un plantage sur un log valide est un défaut ordinaire : à signaler par un ticket normal.
 
+## Ce qui protège les fichiers publiés
+
+Les versions de la page Releases sont **immuables** : une fois publiées, ni leurs fichiers ni leur étiquette ne peuvent être
+remplacés. Les fichiers sont construits par GitHub Actions à partir du code du dépôt, avec les versions exactes des
+bibliothèques contrôlées par `cargo-deny` (failles connues, licences, origine). Le code d'OpenTuneBox ne contient aucun bloc
+`unsafe`, et le décodeur est essayé sur des dizaines de milliers de fichiers abîmés.
+
 ## Versions prises en charge
 
 Seule la dernière version publiée reçoit des correctifs.

@@ -41,7 +41,7 @@ jobs:
         # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette : les jobs de
         # construction ne partent pas (« needs: brouillon »), ce contrôle n'a donc pas à y être refait.
         working-directory: rust
-        run: cargo run --quiet -p otb-dev -- release notes "${GITHUB_REF_NAME#essai-}" > ../notes.md
+        run: cargo run --quiet --locked -p otb-dev -- release notes "${GITHUB_REF_NAME#essai-}" > ../notes.md
       - name: Brouillon de la page de la version
         env:
           GH_TOKEN: ${{ github.token }}
@@ -102,7 +102,7 @@ jobs:
         env:
           # Windows : la bibliothèque C est embarquée, le programme ne demande aucune DLL de Visual C++ au PC de l'utilisateur.
           RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
-        run: cargo build --release -p otb-gui
+        run: cargo build --release --locked -p otb-gui
 
       - name: Bibliothèques demandées par l'exécutable (Windows)
         if: runner.os == 'Windows'

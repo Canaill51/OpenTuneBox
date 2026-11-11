@@ -24,6 +24,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; nu
 
 ### Ajouté
 
+- **Le programme est essayé sur des dizaines de milliers de fichiers abîmés.** Un fichier Blackbox est la porte d'entrée
+  d'OpenTuneBox : un log abîmé ou piégé ne doit ni le faire planter ni le bloquer. Six sortes de dégâts (octets changés,
+  en-tête modifié, fichier coupé, trou, morceau doublé, 1 % des octets) sont essayées sur le décodeur seul et sur tout le
+  programme, analyses et assistant compris : quelques cas à chaque modification du code, et `OTB_MUTATIONS=N` pour un essai
+  prolongé. Premier essai : 100 000 fichiers pour le décodeur et 20 000 pour tout le programme, sans un
+  plantage (D-054).
+
+- **Sécurité du dépôt et des versions publiées** (D-054). Une version publiée ne peut plus être modifiée : ni ses fichiers
+  ni son étiquette. Les installateurs sont compilés avec exactement les versions de bibliothèques contrôlées (`--locked`).
+  Le code ne peut plus contenir de bloc `unsafe`. Claude Code ne travaille plus sur une demande de fusion venue d'un fork,
+  et demande confirmation avant tout envoi, même sous une forme détournée (`git -C … push`).
+
 - **Un banc mesure ce que le cache des outils retient** (`cargo run --release -p otb-gui --example banc_cache`) : un
   allocateur compte les octets réellement vivants, un témoin de taille connue arrête le banc si le compteur ment, et tout
   le corpus se passe en plusieurs processus (`--part i/K`). Première mesure sur 535 logs et 642 sessions, chiffres et

@@ -26,6 +26,9 @@
 //! Ce qui n'est **pas** mesuré : la mémoire des logs eux-mêmes (affaire d'`otb-dev bench-open`), ni les courbes du
 //! viewer (`banc_cadre`).
 
+// Seule exception à `unsafe_code = "deny"` (rust/Cargo.toml) : l'allocateur qui compte les octets ne s'écrit qu'en `unsafe`.
+#![allow(unsafe_code)]
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};

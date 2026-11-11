@@ -6,6 +6,10 @@ on:
   pull_request:
     paths: [".github/workflows/gui-build.yml"]
 
+# Lecture seule, écrit ici plutôt que laissé au réglage du dépôt (déjà « read ») : il le reste si ce réglage change un jour.
+permissions:
+  contents: read
+
 jobs:
   gui:
     strategy:
@@ -25,7 +29,7 @@ jobs:
         run: rustup toolchain install
       - name: Compilation
         working-directory: rust
-        run: cargo build --release -p otb-gui
+        run: cargo build --release --locked -p otb-gui
       # Fichier envoyé tel quel (droits d'exécution conservés sous Linux).
       # ⚠️ Seulement en lancement manuel : les artefacts d'un dépôt privé gratuit sont plafonnés à 500 Mo, et un quota
       # plein bloque TOUT envoi, y compris celui d'une version. Les fichiers d'une version passent par la page
