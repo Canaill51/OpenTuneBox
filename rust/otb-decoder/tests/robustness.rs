@@ -9,6 +9,10 @@ use std::time::{Duration, Instant};
 
 use otb_decoder::file::decode_bytes;
 
+#[path = "support/mutations.rs"]
+mod mutations;
+use mutations::{muter, nombre_de_mutations};
+
 fn original() -> Vec<u8> {
     let p = format!("{}/../../tests/data/jeno5_5s.bbl", env!("CARGO_MANIFEST_DIR"));
     std::fs::read(p).expect("tests/data/jeno5_5s.bbl")
@@ -189,5 +193,17 @@ fn fichiers_abimes_restent_propres() {
             d[i] = (etat >> 32) as u8;
         }
         survit(&format!("mutation {m}"), &d);
+    }
+}
+
+/// Mutations variées (octets isolés, en-tête, coupure, trou, morceau doublé, 1 %) : 24 cas en CI. `OTB_MUTATIONS=N` en
+/// lance N : essai prolongé, en `--release` et seul (voir docs/validation.md, « Robustesse »).
+#[test]
+fn mutations_variees_restent_propres() {
+    let o = original();
+    let total = nombre_de_mutations(24);
+    for m in 0..total {
+        let (nom, d) = muter(&o, m);
+        survit(&nom, &d);
     }
 }

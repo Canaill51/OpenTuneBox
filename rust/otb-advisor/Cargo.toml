@@ -19,3 +19,5 @@ serde_json = { version = "1", features = ["preserve_order"] }
 flate2 = "1"
 otb-decoder = { path = "../otb-decoder" }
 
+[lints]
+workspace = true

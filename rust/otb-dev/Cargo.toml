@@ -30,3 +30,6 @@ sha2 = "0.11.1"
 [dev-dependencies]
 otb-cli = { path = "../otb-cli" }
 otb-gui = { path = "../otb-gui" }
+
+[lints]
+workspace = true

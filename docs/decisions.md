@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-054 | Sécurité : réglages GitHub (protections, secrets, versions immuables, CodeQL, actions autorisées), Claude refusé sur une demande de fusion venue d'un fork, `--locked` en CI, aucun `unsafe`, crochet `guard-git.sh`, essai de mutations | 2026-11-11 |
 | D-053 | Cache des outils borné **par outil**, en nombre d'entrées (3 réponses indicielles, 20 simulations de filtres, 6 rapports, 2 vérifications du Guide), la moins récemment utilisée jetée la première | 2026-11-10 |
 | D-052 | Données de test : seul `step_tuning.json` est stocké compressé (`.gz`) ; les autres gros fichiers de cas restent en clair | 2026-11-08 |
 | D-051 | Ouverture de plusieurs logs : **3 fichiers décodés en même temps** au plus, plafond posé en nombre de fichiers et non en mémoire | 2026-11-08 |
@@ -123,6 +124,70 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-11 — Sécurité du dépôt et de la chaîne de publication
+
+### D-054 : réglages de sécurité de GitHub, Claude refusé sur les forks, `--locked` en CI, aucun `unsafe`
+
+Tranche le point (3) laissé ouvert par D-043. **Tranché par Cédric** le 2026-11-11, à la suite d'un audit de sécurité
+(GitHub, Claude Code, Rust) : il a fait lui-même les réglages de GitHub et demandé le reste.
+
+**Contexte.** Le dépôt est public (D-043) et ce qu'il publie est téléchargé et lancé par des pilotes. Audit du 2026-11-11 :
+0 alerte de secret, 0 alerte Dependabot ouverte, aucun `unsafe` dans le code livré, décodeur déjà borné (D-044). Les risques
+restants : un fichier `.bbl` piégé (la porte d'entrée du programme), une dépendance compromise, un fichier publié remplacé, et
+Claude Code amené à exécuter du code écrit par un tiers.
+
+**Décidé — réglages de GitHub** (faits par Cédric ; relus par `gh api` le 2026-11-11) :
+- `main` : règle `protection-main` (depuis le 2026-11-04) — demande de fusion obligatoire, contrôles `tests`, `windows` et
+  `cargo-deny` verts et à jour, ni réécriture ni suppression. Étiquettes `v*`, `essai-v*`, `python-*` : règle
+  `protection-etiquettes`, création, déplacement et suppression réservés à l'administrateur.
+- Analyse des secrets avec blocage à l'envoi ; alertes et mises à jour de sécurité Dependabot ; signalement privé de faille
+  ([SECURITY.md](../SECURITY.md)).
+- **Versions immuables** : une version publiée ne peut plus changer de fichiers ni d'étiquette, même avec un jeton volé.
+  Compatible avec `construire.yml`, qui envoie les fichiers pendant le brouillon puis publie.
+- **CodeQL**, configuration par défaut (Rust et workflows).
+- Actions autorisées : celles de GitHub, plus `anthropics/claude-code-action`, `EmbarkStudios/cargo-deny-action` et
+  `oven-sh/setup-bun` (appelée en coulisse par l'action Claude). Une action absente de la liste fait échouer le workflow :
+  l'y ajouter (Settings → Actions → General). CI d'un contributeur extérieur : approbation de Cédric **à chaque fois**.
+  Jeton par défaut en lecture, sans droit d'approuver une demande de fusion.
+
+**Décidé — dans le dépôt** :
+- `claude.yml` **refuse une demande de fusion venue d'un fork** (`isCrossRepository`), avant d'en récupérer le code ; une
+  réponse illisible vaut refus. Raison : Claude y lancerait `cargo`, donc les `build.rs` et les tests d'un inconnu, avec le
+  jeton de l'abonnement dans l'environnement, et un `.claude/settings.json` modifié y ajouterait ses crochets. Le filtre sur
+  l'auteur du commentaire ne protège pas de ce cas : c'est Cédric qui écrit « @claude », mais sur le code d'un autre.
+- `--locked` sur chaque commande `cargo` de la CI qui compile : l'exécutable publié est fait avec exactement les versions de
+  `Cargo.lock`, celles que `cargo-deny` contrôle ; un `Cargo.lock` incohérent fait échouer au lieu d'être recalculé en silence.
+- `permissions: contents: read` écrit dans `tests.yml` et `gui-build.yml` (le réglage du dépôt le donnait déjà).
+- `unsafe_code = "deny"` pour tout l'espace de travail (`rust/Cargo.toml`, `[lints] workspace = true` dans chaque crate) ;
+  seule exception, levée dans le fichier : `rust/otb-gui/examples/banc_cache.rs`, jamais livré.
+- Crochet `.claude/hooks/guard-git.sh` : fait demander la confirmation pour `git push`, `git tag`, `gh release`,
+  `gh pr merge`, `gh api` et `gh workflow run` même quand une option les précède (`git -C rust push`) ou qu'ils sont glissés
+  dans `sh -c "…"`, ce que les règles « ask » de `.claude/settings.json`, qui comparent le début de la commande, laissaient
+  passer.
+- Essai de mutations : six sortes de fichiers abîmés (octets isolés, en-tête, coupure, trou, morceau doublé, 1 %) passent
+  par le décodeur (`rust/otb-decoder/tests/robustness.rs`) et par tout le programme jusqu'à l'assistant
+  (`rust/otb-cli/tests/robustesse.rs`) ; quelques cas en CI, `OTB_MUTATIONS=N` pour un essai prolongé
+  ([validation.md](validation.md), « Robustesse face à un en-tête hostile »).
+
+**Options écartées.**
+- `cargo-fuzz` : il exige une chaîne Rust *nightly*, contraire à la version figée (`rust/rust-toolchain.toml`). L'essai de
+  mutations tourne sur la chaîne stable, sans dépendance.
+- `forbid` au lieu de `deny` pour `unsafe_code` : `forbid` ne se lève pas localement, et le banc du cache en a besoin.
+- Séparer la compilation des versions (sans droit d'écriture) de leur envoi : les fichiers devraient passer par les
+  artefacts, que la méthode de publication proscrit, et une crate piégée capable de voler le jeton pourrait aussi bien piéger
+  l'exécutable lui-même. La défense est en amont : `cargo-deny`, `--locked`, versions immuables.
+
+**Ouvert.** (1) La case « exiger l'épinglage des actions par SHA » est restée décochée : toutes les actions le sont déjà,
+la cocher empêcherait seulement un oubli. (2) L'installateur Windows n'est pas signé (SmartScreen avertit) ; une signature
+est payante, et n'a pas été discutée.
+
+**Témoins.** Réglages relus par `gh api` (règles, `immutable-releases`, `code-scanning/default-setup`,
+`actions/permissions`). Refus des forks : script de l'étape lancé avec un faux `gh` (`false` → passe ; `true` et erreur
+réseau → code 1). Crochet : 8 commandes à confirmer et 8 commandes ordinaires, toutes classées comme attendu. `unsafe` :
+l'exception retirée, l'exemple est refusé (3 erreurs). Mutations : voir [validation.md](validation.md).
 
 ---
 
@@ -507,7 +572,7 @@ Amende D-001 (« projet privé, tous droits réservés, pas de licence libre » 
 
 **Témoins.** `gh repo view` : visibilité PUBLIC ; `gh api repos/Canaill51/OpenTuneBox/releases` : 0 version ; CI des PR #96 et #97 verte après le passage en public (la #97 : `tests` 6 min 7, `windows` 7 min 3, `cargo-deny` 33 s). Le texte de `LICENSE` vient de `gh api licenses/gpl-3.0` (35 150 octets).
 
-**Ouvert.** (1) W-046 : la licence de la police Ubuntu Light (Ubuntu Font Licence 1.0, « the Font Software … must be distributed entirely under this licence ») face à la GPL, non tranchée ; (2) la compatibilité avec la GPL 3 est lue sur la liste de la FSF pour MIT, ISC et Apache 2.0 seulement ; BSD, Zlib, Unicode-3.0, BSL-1.0 et 0BSD ne sont pas vérifiées ; ce n'est pas un avis juridique ; (3) réglages de sécurité GitHub (protection de `main` et des étiquettes, analyse des secrets, signalement privé) : décision de Cédric.
+**Ouvert.** (1) W-046 : la licence de la police Ubuntu Light (Ubuntu Font Licence 1.0, « the Font Software … must be distributed entirely under this licence ») face à la GPL, non tranchée ; (2) la compatibilité avec la GPL 3 est lue sur la liste de la FSF pour MIT, ISC et Apache 2.0 seulement ; BSD, Zlib, Unicode-3.0, BSL-1.0 et 0BSD ne sont pas vérifiées ; ce n'est pas un avis juridique ; (3) réglages de sécurité GitHub (protection de `main` et des étiquettes, analyse des secrets, signalement privé) : tranché par D-054 (2026-11-11).
 
 ### D-042 : macOS abandonné, application livrée pour Windows et Linux
 

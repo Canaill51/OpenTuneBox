@@ -130,6 +130,27 @@ Contre-preuves : plafond d'intervalle retiré → 4 cas rouges ; plafond de cham
 Aucun vrai log ne change : `otb-parity check` 0 échec sur 3123 fichiers, 70 fichiers abîmés inchangés, `corpus validate` : 697 sessions conformes sur 712, mêmes statuts que la ligne de base (ok 627, gap 67, slow 8, values 5, refhang 3, rows 2).
 Limite : sous Linux, une réservation énorme peut réussir (surengagement de la mémoire) ; le plafond de 512 champs borne l'essentiel, pas tout (non mesuré).
 
+**Essai de mutations (2026-11-11, D-054).** `rust/otb-decoder/tests/support/mutations.rs` abîme la même source de six façons,
+chaque cas refaisable d'après son numéro : quelques octets (1 à 8), l'en-tête (1 à 4 octets parmi ses 5 599), coupure, trou
+(jusqu'à 4 Kio), morceau doublé (jusqu'à 4 Kio), 1 % des octets. Deux tests s'en servent : `robustness.rs`
+(`mutations_variees_restent_propres`, décodeur seul) et `rust/otb-cli/tests/robustesse.rs` (`report` : décodage, conversion,
+toutes les analyses et l'assistant, comme à l'ouverture d'un fichier dans l'interface). En CI : 24 et 6 cas. Essai prolongé :
+
+```sh
+cd rust
+OTB_MUTATIONS=100000 cargo test --release -p otb-decoder --test robustness mutations_variees   # ≈ 5 min
+OTB_MUTATIONS=20000 cargo test --release -p otb-cli --test robustesse                         # ≈ 5 min
+```
+
+| Essai | Cas | Durée | Résultat |
+|---|---|---|---|
+| Décodeur seul | 100 000 | 288 s | aucune panique, aucun blocage |
+| Tout le programme (`report`) | 3 000 puis 20 000 | 43 s ; 294 s | aucune panique, aucun blocage |
+
+Contre-épreuve : une panique ajoutée au décodeur sur un octet non ASCII de l'en-tête fait rougir les deux tests, qui nomment
+le cas (« mutation 1 (en-tête) : panique »). Limite : une seule source (`jeno5_5s.bbl`, Betaflight 2026.6.0-rc3, une session) ; les
+fichiers d'un autre firmware ou à plusieurs sessions ne sont pas mutés.
+
 ## Recoupement avec PIDtoolbox Pro V0.94 (mêmes logs)
 
 | Mesure | Log | PIDtoolbox | OpenTuneBox |

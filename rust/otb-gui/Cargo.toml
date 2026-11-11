@@ -38,3 +38,6 @@ otb-decoder = { path = "../otb-decoder" }
 # `examples/banc_cache.rs` seulement : liste des logs du corpus et répartition sur les fils (jamais dans la bibliothèque).
 otb-dev = { path = "../otb-dev" }
 otb-parity = { path = "../otb-parity" }
+
+[lints]
+workspace = true

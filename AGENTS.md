@@ -75,15 +75,17 @@ cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG�
 
 CI : `tests.yml` (fmt et clippy sur Ubuntu ; tests sur Ubuntu et Windows), `audit.yml` (`cargo deny`), `gui-build.yml` (interface à essayer à la main),
 `construire.yml` (installateurs), `claude.yml` (Claude Code répond dans une issue ou une demande de fusion, **seulement** si
-Cédric y écrit « @claude », en commentaire ou en ouvrant l'issue ; jamais de relecture automatique). Elle ne voit pas le corpus.
+Cédric y écrit « @claude », en commentaire ou en ouvrant l'issue ; jamais de relecture automatique ; refus d'une demande de fusion venue d'un fork, D-054).
+Elle ne voit pas le corpus ; ses commandes `cargo` qui compilent prennent `--locked`.
 
 Variables : `OTB_LOGS` (vrais logs, défaut `~/Documents/Drones/Logs`, avec `corpus.csv`), `OTB_GOLDEN` (références figées, en général `$OTB_LOGS/golden`),
 `OTB_REF_DECODER` (`blackbox_decode`), `OTB_DOCS_ROOT` et `OTB_DEV_ROOT` (racines pour `otb-dev`), `OTB_BITEXACT=1` (au bit près, `rust/otb-advisor/tests/smooth.rs`),
-`OTB_FORMAT_CASES` (gros fichier de cas, `rust/otb-format/tests/cas.rs`).
+`OTB_FORMAT_CASES` (gros fichier de cas, `rust/otb-format/tests/cas.rs`), `OTB_MUTATIONS=N` (fichiers abîmés, `rust/otb-decoder/tests/robustness.rs` et
+`rust/otb-cli/tests/robustesse.rs` ; en `--release`).
 
 ## Interdits
 
-- `git push`, `git tag`, `gh pr merge`, `gh release` : seulement avec la confirmation de Cédric **à chaque fois** (« demander » dans `.claude/settings.json`) ;
+- `git push`, `git tag`, `gh pr merge`, `gh release` : seulement avec la confirmation de Cédric **à chaque fois** (« demander » dans `.claude/settings.json`, et le crochet `.claude/hooks/guard-git.sh` pour `git -C … push` et consorts) ;
   l'étiquette `v*` est posée par lui.
 - Ne jamais modifier `$OTB_LOGS`, `golden/` ni `corpus.csv` (hors `corpus labels`) ; jamais affaiblir ou sauter un test, ni `--no-verify`.
 - Fichiers temporaires (captures, essais) : hors du dépôt.

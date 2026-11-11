@@ -48,6 +48,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # ⚠️ Demande de fusion venue d'un fork : Claude y lancerait `cargo`, donc les build.rs et les tests écrits par un inconnu,
+      # avec le jeton de l'abonnement dans l'environnement ; un `.claude/settings.json` modifié y ajouterait ses propres
+      # crochets. On s'arrête donc AVANT de récupérer son code (le filtre sur l'auteur du commentaire ne suffit pas : c'est
+      # Cédric qui écrit « @claude », mais sur le code d'un autre). Pour la faire relire : lire ses changements, les reprendre
+      # sur une branche du dépôt, puis écrire « @claude » sur cette nouvelle demande de fusion.
+      - name: "Refus des demandes de fusion venues d'un fork"
+        if: github.event.issue.pull_request || github.event.pull_request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NUMERO: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: |
+          # Réponse illisible (réseau, droits) = refus aussi : le doute ne laisse pas passer.
+          fork=$(gh pr view "$NUMERO" --json isCrossRepository -q .isCrossRepository)
+          if [ "$fork" != false ]; then
+            echo "::error::demande de fusion venue d'un fork (réponse : « $fork ») : Claude ne travaille pas sur le code d'un tiers."
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
@@ -67,7 +85,7 @@ jobs:
         run: |
           fichier="$RUNNER_TEMP/claude-execution-output.json"
           if [ ! -f "$fichier" ]; then
-            echo "Pas de fichier de sortie : Claude n'a même pas démarré."
+            echo "Pas de fichier de sortie : Claude n'a même pas démarré (voir l'étape en échec plus haut)."
             exit 0
           fi
           jq -r '.[] | select(.type == "result") | (.subtype // "?") + " : " + ((.result // .error // "message absent") | tostring)' \
