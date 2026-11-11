@@ -1,8 +1,10 @@
 # Construction automatique d'OpenTuneBox pour Windows et Linux sur les serveurs de GitHub (macOS abandonné : D-042).
 # Se lance à la main (onglet « Actions » → « Construire OpenTuneBox » → « Run workflow ») ou en poussant
 # une étiquette de version (git tag v0.2.0 && git push origin v0.2.0).
-# Essai de toute la chaîne de publication sans rien publier : une étiquette « essai-v0.8.0 » (le numéro doit être celui de rust/Cargo.toml
-# et du CHANGELOG) fait tout, notes, brouillon, envoi des deux fichiers, contrôle de la liste, mais laisse la page en brouillon.
+# Essai de toute la chaîne de publication sans rien publier : une étiquette « essai-v0.8.0 » (le numéro doit être celui de
+# rust/Cargo.toml) fait tout, notes, brouillon, envoi des deux fichiers, contrôle de la liste, mais laisse la page en brouillon.
+# Notes de la page : liste que GitHub génère d'après les titres et les étiquettes « RN: … » des demandes de fusion
+# (rubriques : .github/release.yml, D-056), traduite et complétée par `otb-dev release notes`.
 # Avec une étiquette de version, les fichiers sont publiés sur une page « Releases » permanente
 # (préparer d'abord la version : cd rust && cargo run -p otb-dev -- release prepare 0.2.0, voir CONTRIBUTING.md) :
 # brouillon de la page, chaque système y envoie son fichier, puis publication quand les deux sont là.
@@ -37,11 +39,22 @@ jobs:
         # Version et composants : rust/rust-toolchain.toml (rustup la pose au premier appel à cargo).
         working-directory: rust
         run: rustup toolchain install
-      - name: Notes de version (section du CHANGELOG)
-        # Arrête tout de suite si le numéro du projet ou le CHANGELOG ne correspond pas à l'étiquette : les jobs de
-        # construction ne partent pas (« needs: brouillon »), ce contrôle n'a donc pas à y être refait.
-        working-directory: rust
-        run: cargo run --quiet --locked -p otb-dev -- release notes "${GITHUB_REF_NAME#essai-}" > ../notes.md
+      - name: Notes de version (liste générée par GitHub)
+        # Arrête tout de suite si GitHub refuse l'appel, si la liste est vide ou si le numéro du projet ne correspond pas à
+        # l'étiquette : les jobs de construction ne partent pas (« needs: brouillon »), ce contrôle n'a donc pas à y être refait.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Version de départ : la dernière page publiée (« Latest » : ni brouillon, ni pré-version), aussi pour une étiquette
+          # d'essai. Sans page publiée, `gh` échoue et la tâche s'arrête : pas de brouillon sans notes.
+          precedente=$(gh release view --json tagName -q .tagName)
+          echo "notes : demandes de fusion entre $precedente et $GITHUB_REF_NAME"
+          gh api -X POST "repos/$GH_REPO/releases/generate-notes" \
+            -f tag_name="$GITHUB_REF_NAME" -f previous_tag_name="$precedente" --jq .body > liste.md
+          # Traduction et bloc Téléchargements ; refuse une liste sans aucune demande de fusion.
+          (cd rust && cargo run --quiet --locked -p otb-dev -- release notes "${GITHUB_REF_NAME#essai-}" ../liste.md) > notes.md
+          cat notes.md
       - name: Brouillon de la page de la version
         env:
           GH_TOKEN: ${{ github.token }}

@@ -60,7 +60,7 @@ Règles :
 
 Depuis `rust/` (`cd rust`) ; postes Linux et Windows 11 (commandes `cargo` identiques, chemins et variables à adapter).
 La version de Rust est **figée** par `rust/rust-toolchain.toml` (poste et CI) : la changer est un geste volontaire, suivi
-d'un `verify` et d'une ligne au CHANGELOG.
+d'un `verify`, et se dit dans la PR.
 
 ```sh
 cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, mentions de licences, cargo deny ; ≈ 70 s à chaud ; 0 seulement si tout passe (--quick sans deny ; --strict : un test sauté faute de corpus = échec)
@@ -74,7 +74,7 @@ cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG�
 ```
 
 CI : `tests.yml` (fmt et clippy sur Ubuntu ; tests sur Ubuntu et Windows ; `actionlint` relit les workflows, D-055), `audit.yml` (`cargo deny`), `gui-build.yml` (interface à essayer à la main),
-`construire.yml` (installateurs), `claude.yml` (Claude Code répond dans une issue ou une demande de fusion, **seulement** si
+`construire.yml` (installateurs ; notes de la page Releases générées par GitHub, D-056), `etiquette-pr.yml` (chaque PR : titre en phrase et une étiquette `RN: …`), `claude.yml` (Claude Code répond dans une issue ou une demande de fusion, **seulement** si
 Cédric y écrit « @claude », en commentaire ou en ouvrant l'issue ; jamais de relecture automatique ; refus d'une demande de fusion venue d'un fork, D-054).
 Elle ne voit pas le corpus ; ses commandes `cargo` qui compilent prennent `--locked`.
 
@@ -108,7 +108,8 @@ Règle courte de chaque piège ; histoire et preuve dans `docs/lecons.md`. Les p
    `docs/architecture.md`), l'index rapide de `docs/lecons.md`, ses arrivées récentes et la section du domaine ; vérifier qu'aucune décision (`docs/decisions.md`) ni
    aucun travail reporté (`docs/travaux-reportes.md`) ne porte déjà sur le sujet.
 2. Valider sur **de vrais logs** en plus des tests synthétiques ; recouper avec les captures PIDtoolbox (`PTB_FIGS_*`) quand elles existent (`docs/validation.md`).
-3. **Documentation à jour dans le même commit que le code** : compétence `docs-sync` ; `verify` vert avant chaque commit ; `CHANGELOG.md` (*Non publié*).
+3. **Documentation à jour dans le même commit que le code** : compétence `docs-sync` ; `verify` vert avant chaque commit.
 4. Commits en français, un sujet par commit. Auteur `Cedric` avec l'adresse noreply de GitHub (D-043), jamais l'adresse personnelle.
 5. Une branche par sujet, `type/description-courte` (`feat`, `fix`, `docs`, `refactor`, `test`, `chore` ; minuscules, tirets, anglais) ; la PR vers `main`
-   a pour titre **exactement le nom de la branche** (`CONTRIBUTING.md`).
+   a pour titre **une phrase en français qui dit l'effet du changement** (elle devient la ligne des notes de version) et
+   **une seule étiquette `RN: …`** (`RN: ignorer` pour CI, outils, plans, registres ; tableau dans `CONTRIBUTING.md`). D-056

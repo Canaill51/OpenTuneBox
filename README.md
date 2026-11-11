@@ -83,7 +83,7 @@ l'assistant détecte seul si on ne la donne pas.
 - Registres de suivi : [décisions](docs/decisions.md) (`D-xxx`), [leçons](docs/lecons.md) (`L-xxx`),
   [travaux reportés](docs/travaux-reportes.md) (`W-xxx`)
 - [Index complet de la documentation](docs/README.md)
-- [Journal des versions](CHANGELOG.md) · [Contribuer](CONTRIBUTING.md)
+- [Journal des versions](../../releases) · [Contribuer](CONTRIBUTING.md)
 
 ## Développement
 

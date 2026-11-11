@@ -44,7 +44,7 @@ et les comparer au code :
 | Décision de Cédric, choix qui écarte une option, contrat entre deux parties du code | `docs/decisions.md` (nouvelle entrée, ou marque REMPLACÉE / AMENDÉE sur l'ancienne), résumé dans `AGENTS.md` (Décisions fixées) s'il est structurant |
 | Piège qui a coûté du temps (échec silencieux, cause contre-intuitive, récidive) | `docs/lecons.md` (entrée complète + index rapide) ; règle courte avec son numéro dans `AGENTS.md` (Pièges connus) si elle vaut pour toute tâche, sinon dans `docs/pieges-par-domaine.md` (section du domaine) |
 | Défaut vu hors du sujet de la branche, limite assumée, idée repoussée ; travail repris ou abandonné | `docs/travaux-reportes.md` (nouvelle entrée ou changement de statut, jamais de suppression) |
-| Tout changement visible | `CHANGELOG.md`, section *Non publié* (Ajouté / Modifié / Corrigé) |
+| Tout changement | Titre de la PR en phrase (il devient la ligne des notes de version) et une étiquette `RN: …` (`CONTRIBUTING.md`, D-056) : plus de CHANGELOG |
 
 Pour une relecture large (avant une version, ou si beaucoup de choses ont changé) : relire **tous** les `.md`
 (`git ls-files '*.md'`) et vérifier soi-même chaque valeur chiffrée contre le code (`grep`), sans lancer
@@ -57,4 +57,4 @@ d'agents ; au plus un seul agent pour tout le lot si la relecture est vraiment v
   *Développement* du README. Les noms d'outils sont ceux des boutons (« Spectre », « Filtres »…).
 - Un seul fichier de téléchargement par système : ne pas documenter de variantes.
 - Décrire ce que fait **notre** code ; citer PIDtoolbox seulement comme référence.
-- Ne pas réécrire l'historique des versions publiées du `CHANGELOG.md`.
+- L'ancien `CHANGELOG.md` (supprimé, D-056) ne se recrée pas : l'histoire des versions vit dans les pages Releases et dans git.

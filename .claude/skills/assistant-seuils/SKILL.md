@@ -98,7 +98,7 @@ mélange mesure et décision, séparer la mesure dans une fonction réutilisable
 
 1. Valeurs dans `rust/otb-advisor/src/profiles.rs` (arguments nommés, commentaire de calibration daté).
 2. `docs/assistant.md` : sections « Taille du drone », « Calibration » (tableaux), « Règles » et
-   « Origine des seuils » ; `CHANGELOG.md` (*Non publié*). Puis la compétence `docs-sync`.
+   « Origine des seuils ». Puis la compétence `docs-sync`.
 3. Tests : `rust/otb-advisor/tests/profiles.rs` et `rules.rs` comparent les seuils et les décisions à des cas figés
    (`rust/otb-advisor/tests/data/*.json`, écrits par l'ancienne version Python). Un changement **voulu** de valeur les fait échouer :
    mettre à jour le cas concerné à la main, dans le même commit, en écrivant pourquoi (valeur ancienne, valeur nouvelle, mesure du

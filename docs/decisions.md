@@ -13,8 +13,8 @@ Trois registres, **un maître par sujet** ; les autres documents y renvoient au 
 | Travaux reportés | `W-xxx` | Qu'a-t-on vu et laissé de côté, et quand le reprendre ? | [travaux-reportes.md](travaux-reportes.md) |
 
 Les **règles** sans discussion (commandes, conventions de commit, couleurs…) restent dans
-[AGENTS.md](../AGENTS.md) ; l'**avancement** dans les branches, les demandes de fusion et le
-[CHANGELOG.md](../CHANGELOG.md) ; l'origine de chaque **seuil** de l'assistant dans
+[AGENTS.md](../AGENTS.md) ; l'**avancement** dans les branches, les demandes de fusion et les
+pages Releases (liste générée par GitHub, D-056) ; l'origine de chaque **seuil** de l'assistant dans
 [assistant.md](assistant.md) ; les **mesures** de justesse dans [validation.md](validation.md).
 
 ## Protocole
@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-056 | Notes de version **générées par GitHub** : titre de PR = phrase en français, une étiquette `RN: …` par PR (rubriques de `.github/release.yml`, contrôle `etiquette-pr.yml`) ; `CHANGELOG.md` supprimé ; remplace « titre de PR = nom de la branche » | 2026-11-11 |
 | D-055 | Workflows relus par `actionlint` **dans la CI** (job de `tests.yml`, version figée vérifiée par empreinte), pas installé sur le poste | 2026-11-11 |
 | D-054 | Sécurité : réglages GitHub (protections, secrets, versions immuables, CodeQL, actions autorisées), Claude refusé sur une demande de fusion venue d'un fork, `--locked` en CI, aucun `unsafe`, crochet `guard-git.sh`, essai de mutations | 2026-11-11 |
 | D-053 | Cache des outils borné **par outil**, en nombre d'entrées (3 réponses indicielles, 20 simulations de filtres, 6 rapports, 2 vérifications du Guide), la moins récemment utilisée jetée la première | 2026-11-10 |
@@ -125,6 +126,46 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-11 — Notes de version
+
+### D-056 : les notes de version sont générées par GitHub d'après les titres et les étiquettes `RN: …` des PR
+
+**Tranché par Cédric** le 2026-11-11 (lot 20 de `docs/plan.md`).
+
+**Contexte.** La page Releases recopiait toute la section du `CHANGELOG.md` : ≈ 30 Ko pour la 0.9.0, 46 paragraphes écrits
+pour des développeurs, où un pilote ne retrouve pas ce qui change pour lui. Le CHANGELOG doublait aussi chaque demande de
+fusion d'une saisie à la main. Le dépôt de Betaflight fait autrement : un titre de PR court, une étiquette `RN: …` par PR, et un
+`release.yml` qui range les PR en rubriques dans la liste que GitHub génère.
+
+**Décision.**
+- **Le titre d'une PR est une phrase en français** qui dit l'effet du changement : elle devient la ligne des notes. Cela
+  **remplace la règle « titre de la PR = nom de la branche »** de `CONTRIBUTING.md` ; le nommage des branches
+  (`type/description-courte`) ne change pas.
+- **Une étiquette `RN: …` par PR**, et une seule : `RN: nouveauté majeure`, `RN: nouveauté` → Nouveautés ; `RN: amélioration`,
+  `RN: sécurité`, `RN: refonte` → Améliorations ; `RN: correction` → Corrections ; `RN: ignorer` (CI, outils de
+  développement, plans, registres) → absente des notes. Rubriques dans `.github/release.yml`, mots en français (D-001).
+- **Dependabot exclu des notes** (étiquette `dependencies`), sans rubrique de fin.
+- Pas de rubrique attrape-tout : une PR sans rubrique disparaîtrait des notes. C'est le workflow `etiquette-pr.yml` qui
+  l'empêche : il échoue sans exactement une étiquette `RN: …` connue, ou sur un titre en forme de nom de branche.
+- **Notes générées par GitHub** à la publication (`construire.yml`, tâche `brouillon`) entre la dernière version publiée et la
+  nouvelle étiquette ; `otb-dev release notes` traduit les mots fixes de GitHub (« What's Changed »…), ajoute en tête le bloc
+  Téléchargements et refuse une liste vide ou restée en anglais.
+- **`CHANGELOG.md` supprimé.** L'ancien journal se lit dans git : `git show 2cd2416:CHANGELOG.md` (dernier commit qui l'a,
+  sur `main` avant ce lot) est le **seul** endroit qui garde les notes des versions 0.1.0 à 0.8.0 (leurs pages Releases
+  n'existent plus) et le détail des PR #128 à #146. `git show v0.9.0:CHANGELOG.md` s'arrête à la 0.9.0.
+
+**Options écartées.**
+- Garder le CHANGELOG à côté des notes générées : double saisie, et deux textes qui finissent par se contredire.
+- Une rubrique « Autres » pour les PR sans étiquette : les notes se rempliraient de lignes de maintenance sans intérêt pour un
+  pilote ; mieux vaut que l'oubli fasse rougir la PR.
+- Laisser les mots fixes de GitHub en anglais : l'interface et la documentation sont en français (D-001).
+
+**Témoins.** `rust/otb-dev/tests/release.rs` : traduction d'une liste au format relevé le 2026-11-11, refus d'une liste vide ou
+restée en anglais, mêmes étiquettes dans `release.yml` et `etiquette-pr.yml` ; chaque protection cassée à la main fait
+rougir son test. Essai à blanc de `generate-notes` joint à la demande de fusion du lot 20.
 
 ---
 
