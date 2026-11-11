@@ -58,3 +58,18 @@ jobs:
           # que les tests qui s'en passent (`cargo run -p otb-dev -- verify --quick`). Les consignes du dépôt
           # (CLAUDE.md, AGENTS.md, .claude/skills/) sont lues automatiquement, comme en local.
           claude_args: --allowed-tools "Bash(cargo:*),Bash(git:*),Bash(rustup:*)"
+
+      # Quand Claude échoue, l'action remplace sa sortie par « full output hidden for security » : on ne sait pas
+      # pourquoi. Cette étape rend UNIQUEMENT le message d'erreur final, jamais la conversation — important, le dépôt
+      # est public et ses journaux d'Actions sont lisibles par tout le monde.
+      - name: "Message d'erreur de Claude"
+        if: failure()
+        run: |
+          fichier="$RUNNER_TEMP/claude-execution-output.json"
+          if [ ! -f "$fichier" ]; then
+            echo "Pas de fichier de sortie : Claude n'a même pas démarré."
+            exit 0
+          fi
+          jq -r '.[] | select(.type == "result") | (.subtype // "?") + " : " + ((.result // .error // "message absent") | tostring)' \
+            "$fichier" | head -c 1000
+          echo

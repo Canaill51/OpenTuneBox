@@ -74,6 +74,10 @@ aussi tout commentaire qui ne vient pas du propriétaire. Il a besoin du secret 
 fabriqué par `claude setup-token` ; sans ce secret, le passage échoue. Pour une relecture avant d'ouvrir la demande de
 fusion, `/code-review` en local ne coûte aucune minute GitHub.
 
+Quand un passage échoue, l'action remplace la sortie de Claude par « full output hidden for security » : le journal ne
+dit pas pourquoi. Une dernière étape du workflow rend alors **le seul message d'erreur final**, jamais la conversation —
+les journaux d'Actions d'un dépôt public sont lisibles par tout le monde.
+
 ## Publier une version
 
 Dans les exemples ci-dessous, `X.Y.Z` est le **prochain** numéro (celui de `rust/Cargo.toml` une fois préparé) :
