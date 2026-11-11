@@ -129,8 +129,7 @@ Le programme livré est l'interface Rust seule (`cargo build --release -p otb-gu
 - Tous systèmes : workflow `construire.yml` (manuel, ou étiquette `v*` → page Releases ; préparer la version avec
   `(cd rust && cargo run -p otb-dev -- release prepare X.Y.Z)`, voir `CONTRIBUTING.md`) : un fichier par système (installateur Inno
   Setup Windows, AppImage Linux construite sur Ubuntu 22.04), chacun essayé au démarrage avec un petit log en argument. Avant de le
-  modifier : `actionlint .github/workflows/*.yml` (mettre `shell: pwsh` aux étapes Windows, sinon il les prend pour du bash).
-  ⚠️ **Absent du poste le 2026-11-11**, contrairement à ce que disait cette page : vérifier `command -v actionlint` ; à défaut,
-  `python3 -c 'import yaml…'` pour la syntaxe et `shellcheck` sur les scripts des étapes, et le dire. L'installer est un geste de Cédric. Le lancer à la main sur la branche (`gh workflow run construire.yml --ref BRANCHE`, accord de Cédric) avant
+  modifier : il est relu par le job `actionlint` de `tests.yml` sur la demande de fusion (D-055 ; **pas installé sur le poste**, par
+  choix). Mettre `shell: pwsh` aux étapes Windows, sinon il les prend pour du bash et les passe à `shellcheck`. Le lancer à la main sur la branche (`gh workflow run construire.yml --ref BRANCHE`, accord de Cédric) avant
   de fusionner.
 - Icônes : `(cd rust && cargo run -p otb-dev -- icons)` si le SVG change.

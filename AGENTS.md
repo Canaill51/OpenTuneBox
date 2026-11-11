@@ -73,7 +73,7 @@ cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec le
 cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG…]   # captures sans écran (wgpu) : regarder l'image produite
 ```
 
-CI : `tests.yml` (fmt et clippy sur Ubuntu ; tests sur Ubuntu et Windows), `audit.yml` (`cargo deny`), `gui-build.yml` (interface à essayer à la main),
+CI : `tests.yml` (fmt et clippy sur Ubuntu ; tests sur Ubuntu et Windows ; `actionlint` relit les workflows, D-055), `audit.yml` (`cargo deny`), `gui-build.yml` (interface à essayer à la main),
 `construire.yml` (installateurs), `claude.yml` (Claude Code répond dans une issue ou une demande de fusion, **seulement** si
 Cédric y écrit « @claude », en commentaire ou en ouvrant l'issue ; jamais de relecture automatique ; refus d'une demande de fusion venue d'un fork, D-054).
 Elle ne voit pas le corpus ; ses commandes `cargo` qui compilent prennent `--locked`.

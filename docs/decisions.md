@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-055 | Workflows relus par `actionlint` **dans la CI** (job de `tests.yml`, version figée vérifiée par empreinte), pas installé sur le poste | 2026-11-11 |
 | D-054 | Sécurité : réglages GitHub (protections, secrets, versions immuables, CodeQL, actions autorisées), Claude refusé sur une demande de fusion venue d'un fork, `--locked` en CI, aucun `unsafe`, crochet `guard-git.sh`, essai de mutations | 2026-11-11 |
 | D-053 | Cache des outils borné **par outil**, en nombre d'entrées (3 réponses indicielles, 20 simulations de filtres, 6 rapports, 2 vérifications du Guide), la moins récemment utilisée jetée la première | 2026-11-10 |
 | D-052 | Données de test : seul `step_tuning.json` est stocké compressé (`.gz`) ; les autres gros fichiers de cas restent en clair | 2026-11-08 |
@@ -124,6 +125,38 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-11 — Relecture des workflows
+
+### D-055 : les workflows sont relus par `actionlint` dans la CI, pas sur le poste
+
+**Tranché par Cédric** le 2026-11-11. Complète D-054.
+
+**Contexte.** La compétence `opentunebox-dev` demandait de lancer `actionlint` avant de modifier un workflow, en le disant
+« installé sur le poste » : il ne l'était pas (constaté le 2026-11-11). Un contrôle qui dépend de la mémoire d'une session et
+d'un outil local finit sauté sans bruit ; les workflows changent rarement, mais une erreur dans `construire.yml` ne se voit
+qu'au jour de la publication.
+
+**Décidé.** Un job `actionlint` dans `tests.yml`, sur chaque envoi sur `main` et chaque demande de fusion : `actionlint`
+1.7.12 téléchargé sur la machine de GitHub, **vérifié par son empreinte SHA-256 écrite dans le workflow** (même méthode que
+`appimagetool` dans `construire.yml`), puis lancé sur tous les workflows. Il passe aussi les scripts bash des étapes à
+`shellcheck`, présent sur les machines Ubuntu de GitHub. Rien à installer chez Cédric.
+
+**Options écartées.**
+- Installer `actionlint` sur le poste : contrôle laissé à la mémoire de chacun, et un outil de plus à tenir à jour à la main.
+- Une action tierce qui l'enveloppe : un éditeur de plus à qui faire confiance, à ajouter à la liste des actions autorisées
+  (D-054), pour trois lignes de script.
+
+⚠️ **Conséquence à tenir** : Dependabot ne voit pas cette version (ce n'est pas une action). Pour la monter, changer le numéro
+**et** l'empreinte, relevée dans le fichier `actionlint_X.Y.Z_checksums.txt` de la version.
+
+**Ouvert.** Le job n'est pas encore dans les contrôles exigés de la règle `protection-main` : c'est un réglage de Cédric. Tant
+qu'il n'y est pas, un échec se voit sur la demande de fusion mais n'empêche pas de fusionner.
+
+**Témoins.** Avant l'envoi, les 19 scripts bash des workflows passés à `shellcheck` comme le fait `actionlint` (expressions
+`${{ }}` remplacées, mêmes exclusions) : rien à signaler. Premier passage du job : voir la demande de fusion du lot 19.
 
 ---
 
