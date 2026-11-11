@@ -112,6 +112,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
   `rust/otb-parity/tests/comparateurs.rs:dossier`. L-093
 - **Étiquette attendue par un réglage (`dependabot.yml`) ou un workflow** : la créer sur le dépôt et la vérifier sur une vraie
   PR ; absente, elle n'est jamais posée et rien ne le dit. L-096
+- **Notes générées par GitHub** : `release.yml` est lu **au commit de l'étiquette** ; une version étiquetée avant ce fichier
+  sort sans rubriques, et `configuration_file_path` n'y change rien. L-097
 
 ## Construction des exécutables
 

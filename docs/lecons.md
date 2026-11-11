@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-097 : pour une étiquette qui existe déjà, GitHub lit `release.yml` sur l'étiquette, jamais sur `main`
+
+- **Symptôme** — 2026-11-11, lot 20, après la fusion de la PR #147 qui ajoutait `.github/release.yml` : `generate-notes`
+  pour `tag_name=v0.9.0` rend les 68 PR **en vrac**, sans rubriques, y compris les 31 `RN: ignorer`. Avec
+  `configuration_file_path=.github/release.yml` : « Could not find a configuration file » (HTTP 400), alors que le fichier
+  est bien sur `main`. Passer `target_commitish=main` ne change rien.
+- **Cause** — mesurée : le fichier est lu **au commit visé**. Pour une étiquette qui existe, c'est son commit (v0.9.0 date
+  d'avant `release.yml`) ; pour une étiquette à venir, `target_commitish` (l'essai sur la branche disait bien
+  « configuration in .github/release.yml at chore/release-notes-labels », et rangeait juste).
+- **Règle** — une version ne se range que si **son** commit contient `release.yml` : c'est le cas de toute étiquette posée
+  après la fusion de #147. Pour une version plus ancienne, fabriquer la liste au même format depuis les étiquettes des PR
+  (`gh pr list --json number,labels,title,author`, ordre de `generate-notes`) et la passer par `otb-dev release notes`.
+- **Preuve** — les trois appels ci-dessus ; page de la 0.9.0 refaite ainsi le 2026-11-11 (36 lignes en 3 rubriques, D-056).
+
 ### L-096 : une étiquette demandée dans `dependabot.yml` mais absente du dépôt n'est jamais posée, sans aucun message
 
 - **Symptôme** — 2026-11-11, en préparant le lot 20 : le plan comptait sur l'étiquette `dependencies`, demandée par
@@ -1141,6 +1155,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-097 | Étiquette déjà posée : GitHub lit `release.yml` **sur l'étiquette**, ni sur `main` ni au chemin donné ; la 0.9.0, antérieure au fichier, sortait sans rubriques. Une version ancienne se range en local, depuis les étiquettes des PR, au format de GitHub | Outillage |
 | L-096 | Étiquette demandée par `dependabot.yml` mais absente du dépôt : Dependabot ne la pose jamais, sans un mot (`dependencies` manquait, sa PR #131 n'avait aucune étiquette) ; créer sur le dépôt toute étiquette qu'un réglage attend, la vérifier sur une vraie PR, et ne pas faire reposer un contrôle sur elle seule | Outillage |
 | L-095 | Une échéance examinée **avant** de relever le résultat déjà arrivé le jette (l'export d'image échouait sur « capture pas arrivée » alors qu'elle l'était) ; et un test qui **dort** pour prouver une règle de temps échoue au hasard sous charge : rendre la condition immédiate et poser le résultat par une prise de test | Interface |
 | L-094 | Un résultat rangé dans un cache emporte **tout** ce que son type contient : le rapport de l'assistant transportait les fenêtres individuelles de la réponse indicielle (69 % de son poids, jusqu'à 72 Mo) que personne n'affiche ; peser un cache avec un allocateur qui compte, et libérer ce qu'aucun lecteur n'utilise | Interface |
