@@ -168,6 +168,11 @@ restée en anglais, mêmes étiquettes dans `release.yml` et `etiquette-pr.yml` 
 rougir son test. Essai à blanc de `generate-notes` joint à la PR #147 (5 PR en 2 rubriques, ni `RN: ignorer` ni
 Dependabot) ; contrôle d'étiquette rouge sans étiquette et vert avec, sur la même PR. 86 PR étiquetées (#60 à #147).
 
+**Contrôle exigé** (2026-11-12, réglage de Cédric après la fusion de #148) : `etiquette` est l'un des cinq contrôles de la
+règle `protection-main`, avec `tests`, `windows`, `cargo-deny` et `actionlint` ; une PR sans étiquette `RN: …` ne peut donc
+pas être fusionnée. Relu par `gh api repos/…/rules/branches/main` le même jour ; premier passage exigé vert sur la PR #150,
+étiquetée juste après son ouverture (cas de L-098).
+
 **Exception de la 0.9.0** (version de rupture, étiquetée avant `release.yml`, que GitHub ne lit qu'au commit de l'étiquette :
 L-097) : sa page garde en tête les cinq points écrits à la main de « Ce qui change pour vous », puis le bloc Téléchargements
 et une liste fabriquée en local au format de GitHub depuis les étiquettes des PR, passée par `otb-dev release notes`
