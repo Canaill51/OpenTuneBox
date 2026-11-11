@@ -71,7 +71,8 @@ est celle du commit qui les a introduites.
 - **Règle** — un contrôle qui lit l'événement doit faire passer ses passages **dans l'ordre** : `concurrency` par PR, sans
   `cancel-in-progress` (un passage annulé reste lui aussi sur le commit).
 - **Preuve** — les trois passages de la #148 (`check-runs?check_name=etiquette`) ; correctif dans
-  `.github/workflows/etiquette-pr.yml`, éprouvé par la même manœuvre sur une PR d'essai (voir la PR #148).
+  `.github/workflows/etiquette-pr.yml`, éprouvé par la même manœuvre sur la PR d'essai #149 (fermée sans fusion) : le
+  passage en échec finit à 22:42:56, le passage réussi commence à 22:42:58, et le contrôle `etiquette` est retenu « pass ».
 
 ### L-097 : pour une étiquette qui existe déjà, GitHub lit `release.yml` sur l'étiquette, jamais sur `main`
 
