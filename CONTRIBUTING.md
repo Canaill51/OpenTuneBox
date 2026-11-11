@@ -67,11 +67,16 @@ chaque passage). Un avis « non maintenu » sans correctif ne se retire pas du c
 redistribué sous une licence qui interdit l'usage commercial (D-045). Dependabot propose aussi les mises à jour des crates (écosystème `cargo`).
 
 Le workflow [`claude.yml`](.github/workflows/claude.yml) fait intervenir Claude Code dans une issue ou une demande de
-fusion. Il ne part **que** si Cédric écrit « @claude » dans un commentaire : pas de relecture automatique, parce que
+fusion. Il ne part **que** si Cédric écrit « @claude » — dans un commentaire, ou dans le titre ou le corps d'une
+issue qu'il ouvre. Pas de relecture automatique, parce que
 chaque passage consomme l'abonnement Claude et des minutes GitHub Actions. Le dépôt étant public, le workflow refuse
 aussi tout commentaire qui ne vient pas du propriétaire. Il a besoin du secret `CLAUDE_CODE_OAUTH_TOKEN` du dépôt,
 fabriqué par `claude setup-token` ; sans ce secret, le passage échoue. Pour une relecture avant d'ouvrir la demande de
 fusion, `/code-review` en local ne coûte aucune minute GitHub.
+
+Quand un passage échoue, l'action remplace la sortie de Claude par « full output hidden for security » : le journal ne
+dit pas pourquoi. Une dernière étape du workflow rend alors **le seul message d'erreur final**, jamais la conversation —
+les journaux d'Actions d'un dépôt public sont lisibles par tout le monde.
 
 ## Publier une version
 
