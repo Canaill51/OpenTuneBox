@@ -1,0 +1,51 @@
+# Claude Code à la demande dans les issues et les demandes de fusion : il ne se déclenche QUE si quelqu'un écrit
+# « @claude » dans un commentaire. Aucune relecture automatique de chaque demande de fusion (volontaire : chaque
+# passage consomme l'abonnement Claude et des minutes GitHub Actions). Pour une relecture, lancer `/code-review`
+# depuis Claude Code en local, ou écrire le commentaire ici.
+# Jeton : secret CLAUDE_CODE_OAUTH_TOKEN du dépôt, créé avec `claude setup-token` (abonnement Pro/Max).
+name: Claude
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write        # pousser un correctif sur la branche de la demande de fusion
+  pull-requests: write   # répondre et commenter
+  issues: write          # répondre dans une issue
+  actions: read          # lire les résultats de la CI (tests.yml) pour en parler
+  id-token: write        # jeton OIDC de l'action
+
+# Un seul passage de Claude à la fois par issue ou demande de fusion : deux commentaires d'affilée ne lancent pas
+# deux machines qui se marchent dessus.
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    # ⚠️ Dépôt public : sans ce filtre, n'importe qui pourrait lancer Claude en commentaire et consommer
+    # l'abonnement. Seul le propriétaire du dépôt déclenche. Pour ouvrir à un collaborateur, ajouter son
+    # identifiant ici (l'action refuse déjà par défaut qui n'a pas le droit d'écriture, ceci est la deuxième barrière).
+    if: >-
+      github.event.sender.login == github.repository_owner &&
+      (
+        (github.event_name != 'pull_request_review' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # La machine de la CI n'a ni le corpus de vrais logs ni les références figées : Claude ne peut lancer
+          # que les tests qui s'en passent (`cargo run -p otb-dev -- verify --quick`). Les consignes du dépôt
+          # (CLAUDE.md, AGENTS.md, .claude/skills/) sont lues automatiquement, comme en local.
+          claude_args: --allowed-tools "Bash(cargo:*),Bash(git:*),Bash(rustup:*)"
