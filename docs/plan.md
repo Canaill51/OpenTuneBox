@@ -33,13 +33,14 @@ l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 19
-  sont au tableau en bas (faits, non retenus ou supprimés), le prochain numéro libre est **20**.
+  sont au tableau en bas (faits, non retenus ou supprimés), le 20 est prévu, le prochain numéro libre est **21**.
 
 ## Ordre des étapes
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
+| 1 | **20** | Notes de version à la manière de Betaflight (étiquettes `RN: …`, liste générée par GitHub, CHANGELOG supprimé) | la fusion de la PR #145 |
+| 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
 de 3 sur la plus longue session du corpus. Les lots qui touchaient à un utilisateur réel ont été réglés le
@@ -48,6 +49,87 @@ valeur de seuil ait eu à changer, et le **11** a livré l'ouverture de plusieur
 reste que le **15**, dont le volet « cache des outils » est **soldé le 2026-11-10** : mesuré (L-094), allégé, puis borné
 (D-053) — **W-035 est clos**. Ses autres volets (tracé du viewer, pages spectrales) attendent toujours leur déclencheur
 mesuré : ils peuvent attendre que les retours des pilotes disent ce qui gêne vraiment.
+
+---
+
+## Lot 20 : notes de version à la manière de Betaflight (Sonnet)
+
+**But** : la page Releases recopie aujourd'hui toute la section du CHANGELOG (≈ 30 Ko pour la 0.9.0, 46
+paragraphes écrits pour des développeurs) : un pilote ne s'y retrouve pas. On applique la méthode du dépôt
+`betaflight/betaflight` : **un titre de PR = une phrase courte**, **une étiquette `RN: …` par PR**, et
+un fichier `release.yml` (dans `.github/`) qui range les PR en rubriques dans la liste que **GitHub génère**. Choix de Cédric
+(2026-11-11) : tout en **français** (les mots fixes de GitHub sont traduits, D-001), **Dependabot exclu** des notes
+sans rubrique de fin, **`CHANGELOG.md` supprimé** (plus de double saisie).
+
+**Branche** : `chore/release-notes-labels`.
+
+**À lire** : `.github/workflows/construire.yml` (tâche `brouillon`), `rust/otb-dev/src/release.rs` et
+`rust/otb-dev/tests/release.rs`, `rust/otb-dev/src/docs.rs` (`HISTORICAL_DOCS`, `REMOVED_PATHS`),
+`.github/dependabot.yml` (étiquette `dependencies`), `CONTRIBUTING.md` (« Publier une version »),
+[decisions.md](decisions.md) D-001 et D-055, [pieges-par-domaine.md](pieges-par-domaine.md) « Outillage » et
+« Construction des exécutables », le modèle : le `release.yml` du dossier `.github/` du dépôt `betaflight/betaflight`.
+
+Étiquettes et rubriques (les rubriques « Targets » et « Known Issues » de Betaflight n'ont pas d'équivalent ici) :
+
+| Étiquette sur la PR | Rubrique de la page Releases |
+|---|---|
+| `RN: nouveauté majeure`, `RN: nouveauté` | Nouveautés |
+| `RN: amélioration`, `RN: sécurité`, `RN: refonte` | Améliorations |
+| `RN: correction` | Corrections |
+| `RN: ignorer` (CI, outils de développement, plans, registres), `dependencies` (Dependabot) | absente des notes |
+
+- [ ] **Nouvelle décision** (la suivante de D-055) : titre de PR = phrase en français qui dit l'effet du changement, une étiquette `RN: …` par PR ;
+      notes de version générées par GitHub ; `CHANGELOG.md` supprimé. Remplace la règle « titre = nom de la
+      branche » (le nommage des branches ne change pas). Y dire où retrouver l'ancien journal : `git show
+      v0.9.0:CHANGELOG.md` — c'est le **seul** endroit qui garde les notes des versions 0.1.0 à 0.8.0 (leurs
+      pages Releases n'existent plus) et le détail des PR #128 à #145.
+- [ ] **Étiquettes GitHub** : créer les six `RN: …` (`gh label create`), **avec l'accord de Cédric** (geste visible).
+- [ ] **Fichier `release.yml` dans `.github/`** : les trois rubriques ci-dessus, `RN: ignorer` et `dependencies` exclues. Pas de
+      rubrique attrape-tout, comme Betaflight : c'est le contrôle de la case suivante qui empêche une PR de
+      disparaître des notes faute d'étiquette (règle de GitHub : une PR sans rubrique n'apparaît pas).
+- [ ] **Contrôle d'étiquette sur chaque PR** : nouveau workflow léger (sans `checkout`, `permissions: {}`), lancé
+      aussi quand on pose ou retire une étiquette ou qu'on change le titre (`types: [opened, edited, labeled,
+      unlabeled, synchronize, reopened]`). Échoue si la PR n'a pas **exactement une** étiquette `RN: …` (Dependabot :
+      `dependencies` suffit) ou si son titre ressemble à un nom de branche (`^(feat|fix|docs|refactor|test|chore|perf)/`).
+      Titre et étiquettes passés par variables d'environnement, jamais `${{ }}` dans le script. Contre-preuve :
+      une PR sans étiquette doit rougir. Puis **Cédric** l'ajoute aux contrôles exigés de `protection-main`.
+- [ ] **`otb-dev release notes`** : ne lit plus le CHANGELOG. Il garde le contrôle « l'étiquette `vX.Y.Z` = numéro
+      du projet » et reçoit la liste générée par GitHub ; une **fonction pure** la traduit (« What's Changed »,
+      « Full Changelog », « New Contributors », « by @… in … », commentaire HTML de tête retiré) et ajoute en tête
+      le bloc **Téléchargements** (`OpenTuneBox-Windows-Setup.exe`, `OpenTuneBox-Linux.AppImage`). Testée sur un
+      texte figé, contre-preuve vue en échec (L-071). `release prepare` ne touche plus que les numéros de version.
+- [ ] **`construire.yml`, tâche `brouillon`** : `gh api -X POST repos/$GH_REPO/releases/generate-notes` avec
+      `tag_name` et `previous_tag_name` = la dernière version **publiée** (aussi pour une étiquette `essai-v…`),
+      passage par `otb-dev release notes`, puis `gh release create … --notes-file`. Liste vide ou appel refusé =
+      échec visible, pas un brouillon sans notes. `actionlint` vert.
+- [ ] **Supprimer `CHANGELOG.md`** : `docs.rs` le retire de `HISTORICAL_DOCS` et l'ajoute à `REMOVED_PATHS`
+      (les registres d'histoire le citent encore) ; le lien « Journal des versions » du README pointe vers la page
+      Releases.
+- [ ] **Documents qui citent l'ancienne règle ou le CHANGELOG** : `CONTRIBUTING.md` (titre, tableau des étiquettes,
+      « Publier une version », Dependabot), `.github/PULL_REQUEST_TEMPLATE.md` (la case CHANGELOG devient « titre en
+      phrase et étiquette `RN: …` »), `AGENTS.md` (Méthode 3 et 5, ligne `rust-toolchain.toml`), compétences
+      `docs-sync`, `opentunebox-dev` et `assistant-seuils`, `rust/rust-toolchain.toml`, [decisions.md](decisions.md)
+      (en-tête : où se lit l'avancement), [architecture.md](architecture.md) (`release.rs`), ce plan (« Comment s'en
+      servir », en-tête de l'historique). Vérifier que `claude.yml` peut poser une étiquette (`pull-requests: write`).
+- [ ] **PR déjà fusionnées depuis la 0.9.0** (#128 à #145, plus celle du lot 20 et celle qui a écrit ce lot) :
+      titre réécrit en phrase et étiquette posée (`gh pr edit`), **avec l'accord de Cédric** sur la liste avant
+      de lancer. Sans cela, la prochaine version listerait des noms de branche ou perdrait ces PR.
+- [ ] **Essai sans rien publier** : `gh api -X POST …/releases/generate-notes -f tag_name=v0.10.0 -f
+      target_commitish=main -f previous_tag_name=v0.9.0`, passé par `otb-dev release notes` ; relire le texte
+      obtenu (tout en français, rubriques justes, aucune PR `RN: ignorer` ni Dependabot) et le joindre à la PR.
+- [ ] **Page de la 0.9.0 refaite avec la nouvelle méthode** (dernière case, une fois le contrôle d'étiquette et la
+      traduction en place) : les **68 PR** fusionnées entre `v0.8.0` et `v0.9.0` (presque toute la réécriture en
+      Rust) reçoivent un titre en phrase et une étiquette `RN: …`. La liste complète (numéro, ancien titre, nouveau
+      titre, étiquette) est **validée par Cédric** avant qu'un seul script l'applique. Essai à blanc (`generate-notes`,
+      `tag_name=v0.9.0`, `previous_tag_name=v0.8.0`) relu avant de toucher à la page : vérifier que les PR fusionnées
+      dans l'ancienne branche d'intégration `feat/rust-migration` y figurent, et noter ce qui manque (un commit sans PR
+      n'apparaît pas). **Exception propre à cette version de rupture** : la page garde en tête les cinq points écrits
+      à la main de « Ce qui change pour vous » (Rust, taille, mêmes résultats, plus de macOS, nouvelle licence), puis
+      le bloc Téléchargements et la liste générée ; les versions suivantes n'ont que la liste. Seul le texte change,
+      jamais les fichiers : `gh release edit v0.9.0 --notes-file …`, **avec la confirmation de Cédric**. Vérifier avant
+      que la page n'est pas verrouillée (versions immuables activées le 2026-11-11, après sa publication du 2026-11-08).
+- [ ] **Critère d'arrêt** : si le jeton de la CI ne peut pas appeler `generate-notes` depuis la tâche `brouillon`,
+      ou si GitHub ne range pas les PR comme prévu à l'essai, s'arrêter et revenir vers Cédric.
 
 ---
 
