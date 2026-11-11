@@ -95,15 +95,18 @@ sans rubrique de fin, **`CHANGELOG.md` supprimé** (plus de double saisie).
       `dependencies` suffit) ou si son titre ressemble à un nom de branche (`^(feat|fix|docs|refactor|test|chore|perf)/`).
       Titre et étiquettes passés par variables d'environnement, jamais `${{ }}` dans le script. Contre-preuve :
       une PR sans étiquette doit rougir. Puis **Cédric** l'ajoute aux contrôles exigés de `protection-main`.
+      *Fait : `.github/workflows/etiquette-pr.yml` ; contre-preuve sur la PR #147, rouge sans étiquette, verte avec
+      `RN: ignorer`. Reste à Cédric : l'ajouter aux contrôles exigés de `protection-main` (nom du contrôle : `etiquette`).*
 - [x] **`otb-dev release notes`** : ne lit plus le CHANGELOG. Il garde le contrôle « l'étiquette `vX.Y.Z` = numéro
       du projet » et reçoit la liste générée par GitHub ; une **fonction pure** la traduit (« What's Changed »,
       « Full Changelog », « New Contributors », « by @… in … », commentaire HTML de tête retiré) et ajoute en tête
       le bloc **Téléchargements** (`OpenTuneBox-Windows-Setup.exe`, `OpenTuneBox-Linux.AppImage`). Testée sur un
       texte figé, contre-preuve vue en échec (L-071). `release prepare` ne touche plus que les numéros de version.
-- [ ] **`construire.yml`, tâche `brouillon`** : `gh api -X POST repos/$GH_REPO/releases/generate-notes` avec
+- [x] **`construire.yml`, tâche `brouillon`** : `gh api -X POST repos/$GH_REPO/releases/generate-notes` avec
       `tag_name` et `previous_tag_name` = la dernière version **publiée** (aussi pour une étiquette `essai-v…`),
       passage par `otb-dev release notes`, puis `gh release create … --notes-file`. Liste vide ou appel refusé =
-      échec visible, pas un brouillon sans notes. `actionlint` vert.
+      échec visible, pas un brouillon sans notes. `actionlint` vert. *Fait, `actionlint` vert sur la PR #147. Pas encore
+      éprouvé : l'appel avec le jeton de la CI lui-même ; il le sera à la première étiquette `essai-v…` ou `v…`.*
 - [x] **Supprimer `CHANGELOG.md`** : `docs.rs` le retire de `HISTORICAL_DOCS` et l'ajoute à `REMOVED_PATHS`
       (les registres d'histoire le citent encore) ; le lien « Journal des versions » du README pointe vers la page
       Releases. *Fait, sans `REMOVED_PATHS` : ce contrôle ne lit que les chemins avec un `/`, et le test de la
@@ -114,10 +117,12 @@ sans rubrique de fin, **`CHANGELOG.md` supprimé** (plus de double saisie).
       `docs-sync`, `opentunebox-dev` et `assistant-seuils`, `rust/rust-toolchain.toml`, [decisions.md](decisions.md)
       (en-tête : où se lit l'avancement), [architecture.md](architecture.md) (`release.rs`), ce plan (« Comment s'en
       servir », en-tête de l'historique). Vérifier que `claude.yml` peut poser une étiquette (`pull-requests: write`).
-- [ ] **PR déjà fusionnées depuis la 0.9.0** (#128 à #145, plus celle du lot 20 et celle qui a écrit ce lot) :
+- [x] **PR déjà fusionnées depuis la 0.9.0** (#128 à #145, plus celle du lot 20 et celle qui a écrit ce lot) :
       titre réécrit en phrase et étiquette posée (`gh pr edit`), **avec l'accord de Cédric** sur la liste avant
-      de lancer. Sans cela, la prochaine version listerait des noms de branche ou perdrait ces PR.
-- [ ] **Essai sans rien publier** : `gh api -X POST …/releases/generate-notes -f tag_name=v0.10.0 -f
+      de lancer. Sans cela, la prochaine version listerait des noms de branche ou perdrait ces PR. *Fait le 2026-11-11 par
+      l'API (`gh pr edit` échoue sur ce dépôt, à cause des projets « classic ») : 5 PR dans les notes, 11 en `RN: ignorer`,
+      #131 en `dependencies`, #147 en `RN: ignorer`.*
+- [x] **Essai sans rien publier** : `gh api -X POST …/releases/generate-notes -f tag_name=v0.10.0 -f
       target_commitish=main -f previous_tag_name=v0.9.0`, passé par `otb-dev release notes` ; relire le texte
       obtenu (tout en français, rubriques justes, aucune PR `RN: ignorer` ni Dependabot) et le joindre à la PR.
 - [ ] **Page de la 0.9.0 refaite avec la nouvelle méthode** (dernière case, une fois le contrôle d'étiquette et la
