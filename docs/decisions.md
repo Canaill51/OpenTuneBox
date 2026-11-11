@@ -165,7 +165,13 @@ fusion d'une saisie à la main. Le dépôt de Betaflight fait autrement : un tit
 
 **Témoins.** `rust/otb-dev/tests/release.rs` : traduction d'une liste au format relevé le 2026-11-11, refus d'une liste vide ou
 restée en anglais, mêmes étiquettes dans `release.yml` et `etiquette-pr.yml` ; chaque protection cassée à la main fait
-rougir son test. Essai à blanc de `generate-notes` joint à la demande de fusion du lot 20.
+rougir son test. Essai à blanc de `generate-notes` joint à la PR #147 (5 PR en 2 rubriques, ni `RN: ignorer` ni
+Dependabot) ; contrôle d'étiquette rouge sans étiquette et vert avec, sur la même PR. 86 PR étiquetées (#60 à #147).
+
+**Exception de la 0.9.0** (version de rupture, étiquetée avant `release.yml`, que GitHub ne lit qu'au commit de l'étiquette :
+L-097) : sa page garde en tête les cinq points écrits à la main de « Ce qui change pour vous », puis le bloc Téléchargements
+et une liste fabriquée en local au format de GitHub depuis les étiquettes des PR, passée par `otb-dev release notes`
+(36 lignes ; 50 Ko → 6 Ko, le 2026-11-11). Les versions suivantes n'ont que la liste générée.
 
 ---
 

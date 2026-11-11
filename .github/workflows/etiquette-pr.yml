@@ -13,6 +13,14 @@ on:
 
 permissions: {}
 
+# ⚠️ Ouvrir une PR puis poser son étiquette dans la même seconde lance deux passages qui finissent ensemble : GitHub retient
+# alors l'échec du premier (lu sans étiquette) et la PR reste rouge (L-098). Les passages d'une même PR attendent donc leur
+# tour : le dernier événement finit toujours en dernier, et c'est lui qui compte. Sans annulation, pour ne pas laisser de
+# passage « annulé » sur le commit.
+concurrency:
+  group: etiquette-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   etiquette:
     runs-on: ubuntu-latest

@@ -64,6 +64,7 @@ Règles d'écriture :
 | W-027 | Rust / Python : `margins` avec un masque d'un élément, `estimate` sur une grille de fréquences à pas nul (entrées jamais construites par l'application) | 🚫 SANS SUITE (2026-11-08) — mêmes raisons que W-026 |
 | W-028 | Rust / Python : références `analysis/` sans `Hover_Test5.bbl` (celles de `advisor/` et `flightlog.json` refaites le 2026-11-01), erreurs de la couche du réglage comparées par leur seule présence, `step_tuning` avec un NaN dans les curseurs | ouvert (prochain réenregistrement des références ; procédure « Refaire une référence Python » dans `docs/validation.md`, depuis 7-5) |
 | W-054 | Comparateurs des couches hautes d'`otb-parity` (analyses, assistant, guide, réglage, ligne de commande, réglages, journaux, curseurs) toujours sans test : seuls `check_decoder` et `check_header` en ont | ouvert (fabriquer une référence Python pour ces couches est le vrai coût) |
+| W-056 | Test `au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes` dépendant de la vitesse : il n'attend que 5 cadres le message « N logs au plus », qui arrive après le décodage d'un fichier de plus ; rouge une fois en CI (2026-11-11) | ouvert (test seulement ; le programme est juste) |
 | W-055 | Cinq entrées `[S…]` de `docs/spec-methodes.md` nomment encore une personne (S4, S5, S6, S13, S16) alors que D-050 écrit « aucun nom de personne, nulle part », l'exception étant les **ouvrages publiés** | ouvert — arbitrage de Cédric : ces guides, outils et articles sont-ils des « ouvrages publiés » (on les cite par leur auteur) ou tombent-ils sous la règle ? |
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
@@ -783,6 +784,20 @@ compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
   *Trouvé en écrivant les deux premiers tests* : `compare_header` faisait `session - 1` sur un entier non signé, donc
   une référence annonçant la session `0` (ou sans ce champ) faisait **paniquer** le comparateur en debug — donc en CI.
   Corrigé : erreur nommée au lieu de la panique, avec son test.
+
+- **W-056** — **Un test d'ouverture de logs dépend de la vitesse de la machine.**
+  `au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes` attend que `MAX_LOGS` logs soient ouverts, puis ne
+  laisse que **5 cadres** (sans délai) avant de lire la barre d'état. Or le message « N logs au plus » n'est écrit qu'une fois
+  **décodé le fichier suivant** (`rust/otb-gui/src/app.rs:App`, commentaire « le dernier sert à afficher le message ») : sur
+  une machine chargée, ce décodage n'est pas fini. Constaté le 2026-11-11 sur la PR d'essai #149 (run 43114043060, job
+  `tests`, panique à `otb-gui/tests/app.rs:189` avec une barre d'état vide), alors que le même code passait sur la #148 et
+  sur `main`.
+  **Pourquoi reporté** : hors du sujet du lot 20 (vu en éprouvant le contrôle d'étiquette).
+  **Risque si on n'y touche pas** : une CI rouge par moments sans défaut du programme ; il faudra relancer.
+  **Reprise** : au prochain échec de ce test, ou au prochain lot qui touche à l'ouverture des logs.
+  **Piste** : attendre le message comme `attendre_logs` attend les logs (boucle bornée à 30 s, petit délai entre deux
+  cadres), au lieu d'un nombre fixe de cadres ; contre-preuve : ramener l'attente à 0 cadre doit faire rougir le test.
+  [`rust/otb-gui/tests/app.rs:au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes`]
 
 - **W-055** — **Cinq entrées `[S…]` nomment encore une personne** : S4 et S16 (même auteur de guides et de
   presets), S5 (auteur d'un outil libre), S6 et S13 (articles d'un site de référence). D-050 dit « aucun nom de
