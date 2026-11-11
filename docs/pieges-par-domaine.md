@@ -114,6 +114,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
   PR ; absente, elle n'est jamais posée et rien ne le dit. L-096
 - **Notes générées par GitHub** : `release.yml` est lu **au commit de l'étiquette** ; une version étiquetée avant ce fichier
   sort sans rubriques, et `configuration_file_path` n'y change rien. L-097
+- **Contrôle qui lit l'événement d'une PR** (`etiquette-pr.yml`) : ses passages se font dans l'ordre (`concurrency` par PR, sans
+  annulation), sinon deux passages simultanés laissent l'ancien résultat gagner. L-098
 
 ## Construction des exécutables
 

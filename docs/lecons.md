@@ -60,6 +60,19 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-098 : ouvrir une PR puis poser son étiquette dans la même seconde laisse le contrôle `etiquette` rouge
+
+- **Symptôme** — 2026-11-11, PR #148 ouverte puis étiquetée aussitôt par script : deux passages d'`etiquette-pr.yml` sur le
+  même commit, l'un en échec (événement `opened`, lu sans étiquette), l'autre réussi (`labeled`), **terminés dans la même
+  seconde** ; l'état global de la PR est `FAILURE`. Sur la #147, étiquetée une minute après, le passage réussi l'avait emporté.
+- **Cause** — mesurée : un passage relit l'événement qui l'a lancé, pas l'état présent de la PR, et GitHub retient le
+  **dernier** passage d'un même contrôle ; quand deux finissent ensemble, l'échec peut gagner. Un passage plus récent (ici,
+  description modifiée) remet l'état à `SUCCESS`.
+- **Règle** — un contrôle qui lit l'événement doit faire passer ses passages **dans l'ordre** : `concurrency` par PR, sans
+  `cancel-in-progress` (un passage annulé reste lui aussi sur le commit).
+- **Preuve** — les trois passages de la #148 (`check-runs?check_name=etiquette`) ; correctif dans
+  `.github/workflows/etiquette-pr.yml`, éprouvé par la même manœuvre sur une PR d'essai (voir la PR #148).
+
 ### L-097 : pour une étiquette qui existe déjà, GitHub lit `release.yml` sur l'étiquette, jamais sur `main`
 
 - **Symptôme** — 2026-11-11, lot 20, après la fusion de la PR #147 qui ajoutait `.github/release.yml` : `generate-notes`
@@ -1155,6 +1168,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-098 | PR ouverte puis étiquetée dans la même seconde : deux passages du contrôle finissent ensemble et GitHub retient l'échec du premier, lu sans étiquette ; faire passer les passages d'une même PR dans l'ordre (`concurrency`, sans annulation) | Outillage |
 | L-097 | Étiquette déjà posée : GitHub lit `release.yml` **sur l'étiquette**, ni sur `main` ni au chemin donné ; la 0.9.0, antérieure au fichier, sortait sans rubriques. Une version ancienne se range en local, depuis les étiquettes des PR, au format de GitHub | Outillage |
 | L-096 | Étiquette demandée par `dependabot.yml` mais absente du dépôt : Dependabot ne la pose jamais, sans un mot (`dependencies` manquait, sa PR #131 n'avait aucune étiquette) ; créer sur le dépôt toute étiquette qu'un réglage attend, la vérifier sur une vraie PR, et ne pas faire reposer un contrôle sur elle seule | Outillage |
 | L-095 | Une échéance examinée **avant** de relever le résultat déjà arrivé le jette (l'export d'image échouait sur « capture pas arrivée » alors qu'elle l'était) ; et un test qui **dort** pour prouver une règle de temps échoue au hasard sous charge : rendre la condition immédiate et poser le résultat par une prise de test | Interface |
