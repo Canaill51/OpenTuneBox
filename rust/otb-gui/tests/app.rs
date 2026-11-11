@@ -140,6 +140,22 @@ fn attendre_logs(h: &mut Harness<'static, App>, combien: usize) {
     h.run_steps(3);
 }
 
+/// Fait tourner l'interface jusqu'à ce que la barre d'état contienne `texte` (au plus 30 s, comme `attendre_logs`).
+/// ⚠️ Un nombre fixe de cadres ne suffit pas : le message vient d'un calcul en arrière-plan, plus lent sur une machine
+/// chargée (W-056).
+fn attendre_etat(h: &mut Harness<'static, App>, texte: &str) {
+    let debut = Instant::now();
+    while !h.state().status.contains(texte) {
+        h.step();
+        assert!(
+            debut.elapsed() < Duration::from_secs(30),
+            "barre d'état sans « {texte} » : {:?}",
+            h.state().status
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
 /// Copie le log d'essai sous `noms` dans un dossier temporaire : des libellés différents rendent l'ordre visible.
 ///
 /// ⚠️ `essai` nomme le dossier : les tests d'un même fichier tournent **en parallèle dans le même processus**, et deux
@@ -183,9 +199,11 @@ fn au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes() {
     let mut h = banc(App::new(Vec::new()));
     h.state_mut().open(paths);
     attendre_logs(&mut h, MAX_LOGS);
+    // Le message vient avec le fichier suivant, décodé dans un paquet à part : on l'attend (W-056).
+    attendre_etat(&mut h, "logs au plus");
     h.run_steps(5);
     let a = h.state();
-    assert_eq!(a.state.logs.len(), MAX_LOGS);
+    assert_eq!(a.state.logs.len(), MAX_LOGS, "aucun log de plus après le message");
     assert!(a.status.contains("logs au plus"), "{}", a.status);
     std::fs::remove_dir_all(&dir).ok();
 }
