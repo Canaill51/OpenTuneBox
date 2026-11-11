@@ -152,8 +152,9 @@ qu'au jour de la publication.
 ⚠️ **Conséquence à tenir** : Dependabot ne voit pas cette version (ce n'est pas une action). Pour la monter, changer le numéro
 **et** l'empreinte, relevée dans le fichier `actionlint_X.Y.Z_checksums.txt` de la version.
 
-**Ouvert.** Le job n'est pas encore dans les contrôles exigés de la règle `protection-main` : c'est un réglage de Cédric. Tant
-qu'il n'y est pas, un échec se voit sur la demande de fusion mais n'empêche pas de fusionner.
+**Contrôle exigé** (2026-11-11, réglage de Cédric après la fusion de #144) : `actionlint` est l'un des quatre contrôles
+de la règle `protection-main`, avec `tests`, `windows` et `cargo-deny` ; un workflow en erreur empêche donc la fusion. Relu
+par `gh api` le même jour.
 
 **Témoins.** Avant l'envoi, les 19 scripts bash des workflows passés à `shellcheck` comme le fait `actionlint` (expressions
 `${{ }}` remplacées, mêmes exclusions) : rien à signaler. Premier passage du job : voir la demande de fusion du lot 19.
@@ -213,9 +214,9 @@ Claude Code amené à exécuter du code écrit par un tiers.
   artefacts, que la méthode de publication proscrit, et une crate piégée capable de voler le jeton pourrait aussi bien piéger
   l'exécutable lui-même. La défense est en amont : `cargo-deny`, `--locked`, versions immuables.
 
-**Ouvert.** (1) La case « exiger l'épinglage des actions par SHA » est restée décochée : toutes les actions le sont déjà,
-la cocher empêcherait seulement un oubli. (2) L'installateur Windows n'est pas signé (SmartScreen avertit) ; une signature
-est payante, et n'a pas été discutée.
+**Ouvert.** L'installateur Windows n'est pas signé (SmartScreen avertit) ; une signature est payante, et n'a pas été
+discutée. L'épinglage des actions par SHA est **exigé** par le dépôt depuis le 2026-11-11 (case cochée par Cédric, relue par
+`gh api`) : une action référencée par une étiquette (`@v4`) fait échouer le workflow.
 
 **Témoins.** Réglages relus par `gh api` (règles, `immutable-releases`, `code-scanning/default-setup`,
 `actions/permissions`). Refus des forks : script de l'étape lancé avec un faux `gh` (`false` → passe ; `true` et erreur
