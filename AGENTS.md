@@ -74,7 +74,8 @@ cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG�
 ```
 
 CI : `tests.yml` (fmt et clippy sur Ubuntu ; tests sur Ubuntu et Windows), `audit.yml` (`cargo deny`), `gui-build.yml` (interface à essayer à la main),
-`construire.yml` (installateurs). Elle ne voit pas le corpus.
+`construire.yml` (installateurs), `claude.yml` (Claude Code répond dans une issue ou une demande de fusion, **seulement** si
+Cédric y écrit « @claude » ; jamais de relecture automatique). Elle ne voit pas le corpus.
 
 Variables : `OTB_LOGS` (vrais logs, défaut `~/Documents/Drones/Logs`, avec `corpus.csv`), `OTB_GOLDEN` (références figées, en général `$OTB_LOGS/golden`),
 `OTB_REF_DECODER` (`blackbox_decode`), `OTB_DOCS_ROOT` et `OTB_DEV_ROOT` (racines pour `otb-dev`), `OTB_BITEXACT=1` (au bit près, `rust/otb-advisor/tests/smooth.rs`),
