@@ -76,7 +76,7 @@ ici, jamais dans le code.
 | D-053 | Cache des outils borné **par outil**, en nombre d'entrées (3 réponses indicielles, 20 simulations de filtres, 6 rapports, 2 vérifications du Guide), la moins récemment utilisée jetée la première | 2026-11-10 |
 | D-052 | Données de test : seul `step_tuning.json` est stocké compressé (`.gz`) ; les autres gros fichiers de cas restent en clair | 2026-11-08 |
 | D-051 | Ouverture de plusieurs logs : **3 fichiers décodés en même temps** au plus, plafond posé en nombre de fichiers et non en mémoire | 2026-11-08 |
-| D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt **(précisée le 2026-11-08 : les ouvrages publiés gardent leurs auteurs)** | 2026-11-07 |
+| D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt **(précisée le 2026-11-08 : les ouvrages publiés gardent leurs auteurs ; le 2026-11-12 : toute personne, pseudonymes compris)** | 2026-11-07 |
 | D-049 | Réponse indicielle : ordre des courbes et couleurs donnés par l'ordre où l'utilisateur coche les fichiers ; sélection vide permise ; les autres pages gardent la couleur attribuée à l'ouverture | 2026-11-06 |
 | D-048 | Tracé du viewer : index multi-résolution min/max par courbe (`otb-dsp::minmax`), sortie identique point pour point à l'ancienne décimation ; un paquet contenant un trou est tracé comme un trou ; W-049 clos | 2026-11-05 |
 | D-047 | `golden.rs` compare chaque fonction portée avec la tolérance mesurée de `registry::tolerance` (bit près si aucune n'est déclarée), comme `otb-parity check` ; W-048 clos | 2026-11-05 |
@@ -266,8 +266,8 @@ Claude Code amené à exécuter du code écrit par un tiers.
   artefacts, que la méthode de publication proscrit, et une crate piégée capable de voler le jeton pourrait aussi bien piéger
   l'exécutable lui-même. La défense est en amont : `cargo-deny`, `--locked`, versions immuables.
 
-**Ouvert.** L'installateur Windows n'est pas signé (SmartScreen avertit) ; une signature est payante, et n'a pas été
-discutée. L'épinglage des actions par SHA est **exigé** par le dépôt depuis le 2026-11-11 (case cochée par Cédric, relue par
+**Laissé tel quel.** L'installateur Windows n'est pas signé (SmartScreen avertit) ; une signature est payante, et Cédric a
+choisi le 2026-11-12 de la laisser ainsi. L'épinglage des actions par SHA est **exigé** par le dépôt depuis le 2026-11-11 (case cochée par Cédric, relue par
 `gh api`) : une action référencée par une étiquette (`@v4`) fait échouer le workflow.
 
 **Témoins.** Réglages relus par `gh api` (règles, `immutable-releases`, `code-scanning/default-setup`,
@@ -427,6 +427,13 @@ peut donc continuer à écrire « Skogestad et Postlethwaite, *Multivariable Fee
 *Feedback Systems*, § 9.3 » — sans ces noms, la source serait introuvable et la justification du seuil, invérifiable.
 La règle reste entière pour les sources dont la personne est elle-même le sujet (vidéos, wiki, README de PIDtoolbox) : titre,
 date, lien et citation, jamais de nom.
+
+**Précisé le 2026-11-12 (lot 21, choix de Cédric, W-055).** La règle vaut pour **toute personne**, pas seulement l'auteur de
+PIDtoolbox : guides, articles, presets, outils, pages de wiki et notes signées sont cités sans nom (ni nom réel ni pseudonyme),
+et désignés par leur marque, leur site ou leur chemin. Une périphrase qui désigne la personne (« l'auteur de … ») est écartée
+pour la même raison qu'en 2026-11-07. Seule exception : les **ouvrages publiés** (livres). Écartée : « tout document publié et
+signé garde ses auteurs », qui aurait fait de presque chaque source une exception. Hors champ : `THIRD-PARTY-LICENSES.txt`, où
+les licences exigent elles-mêmes les noms et copyrights.
 
 ### D-049 : la Réponse indicielle est ordonnée et colorée par l'utilisateur
 

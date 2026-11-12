@@ -243,42 +243,42 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   fenêtres de 2 s (`PTstepcalc.m`).
 - [S3] Wiki Betaflight, [PID Tuning Guide](https://betaflight.com/docs/wiki/guides/current/PID-Tuning-Guide)
   (sans auteur ni date ; historique 2023–2026) : « bounce back, increase D ».
-- [S4] Mark Spatz (UAV Tech), [*UAV Tech PID Tuning Principles*](https://theuavtech.com/wp-content/uploads/2020/10/UAV-Tech-PID-Tuning-Principles.pdf),
+- [S4] UAV Tech, [*UAV Tech PID Tuning Principles*](https://theuavtech.com/wp-content/uploads/2020/10/UAV-Tech-PID-Tuning-Principles.pdf),
   PDF du 2020-10-26 : réponse visée « Critically damped ».
-- [S5] Florian Melsheimer (Plasmatree), [PID-Analyzer](https://github.com/Plasmatree/PID-Analyzer), 2018 :
+- [S5] Plasmatree, [PID-Analyzer](https://github.com/Plasmatree/PID-Analyzer), 2018 :
   « above and below 500 deg/s » ; code :
   `self.low_high_mask(self.max_in, 20)` (fenêtres sous 20 °/s ignorées).
-- [S6] Oscar Liang, [*How to Tune FPV Drone Filters & PID with Blackbox*](https://oscarliang.com/pid-filter-tuning-blackbox/),
+- [S6] Site oscarliang.com, [*How to Tune FPV Drone Filters & PID with Blackbox*](https://oscarliang.com/pid-filter-tuning-blackbox/),
   2024-06-27 (modifié 2026-03-03) : « 100Hz – 250Hz: Frame resonance » ; « Above 250Hz: Noise from
-  motors » ; « below -30dB above 50Hz » et « below -10dB » pour le D, attribués à l'auteur de PIDtoolbox
-  (gyro filtré : réponse de l'auteur dans les commentaires) ; `rpm_filter_q` : « Do not exceed 1000 ».
+  motors » ; « below -30dB above 50Hz » et « below -10dB » pour le D, présentés comme des repères de
+  PIDtoolbox (gyro filtré : précisé dans les commentaires de l'article) ; `rpm_filter_q` : « Do not exceed 1000 ».
 - [S7] README de PIDtoolbox, 2019 (copie [ianrmurphy/PIDtoolbox](https://github.com/ianrmurphy/PIDtoolbox)) :
   « particularly in the ~200-500Hz range associated with motor vibration ».
 - [S8] Plasmatree, wiki [Noise analysis](https://github.com/Plasmatree/PID-Analyzer/wiki/Noise-analysis),
   2018-06-06 : « The diagonal 'line' is the motor noise ».
 - [S9] Betaflight, guide [DShot RPM Filtering](https://betaflight.com/docs/wiki/guides/current/DSHOT-RPM-Filtering)
-  (ctzsnooze, époque 4.1–4.3) : « fewer magnets, often 12 » ; notch dynamique « Count to 1 and Q to 500 » ;
+  (époque 4.1–4.3) : « fewer magnets, often 12 » ; notch dynamique « Count to 1 and Q to 500 » ;
   `rpm_filter_q` « Above 750 is not recommended ».
 - [S10] UAV Tech, [Filter Calc](https://theuavtech.com/filter-calc/), 2020 : « A reasonable amount of filter
   delay is 4ms to 5ms for a 5″ quad ».
 - [S11] Wiki Betaflight, [Gyro and Dterm Filtering Recommendations 3.1](https://betaflight.com/docs/wiki/guides/archive/Gyro-And-Dterm-Filtering-Recommendations-3-1)
   (archive, vers 2017) : « 7-8ms delay from strong filtering ».
-- [S12] ctzsnooze, [4.2 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-2-Tuning-Notes) (vers 2020) :
+- [S12] Wiki Betaflight, [4.2 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-2-Tuning-Notes) (vers 2020) :
   LPF2 du gyro anti-repliement, « With a 2k PID loop, don't disable gyro lowpass 2 » ;
   « 70% of the peak theoretical no-load rpm ».
-- [S13] Oscar Liang, [*How to Setup RPM Filters in Betaflight*](https://oscarliang.com/rpm-filter/),
+- [S13] Site oscarliang.com, [*How to Setup RPM Filters in Betaflight*](https://oscarliang.com/rpm-filter/),
   2023-03-31 : « 14 poles in 22XX, 23XX, 24XX motors 12 poles in 08XX, 11XX, 12XX, 13XX, 14XX, 16XX motors ».
-- [S14] Betaflight, [référence CLI](https://betaflight.com/docs/wiki/guides/current/Cli) (Bob Vandevliet,
+- [S14] Betaflight, [référence CLI](https://betaflight.com/docs/wiki/guides/current/Cli) (page du
   2026-03-16) : « 1–2 notches » avec filtre RPM, « 4–5 » sans ;
-  même conseil sur la page de l'onglet PID (Yaros, 2025-02-15).
-- [S15] ctzsnooze, 4.2 Tuning Notes [S12] : pour les drones lents et la classe X, « a lower `dyn_notch_min_hz`
+  même conseil sur la page de l'onglet PID (2025-02-15).
+- [S15] 4.2 Tuning Notes [S12] : pour les drones lents et la classe X, « a lower `dyn_notch_min_hz`
   than defaults ».
-- [S16] Mark Spatz, presets officiels UAV Tech 6–7", 8–9" et 10" ([firmware-presets](https://github.com/betaflight/firmware-presets), 4.5, 2024-07-25) :
+- [S16] Presets officiels UAV Tech 6–7", 8–9" et 10" ([firmware-presets](https://github.com/betaflight/firmware-presets), 4.5, 2024-07-25) :
   `dyn_notch_min_hz` 80 à 125.
 - [S17] Firmware Betaflight, `pg/rpm_filter.c` : `.rpm_filter_q = 500`.
-- [S18] ctzsnooze, presets officiels ELRS 250 Hz et 500 Hz (`presets/4.3/rc_link/`, firmware-presets,
+- [S18] Presets officiels ELRS 250 Hz et 500 Hz (`presets/4.3/rc_link/`, firmware-presets,
   2021-2022) : `feedforward_smooth_factor` 45 (250 Hz) et 65 (500 Hz), `feedforward_averaging = 2_POINT`.
-- [S19] ctzsnooze, [4.3 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-3-Tuning-Notes),
+- [S19] Wiki Betaflight, [4.3 Tuning Notes](https://betaflight.com/docs/wiki/tuning/4-3-Tuning-Notes),
   2021-07-16 à 2022-02-12 : LPF2 du gyro « absolutely essential » à 2 kHz, « strongly recommend » à
   4 kHz ; biquad remplacé par le PT2 (+60 % de retard pour un PT2, ×2 pour un PT3 face au PT1) ; notch dynamique, « often only one » (souvent un seul notch), minimum « as high
   as practical (eg 200hz) », plage qui englobe la résonance avec « 20hz additional range each side » ;
@@ -321,9 +321,9 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
   up to a max of 1000, and checking the noise at each step ».
 - [S28] Presets officiels de Betaflight (dépôt `firmware-presets`, commit ac721ff du 2026-09-23),
   `rpm_filter_weights` en 4.5 et plus : AOS RC « RPM Filter Weights for triblade props » 100, 0, 80
-  (`presets/4.5/tune/aos_rc/aos_ul5_tune.txt`) ; Karatebrot, auteur de la fonction, « 3 blade prop »
+  (`presets/4.5/tune/aos_rc/aos_ul5_tune.txt`) ; preset `karate` « 3 blade prop »
   100, 20, 100 et « 2 blade prop » 100, 100, 50 (`presets/4.5/tune/karate/karate_brushless_whoop.txt`) ;
-  SupaflyFPV 90, 30, 90 et 90, 50, 90 avec Q 700–800.
+  presets de `presets/4.5/tune/supafly_fpv/` 90, 30, 90 et 90, 50, 90 avec Q 700–800.
 - [S29] Configurateur Betaflight, aides de l'onglet PID / filtres (`locales/en/messages.json`, commit
   a38c4a79 du 2026-10-05) : LPF1 du gyro « can usually be disabled completely in firmware 4.3 when RPM
   filtering is used » ; LPF2 du gyro « should be retained to prevent aliasing » quand la boucle PID est
@@ -332,8 +332,7 @@ automatiques, analysées dans le dépôt PTB-Videos-Analyse), avec le lien au mo
 - [S30] Documentation Betaflight, [*DSHOT RPM Filtering*](https://betaflight.com/docs/wiki/guides/current/DSHOT-RPM-Filtering) :
   si les moteurs restent froids, « move gyro lowpass filtering to higher values », « disable gyro lowpass
   1 entirely », un filtre à la fois, en vérifiant la température des moteurs.
-- [S31] R. Bristow-Johnson, *Audio EQ Cookbook*, [note du W3C du 2021-06-08](https://www.w3.org/TR/audio-eq-cookbook/)
-  (éd. R. Toy) : notch H(s) = (s² + 1) / (s² + s/Q + 1), Q « the EE kind of definition », largeur
+- [S31] *Audio EQ Cookbook*, [note du W3C du 2021-06-08](https://www.w3.org/TR/audio-eq-cookbook/) : notch H(s) = (s² + 1) / (s² + s/Q + 1), Q « the EE kind of definition », largeur
   « between -3 dB frequencies for BPF and notch ». Le notch dynamique de Betaflight est de cette forme
   (`svfNotchUpdate`, `common/filter.c`, Q = `dyn_notch_q` / 100) : largeur à −3 dB = fréquence / Q, et à
   l'écart d du centre |H| ≈ 2d / √((2d)² + (f0/Q)²).
