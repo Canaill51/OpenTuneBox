@@ -120,6 +120,7 @@ fn le_fichier_regroupe_les_textes_identiques_et_liste_les_composants_sans_licenc
             component("trois", &d3),
             component("quatre", &d4),
         ],
+        &sandbox("amont-vide"),
     );
     assert!(
         text.contains("### Police X") && text.contains("licence de la police X"),
@@ -132,11 +133,62 @@ fn le_fichier_regroupe_les_textes_identiques_et_liste_les_composants_sans_licenc
     );
     assert!(text.contains("utilisé par : deux 1.0.0, un 1.0.0"), "{text}");
     assert!(text.contains("Un autre texte"));
-    let sans = text.split("3. Composants sans fichier").nth(1).expect("section 3");
+    let sans = text.split("3. Composants sans texte").nth(1).expect("section 3");
     assert!(
         sans.contains("- quatre 1.0.0 : MIT ; auteurs : Ana") && !sans.contains("- un 1.0.0"),
         "{sans}"
     );
+}
+
+#[test]
+fn un_paquet_sans_licence_prend_les_textes_de_son_depot_d_origine() {
+    // `egui` est dans `UPSTREAM` (dossier « egui ») ; « inconnu » n'y est pas
+    let upstream = sandbox("amont");
+    fs::create_dir_all(upstream.join("egui")).expect("dossier");
+    fs::write(upstream.join("egui/LICENSE-MIT"), "Copyright (c) amont\r\n").expect("mit");
+    fs::write(upstream.join("egui/COPYRIGHT"), "relevé dans les sources").expect("copyright");
+    let vide = sandbox("paquet-vide");
+    let avec = sandbox("paquet-avec");
+    fs::write(avec.join("LICENSE"), "texte du paquet").expect("paquet");
+
+    let egui = component("egui", &vide);
+    assert_eq!(
+        component_licenses(&egui, &upstream),
+        [
+            ("COPYRIGHT".to_string(), "relevé dans les sources".to_string()),
+            ("LICENSE-MIT".to_string(), "Copyright (c) amont".to_string()),
+        ],
+        "tous les fichiers du dossier, triés, normalisés"
+    );
+    // le paquet a ses propres fichiers : ils passent avant le dépôt d'origine
+    assert_eq!(
+        component_licenses(&component("egui", &avec), &upstream),
+        [("LICENSE".to_string(), "texte du paquet".to_string())]
+    );
+    // composant absent de la table : rien, il ira en partie 3
+    assert!(component_licenses(&component("inconnu", &vide), &upstream).is_empty());
+
+    let text = render(&[], &[egui, component("inconnu", &vide)], &upstream);
+    assert!(
+        text.contains("utilisé par : egui 1.0.0") && text.contains("Copyright (c) amont"),
+        "{text}"
+    );
+    let sans = text.split("3. Composants sans texte").nth(1).expect("section 3");
+    assert!(sans.contains("- inconnu 1.0.0") && !sans.contains("- egui"), "{sans}");
+}
+
+#[test]
+fn chaque_dossier_de_la_table_existe_et_porte_des_textes() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    for (name, dir) in UPSTREAM {
+        let files = all_files(&root.join(UPSTREAM_DIR).join(dir));
+        assert!(
+            files
+                .iter()
+                .any(|(_, t)| t.contains("Permission is hereby granted") || t.contains("Apache License")),
+            "{name} → {dir} : aucun texte de licence"
+        );
+    }
 }
 
 fn repo(file: &str) -> String {
@@ -157,6 +209,10 @@ fn le_fichier_du_depot_porte_les_polices_et_les_icones_livrees() {
         "Emil Ernerfeldt",
         "Permission is hereby granted",
         "Apache License",
+        // code d'AccessKit issu de Chromium : licence BSD exigée dans toute distribution binaire (lot 21)
+        "The Chromium Authors",
+        "The AccessKit Authors",
+        "Boost Software License",
     ] {
         assert!(
             t.contains(attendu),
@@ -166,6 +222,10 @@ fn le_fichier_du_depot_porte_les_polices_et_les_icones_livrees() {
     assert!(
         !t.contains("SIL OPEN FONT LICENSE"),
         "l'OFL (NotoEmoji) n'est pas compilée : sa présence signale un changement à examiner (W-043)"
+    );
+    assert!(
+        !t.contains("3. Composants sans texte"),
+        "un composant livré sans aucun texte de licence : compléter `UPSTREAM` (rust/otb-dev/src/licenses.rs)"
     );
 }
 

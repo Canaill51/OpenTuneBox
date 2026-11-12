@@ -13,7 +13,8 @@ au bit près : **0 saut, tout passe**.
 Le programme est donc complet et publié, et depuis le 2026-11-10 **il ne reste que du confort** (lot 15 ;
 le lot 11 est fait le même jour). Les deux autres familles ont disparu le même jour : vérifier ce que seule une vraie machine vérifie
 (lot 13) n'avait plus d'objet, **personne n'ayant jamais utilisé la 0.8.0** ; et **plus aucun seuil de
-l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur ait eu à changer.
+l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur ait eu à changer. Le 2026-11-12, le
+lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 1.0 est gardée pour plus tard).
 
 ## Comment s'en servir
 
@@ -101,7 +102,8 @@ Leur détail et leur condition de reprise sont dans [travaux-reportes.md](travau
 rouvrir ici sans cette condition. Deux d'entre eux (W-043 et W-044) viennent du lot 13 supprimé : ils n'ont
 jamais dépendu de la 0.8.0, et gardent donc leur condition de reprise. **W-041 a quitté ce tableau le
 2026-11-10** : sa condition de reprise — un échec au hasard de la CI sur ce test — a été atteinte, et il est
-clos (L-095). C'est à cela que sert une condition de reprise écrite d'avance.
+clos (L-095). C'est à cela que sert une condition de reprise écrite d'avance. **W-043 l'a quitté le 2026-11-12** : il
+a été traité par le lot 21.
 
 | ID | Pourquoi il n'est pas dans un lot |
 |---|---|
@@ -112,7 +114,6 @@ clos (L-095). C'est à cela que sert une condition de reprise écrite d'avance.
 | W-028 | Écarts des références figées : se règle au **prochain réenregistrement**, pas avant |
 | W-029 (4) | Branche « crash » du guide : aucun crash réel dans le corpus, seuls des cas fabriqués |
 | W-042 | Avis RustSec hérités d'eframe : ⏸ attend une version d'eframe qui change ses dépendances |
-| W-043 | Relecture des textes de licence livrés (22 composants sans fichier de licence) : **échéance avant la 1.0** — laissée hors lot par Cédric le 2026-11-10, à reprendre en préparant la 1.0 |
 | W-044 (2) | `construire_windows.ps1` jamais essayé sur un vrai Windows : la CI fabrique l'installateur livré, ce script ne sert qu'à construire chez soi — à l'occasion. Son point 1 (`_internal`) est **clos** |
 | W-051 | Pistes de performance écartées **par la mesure** le 2026-11-04 : ne pas les rouvrir sans mesure nouvelle |
 | W-053 | 45 messages d'erreur imitant les exceptions de Python : atteignabilité non établie |
@@ -159,6 +160,7 @@ prouvés.**
 | 18 | 2026-11-11 | **Audit de sécurité** (branche `chore/security-hardening`, D-054) : réglages GitHub relus et complétés par Cédric (versions immuables, CodeQL, actions autorisées, approbation des contributions extérieures) ; `claude.yml` refuse les forks ; `--locked` en CI ; `unsafe_code = "deny"` ; crochet `guard-git.sh` ; essai de mutations (100 000 cas pour le décodeur, 20 000 de bout en bout, 0 plantage). Contre-épreuves notées dans D-054 | signature de l'installateur Windows : ouverte dans D-054 (l'épinglage SHA est exigé depuis le 2026-11-11) |
 | 19 | 2026-11-11 | **Relecture des workflows en CI** (branche `chore/lint-workflows`, D-055) : job `actionlint` 1.7.12 dans `tests.yml`, vérifié par empreinte ; rien à installer sur le poste. Avant l'envoi : 19 scripts bash passés à `shellcheck`, rien à signaler | rien : `actionlint` est un contrôle exigé de `protection-main` depuis le 2026-11-11 |
 | 20 | 2026-11-11 | **Notes de version à la manière de Betaflight** (PR #147, D-056) : titre de PR en phrase et une étiquette `RN: …` (8 étiquettes créées, dont `dependencies`, absente jusque-là : L-096) ; `.github/release.yml` ; contrôle `etiquette-pr.yml` (rouge sans étiquette, vert avec, vu sur #147) ; `otb-dev release notes` traduit la liste de GitHub ; `CHANGELOG.md` supprimé. 86 PR étiquetées et retitrées, Dependabot excepté (#60 à #147). Page de la 0.9.0 refaite (50 Ko → 6 Ko) depuis une liste fabriquée en local, GitHub ne lisant `release.yml` que sur l'étiquette (L-097) | `etiquette` exigé par `protection-main` depuis le 2026-11-12 ; l'appel de `generate-notes` par le jeton de la CI sera éprouvé à la première étiquette `essai-v…` ou `v…` |
+| 21 | 2026-11-12 | **Licences livrées et sources sans nom** (branche « docs/licenses-and-sources-review », D-050 précisée) : textes des 22 composants sans fichier de licence copiés de leur dépôt d'origine (`rust/otb-dev/upstream-licenses/`, table `UPSTREAM`), dont la licence BSD du code d'AccessKit issu de Chromium, **absente du fichier livré avec la 0.9.0** ; polices relues (Noto Emoji, seule police OFL, non compilée) ; partie 3 du fichier vide et refusée par un test, contre-preuve vue en échec. Noms de personnes retirés de 13 sources (5 relevées, 8 trouvées en relisant), pseudonymes compris | W-043 et W-055 clos ; reste, avant la 0.10.0 : rien de ce lot |
 
 La migration Python → Rust elle-même, terminée le 2026-11-04, garde son propre document :
 [migration-rust.md](migration-rust.md) (phases, preuves d'équivalence, verdict du prototype d'interface).

@@ -3,7 +3,9 @@
 //! `otb-dev licenses` lit, pour chaque crate tierce que `otb-gui` embarque, les fichiers de licence de son paquet (dans les sources
 //! téléchargées par cargo), ajoute les polices et les icônes embarquées, et écrit un seul fichier que l'installateur Windows et
 //! l'AppImage livrent. Les textes identiques (MIT, Apache…) sont écrits une fois, avec la liste des composants qui les portent ;
-//! un composant sans fichier de licence dans son paquet est listé à part, avec la licence qu'il déclare.
+//! un composant sans fichier de licence dans son paquet prend les textes copiés de son dépôt d'origine
+//! (`rust/otb-dev/upstream-licenses/`, table [`UPSTREAM`]) ; s'il n'y en a pas non plus, il est listé à part, avec la licence
+//! qu'il déclare.
 //!
 //! `otb-dev licenses --check` refait le même texte en mémoire et le compare au fichier du dépôt sans jamais l'écrire : c'est ce que lancent
 //! `otb-dev verify` et la CI, pour qu'une dépendance ajoutée ou changée ne passe pas sans mettre les mentions à jour.
@@ -98,6 +100,68 @@ pub fn shipped(metadata: &Value, root_name: &str) -> Result<Vec<Component>, Stri
     Ok(out)
 }
 
+/// Dossier des textes copiés des dépôts d'origine, relatif à la racine du dépôt (provenance : `PROVENANCE.txt`, non livré).
+pub const UPSTREAM_DIR: &str = "rust/otb-dev/upstream-licenses";
+
+/// Composants dont le paquet ne contient aucun fichier de licence → dossier de [`UPSTREAM_DIR`] qui porte les textes de leur
+/// dépôt d'origine (W-043, lot 21).
+/// ⚠️ Sans cette table, ces 22 composants partaient sans ligne de copyright, et le code d'AccessKit issu de Chromium
+/// (licence BSD, exigée dans toute distribution binaire) sans son texte.
+pub const UPSTREAM: &[(&str, &str)] = &[
+    ("accesskit", "accesskit"),
+    ("accesskit_atspi_common", "accesskit"),
+    ("accesskit_consumer", "accesskit"),
+    ("accesskit_unix", "accesskit"),
+    ("accesskit_windows", "accesskit"),
+    ("accesskit_winit", "accesskit"),
+    ("clipboard-win", "clipboard-win"),
+    ("ecolor", "egui"),
+    ("eframe", "egui"),
+    ("egui", "egui"),
+    ("egui-wgpu", "egui"),
+    ("egui-winit", "egui"),
+    ("egui_extras", "egui"),
+    ("egui_glow", "egui"),
+    ("egui_system_font_provider", "egui"),
+    ("emath", "egui"),
+    ("epaint", "egui"),
+    ("epaint_default_fonts", "egui"),
+    ("egui_plot", "egui_plot"),
+    ("enum-map", "enum-map"),
+    ("profiling", "profiling"),
+    ("spirv", "rspirv"),
+];
+
+/// Tous les fichiers d'un dossier, triés par nom : (nom, texte normalisé comme [`license_files`]). Vide si le dossier manque.
+pub fn all_files(dir: &Path) -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    let Ok(rd) = fs::read_dir(dir) else { return found };
+    for e in rd.flatten() {
+        if e.path().is_file()
+            && let Ok(bytes) = fs::read(e.path())
+        {
+            let text = String::from_utf8_lossy(&bytes).replace("\r\n", "\n");
+            found.push((e.file_name().to_string_lossy().to_string(), text.trim_end().to_string()));
+        }
+    }
+    found.sort();
+    found
+}
+
+/// Les textes de licence d'un composant : ceux de son paquet, sinon ceux de son dépôt d'origine copiés sous `upstream`
+/// (dossier donné par [`UPSTREAM`]), sinon rien.
+pub fn component_licenses(c: &Component, upstream: &Path) -> Vec<(String, String)> {
+    let own = license_files(&c.dir);
+    if !own.is_empty() {
+        return own;
+    }
+    UPSTREAM
+        .iter()
+        .find(|(name, _)| *name == c.name)
+        .map(|(_, dir)| all_files(&upstream.join(dir)))
+        .unwrap_or_default()
+}
+
 /// Les fichiers de licence à la racine d'un paquet : `LICENSE*`, `LICENCE*`, `COPYING*`, `NOTICE*`, `UNLICENSE*`, `COPYRIGHT*`.
 /// Rend (nom, texte) trié par nom ; textes avec fins de ligne `\n`, sans espace final.
 pub fn license_files(dir: &Path) -> Vec<(String, String)> {
@@ -185,7 +249,8 @@ pub fn embedded_assets(root: &Path, metadata: &Value) -> Result<Vec<(String, Str
 }
 
 /// Le fichier complet.
-pub fn render(assets: &[(String, String)], components: &[Component]) -> String {
+/// `upstream` : le dossier [`UPSTREAM_DIR`] (textes des composants dont le paquet n'en a pas).
+pub fn render(assets: &[(String, String)], components: &[Component], upstream: &Path) -> String {
     let mut s = String::new();
     s.push_str("OpenTuneBox — mentions de licences des composants tiers\n");
     s.push_str("=======================================================\n\n");
@@ -201,7 +266,7 @@ pub fn render(assets: &[(String, String)], components: &[Component]) -> String {
     let mut by_text: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut without: Vec<&Component> = Vec::new();
     for c in components {
-        let files = license_files(&c.dir);
+        let files = component_licenses(c, upstream);
         if files.is_empty() {
             without.push(c);
         }
@@ -213,7 +278,9 @@ pub fn render(assets: &[(String, String)], components: &[Component]) -> String {
         }
     }
     s.push_str(&format!(
-        "\n2. Bibliothèques Rust ({} composants)\n-------------------------------------\n",
+        "\n2. Bibliothèques Rust ({} composants)\n-------------------------------------\n\n\
+         Textes des paquets publiés ; pour un composant dont le paquet n'en contient aucun, textes de son dépôt d'origine, avec\n\
+         les lignes de copyright relevées dans ses sources quand son texte MIT n'en porte pas.\n",
         components.len()
     ));
     for (i, (text, users)) in by_text.iter().enumerate() {
@@ -221,7 +288,7 @@ pub fn render(assets: &[(String, String)], components: &[Component]) -> String {
         s.push_str(&format!("\n### Texte {} — utilisé par : {list}\n\n{text}\n", i + 1));
     }
     if !without.is_empty() {
-        s.push_str("\n3. Composants sans fichier de licence dans leur paquet\n------------------------------------------------------\n\n");
+        s.push_str("\n3. Composants sans texte de licence (ni dans leur paquet ni copié de leur dépôt)\n---------------------------------------------------------------------------------\n\n");
         s.push_str(
             "Licence et auteurs déclarés dans le manifeste du paquet (champs `license` et `authors`). Les textes standard de ces licences (MIT,\n\
              Apache 2.0…) figurent dans la partie 2 ; le copyright est celui des auteurs nommés.\n\n",
@@ -261,8 +328,12 @@ pub fn rendered(root: &Path) -> Result<Rendered, String> {
     }
     let md = first.ok_or("aucune cible")?;
     let components: Vec<Component> = merged.into_iter().collect();
-    let text = render(&embedded_assets(root, &md)?, &components);
-    let missing = components.iter().filter(|c| license_files(&c.dir).is_empty()).count();
+    let upstream = root.join(UPSTREAM_DIR);
+    let text = render(&embedded_assets(root, &md)?, &components, &upstream);
+    let missing = components
+        .iter()
+        .filter(|c| component_licenses(c, &upstream).is_empty())
+        .count();
     Ok(Rendered {
         text,
         components: components.len(),
@@ -281,7 +352,7 @@ pub fn generate(root: &Path) -> Result<String, String> {
     let path = path_in(root);
     fs::write(&path, &r.text).map_err(|e| format!("{} : {e}", path.display()))?;
     Ok(format!(
-        "{} : {} composants, {} octets, dont {} sans fichier de licence dans leur paquet",
+        "{} : {} composants, {} octets, dont {} sans texte de licence (ni paquet ni dépôt d'origine)",
         path.display(),
         r.components,
         r.text.len(),

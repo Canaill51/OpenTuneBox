@@ -1,0 +1,6 @@
+Lignes de copyright relevées dans les en-têtes des sources des crates accesskit* (LICENSE-MIT du dépôt n'en porte pas) :
+
+Copyright 2021, 2022, 2023, 2024, 2025, 2026 The AccessKit Authors. All rights reserved.
+Copyright 2017, 2018, 2021 The Chromium Authors. All rights reserved. (code « Derived from Chromium's accessibility abstraction », sous LICENSE.chromium)
+Copyright 2018 The kurbo Authors. (MIT ou Apache 2.0)
+Copyright 2024 Zeeshan Ali Khan. (MIT)
