@@ -39,7 +39,8 @@ l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
+| 1 | **21** | Relecture des licences livrées et des sources nommées (W-043, W-055) — **avant la 0.10.0** | rien |
+| 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
 de 3 sur la plus longue session du corpus. Les lots qui touchaient à un utilisateur réel ont été réglés le
@@ -48,6 +49,36 @@ valeur de seuil ait eu à changer, et le **11** a livré l'ouverture de plusieur
 reste que le **15**, dont le volet « cache des outils » est **soldé le 2026-11-10** : mesuré (L-094), allégé, puis borné
 (D-053) — **W-035 est clos**. Ses autres volets (tracé du viewer, pages spectrales) attendent toujours leur déclencheur
 mesuré : ils peuvent attendre que les retours des pilotes disent ce qui gêne vraiment.
+
+---
+
+## Lot 21 : relecture des licences et des sources — **avant la 0.10.0**
+
+**But** : relire ce que les installateurs livrent dans `THIRD-PARTY-LICENSES.txt` (W-043) et appliquer D-050 aux sources
+qui nomment encore une personne (W-055). Échéance choisie par Cédric le 2026-11-12 : **la 0.10.0** ; la 1.0 est gardée
+pour plus tard.
+
+**Branche** : « docs/licenses-and-sources-review ».
+
+**À lire** : [travaux-reportes.md](travaux-reportes.md) W-043 et W-055, [decisions.md](decisions.md) D-045 et D-050,
+`rust/otb-dev/src/licenses.rs`.
+
+- [x] **W-055** — noms de personnes retirés des sources (Cédric, 2026-11-12 : « aucun nom, sauf les livres ») : les cinq
+      entrées relevées (S4, S5, S6, S13, S16) **et** celles que la relecture a trouvées en plus (S9, S12, S14, S15, S18, S19,
+      S28, S31), dans `docs/spec-methodes.md` et `docs/assistant.md`. Chaque source garde titre, date, lien et citation ;
+      elle est désignée par sa marque, son site ou le chemin de son preset.
+- [x] **Polices** : seules Hack (MIT et licence Bitstream Vera), Ubuntu Light (Ubuntu Font Licence 1.0) et egui-icons
+      (MIT) sont compilées ; Noto Emoji (OFL) ne l'est pas (option `monochrome_emoji_fonts` inactive). Leurs textes sont
+      dans la partie 1 du fichier ; un test refuse l'OFL si elle apparaît.
+- [x] **Code issu de Chromium** : `accesskit`, `accesskit_consumer`, `accesskit_atspi_common` et `accesskit_windows`
+      contiennent du code « Derived from Chromium », sous licence BSD (fichier `LICENSE.chromium` du dépôt d'AccessKit),
+      qui exige ce texte dans toute distribution binaire. **Il manquait au fichier livré** (donc à la 0.9.0) : il y est, avec
+      les copyrights relevés dans les sources, et un test le réclame.
+- [x] **22 composants sans fichier de licence dans leur paquet** : textes de leur dépôt d'origine copiés dans
+      `rust/otb-dev/upstream-licenses/` (provenance et commits dans `PROVENANCE.txt`), lus par `otb-dev licenses`
+      (`rust/otb-dev/src/licenses.rs:UPSTREAM`) ; la partie 3 est vide, et un test refuse qu'elle revienne. Contre-preuve :
+      table vidée, deux tests échouent.
+- [ ] **Critère d'arrêt** : un texte qu'on ne retrouve pas à la source se signale, il ne s'invente pas.
 
 ---
 
@@ -101,7 +132,8 @@ Leur détail et leur condition de reprise sont dans [travaux-reportes.md](travau
 rouvrir ici sans cette condition. Deux d'entre eux (W-043 et W-044) viennent du lot 13 supprimé : ils n'ont
 jamais dépendu de la 0.8.0, et gardent donc leur condition de reprise. **W-041 a quitté ce tableau le
 2026-11-10** : sa condition de reprise — un échec au hasard de la CI sur ce test — a été atteinte, et il est
-clos (L-095). C'est à cela que sert une condition de reprise écrite d'avance.
+clos (L-095). C'est à cela que sert une condition de reprise écrite d'avance. **W-043 l'a quitté le 2026-11-12** : il
+est traité par le lot 21.
 
 | ID | Pourquoi il n'est pas dans un lot |
 |---|---|
@@ -112,7 +144,6 @@ clos (L-095). C'est à cela que sert une condition de reprise écrite d'avance.
 | W-028 | Écarts des références figées : se règle au **prochain réenregistrement**, pas avant |
 | W-029 (4) | Branche « crash » du guide : aucun crash réel dans le corpus, seuls des cas fabriqués |
 | W-042 | Avis RustSec hérités d'eframe : ⏸ attend une version d'eframe qui change ses dépendances |
-| W-043 | Relecture des textes de licence livrés (22 composants sans fichier de licence) : **échéance avant la 1.0** — laissée hors lot par Cédric le 2026-11-10, à reprendre en préparant la 1.0 |
 | W-044 (2) | `construire_windows.ps1` jamais essayé sur un vrai Windows : la CI fabrique l'installateur livré, ce script ne sert qu'à construire chez soi — à l'occasion. Son point 1 (`_internal`) est **clos** |
 | W-051 | Pistes de performance écartées **par la mesure** le 2026-11-04 : ne pas les rouvrir sans mesure nouvelle |
 | W-053 | 45 messages d'erreur imitant les exceptions de Python : atteignabilité non établie |

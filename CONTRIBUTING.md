@@ -104,7 +104,7 @@ Dans les exemples ci-dessous, `X.Y.Z` est le **prochain** numéro (celui de `rus
 
 1. Sur une branche (`chore/release-X.Y.Z`) : `(cd rust && cargo run -p otb-dev -- licenses)` (refait `THIRD-PARTY-LICENSES.txt`, que les
    deux installateurs livrent : à relancer si une dépendance a changé ; `otb-dev verify` et la CI le contrôlent par
-   `licenses --check`, qui compare sans rien écrire et rend 1 avec le message « relancer `cargo run -p otb-dev -- licenses` »), puis `(cd rust && cargo run -p otb-dev -- release prepare X.Y.Z)`. Cet outil met le
+   `licenses --check`, qui compare sans rien écrire et rend 1 avec le message « relancer `cargo run -p otb-dev -- licenses` » ; si l'outil annonce un composant « sans texte de licence », copier les textes de son dépôt d'origine dans `rust/otb-dev/upstream-licenses/` et l'ajouter à la table `UPSTREAM`), puis `(cd rust && cargo run -p otb-dev -- release prepare X.Y.Z)`. Cet outil met le
    numéro dans `rust/Cargo.toml`. Relire les titres et les étiquettes des PR fusionnées depuis la dernière version : ce
    sont eux qui font les notes. Pour voir le texte à l'avance, sans rien publier :
    ```sh

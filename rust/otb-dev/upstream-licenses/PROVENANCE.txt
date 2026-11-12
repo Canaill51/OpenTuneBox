@@ -1,0 +1,21 @@
+Textes de licence copiés des dépôts d'origine, pour les composants livrés dont le paquet (crates.io) ne contient aucun
+fichier de licence (W-043, lot 21). `otb-dev licenses` lit un dossier ci-dessous quand le paquet du composant n'a rien ;
+la correspondance composant → dossier est `UPSTREAM` dans rust/otb-dev/src/licenses.rs. Ce fichier-ci n'est pas livré.
+
+Relevé le 2026-11-12 (commit de la branche par défaut au moment de la copie) :
+
+  accesskit      https://github.com/AccessKit/accesskit       dea4384134abe5d7b0734f56a0fdd8b80a16dfdd   LICENSE-MIT, LICENSE-APACHE, LICENSE.chromium
+  clipboard-win  https://github.com/DoumanAsh/clipboard-win   ed27008ae5d1f10cfbb266de039f0fb35fd05a56   LICENSE (Boost 1.0)
+  egui           https://github.com/emilk/egui                6a6ba7ab31940af17ccd144d404f54acea392c61   LICENSE-MIT, LICENSE-APACHE
+  egui_plot      https://github.com/emilk/egui_plot           d95a746602a290e48d60a70a63075cc73793f580   LICENSE-MIT, LICENSE-APACHE
+  enum-map       https://codeberg.org/sugar700/enum-map       0c7b868d2cbcdfe0d16b965b3f4e4d8d145611d0   LICENSES/MIT.txt, LICENSES/Apache-2.0.txt
+  profiling      https://github.com/aclysma/profiling         da44bd1c5497c665c0f00e5d70594fc14d390b4b   LICENSE-MIT, LICENSE-APACHE
+  rspirv         https://github.com/gfx-rs/rspirv             7e6f38e1cf4b787a4d38409272c8c9f30541f0fd   LICENSE (Apache 2.0 ; crate spirv)
+
+Fichiers COPYRIGHT : écrits ici, pas copiés. Le dépôt d'AccessKit et celui d'enum-map ne donnent aucune ligne de copyright
+dans leur texte MIT ; elles sont relevées telles quelles dans les en-têtes des sources des crates livrées. egui_plot n'en
+donne nulle part (ni dépôt ni sources) : il est livré sous l'option Apache 2.0 de « MIT OR Apache-2.0 », qui n'en exige pas.
+Aucun de ces dépôts n'a de fichier NOTICE (Apache 2.0, § 4 d).
+
+Quand une mise à jour change la version d'un de ces composants : vérifier que son paquet n'a toujours pas de fichier de
+licence (sinon le dossier ne sert plus) et que le texte du dépôt n'a pas changé.
