@@ -60,6 +60,24 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-099 : une PR de Dependabot qui change une crate livrée est rouge, car elle ne refait pas `THIRD-PARTY-LICENSES.txt`
+
+- **Symptôme** — 2026-11-17 : les PR #154 (`rfd` 0.17.2 → 0.18.0) et #156 (`flate2` 1.1.10 → 1.1.11, `zip`), ouvertes par
+  Dependabot le lundi 16, échouent sur Linux et Windows ; tous les tests passent sauf
+  `le_fichier_du_depot_correspond_aux_dependances_livrees` : « THIRD-PARTY-LICENSES.txt ne correspond plus aux dépendances
+  livrées (…) : relancer `cargo run -p otb-dev -- licenses` ». La #155 (`resvg` 0.49 → 0.50), ouverte en même temps, est verte,
+  ce qui fait croire à une panne propre aux deux autres.
+- **Cause** — mesurée : le fichier cite chaque composant livré **avec sa version** (« Texte 21 — utilisé par : … flate2 1.1.10 … ») ;
+  toute montée de version d'une crate livrée le rend périmé, et Dependabot ne touche qu'à `Cargo.toml` et `Cargo.lock`. La #155
+  passait parce que la `resvg` montée est celle d'`otb-dev`, jamais livrée (le fichier ne cite que la `resvg` 0.45.1 de l'interface) ;
+  de même, `zip` ne sert qu'à `otb-parity` et n'y figure pas.
+- **Règle** — sur une PR de Dependabot rouge, lire d'abord le test qui échoue. Pour celui-ci : se placer sur sa branche, lancer
+  `cargo run -p otb-dev -- licenses`, `verify`, puis un commit qui ne touche que `THIRD-PARTY-LICENSES.txt`. Dependabot ne met
+  plus à jour une branche qu'on a modifiée ; et deux de ses PR qui changent la même ligne du fichier se gênent : après la fusion
+  de la première, refaire le fichier sur l'autre (reprendre `main`, relancer `licenses`).
+- **Preuve** — passages en échec 43811866733 (#156) et 44056242189 (#154) ; commits `1ecb5b5` (#154 : `rfd` 0.18.0, `pollster`
+  0.4.0 retiré) et `2076922` (#156 : `flate2` 1.1.11 seul) ; CI entièrement verte sur les deux ensuite.
+
 ### L-098 : ouvrir une PR puis poser son étiquette dans la même seconde laisse le contrôle `etiquette` rouge
 
 - **Symptôme** — 2026-11-11, PR #148 ouverte puis étiquetée aussitôt par script : deux passages d'`etiquette-pr.yml` sur le
@@ -1169,6 +1187,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-099 | PR de Dependabot rouge sur `le_fichier_du_depot_correspond_aux_dependances_livrees` : le fichier des licences cite les versions des crates livrées et Dependabot ne le refait pas ; sur sa branche, `otb-dev licenses`, `verify`, commit du seul fichier ; deux PR qui touchent la même ligne se gênent : refaire le fichier sur la seconde après la première fusion | Outillage |
 | L-098 | PR ouverte puis étiquetée dans la même seconde : deux passages du contrôle finissent ensemble et GitHub retient l'échec du premier, lu sans étiquette ; faire passer les passages d'une même PR dans l'ordre (`concurrency`, sans annulation) | Outillage |
 | L-097 | Étiquette déjà posée : GitHub lit `release.yml` **sur l'étiquette**, ni sur `main` ni au chemin donné ; la 0.9.0, antérieure au fichier, sortait sans rubriques. Une version ancienne se range en local, depuis les étiquettes des PR, au format de GitHub | Outillage |
 | L-096 | Étiquette demandée par `dependabot.yml` mais absente du dépôt : Dependabot ne la pose jamais, sans un mot (`dependencies` manquait, sa PR #131 n'avait aucune étiquette) ; créer sur le dépôt toute étiquette qu'un réglage attend, la vérifier sur une vraie PR, et ne pas faire reposer un contrôle sur elle seule | Outillage |

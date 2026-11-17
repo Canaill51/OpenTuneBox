@@ -65,6 +65,15 @@ Ces demandes portent le titre choisi par Dependabot (`chore(deps): …`) et l'é
 étiquette `RN: …` : c'est normal, elles n'apparaissent pas dans les notes de version. On les fusionne à la main, une fois la CI verte et après avoir lu
 les notes de la nouvelle version.
 
+Une demande qui monte une crate **livrée** avec OpenTuneBox arrive **rouge** : `THIRD-PARTY-LICENSES.txt` cite chaque
+composant avec sa version, et Dependabot ne refait pas ce fichier. Le test `le_fichier_du_depot_correspond_aux_dependances_livrees`
+échoue alors avec « relancer `cargo run -p otb-dev -- licenses` » ; les crates des seuls outils de développement (`otb-dev`,
+`otb-parity`) ne sont pas concernées. Pour la réparer : se placer sur la branche de la demande, lancer
+`(cd rust && cargo run -p otb-dev -- licenses)`, puis `verify`, puis un commit qui ne touche que `THIRD-PARTY-LICENSES.txt`
+(« Mettre à jour les licences livrées pour … »), et pousser. Dependabot ne met plus à jour une branche ainsi modifiée. Si
+plusieurs demandes changent le même passage du fichier, les fusionner **l'une après l'autre** : après chaque fusion, reprendre
+`main` dans la suivante et refaire le fichier (L-099).
+
 La **version de Rust** est figée par [`rust/rust-toolchain.toml`](rust/rust-toolchain.toml), sur le poste comme en CI.
 Sans ce fichier, chaque passage prenait « stable » : une nouvelle version de Rust ou de clippy pouvait rendre la CI
 rouge du jour au lendemain, en plein travail sur autre chose. Pour en changer : modifier le numéro, lancer
