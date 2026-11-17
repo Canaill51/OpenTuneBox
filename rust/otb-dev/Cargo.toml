@@ -23,7 +23,7 @@ otb-log = { path = "../otb-log" }
 rayon = "1.12.0"
 regex = "1"
 # Le SVG de l'icône n'a ni texte ni image : sans les fonctionnalités par défaut, pas de polices ni de décodeurs d'images.
-resvg = { version = "0.49", default-features = false }
+resvg = { version = "0.50", default-features = false }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.11.1"
 
