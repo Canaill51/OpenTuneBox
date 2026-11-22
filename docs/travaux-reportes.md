@@ -66,7 +66,7 @@ Règles d'écriture :
 | W-054 | Comparateurs des couches hautes d'`otb-parity` (analyses, assistant, guide, réglage, ligne de commande, réglages, journaux, curseurs) toujours sans test : seuls `check_decoder` et `check_header` en ont | ouvert (fabriquer une référence Python pour ces couches est le vrai coût) |
 | W-056 | Test `au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes` dépendant de la vitesse : il n'attend que 5 cadres le message « N logs au plus », qui arrive après le décodage d'un fichier de plus ; rouge en CI le 2026-11-11 (PR d'essai #149) puis sur `main` après la fusion de #148 | ✅ CLOS (2026-11-12) — le test attend le message (`attendre_etat`) ; contre-preuve : décodage ralenti à la main, l'ancien test rougit à la même ligne que la CI |
 | W-055 | Cinq entrées `[S…]` de `docs/spec-methodes.md` nomment encore une personne (S4, S5, S6, S13, S16) alors que D-050 écrit « aucun nom de personne, nulle part », l'exception étant les **ouvrages publiés** | ✅ CLOS (2026-11-12, lot 21) — Cédric : « aucun nom, sauf les livres » ; noms retirés de 13 entrées (les 5 relevées et 8 trouvées en plus), D-050 précisée |
-| W-057 | Simulateur de filtres : sans debug `FFT_FREQ`, les notchs dynamiques du modèle restent à leurs centres initiaux, d'où de faux creux dès qu'on change leur nombre, leur Q ou leur plage (49 logs sur 75 du corpus) | ouvert (suivi rejoué et vérifié au lot 22c ; branchement sur le simulateur à décider avec Cédric) |
+| W-057 | Simulateur de filtres : sans debug `FFT_FREQ`, les notchs dynamiques du modèle restent à leurs centres initiaux, d'où de faux creux dès qu'on change leur nombre, leur Q ou leur plage (49 logs sur 75 du corpus) | ouvert (suivi rejoué et vérifié au lot 22c ; branchement sur le simulateur avec 22d et 22e, décidé le 2026-11-22) |
 | W-058 | Notch dynamique compté actif à 2 kHz de boucle PID, alors que le firmware le coupait de la 4.3 à la 2026.6 (arrondi en `float`) | ouvert (aucun log à 2 kHz dans le corpus) |
 | W-059 | Simulateur de filtres : notchs RPM et dynamiques posés à leur position moyenne par fenêtre, pleine profondeur | ouvert |
 | W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | ouvert |
@@ -900,7 +900,8 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   médian aux centres enregistrés depuis le gyro modélisé, contre 78 Hz pour les centres initiaux. Il donne aussi les centres des
   trois axes. **Pas encore branché** sur `simulate_gyro` ni `whatif_spectrum` : cela change des valeurs affichées et des conseils
   de l'assistant, les tests de parité avec les références Python (`rust/otb-analysis/tests/bf_sim.rs`, `otb-parity`) et D-041,
-  donc décision de Cédric (avec W-064, en 22d et 22e).
+  donc décision de Cédric : **décidé le 2026-11-22**, branchement avec W-064, dans la même branche que 22d et 22e (D-041
+  sera alors remplacée par une nouvelle décision).
   [`rust/otb-analysis/src/bf_filters.rs:whatif_spectrum`, `rust/otb-analysis/src/bf_filters.rs:gyro_h2`]
 
 - **W-058** — **Le notch dynamique est compté actif à 2 kHz de boucle PID, alors que le firmware le coupait de la 4.3 à
