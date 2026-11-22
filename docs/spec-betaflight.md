@@ -118,6 +118,13 @@ Fins de liste :
   SDFT sur 72 échantillons après moyenne par groupes de `max(1, floor(nyq/maxHz))` ; binHz = (pidRate/sampleCount)/72 ;
   recherche des pics : maxima locaux > 2 × plancher de bruit, interpolation parabolique, centre lissé par un PT1
   de 4 Hz × clamp(pic/seuil, 1, 10) à 12/pidRate. Centres initiaux `(p+0.5)(max−min)/count + min`.
+  Une SDFT et des centres **par axe** ; une machine à 4 étapes (fenêtre, pics, centres, filtres) traite un axe après
+  l'autre, 12 boucles pour les trois. Variantes selon la version (rejouées par `rust/otb-analysis/src/dyn_notch.rs`) :
+  4.3 : `maxHz ≥ 2 × minHz`, `sampleCount = pidRate / (2 × maxHz)`, plancher sur les cases intérieures ; 4.4+ : `maxHz`
+  borné à Nyquist, plancher sur toute la plage ; compilé à partir du 2026-09-05 : plancher compté au-dessus de 60 Hz.
+  ⚠️ La cadence est calculée en `float` : `1 / looptime × 1e6` jusqu'à la 2025.12 (juste au-dessus de la valeur exacte),
+  `1 / (looptime × 1e-6)` en 2026.6 (juste en dessous), exacte à partir du 2026-11-20. Quand Nyquist / `maxHz` est entier
+  (500 Hz à 4 ou 8 kHz, 400 Hz à 4 kHz), `sampleCount` vaut 3 au lieu de 4 en 2026.6 (L-102).
 - **Chaîne du terme D** (cadence PID, sur gyroADCf) : notch D → LPF1 D (statique / dynamique) → LPF2 D.
   D sur la mesure : `delta = −(g[n]−g[n−1])·pidFreq`, `D = Kd·delta·dMaxMult·TPA`.
   Le P du yaw passe par un PT1 `yaw_lowpass_hz` (100 par défaut).

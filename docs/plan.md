@@ -41,7 +41,7 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a et 22a bis faits (24 alertes → 2, acceptées le 2026-11-22) ; 22c, puis 22d et 22e avec W-064 ; 22b attend les vols `GYRO_SAMPLE` de Cédric |
+| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22d et 22e avec W-064 et le branchement du suivi (W-057, décidé le 2026-11-22) ; vols 22b faits, à passer dans le contrôle par étage |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -128,13 +128,22 @@ Cédric, sous GPL : D-004).
          notch dynamique, cause à chercher.
       4. `petrel-85mm-issues` dévie aussi sur le gyro (+7 à +17 dB au-dessus de 100 Hz) : log d'un drone en difficulté, à
          écarter seulement si 1 à 3 ne l'expliquent pas, et en le disant.
-- [ ] **22b — Vols de calibration** (Cédric, sur l'Air65, mêmes réglages que les logs chirp) : `debug_mode = GYRO_SAMPLE`,
+- [ ] **22b — Vols de calibration** (Cédric, sur l'Air65, mêmes réglages que les logs chirp) : **vols faits** (confirmé par
+      Cédric le 2026-11-22 : `Cedric/Air65/Test BF Chirp/GYRO_SAMPLE_*.bbl`, roll et pitch, avec et sans haute résolution) ;
+      reste à les passer dans 22a. Consigne d'origine : `debug_mode = GYRO_SAMPLE`,
       `gyro_filter_debug_axis = ROLL`, `blackbox_sample_rate = 1/1`, `blackbox_high_resolution = ON` (il n'affine que le gyro
       et `gyroUnfilt`, **pas** les canaux `GYRO_SAMPLE`, arrondis au °/s : un chirp plus ample aide davantage), mode angle,
       10 s de stationnaire puis le chirp sur le roll. Un second vol avec d'autres types de filtres (BIQUAD, donc SVF en
       2026.12 ; PT2 ; un notch statique gyro ; un notch D), que le premier vol ne teste pas. Les passer dans 22a pour
       séparer LPF2, RPM et LPF1.
-- [ ] **22c — Suivi des pics du notch dynamique** (W-057) : réimplémenter d'après sa description le suivi du firmware
+- [x] **22c — Suivi des pics du notch dynamique** (branche `feat/dyn-notch-tracking`, 2026-11-22) : fait —
+      `rust/otb-analysis/src/dyn_notch.rs` (variantes par version, L-102), `otb-dev corpus dyntrack`. Sur 1 099 notchs du
+      corpus ([validation.md](validation.md#suivi-du-notch-dynamique-2026-11-22-lot-22c)) : 0,3 à 0,4 Hz d'écart médian aux
+      centres enregistrés à chaque boucle PID en 8 et 3,2 kHz ; 14,4 Hz depuis le gyro modélisé sur tout le corpus, contre
+      78 Hz pour les centres initiaux. **Pas branché** sur le simulateur affiché ni sur W-059 : **décidé par Cédric le 2026-11-22**,
+      le branchement se fait avec 22d et 22e (W-064), même branche ; valeurs affichées, conseils,
+      références Python et D-041 changent, décision de Cédric (W-057). Variantes non vérifiées : W-065. Le texte d'origine suit.
+      Réimplémenter d'après sa description le suivi du firmware
       (`flight/dyn_notch_filter.c`, `common/sdft.c`), le vérifier contre les centres enregistrés du corpus `FFT_FREQ`.
       Il donne aussi les centres des deux autres axes : aujourd'hui, `simulate_gyro` applique aux trois axes les centres
       de l'axe debug, alors que le firmware suit chaque axe à part. Reprendre W-059 avec lui.

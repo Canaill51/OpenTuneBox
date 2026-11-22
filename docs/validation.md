@@ -479,6 +479,42 @@ PID, bande concluante. Les 7 sessions en alerte de 22a, examinées une à une :
 `Cedric/Air65/Tune/F1.bbl` #1 axe roll −1,35 dB. Même signe et même bande que l'écart léger de tous les autres logs (W-062) :
 cause à chercher, suite décidée avec Cédric ([plan.md](plan.md), lot 22).
 
+### Suivi du notch dynamique (2026-11-22, lot 22c)
+
+Outil : `rust/otb-analysis/src/dyn_notch.rs:check_tracking` ; corpus : `(cd rust && cargo run --release -p otb-dev -- corpus dyntrack
+SORTIE.json)` (21 s, 547 sessions `FFT_FREQ` dont le notch est actif, 1 099 notchs ; `--resume SORTIE.json` refait le tableau). Sur
+l'axe debug, centres rejoués comparés aux centres enregistrés par le firmware, période de l'assistant. Trois sources : le suivi
+rejoué sur le gyro **enregistré** avant le notch (`debug[0]`, contrôle du suivi seul), sur le gyro **modélisé** avant le notch
+(gyro non filtré passé dans LPF2, RPM, notchs statiques et LPF1 : ce que le simulateur peut faire sans `FFT_FREQ`), et les
+**centres initiaux** fixes (ce que fait le simulateur aujourd'hui sans `FFT_FREQ`, W-057). Écart absolu médian par notch, puis
+médiane sur les notchs :
+
+| Log | Notchs (sessions) | Depuis le debug | Depuis le modèle | Centres initiaux |
+|---|---|---|---|---|
+| chaque boucle PID, 2025.12 | 5 (4) | 0,4 Hz (99 % à moins d'une case) | 5,7 Hz (82 %) | 105,5 Hz (0 %) |
+| chaque boucle PID, 2026.6 et 2026.12 | 16 (10) | 5,9 Hz (76 %) | 4,6 Hz (79 %) | 74,3 Hz (9 %) |
+| une boucle sur 2 ou moins, 4.5 | 660 (322) | 14,7 Hz (55 %) | 18,7 Hz (50 %) | 79,4 Hz (8 %) |
+| une boucle sur 2 ou moins, 2025.12 | 249 (131) | 8,5 Hz (65 %) | 12,2 Hz (59 %) | 89,2 Hz (4 %) |
+| une boucle sur 2 ou moins, 2026.6 | 168 (79) | 7,8 Hz (70 %) | 10,2 Hz (63 %) | 54,0 Hz (9 %) |
+| **tout le corpus** | 1 099 (547) | **11,8 Hz** (60 %) | **14,4 Hz** (54 %) | **78,0 Hz** (7 %) |
+
+Le suivi rejoué est plus proche des centres enregistrés que les centres initiaux pour 1 061 notchs sur 1 099 depuis le debug,
+1 026 depuis le modèle. Une case vaut 18,5 Hz dans le cas courant (PID 4 kHz, max 600 Hz).
+
+- **Le suivi est fidèle** : à chaque boucle PID, `redhonu` (8 kHz) et `Oerni79` (3,2 kHz) donnent 0,3 à 0,4 Hz depuis le debug,
+  99 à 100 % des échantillons à moins d'une case. Le reste de l'écart ne vient pas de l'algorithme.
+- **Arrondi du gyro enregistré** : les sessions à 4 kHz de petits drones peu vibrants (Air65, vols stationnaires `KM HOVER`)
+  restent à 2 à 13 Hz depuis le debug. Le debug est arrondi au °/s : essai jetable, l'entrée modélisée arrondie au °/s fait
+  passer l'Air65 de 4–10 Hz à 6–15 Hz, le niveau obtenu depuis le debug. Sur un log enregistré une boucle sur deux, s'y ajoutent
+  les boucles manquantes, interpolées.
+- **Modèle de chaîne** : `Oerni79` (3,2 kHz, BMI270) est exact depuis le debug, mais à 7 à 14 Hz depuis le modèle ; le gyro
+  modélisé avant le notch s'y écarte de celui du firmware (sujet du contrôle par étage, pas du suivi).
+- **Contre-épreuve de l'arrondi de la cadence** (L-102) : sur les 107 notchs (42 sessions) où Nyquist / `dyn_notch_max_hz` est
+  entier, forcer la cadence exacte fait passer l'écart médian de 5,6 à 14,9 Hz et la part à moins d'une case de 0,78 à 0,47 ;
+  104 notchs sur 107 sont moins bien suivis. Le firmware 2026.6 se trompe donc bien d'un `sampleCount`, et le modèle avec lui.
+- **Non vérifié** : le plancher au-dessus de 60 Hz (2026.12 compilé à partir du 2026-09-05) ne change rien sur les logs de
+  l'Air65, dont la plage commence déjà au-dessus ; la variante 4.3 n'a aucun log `FFT_FREQ` dans le corpus (W-065).
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui

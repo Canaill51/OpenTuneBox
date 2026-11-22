@@ -60,6 +60,7 @@ Dans `rust/otb-analysis/src/` (noyaux de calcul dans `rust/otb-dsp/src/`).
 | `open_loop.rs` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.rs` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
 | `filter_stages.rs` | Contrôle du modèle de filtres étage par étage contre le firmware (canaux debug `GYRO_SAMPLE` / `FFT_FREQ`, terme D), par bande de fréquences ; lot 22 du plan, D-057 |
+| `dyn_notch.rs` | Suivi des pics du notch dynamique rejoué comme le firmware (SDFT, pics, lissage, variantes par version), centres par axe, contrôle contre les centres enregistrés en `FFT_FREQ` ; lot 22c du plan, W-057 |
 | `bf_filters.rs` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si », passe-bas relevé ou coupé ; noyaux de calcul dans `rust/otb-dsp` (D-032) |
 | `numeric.rs` (d'otb-dsp), `npstat.rs` | Primitives numériques (fenêtre de Hann, moyenne glissante, flou gaussien, intercorrélation : D-032) et statistiques de numpy sur des `float32` dans `npstat.rs` (somme par paires, moyenne, écart-type, médiane, centile, histogramme) |
 | `sliders.rs` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |
@@ -191,7 +192,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     `rows` / `values` / `missing` / `noref` / `refhang` ; 4 fichiers à la fois par défaut, la mémoire montant à ≈ 1 Go) ; `stages.rs`
     (`corpus stages SORTIE.json [--dir SOUS-DOSSIER] [--limit N] [-j FILS]` : contrôle du modèle de filtres étage par étage,
     une ligne par session, étage et axe ; `--resume SORTIE.json` : tableau par étage, version et type de filtre, alertes du
-    critère d'arrêt du lot 22).
+    critère d'arrêt du lot 22) ; `dyntrack.rs` (`corpus dyntrack SORTIE.json [--dir SOUS-DOSSIER] [--limit N] [-j FILS]` :
+    suivi du notch dynamique rejoué contre les centres enregistrés en `FFT_FREQ`, une ligne par session et par notch ;
+    `--resume SORTIE.json` : tableau par version et cadence du log).
 
 ## Hors périmètre (pour l'instant)
 

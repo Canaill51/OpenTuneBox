@@ -172,6 +172,18 @@ ils viennent du bruit (`validation.md`).
   filtres coupent plus bas en hertz réels (L-101). Le simulateur affiché (`simulate_gyro`, `simulate_dterm`) prend encore la
   cadence mesurée et ignore le TPA (W-064).
 
+## Suivi du notch dynamique (`rust/otb-analysis/src/dyn_notch.rs`)
+
+- Rejoue le suivi des pics du firmware (SDFT de 72 échantillons par axe, pics, plancher de bruit, lissage PT1 : description
+  et variantes par version dans `spec-betaflight.md` § 3) sur le gyro d'avant le notch dynamique, à chaque boucle PID : entre
+  deux échantillons d'un log enregistré une boucle sur N, le signal est interpolé linéairement. Calcul en `f32`, arrondis de
+  la cadence reproduits (L-102). Le début du log (1 s) est rejoué une première fois pour établir l'état.
+- Entrée : le gyro modélisé d'avant le notch (`dyn_notch::modelled_input` : LPF2, RPM, notchs statiques et LPF1 appliqués au
+  gyro non filtré, cadence nominale) pour les trois axes ; ou, pour le contrôle, le gyro enregistré du debug `FFT_FREQ`.
+- Contrôle (`dyn_notch::check_tracking`, `otb-dev corpus dyntrack`) : centres rejoués contre centres enregistrés sur l'axe
+  debug, écart absolu médian, 90e centile, part à moins d'une case. Résultats : `validation.md`. Le simulateur affiché ne
+  s'en sert pas encore (W-057).
+
 ## Autres outils
 
 - Erreur PID : histogramme par axe, écart-type robuste (1,4826 × MAD) ; |erreur| moyenne selon la déflexion
