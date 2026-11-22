@@ -66,6 +66,12 @@ Règles d'écriture :
 | W-054 | Comparateurs des couches hautes d'`otb-parity` (analyses, assistant, guide, réglage, ligne de commande, réglages, journaux, curseurs) toujours sans test : seuls `check_decoder` et `check_header` en ont | ouvert (fabriquer une référence Python pour ces couches est le vrai coût) |
 | W-056 | Test `au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes` dépendant de la vitesse : il n'attend que 5 cadres le message « N logs au plus », qui arrive après le décodage d'un fichier de plus ; rouge en CI le 2026-11-11 (PR d'essai #149) puis sur `main` après la fusion de #148 | ✅ CLOS (2026-11-12) — le test attend le message (`attendre_etat`) ; contre-preuve : décodage ralenti à la main, l'ancien test rougit à la même ligne que la CI |
 | W-055 | Cinq entrées `[S…]` de `docs/spec-methodes.md` nomment encore une personne (S4, S5, S6, S13, S16) alors que D-050 écrit « aucun nom de personne, nulle part », l'exception étant les **ouvrages publiés** | ✅ CLOS (2026-11-12, lot 21) — Cédric : « aucun nom, sauf les livres » ; noms retirés de 13 entrées (les 5 relevées et 8 trouvées en plus), D-050 précisée |
+| W-057 | Simulateur de filtres : sans debug `FFT_FREQ`, les notchs dynamiques du modèle restent à leurs centres initiaux, d'où de faux creux dès qu'on change leur nombre, leur Q ou leur plage (49 logs sur 75 du corpus) | ouvert |
+| W-058 | Notch dynamique compté actif à 2 kHz de boucle PID, alors que le firmware le coupait de la 4.3 à la 2026.6 (arrondi en `float`) | ouvert (aucun log à 2 kHz dans le corpus) |
+| W-059 | Simulateur de filtres : notchs RPM et dynamiques posés à leur position moyenne par fenêtre, pleine profondeur | ouvert |
+| W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | ouvert |
+| W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
+| W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (effet faible) |
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
 | W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
@@ -842,3 +848,106 @@ compositeur. Seul le banc de W-049 est relançable aujourd'hui (`banc_cadre`).
   gardent titre, date, lien et citation, et sont désignées par leur marque, leur site ou le chemin de leur preset ;
   `docs/assistant.md` (poids RPM des presets) suit. Contrôle : `git grep` des treize noms, plus aucun résultat hors de
   `THIRD-PARTY-LICENSES.txt` (où les licences exigent les auteurs).
+
+## Origine : comparaison avec les sources du firmware Betaflight et un simulateur de filtres externe (2026-11-22)
+
+Cédric a écrit à part un simulateur de filtres web (GPL-3.0, portage ligne à ligne du firmware : **rien ne peut en
+être copié ici**, D-004, D-043) et a cloné le firmware et le configurateur Betaflight (`master` du 2026-11-21). La
+chaîne de filtres d'OpenTuneBox a été relue face au firmware (`sensors/gyro.c`, `gyro_filter_impl.c`, `gyro_init.c`,
+`flight/pid_init.c`, `pid.c`, `mixer.c`, `rpm_filter.c`, `dyn_notch_filter.c`, `drivers/dshot.c`, `common/filter.c`,
+`config/simplified_tuning.c`) : formules PT1/PT2/PT3, Q des notchs, courbe du LPF dynamique, filtre RPM, centres
+initiaux, curseurs de filtres, valeurs par défaut, bornes de l'éditeur et table des modes debug sont **conformes**.
+
+**Mesure** (2026-11-22, script jetable non versionné, 545 logs du corpus avec gyro non filtré) : spectre de
+`gyroUnfilt` × |H|² du modèle de la chaîne actuelle (`gyro_chain` + `chain_response`, gaz, moteurs et centres moyennés
+par fenêtre de 0,3 s comme `whatif_spectrum`, axe roll, fenêtres à gaz ≥ 15 %, plancher d'arrondi Blackbox ajouté),
+comparé au spectre du gyro enregistré entre 80 Hz et min(0,42·fs, 1000 Hz). Même mesure avec le simulateur externe
+(rejeu temporel à la cadence du log, arrondi Blackbox).
+
+| Logs | n | Écart médian, modèle d'OpenTuneBox | Écart médian, simulateur externe | Logs avec un faux creux < −6 dB (OTB / externe) |
+|---|---|---|---|---|
+| `FFT_FREQ`, log à pleine cadence | 12 | 0,5 dB | 0,4 dB | 2 / 2 |
+| `FFT_FREQ`, log ralenti | 457 | 1,6 dB | 1,1 dB | 71 / 27 |
+| sans `FFT_FREQ` | 75 | 3,0 dB | 1,5 dB | 49 / 3 |
+
+Ces écarts ne passent **pas** tels quels dans le spectre « et si » : la méthode relative (D-008) divise par le même
+modèle, et tout ce qui ne change pas s'annule. Ils comptent pour ce qui change (notch dynamique surtout), pour le Bode
+et le tableau des retards, et pour la branche « signal avant filtres » de `whatif_spectrum` (|H_actuel|² < 1 %).
+
+- **W-057** — **Sans debug `FFT_FREQ`, le modèle garde les notchs dynamiques à leurs centres initiaux.**
+  `whatif_spectrum` ne lit les centres que dans `FFT_FREQ` (`fft_freq_centres`) et ne calcule les pics prévus de D-041
+  (`dyn_peaks`) que si ces centres existent ; sinon `gyro_h2` passe `None` à `gyro_chain`, qui pose les notchs en
+  `(p + 0,5)(max − min)/n + min` (183, 350, 517 Hz pour 3 notchs sur 100–600 Hz) pour les réglages actuels **et**
+  modifiés. Changer le nombre, le Q ou la plage creuse alors à ces positions, sans lien avec le bruit : c'est l'artefact
+  de W-040, resté ouvert pour ces logs. Mesuré : 49 logs sur 75 avec un faux creux de plus de 6 dB (11 sur 75 si l'on
+  retire les notchs dynamiques du modèle ; 3 avec le simulateur externe, qui rejoue le suivi des pics du firmware).
+  D-041 écrit « Sans gyro non filtré : centres initiaux », mais le code fait de même **avec** gyro non filtré dès que
+  `FFT_FREQ` manque. Aucun avertissement dans la page Filtres.
+  **Pourquoi reporté** : vu en comparant avec le firmware à la demande de Cédric, hors de toute branche ; il veut y
+  revenir dans une session à part.
+  **Risque si on n'y touche pas** : 14 % des logs du corpus (75 sur 545) ; tout réglage du notch dynamique simulé sur
+  eux montre des creux imaginaires, souvent plus profonds que l'effet réel.
+  **Reprise** : prochaine session sur le simulateur de filtres.
+  **Piste** : appliquer les pics prévus de D-041 aussi sans `FFT_FREQ` ; mieux, estimer les positions du notch
+  dynamique en réimplémentant le suivi des pics du firmware (`flight/dyn_notch_filter.c`, `common/sdft.c`) d'après sa
+  description, sans copier le simulateur externe ; à défaut, afficher un avertissement. Corriger la phrase de D-041 avec
+  l'accord de Cédric.
+  [`rust/otb-analysis/src/bf_filters.rs:whatif_spectrum`, `rust/otb-analysis/src/bf_filters.rs:gyro_h2`]
+
+- **W-058** — **Le notch dynamique est compté actif à 2 kHz de boucle PID, alors que le firmware le coupait de la 4.3 à
+  la 2026.6.** `dyn_notch_enabled` teste `pid_rate_hz() ≥ 2000`. Le firmware testait `1.0f / dt < 2000` avec
+  `dt = 500 × 1e-6f` : en `float`, 1 999,9999 Hz, donc notch dynamique **coupé** à 2 kHz pile (test introduit au
+  commit `450cee3e0`, 2021-11 ; corrigé au commit `382051dad`, 2026-09-17, après la 2026.6, en comparant la période
+  entière : `looptime ≤ 500 µs`). Calcul refait en C sur le poste (500 µs → 1 999,999878 Hz).
+  **Pourquoi reporté** : aucun log à 2 kHz dans le corpus (401 à 4 kHz, 94 à 8 kHz, 53 à 3,2 kHz).
+  **Risque si on n'y touche pas** : pour un pilote en 2 kHz avec un firmware jusqu'à la 2026.6, Bode, retards et
+  spectre « et si » comptent des notchs que le drone n'avait pas.
+  **Reprise** : premier log à 2 kHz, ou avec W-057.
+  **Piste** : seuil selon la version (`Settings::family`) : strictement au-dessus de 2 kHz jusqu'à la 2026.6, 2 kHz
+  compris ensuite ; mettre à jour `docs/spec-betaflight.md` (§ 3, « désactivé sous 2 kHz de PID »).
+  [`rust/otb-analysis/src/bf_filters.rs:dyn_notch_enabled`]
+
+- **W-059** — **Notchs RPM et dynamiques posés à leur position moyenne par fenêtre, pleine profondeur.** `whatif_spectrum`
+  moyenne la vitesse des moteurs et les centres des notchs sur chaque fenêtre (arrondis à 5 Hz) et calcule la réponse
+  d'un notch fixe à cette moyenne. Un notch qui se déplace pendant la fenêtre étale en réalité son atténuation ; le
+  modèle la concentre à un seul endroit. Cause **supposée** d'une partie de l'écart mesuré avec `FFT_FREQ` (1,6 dB
+  contre 1,1 dB pour le rejeu temporel ; 71 faux creux contre 27).
+  **Pourquoi reporté** : même origine que W-057.
+  **Risque si on n'y touche pas** : creux trop étroits et trop profonds dans le Bode moyen et dans les rapports où le
+  filtre RPM change (Q, poids, harmoniques).
+  **Reprise** : avec W-057 ou W-060.
+  **Piste** : moyenne des |H|² sur des sous-fenêtres (réponse moyenne plutôt que réponse de la moyenne) ; vérifier
+  d'abord la cause avec la mesure ci-dessus.
+  [`rust/otb-analysis/src/bf_filters.rs:whatif_spectrum`]
+
+- **W-060** — **Le simulateur de filtres n'a jamais été vérifié « avant / après ».** Seul contrôle : sans changement,
+  le spectre « et si » égale le log à 0,009 dB ([validation.md](validation.md#autres-contrôles)), ce qui est vrai par
+  construction (rapport de deux réponses identiques). Rien ne montre qu'un changement de filtres est bien prédit. La
+  mesure ci-dessus montre aussi que le rejeu temporel à la cadence du log reproduit le gyro enregistré à 1,0 dB près en
+  médiane pour les logs à 1/2 (0,3 dB à pleine cadence, 2,1 dB à 1/4) : la cause de L-011 n'était que supposée.
+  **Pourquoi reporté** : demande une campagne sur le corpus.
+  **Risque si on n'y touche pas** : on ne sait pas chiffrer la confiance à accorder à un spectre « et si ».
+  **Reprise** : avant de corriger W-057 et W-059, pour mesurer leur gain.
+  **Piste** : paires de logs d'un même drone avant et après un changement de filtres ; prédire le second à partir du
+  premier (`whatif_spectrum`, réglages du premier → réglages du second) et comparer au second, à gaz comparables ;
+  y ajouter le rejeu temporel pour trancher entre les deux méthodes (D-008 ne change qu'avec l'accord de Cédric).
+  [`rust/otb-analysis/src/bf_filters.rs:whatif_spectrum`, `rust/otb-analysis/src/bf_filters.rs:simulate_gyro`]
+
+- **W-061** — **Limites de Nyquist pas tout à fait celles du firmware.** La marge de 95 % n'existe que depuis la 2026.6
+  (commit `3166c8206`, 2026-05-31) : avant, `1000000 / 2 / looptime` pour le notch gyro et `pidFrequency / 2` pour le
+  notch D. OpenTuneBox l'applique au notch gyro de toutes les versions (`nyquist`) et jamais au notch D (`pid_rate / 2`
+  dans `dterm_chain` et `simulate_dterm`). Et `lowpass_spec` ne coupe jamais un passe-bas BIQUAD au-delà de Nyquist,
+  alors que le firmware le désactive (`gyroInitLowpassFilterLpf`, `pidInitFilters`).
+  **Pourquoi reporté** : cas rares (centre de notch au-delà de 95 % de Nyquist, BIQUAD très haut).
+  **Risque si on n'y touche pas** : un notch ou un passe-bas modélisé autrement que sur le drone, dans ces seuls cas.
+  **Reprise** : avec W-058 (même logique selon la version).
+  [`rust/otb-analysis/src/bf_filters.rs:static_notch`, `rust/otb-analysis/src/bf_filters.rs:lowpass_spec`]
+
+- **W-062** — **Gaz du passe-bas dynamique lus après le throttle boost.** Le log écrit `setpoint[3] = mixerThrottle`,
+  pris **après** le throttle boost (`flight/mixer.c`), alors que `updateDynLpfCutoffs` reçoit les gaz **avant** le boost.
+  OpenTuneBox (`throttle_frac`) et le simulateur externe lisent tous deux `setpoint[3]`.
+  **Pourquoi reporté** : effet limité aux coups de gaz rapides (le boost est un passe-haut), non mesuré.
+  **Risque si on n'y touche pas** : coupure du LPF dynamique un peu trop haute pendant les montées de gaz brusques.
+  **Reprise** : si une mesure montre un écart sur les vols à gaz très variables.
+  **Piste** : retirer le boost (`throttle_boost`, `throttle_boost_cutoff`) en le recalculant depuis les gaz loggés.
+  [`rust/otb-analysis/src/bf_filters.rs:throttle_frac`]

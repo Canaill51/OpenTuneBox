@@ -33,14 +33,16 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
   vers Cédric ; ne pas improviser un autre découpage.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
-- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 20
-  sont au tableau en bas (faits, non retenus ou supprimés), le prochain numéro libre est **21**.
+- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 21
+  sont au tableau en bas (faits, non retenus ou supprimés), le 15 et le 22 sont ouverts, le prochain numéro
+  libre est **23**.
 
 ## Ordre des étapes
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
+| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22b attend les vols `GYRO_SAMPLE` de Cédric ; 22a et 22c peuvent commencer sans eux |
+| 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
 de 3 sur la plus longue session du corpus. Les lots qui touchaient à un utilisateur réel ont été réglés le
@@ -49,6 +51,79 @@ valeur de seuil ait eu à changer, et le **11** a livré l'ouverture de plusieur
 reste que le **15**, dont le volet « cache des outils » est **soldé le 2026-11-10** : mesuré (L-094), allégé, puis borné
 (D-053) — **W-035 est clos**. Ses autres volets (tracé du viewer, pages spectrales) attendent toujours leur déclencheur
 mesuré : ils peuvent attendre que les retours des pilotes disent ce qui gêne vraiment.
+
+Le **2026-11-22**, Cédric a ouvert le **lot 22** : ce n'est pas du confort, mais la **précision du simulateur de
+filtres**, jusqu'ici jamais vérifiée filtre par filtre contre le vrai firmware.
+
+---
+
+## Lot 22 : calibration des filtres étage par étage (Opus)
+
+**But** (Cédric, 2026-11-22) : **un seul mode debug pour les filtres** (`FFT_FREQ`) et un simulateur **cohérent avec le
+firmware**, qui montre le gyro et le terme D **avant et après filtrage**, mesurés et simulés, pour les réglages actuels
+comme pour des réglages modifiés. Les modes `GYRO_SAMPLE` et `D_LPF` ne servent qu'**une fois**, pour la calibration.
+
+**Principe** : comparer le modèle au firmware **un étage à la fois**. Le modèle filtre le signal enregistré à l'entrée
+d'un étage, et on compare son résultat au signal enregistré à la sortie : les erreurs ne s'additionnent pas d'un
+étage à l'autre, et un écart désigne un filtre précis. Points de mesure du firmware (`sensors/gyro_filter_impl.c`,
+`flight/pid.c`) :
+
+| Étage | Entrée → sortie enregistrées | Mode debug |
+|---|---|---|
+| LPF2 (cadence gyro) | `GYRO_SAMPLE[0]` → `[1]` | `GYRO_SAMPLE` |
+| notchs RPM | `GYRO_SAMPLE[1]` → `[2]` | `GYRO_SAMPLE` |
+| notchs statiques + LPF1 | `GYRO_SAMPLE[2]` → `[3]` | `GYRO_SAMPLE` |
+| LPF2 + RPM + notchs statiques + LPF1 (en bloc) | `gyroUnfilt` → `debug[0]` | `FFT_FREQ` |
+| notch dynamique | `debug[0]` → gyro, centres dans `debug[1…]` | `FFT_FREQ` |
+| filtres D | −dg/dt du gyro enregistré → `axisD` (gain Kd × TPA normalisé) | aucun, si log à chaque boucle PID et `d_max` = D |
+
+`GYRO_SAMPLE` et le debug `FFT_FREQ` ne couvrent qu'un axe (`gyro_filter_debug_axis`, en-tête `gyro_debug_axis`) ; `D_LPF`
+ne couvre ni le yaw ni rien que le gyro enregistré ne donne déjà, d'où « aucun » pour les filtres D.
+
+**Déjà mesuré** (2026-11-22, essai jetable hors dépôt, 3 logs `$OTB_LOGS/Cedric/Air65/Test BF Chirp/`, Betaflight
+2026.12, gyro 8 kHz, PID 4 kHz, log à chaque boucle PID, `FFT_FREQ`, balayage chirp du firmware) : jusqu'à 250 Hz, le
+modèle actuel suit le firmware à **0,2 dB** près pour le bloc LPF2 + RPM + LPF1, **0,4 dB** pour le notch dynamique et
+**0,6 dB** pour les filtres D ; résidu temporel ≈ 1 % (gyro) et 2 à 4 % (D). Au-dessus de 250 Hz, la cohérence tombe
+sous 0,3 (valeurs enregistrées arrondies au °/s) : pas de conclusion possible. Un écart reste à trancher : notch
+dynamique entre 250 et 500 Hz, −1,8 dB réels contre −0,3 dB modélisés, cohérence 0,65 à 0,7. Et le décalage d'horloge
+de L-100 (0,11 ms).
+
+**À lire** : [travaux-reportes.md](travaux-reportes.md) W-057, W-059, W-060 (et W-058, W-061, W-062, mêmes fonctions),
+[lecons.md](lecons.md) L-100, L-011, L-024, [decisions.md](decisions.md) D-008, D-022, D-041,
+`rust/otb-analysis/src/bf_filters.rs:simulate_gyro`, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm`,
+`rust/otb-analysis/src/delay.rs:compute_delays` ; firmware : `sensors/gyro_filter_impl.c`, `flight/dyn_notch_filter.c`,
+`common/sdft.c`, `fc/core.c` (lire les sources clonées, ne rien en copier ; jamais de code du simulateur externe de
+Cédric, sous GPL : D-004).
+
+- [ ] **22a — Comparaison par étage** (branche `feat/filter-stage-check`) : fonctions pures dans `otb-analysis` qui, pour
+      un log, rendent par étage et par bande de fréquences le gain et la phase mesurés et modélisés, l'écart en dB, le
+      retard en ms, la cohérence et le résidu temporel ; décalage de L-100 retiré ; étages `GYRO_SAMPLE` nommés dans
+      `otb-log` quand le log en a. Test sur un log fabriqué dont les canaux debug sortent de filtres connus (écart nul),
+      contre-preuve en faussant un filtre (L-071). Puis passage sur **tout le corpus `FFT_FREQ`** (compétence
+      `calculs-corpus`) : écarts par version du firmware et par type de filtre, résultats dans [validation.md](validation.md).
+- [ ] **22b — Vols de calibration** (Cédric, sur l'Air65, mêmes réglages que les logs chirp) : `debug_mode = GYRO_SAMPLE`,
+      `gyro_filter_debug_axis = ROLL`, `blackbox_sample_rate = 1/1`, `blackbox_high_resolution = ON`, mode angle,
+      10 s de stationnaire puis le chirp sur le roll. Un second vol avec d'autres types de filtres (BIQUAD, donc SVF en
+      2026.12 ; PT2 ; un notch statique gyro ; un notch D), que le premier vol ne teste pas. Les passer dans 22a pour
+      séparer LPF2, RPM et LPF1.
+- [ ] **22c — Suivi des pics du notch dynamique** (W-057) : réimplémenter d'après sa description le suivi du firmware
+      (`flight/dyn_notch_filter.c`, `common/sdft.c`), le vérifier contre les centres enregistrés du corpus `FFT_FREQ`.
+      Il donne aussi les centres des deux autres axes : aujourd'hui, `simulate_gyro` applique aux trois axes les centres
+      de l'axe debug, alors que le firmware suit chaque axe à part. Reprendre W-059 avec lui.
+- [ ] **22d — Retard des filtres corrigé** (L-100) : retirer le décalage d'horloge du retard gyro de `compute_delays`, et de
+      toute autre comparaison `gyroUnfilt` → gyro ; mesurer l'effet sur le corpus avant de livrer (valeur affichée qui
+      change : le dire dans la PR).
+- [ ] **22e — Avant / après filtrage dans la page Filtres** (compétence `opentunebox-dev`) : gyro et terme D, mesurés et
+      simulés, pour les réglages actuels et modifiés.
+- [ ] **22f — Prédiction vérifiée** (W-060) : vol de l'Air65 après un changement de filtres, comparé à la prédiction faite
+      depuis le vol d'avant. C'est la seule mesure de la vraie limite du simulateur : la **boucle fermée** (moins filtrer
+      envoie plus de bruit aux moteurs, qui en produisent davantage ; le simulateur garde le bruit d'avant).
+- [ ] **Ensuite seulement** : conseiller aux pilotes `FFT_FREQ`, un log à chaque boucle PID et `blackbox_high_resolution`
+      (guide intégré, compétence `guide-integre`), si 22a à 22f le justifient.
+- [ ] **Simulateur externe de Cédric** : mêmes logs de référence et mêmes mesures par étage ; on n'échange que des
+      valeurs mesurées, jamais de code (D-004).
+- [ ] **Critère d'arrêt** : si 22a trouve, sur les logs à pleine cadence, un écart de plus de 1 dB sous 250 Hz pour une
+      version du firmware ou un type de filtre, s'arrêter et revenir vers Cédric avant 22e.
 
 ---
 
