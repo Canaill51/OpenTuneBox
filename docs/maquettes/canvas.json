@@ -1,0 +1,154 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-11-13T21:40:00Z"
+ },
+ "title": "OpenTuneBox — refonte navigation et mise en page",
+ "launch": {
+  "view": "canvas"
+ },
+ "pages": [],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "A · Modifier un fragment (extraction depuis la blackbox)",
+   "is_interactive": true
+  },
+  "OngletsReponse.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "B · Onglets à deux niveaux — Réponse indicielle"
+  },
+  "DroneAssistant.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "C · Espace par drone — Assistant"
+  },
+  "TableauDeBord.dc.html": {
+   "x": 0,
+   "y": 1900,
+   "w": 1440,
+   "h": 900,
+   "title": "Tableau de bord — drones et fragments",
+   "is_interactive": true
+  },
+  "Spectre.dc.html": {
+   "x": 1520,
+   "y": 1900,
+   "w": 1440,
+   "h": 900,
+   "title": "Spectre — analyse spectrale"
+  },
+  "BruitFiltres.dc.html": {
+   "x": 3040,
+   "y": 1900,
+   "w": 1440,
+   "h": 900,
+   "title": "Bruit et filtres — espace fusionné (Spectre, × gaz, × temps, Simulateur)",
+   "is_interactive": true
+  },
+  "Application.dc.html": {
+   "x": 0,
+   "y": 3800,
+   "w": 1440,
+   "h": 900,
+   "title": "Prototype complet — toute l’application",
+   "is_interactive": true
+  },
+  "JaugesReponse.dc.html": {
+   "x": 1520,
+   "y": 3800,
+   "w": 1280,
+   "h": 900,
+   "title": "Réponse indicielle — mesures en jauges (essai)",
+   "is_interactive": true
+  },
+  "JaugesReponseB.dc.html": {
+   "x": 2880,
+   "y": 3800,
+   "w": 1280,
+   "h": 900,
+   "title": "Réponse indicielle — variante : un repère par fragment",
+   "is_interactive": true
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "OngletsReponse.dc.html",
+  "DroneAssistant.dc.html",
+  "TableauDeBord.dc.html",
+  "Spectre.dc.html",
+  "BruitFiltres.dc.html",
+  "Application.dc.html",
+  "JaugesReponse.dc.html",
+  "JaugesReponseB.dc.html"
+ ],
+ "notes": {
+  "titre": {
+   "x": 0,
+   "y": -300,
+   "text": "OpenTuneBox — trois pistes de navigation",
+   "kind": "title1",
+   "maxW": 4480
+  },
+  "noteA": {
+   "x": 0,
+   "y": 980,
+   "w": 440,
+   "text": "A · Hors menu : écran d’extraction / édition d’un fragment, ouvert depuis le crayon de la timeline ou à l’ouverture d’une blackbox. Poignées bleues = début et fin, réglables aussi à l’image près dans le panneau Fragment."
+  },
+  "noteB": {
+   "x": 1520,
+   "y": 980,
+   "w": 440,
+   "text": "B · Trois modes en haut, onglets dessous. Les logs deviennent des pastilles à cocher pour les outils qui comparent. Panneau droit à onglets : Réglages / Diagnostic / Curseurs."
+  },
+  "noteC": {
+   "x": 3040,
+   "y": 980,
+   "w": 440,
+   "text": "C · Tout part du drone : ses logs rangés par rôle (filtres, séries PID) avec leur état. Assistant en cartes triées par gravité, mesure contre seuil en jauge, OK repliés."
+  },
+  "titreDash": {
+   "x": 0,
+   "y": 1640,
+   "text": "Nouveaux écrans : tableau de bord, spectre, bruit et filtres",
+   "kind": "title1",
+   "maxW": 4480
+  },
+  "noteDash": {
+   "x": 0,
+   "y": 2880,
+   "w": 440,
+   "text": "Clic sur une carte : le panneau de droite s’ouvre avec les fragments du drone en timeline, le plus récent en haut. Le rond « + » ajoute le fragment à la sélection (il devient ✓). Croix pour fermer."
+  },
+  "noteSpec": {
+   "x": 1520,
+   "y": 2880,
+   "w": 440,
+   "text": "Spectre : bande Analyse commune, grille R/P/Y (spectre complet + volet droit), filtré en trait plein, avant filtres en tirets, couleur de chaque fragment. Diagnostic du bruit en tête du panneau."
+  },
+  "noteBF": {
+   "x": 3040,
+   "y": 2880,
+   "w": 440,
+   "text": "Bruit et filtres : Gyro / Terme D, trois vues en onglets, panneau des filtres modifiable (« et si ») qui remplace le Simulateur. Encombrement prévu en cyan sur la colonne FINAL.02, réglage actuel en pointillés blancs."
+  },
+  "titreApp": {
+   "x": 0,
+   "y": 3540,
+   "text": "Prototype complet de l’application",
+   "kind": "title1",
+   "maxW": 1440
+  }
+ },
+ "designSystems": []
+}

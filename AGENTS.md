@@ -21,7 +21,7 @@ Contexte, options écartées et preuves : `docs/decisions.md`.
   (`docs/spec-*.md`). Seule exception : les icônes [Lucide](https://lucide.dev) (ISC) dans `rust/otb-gui/assets/icons/`, avec leur licence. D-004, D-005
 - **Scripts firmware** (chantier conditionnel : de vrais logs INAV ou ArduCopter d'abord) : chaîne décrite en **données**, briques
   en **Rust compilé** (jamais de moteur de script) ; rien du code des firmwares (GPL 3) dans le dépôt ; **Betaflight seul** d'ici là. D-062
-- **Dessin de l'interface** : le **prototype complet de l'application** (canevas de Cédric, hors dépôt) fait foi — mesures, couleurs et
+- **Dessin de l'interface** : le **prototype complet de l'application** (`docs/maquettes/Application.dc.html`) fait foi — mesures, couleurs et
   contenu s'y relèvent ; thème clair identique, thème sombre dérivé ; tout écart se justifie par écrit. D-060, D-061
 - **Les sources sont citées sans nommer leurs auteurs** : une entrée `[S…]` de `docs/spec-methodes.md` garde titre, date, lien et
   citation, jamais de nom de personne — ni là, ni dans le code, ni dans les textes affichés. **Exception** : les **ouvrages

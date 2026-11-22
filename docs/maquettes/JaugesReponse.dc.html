@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Réponse indicielle — mesures en jauges</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&amp;family=Ubuntu+Mono&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1f57c3}a:hover{color:#163f8f}
+button{font-family:inherit}
+
+
+.otb-chip{position:relative;height:30px;flex:none;transition:min-width .18s ease}
+.otb-chip-card{position:absolute;top:0;left:0;right:0;box-sizing:border-box;border-radius:16px;overflow:hidden;z-index:30;transition:box-shadow .18s ease, border-radius .18s ease}
+.otb-chip-details{max-height:0;overflow:hidden;transition:max-height .2s ease}
+.otb-chip:hover,.otb-chip:focus-within{min-width:210px;z-index:60}
+.otb-chip:hover .otb-chip-card,.otb-chip:focus-within .otb-chip-card{z-index:61}
+.otb-chip:hover .otb-chip-card,.otb-chip:focus-within .otb-chip-card{border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.14)}
+.otb-chip:hover .otb-chip-details,.otb-chip:focus-within .otb-chip-details{max-height:200px}
+.otb-dragging .otb-chip{min-width:0 !important}
+.otb-dragging .otb-chip-details{max-height:0 !important}
+.otb-dragging .otb-chip-card{box-shadow:none !important;border-radius:16px !important}
+.otb-frag-details{max-height:0;overflow:hidden;transition:max-height .2s ease}
+.otb-frag:hover .otb-frag-details,.otb-frag:focus-within .otb-frag-details{max-height:320px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 900px; box-sizing: border-box; background: #f3f3f3; color: #1b1b1b; font-family: Ubuntu, sans-serif; font-weight: 400; font-size: 14px; display: flex; flex-direction: column; overflow: hidden">
+<main style="flex: 1; min-height: 0; padding: 26px 32px; display: flex; flex-direction: column; gap: 16px; overflow: auto">
+<div style="display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #5c5c5c">Réponse indicielle · mesures en jauges</span><h1 style="margin: 0; font-size: 22px; font-weight: 400">Chaque fragment face à la cible</h1></div>
+<div role="group" aria-label="Axe" style="display: flex; gap: 2px; padding: 3px; background: #e4e7ec; border-radius: 7px"><button type="button" onClick="{{ ax.r.go }}" style="border: 0; border-radius: 5px; padding: 5px 14px; font-size: 13px; cursor: pointer; background: {{ ax.r.bg }}; color: {{ ax.r.fg }}; font-weight: {{ ax.r.fw }}; box-shadow: {{ ax.r.sh }}">Roll</button><button type="button" onClick="{{ ax.p.go }}" style="border: 0; border-radius: 5px; padding: 5px 14px; font-size: 13px; cursor: pointer; background: {{ ax.p.bg }}; color: {{ ax.p.fg }}; font-weight: {{ ax.p.fw }}; box-shadow: {{ ax.p.sh }}">Pitch</button><button type="button" onClick="{{ ax.y.go }}" style="border: 0; border-radius: 5px; padding: 5px 14px; font-size: 13px; cursor: pointer; background: {{ ax.y.bg }}; color: {{ ax.y.fg }}; font-weight: {{ ax.y.fw }}; box-shadow: {{ ax.y.sh }}">Yaw</button></div>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 12.5px; color: #5c5c5c">
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 26px; height: 10px; border-radius: 5px; background: rgba(19,122,44,.16)"></span>zone visée</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 2px; height: 16px; background: #1b1b1b"></span>cible</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 26px; height: 10px; border-radius: 5px; background: #f58231"></span>mesure du fragment</span>
+</div></div>
+<div style="background: #ffffff; border: 1px solid #e1e3e8; border-radius: 10px; padding: 14px 20px 6px">
+<div style="display: grid; grid-template-columns: 230px repeat(3, minmax(0, 1fr)); column-gap: 28px; padding-bottom: 10px; border-bottom: 1px solid #e1e3e8"><span style="font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #5c5c5c; align-self: end">Mesure</span><div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; padding: 0 4px"><span style="width: 12px; height: 12px; border-radius: 50%; background: #e6194b"></span>FINAL<span style="font-weight: 400; font-size: 12.5px; color: #5c5c5c">JeNo Ced</span></div><div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; padding: 0 4px"><span style="width: 12px; height: 12px; border-radius: 50%; background: #f58231"></span>FINAL.02<span style="font-weight: 400; font-size: 12.5px; color: #5c5c5c">JeNo Ced</span></div><div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; padding: 0 4px"><span style="width: 12px; height: 12px; border-radius: 50%; background: #e6c619"></span>LAST<span style="font-weight: 400; font-size: 12.5px; color: #5c5c5c">JeNo Ced</span></div></div>
+<sc-for list="{{ rows }}" as="row" hint-placeholder-count="11">
+<div style="display: grid; grid-template-columns: 230px repeat(3, minmax(0, 1fr)); column-gap: 28px; align-items: center; padding: 9px 0; border-bottom: 1px solid #e1e3e8">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13.5px; font-weight: 500">{{ row.name }}</span><span style="font-size: 11.5px; color: #5c5c5c">cible <b style="color: #1b1b1b; font-weight: 500">{{ row.ttxt }}</b> · échelle {{ row.scale }}</span></div>
+<sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 5px; padding: 0 4px">
+<div style="display: flex; align-items: baseline; gap: 6px"><span style="font-family: 'Ubuntu Mono', monospace; font-size: 15px; color: #1b1b1b">{{ c.txt }}</span><span style="font-size: 11.5px; color: #5c5c5c">{{ row.unit }}</span><span style="margin-left: auto; font-size: 12px; font-weight: 500; color: {{ c.stCol }}">{{ c.st }}</span></div>
+<div role="img" aria-label="{{ c.aria }}" style="position: relative; height: 12px; border-radius: 6px; background: #e4e7ec">
+<div style="position: absolute; top: 0; bottom: 0; left: {{ row.zl }}; width: {{ row.zw }}; background: rgba(19,122,44,.16)"></div>
+<div style="position: absolute; top: 2px; bottom: 2px; left: {{ c.fl }}; width: {{ c.fw }}; border-radius: 4px; background: {{ c.color }}"></div>
+<div style="position: absolute; top: -4px; bottom: -4px; left: {{ row.ml }}; width: 2px; margin-left: -1px; background: #1b1b1b; display: {{ row.md }}"></div>
+<div style="position: absolute; top: -3px; bottom: -3px; left: {{ row.m2 }}; width: 2px; margin-left: -1px; background: #1b1b1b; display: {{ row.m2d }}"></div>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #5c5c5c">Même échelle pour une mesure dans toutes les colonnes. Valeurs et cibles d’exemple.</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1280, "height": 900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { ax: 0 }; }
+  renderVals() {
+    const ROWS = [{"key": "pic", "name": "Pic", "unit": "", "vals": [[1.04, 1.26, 1.31], [1.05, 1.33, 1.36], [1.02, 1.07, 1.06]], "lo": 0.9, "hi": 1.5, "kind": "band", "a": 1.0, "b": 1.15, "ttxt": "1,00 – 1,15", "dec": 2}, {"key": "lat", "name": "Latence (50 %)", "unit": "ms", "vals": [[13.8, 8.7, 8.7], [13.7, 8.5, 8.6], [12.6, 8.0, 8.2]], "lo": 0, "hi": 20, "kind": "le", "a": 10, "b": null, "ttxt": "≤ 10 ms", "dec": 1}, {"key": "ret", "name": "Retard consigne → gyro", "unit": "ms", "vals": [[14.8, 4.0, 3.4], [14.3, 4.9, 0.8], [9.2, 5.1, 4.6]], "lo": 0, "hi": 20, "kind": "le", "a": 6, "b": null, "ttxt": "≤ 6 ms", "dec": 1}, {"key": "mont", "name": "Temps de montée (10–90 %)", "unit": "ms", "vals": [[15.5, 11.2, 10.8], [15.6, 11.9, 11.3], [26.7, 20.1, 19.6]], "lo": 0, "hi": 30, "kind": "le", "a": 14, "b": null, "ttxt": "≤ 14 ms", "dec": 1}, {"key": "cass", "name": "Cassure (ripple)", "unit": "", "vals": [[0.006, -0.105, -0.08], [0.031, -0.017, -0.02], [0.074, 0.01, 0.0]], "lo": -0.15, "hi": 0.15, "kind": "band", "a": -0.02, "b": 0.02, "ttxt": "−0,02 – 0,02", "dec": 3}, {"key": "bp", "name": "Bande passante", "unit": "Hz", "vals": [[38, 61, 64], [36, 58, 60], [22, 30, 31]], "lo": 0, "hi": 100, "kind": "ge", "a": 50, "b": null, "ttxt": "≥ 50 Hz", "dec": 0}, {"key": "ps", "name": "Pic de sensibilité", "unit": "dB", "vals": [[5.1, 7.2, 7.6], [5.4, 7.0, 7.5], [3.9, 4.5, 4.6]], "lo": 0, "hi": 12, "kind": "le", "a": 6, "b": null, "ttxt": "≤ 6 dB", "dec": 1}, {"key": "fps", "name": "Fréq. du pic de sensibilité", "unit": "Hz", "vals": [[31, 36, 38], [30, 35, 37], [18, 21, 22]], "lo": 0, "hi": 100, "kind": "info", "a": null, "b": null, "ttxt": "information", "dec": 0}, {"key": "mp", "name": "Marge de phase", "unit": "°", "vals": [[58, 41, 38], [56, 43, 39], [70, 64, 63]], "lo": 0, "hi": 90, "kind": "ge", "a": 45, "b": null, "ttxt": "≥ 45°", "dec": 0}, {"key": "mg", "name": "Marge de gain", "unit": "dB", "vals": [[12.1, 8.4, 7.9], [11.8, 8.7, 8.1], [15, 13, 12.6]], "lo": 0, "hi": 20, "kind": "ge", "a": 6, "b": null, "ttxt": "≥ 6 dB", "dec": 1}, {"key": "fc", "name": "Fréquence de croisement", "unit": "Hz", "vals": [[24, 39, 42], [23, 37, 40], [14, 19, 20]], "lo": 0, "hi": 80, "kind": "ge", "a": 30, "b": null, "ttxt": "≥ 30 Hz", "dec": 0}], FR = [{"name": "FINAL", "color": "#e6194b"}, {"name": "FINAL.02", "color": "#f58231"}, {"name": "LAST", "color": "#e6c619"}];
+    const ax = this.state.ax;
+    const pct = (r, x) => Math.max(0, Math.min(100, (x - r.lo) / (r.hi - r.lo) * 100));
+    const fmt = (x, d) => x.toFixed(d).replace('.', ',').replace('-', '−');
+    const rows = ROWS.map((r) => {
+      let zl = 0, zw = 0, ml = 0, md = 'none', m2 = 0, m2d = 'none';
+      if (r.kind === 'le') { zl = 0; zw = pct(r, r.a); ml = zw; md = 'block'; }
+      else if (r.kind === 'ge') { zl = pct(r, r.a); zw = 100 - zl; ml = zl; md = 'block'; }
+      else if (r.kind === 'band') { zl = pct(r, r.a); zw = pct(r, r.b) - zl; ml = zl; md = 'block'; m2 = pct(r, r.b); m2d = 'block'; }
+      const zero = r.lo < 0 ? pct(r, 0) : 0;
+      const cells = FR.map((f, i) => {
+        const v = r.vals[ax][i];
+        const p = pct(r, v);
+        const fl = Math.min(zero, p), fw = Math.max(Math.abs(p - zero), 1.2);
+        let ok = null;
+        if (r.kind === 'le') ok = v <= r.a; else if (r.kind === 'ge') ok = v >= r.a; else if (r.kind === 'band') ok = v >= r.a && v <= r.b;
+        return { txt: fmt(v, r.dec), color: f.color, fl: fl + '%', fw: fw + '%',
+          st: ok === null ? '' : ok ? '✓ dans la cible' : '⚠ hors cible', stCol: ok ? '#137a2c' : '#9a5300',
+          aria: r.name + ' ' + f.name + ' : ' + fmt(v, r.dec) + ' ' + r.unit + ', cible ' + r.ttxt };
+      });
+      return { name: r.name, unit: r.unit, ttxt: r.ttxt, scale: fmt(r.lo, r.dec > 1 ? r.dec - 1 : 0) + ' – ' + fmt(r.hi, r.dec > 1 ? r.dec - 1 : 0) + (r.unit ? ' ' + r.unit : ''),
+        zl: zl + '%', zw: zw + '%', ml: ml + '%', md: md, m2: m2 + '%', m2d: m2d, cells: cells };
+    });
+    const segOn = (on, i) => ({ bg: on ? '#ffffff' : 'transparent', fg: on ? '#1b1b1b' : '#5c5c5c', fw: on ? 500 : 400, sh: on ? '0 1px 2px rgba(0,0,0,.12)' : 'none', go: () => this.setState({ ax: i }) });
+    return { rows, ax: { r: segOn(ax === 0, 0), p: segOn(ax === 1, 1), y: segOn(ax === 2, 2) } };
+  }
+}
+</script>
+</body>
+</html>

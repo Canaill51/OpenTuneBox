@@ -74,7 +74,8 @@ Règles d'écriture :
 | W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; l'écart léger du D et du notch dynamique venait de la mesure, L-103) |
 | W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
-| W-070 | Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle | ouvert (la demander à l'auteur du fork) |
+| W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
+| W-070 | ~~Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle~~ | ✅ CLOS (2026-11-22) — retrouvée dans le canevas claude.ai de Cédric |
 | W-069 | Place des traces (« Courbes ») dans le rail du prototype | ouvert (à trancher par Cédric au lot 30) |
 | W-068 | Assistant (`rules.rs:predict_filter_change`) : effet d'un changement de filtres encore estimé par le rapport des réponses \|H\|² (D-008), alors que la page Filtres rejoue la chaîne (D-058) ; les deux peuvent se contredire (notch dynamique ajouté, RPM coupé) | TRAITÉ le 2026-11-22 (D-059 : l'assistant rejoue, le rapport ne sert plus que sans gyro non filtré) |
 | W-067 | Contrôle par étage, logs enregistrés une boucle sur 2 ou moins : 24 bandes du notch dynamique et du bloc gyro où le modèle filtre plus que le firmware (jusqu'à +4,5 dB), sur des drones qui vibrent fort ; repliement supposé | ouvert (vols de calibration à faire sur le premier drone moyen logué à 2 kHz) |
@@ -1102,7 +1103,11 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   30b) — on verra alors si les traces y ont leur place ou s'il leur faut la leur.
   [`rust/otb-gui/src/viewer_page.rs`]
 
-- **W-070** — **La maquette qui fait foi pour le dessin (D-061) n'est pas dans le dépôt.** Le « prototype complet de
+- ~~**W-070** — **La maquette qui fait foi pour le dessin (D-061) n'est pas dans le dépôt.**~~
+  ✅ **CLOS (2026-11-22)** — Cédric a retrouvé le lien de son canevas claude.ai « OpenTuneBox — refonte navigation et
+  mise en page » : neuf planches, dont le **prototype complet** (`Application.dc.html`, planche « Prototype complet —
+  toute l'application »). Copié le même jour, à la demande de Cédric, dans [maquettes/](maquettes/README.md) (sans les 44
+  images d'exemple du canevas). Texte d'origine : Le « prototype complet de
   l'application » du canevas du 2026-11-16 a servi à écrire le rail et le tableau de bord dans le fork
   `GerryNatif/OpenTuneBox` ; Cédric ne l'a pas (2026-11-22). D-061 oblige pourtant à suivre ce dessin au détail près.
   **Pourquoi reporté** : rien à reprendre ici sans le document ; le dessin déjà codé reste juste.
@@ -1160,3 +1165,15 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Reprise** : point 1, fait (lot 33). Point 2, et l'ordre restant de `simulate_dterm`, au prochain réenregistrement des références (W-028), ou
   au lot 23, dont la description unique de la chaîne donne la simulation dans le temps avec la cadence de chaque étape.
   [`rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm`]
+
+## Origine : réponses de Cédric après la vérification USB (2026-11-22)
+
+- **W-073** — ⏸ **BLOQUÉ — d'autres vols de calibration (W-067).** **Conseiller aux pilotes un log à chaque boucle PID et `blackbox_high_resolution`** pour les vols de
+  filtres. Le lot 22 le prévoyait « si 22a à 22f le justifient » ; le Guide conseille déjà `FFT_FREQ`
+  (`rust/otb-advisor/src/log_check.rs`).
+  **Pourquoi reporté** : décision de Cédric du 2026-11-22. Les logs enregistrés une boucle sur 2 ou moins montrent
+  encore des écarts non expliqués (W-067), et `blackbox_high_resolution` n'a jamais été mesuré : un conseil qui coûte
+  de la mémoire au pilote doit d'abord prouver son gain.
+  **Risque si on n'y touche pas** : un pilote enregistre à une cadence où le contrôle par étage est moins sûr.
+  **Reprise** : quand les vols de W-067 sont faits ; alors compétence `guide-integre`.
+  [`rust/otb-advisor/src/drone_card.rs`]
