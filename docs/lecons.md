@@ -60,6 +60,22 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-102 : le firmware calcule la cadence du notch dynamique en `float`, et l'arrondi change le sous-échantillonnage de sa SDFT : la cadence exacte fausse le suivi
+- **Symptôme** — 2026-11-22 (lot 22c) : en rejouant le suivi des pics du notch dynamique, rien n'avertit ; mais avec la cadence
+  exacte, les centres rejoués de 42 sessions s'écartent des centres enregistrés (`FFT_FREQ`) : 14,9 Hz médian au lieu de 5,6, part à
+  moins d'une case 0,47 au lieu de 0,78, 104 notchs sur 107 moins bien suivis.
+- **Cause** — mesurée. `sampleCount = Nyquist / maxHz` est tronqué à l'entier, et Nyquist sort d'un calcul en `float` qui diffère
+  selon la version : `1 / looptime × 1e6` (4.x, 2025.12, un peu au-dessus de la valeur exacte), `1 / (looptime × 1e-6)` (2026.6 et
+  2026.12 compilé avant le 2026-11-20 : 3 999,9998 Hz pour 4 000), exact ensuite (commit `c221e08e7`). Quand Nyquist / `maxHz` est
+  entier (500 Hz à 4 ou 8 kHz, 400 Hz à 4 kHz : 107 notchs du corpus), la 2026.6 moyenne 3 boucles au lieu de 4 : autre largeur de
+  case, autre suivi.
+- **Règle** — rejouer un calcul du firmware qui tronque un résultat en virgule flottante avec la **même** formule et le même type
+  que la version du log (`f32`, ordre des opérations), jamais avec la valeur exacte ; dater la version par l'en-tête
+  (`Firmware date`) quand la correction est sur la branche de développement.
+- **Preuve** — `rust/otb-analysis/src/dyn_notch.rs:DynNotchTracker`, test `sample_count_suit_l_arrondi_de_chaque_version`
+  (`rust/otb-analysis/tests/dyn_notch.rs`, vu échouer avec la cadence exacte) ; contre-épreuve sur le corpus dans
+  [validation.md](validation.md#suivi-du-notch-dynamique-2026-11-22-lot-22c).
+
 ### L-101 : un contrôleur surchargé tourne moins vite que son en-tête, mais calcule ses filtres pour la cadence annoncée : tous les étages paraissent « filtrer plus »
 
 - **Symptôme** — 2026-11-22 (lot 22a bis) : le contrôle par étage (`otb-dev corpus stages`) trouve deux logs où **tous** les
@@ -1238,6 +1254,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-102 | Notch dynamique rejoué : le firmware calcule sa cadence en `float` (formule différente selon la version) et tronque Nyquist / `maxHz` ; quand ce rapport est entier, la 2026.6 moyenne 3 boucles au lieu de 4 ; reproduire la formule et le type de la version du log, jamais la valeur exacte | Analyses |
 | L-101 | Contrôleur surchargé : la boucle tourne moins vite que l'en-tête (`petrel` : 1 976 Hz pour 4 000), mais le firmware calcule ses filtres pour la cadence annoncée, donc coupe plus bas en hertz réels ; le modèle doit prendre la cadence nominale (`filter_stages::model_rate_hz`), pas `FlightLog::fs` ; tous les étages qui dévient ensemble : comparer d'abord cadence mesurée et annoncée | Analyses |
 | L-100 | `gyroUnfilt` a ⌊`pid_process_denom`/2⌋ échantillons gyro d'avance sur le gyro filtré (125 µs à 8 kHz, denom 2 : filtrage et Blackbox ne tombent pas sur le même tick) : retirer ce décalage de toute comparaison `gyroUnfilt` → signal filtré avant d'accuser un filtre ; l'outil Retards l'inclut aujourd'hui | Analyses |
 | L-099 | PR de Dependabot rouge sur `le_fichier_du_depot_correspond_aux_dependances_livrees` : le fichier des licences cite les versions des crates livrées et Dependabot ne le refait pas ; sur sa branche, `otb-dev licenses`, `verify`, commit du seul fichier ; deux PR qui touchent la même ligne se gênent : refaire le fichier sur la seconde après la première fusion | Outillage |

@@ -17,6 +17,7 @@ comparer), et le noyau de `step_response` partage ce même pool. Toujours en `--
 | `… corpus rates --compare AVANT.json APRÈS.json` | sessions dont un constat a changé (texte complet, chiffres compris) ; code 1 si différence | quasi instantanée |
 | `… corpus validate [--limit N] [--start N] [-j N]` | décodeur contre `blackbox_decode` | 6 min, corpus entier, 4 fichiers à la fois |
 | `… corpus stages SCRATCH/stages.json [--dir SOUS-DOSSIER]` | modèle de filtres contre le firmware, étage par étage (lot 22) ; `--resume` : tableau seul | 14 s, corpus entier (2026-11-22, fichiers déjà lus une fois ; 43 s relevées au lot 22a) |
+| `… corpus dyntrack SCRATCH/dyntrack.json [--dir SOUS-DOSSIER]` | suivi du notch dynamique rejoué contre les centres `FFT_FREQ` (lot 22c) ; `--resume` : tableau seul | 21 s, corpus entier (2026-11-22, fichiers déjà lus une fois) |
 
 Relever la durée du premier passage et la noter ici : c'est une mesure à faire, pas à supposer.
 

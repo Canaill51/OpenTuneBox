@@ -66,12 +66,13 @@ Règles d'écriture :
 | W-054 | Comparateurs des couches hautes d'`otb-parity` (analyses, assistant, guide, réglage, ligne de commande, réglages, journaux, curseurs) toujours sans test : seuls `check_decoder` et `check_header` en ont | ouvert (fabriquer une référence Python pour ces couches est le vrai coût) |
 | W-056 | Test `au_dela_du_nombre_maximum_les_fichiers_restants_sont_abandonnes` dépendant de la vitesse : il n'attend que 5 cadres le message « N logs au plus », qui arrive après le décodage d'un fichier de plus ; rouge en CI le 2026-11-11 (PR d'essai #149) puis sur `main` après la fusion de #148 | ✅ CLOS (2026-11-12) — le test attend le message (`attendre_etat`) ; contre-preuve : décodage ralenti à la main, l'ancien test rougit à la même ligne que la CI |
 | W-055 | Cinq entrées `[S…]` de `docs/spec-methodes.md` nomment encore une personne (S4, S5, S6, S13, S16) alors que D-050 écrit « aucun nom de personne, nulle part », l'exception étant les **ouvrages publiés** | ✅ CLOS (2026-11-12, lot 21) — Cédric : « aucun nom, sauf les livres » ; noms retirés de 13 entrées (les 5 relevées et 8 trouvées en plus), D-050 précisée |
-| W-057 | Simulateur de filtres : sans debug `FFT_FREQ`, les notchs dynamiques du modèle restent à leurs centres initiaux, d'où de faux creux dès qu'on change leur nombre, leur Q ou leur plage (49 logs sur 75 du corpus) | ouvert |
+| W-057 | Simulateur de filtres : sans debug `FFT_FREQ`, les notchs dynamiques du modèle restent à leurs centres initiaux, d'où de faux creux dès qu'on change leur nombre, leur Q ou leur plage (49 logs sur 75 du corpus) | ouvert (suivi rejoué et vérifié au lot 22c ; branchement sur le simulateur à décider avec Cédric) |
 | W-058 | Notch dynamique compté actif à 2 kHz de boucle PID, alors que le firmware le coupait de la 4.3 à la 2026.6 (arrondi en `float`) | ouvert (aucun log à 2 kHz dans le corpus) |
 | W-059 | Simulateur de filtres : notchs RPM et dynamiques posés à leur position moyenne par fenêtre, pleine profondeur | ouvert |
 | W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | ouvert |
 | W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
 | W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; reste un écart léger du D et du notch dynamique) |
+| W-065 | Suivi du notch dynamique rejoué : variante 4.3 et plancher de bruit au-dessus de 60 Hz (2026.12) écrits d'après le firmware, jamais confrontés à un log | ouvert (aucun log pour les vérifier) |
 | W-064 | Simulateur affiché : filtres calculés pour la cadence mesurée (pas nominale), TPA du D ignoré, instants où le firmware force le D à zéro non écartés | ouvert (à décider avec Cédric) |
 | W-063 | LPF2 gyro coupé : le firmware moyenne les échantillons gyro avant la boucle PID, le modèle n'applique rien | ouvert (effet faible à 8k/4k) |
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
@@ -894,6 +895,12 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   dynamique en réimplémentant le suivi des pics du firmware (`flight/dyn_notch_filter.c`, `common/sdft.c`) d'après sa
   description, sans copier le simulateur externe ; à défaut, afficher un avertissement. Corriger la phrase de D-041 avec
   l'accord de Cédric.
+  **Avancement le 2026-11-22** (lot 22c) : le suivi du firmware est réimplémenté (`rust/otb-analysis/src/dyn_notch.rs`) et vérifié
+  sur 1 099 notchs du corpus ([validation.md](validation.md#suivi-du-notch-dynamique-2026-11-22-lot-22c)) : 14,4 Hz d'écart
+  médian aux centres enregistrés depuis le gyro modélisé, contre 78 Hz pour les centres initiaux. Il donne aussi les centres des
+  trois axes. **Pas encore branché** sur `simulate_gyro` ni `whatif_spectrum` : cela change des valeurs affichées et des conseils
+  de l'assistant, les tests de parité avec les références Python (`rust/otb-analysis/tests/bf_sim.rs`, `otb-parity`) et D-041,
+  donc décision de Cédric (avec W-064, en 22d et 22e).
   [`rust/otb-analysis/src/bf_filters.rs:whatif_spectrum`, `rust/otb-analysis/src/bf_filters.rs:gyro_h2`]
 
 - **W-058** — **Le notch dynamique est compté actif à 2 kHz de boucle PID, alors que le firmware le coupait de la 4.3 à
@@ -919,7 +926,8 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   filtre RPM change (Q, poids, harmoniques).
   **Reprise** : avec W-057 ou W-060.
   **Piste** : moyenne des |H|² sur des sous-fenêtres (réponse moyenne plutôt que réponse de la moyenne) ; vérifier
-  d'abord la cause avec la mesure ci-dessus.
+  d'abord la cause avec la mesure ci-dessus. Depuis le lot 22c, `dyn_notch::track_log` donne le centre de chaque notch
+  dynamique à chaque échantillon et pour chaque axe : la moyenne des |H|² peut se faire sur eux.
   [`rust/otb-analysis/src/bf_filters.rs:whatif_spectrum`]
 
 - **W-060** — **Le simulateur de filtres n'a jamais été vérifié « avant / après ».** Seul contrôle : sans changement,
@@ -974,6 +982,15 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   **Piste** : `gyro_stage_at` / `simulate_dterm_at` existent déjà ; passer `filter_stages::model_rate_hz` partout, et refaire
   les références concernées.
   [`rust/otb-analysis/src/bf_filters.rs:simulate_gyro`, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm`]
+
+- **W-065** — **Deux variantes du suivi du notch dynamique jamais confrontées à un log.** `DynNotchTracker` reproduit la 4.3
+  (plancher sur les cases intérieures, `maxHz ≥ 2 × minHz`) et le plancher compté au-dessus de 60 Hz des firmwares 2026.12
+  compilés à partir du 2026-09-05, d'après les sources du firmware. Le corpus n'a aucun log 4.3 en `FFT_FREQ`, et la plage des
+  logs 2026.12 de l'Air65 commence au-dessus de 60 Hz (la règle n'y change rien, mesuré).
+  **Pourquoi reporté** : pas de log pour les vérifier.
+  **Risque si on n'y touche pas** : centres rejoués faux pour ces versions, sans que rien ne le signale.
+  **Reprise** : premier log `FFT_FREQ` en 4.3, ou en 2026.12 avec `dyn_notch_min_hz` sous 60 Hz (passer `otb-dev corpus dyntrack`).
+  [`rust/otb-analysis/src/dyn_notch.rs:DynNotchTracker`]
 
 - **W-063** — **LPF2 gyro coupé : la moyenne du sous-échantillonnage n'est pas modélisée.** Sans LPF2, le firmware ne prend
   pas le dernier échantillon gyro mais la moyenne des `pid_process_denom` échantillons reçus depuis le filtrage précédent

@@ -62,6 +62,8 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
   denom 2), décalage d'horloge du firmware et non retard de filtre. L-100
 - Modèle contre firmware : filtres calculés pour la cadence **nominale** de l'en-tête (`filter_stages::model_rate_hz`), pas
   `FlightLog::fs` ; un contrôleur surchargé tourne moins vite qu'annoncé et coupe plus bas en hertz réels. L-101
+- Notch dynamique rejoué : calculer la cadence en `f32` **comme la version du firmware** (`dyn_notch::DynNotchTracker::new`) ;
+  quand Nyquist / `dyn_notch_max_hz` est entier, la 2026.6 moyenne 3 boucles au lieu de 4, et la cadence exacte fausse le suivi. L-102
 
 ## Assistant de réglage
 

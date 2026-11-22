@@ -7,6 +7,7 @@
 pub mod bf_filters;
 pub mod datasets;
 pub mod delay;
+pub mod dyn_notch;
 pub mod filter_stages;
 pub mod motors;
 pub mod npstat;
