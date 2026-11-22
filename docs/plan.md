@@ -60,8 +60,8 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 21
-  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22, les 29 à 32 et le 33 sont ouverts (le 28 est
-  fait) ; les **23 à 25** sont le chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
+  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22 et les 29 à 32 sont ouverts (le 28 et le 33
+  sont faits) ; les **23 à 25** sont le chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
   sortis le 2026-11-18 ; le prochain numéro libre est **34**.
 
 ## Ordre des étapes
@@ -69,12 +69,11 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
-| 2 | **33** | Terme D rejoué dans l'ordre du firmware : filtrer puis dériver (W-072) | rien ; mesurer avant de livrer |
-| 3 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 4 | **29** | Fragments : écran d'extraction, index, liste d'analyse | `otb-store` (lot 28, fait) |
-| 5 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) |
-| 6 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 |
-| 7 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | lot 30 |
+| 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
+| 3 | **29** | Fragments : écran d'extraction, index, liste d'analyse | `otb-store` (lot 28, fait) |
+| 4 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) |
+| 5 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 |
+| 6 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | lot 30 |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
 | — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
@@ -221,39 +220,6 @@ Cédric, sous GPL : D-004).
       100 et 250 Hz. **Décidé par Cédric le 2026-11-22** : ces 2 alertes sont acceptées (écart léger connu, suivi par W-062 et
       repris avec les vols 22b) ; les corrections de 22a bis passent dans le simulateur affiché avec 22d et 22e (W-064) ; 22c à
       22f peuvent reprendre. **Après 22b** : 0 alerte (les 2 venaient de l'arrondi de l'entrée, L-103).
-
----
-
-## Lot 33 : terme D rejoué dans l'ordre du firmware (Opus)
-
-**But** (Cédric, 2026-11-22) : que le terme D rejoué par la page Filtres et par l'assistant suive l'ordre du firmware —
-**filtrer `gyroADCf` puis dériver** — au lieu de dériver puis filtrer (W-072, point 1). Seul écart repris du fork qui
-touche déjà l'écran (D-062).
-
-**Branche** : `fix/dterm-filter-order`.
-
-**À lire** : [travaux-reportes.md](travaux-reportes.md) W-072, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`,
-`rust/otb-analysis/src/filter_replay.rs:replay`, `rust/otb-analysis/src/filter_stages.rs` (étage D), [lecons.md](lecons.md)
-L-071, L-104 ; firmware : `flight/pid.c` (`pidController`, chaîne D puis `delta`), lu, jamais copié (D-004).
-
-**Pourquoi l'effet devrait être faible** : deux filtres linéaires fixes commutent ; l'ordre ne compte que quand la coupure
-du LPF1 D dynamique suit les gaz (actif par défaut, 75–150 Hz), et au premier échantillon. Le contrôle par étage du D
-reste sous 0,5 dB (lot 22b). C'est à **chiffrer**, pas à supposer.
-
-- [ ] **Mesurer d'abord** : écart entre les deux ordres sur le corpus (`otb-dev corpus replay`, compétence
-      `calculs-corpus`), par bande de fréquences, en isolant les vols où les gaz bougent beaucoup ; chiffres dans
-      [validation.md](validation.md), **montrés à Cédric avant de livrer**.
-- [ ] **Corriger** le chemin du rejeu (page Filtres, assistant) et l'étage D du contrôle par étage, puis relancer
-      `otb-dev corpus stages` : il ne doit pas se dégrader.
-- [ ] ⚠️ `simulate_dterm` est aussi comparé aux **références Python figées** (`rust/otb-analysis/tests/bf_sim.rs`,
-      `otb-parity`, tolérance 1e-12), qui dérivent avant de filtrer : soit la correction laisse ce chemin-là intact,
-      soit les références divergent — à décider avec Cédric, jamais en affaiblissant le test.
-- [ ] **Contre-preuve** (L-071) : un log fabriqué avec un LPF1 D dynamique et des gaz qui varient, où les deux ordres
-      diffèrent ; le test rougit avec l'ancien ordre, vu en échec.
-- [ ] **Assistant** : le bruit prévu change un peu (D-059) ; vérifier sur le corpus qu'aucun constat ne bascule
-      (`otb-dev corpus rates`). Captures de la page Filtres si la courbe D bouge à l'œil.
-- [ ] **Critère d'arrêt** : un écart plus grand que 0,5 dB sous 250 Hz, ou un constat de l'assistant qui bascule →
-      s'arrêter et revenir vers Cédric avec le log et le chiffre.
 
 ---
 
@@ -659,3 +625,4 @@ prouvés.**
 La migration Python → Rust elle-même, terminée le 2026-11-04, garde son propre document :
 [migration-rust.md](migration-rust.md) (phases, preuves d'équivalence, verdict du prototype d'interface).
 | 28 | 2026-11-18 | **Bibliothèque de données** (branche `feat/data-library`) : crate `otb-store`, six tables en **fichiers JSON** dans `bibliotheque/` — drones, logs connus, fragments, `diff all` datés, mesures avec leur version de calcul, liste d'analyse. Un seul module d'accès ; un fichier illisible ou plus récent est mis de côté, jamais écrasé. 15 tests, **5 contre-preuves vues en échec** (mise de côté, version plus récente, péremption des mesures, doublon de log, réglages identiques). Volumes mesurés dans [validation.md](validation.md) | la table des mesures pèse 8 Mo et met 959 ms à se lire au volume plein : **à charger à la demande au lot 31** (noté dans ce lot) |
+| 33 | 2026-11-22 | **Terme D rejoué dans l'ordre du firmware** (branche `fix/dterm-filter-order`, W-072 point 1) : `simulate_dterm_at` (page Filtres, assistant, contrôle par étage) filtre puis dérive ; `simulate_dterm` garde l'ancien ordre pour les références Python (`otb-parity` 0 écart). Mesuré sur 676 sessions : quelques centièmes de dB au plus sur les spectres exacts, contrôle par étage du D inchangé, **aucun constat de l'assistant ne bascule** ([validation.md](validation.md#ordre-du-terme-d-2026-11-22-lot-33)). Contre-preuve : l'ancien ordre s'écarte de 1,3 % d'un D « firmware » écrit pas à pas (test rouge), L-108 | W-072 point 2 et l'ordre de `simulate_dterm` : au réenregistrement des références (W-028) ou au lot 23 |

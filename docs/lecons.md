@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-108 : comparer deux modèles par la courbe « actuel » du rejeu, arrondie comme le log, grossit l'écart des logs dont le D est sous l'unité
+
+- **Symptôme** — 2026-11-22 (lot 33) : l'ordre du terme D (filtrer puis dériver) change la courbe « actuel » du D de
+  **+0,38 dB** (20–100 Hz) sur `1. PTB/NAiTiNAiN/03Hover.bbl` et de +0,25 dB sur un vol de `1. PTB/ram`, alors que leurs gaz
+  bougent à peine (2 et 0 % entre 10e et 90e centile) et que l'ordre ne devrait compter que quand ils bougent beaucoup.
+- **Cause** — mesurée. Sur les spectres **bruts** du D rejoué, les deux ordres diffèrent de 0,001 dB au plus sur ces vols.
+  Leur D enregistré est minuscule (moyenne quadratique 0,5 à 1 unité, 90 à 100 % des valeurs sous 1,5) ; la courbe « actuel »
+  arrondit le D rejoué à l'unité comme le Blackbox (L-103, L-105) : presque tout le signal est alors dans l'arrondi, et un
+  changement infime en fait basculer une grande partie.
+- **Règle** — pour juger l'effet d'un changement de **modèle**, comparer les spectres exacts des deux versions (ou écarter les
+  logs dont le signal arrondi est de l'ordre du pas) ; l'écart au log de la courbe « actuel » (`otb-dev corpus replay`) ne sert
+  qu'à juger le modèle contre le firmware.
+- **Preuve** — [validation.md](validation.md#ordre-du-terme-d-2026-11-22-lot-33).
+
 ### L-107 : un fork qui tient ses registres de son côté reprend les mêmes numéros que `main` : la fusion passe, le test des documents refuse
 - **Symptôme** — 2026-11-22, reprise du fork `GerryNatif/OpenTuneBox` (parti de la 0.10.0) : le code fusionne sans un seul
   conflit, mais `decisions.md`, `plan.md`, `travaux-reportes.md` et `validation.md` en ont, et les deux côtés ont créé
@@ -1344,6 +1358,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-108 | Deux modèles comparés par la courbe « actuel » du rejeu, arrondie comme le log : sur un D enregistré sous l'unité, un changement de 0,001 dB en paraît 0,38 ; comparer les spectres exacts | Analyses |
 | L-107 | Fork qui numérote ses registres de son côté : mêmes D-, W-, lots que `main` avec d'autres sens ; renuméroter ceux du fork, dans les registres et les seuls fichiers qu'il a touchés | Outillage |
 | L-106 | Durée d'une session prise pendant un passage du corpus en parallèle (32 s) ≠ son coût seul (0,45 s) : mesurer seul, `-j 1`, et copier le binaire « avant » avant de toucher au code | Outillage |
 | L-105 | Rapport case par case de deux spectres qui portent chacun un bruit d'arrondi (rejeux arrondis comme le log) : biaisé vers le haut, tout changement de filtres « ajoutait » du bruit ; calculer le rapport sur les signaux exacts, l'arrondi ne sert qu'à la courbe comparée au log | Analyses |

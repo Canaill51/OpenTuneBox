@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use std::f64::consts::PI;
 use std::path::PathBuf;
 
-use otb_analysis::bf_filters::{GyroStage, gyro_stage, gyro_stage_at, pre_boost_throttle, simulate_dterm};
+use otb_analysis::bf_filters::{GyroStage, gyro_stage, gyro_stage_at, pre_boost_throttle, simulate_dterm_at};
 use otb_analysis::filter_stages::{
     InputNoise, Stage, StageCheck, StageSignals, check_stages, clock_offset_s, compare, model_rate_hz, stage_signals,
     tpa_d_factor,
@@ -159,7 +159,7 @@ fn fabricated(debug: &str, filtered_with: Option<&Settings>) -> FlightLog {
         set_row(&mut log.gyro, ax, &g);
     }
     // terme D : chaîne D du firmware sur le gyro enregistré, gain Kd × TPA inconnu de l'outil
-    let d = simulate_dterm(&log, Some(&fw), None).unwrap();
+    let d = simulate_dterm_at(&log, Some(&fw), None, FS).unwrap();
     for ax in 0..3 {
         let v: Vec<f64> = d.row(ax).iter().map(|x| x * 0.0173).collect();
         set_row(&mut log.d_term, ax, &v);
@@ -573,7 +573,7 @@ fn le_d_suit_le_tpa_des_gaz_d_avant_le_boost() {
         .concat(),
     );
     let tpa = tpa_d_factor(&log.settings, &x).unwrap();
-    let d = simulate_dterm(&log, None, None).unwrap();
+    let d = simulate_dterm_at(&log, None, None, FS).unwrap();
     for ax in 0..3 {
         let v: Vec<f64> = d.row(ax).iter().zip(&tpa).map(|(v, f)| v * f * 0.0173).collect();
         set_row(&mut log.d_term, ax, &v);

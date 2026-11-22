@@ -1,7 +1,7 @@
 //! Contrôle du modèle de filtres **étage par étage** contre le firmware (lot 22a du plan).
 //!
 //! Pour chaque étage dont le log enregistre l'entrée et la sortie, le modèle d'OpenTuneBox (les étages de
-//! [`crate::bf_filters::simulate_gyro`] et de [`crate::bf_filters::simulate_dterm`]) filtre l'entrée **enregistrée**, et l'on
+//! [`crate::bf_filters::simulate_gyro`] et de [`crate::bf_filters::simulate_dterm_at`]) filtre l'entrée **enregistrée**, et l'on
 //! compare son résultat à la sortie **enregistrée**. Les erreurs ne s'additionnent pas d'un étage à l'autre : un écart
 //! désigne un filtre précis. Points de mesure du firmware (`sensors/gyro_filter_impl.c`, `flight/pid.c`) :
 //!
