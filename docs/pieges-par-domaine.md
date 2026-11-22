@@ -58,6 +58,8 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²
   à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
   `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log. D-008, L-011, L-024
+- `gyroUnfilt` contre un signal filtré : retirer d'abord ⌊`pid_process_denom`/2⌋ / fréquence gyro (125 µs à 8 kHz,
+  denom 2), décalage d'horloge du firmware et non retard de filtre. L-100
 
 ## Assistant de réglage
 

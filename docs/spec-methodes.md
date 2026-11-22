@@ -156,6 +156,16 @@ ils viennent du bruit (`validation.md`).
 - **Consigne → gyro**, par axe : maximum de l'intercorrélation dans ±100 ms, interpolation parabolique sous
   l'échantillon ; axe ignoré si l'écart-type de la consigne est < 5 °/s.
 
+## Contrôle du modèle de filtres (`rust/otb-analysis/src/filter_stages.rs`)
+
+- Un étage à la fois : le modèle (étages de `bf_filters::gyro_stage`, chaîne de `simulate_dterm`) filtre l'entrée enregistrée,
+  on compare sa sortie à la sortie enregistrée ; points de mesure dans l'en-tête du module (`GYRO_SAMPLE`, `FFT_FREQ`, terme D).
+- H = Sxy/Sxx du firmware et du modèle (Welch, Hann d'environ 0,5 s, recouvrement de moitié, aucune fenêtre sur un trou) ; par
+  bande (5–50, 50–100, 100–250, 250–500 Hz, au-delà) : gain moyen en dB pondéré par la cohérence, écart, retard tiré de la
+  phase, cohérence moyenne (bande concluante à 0,5), résidu (énergie de sortie − modèle sur énergie de sortie).
+- Décalage d'horloge de `gyroUnfilt` retiré : ⌊`pid_process_denom` / 2⌋ ticks gyro (L-100). Terme D : log à chaque boucle PID,
+  D sans D max ; gain Kd × TPA ajusté sur 10–50 Hz. Logs à 1,6 kHz ou plus (D-057). Résultats : `validation.md`.
+
 ## Autres outils
 
 - Erreur PID : histogramme par axe, écart-type robuste (1,4826 × MAD) ; |erreur| moyenne selon la déflexion

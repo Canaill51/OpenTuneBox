@@ -60,6 +60,32 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-100 : `gyroUnfilt` a un échantillon gyro d'avance sur le signal filtré quand `pid_process_denom` vaut 2 ou plus : on croit à un retard de filtre
+
+- **Symptôme** — 2026-11-22 : en rejouant le modèle de la chaîne gyro (`simulate_gyro`) sur `gyroUnfilt` et en le comparant
+  au gyro enregistré, le gain concorde à 0,2 dB près jusqu'à 250 Hz, mais le vrai gyro est **en retard d'environ 0,11 ms**
+  (0,105 à 0,127 ms) sur le modèle, **constant de 5 à 250 Hz**. Trois logs du même whoop (`Cedric/Air65/Test BF Chirp`,
+  Betaflight 2026.12, gyro 8 kHz, `pid_process_denom` 2, log à chaque boucle PID, debug `FFT_FREQ`). On cherche
+  alors un défaut dans un filtre.
+- **Cause** — mesurée, et lue dans le firmware : le décalage n'est pas dans les filtres mais dans l'**horloge**. Dans
+  `fc/core.c`, `taskGyroSample` lit un échantillon à chaque tick du gyro ; le filtrage tourne quand `gyroFilterReady`
+  (compteur multiple de `pid_process_denom`), la boucle PID — et `blackboxUpdate` avec elle — quand `pidLoopReady`
+  (compteur égal à `pid_process_denom / 2`), donc **⌊denom/2⌋ ticks plus tard**. Entre-temps, un nouvel échantillon est
+  arrivé, et le Blackbox écrit `gyroUnfilt = gyro.gyroADC`, le plus récent (`blackbox/blackbox.c`), alors que le gyro
+  filtré vient du précédent. À 8 kHz avec un denom de 2 : 125 µs. Preuve que les filtres n'y sont pour rien : entre
+  deux signaux calculés au même moment, plus aucun décalage (`debug[0]` → gyro, notch dynamique seul : 0,00 ms ; gyro
+  → `axisD`, filtres D : −0,02 ms). La formule ⌊denom/2⌋ / fréquence gyro est **déduite du code** ; seul le denom 2
+  est mesuré. Avec un denom de 1, filtrage et boucle PID tombent sur le même tick : pas de décalage.
+- **Règle** — toute comparaison entre `gyroUnfilt` et un signal filtré (retard des filtres, fonction de transfert,
+  vérification du simulateur) retire d'abord ⌊`pid_process_denom` / 2⌋ / fréquence gyro du retard mesuré (ou la phase
+  correspondante) ; ce n'est souvent qu'une demi-période du log, donc pas un décalage d'échantillons entiers. L'outil
+  Retards (`rust/otb-analysis/src/delay.rs:compute_delays`) mesure justement `gyroUnfilt` → gyro : son retard gyro
+  contient ce décalage (déduit, pas encore mesuré sur l'outil lui-même ; correction prévue au lot 22 du plan).
+- **Preuve** — essai jetable du 2026-11-22 (programme hors dépôt : fonctions de transfert de Welch, entrée et sortie
+  enregistrées contre entrée et sortie du modèle), mêmes chiffres sur les trois logs ; sources du firmware lues :
+  `fc/core.c` (`taskGyroSample`, `gyroFilterReady`, `pidLoopReady`, `taskMainPidLoop`), `blackbox/blackbox.c`. Plan :
+  [plan.md](plan.md), lot 22.
+
 ### L-099 : une PR de Dependabot qui change une crate livrée est rouge, car elle ne refait pas `THIRD-PARTY-LICENSES.txt`
 
 - **Symptôme** — 2026-11-17 : les PR #154 (`rfd` 0.17.2 → 0.18.0) et #156 (`flate2` 1.1.10 → 1.1.11, `zip`), ouvertes par
@@ -1187,6 +1213,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-100 | `gyroUnfilt` a ⌊`pid_process_denom`/2⌋ échantillons gyro d'avance sur le gyro filtré (125 µs à 8 kHz, denom 2 : filtrage et Blackbox ne tombent pas sur le même tick) : retirer ce décalage de toute comparaison `gyroUnfilt` → signal filtré avant d'accuser un filtre ; l'outil Retards l'inclut aujourd'hui | Analyses |
 | L-099 | PR de Dependabot rouge sur `le_fichier_du_depot_correspond_aux_dependances_livrees` : le fichier des licences cite les versions des crates livrées et Dependabot ne le refait pas ; sur sa branche, `otb-dev licenses`, `verify`, commit du seul fichier ; deux PR qui touchent la même ligne se gênent : refaire le fichier sur la seconde après la première fusion | Outillage |
 | L-098 | PR ouverte puis étiquetée dans la même seconde : deux passages du contrôle finissent ensemble et GitHub retient l'échec du premier, lu sans étiquette ; faire passer les passages d'une même PR dans l'ordre (`concurrency`, sans annulation) | Outillage |
 | L-097 | Étiquette déjà posée : GitHub lit `release.yml` **sur l'étiquette**, ni sur `main` ni au chemin donné ; la 0.9.0, antérieure au fichier, sortait sans rubriques. Une version ancienne se range en local, depuis les étiquettes des PR, au format de GitHub | Outillage |

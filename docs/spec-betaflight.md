@@ -81,7 +81,10 @@ Fins de liste :
 - **DYN_LPF** : [0] gyro avant notch dynamique, [1] notch 1 en Hz, [2] coupure du LPF1 gyro dynamique en Hz, [3] gyro après notch.
 - **CHIRP** : [0] phase × 5000, [1] axe ou −1, [2] fréquence × 10, [3] excitation × 1000.
 - **GYRO_SAMPLE** : [0] brut avant sous-échantillonnage, [1] après sous-échantillonnage, [2] après RPM,
-  [3] après notchs statiques + LPF1, [4] CPU % (2025.12+).
+  [3] après notchs statiques + LPF1, [4] CPU % (2025.12+). Même disposition depuis 2020 (4.2) ; les quatre valeurs sont
+  écrites dans la même fonction de filtrage, sans décalage d'horloge entre elles (`gyroUnfilt`, lui, en a un : L-100).
+- Les champs debug sont arrondis au °/s (`lrintf`) : `blackbox_high_resolution` ne multiplie par 10 que le gyro,
+  `gyroUnfilt`, la consigne et `rcCommand` (`blackbox/blackbox.c`), jamais les champs debug.
 
 ## 2. Filtres (`src/main/common/filter.c`)
 

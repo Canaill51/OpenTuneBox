@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-057 | Contrôle du modèle de filtres par étage : seuls les logs enregistrés à **1,6 kHz ou plus** sont jugés (complète D-017, sans changer ses conseils) | 2026-11-22 |
 | D-056 | Notes de version **générées par GitHub** : titre de PR = phrase en français, une étiquette `RN: …` par PR (rubriques de `.github/release.yml`, contrôle `etiquette-pr.yml`) ; `CHANGELOG.md` supprimé ; remplace « titre de PR = nom de la branche » | 2026-11-11 |
 | D-055 | Workflows relus par `actionlint` **dans la CI** (job de `tests.yml`, version figée vérifiée par empreinte), pas installé sur le poste | 2026-11-11 |
 | D-054 | Sécurité : réglages GitHub (protections, secrets, versions immuables, CodeQL, actions autorisées), Claude refusé sur une demande de fusion venue d'un fork, `--locked` en CI, aucun `unsafe`, crochet `guard-git.sh`, essai de mutations | 2026-11-11 |
@@ -128,6 +129,25 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-22 — Calibration des filtres
+
+### D-057 : le modèle de filtres ne se juge que sur des logs enregistrés à 1,6 kHz ou plus
+
+**Tranché par Cédric** le 2026-11-22 (lot 22a de `docs/plan.md`), en validant le découpage du lot.
+
+**Contexte.** Le lot 22 compare le modèle de filtres au firmware étage par étage (`rust/otb-analysis/src/filter_stages.rs`).
+Un log plus lent ne montre pas assez du signal gyro pour juger un filtre : ce qui dépasse la moitié de sa cadence s'y replie
+(L-008), et le modèle est rejoué à la cadence du log (L-011).
+
+**Décision.**
+- `filter_stages::MIN_LOG_RATE_HZ` = 1 600 Hz (cadence annoncée par l'en-tête, `Settings::log_rate_hz`) : en dessous, tous les
+  étages sont sautés avec la raison « sous 1600 Hz (D-057) », et `otb-dev corpus stages` ne les compte pas.
+- Ne change ni les conseils d'enregistrement de D-017 (2 kHz pour un gyro à 8 kHz, `rules.log_rate_needed`), ni les autres
+  outils.
+
+**Témoins.** `rust/otb-analysis/tests/filter_stages.rs:logs_trop_lents_ou_d_variable_sautes_avec_la_raison` (log à 1 kHz : aucun
+étage contrôlé, chaque raison cite D-057).
 
 ## 2026-11-11 — Notes de version
 

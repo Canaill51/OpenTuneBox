@@ -59,6 +59,7 @@ Dans `rust/otb-analysis/src/` (noyaux de calcul dans `rust/otb-dsp/src/`).
 | `step_series.rs` | Séries de vols à un seul curseur changé (Damping, Master, Pitch Tracking, Pitch Damping) et conditions du protocole (feedforward, mode Angle, curseur I) |
 | `open_loop.rs` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.rs` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
+| `filter_stages.rs` | Contrôle du modèle de filtres étage par étage contre le firmware (canaux debug `GYRO_SAMPLE` / `FFT_FREQ`, terme D), par bande de fréquences ; lot 22 du plan, D-057 |
 | `bf_filters.rs` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si », passe-bas relevé ou coupé ; noyaux de calcul dans `rust/otb-dsp` (D-032) |
 | `numeric.rs` (d'otb-dsp), `npstat.rs` | Primitives numériques (fenêtre de Hann, moyenne glissante, flou gaussien, intercorrélation : D-032) et statistiques de numpy sur des `float32` dans `npstat.rs` (somme par paires, moyenne, écart-type, médiane, centile, histogramme) |
 | `sliders.rs` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |
@@ -187,7 +188,10 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     `corpus.csv`, une ligne par drone ; les colonnes `etat`, `taille_reelle` et `remarque` de Cédric ne sont jamais réécrites ; fichier
     écrit avec BOM, `;`, `\r\n`) ; `validate.rs` (`corpus validate [--limit N] [--start N] [--decoder CHEMIN] [-j FILS]` : lance
     `blackbox_decode` avec un délai de 180 s, compare ses CSV à notre décodeur sur l'horodatage `time`, statuts `ok` / `gap` / `slow` /
-    `rows` / `values` / `missing` / `noref` / `refhang` ; 4 fichiers à la fois par défaut, la mémoire montant à ≈ 1 Go).
+    `rows` / `values` / `missing` / `noref` / `refhang` ; 4 fichiers à la fois par défaut, la mémoire montant à ≈ 1 Go) ; `stages.rs`
+    (`corpus stages SORTIE.json [--dir SOUS-DOSSIER] [--limit N] [-j FILS]` : contrôle du modèle de filtres étage par étage,
+    une ligne par session, étage et axe ; `--resume SORTIE.json` : tableau par étage, version et type de filtre, alertes du
+    critère d'arrêt du lot 22).
 
 ## Hors périmètre (pour l'instant)
 
