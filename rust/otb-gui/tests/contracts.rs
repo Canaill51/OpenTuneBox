@@ -221,9 +221,10 @@ fn la_fenetre_se_dessine_dans_les_deux_themes_sans_log() {
 #[test]
 fn chaque_onglet_de_la_barre_a_son_icone_et_sa_couleur_comme_python() {
     use otb_gui::app::tab_icon;
-    // `gui/main_window.py:TOOLS` : (titre Rust, icône, couleur) ; « Courbes » = le visualiseur, sans couleur
+    // `gui/main_window.py:TOOLS` : (titre Rust, icône, couleur) ; « Courbes » n'a plus d'entrée (écran d'extraction,
+    // hors rail, lot 29b) ; « Configuration » prend la puce du prototype, sans couleur
     for (titre, icone, couleur) in [
-        ("Courbes", "activity", None),
+        ("Configuration", "cpu", None),
         // l'espace garde l'icône et la couleur de sa première vue (D-060)
         ("Bruit et filtres", "audio-waveform", Some("blue")),
         ("Analyse spectrale", "audio-waveform", Some("blue")),
@@ -239,9 +240,9 @@ fn chaque_onglet_de_la_barre_a_son_icone_et_sa_couleur_comme_python() {
         }
     }
     assert_eq!(
-        tab_icon("Configuration"),
+        tab_icon("Courbes"),
         None,
-        "page ouverte depuis un autre bouton : pas d'onglet à elle"
+        "le visualiseur est l'écran d'extraction, hors rail : pas d'entrée à lui"
     );
 }
 

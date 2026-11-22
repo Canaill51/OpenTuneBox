@@ -481,12 +481,14 @@ fn ouvre_config(h: &mut Harness<'static, App>) {
     attendre(h);
 }
 
+/// La Configuration a son entrée dans le rail, comme dans le prototype (D-060) : elle était cachée sous
+/// « Courbes », qui n'a plus d'entrée depuis que le visualiseur est l'écran d'extraction (lot 29b).
 #[test]
-fn la_page_configuration_est_cachee_et_s_ouvre_depuis_les_courbes() {
+fn la_page_configuration_a_son_entree_dans_le_rail() {
     let app = App::new(otb_gui::tools::all_pages());
     let p = app.pages.iter().find(|p| p.title() == "Configuration").unwrap();
-    assert!(p.hidden());
-    assert_eq!(p.tab(), "Courbes");
+    assert!(!p.hidden());
+    assert_eq!(p.tab(), "Configuration");
 }
 
 #[test]
@@ -543,17 +545,18 @@ fn deux_logs_cote_a_cote_alignes_par_nom_avec_differences_et_recherche() {
     assert!(h.query_by_label("pi_gain").is_none());
 }
 
-/// Le bouton « Courbes » de la barre est mis en valeur (état « coché » d'accesskit).
-fn courbes_en_valeur(h: &Harness<'static, App>) -> bool {
-    h.get_by_label("Courbes").accesskit_node().toggled() == Some(egui::accesskit::Toggled::True)
+/// L'entrée « Configuration » du rail est mise en valeur (état « coché » d'accesskit).
+fn configuration_en_valeur(h: &Harness<'static, App>) -> bool {
+    h.get_by_label("Configuration").accesskit_node().toggled() == Some(egui::accesskit::Toggled::True)
 }
 
+/// L'entrée du rail ouvre la page et s'allume ; sur un autre outil, elle s'éteint.
 #[test]
-fn le_bouton_configuration_du_visualiseur_ouvre_la_page_et_met_courbes_en_valeur() {
+fn l_entree_configuration_du_rail_ouvre_la_page_et_s_allume() {
     let mut h = banc(CLAIR);
-    h.state_mut().screen = Screen::Viewer;
+    h.state_mut().screen = Screen::Dashboard;
     h.run_steps(4);
-    assert!(courbes_en_valeur(&h));
+    assert!(!configuration_en_valeur(&h));
     h.get_by_label("Configuration").click();
     attendre(&mut h);
     h.run_steps(2);
@@ -564,29 +567,27 @@ fn le_bouton_configuration_du_visualiseur_ouvre_la_page_et_met_courbes_en_valeur
         )
     };
     assert_eq!(h.state().pages[i].title(), "Configuration");
-    assert!(courbes_en_valeur(&h), "« Courbes » reste mis en valeur");
-    assert!(h.query_by_label("Configuration").is_none() || h.state().pages[i].hidden());
+    assert!(configuration_en_valeur(&h));
     h.get_by_label("Firmware");
-    // sur un autre outil, « Courbes » n'est plus mis en valeur
     let j = h.state().pages.iter().position(|p| p.title() == "Assistant").unwrap();
     h.state_mut().screen = Screen::Tool(j);
     attendre(&mut h);
-    assert!(!courbes_en_valeur(&h));
+    assert!(!configuration_en_valeur(&h));
 }
 
+/// Sans log, l'entrée ouvre quand même la page, qui invite à ouvrir un log (comme toutes les entrées du rail).
 #[test]
-fn le_bouton_configuration_sans_log_demande_d_ouvrir_un_log() {
+fn l_entree_configuration_sans_log_invite_a_ouvrir_un_log() {
     let app = App::new(otb_gui::tools::all_pages());
     let mut h = Harness::builder()
         .with_size(egui::vec2(1600.0, 950.0))
         .with_context_setup(otb_gui::app::setup)
         .build_ui_state(|ui, a: &mut App| a.ui(ui), app);
-    h.state_mut().screen = Screen::Viewer;
     h.run_steps(4);
     h.get_by_label("Configuration").click();
     h.run_steps(4);
-    assert_eq!(h.state().screen, Screen::Viewer);
-    h.get_by_label("Ouvrez d'abord un log Blackbox.");
+    assert!(matches!(h.state().screen, Screen::Tool(_)));
+    h.get_by_label("Ouvrez un log pour commencer.");
 }
 
 #[test]

@@ -163,6 +163,11 @@ pub struct Fragment {
     pub role: String,
     /// Date du vol (ISO), utilisée pour ranger l'historique d'une mesure.
     pub date: String,
+    /// Les bornes ont été **choisies** dans l'écran d'extraction. Tant que ce n'est pas le cas, elles suivent les
+    /// limites automatiques du vol (décollage → atterrissage, `otb_analysis::period::auto_period`) à chaque
+    /// ouverture : un fragment rangé d'office n'a rien décidé, il ne doit pas figer un calcul qui peut s'améliorer.
+    /// Absent des fichiers écrits avant le lot 29b : lu comme `false`, ce qui est juste (personne n'avait pu choisir).
+    pub chosen: bool,
 }
 
 impl Fragment {
@@ -176,6 +181,7 @@ impl Fragment {
             ("nom", self.name.clone().into()),
             ("role", self.role.clone().into()),
             ("date", self.date.clone().into()),
+            ("bornes_choisies", self.chosen.into()),
         ])
     }
 
@@ -189,6 +195,7 @@ impl Fragment {
             name: text(v, "nom"),
             role: text(v, "role"),
             date: text(v, "date"),
+            chosen: flag(v, "bornes_choisies", false),
         })
     }
 }

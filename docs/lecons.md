@@ -60,6 +60,30 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-111 : un panneau egui de largeur fixe dont le contenu est plus large s'élargit et rogne son contenu à gauche, sans erreur
+
+- **Symptôme** — 2026-11-23 (lot 29b, capture hors écran de l'écran d'extraction) : le panneau de droite de 300 points
+  commençait 45 points trop tôt et coupait le début de chaque ligne (« MENT » pour « FRAGMENT ») ; tests verts.
+- **Cause** — mesurée par la correction : une grille de cases de traces à deux colonnes, dont les noms longs (« Terme D
+  (préfiltre) », « Rotation moteurs (Hz) ») dépassaient la demi-largeur, rendait le contenu plus large que le panneau
+  (`Panel::exact_size`). Le mécanisme du rognage côté egui est **supposé** (le panneau prend la largeur de son contenu
+  après coup).
+- **Règle** — dans un panneau de largeur fixe, borner chaque élément à la largeur disponible : colonnes de grille à
+  `min_col_width` = `max_col_width`, texte abrégé (`TextWrapping::truncate_at_width`, nom entier en infobulle). Et
+  regarder la capture : aucun test ne voit ce défaut.
+- **Preuve** — `rust/otb-gui/src/viewer_page.rs:trace_check` ; captures `courbes-clair.png` avant / après.
+
+### L-110 : sur `jeno5_5s.bbl`, les limites automatiques couvrent tout le log : un test qui les oppose au vol entier ne prouve rien
+
+- **Symptôme** — 2026-11-23 (lot 29b) : la contre-preuve de `un_fragment_range_d_office_suit_les_limites_automatiques`
+  (bornes non choisies **gardées** au lieu d'être ramenées aux limites auto) laissait le test **vert**.
+- **Cause** — mesurée : ce log de 5 s est découpé en plein vol, sans décollage ni atterrissage ; `default_period` y rend
+  le premier et le dernier échantillon, si bien que « vol entier » (0..n) et « limites auto » sont la même plage.
+- **Règle** — un test qui distingue deux périodes sur `tests/data/jeno5_5s.bbl` part de bornes qui diffèrent **des
+  deux** (ici 100..n−100) ; et il n'est probant qu'après sa contre-preuve (L-071), qui seule a montré le défaut.
+- **Preuve** — `rust/otb-gui/tests/app.rs:un_fragment_range_d_office_suit_les_limites_automatiques` (rouge depuis, la
+  mise à jour des bornes retirée de `App::remember`).
+
 ### L-109 : CodeQL refuse d'afficher tout nom en « uid », même réduit à une empreinte : il juge le nom, pas la valeur
 
 - **Symptôme** — 2026-11-22 (PR #169, lot 32a) : contrôle « CodeQL » rouge, tous les tests verts ; alerte « Cleartext
@@ -1375,6 +1399,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-111 | Panneau egui de largeur fixe au contenu plus large (grille, noms longs) : il s'élargit et rogne le début des lignes, sans erreur ; borner colonnes et textes à la largeur, regarder la capture | Interface |
+| L-110 | Sur `jeno5_5s.bbl`, limites auto = log entier (log coupé en plein vol) : un test qui les oppose au vol entier passe quoi qu'il arrive ; partir de bornes qui diffèrent des deux, et faire la contre-preuve | Tests |
 | L-109 | CodeQL prend tout nom en « uid » pour un identifiant de compte et refuse qu'on l'affiche, même en empreinte : nommer l'identifiant de la carte `chip_id`, l'afficher en empreinte, jamais en entier dans le dépôt | Outillage |
 | L-108 | Deux modèles comparés par la courbe « actuel » du rejeu, arrondie comme le log : sur un D enregistré sous l'unité, un changement de 0,001 dB en paraît 0,38 ; comparer les spectres exacts | Analyses |
 | L-107 | Fork qui numérote ses registres de son côté : mêmes D-, W-, lots que `main` avec d'autres sens ; renuméroter ceux du fork, dans les registres et les seuls fichiers qu'il a touchés | Outillage |

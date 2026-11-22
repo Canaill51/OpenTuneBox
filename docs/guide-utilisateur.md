@@ -56,44 +56,63 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   « LOG » (ACTUAL 200 / 200 / 0, limite d'angle 30° en mode Angle), roll et pitch mêlés (retard des filtres, réponse des PID). OpenTuneBox découpe les deux parties tout
   seul.
 
-## 4. Le visualiseur (fenêtre principale)
+## 4. La fenêtre, et les courbes du vol
 
 - **Titre de la fenêtre** : le nom du programme suivi de sa **version** (« OpenTuneBox 0.9.0 ») — utile pour savoir
   laquelle vous utilisez avant de signaler un problème.
 - **Barre du haut** : ouvrir et fermer les logs, la case **Thème sombre** et l'icône qui exporte la fenêtre en
   image. Elle n'agit que sur les logs et sur la fenêtre.
-- **Rail de navigation à gauche** : les boutons **Tableau de bord**, **Guide**, **Courbes**, **Analyse spectrale**,
-  **Réponse indicielle**…, chacun avec sa couleur, l'un sous l'autre. Survolez un bouton pour sa description.
-  Les pages du Guide désignent les mêmes outils par un nom plus court (« Spectre », « Filtres », « Visualiseur »).
+- **Rail de navigation à gauche** : **Tableau de bord**, **Guide**, **Assistant**, **Bruit et filtres**,
+  **Réponse indicielle**, **Curseurs PID** et **Configuration**, chacun avec sa couleur, l'un sous l'autre.
+  Survolez une entrée pour sa description.
 - **Un clic dans le rail** remplace l'affichage par l'outil choisi, dans la même fenêtre
-  (aucune nouvelle fenêtre) ; l'entrée de l'affichage en cours est mise en valeur. **Courbes** ramène aux
-  courbes du vol. Un outil garde ses réglages et ses résultats quand on passe à un autre.
+  (aucune nouvelle fenêtre) ; l'entrée de l'affichage en cours est mise en valeur. Un outil garde ses réglages et
+  ses résultats quand on passe à un autre.
 - **Tableau de bord** : une carte par drone que le logiciel a déjà vu — son nom, sa taille, où il en est du parcours
   de réglage, son nombre de **fragments** et la date du dernier vol. Cliquer une carte ouvre à droite la liste de ses
   fragments, du plus récent en haut ; le rond **+** rouvre le vol correspondant sans passer par la boîte de fichiers,
-  et une coche verte marque ceux qui sont déjà ouverts. Le logiciel retient ces drones et ces vols **d'un lancement à
-  l'autre** : un drone est reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un
-  fragment couvrant le vol entier.
+  une coche verte marque ceux qui sont déjà ouverts, et le **crayon** ouvre les courbes du fragment pour en
+  régler les limites. Le logiciel retient ces drones et ces vols **d'un lancement à l'autre** : un drone est
+  reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un fragment.
 - **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
   **Fréq. × temps** et le **Et si** des filtres. Ses onglets, en haut de la page, passent de l'une à l'autre sans
-  repasser par le rail. Configuration, elle, s'ouvre depuis le bouton en bas du panneau de droite du visualiseur.
-- **Traces** à gauche, rangées par groupe (Gyro, Consigne et PID, Autres, Moteurs). Les traces que le log
-  ne contient pas sont masquées.
-- **Période d'analyse** : la zone claire, affichée sur les graphiques roll, pitch, yaw et moteurs (le reste
-  du vol est grisé). Tous les outils n'analysent que cette zone. Elle est choisie automatiquement (du
-  décollage à l'atterrissage, en s'arrêtant avant un crash) ; déplacez ses bords à la souris sur n'importe
-  quel graphique pour l'ajuster (les autres suivent ; au survol, une info-bulle indique le bord et son
-  temps), **Période auto** pour revenir au calcul automatique.
-  Chaque log ouvert garde sa propre période.
+  repasser par le rail.
+
+### Les courbes du vol et les limites du fragment
+
+Ouvrir un log mène à cet écran, qui occupe toute la fenêtre (sans le rail). On y revient par le **crayon** d'un
+fragment au tableau de bord, ou par le bouton **Visualiseur** du Guide. Les pages du Guide l'appellent
+« Visualiseur ».
+
+- **Barre du haut** : la flèche de retour, le drone, le fichier et la session, puis **Modifier le fragment …**.
+  À droite, la lune change de thème, **Annuler** revient sans rien changer, **Enregistrer le fragment** garde les
+  limites choisies et revient à l'écran d'où l'on venait.
+- **Le fragment** : le morceau du vol que **tous les outils analysent** (la « période d'analyse »). Il est choisi
+  automatiquement, du décollage à l'atterrissage, en s'arrêtant avant un crash. Ses limites sont les traits bleus
+  « Début » et « Fin » ; le reste du vol est voilé. Tirez un trait (ou sa poignée) sur n'importe quel graphique
+  pour l'ajuster. Dans le panneau de droite, section **Fragment** : son **nom**, son **rôle** (Filtres ou Série
+  PID, que le Guide reprend), le **début** et la **fin** — les flèches avancent ou reculent de 0,1 s, la valeur se
+  tape ou se glisse à l'échantillon près —, la **durée**, **Limites auto** pour revenir au calcul automatique et
+  **Session entière** pour tout prendre.
+- ⚠️ **Rien ne change avant « Enregistrer le fragment »** : tant que vous tirez les limites, les outils gardent
+  l'ancienne période. Une fois enregistré, le fragment est retenu d'un lancement à l'autre : rouvrir le même
+  fichier retrouve ses limites. Un log sans nom de machine n'est rangé sous aucun drone : ses limites valent alors
+  pour la séance seulement (le panneau le dit). Chaque log ouvert garde son propre fragment.
+- **Barre de navigation**, sous les graphiques : le log entier (le profil des gaz), le fragment en bleu, et la
+  **fenêtre visible** dans un cadre. Glissez le cadre pour vous déplacer, tirez ses poignées pour l'élargir ou la
+  resserrer, cliquez ailleurs pour y sauter. **Vue entière** montre tout le log, **Cadrer le fragment** le
+  fragment seul.
 - **Mesurer** : mesure l'écart de temps entre deux points, en millisecondes, et la fréquence correspondante
   en hertz (1 / écart), par exemple la période d'une oscillation. Enfoncez le bouton, puis cliquez deux
   points sur un graphique roll, pitch ou yaw : deux repères violets apparaissent sur les trois axes, et le
-  résultat s'affiche en haut des graphiques et à côté du bouton. Glissez un repère pour ajuster ; un
+  résultat s'affiche en haut des graphiques et à droite de la barre d'outils. Glissez un repère pour ajuster ; un
   nouveau clic recommence la mesure ; désenfoncez le bouton pour l'effacer.
-- **Lecteur** : curseur temporel, manches et valeurs à l'instant choisi ; ▶ pour rejouer le vol.
-- **Affichage** (section repliable d'un clic sur son titre, à droite) : lissage et épaisseur des traces. Le
-  thème clair ou sombre se change par la case **Thème sombre** de la barre du haut, pas ici.
-- Zoom : molette ; déplacement : clic-glisser ; **Vue entière** pour tout revoir.
+- **Traces** (panneau de droite) : une case par courbe, avec sa couleur ; les traces que le log ne contient pas
+  sont masquées.
+- **Affichage** (section repliée) : échelle verticale, lissage et épaisseur des traces.
+- **Lecteur** : début et fin du fragment, image par image, ▶ pour rejouer le vol ; **Au curseur** (section
+  repliée) : les manches et les valeurs à l'instant choisi.
+- Zoom : molette ; déplacement : clic-glisser sur un graphique.
 - **Tous / Roll / Pitch / Yaw** : un seul axe sur toute la hauteur.
 
 ## 5. Les outils
@@ -221,7 +240,7 @@ l'échelle de PIDtoolbox, **−50 à 20 dB**, la même que la page Spectre : les
 se lisent l'une contre l'autre.
 
 ### Infos de configuration (Configuration)
-Bouton **Configuration** en bas du panneau de droite du visualiseur. Tous les réglages des logs côte à côte ; les différences sont surlignées (« Seulement les différences »).
+Entrée **Configuration** du rail. Tous les réglages des logs côte à côte ; les différences sont surlignées (« Seulement les différences »).
 
 ### Assistant de réglage (Assistant)
 Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, filtres, moteurs,

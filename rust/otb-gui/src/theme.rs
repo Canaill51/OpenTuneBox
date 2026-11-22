@@ -75,8 +75,10 @@ pub struct Theme {
     pub fg: Color32,
     /// Opacité de la grille (0 à 1).
     pub grid: f32,
-    /// Zones hors période.
+    /// Zones hors période, sur les graphiques du visualiseur (maquette : noir à 7 %).
     pub shade: Color32,
+    /// Voile de la barre de navigation, hors de la fenêtre visible (maquette : `rgba(20,24,32,.10)`).
+    pub veil: Color32,
     /// Fond translucide des légendes posées sur un graphique.
     pub legend_fill: Color32,
     pub ui: Ui,
@@ -88,7 +90,8 @@ pub const CLAIR: Theme = Theme {
     bg: hex(0xffffff),
     fg: hex(0x1b1b1b),
     grid: 0.22,
-    shade: Color32::from_rgba_unmultiplied_const(128, 128, 128, 90),
+    shade: Color32::from_rgba_unmultiplied_const(0, 0, 0, 18),
+    veil: Color32::from_rgba_unmultiplied_const(20, 24, 32, 26),
     legend_fill: Color32::from_rgba_unmultiplied_const(255, 255, 255, 190),
     ui: Ui {
         window: hex(0xf3f3f3),
@@ -116,7 +119,9 @@ pub const SOMBRE: Theme = Theme {
     bg: hex(0x1e1f22),
     fg: hex(0xe2e2e2),
     grid: 0.18,
-    shade: Color32::from_rgba_unmultiplied_const(0, 0, 0, 110),
+    // thème sombre dérivé (D-061) : un noir plus dense, seul à se voir sur un fond déjà sombre
+    shade: Color32::from_rgba_unmultiplied_const(0, 0, 0, 70),
+    veil: Color32::from_rgba_unmultiplied_const(0, 0, 0, 90),
     legend_fill: Color32::from_rgba_unmultiplied_const(30, 31, 34, 190),
     ui: Ui {
         window: hex(0x2b2d31),

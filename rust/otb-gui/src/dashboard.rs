@@ -29,6 +29,8 @@ pub enum DashAction {
     OpenDialog,
     /// Ouvrir ce fichier de log (connu de la bibliothèque, pas forcément ouvert).
     Open(PathBuf),
+    /// Crayon d'un fragment : l'écran d'extraction sur ce fragment (son log est ouvert d'abord s'il le faut).
+    Edit { fragment: String, path: PathBuf },
 }
 
 // ---------------------------------------------------------------- mesures relevées dans la maquette
@@ -515,6 +517,17 @@ impl DashboardPage {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(&f.name).size(14.0).strong().color(th.ui.text));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            // le crayon de la maquette : régler les limites du fragment dans l'écran d'extraction
+                            let label = format!("Modifier les limites de {}", f.name);
+                            let crayon = egui::Button::image(icon("pencil", 14.0).tint(th.ui.muted).alt_text(label))
+                                .fill(egui::Color32::TRANSPARENT)
+                                .stroke(egui::Stroke::NONE);
+                            if ui.add(crayon).on_hover_text("Modifier les limites").clicked() {
+                                actions.push(DashAction::Edit {
+                                    fragment: f.id.clone(),
+                                    path: chemin.to_path_buf(),
+                                });
+                            }
                             ui.label(RichText::new(&f.date).size(12.0).color(th.ui.muted));
                         });
                     });
