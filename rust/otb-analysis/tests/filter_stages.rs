@@ -237,6 +237,65 @@ fn lpf2_calcule_a_la_cadence_gyro() {
     assert!(wrong > 0.35, "cadence du log non distinguée : {wrong} dB");
 }
 
+/// Une ligne sur deux (la seconde de chaque paire) : `Rows` d'un log qui n'enregistre qu'une boucle PID sur deux.
+fn every_other(r: &Rows) -> Rows {
+    let n = r.n / 2;
+    let mut out = rows(r.k, n);
+    for i in 0..r.k {
+        let v: Vec<f64> = (0..n).map(|j| r.row(i)[2 * j + 1] as f64).collect();
+        set_row(&mut out, i, &v);
+    }
+    out
+}
+
+/// Le log fabriqué à 4 kHz (filtres « firmware » à la cadence PID), dont on ne garde qu'une boucle sur deux : log à 2 kHz.
+fn reduced_rate(debug: &str) -> FlightLog {
+    let full = fabricated(debug, None);
+    let mut log = full.clone();
+    log.settings.p_interval = (1, 2);
+    log.fs = FS / 2.0;
+    let n = full.n() / 2;
+    log.t = (0..n).map(|i| i as f64 / log.fs).collect();
+    log.throttle = (0..n).map(|j| full.throttle[2 * j + 1]).collect();
+    for (dst, src) in [
+        (&mut log.gyro, &full.gyro),
+        (&mut log.setpoint, &full.setpoint),
+        (&mut log.rc_command, &full.rc_command),
+        (&mut log.p_term, &full.p_term),
+        (&mut log.i_term, &full.i_term),
+        (&mut log.d_term, &full.d_term),
+        (&mut log.f_term, &full.f_term),
+        (&mut log.motors, &full.motors),
+        (&mut log.debug, &full.debug),
+    ] {
+        *dst = every_other(src);
+    }
+    log.gyro_unfilt = full.gyro_unfilt.as_ref().map(every_other);
+    log.motor_hz = full.motor_hz.as_ref().map(every_other);
+    log
+}
+
+#[test]
+fn filtres_de_la_boucle_pid_rejoues_a_sa_cadence_quand_le_log_en_saute() {
+    let log = reduced_rate("FFT_FREQ");
+    assert_eq!(model_rate_hz(&log.settings), FS / 2.0);
+    let r = check_stages(&log, 0..log.n()).unwrap();
+    let (e, d) = worst(find(&r.checks, Stage::GyroBlock), 250.0);
+    assert!(e < 0.01 && d < 0.005, "bloc : écart {e} dB, retard {d} ms");
+    let (e, d) = worst(find(&r.checks, Stage::DynNotch), 250.0);
+    assert!(e < 0.01 && d < 0.005, "notch dynamique : écart {e} dB, retard {d} ms");
+    // contre-preuve : le bloc calculé pour la cadence du log (2 kHz) filtre trop (L-104)
+    let (sigs, _) = stage_signals(&log, 0..log.n()).unwrap();
+    let mut block = sigs.into_iter().find(|s| s.stage == Stage::GyroBlock).unwrap();
+    let mut y = block.input.clone();
+    for st in [GyroStage::Lpf2, GyroStage::Rpm, GyroStage::StaticLpf1] {
+        y = gyro_stage(st, &log, &log.settings, y, 1).unwrap();
+    }
+    block.model = y;
+    let (e, _) = worst(&compare(&block, FS / 2.0, &[], true).unwrap(), 250.0);
+    assert!(e > 0.3, "cadence du log non distinguée : {e} dB");
+}
+
 /// Bruit blanc déterministe (variance 1).
 fn white(n: usize, seed: u64) -> Vec<f64> {
     let mut state = seed;

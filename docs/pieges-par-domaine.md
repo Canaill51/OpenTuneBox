@@ -67,8 +67,9 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Gain mesuré par S(x, y) / S(x, x) sur une entrée **arrondie** (canaux debug au °/s) : retirer pas²/12 de S(x, x), sinon le
   firmware paraît filtrer plus. Une « variable instrumentale » faite de l'entrée décalée d'un échantillon ne le corrige pas
   (même bruit, phase tournée) ; preuve directe : l'étage horloge, de gain 1. L-103
-- LPF2 gyro : calculé par le firmware pour la cadence **gyro** et appliqué à chaque échantillon gyro (depuis la 4.2), pas à la
-  cadence du log : +0,45 dB d'écart entre 250 et 500 Hz pour un PT1 à 500 Hz (`bf_filters::lpf2_at_gyro_rate`). L-104
+- Chaque filtre se rejoue à la cadence où le firmware l'applique : **gyro** pour le LPF2 (depuis la 4.2), **PID** pour les autres,
+  même quand le log saute des boucles ; à la cadence du log, il filtre trop (`bf_filters::gyro_stage_upsampled`). Échantillons
+  manquants reconstruits par sinus cardinal, jamais linéairement (passe-bas caché). L-104
 
 ## Assistant de réglage
 

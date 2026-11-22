@@ -134,7 +134,9 @@ Cédric, sous GPL : D-004).
       (L-103 : l'écart « de même signe partout » de W-062, l'écart du notch dynamique entre 250 et 500 Hz et les 2 alertes
       acceptées en venaient ; corpus : 2 alertes → 0) ; le **LPF2** était calculé pour la cadence du log et non celle du gyro (L-104,
       +0,45 dB entre 250 et 500 Hz ; s'ajoute à W-064 pour le simulateur affiché). Après correction, tous les étages sous 0,5 dB
-      jusqu'à 500 Hz. Le second vol (SVF, PT2, notch statique, notch D) n'a pas été fait : à voler si 22e en a besoin.
+      jusqu'à 500 Hz. Vols `FFT_FREQ` à 2 kHz ajoutés le même jour (Cédric loguera ses drones moyens à 2 kHz) : même défaut pour
+      RPM et LPF1, appliqués à chaque boucle PID par le firmware ; tous les filtres sont maintenant rejoués à leur cadence (L-104).
+      Restent les écarts de W-067 (drones qui vibrent fort, logs à cadence réduite), à mesurer sur le premier drone moyen. Le second vol (SVF, PT2, notch statique, notch D) n'a pas été fait : à voler si 22e en a besoin.
       Consigne d'origine : `debug_mode = GYRO_SAMPLE`,
       `gyro_filter_debug_axis = ROLL`, `blackbox_sample_rate = 1/1`, `blackbox_high_resolution = ON` (il n'affine que le gyro
       et `gyroUnfilt`, **pas** les canaux `GYRO_SAMPLE`, arrondis au °/s : un chirp plus ample aide davantage), mode angle,

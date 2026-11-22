@@ -167,8 +167,10 @@ ils viennent du bruit (`validation.md`).
   canaux debug, au 1/10 en haute résolution pour `gyroUnfilt` et le gyro), le firmware filtre la valeur exacte. Bruit blanc de
   variance pas²/12, × |2·fs·sin(πf/fs)|² pour l'entrée dérivée du D ; une case où il dépasse 10 % de Sxx sort des moyennes
   (`MAX_INPUT_NOISE_SHARE`). Sans cela, le gain du firmware paraît plus faible d'environ 10·log10(cohérence) (L-103).
-- LPF2 gyro du modèle à la cadence gyro (`bf_filters::lpf2_at_gyro_rate`) : échantillons gyro absents du log interpolés
-  linéairement, filtre calculé pour la cadence gyro, sortie gardée au dernier échantillon ; 0,04 dB au plus sous 250 Hz (L-104).
+- Filtres du modèle à la cadence où le firmware les applique (`bf_filters::gyro_stage_upsampled`) : la cadence gyro pour le LPF2,
+  la cadence PID pour RPM, notchs statiques, LPF1 et notch dynamique quand le log saute des boucles. Échantillons absents du log
+  reconstruits par sinus cardinal fenêtré (Hann, ±16 échantillons), valeurs lues dans le log (gaz, eRPM, centres) tenues ; sortie
+  gardée aux échantillons enregistrés (L-104).
 - Décalage d'horloge de `gyroUnfilt` retiré : ⌊`pid_process_denom` / 2⌋ ticks gyro (L-100). Terme D : log à chaque boucle PID,
   D sans D max ; gain Kd ajusté sur 10–50 Hz, facteur TPA de chaque instant appliqué au modèle (gaz d'avant le throttle boost,
   `filter_stages::tpa_d_factor`, `bf_filters::pre_boost_throttle`) ; instants où le firmware force le D à zéro (PID coupé,
