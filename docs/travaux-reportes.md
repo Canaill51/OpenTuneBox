@@ -72,6 +72,7 @@ Règles d'écriture :
 | W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | ouvert |
 | W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
 | W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (effet faible) |
+| W-063 | LPF2 gyro coupé : le firmware moyenne les échantillons gyro avant la boucle PID, le modèle n'applique rien | ouvert (effet faible à 8k/4k) |
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
 | W-051 | Pistes écartées par la mesure : plan FFT recréé (8 à 15 µs), fenêtres de FFT en parallèle (gain sur 1 à 3 ms), calculs portés sur la carte graphique (plus lent que le processeur à cette échelle) | 🚫 sans suite (2026-11-04, mesuré) |
@@ -951,3 +952,14 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   **Reprise** : si une mesure montre un écart sur les vols à gaz très variables.
   **Piste** : retirer le boost (`throttle_boost`, `throttle_boost_cutoff`) en le recalculant depuis les gaz loggés.
   [`rust/otb-analysis/src/bf_filters.rs:throttle_frac`]
+
+- **W-063** — **LPF2 gyro coupé : la moyenne du sous-échantillonnage n'est pas modélisée.** Sans LPF2, le firmware ne prend
+  pas le dernier échantillon gyro mais la moyenne des `pid_process_denom` échantillons reçus depuis le filtrage précédent
+  (`sensors/gyro.c`, `sampleSum` ; `sensors/gyro_filter_impl.c`) : un petit passe-bas (gain cos(π f / cadence gyro) pour un
+  denom de 2). `gyro_stage(GyroStage::Lpf2)` et `gyro_chain` n'appliquent alors rien. Vu en lisant le firmware pour le lot 22a.
+  **Pourquoi reporté** : hors du découpage de 22a, qui mesure sans corriger ; effet calculé −0,04 dB à 250 Hz pour 8 kHz / 4 kHz.
+  **Risque si on n'y touche pas** : un peu trop de bruit haute fréquence prévu quand le LPF2 est coupé, davantage avec un denom
+  de 4 ou plus.
+  **Reprise** : quand 22a mesure l'étage LPF2 sur un vol `GYRO_SAMPLE` au LPF2 coupé (22b), ou avec la correction des écarts du lot 22.
+  **Piste** : moyenne glissante de `pid_process_denom` échantillons à la cadence gyro, ramenée à la cadence du log.
+  [`rust/otb-analysis/src/bf_filters.rs:gyro_stage`, `rust/otb-analysis/src/bf_filters.rs:gyro_chain`]

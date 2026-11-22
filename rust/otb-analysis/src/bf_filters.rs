@@ -641,53 +641,100 @@ pub fn fft_freq_centres(log: &FlightLog, settings: Option<&Settings>) -> Option<
     Some(Matrix64 { k: count, n, data })
 }
 
+/// Étages de la chaîne gyro du firmware, dans son ordre (`sensors/gyro.c`, `sensors/gyro_filter_impl.c`). Chacun correspond à
+/// un intervalle entre deux points de mesure du debug `GYRO_SAMPLE` ou `FFT_FREQ` (contrôle par étage, lot 22 du plan).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GyroStage {
+    /// LPF2 (filtre de sous-échantillonnage, cadence gyro dans le firmware).
+    Lpf2,
+    /// Notchs RPM.
+    Rpm,
+    /// Notchs statiques 1 et 2 puis LPF1.
+    StaticLpf1,
+    /// Notchs dynamiques, aux centres du debug `FFT_FREQ` (sans eux : rien n'est appliqué).
+    DynNotch,
+}
+
+impl GyroStage {
+    /// Les quatre étages, dans l'ordre du firmware.
+    pub const ALL: [GyroStage; 4] = [
+        GyroStage::Lpf2,
+        GyroStage::Rpm,
+        GyroStage::StaticLpf1,
+        GyroStage::DynNotch,
+    ];
+}
+
+/// `gyro_stage` : un étage du modèle appliqué à `x` (`k` lignes de même longueur, à la cadence du log). Mêmes
+/// approximations que [`simulate_gyro`], qui n'est que la suite des quatre étages.
+pub fn gyro_stage(
+    stage: GyroStage,
+    log: &FlightLog,
+    s: &Settings,
+    mut x: Vec<f64>,
+    k: usize,
+) -> Result<Vec<f64>, String> {
+    let (fs, n) = (log.fs, x.len().checked_div(k).unwrap_or(0));
+    match stage {
+        GyroStage::Lpf2 => lowpass_sim(x, k, n, &s.gyro_lpf2, &throttle_frac(log), fs),
+        GyroStage::Rpm => {
+            if let Some(mhz) = log.motor_hz.as_ref().filter(|_| s.rpm_harmonics > 0) {
+                let q = s.rpm_q as f64 / 100.0;
+                let kk = if s.rpm_lpf_hz > 0 {
+                    pt1_gain(s.rpm_lpf_hz as f64, fs)
+                } else {
+                    1.0
+                };
+                for m in 0..mhz.k {
+                    let row: Vec<f64> = mhz.row(m).iter().map(|&v| v as f64).collect();
+                    let tracked = pt1_track(&row, kk);
+                    for h in 0..s.rpm_harmonics {
+                        let (f, w) = rpm_notch_freq_weight(&tracked, h, s, s.pid_rate_hz())?;
+                        if !w.iter().any(|&v| v > 0.0) {
+                            continue;
+                        }
+                        x = apply(&x, k, n, Kind::Notch, &f, fs, q, &w)?;
+                    }
+                }
+            }
+            Ok(x)
+        }
+        GyroStage::StaticLpf1 => {
+            let nyq = nyquist(s)?;
+            for &(center, cutoff) in s.gyro_notches.iter().take(2) {
+                if let Some(sp) = static_notch(center, cutoff, nyq) {
+                    x = apply(&x, k, n, Kind::Notch, &[sp.f_hz], fs, sp.q, &[1.0])?;
+                }
+            }
+            lowpass_sim(x, k, n, &s.gyro_lpf1, &throttle_frac(log), fs)
+        }
+        GyroStage::DynNotch => {
+            if dyn_notch_enabled(s)
+                && let Some(centres) = fft_freq_centres(log, Some(s))
+            {
+                let q = s.dyn_notch_q as f64 / 100.0;
+                for r in 0..centres.k {
+                    let c = centres.row(r);
+                    if q > 0.0 && c.iter().any(|&v| v > 0.0) {
+                        x = apply(&x, k, n, Kind::Notch, c, fs, q, &[1.0])?;
+                    }
+                }
+            }
+            Ok(x)
+        }
+    }
+}
+
 /// `simulate_gyro` : rejoue la chaîne de filtres gyro sur `gyro_unfilt` (`3 × n`) → gyro filtré simulé. Mêmes approximations
 /// que Python : filtres calculés à la cadence du log, ceux au-delà de 0,48·fs ignorés ; notchs RPM variables (fréquences
 /// moteur lissées par le PT1 du firmware) ; LPF dynamique selon les gaz ; notchs dynamiques d'après le debug FFT_FREQ.
 pub fn simulate_gyro(log: &FlightLog, settings: Option<&Settings>) -> Result<Matrix64, String> {
     let gu = log.gyro_unfilt.as_ref().ok_or("pas de gyro non filtré dans ce log")?;
     let s = settings.unwrap_or(&log.settings);
-    let (fs, k, n) = (log.fs, gu.k, gu.n);
-    let thr = throttle_frac(log);
+    let (k, n) = (gu.k, gu.n);
     let mut x = Matrix64::from_rows(gu).data;
-
-    x = lowpass_sim(x, k, n, &s.gyro_lpf2, &thr, fs)?;
-    if let Some(mhz) = log.motor_hz.as_ref().filter(|_| s.rpm_harmonics > 0) {
-        let q = s.rpm_q as f64 / 100.0;
-        let kk = if s.rpm_lpf_hz > 0 {
-            pt1_gain(s.rpm_lpf_hz as f64, fs)
-        } else {
-            1.0
-        };
-        for m in 0..mhz.k {
-            let row: Vec<f64> = mhz.row(m).iter().map(|&v| v as f64).collect();
-            let tracked = pt1_track(&row, kk);
-            for h in 0..s.rpm_harmonics {
-                let (f, w) = rpm_notch_freq_weight(&tracked, h, s, s.pid_rate_hz())?;
-                if !w.iter().any(|&v| v > 0.0) {
-                    continue;
-                }
-                x = apply(&x, k, n, Kind::Notch, &f, fs, q, &w)?;
-            }
-        }
-    }
-    let nyq = nyquist(s)?;
-    for &(center, cutoff) in s.gyro_notches.iter().take(2) {
-        if let Some(sp) = static_notch(center, cutoff, nyq) {
-            x = apply(&x, k, n, Kind::Notch, &[sp.f_hz], fs, sp.q, &[1.0])?;
-        }
-    }
-    x = lowpass_sim(x, k, n, &s.gyro_lpf1, &thr, fs)?;
-    if dyn_notch_enabled(s)
-        && let Some(centres) = fft_freq_centres(log, Some(s))
-    {
-        let q = s.dyn_notch_q as f64 / 100.0;
-        for r in 0..centres.k {
-            let c = centres.row(r);
-            if q > 0.0 && c.iter().any(|&v| v > 0.0) {
-                x = apply(&x, k, n, Kind::Notch, c, fs, q, &[1.0])?;
-            }
-        }
+    for stage in GyroStage::ALL {
+        x = gyro_stage(stage, log, s, x, k)?;
     }
     Ok(Matrix64 { k, n, data: x })
 }

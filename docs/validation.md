@@ -412,6 +412,48 @@ Les références figées (`$OTB_GOLDEN`) avaient disparu du poste : elles ont é
   ok 624, gap 67, slow 8, values 5, refhang 3, rows 2. Les 15 non conformes sont exactement celles de la ligne de
   base du 2026-11-04 ; l'écart sur le total vient du corpus lui-même, qui a perdu 3 fichiers (525 lus au lieu de 528).
 
+### Modèle de filtres étage par étage (2026-11-22, lot 22a, D-057)
+
+Outil : `rust/otb-analysis/src/filter_stages.rs:check_stages` (méthode dans son en-tête) ; corpus :
+`(cd rust && cargo run --release -p otb-dev -- corpus stages SORTIE.json)` (43 s pour tout le corpus, 508 sessions lues ;
+`--resume SORTIE.json` refait le tableau). Écart = gain du firmware − gain du modèle, moyenne en dB pondérée par la
+cohérence ; une bande n'est retenue que si sa cohérence moyenne atteint 0,5. Décalage d'horloge de L-100 retiré.
+
+**Logs chirp de l'Air65** (`Cedric/Air65/Test BF Chirp`, 3 logs, Betaflight 2026.12, gyro 8 kHz, PID 4 kHz, log à chaque boucle PID,
+`FFT_FREQ`, sans haute résolution) : écarts signés, du plus petit au plus grand des 3 logs (axes roll et pitch pour le D).
+
+| Étage | 5–50 Hz | 50–100 Hz | 100–250 Hz | 250–500 Hz (cohérence) |
+|---|---|---|---|---|
+| LPF2 + RPM + LPF1 (bloc) | −0,02 à +0,00 dB | −0,35 à −0,24 dB | −0,08 à +0,01 dB | +0,61 à +0,98 dB (0,52 à 0,63) |
+| notch dynamique | −0,03 à −0,00 dB | −0,49 à −0,22 dB | −0,54 à −0,25 dB | −1,34 à −1,15 dB (0,65 à 0,72) |
+| filtres D (gain ajusté sur 10–50 Hz) | ±0,01 dB | −0,81 à −0,37 dB | −0,70 à −0,05 dB | −1,85 à −1,12 dB (0,75 à 0,85) |
+
+Retard résiduel, une fois le décalage d'horloge retiré : −0,02 à +0,01 ms pour tous les étages ; résidu 0,7 à 0,9 % (gyro), 4 % (D).
+Même ordre de grandeur que l'essai jetable du plan (0,2 / 0,4 / 0,6 dB sous 250 Hz) ; la méthode diffère (moyenne par bande ici).
+Les écarts sont tous du même signe d'un log à l'autre : le firmware atténue un peu plus que le modèle entre 50 et 250 Hz.
+
+**Hypothèse écartée : un biais de la mesure.** Partout, l'écart ressemble à 10·log10(cohérence) (cohérence 0,7 → −1,5 dB), la
+signature d'un bruit sur l'**entrée** (arrondi au °/s) qui fait sous-estimer le gain. Essai : l'entrée décalée d'un échantillon
+comme référence (variable instrumentale, insensible à ce bruit). Résultat identique au centième de dB sur les 12 étages : le bruit
+d'entrée est négligeable, les écarts ne viennent pas de l'estimateur. L'écart du notch dynamique entre 250 et 500 Hz reste à expliquer.
+
+**Corpus** (aucun log `GYRO_SAMPLE` : les étages séparés attendent les vols 22b). |écart| médian et maximal, bandes concluantes :
+
+| Étage | Log | Sessions | 5–50 Hz | 50–100 Hz | 100–250 Hz |
+|---|---|---|---|---|---|
+| bloc gyro | chaque boucle PID | 15 | 0,03 (0,18) | 0,24 (2,54) | 0,19 (8,34) |
+| notch dynamique | chaque boucle PID | 15 | 0,02 (0,09) | 0,27 (2,21) | 0,42 (3,98) |
+| filtres D | chaque boucle PID | 14 (28 axes) | 0,01 (1,15) | 0,47 (4,11) | 0,62 (7,33) |
+| bloc gyro | une boucle sur 2 ou moins | 433 | 0,18 (2,67) | 0,87 (4,81) | 0,62 (5,35) |
+| notch dynamique | une boucle sur 2 ou moins | 433 | 0,12 (2,13) | 0,77 (3,24) | 0,72 (2,30) |
+
+**Critère d'arrêt du lot 22 atteint** : 7 des 18 sessions enregistrées à chaque boucle PID dépassent 1 dB sous 250 Hz
+(24 bandes) : `1. PTB/cupidstunt/petrel-85mm-issues.bbl` #2 et #4 (tous les étages ; D jusqu'à −7,3 dB, résidu D 0,36 à 0,45),
+`1. PTB/redhonu/redhonu_TMOTORVELOXF7SE.BBL` #1 (bloc +8,3 dB, notch dynamique −4,0 dB), `Cedric/BF Chirp/Air65-4.bbl` #2 (D, résidu
+0,85 à 0,9 : le modèle ne suit pas du tout la sortie), `1. PTB/StraylightFPV/KM/Filtering/011326 KM HOVER WOBBLE 5.bbl` #1 (bloc +2,3 dB,
+D −1,2 dB), `… KM HOVER 4K 3.bbl` #1 (notch dynamique −1,0 dB), `Cedric/Air65/Tune/F1.bbl` #1 (D −1,3 dB). Non examinés : suite
+décidée avec Cédric ([plan.md](plan.md), lot 22).
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui

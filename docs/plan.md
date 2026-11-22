@@ -95,14 +95,20 @@ de L-100 (0,11 ms).
 `common/sdft.c`, `fc/core.c` (lire les sources clonées, ne rien en copier ; jamais de code du simulateur externe de
 Cédric, sous GPL : D-004).
 
-- [ ] **22a — Comparaison par étage** (branche `feat/filter-stage-check`) : fonctions pures dans `otb-analysis` qui, pour
+- [x] **22a — Comparaison par étage** (branche `feat/filter-stage-check`, 2026-11-22) : fait —
+      `rust/otb-analysis/src/filter_stages.rs`, `otb-dev corpus stages`, logs à 1,6 kHz ou plus (D-057). Résultats dans
+      [validation.md](validation.md) : sur les logs chirp, écarts de 0,2 à 0,8 dB sous 250 Hz, retard résiduel nul une fois
+      L-100 retiré ; l'idée d'un biais de la mesure est testée et écartée. **Le critère d'arrêt est atteint** (ci-dessous) :
+      7 sessions sur 18 à pleine cadence dépassent 1 dB. Le texte d'origine de 22a suit.
+      Comparaison par étage : fonctions pures dans `otb-analysis` qui, pour
       un log, rendent par étage et par bande de fréquences le gain et la phase mesurés et modélisés, l'écart en dB, le
       retard en ms, la cohérence et le résidu temporel ; décalage de L-100 retiré ; étages `GYRO_SAMPLE` nommés dans
       `otb-log` quand le log en a. Test sur un log fabriqué dont les canaux debug sortent de filtres connus (écart nul),
       contre-preuve en faussant un filtre (L-071). Puis passage sur **tout le corpus `FFT_FREQ`** (compétence
       `calculs-corpus`) : écarts par version du firmware et par type de filtre, résultats dans [validation.md](validation.md).
 - [ ] **22b — Vols de calibration** (Cédric, sur l'Air65, mêmes réglages que les logs chirp) : `debug_mode = GYRO_SAMPLE`,
-      `gyro_filter_debug_axis = ROLL`, `blackbox_sample_rate = 1/1`, `blackbox_high_resolution = ON`, mode angle,
+      `gyro_filter_debug_axis = ROLL`, `blackbox_sample_rate = 1/1`, `blackbox_high_resolution = ON` (il n'affine que le gyro
+      et `gyroUnfilt`, **pas** les canaux `GYRO_SAMPLE`, arrondis au °/s : un chirp plus ample aide davantage), mode angle,
       10 s de stationnaire puis le chirp sur le roll. Un second vol avec d'autres types de filtres (BIQUAD, donc SVF en
       2026.12 ; PT2 ; un notch statique gyro ; un notch D), que le premier vol ne teste pas. Les passer dans 22a pour
       séparer LPF2, RPM et LPF1.
@@ -124,6 +130,8 @@ Cédric, sous GPL : D-004).
       valeurs mesurées, jamais de code (D-004).
 - [ ] **Critère d'arrêt** : si 22a trouve, sur les logs à pleine cadence, un écart de plus de 1 dB sous 250 Hz pour une
       version du firmware ou un type de filtre, s'arrêter et revenir vers Cédric avant 22e.
+      **Atteint le 2026-11-22** : 7 sessions sur 18 (liste dans [validation.md](validation.md)), dont deux termes D que le modèle
+      ne suit pas du tout (résidu 0,4 à 0,9). Suite à décider avec Cédric avant 22c à 22f.
 
 ---
 

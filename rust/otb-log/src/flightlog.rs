@@ -93,6 +93,22 @@ pub struct PidTerms {
     pub instrument: Option<Vec<f32>>,
 }
 
+/// Gyro d'un axe enregistré entre deux filtres par les canaux debug (°/s, arrondis à l'unité par le firmware : le réglage
+/// `blackbox_high_resolution` ne s'y applique pas).
+#[derive(Debug, Clone, Copy)]
+pub enum GyroDebugTaps<'a> {
+    /// `GYRO_SAMPLE` : avant le LPF2, après lui, après les notchs RPM, après les notchs statiques et le LPF1.
+    Sample {
+        axis: usize,
+        before_lpf2: &'a [f32],
+        after_lpf2: &'a [f32],
+        after_rpm: &'a [f32],
+        after_static: &'a [f32],
+    },
+    /// `FFT_FREQ` : avant les notchs dynamiques (après LPF2, RPM, notchs statiques et LPF1).
+    FftFreq { axis: usize, before_dyn_notch: &'a [f32] },
+}
+
 #[derive(Debug, Clone)]
 pub struct FlightLog {
     pub path: PathBuf,
@@ -761,6 +777,39 @@ impl FlightLog {
 
     pub fn debug_name(&self) -> &str {
         &self.settings.debug_mode
+    }
+
+    /// Axe des canaux debug d'un seul axe (`GYRO_SAMPLE`, `FFT_FREQ`…) : en-tête `gyro_debug_axis`, roll s'il manque.
+    /// `None` pour une valeur hors de roll, pitch, yaw.
+    pub fn gyro_debug_axis(&self) -> Option<usize> {
+        usize::try_from(self.settings.get_int("gyro_debug_axis", 0))
+            .ok()
+            .filter(|&a| a < 3)
+    }
+
+    /// Points de mesure de la chaîne gyro enregistrés dans les canaux debug, sur l'axe [`Self::gyro_debug_axis`]
+    /// (`sensors/gyro_filter_impl.c`). `None` hors des modes `GYRO_SAMPLE` et `FFT_FREQ`, ou s'il manque un canal.
+    pub fn gyro_debug_taps(&self) -> Option<GyroDebugTaps<'_>> {
+        let axis = self.gyro_debug_axis()?;
+        let row = |i: usize| (i < self.debug.k).then(|| self.debug.row(i));
+        match self.debug_name() {
+            "GYRO_SAMPLE" => Some(GyroDebugTaps::Sample {
+                axis,
+                before_lpf2: row(0)?,
+                after_lpf2: row(1)?,
+                after_rpm: row(2)?,
+                after_static: row(3)?,
+            }),
+            "FFT_FREQ" => {
+                // 4.x : centres dans debug[0..2], gyro dans debug[3] ; depuis 7 notchs (2025.12) : gyro dans debug[0]
+                let new = matches!(self.settings.family(), "2025.12" | "2026.6");
+                Some(GyroDebugTaps::FftFreq {
+                    axis,
+                    before_dyn_notch: row(if new { 0 } else { 3 })?,
+                })
+            }
+            _ => None,
+        }
     }
 
     /// Termes PID de l'axe sur `sel`, pour mesurer la boucle ouverte (`analysis/loop.py`).
