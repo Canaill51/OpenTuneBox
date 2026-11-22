@@ -5,7 +5,7 @@
 
 use egui::{Image, Vec2};
 
-pub const ICONS: [(&str, &str); 24] = [
+pub const ICONS: [(&str, &str); 28] = [
     ("activity", include_str!("../assets/icons/activity.svg")),
     ("audio-waveform", include_str!("../assets/icons/audio-waveform.svg")),
     ("book-open", include_str!("../assets/icons/book-open.svg")),
@@ -17,12 +17,16 @@ pub const ICONS: [(&str, &str); 24] = [
     ("chevron-up", include_str!("../assets/icons/chevron-up.svg")),
     ("cpu", include_str!("../assets/icons/cpu.svg")),
     ("folder-open", include_str!("../assets/icons/folder-open.svg")),
+    ("drone", include_str!("../assets/icons/drone.svg")),
     ("funnel", include_str!("../assets/icons/funnel.svg")),
     ("image-down", include_str!("../assets/icons/image-down.svg")),
     ("info", include_str!("../assets/icons/info.svg")),
     ("lightbulb", include_str!("../assets/icons/lightbulb.svg")),
     ("pause", include_str!("../assets/icons/pause.svg")),
+    ("layout-dashboard", include_str!("../assets/icons/layout-dashboard.svg")),
+    ("pencil", include_str!("../assets/icons/pencil.svg")),
     ("play", include_str!("../assets/icons/play.svg")),
+    ("plus", include_str!("../assets/icons/plus.svg")),
     ("ruler", include_str!("../assets/icons/ruler.svg")),
     ("skip-back", include_str!("../assets/icons/skip-back.svg")),
     ("skip-forward", include_str!("../assets/icons/skip-forward.svg")),

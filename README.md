@@ -18,10 +18,14 @@ part (fréquence d'enregistrement, protocole), et chaque série d'un drone est r
 
 La fenêtre principale est le **visualiseur de log** : gyro, consigne, termes P/I/D/F, moteurs, gaz, debug ;
 période d'analyse (crash exclu automatiquement), mesure de temps et de fréquence entre deux points, lecteur,
-manches, modes de vol. Chaque outil s'affiche par son bouton dans la barre d'outils, dans la même fenêtre (Fréq. × gaz et Fréq. × temps depuis
-l'outil Spectre, Configuration depuis le panneau de droite du visualiseur).
+manches, modes de vol. Chaque outil s'affiche par son entrée du **rail de navigation**, à gauche, dans la même fenêtre. Une entrée peut réunir
+plusieurs vues : **Bruit et filtres** porte le Spectre, Fréq. × gaz, Fréq. × temps et le « Et si » des filtres, qui s'atteignent par ses onglets ;
+Configuration s'ouvre depuis le panneau de droite du visualiseur.
 
-| Bouton | Ce qu'il montre |
+Quatre d'entre eux — **Analyse spectrale**, **Fréquence × gaz**, **Fréquence × temps** et **Simulateur de
+filtres** — partagent une seule entrée du rail, **Bruit et filtres**, et s'atteignent par ses onglets.
+
+| Outil | Ce qu'il montre |
 |---|---|
 | Guide | Parcours de réglage à cocher par drone (préparer, filtres, séries PID, finitions), adapté à la fiche du drone ; logs des filtres et des séries PID vérifiés à part (protocole, usages, séries, corrections dans le configurateur) |
 | Courbes | Toutes les courbes du vol, lecteur temporel, mesures au curseur |

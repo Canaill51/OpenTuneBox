@@ -72,6 +72,8 @@ Règles d'écriture :
 | W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | EN PARTIE TRAITÉ le 2026-11-22 (lot 22f, `corpus predict`) : un notch dynamique de plus, vérifié en vol sur l'Air65 ; LPF, RPM et autres drones jamais vérifiés |
 | W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
 | W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; l'écart léger du D et du notch dynamique venait de la mesure, L-103) |
+| W-070 | Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle | ouvert (la demander à l'auteur du fork) |
+| W-069 | Place des traces (« Courbes ») dans le rail du prototype | ouvert (à trancher par Cédric au lot 30) |
 | W-068 | Assistant (`rules.rs:predict_filter_change`) : effet d'un changement de filtres encore estimé par le rapport des réponses \|H\|² (D-008), alors que la page Filtres rejoue la chaîne (D-058) ; les deux peuvent se contredire (notch dynamique ajouté, RPM coupé) | TRAITÉ le 2026-11-22 (D-059 : l'assistant rejoue, le rapport ne sert plus que sans gyro non filtré) |
 | W-067 | Contrôle par étage, logs enregistrés une boucle sur 2 ou moins : 24 bandes du notch dynamique et du bloc gyro où le modèle filtre plus que le firmware (jusqu'à +4,5 dB), sur des drones qui vibrent fort ; repliement supposé | ouvert (vols de calibration à faire sur le premier drone moyen logué à 2 kHz) |
 | W-066 | Avant la 4.2, **tous** les filtres gyro tournaient à la cadence gyro ; le modèle ne rejoue ainsi que le LPF2 (L-104) | ouvert (aucun log d'avant la 4.2 à chaque boucle PID en `GYRO_SAMPLE` ou `FFT_FREQ`) |
@@ -1081,3 +1083,30 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   **Piste** : si c'est confirmé, écarter de la mesure les fréquences où un notch du firmware est actif dans les logs à cadence
   réduite, ou l'annoncer comme non mesurable.
   [`rust/otb-analysis/src/filter_stages.rs:compare`]
+
+## Origine : refonte de la navigation, lot 30 (2026-11-19)
+
+- **W-069** — **Le prototype complet de l'application n'a pas d'entrée « Courbes » dans son rail.** Ses sept entrées
+  sont Tableau de bord, Guide, Assistant, Bruit et filtres, Réponse indicielle, Curseurs PID et Configuration ; les
+  traces apparaissent par un bouton « Traces » **dans** un espace. Or le visualiseur
+  (`rust/otb-gui/src/viewer_page.rs`) est aujourd'hui une entrée à part entière, et c'est la page qu'on ouvre en
+  premier avec un log.
+  **Pourquoi reporté** : retirer une entrée de navigation que le pilote utilise tous les jours ne se décide pas en
+  lisant une maquette ; et le lot 30 peut livrer le rail sans trancher ce point (les traces gardent leur entrée en
+  attendant).
+  **Risque si on n'y touche pas** : le rail aura huit entrées là où le prototype en montre sept, donc un écart
+  visible entre la maquette qui fait foi et le programme.
+  **Reprise** : à la première question de Cédric sur le rail, ou quand l'espace « Bruit et filtres » existera (lot
+  30b) — on verra alors si les traces y ont leur place ou s'il leur faut la leur.
+  [`rust/otb-gui/src/viewer_page.rs`]
+
+- **W-070** — **La maquette qui fait foi pour le dessin (D-061) n'est pas dans le dépôt.** Le « prototype complet de
+  l'application » du canevas du 2026-11-16 a servi à écrire le rail et le tableau de bord dans le fork
+  `GerryNatif/OpenTuneBox` ; Cédric ne l'a pas (2026-11-22). D-061 oblige pourtant à suivre ce dessin au détail près.
+  **Pourquoi reporté** : rien à reprendre ici sans le document ; le dessin déjà codé reste juste.
+  **Risque si on n'y touche pas** : un écran ajouté plus tard (fragments, fiche drone, assistant en cartes) ne peut être
+  comparé qu'aux écrans déjà codés ; un écart à la maquette passerait sans être vu.
+  **Reprise** : quand l'auteur du fork fournit la maquette, ou avant le lot 29b ou la suite du lot 30, qui en dessinent
+  de nouveaux écrans.
+  **Piste** : verser des captures (ou le fichier) dans un dossier « maquettes » de `docs/`, avec leur date, et les citer dans D-061.
+  [`rust/otb-gui/src/dashboard.rs`]

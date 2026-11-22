@@ -429,6 +429,7 @@ impl Tool for FreqThrottleTool {
     type Options = Options;
     type Output = FreqThrottleOutput;
     const TITLE: &'static str = "Fréquence × gaz";
+    const SPACE: Option<&'static str> = Some(crate::tools::common::ESPACE_BRUIT);
     const HAS_VIEW: bool = true;
     const HIDDEN: bool = true;
     const TAB: Option<&'static str> = Some("Analyse spectrale");

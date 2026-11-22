@@ -278,11 +278,11 @@ fn le_bouton_du_spectre_ouvre_l_outil_sans_bouton_propre_dans_la_barre() {
     h.get_by_label("Fréq. × gaz").click();
     attendre(&mut h);
     assert_eq!(h.state().screen, Screen::Tool(1));
-    // les cartes sont là, et la barre garde « Analyse spectrale » en valeur
+    // les cartes sont là, et le rail garde l'espace « Bruit et filtres » en valeur (D-060)
     // chaque champ de la page a un nom accessible (le banc le vérifie à la fin de `run`)
     h.run();
     h.get_by_label_contains("Gyro préfiltre | jeno5_5s");
-    h.get_by_label("Analyse spectrale");
+    h.get_by_label("Bruit et filtres");
     h.get_by_label("Échelle auto").click();
     attendre(&mut h);
 }

@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
-//! Écrit `courbes-clair.png` et `courbes-sombre.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! Écrit `courbes-clair.png`, `courbes-sombre.png` et `tableau-de-bord-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
@@ -49,6 +49,16 @@ fn main() {
         h.run_steps(4);
         let img = h.render().expect("rendu");
         img.save(out.join(format!("courbes-{}.png", th.name))).unwrap();
+        // le tableau de bord : les drones que la bibliothèque a retenus en ouvrant ces logs (lot 30c)
+        h.state_mut().screen = Screen::Dashboard;
+        h.run_steps(4);
+        let drone = h.state().library.drones().first().map(|d| d.id.clone());
+        h.state_mut().dash.selected = drone;
+        h.run_steps(4);
+        h.render()
+            .expect("rendu")
+            .save(out.join(format!("tableau-de-bord-{}.png", th.name)))
+            .unwrap();
         // le guide : l'accueil, puis la phase des filtres avec la fiche du drone de ce log (fiche en mémoire, jamais le vrai fichier)
         let nom = h.state().state.logs[0].log.settings.craft_name.clone();
         let mut fiche = otb_advisor::drone_card::DroneCard::new(&nom);

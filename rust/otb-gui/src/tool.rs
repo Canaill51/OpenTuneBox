@@ -71,6 +71,9 @@ pub trait Tool {
     const HIDDEN: bool = false;
     /// Bouton de la barre qui reste mis en valeur quand cet outil est affiché (par défaut, le sien).
     const TAB: Option<&'static str> = None;
+    /// Espace auquel cet outil appartient (D-060) : le rail porte alors le nom de l'espace, pas celui de l'outil.
+    /// Plusieurs outils d'un même espace n'y font qu'**une** entrée.
+    const SPACE: Option<&'static str> = None;
 
     /// Copie les réglages de l'interface (appelé dans le thread de l'interface).
     fn options(&self) -> Self::Options;
@@ -105,12 +108,25 @@ pub trait Page {
     fn tab(&self) -> &'static str {
         self.title()
     }
+    /// Espace auquel la page appartient (D-060) : son nom est celui de l'entrée du rail.
+    fn space(&self) -> Option<&'static str> {
+        None
+    }
+    /// Nom de l'entrée du rail pour cette page : celui de son espace, sinon son titre.
+    fn entry(&self) -> &'static str {
+        self.space().unwrap_or_else(|| self.title())
+    }
     /// Un calcul est en cours (captures et tests : attendre sa fin).
     fn busy(&self) -> bool {
         false
     }
     /// Page à ouvrir ensuite (son titre), demandée pendant le dernier affichage.
     fn take_goto(&mut self) -> Option<&'static str> {
+        None
+    }
+    /// Vue d'espace demandée par ses onglets (D-060). Séparée de `take_goto` : passer d'une vue à l'autre d'un
+    /// espace déjà ouvert ne demande **pas** qu'un log soit ouvert, là où les boutons du Guide, eux, l'exigent.
+    fn take_space_goto(&mut self) -> Option<&'static str> {
         None
     }
     /// Le bouton « Exporter image » a été cliqué pendant le dernier affichage : la fenêtre exporte alors toute la page.
@@ -134,6 +150,8 @@ pub struct ToolPage<T: Tool> {
     /// Numéro de la demande mise en attente derrière le calcul en cours.
     queued: Option<u64>,
     export: bool,
+    /// Vue d'espace demandée par ses onglets au dernier affichage (D-060).
+    space_goto: Option<&'static str>,
 }
 
 impl<T: Tool> ToolPage<T> {
@@ -148,6 +166,7 @@ impl<T: Tool> ToolPage<T> {
             in_flight: 0,
             queued: None,
             export: false,
+            space_goto: None,
         }
     }
 
@@ -234,8 +253,16 @@ impl<T: Tool> Page for ToolPage<T> {
         T::TAB.unwrap_or(T::TITLE)
     }
 
+    fn space(&self) -> Option<&'static str> {
+        T::SPACE
+    }
+
     fn take_goto(&mut self) -> Option<&'static str> {
         self.tool.take_goto()
+    }
+
+    fn take_space_goto(&mut self) -> Option<&'static str> {
+        self.space_goto.take()
     }
 
     fn take_export(&mut self) -> bool {
@@ -244,6 +271,13 @@ impl<T: Tool> Page for ToolPage<T> {
 
     fn ui(&mut self, ui: &mut Ui, state: &mut AppState, theme: &Theme) {
         self.update(ui.ctx(), state);
+        // une vue d'espace porte en haut les onglets de son espace (D-060) : les quatre vues du bruit et des
+        // filtres s'atteignent les unes depuis les autres, sans repasser par le rail
+        if T::SPACE.is_some() {
+            egui::Panel::top(format!("{}-espace", T::TITLE)).show(ui, |ui| {
+                self.space_goto = crate::tools::common::space_tabs(ui, T::TITLE, theme);
+            });
+        }
         egui::Panel::right(T::TITLE).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if T::RUN_BUTTON {

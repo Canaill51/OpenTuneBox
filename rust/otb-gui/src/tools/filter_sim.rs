@@ -726,6 +726,9 @@ impl Tool for FilterSimTool {
     type Options = Options;
     type Output = Arc<FilterSimResult>;
     const TITLE: &'static str = "Simulateur de filtres";
+    const HIDDEN: bool = true;
+    const TAB: Option<&'static str> = Some("Analyse spectrale");
+    const SPACE: Option<&'static str> = Some(crate::tools::common::ESPACE_BRUIT);
     const HAS_VIEW: bool = true;
 
     fn reset_view(&mut self) {

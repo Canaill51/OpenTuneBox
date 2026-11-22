@@ -16,6 +16,195 @@ fn banc(app: App) -> Harness<'static, App> {
         .build_ui_state(|ui, a: &mut App| a.ui(ui), app)
 }
 
+/// ⚠️ Le tableau de bord montre ce que la **bibliothèque** retient (lot 28), pas seulement les logs ouverts : une
+/// carte par drone, au dessin de la maquette (badge, pastille d'état, nombre de fragments, dernier vol, barre
+/// d'avancement), et les fragments du drone choisi dans le panneau de droite.
+///
+/// **Contre-preuve** : en filtrant les fragments du panneau sur un autre drone, le fragment attendu disparaît et
+/// l'assertion rougit.
+#[test]
+fn le_tableau_de_bord_montre_une_carte_par_drone_et_ses_fragments() {
+    use otb_store::model::{Drone, Fragment, LogEntry};
+    let mut app = App::new(otb_gui::tools::all_pages());
+    for (id, nom) in [("uid-1", "JeNo Ced"), ("uid-2", "Whoop 65")] {
+        let mut d = Drone::new(id, nom);
+        d.firmware = "Betaflight 4.5.1".into();
+        app.library.put_drone(d);
+    }
+    app.library.add_log(LogEntry {
+        id: "emp-1".into(),
+        drone_id: "uid-1".into(),
+        name: "FINAL.bbl".into(),
+        path: "/logs/FINAL.bbl".into(),
+        copied: false,
+        bytes: 2_000_000,
+        added: "2026-11-13".into(),
+    });
+    app.library.put_fragment(Fragment {
+        id: "emp-1-1".into(),
+        log_id: "emp-1".into(),
+        session: 1,
+        start: 0,
+        end: 5_000,
+        name: "FINAL".into(),
+        role: String::new(),
+        date: "2026-11-13".into(),
+    });
+    app.screen = Screen::Dashboard;
+    let mut h = banc(app);
+    h.run();
+    // les cartes : le nom, le nombre de fragments, la date du dernier vol, la pastille d'état
+    h.get_by_label("JeNo Ced");
+    h.get_by_label("Whoop 65");
+    // « Fragments » et « Dernier vol » paraissent sur chaque carte : on compte au lieu de viser
+    assert_eq!(h.query_all_by_label("Dernier vol").count(), 2, "une carte par drone");
+    assert_eq!(h.query_all_by_label("Fragments").count(), 2);
+    h.get_by_label("2026-11-13");
+    assert_eq!(
+        h.query_all_by_label("En cours").count(),
+        1,
+        "seul le drone qui a un fragment est « En cours » ; l'autre est « À préparer »"
+    );
+    h.get_by_label("À préparer");
+    // le panneau du drone s'ouvre en cliquant sa carte, et montre ses fragments
+    assert!(
+        h.query_by_label("FINAL").is_none(),
+        "les fragments ne sont pas montrés d'emblée"
+    );
+    h.get_by_label("JeNo Ced").click();
+    h.run();
+    h.get_by_label("FINAL");
+    h.get_by_label("1 fragment · plus récent en haut");
+}
+
+/// La bibliothèque retient un log dès son ouverture : c'est ce qui remplit le tableau de bord d'un lancement à
+/// l'autre. Le drone est reconnu par le nom de machine de l'en-tête tant que l'USB n'apporte pas mieux.
+#[test]
+fn ouvrir_un_log_le_range_dans_la_bibliotheque() {
+    let mut h = banc(App::new(otb_gui::tools::all_pages()));
+    h.state_mut().open(vec![donnees()]);
+    attendre_logs(&mut h, 1);
+    let lib = &h.state().library;
+    assert_eq!(lib.drones().len(), 1, "un drone, celui du log");
+    assert_eq!(lib.drones()[0].name, "JeNo Ced");
+    assert!(
+        lib.drones()[0].firmware.starts_with("Betaflight"),
+        "{:?}",
+        lib.drones()[0]
+    );
+    assert_eq!(lib.logs().len(), 1);
+    assert_eq!(lib.logs()[0].name, "jeno5_5s.bbl");
+    assert_eq!(lib.logs()[0].drone_id, "JeNo Ced");
+    assert!(!lib.logs()[0].copied, "un log ouvert par l'utilisateur reste où il est");
+    // rouvrir le même fichier ne fait pas un second enregistrement
+    h.state_mut().open(vec![donnees()]);
+    attendre_logs(&mut h, 2);
+    assert_eq!(
+        h.state().library.logs().len(),
+        1,
+        "même empreinte : un seul enregistrement"
+    );
+}
+
+/// ⚠️ D-060 : la navigation est un **rail à gauche**, une entrée par outil ou par espace. Les vues d'un espace
+/// (`HIDDEN`) n'ont pas d'entrée à elles — c'est celle de leur espace qui reste mise en valeur.
+///
+/// **Contre-preuve** : en retirant le filtre `!p.hidden()` du rail, « Fréquence × gaz », « Fréquence × temps » et
+/// « Configuration » apparaissent et l'assertion sur les entrées cachées rougit.
+#[test]
+fn le_rail_porte_les_entrees_de_navigation() {
+    let mut h = banc(App::new(otb_gui::tools::all_pages()));
+    h.run();
+    for entree in [
+        "Guide",
+        "Courbes",
+        "Bruit et filtres",
+        "Réponse indicielle",
+        "Curseurs PID",
+        "Assistant",
+    ] {
+        assert!(
+            h.query_by_label(entree).is_some(),
+            "entrée « {entree} » absente du rail"
+        );
+    }
+    // les vues d'un espace n'ont pas d'entrée à elles : « Bruit et filtres » en réunit quatre (D-060)
+    for cachee in [
+        "Analyse spectrale",
+        "Fréquence × gaz",
+        "Fréquence × temps",
+        "Simulateur de filtres",
+        "Configuration",
+    ] {
+        assert!(
+            h.query_by_label(cachee).is_none(),
+            "« {cachee} » est une vue d'espace : pas d'entrée de rail"
+        );
+    }
+    // le rail est à gauche, à la largeur du prototype, et la page commence après lui
+    let rail = h.get_by_label("Assistant").rect();
+    assert!(rail.min.x < 20.0, "le rail est collé au bord gauche : {rail:?}");
+    assert!(
+        rail.max.x <= otb_gui::app::RAIL_WIDTH,
+        "une entrée déborde du rail ({} > {})",
+        rail.max.x,
+        otb_gui::app::RAIL_WIDTH
+    );
+}
+
+/// ⚠️ D-060 : les quatre vues de l'espace « Bruit et filtres » s'atteignent les unes depuis les autres par ses
+/// onglets, sans repasser par le rail, et le rail reste allumé sur l'espace.
+///
+/// **Contre-preuve** : en rendant `space_goto` toujours `None` dans `take_goto`, le clic sur « Et si » ne change
+/// plus de vue et l'assertion sur le Simulateur rougit.
+#[test]
+fn les_onglets_de_lespace_mènent_aux_quatre_vues() {
+    let mut h = banc(App::new(otb_gui::tools::all_pages()));
+    h.run();
+    h.get_by_label("Bruit et filtres").click();
+    h.run();
+    let titre = |h: &Harness<'static, App>| match h.state().screen {
+        Screen::Tool(i) => h.state().pages[i].title(),
+        autre => panic!("écran inattendu : {autre:?}"),
+    };
+    assert_eq!(titre(&h), "Analyse spectrale", "l'espace s'ouvre sur sa première vue");
+    for (onglet, attendu) in [
+        ("Et si", "Simulateur de filtres"),
+        ("Fréq. × temps", "Fréquence × temps"),
+        ("Fréq. × gaz", "Fréquence × gaz"),
+        ("Spectre", "Analyse spectrale"),
+    ] {
+        h.get_by_label(onglet).click();
+        h.run();
+        assert_eq!(titre(&h), attendu, "onglet « {onglet} »");
+        // le rail reste allumé sur l'espace, quelle que soit la vue
+        assert!(
+            h.query_by_label("Bruit et filtres").is_some(),
+            "l'entrée de l'espace reste dans le rail"
+        );
+    }
+}
+
+/// Cliquer une entrée du rail change d'écran, et l'entrée cliquée devient celle qui est mise en valeur.
+#[test]
+fn cliquer_une_entree_du_rail_change_decran() {
+    let mut h = banc(App::new(otb_gui::tools::all_pages()));
+    h.run();
+    assert_eq!(h.state().screen, Screen::Guide, "l'application démarre sur le Guide");
+    h.get_by_label("Courbes").click();
+    h.run();
+    assert_eq!(h.state().screen, Screen::Viewer);
+    h.get_by_label("Assistant").click();
+    h.run();
+    let Screen::Tool(i) = h.state().screen else {
+        panic!("l'Assistant est un outil, écran : {:?}", h.state().screen)
+    };
+    assert_eq!(h.state().pages[i].title(), "Assistant");
+    h.get_by_label("Guide").click();
+    h.run();
+    assert_eq!(h.state().screen, Screen::Guide);
+}
+
 #[test]
 fn le_theme_choisi_survit_a_un_changement_de_theme_du_systeme() {
     let mut app = App::new(Vec::new());
@@ -339,18 +528,33 @@ fn le_bouton_d_un_outil_exporte_seulement_sa_page() {
     h.state_mut().export_status = "etat-connu".into();
     h.run();
     let haut_barre = h.get_by_label("etat-connu").rect().min.y;
+    // la barre du haut n'a plus de bouton de navigation depuis D-060 : on lit sa hauteur réelle
+    let bas_du_haut = h.get_by_label("Ouvrir…").rect().max.y;
     h.get_by_label("Exporter image").click();
     attendre_export(&mut h);
     let img = image::open(dir.join("outil.png"))
         .expect("PNG écrit avec l'extension")
         .to_rgba8();
     let ppp = h.ctx.pixels_per_point();
-    assert_eq!(img.width(), (900.0 * ppp).round() as u32, "toute la largeur");
-    // le dégradé dit d'où vient chaque pixel : rouge = x, vert = y
+    // le dégradé dit d'où vient chaque pixel : rouge = x, vert = y, **en pixels modulo 256** (donc lisible tant que
+    // la page commence avant le 256ᵉ pixel, ce qui est le cas du rail)
     let coin = img.get_pixel(0, 0).0;
-    assert_eq!(coin[0], 0, "le bord gauche de la fenêtre");
-    let haut = coin[1] as f32 / ppp;
-    assert!(haut >= 40.0, "la page commence sous la barre du haut : y = {haut}");
+    // depuis D-060 la page commence au bord droit du rail, pas au bord de la fenêtre
+    let gauche = f32::from(coin[0]) / ppp;
+    assert!(
+        gauche >= otb_gui::app::RAIL_WIDTH,
+        "la page doit commencer après le rail : x = {gauche}"
+    );
+    let largeur = img.width() as f32 / ppp;
+    assert!(
+        (gauche + largeur - 900.0).abs() < 1.0,
+        "la page va du rail au bord droit de la fenêtre : {gauche} + {largeur} ≠ 900"
+    );
+    let haut = f32::from(coin[1]) / ppp;
+    assert!(
+        haut >= bas_du_haut,
+        "la page commence sous la barre du haut : y = {haut}, bas de la barre = {bas_du_haut}"
+    );
     // la page finit juste au-dessus de la barre d'état de la fenêtre (le cadre de la barre est un peu plus haut que son texte)
     let bas = haut + img.height() as f32 / ppp;
     assert!(

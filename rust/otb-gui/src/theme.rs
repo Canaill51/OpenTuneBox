@@ -56,6 +56,10 @@ pub struct Ui {
     pub tooltip: Color32,
     pub link: Color32,
     pub hover: Color32,
+    /// Fond d'une entrée de navigation choisie (maquette : `#e8eefa`, un bleu très pâle).
+    pub select: Color32,
+    /// Trait des cartes et des pastilles (maquette : `#e1e3e8`).
+    pub border: Color32,
     pub light: Color32,
     pub mid: Color32,
     pub dark: Color32,
@@ -98,6 +102,8 @@ pub const CLAIR: Theme = Theme {
         tooltip: hex(0xffffe8),
         link: hex(0x2b6be0),
         hover: hex(0xe4e7ec),
+        select: hex(0xe8eefa),
+        border: hex(0xe1e3e8),
         light: hex(0xffffff),
         mid: hex(0xc4c4c4),
         dark: hex(0xa0a0a0),
@@ -124,6 +130,9 @@ pub const SOMBRE: Theme = Theme {
         tooltip: hex(0x3a3d43),
         link: hex(0x5a92f0),
         hover: hex(0x3a3d43),
+        // équivalents sombres : la maquette n'en a pas, ils sont dérivés du bleu d'accent et du trait des panneaux
+        select: hex(0x29374f),
+        border: hex(0x3a3d43),
         light: hex(0x4a4d54),
         mid: hex(0x55585f),
         dark: hex(0x18191c),

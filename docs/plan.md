@@ -16,6 +16,27 @@ le lot 11 est fait le même jour). Les deux autres familles ont disparu le même
 l'assistant n'est sans origine ni condition** (lot 14), sans qu'une seule valeur ait eu à changer. Le 2026-11-12, le
 lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 1.0 est gardée pour plus tard).
 
+**Chantier ouvert le 2026-11-18 — bibliothèque, refonte et USB.** Deux études de Cédric, hors dépôt,
+ouvrent un chantier bien plus proche de l'utilisateur : un **canevas de neuf maquettes**
+du 2026-11-16 (tableau de bord par drone, navigation à deux niveaux, espace « Bruit et filtres » fusionné, écran
+d'extraction d'un **fragment** de vol, assistant en cartes) et une **spécification** du 2026-11-14 (récupération
+automatique des logs quand on branche un drone en USB, **stockage** des logs et des fragments, petite base
+**SQLite**, suivi des mesures dans le temps contre une fiche cible). Repris en lots **28 à 32**, dont le **28 est fait**
+(2026-11-18, crate `otb-store`) : la bibliothèque de données d'abord, parce que les fragments, la refonte et l'USB
+s'appuient tous dessus. Celui-ci
+**change la vie d'un pilote** — moins de gestes entre l'atterrissage et l'analyse, et des logs qui ne se perdent
+plus. Deux arbitrages sont déjà rendus (2026-11-18) : le stockage se fait en **fichiers JSON** et non en base
+(lot 28), et **D-015 est amendée** pour laisser une entrée de navigation regrouper plusieurs vues (lot 30). Il ne
+reste qu'une seule dépendance nouvelle à introduire, pour l'USB (lot 32).
+
+**Repris d'un fork le 2026-11-22.** Les lots 28, 29a et 30a à 30c bis ont été écrits du 2026-11-18 au 2026-11-19 dans
+le fork `GerryNatif/OpenTuneBox` (sa demande de fusion n° 1), parti de la 0.10.0 ; ils sont repris ici par-dessus le lot 22,
+avec leurs registres renumérotés — deux décisions devenues **D-060** et **D-061**, un travail reporté devenu **W-069** —
+parce que leurs numéros du fork étaient déjà pris ici. Le même fork porte un second chantier, **scripts firmware** (ses
+lots 22 à 27 et sa décision sur la forme d'un script), écrit le
+2026-11-18 **avant** le lot 22 de ce dépôt : il n'est **pas repris** ici, et ses constats sont à relire contre le rejeu
+de la chaîne de filtres (D-058) avant de l'être.
+
 ## Comment s'en servir
 
 - **Une session = un lot = une PR.** Faire `/clear`, puis demander « Lot N de `docs/plan.md` ». La branche
@@ -34,8 +55,9 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 21
-  sont au tableau en bas (faits, non retenus ou supprimés), le 15 et le 22 sont ouverts, le prochain numéro
-  libre est **23**.
+  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22 et les 29 à 32 sont ouverts (le 28 est fait) ;
+  les numéros **23 à 27** sont ceux du chantier des scripts firmware du fork, pas encore repris (ci-dessus) ; le
+  prochain numéro libre est **33**.
 
 ## Ordre des étapes
 
@@ -43,6 +65,10 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
+| 3 | **29** | Fragments : écran d'extraction, index, liste d'analyse | `otb-store` (lot 28, fait) |
+| 4 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) |
+| 5 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 |
+| 6 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | lot 30 |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
 de 3 sur la plus longue session du corpus. Les lots qui touchaient à un utilisateur réel ont été réglés le
@@ -232,6 +258,192 @@ quatrième : elle a été mesurée le 2026-11-10, et le cache est borné depuis 
 
 ---
 
+## Lot 29 : fragments (Opus)
+
+**But** : nommer et garder un morceau de vol, au lieu de redécouper à la main à chaque ouverture.
+
+**Branche** : `feat/fragments`. **S'appuie sur `otb-store`** (lot 28, fait le 2026-11-18).
+
+**Ce qui existe déjà** : `rust/otb-analysis/src/period.rs:auto_period` calcule la période de vol (décollage →
+atterrissage) et la période fait partie de la clé du cache des outils (D-037) ; le **rôle** de chaque log (filtres,
+série PID) est déjà retenu par la mémoire du Guide (D-039). Le fragment en est la généralisation : plusieurs par
+session, nommés, datés, avec leurs bornes.
+
+**Fait le 2026-11-18 — 29a, le cœur** (`rust/otb-store/src/link.rs`, `rust/otb-store/tests/fragments.rs`) :
+
+- [x] **Index des fragments** : log d'origine, session, bornes en numéros d'échantillon, nom, rôle, date. Le rôle
+      est la chaîne des constantes du Guide, pas un nouveau vocabulaire.
+- [x] **Période d'un fragment dans un log ouvert** (`range_of`) et son **message clair** quand le fichier a changé
+      depuis : c'est le critère d'arrêt du lot, tenu par un test et sa contre-preuve.
+- [x] **Liste d'analyse** : ordre, **indice** de couleur attribué à l'entrée et jamais changé ensuite (un indice
+      libéré est repris), actif ou non, fragment de travail qui doit appartenir à la liste.
+- [x] **Preuve sur un vrai log** : un fragment de `tests/data/jeno5_5s.bbl` relu après redémarrage rend les mêmes
+      bornes **et les mêmes échantillons** ; la contre-preuve d'un décalage d'un seul échantillon est dans le test.
+      26 tests pour `otb-store`, 8 contre-preuves vues en échec au total.
+
+**Reste — 29b, l'écran** :
+
+- [ ] **Écran d'extraction** (maquette A, hors rail) : ouvert depuis la timeline ou à l'ouverture d'un log,
+      poignées de début et de fin, et saisie à l'échantillon près dans le panneau.
+- [ ] ⚠️ **À faire avec le lot 30, pas avant** : cet écran est un écran du prototype, et le lot 30 refait toute la
+      navigation. Le construire deux fois serait exactement ce que le plan reproche au couple 23 / 30.
+- [ ] Couleurs par `rust/otb-gui/src/theme.rs` seulement (L-016), les deux thèmes vérifiés, captures hors écran.
+
+---
+
+## Lot 30 : refonte de la navigation et de la mise en page (Opus)
+
+**But** : appliquer le **prototype complet de l'application** du canevas du 2026-11-16. Cédric l'a désigné le
+2026-11-18 comme **la maquette qui fait foi** : les huit autres sont des essais, et en cas de désaccord c'est le
+prototype qui gagne.
+
+**Branche** : `feat/navigation-redesign`. **Dépend du lot 29.**
+
+**Ce que montre le prototype** (relevé dans son code le 2026-11-18) : un **rail de navigation à gauche**, de sept
+entrées — Tableau de bord, Guide, Assistant, Bruit et filtres, Réponse indicielle, Curseurs PID, Configuration —
+et **deux écrans hors rail**, ouverts par un geste puis refermés : l'extraction d'un fragment et la fiche d'un
+drone (Identité, Machine, Configurations Betaflight, Fiche cible). L'espace « Bruit et filtres » porte les onglets
+Spectre, Fréq. × gaz, Fréq. × temps, un choix d'axe, et le panneau « Et si » qui remplace le Simulateur. Donc :
+**huit outils à plat deviennent sept entrées de rail plus un tableau de bord**, le seul regroupement étant
+Spectre + × gaz + × temps + Simulateur → « Bruit et filtres ».
+
+**Décision à écrire dans ce lot**, tranchée le 2026-11-18 (Cédric a demandé de décider) : **D-015 est amendée, pas
+remplacée.** Ce qui en reste tel quel : **aucune fenêtre séparée**, et **une vue cachée ne calcule pas** — cette
+seconde partie s'étend aux vues internes d'un espace, où elle compte davantage qu'avant, puisqu'un espace
+n'affiche qu'une vue sur quatre. Ce qui change : une entrée de navigation n'est plus forcément un outil, c'est
+**soit un outil, soit un espace qui regroupe plusieurs vues d'un même sujet** ; les boutons deviennent un rail à
+gauche ; et **deux écrans hors rail** sont permis. Ce qui ne change pas : le trait d'outil
+(`rust/otb-gui/src/tool.rs`) et la liste d'enregistrement (`rust/otb-gui/src/tools/mod.rs`) restent le point
+d'entrée unique — un espace s'y enregistre comme un outil, et chaque vue interne garde son calcul et son cache
+(D-037, D-053). Le texte de D-015 cite encore des fichiers Python : l'amendement le remet en termes Rust. D-040
+(écarts voulus avec l'ancienne interface Qt) se relit en même temps.
+
+**Fait le 2026-11-19 — 30a, le rail** (`rust/otb-gui/src/app.rs:rail`, `rust/otb-gui/tests/app.rs`) :
+
+- [x] **Amendement de D-015 écrit avant la première ligne de code** : c'est **D-060**, avec les sept entrées du
+      rail et les deux écrans hors rail comme contrat. Il a trouvé que le regroupement **existait déjà** dans le
+      code (les vues `HIDDEN` au `TAB` de leur espace) : la décision met le texte en accord avec le programme.
+- [x] **Le rail** : les boutons de navigation quittent la barre du haut pour une colonne à gauche de 212 points,
+      entrées sans cadre sauf celle qui est affichée. La barre du haut ne garde que ce qui agit sur les logs et
+      sur la fenêtre, et la page exportée commence désormais au bord droit du rail.
+- [x] **Preuve** : deux tests (`le_rail_porte_les_entrees_de_navigation`, `cliquer_une_entree_du_rail_change_decran`)
+      avec contre-preuve vue en échec ; 27 tests de la fenêtre verts ; captures hors écran des deux thèmes
+      regardées, et les quatre images de la documentation refaites (elles montraient une barre qui n'existe plus).
+- [x] **Un défaut révélé, corrigé dans la foulée** : le `ui.horizontal` imbriqué de `phase_button` formait un bloc
+      insécable, et la dernière phase du Guide se faisait **rogner** au lieu de passer à la ligne dès que la
+      fenêtre se resserrait. Mis à plat, elle passe à la ligne (capture à l'appui).
+
+**Reste** :
+
+**Fait le 2026-11-19 — 30c, le tableau de bord** (`rust/otb-gui/src/dashboard.rs`) :
+
+- [x] **Cartes de drones** : une par drone que la bibliothèque connaît, avec son firmware, ses logs connus et la
+      date du plus récent ; panneau de droite avec ses logs, du plus récent en haut, et un **+** qui rouvre un log
+      sans passer par la boîte de fichiers.
+- [x] **La bibliothèque entre dans l'interface** : l'application la tient (`App::library`), range chaque fichier
+      ouvert (empreinte du contenu : rouvrir le même fichier ne fait pas deux entrées) et l'écrit quand eframe
+      enregistre. ⚠️ **En mémoire partout sauf au lancement réel**, pour qu'aucun banc n'écrive celle de
+      l'utilisateur — même règle que les fiches drone.
+- [x] **Preuve** : deux tests (cartes et panneau, rangement à l'ouverture) avec **leurs deux contre-preuves vues en
+      échec** ; 281 tests de l'interface verts ; capture du tableau de bord ajoutée à l'exemple `capture`, regardée
+      dans les deux thèmes.
+- [x] **Un défaut attrapé par la capture, pas par les tests** : le caractère « ✓ » n'existe dans aucune police
+      embarquée et fait **paniquer** l'application. Le piège était déjà écrit (L-068) : remplacé par une icône.
+**Repris le 2026-11-19 — 30c bis, au dessin de la maquette (D-061)** : Cédric a rappelé que « le design doit
+correspondre à 100 % à la maquette ». Les trois lots précédents en avaient la structure, pas le dessin.
+
+- [x] **Carte de drone au détail près** : badge teinté 44 × 44 à l'icône du quadricoptère, nom 16 et sous-titre 12,5,
+      pastille d'état, « Fragments » et « Dernier vol » en deux colonnes, étape du parcours, barre d'avancement de
+      6 points, trait bleu de 2 points et ombre portée sur la carte choisie. Mesures en constantes nommées.
+- [x] **Entrée de rail** au fond bleu pâle et au texte bleu quand elle est choisie, à plat sinon ; panneau blanc,
+      trait de séparation, marges de la maquette. ⚠️ `selected` est **gardé** : il met l'entrée à l'état « coché »
+      pour un lecteur d'écran, ce que les couleurs seules ne font pas.
+- [x] **Trois écarts assumés et écrits** (D-061) : thème sombre dérivé, un fragment par session ouverte, avancement
+      compté sur les cases cochées à la main.
+- [x] **Deux couleurs ajoutées au thème** (`select`, `border`) : tout le reste de la palette de la maquette s'y
+      trouvait déjà. Trois icônes ajoutées, dont celle du drone, dessinée d'après la maquette.
+- [ ] **Le « + » d'un fragment ajoutera à la liste d'analyse** (et non plus seulement ouvrir son vol) quand l'écran
+      d'extraction existera (lot 29b).
+- [ ] **L'avancement du parcours** sur la carte (« Étape 2 / 4 · Filtres ») demande les vérifications du Guide,
+      qui coûtent une analyse par log : à faire avec le lot 30d, pas en ouvrant le tableau de bord.
+**Fait le 2026-11-19 — 30b, l'espace** :
+
+- [x] **Espace « Bruit et filtres »** : une seule entrée de rail pour le Spectre, Fréq. × gaz, Fréq. × temps et le
+      « Et si » des filtres, avec ses **onglets en haut de page** (`space_tabs`). Le trait de page gagne la notion
+      d'espace (`SPACE`), et passer d'une vue à l'autre n'exige pas d'avoir un log ouvert, contrairement aux
+      boutons du Guide. Les deux raccourcis du panneau du Spectre disparaissent : deux chemins pour le même geste
+      faisaient deux boutons du même nom sur la page.
+- [x] **Preuve** : `les_onglets_de_lespace_mènent_aux_quatre_vues` avec contre-preuve vue en échec, **280 tests de
+      l'interface verts**, captures des deux thèmes regardées, images de la documentation refaites.
+- [x] La crainte du plan du fork — « faire le lot 23 (chaîne de filtres décrite en données) d'abord, sinon le même code est déplacé deux fois » — **ne s'est pas
+      réalisée** : le regroupement est une affaire de navigation (`tool.rs`, `app.rs`), et n'a pas touché au calcul
+      des filtres. Ce lot du chantier firmware reste indépendant.
+
+- [ ] **Gyro / Terme D dans l'espace** : le choix du signal, que le prototype montre en tête de l'espace, reste à
+      faire (les vues gardent pour l'instant leurs propres cases).
+- [ ] **Assistant en cartes** triées par gravité, mesure contre seuil en jauge, constats « OK » repliés. ⚠️ Un
+      constat se reconnaît par sa clé, jamais par son titre (D-028).
+- [ ] **Preuve** : captures hors écran avant / après sur les deux thèmes, et le temps de cadre mesuré
+      (le budget de 60 images par seconde est tenu avec une marge de 3 aujourd'hui : il ne doit pas tomber sous 1).
+- [ ] **Critère d'arrêt** : une page qui perd son test, ou le budget d'images par seconde dépassé.
+
+---
+
+## Lot 31 : mesures suivies dans le temps (Opus)
+
+**But** : répondre à « est-ce que ce drone s'améliore ? », ce qu'aucun écran ne sait faire aujourd'hui.
+
+**Branche** : `feat/metrics-history`. **Dépend du lot 29** ; la table des mesures existe déjà (`otb-store`).
+
+- [ ] **Une ligne par fragment, axe et mesure** : latence, pic, temps de montée, marges, bruit du gyro et du
+      terme D, retard des filtres — avec les réglages de calcul qui l'ont produite et la version de calcul du
+      lot 28. Une mesure se jette quand les bornes du fragment ou cette version changent.
+- [ ] ⚠️ **La table des mesures ne se charge pas au lancement, mais à la première question posée.** Mesuré au lot 28
+      ([validation.md](validation.md)) : au volume plein (535 logs, 77 040 mesures) elle pèse **8 Mo** et met **959 ms**
+      à se lire — à elle seule le déclencheur du plan. Les cinq autres tables réunies pèsent 1 Mo.
+- [ ] **Fichiers JSON ou vraie base (SQLite) : à trancher dans ce lot** (Cédric, 2026-11-22). Le JSON est gardé jusque-là ;
+      la question revient ici parce que c'est la table des mesures qui atteint le déclencheur.
+- [ ] **Fiche cible par drone** (réactivité des PID, filtrage) et un graphique par mesure sur tous ses fragments,
+      la cible en bande.
+- [ ] ⚠️ **Dire lequel prime** : la cible du drone n'est pas un seuil de l'assistant (D-011, calibré sur le
+      corpus). Deux chiffres qui se contredisent à l'écran, c'est un utilisateur perdu.
+- [ ] **Critère d'arrêt** : une mesure stockée qui ne se recalcule pas à l'identique à la demande.
+
+---
+
+## Lot 32 : récupération des logs par USB (Opus) — **le plus risqué**
+
+**But** : brancher le drone, récupérer, vérifier, puis seulement effacer. Un log perdu est un vol à refaire ; un
+effacement reporté ne coûte rien.
+
+**Branche** : `feat/usb-retrieve`. **Dépend du lot 30** ; la bibliothèque et le refus des doublons existent déjà.
+
+- [ ] **Identité de la machine** par MSP : nom, identifiant de la carte, version du firmware, état armé,
+      occupation de la mémoire. L'identifiant de la carte est la clé ; le nom seul ne suffit pas (deux drones
+      peuvent le porter, et il se change en une commande).
+- [ ] **Deux voies de copie** : mode stockage de masse quand la carte le permet (rapide, seule voie pour une carte
+      SD), repli sur la lecture bloc par bloc en MSP (lent : plusieurs minutes pour 16 Mo). Barre de progression,
+      et une copie interrompue reprend au début.
+- [ ] ⚠️ **Jamais d'effacement sans vérification**, dans cet ordre : taille copiée = place annoncée, le décodeur
+      ouvre chaque log et en extrait au moins un fragment, les fichiers sont écrits sur le disque, **puis**
+      l'utilisateur confirme. Un échec de lecture interdit l'effacement, quelle que soit l'option choisie.
+- [ ] ⚠️ **Sécurité** : drone armé → aucune opération ; conseil de retirer les hélices ; un seul accès au port à la
+      fois (le configurateur de Betaflight peut l'occuper) ; droits sur le port série sous Linux et pilote du port
+      virtuel sous Windows, détectés et expliqués au lieu d'échouer.
+- [ ] **Sauvegarde de la configuration** au même branchement (`diff all`), gardée seulement si elle diffère de la
+      précédente : l'écran Configuration peut alors comparer deux versions des réglages, et plus seulement les
+      en-têtes de deux logs.
+- [ ] **Les huit points à vérifier** de l'étude, dans le code et la documentation de Betaflight, **avant** d'écrire
+      (elle a été rédigée de mémoire) : versions où le mode stockage de masse lit la mémoire interne, débit réel de
+      la lecture MSP, durée d'un effacement de 16 Mo et comment savoir qu'il est fini, format et stabilité de
+      l'identifiant de carte, effacement sur carte SD, bibliothèque série côté Rust, autres firmwares qui parlent
+      MSP, et faut-il appliquer les réglages « et si » directement sur la carte.
+- [ ] ⚠️ **Nouvelle dépendance et nouvelle surface** : licence vérifiée par `cargo deny` (`rust/deny.toml`), et
+      **aucun matériel en CI** — donc un port simulé pour les tests automatiques et une procédure d'essai à la main
+      écrite dans la documentation, comme pour les installateurs.
+- [ ] **Critère d'arrêt** : un seul chemin de code où l'effacement pourrait partir sans vérification complète →
+      s'arrêter net.
+
 ## Hors plan, volontairement
 
 Ces travaux reportés sont **vus et laissés** : aucun n'empêche un pilote d'utiliser OpenTuneBox aujourd'hui.
@@ -301,3 +513,4 @@ prouvés.**
 
 La migration Python → Rust elle-même, terminée le 2026-11-04, garde son propre document :
 [migration-rust.md](migration-rust.md) (phases, preuves d'équivalence, verdict du prototype d'interface).
+| 28 | 2026-11-18 | **Bibliothèque de données** (branche `feat/data-library`) : crate `otb-store`, six tables en **fichiers JSON** dans `bibliotheque/` — drones, logs connus, fragments, `diff all` datés, mesures avec leur version de calcul, liste d'analyse. Un seul module d'accès ; un fichier illisible ou plus récent est mis de côté, jamais écrasé. 15 tests, **5 contre-preuves vues en échec** (mise de côté, version plus récente, péremption des mesures, doublon de log, réglages identiques). Volumes mesurés dans [validation.md](validation.md) | la table des mesures pèse 8 Mo et met 959 ms à se lire au volume plein : **à charger à la demande au lot 31** (noté dans ce lot) |

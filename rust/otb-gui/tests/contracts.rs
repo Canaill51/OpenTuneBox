@@ -224,6 +224,8 @@ fn chaque_onglet_de_la_barre_a_son_icone_et_sa_couleur_comme_python() {
     // `gui/main_window.py:TOOLS` : (titre Rust, icône, couleur) ; « Courbes » = le visualiseur, sans couleur
     for (titre, icone, couleur) in [
         ("Courbes", "activity", None),
+        // l'espace garde l'icône et la couleur de sa première vue (D-060)
+        ("Bruit et filtres", "audio-waveform", Some("blue")),
         ("Analyse spectrale", "audio-waveform", Some("blue")),
         ("Réponse indicielle", "chart-line", Some("green")),
         ("Curseurs PID", "sliders-horizontal", Some("pink")),

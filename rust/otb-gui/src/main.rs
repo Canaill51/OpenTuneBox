@@ -47,12 +47,13 @@ fn main() -> eframe::Result {
             if let Some(storage) = cc.storage {
                 guide.restore(storage);
             }
-            Ok(Box::new(App::from_launch(
-                otb_gui::tools::all_pages(),
-                guide,
-                cc.storage,
-                std::env::args_os(),
-            )))
+            let mut app = App::from_launch(otb_gui::tools::all_pages(), guide, cc.storage, std::env::args_os());
+            // seul le lancement réel ouvre la bibliothèque du poste : les bancs de test gardent la leur en mémoire
+            app.library = otb_store::Library::open(otb_store::dir());
+            for p in app.library.problems() {
+                eprintln!("bibliothèque : {p}");
+            }
+            Ok(Box::new(app))
         }),
     )
 }

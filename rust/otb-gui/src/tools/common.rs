@@ -8,10 +8,39 @@ use otb_analysis::motors;
 use otb_log::flightlog::{FlightLog, Rows};
 
 use crate::state::{AppState, MAX_LOGS};
-use crate::theme::{AXIS_NAMES, file_color, motor_color};
+use crate::theme::{AXIS_NAMES, Theme, file_color, motor_color};
 use crate::tools::filter_sim_calc::DYN_COUNT_MAX;
 
 pub const MOTOR_LABELS: [&str; 4] = ["M1/5", "M2/6", "M3/7", "M4/8"];
+
+/// Nom de l'espace qui réunit le bruit et les filtres (D-060) : une seule entrée de rail pour quatre vues.
+pub const ESPACE_BRUIT: &str = "Bruit et filtres";
+
+/// Les quatre vues de l'espace « Bruit et filtres » : **nom court affiché** (celui des pages du Guide et des
+/// maquettes) et titre de la page à ouvrir.
+pub const VUES_BRUIT: [(&str, &str); 4] = [
+    ("Spectre", "Analyse spectrale"),
+    ("Fréq. × gaz", "Fréquence × gaz"),
+    ("Fréq. × temps", "Fréquence × temps"),
+    ("Et si", "Simulateur de filtres"),
+];
+
+/// La barre d'onglets d'un espace, en haut de chacune de ses vues : rend le titre de la page à ouvrir quand on
+/// clique une autre vue. L'onglet de la vue affichée est mis en valeur et ne fait rien.
+pub fn space_tabs(ui: &mut Ui, courante: &'static str, th: &Theme) -> Option<&'static str> {
+    let mut aller = None;
+    ui.horizontal_wrapped(|ui| {
+        for (court, titre) in VUES_BRUIT {
+            let ici = titre == courante;
+            let texte = RichText::new(court).color(if ici { th.ui.text } else { th.accent("blue") });
+            if ui.add(egui::Button::new(texte).selected(ici).frame(ici)).clicked() && !ici {
+                aller = Some(titre);
+            }
+        }
+    });
+    ui.separator();
+    aller
+}
 
 /// Mémoire de la vue d'un graphique : les bornes ne sont remises aux valeurs des réglages que quand la clé de ces
 /// réglages change (le zoom de l'utilisateur reste sinon) ; « Tout voir » l'oublie pour les remettre au cadre suivant.

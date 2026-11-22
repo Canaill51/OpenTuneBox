@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-107 : un fork qui tient ses registres de son côté reprend les mêmes numéros que `main` : la fusion passe, le test des documents refuse
+- **Symptôme** — 2026-11-22, reprise du fork `GerryNatif/OpenTuneBox` (parti de la 0.10.0) : le code fusionne sans un seul
+  conflit, mais `decisions.md`, `plan.md`, `travaux-reportes.md` et `validation.md` en ont, et les deux côtés ont créé
+  **D-057 à D-059**, **W-057 à W-059** et un **lot 22** avec des sens différents. Fusionner en gardant les deux côtés aurait
+  laissé des doublons, et un renvoi `D-058` du code du fork aurait désigné la décision de `main` sur le simulateur.
+- **Cause** — chaque dépôt prend « le prochain numéro libre » dans son propre registre (D-018, protocole de ce fichier) ;
+  personne ne réserve de plage. Mesurée : 6 numéros en double sur 2 registres (D-057 à D-059, W-057 à W-059) plus le lot 22, et 21 lignes de code et de tests du fork qui citaient D-058 ou D-059.
+- **Règle** — reprendre un fork : `git merge-tree --write-tree main FORK` pour voir les conflits sans rien toucher, lister les
+  numéros créés de chaque côté depuis la base commune (`git diff BASE main -- docs/decisions.md | grep '^+#'`, idem
+  `W-`, `L-`, lots), **renuméroter ceux du fork** au-dessus du plus grand de `main`, dans les registres **et** dans les fichiers
+  que seul le fork a touchés (`sed` sur ces fichiers-là seulement : `main` cite déjà les mêmes numéros ailleurs). Une décision
+  renumérotée dit son ancien numéro dans son texte.
+- **Preuve** — D-060, D-061 et W-069 ; `cargo run -p otb-dev -- verify` vert après la reprise (branche `feat/dashboard-library`).
+
 ### L-106 : la durée d'une session mesurée pendant un passage du corpus en parallèle n'est pas son coût : 32 s affichées, 0,45 s seule
 
 - **Symptôme** — 2026-11-22 (D-059) : après le passage de l'assistant au rejeu, `corpus rates` donne 32 s pour `Cedric/KL/f3.bbl`
@@ -1330,6 +1344,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-107 | Fork qui numérote ses registres de son côté : mêmes D-, W-, lots que `main` avec d'autres sens ; renuméroter ceux du fork, dans les registres et les seuls fichiers qu'il a touchés | Outillage |
 | L-106 | Durée d'une session prise pendant un passage du corpus en parallèle (32 s) ≠ son coût seul (0,45 s) : mesurer seul, `-j 1`, et copier le binaire « avant » avant de toucher au code | Outillage |
 | L-105 | Rapport case par case de deux spectres qui portent chacun un bruit d'arrondi (rejeux arrondis comme le log) : biaisé vers le haut, tout changement de filtres « ajoutait » du bruit ; calculer le rapport sur les signaux exacts, l'arrondi ne sert qu'à la courbe comparée au log | Analyses |
 | L-104 | Filtres rejoués à la cadence du log au lieu de celle où le firmware les applique (gyro pour le LPF2, depuis la 4.2 ; PID pour les autres, même si le log saute des boucles) : le modèle filtre trop (+0,45 dB entre 250 et 500 Hz pour un PT1 à 500 Hz) ; `bf_filters::gyro_stage_upsampled`, interpolation par sinus cardinal, jamais linéaire | Analyses |
