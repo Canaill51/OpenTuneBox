@@ -164,7 +164,13 @@ ils viennent du bruit (`validation.md`).
   bande (5–50, 50–100, 100–250, 250–500 Hz, au-delà) : gain moyen en dB pondéré par la cohérence, écart, retard tiré de la
   phase, cohérence moyenne (bande concluante à 0,5), résidu (énergie de sortie − modèle sur énergie de sortie).
 - Décalage d'horloge de `gyroUnfilt` retiré : ⌊`pid_process_denom` / 2⌋ ticks gyro (L-100). Terme D : log à chaque boucle PID,
-  D sans D max ; gain Kd × TPA ajusté sur 10–50 Hz. Logs à 1,6 kHz ou plus (D-057). Résultats : `validation.md`.
+  D sans D max ; gain Kd ajusté sur 10–50 Hz, facteur TPA de chaque instant appliqué au modèle (gaz d'avant le throttle boost,
+  `filter_stages::tpa_d_factor`, `bf_filters::pre_boost_throttle`) ; instants où le firmware force le D à zéro (PID coupé,
+  récupération de vrille en lacet) écartés comme des trous. Logs à 1,6 kHz ou plus (D-057). Résultats : `validation.md`.
+- Filtres du modèle calculés pour la cadence **nominale** de l'en-tête (`filter_stages::model_rate_hz`), comme le firmware, et
+  bandes comptées en hertz du firmware : sur un contrôleur surchargé, la boucle tourne moins vite qu'annoncé et tous les
+  filtres coupent plus bas en hertz réels (L-101). Le simulateur affiché (`simulate_gyro`, `simulate_dterm`) prend encore la
+  cadence mesurée et ignore le TPA (W-064).
 
 ## Autres outils
 

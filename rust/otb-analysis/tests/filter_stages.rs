@@ -6,8 +6,10 @@ use std::collections::BTreeSet;
 use std::f64::consts::PI;
 use std::path::PathBuf;
 
-use otb_analysis::bf_filters::{GyroStage, gyro_stage, simulate_dterm};
-use otb_analysis::filter_stages::{Stage, StageCheck, check_stages, clock_offset_s, compare, stage_signals};
+use otb_analysis::bf_filters::{GyroStage, gyro_stage, pre_boost_throttle, simulate_dterm};
+use otb_analysis::filter_stages::{
+    Stage, StageCheck, check_stages, clock_offset_s, compare, model_rate_hz, stage_signals, tpa_d_factor,
+};
 use otb_decoder::file::{Matrix, Stats};
 use otb_log::flightlog::{FlightLog, Rows};
 use otb_log::settings::{AxisPid, Lowpass, Settings};
@@ -267,5 +269,176 @@ fn logs_trop_lents_ou_d_variable_sautes_avec_la_raison() {
         r.skipped
             .iter()
             .any(|(st, why)| *st == Stage::Dterm && why.contains("D max"))
+    );
+}
+
+// ---- Lot 22a bis : cadence nominale, TPA, D forcé à zéro ----
+
+fn with_raw(mut s: Settings, kv: &[(&str, &str)]) -> Settings {
+    for (k, v) in kv {
+        s.raw.insert(k.to_string(), v.to_string());
+    }
+    s
+}
+
+const TPA: [(&str, &str); 5] = [
+    ("tpa_breakpoint", "1350"),
+    ("tpa_rate", "65"),
+    ("tpa_low_breakpoint", "1050"),
+    ("tpa_low_rate", "20"),
+    ("tpa_low_always", "0"),
+];
+
+#[test]
+fn facteur_tpa_du_d_comme_le_firmware() {
+    let s = with_raw(Settings::default(), &TPA);
+    // seuil 0,35, pente 0,65 / 0,65 = 1 ; TPA bas : seuil 0,05, pente 0,2 / 0,05 = 4, oublié après le premier passage
+    let got = tpa_d_factor(&s, &[0.0, 0.5, 0.0, 0.35, 1.0]).unwrap();
+    let want = [0.8, 0.85, 1.0, 1.0, 0.35];
+    for (g, w) in got.iter().zip(want) {
+        assert!((g - w).abs() < 1e-12, "{got:?}");
+    }
+    let always = with_raw(s.clone(), &[("tpa_low_always", "1")]);
+    assert!((tpa_d_factor(&always, &[0.0, 0.5, 0.0]).unwrap()[2] - 0.8).abs() < 1e-12);
+    assert!(
+        tpa_d_factor(&Settings::default(), &[0.5]).is_none(),
+        "pas de TPA dans l'en-tête"
+    );
+    assert!(tpa_d_factor(&with_raw(s, &[("tpa_curve_type", "1")]), &[0.5]).is_none());
+}
+
+/// Gaz d'avant le boost (fraction) → gaz enregistrés (%), comme `flight/mixer.c` : y = x + b·(x − PT1(x)).
+fn boosted(x: &[f64], b: f64, cutoff: f64, fs: f64) -> Vec<f32> {
+    let w = 2.0 * PI * cutoff / fs;
+    let k = w / (w + 1.0);
+    let mut l = x[0];
+    x.iter()
+        .map(|&v| {
+            l += k * (v - l);
+            ((v + b * (v - l)).clamp(0.0, 1.0) * 100.0) as f32
+        })
+        .collect()
+}
+
+/// Gaz d'avant le boost : palier puis sinus, entre 0,2 et 0,9.
+fn throttle_before_boost(n: usize) -> Vec<f64> {
+    (0..n)
+        .map(|i| {
+            let t = i as f64 / FS;
+            0.3 + if t > 3.0 { 0.3 } else { 0.0 } + 0.2 * (2.0 * PI * 0.7 * t).sin().max(0.0)
+        })
+        .collect()
+}
+
+#[test]
+fn gaz_d_avant_le_boost_retrouves() {
+    let s = with_raw(
+        Settings::default(),
+        &[("throttle_boost", "5"), ("throttle_boost_cutoff", "15")],
+    );
+    let x = throttle_before_boost(8 * FS as usize);
+    let y = boosted(&x, 0.5, 15.0, FS);
+    let back = pre_boost_throttle(&s, &y, FS);
+    let gap = x.iter().zip(&back).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max);
+    assert!(gap < 1e-5, "écart {gap}");
+    // contre-preuve : le boost déforme bien les gaz enregistrés
+    let raw = x
+        .iter()
+        .zip(&y)
+        .map(|(a, b)| (a - *b as f64 / 100.0).abs())
+        .fold(0.0, f64::max);
+    assert!(raw > 0.05, "boost invisible : {raw}");
+}
+
+#[test]
+fn filtres_calcules_a_la_cadence_nominale_meme_si_la_boucle_ralentit() {
+    // contrôleur surchargé : les filtres sont calculés pour 4 kHz, mais la boucle ne tourne qu'à 2 kHz (L-101)
+    let mut log = fabricated("FFT_FREQ", None);
+    log.fs = FS / 2.0;
+    log.t = (0..log.n()).map(|i| i as f64 / log.fs).collect();
+    assert_eq!(model_rate_hz(&log.settings), FS);
+    let r = check_stages(&log, 0..log.n()).unwrap();
+    let (e, d) = worst(find(&r.checks, Stage::GyroBlock), 250.0);
+    assert!(e < 0.05 && d < 0.005, "bloc : écart {e} dB, retard {d} ms");
+    let (e, _) = worst(find(&r.checks, Stage::DynNotch), 500.0);
+    assert!(e < 1e-3, "notch dynamique : écart {e} dB");
+    let (e, _) = worst(find(&r.checks, Stage::Dterm), 500.0);
+    assert!(e < 1e-3, "D : écart {e} dB");
+    // contre-preuve : le même étage calculé à la cadence mesurée fait croire à un écart du firmware
+    let (sigs, _) = stage_signals(&log, 0..log.n()).unwrap();
+    let mut dyn_notch = sigs.into_iter().find(|s| s.stage == Stage::DynNotch).unwrap();
+    dyn_notch.model = gyro_stage(GyroStage::DynNotch, &log, &log.settings, dyn_notch.input.clone(), 1).unwrap();
+    let (e, _) = worst(&compare(&dyn_notch, FS, &[], true).unwrap(), 500.0);
+    assert!(e > 1.0, "cadence mesurée non distinguée : {e} dB");
+}
+
+#[test]
+fn le_d_suit_le_tpa_des_gaz_d_avant_le_boost() {
+    let mut log = fabricated("FFT_FREQ", None);
+    let n = log.n();
+    let x = throttle_before_boost(n);
+    log.throttle = boosted(&x, 0.5, 15.0, FS);
+    log.settings = with_raw(
+        log.settings.clone(),
+        &[
+            TPA.as_slice(),
+            &[("throttle_boost", "5"), ("throttle_boost_cutoff", "15")],
+        ]
+        .concat(),
+    );
+    let tpa = tpa_d_factor(&log.settings, &x).unwrap();
+    let d = simulate_dterm(&log, None, None).unwrap();
+    for ax in 0..3 {
+        let v: Vec<f64> = d.row(ax).iter().zip(&tpa).map(|(v, f)| v * f * 0.0173).collect();
+        set_row(&mut log.d_term, ax, &v);
+    }
+    let dt = |log: &FlightLog| find(&check_stages(log, 0..n).unwrap().checks, Stage::Dterm).clone();
+    let c = dt(&log);
+    assert!((c.gain_factor - 0.0173).abs() < 1e-4, "gain D {}", c.gain_factor);
+    assert!(c.residual < 2e-3, "résidu {}", c.residual);
+    // contre-preuve : sans TPA dans l'en-tête, le modèle garde un gain constant et ne suit plus
+    log.settings.raw.remove("tpa_breakpoint");
+    let c = dt(&log);
+    assert!(c.residual > 0.05, "TPA invisible : résidu {}", c.residual);
+}
+
+#[test]
+fn instants_ou_le_firmware_force_le_d_a_zero_ecartes() {
+    let mut log = fabricated("FFT_FREQ", None);
+    let n = log.n();
+    for c in ["axisP[0]", "axisP[1]", "axisP[2]", "axisI[0]", "axisI[1]", "axisI[2]"] {
+        log.pid_columns.insert(c.to_string());
+    }
+    for ax in 0..3 {
+        set_row(&mut log.p_term, ax, &vec![5.0; n]);
+        set_row(&mut log.i_term, ax, &vec![3.0; n]);
+    }
+    // récupération de vrille en lacet pendant 50 ms : roulis et tangage à zéro, I du lacet à zéro, P du lacet gardé
+    let cut = 4 * FS as usize..4 * FS as usize + 200;
+    for i in cut.clone() {
+        for ax in 0..2 {
+            for r in [&mut log.p_term, &mut log.i_term, &mut log.d_term] {
+                r.data[ax * n + i] = 0.0;
+            }
+        }
+        log.i_term.data[2 * n + i] = 0.0;
+    }
+    let (sigs, _) = stage_signals(&log, 0..n).unwrap();
+    let d = sigs.iter().find(|s| s.stage == Stage::Dterm && s.axis == 0).unwrap();
+    assert_eq!(d.breaks.len(), 201, "chaque instant coupé et le suivant");
+    let kept = compare(d, FS, &[], true).unwrap();
+    assert!(kept.residual < 1e-3, "résidu {}", kept.residual);
+    // contre-preuve : sans ces raccords, les 50 ms à zéro faussent l'étage
+    let mut raw = d.clone();
+    raw.breaks.clear();
+    let all = compare(&raw, FS, &[], true).unwrap();
+    assert!(all.residual > 0.02, "coupure invisible : résidu {}", all.residual);
+    // un seul axe à zéro (hasard d'arrondi en vol calme) n'est pas une coupure
+    log.i_term.data[cut.start + 2 * n..cut.end + 2 * n].fill(3.0);
+    let (sigs, _) = stage_signals(&log, 0..n).unwrap();
+    assert!(
+        sigs.iter()
+            .filter(|s| s.stage == Stage::Dterm)
+            .all(|s| s.breaks.is_empty())
     );
 }

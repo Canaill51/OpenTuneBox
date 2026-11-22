@@ -149,7 +149,15 @@ Fins de liste :
   `dterm_lpf2_type`, `dterm_lpf2_static_hz`, `dterm_notch_hz`, `dterm_notch_cutoff`, `yaw_lowpass_hz`.
 - Notch dynamique / RPM : `dyn_notch_max_hz/_count/_q/_min_hz`, `dshot_bidir`, `motor_poles`,
   `rpm_filter_harmonics/_weights/_q/_min_hz/_fade_range_hz/_lpf_hz`.
-- TPA : `tpa_mode`, `tpa_rate`, `tpa_breakpoint` (+ `tpa_low_*` 4.5+, `tpa_curve_*` 2025.12+).
+- TPA : `tpa_mode`, `tpa_rate`, `tpa_breakpoint` (+ `tpa_low_*` 4.5+, `tpa_curve_*` 2025.12+). Courbe classique
+  (`flight/pid.c:getTpaFactorClassic`, constantes de `pid_init.c`) : seuil `bp = (tpa_breakpoint − 1000)/1000` (borné à
+  0–0,99), facteur `1 − tpa_rate/100 · max(gaz − bp, 0)/(1 − bp)` ; sous `tpa_low_breakpoint`, `1 − tpa_low_rate/100 ·
+  (bas − gaz)/bas` jusqu'au premier passage au-dessus (toujours si `tpa_low_always`). Appliqué au D quel que soit
+  `tpa_mode` (au P seulement en mode PD). Les gaz sont ceux du mixeur **avant** le throttle boost, comme pour les LPF
+  dynamiques (`mixer.c`) ; le log (`setpoint[3]`) les écrit **après** : boost `y = x + throttle_boost/10 · (x − PT1(x))`,
+  PT1 à `throttle_boost_cutoff`.
+- Cadence : tous les filtres et le TPA sont calculés pour la cadence nominale (`looptime`, `pid_process_denom`), même quand
+  la boucle prend du retard (contrôleur surchargé : coupures plus basses en hertz réels, L-101).
 - Anti-gravity / terme I : `anti_gravity_gain/_cutoff_hz/_p_gain`, `iterm_relax(_type/_cutoff)`, `iterm_windup`.
 - Rates : `rates_type` (0 BF, 1 RACEFLIGHT, 2 KISS, 3 ACTUAL, 4 QUICK), `rc_rates`, `rc_expo`, `rates`,
   `rate_limits`, `thr_mid`, `thr_expo` (+ `thr_hover` 2025.12+).

@@ -614,9 +614,38 @@ fn lowpass_sim(x: Vec<f64>, k: usize, n: usize, lp: &Lowpass, thr: &[f64], fs: f
     apply(&x, k, n, lpf_kind(lp), &f, fs, butterworth_q(), &[1.0])
 }
 
-/// Gaz du journal en fraction 0–1 : `clip(throttle / 100, 0, 1)`.
+/// Gaz du journal en fraction 0–1 : `clip(throttle / 100, 0, 1)`. Ce sont les gaz d'après le throttle boost (W-062 :
+/// ceux d'avant, [`pre_boost_throttle`], ne changent rien de mesurable au LPF dynamique, lot 22a bis).
 fn throttle_frac(log: &FlightLog) -> Vec<f64> {
     log.throttle.iter().map(|&t| clip(t as f64 / 100.0, 0.0, 1.0)).collect()
+}
+
+/// `pre_boost_throttle` : gaz du mixeur **avant** le throttle boost (fraction 0–1), retrouvés depuis les gaz enregistrés
+/// (`setpoint[3]`, en %), qui sont pris **après** lui (`flight/mixer.c`, `mixerThrottle`). Le TPA et les LPF dynamiques
+/// lisent les gaz d'avant. Le boost du firmware : y = x + b·(x − L), L = PT1 de x à `throttle_boost_cutoff`, b =
+/// `throttle_boost` / 10 ; inversé pas à pas : x = (y + b(1 − k)·L) / (1 + b(1 − k)), k = gain du PT1 à la cadence `fs`.
+/// Une valeur bornée (0 ou 100 %) reste telle quelle : le boost l'a écrêtée, l'entrée n'est plus connue.
+pub fn pre_boost_throttle(s: &Settings, throttle_pct: &[f32], fs: f64) -> Vec<f64> {
+    let b = s.get_int("throttle_boost", 0) as f64 / 10.0;
+    let cutoff = s.get_int("throttle_boost_cutoff", 0) as f64;
+    let y: Vec<f64> = throttle_pct.iter().map(|&t| clip(t as f64 / 100.0, 0.0, 1.0)).collect();
+    if b <= 0.0 || cutoff <= 0.0 || fs <= 0.0 || y.is_empty() {
+        return y;
+    }
+    let k = pt1_gain(cutoff, fs);
+    let a = b * (1.0 - k);
+    let mut lpf = y[0];
+    y.iter()
+        .map(|&v| {
+            let x = if v <= 0.0 || v >= 1.0 {
+                v
+            } else {
+                clip((v + a * lpf) / (1.0 + a), 0.0, 1.0)
+            };
+            lpf += k * (x - lpf);
+            x
+        })
+        .collect()
 }
 
 /// `fft_freq_centres` : centres des notchs dynamiques lus dans le debug FFT_FREQ, `count × n`, ou `None`. 2025.12+ :
@@ -667,14 +696,21 @@ impl GyroStage {
 
 /// `gyro_stage` : un étage du modèle appliqué à `x` (`k` lignes de même longueur, à la cadence du log). Mêmes
 /// approximations que [`simulate_gyro`], qui n'est que la suite des quatre étages.
-pub fn gyro_stage(
+pub fn gyro_stage(stage: GyroStage, log: &FlightLog, s: &Settings, x: Vec<f64>, k: usize) -> Result<Vec<f64>, String> {
+    gyro_stage_at(stage, log, s, x, k, log.fs)
+}
+
+/// `gyro_stage_at` : [`gyro_stage`], coefficients des filtres calculés pour la cadence `fs` au lieu de celle mesurée sur le
+/// log (le contrôle par étage passe la cadence nominale du firmware, L-101).
+pub fn gyro_stage_at(
     stage: GyroStage,
     log: &FlightLog,
     s: &Settings,
     mut x: Vec<f64>,
     k: usize,
+    fs: f64,
 ) -> Result<Vec<f64>, String> {
-    let (fs, n) = (log.fs, x.len().checked_div(k).unwrap_or(0));
+    let n = x.len().checked_div(k).unwrap_or(0);
     match stage {
         GyroStage::Lpf2 => lowpass_sim(x, k, n, &s.gyro_lpf2, &throttle_frac(log), fs),
         GyroStage::Rpm => {
@@ -746,8 +782,17 @@ pub fn simulate_dterm(
     settings: Option<&Settings>,
     gyro: Option<&Matrix64>,
 ) -> Result<Matrix64, String> {
+    simulate_dterm_at(log, settings, gyro, log.fs)
+}
+
+/// `simulate_dterm_at` : [`simulate_dterm`], dérivée et coefficients des filtres calculés pour la cadence `fs` (L-101).
+pub fn simulate_dterm_at(
+    log: &FlightLog,
+    settings: Option<&Settings>,
+    gyro: Option<&Matrix64>,
+    fs: f64,
+) -> Result<Matrix64, String> {
     let s = settings.unwrap_or(&log.settings);
-    let fs = log.fs;
     let own;
     let g = match gyro {
         Some(g) => g,

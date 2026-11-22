@@ -71,7 +71,8 @@ Règles d'écriture :
 | W-059 | Simulateur de filtres : notchs RPM et dynamiques posés à leur position moyenne par fenêtre, pleine profondeur | ouvert |
 | W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | ouvert |
 | W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
-| W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (effet faible) |
+| W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; reste un écart léger du D et du notch dynamique) |
+| W-064 | Simulateur affiché : filtres calculés pour la cadence mesurée (pas nominale), TPA du D ignoré, instants où le firmware force le D à zéro non écartés | ouvert (à décider avec Cédric) |
 | W-063 | LPF2 gyro coupé : le firmware moyenne les échantillons gyro avant la boucle PID, le modèle n'applique rien | ouvert (effet faible à 8k/4k) |
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
@@ -951,7 +952,28 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   **Risque si on n'y touche pas** : coupure du LPF dynamique un peu trop haute pendant les montées de gaz brusques.
   **Reprise** : si une mesure montre un écart sur les vols à gaz très variables.
   **Piste** : retirer le boost (`throttle_boost`, `throttle_boost_cutoff`) en le recalculant depuis les gaz loggés.
+  **Mesuré le 2026-11-22** (lot 22a bis) : l'inversion existe (`rust/otb-analysis/src/bf_filters.rs:pre_boost_throttle`, testée) et sert
+  au TPA du contrôle par étage ; branchée sur le LPF dynamique gyro et D du contrôle par étage, elle ne change **rien** au
+  millième près sur le corpus (coupure arrondie au pour cent des gaz, boost qui ne joue que pendant les coups de gaz) : non
+  appliquée au simulateur. Reste un écart léger, du même signe partout, que cette piste n'explique pas : terme D −0,1 à −0,9 dB
+  entre 50 et 250 Hz (deux sessions à −1,3 dB entre 100 et 250 Hz : les deux dernières alertes du lot 22), notch dynamique
+  −0,2 à −0,6 dB ; cause à chercher (22b séparera les étages).
   [`rust/otb-analysis/src/bf_filters.rs:throttle_frac`]
+
+- **W-064** — **Simulateur affiché en retard sur le contrôle par étage.** Le lot 22a bis a corrigé trois écarts entre le
+  modèle et le firmware dans le seul contrôle par étage (`rust/otb-analysis/src/filter_stages.rs`) : filtres calculés pour la
+  cadence nominale de l'en-tête (L-101), facteur TPA appliqué au terme D (gaz d'avant le throttle boost), instants où le
+  firmware force le D à zéro écartés. Le simulateur que voit le pilote (`simulate_gyro`, `simulate_dterm`, `whatif_spectrum`)
+  prend toujours la cadence mesurée (`FlightLog::fs`) et un D sans TPA.
+  **Pourquoi reporté** : 22a bis mesure et corrige l'outil de contrôle ; changer le simulateur change des valeurs affichées
+  et les références figées de `otb-parity` (écart de 0,8 % de cadence sur l'Air65, par exemple), décision de Cédric.
+  **Risque si on n'y touche pas** : sur un contrôleur surchargé (`petrel` : boucle à 1 976 Hz pour 4 000 annoncés), coupures
+  simulées deux fois trop hautes ; ailleurs, écart de l'ordre du centième de dB. Le TPA ne change pas le spectre « et si »
+  (rapport de deux réponses, même gain des deux côtés).
+  **Reprise** : avec 22d et 22e du lot 22, qui changent déjà des valeurs affichées.
+  **Piste** : `gyro_stage_at` / `simulate_dterm_at` existent déjà ; passer `filter_stages::model_rate_hz` partout, et refaire
+  les références concernées.
+  [`rust/otb-analysis/src/bf_filters.rs:simulate_gyro`, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm`]
 
 - **W-063** — **LPF2 gyro coupé : la moyenne du sous-échantillonnage n'est pas modélisée.** Sans LPF2, le firmware ne prend
   pas le dernier échantillon gyro mais la moyenne des `pid_process_denom` échantillons reçus depuis le filtrage précédent

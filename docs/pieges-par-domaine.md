@@ -60,6 +60,8 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
   `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log. D-008, L-011, L-024
 - `gyroUnfilt` contre un signal filtré : retirer d'abord ⌊`pid_process_denom`/2⌋ / fréquence gyro (125 µs à 8 kHz,
   denom 2), décalage d'horloge du firmware et non retard de filtre. L-100
+- Modèle contre firmware : filtres calculés pour la cadence **nominale** de l'en-tête (`filter_stages::model_rate_hz`), pas
+  `FlightLog::fs` ; un contrôleur surchargé tourne moins vite qu'annoncé et coupe plus bas en hertz réels. L-101
 
 ## Assistant de réglage
 
