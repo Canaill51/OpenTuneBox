@@ -161,7 +161,7 @@ ils viennent du bruit (`validation.md`).
 
 ## Contrôle du modèle de filtres (`rust/otb-analysis/src/filter_stages.rs`)
 
-- Un étage à la fois : le modèle (étages de `bf_filters::gyro_stage`, chaîne de `simulate_dterm`) filtre l'entrée enregistrée,
+- Un étage à la fois : le modèle (étages de `bf_filters::gyro_stage`, chaîne D de `simulate_dterm_at`) filtre l'entrée enregistrée,
   on compare sa sortie à la sortie enregistrée ; points de mesure dans l'en-tête du module (`GYRO_SAMPLE`, `FFT_FREQ`, terme D).
 - H = Sxy/Sxx du firmware et du modèle (Welch, Hann d'environ 0,5 s, recouvrement de moitié, aucune fenêtre sur un trou) ; par
   bande (5–50, 50–100, 100–250, 250–500 Hz, au-delà) : gain moyen en dB pondéré par la cohérence, écart, retard tiré de la
@@ -187,7 +187,8 @@ ils viennent du bruit (`validation.md`).
 - **Rejeu** (`filter_replay::replay`) : la chaîne du firmware appliquée au gyro non filtré de tout le log, avec les règles du
   contrôle par étage : cadence nominale (L-101), LPF2 à la cadence gyro et autres filtres à la cadence PID même si le log saute
   des boucles (L-104), notch dynamique aux centres du suivi rejoué sur chaque axe avec les réglages simulés (ci-dessous) ; terme
-  D = chaîne D sur −dg/dt du gyro rejoué, × facteur TPA de chaque instant.
+  D = −dg/dt du gyro rejoué passé par la chaîne D, dans l'ordre du firmware (filtrer puis dériver, `bf_filters::simulate_dterm_at` ;
+  W-072), × facteur TPA de chaque instant.
 - **Spectres** (`filter_replay::before_after`), fenêtres de 300 ms, roulis, tangage et lacet : « actuel » = rejeu avec les
   réglages du log, arrondi comme le Blackbox (gyro au °/s ou au 1/10, D à l'unité ; sinon jusqu'à 1,7 dB d'écart au-dessus de
   250 Hz, L-103), à comparer au log ; « modifié » = spectre enregistré × (rejeu modifié / rejeu actuel) case par case et fenêtre

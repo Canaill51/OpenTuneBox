@@ -75,6 +75,8 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Rapport « modifié / actuel » de deux spectres : sur des signaux **exacts** ; arrondis comme le log, chacun porte son bruit
   d'arrondi et la moyenne du rapport monte (filtrer plus « ajoutait » du bruit). L'arrondi ne sert qu'à la courbe comparée au
   log. L-105
+- Effet d'un changement de modèle : comparer les spectres exacts, pas la courbe « actuel » arrondie ; sur un D enregistré sous
+  l'unité, l'arrondi fait d'un écart de 0,001 dB un écart de 0,38 dB. L-108
 
 ## Assistant de réglage
 

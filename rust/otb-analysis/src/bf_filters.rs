@@ -907,17 +907,24 @@ pub fn simulate_gyro(log: &FlightLog, settings: Option<&Settings>) -> Result<Mat
     Ok(Matrix64 { k, n, data: x })
 }
 
-/// `simulate_dterm` : dérivée du gyro filtré vue par le terme D, `−dg/dt` passée dans la chaîne D (°/s²). `gyro` : gyro filtré à
-/// utiliser (par défaut celui du journal, ou par exemple `simulate_gyro` avec d'autres réglages).
+/// `simulate_dterm` : terme D simulé à la manière de l'étalon Python, `−dg/dt` **puis** la chaîne D (°/s²), à la cadence du
+/// log. `gyro` : gyro filtré à utiliser (par défaut celui du journal, ou par exemple `simulate_gyro` avec d'autres réglages).
+/// ⚠️ Ordre inverse du firmware (W-072) : gardé pour les références Python figées (`tests/bf_sim.rs`, `otb-parity`, 1e-12) ;
+/// l'écran et l'assistant passent par [`simulate_dterm_at`], qui suit le firmware.
 pub fn simulate_dterm(
     log: &FlightLog,
     settings: Option<&Settings>,
     gyro: Option<&Matrix64>,
 ) -> Result<Matrix64, String> {
-    simulate_dterm_at(log, settings, gyro, log.fs)
+    let s = settings.unwrap_or(&log.settings);
+    let (k, n, g) = dterm_input(log, gyro)?;
+    let delta = neg_derivative(&g, k, n, log.fs);
+    dterm_filters(log, s, delta.data, k, n, log.fs)
 }
 
-/// `simulate_dterm_at` : [`simulate_dterm`], dérivée et coefficients des filtres calculés pour la cadence `fs` (L-101).
+/// `simulate_dterm_at` : terme D comme le firmware (`flight/pid.c`, `pidController`) : la chaîne D (notch D, LPF1 D, LPF2 D)
+/// filtre le gyro, **puis** `−dg/dt` (°/s²) ; dérivée et coefficients des filtres calculés pour la cadence `fs` (L-101).
+/// L'ordre compte quand la coupure du LPF1 D suit les gaz (W-072, lot 33).
 pub fn simulate_dterm_at(
     log: &FlightLog,
     settings: Option<&Settings>,
@@ -925,29 +932,44 @@ pub fn simulate_dterm_at(
     fs: f64,
 ) -> Result<Matrix64, String> {
     let s = settings.unwrap_or(&log.settings);
-    let own;
+    let (k, n, g) = dterm_input(log, gyro)?;
+    let filtered = dterm_filters(log, s, g.data.clone(), k, n, fs)?;
+    Ok(neg_derivative(&filtered, k, n, fs))
+}
+
+/// Gyro filtré vu par le terme D : `gyro`, ou celui du journal ; refusé s'il est vide.
+fn dterm_input<'a>(
+    log: &FlightLog,
+    gyro: Option<&'a Matrix64>,
+) -> Result<(usize, usize, std::borrow::Cow<'a, Matrix64>), String> {
     let g = match gyro {
-        Some(g) => g,
-        None => {
-            own = Matrix64::from_rows(&log.gyro);
-            &own
-        }
+        Some(g) => std::borrow::Cow::Borrowed(g),
+        None => std::borrow::Cow::Owned(Matrix64::from_rows(&log.gyro)),
     };
-    let (k, n) = (g.k, g.n);
-    if n == 0 {
+    if g.n == 0 {
         return Err("index 0 is out of bounds for axis 1 with size 0".into());
     }
+    Ok((g.k, g.n, g))
+}
+
+/// `−dx/dt` ligne par ligne (`k` lignes de `n` valeurs) ; le premier échantillon reprend le deuxième.
+fn neg_derivative(x: &Matrix64, k: usize, n: usize, fs: f64) -> Matrix64 {
     let mut delta = vec![0.0; k * n];
     for r in 0..k {
-        let row = g.row(r);
+        let row = x.row(r);
         for i in 1..n {
             delta[r * n + i] = -(row[i] - row[i - 1]) * fs;
         }
         delta[r * n] = if n > 1 { delta[r * n + 1] } else { 0.0 };
     }
+    Matrix64 { k, n, data: delta }
+}
+
+/// Chaîne D (notch D, LPF1 D, LPF2 D) appliquée à `x` (`k` lignes de `n` valeurs), coefficients pour la cadence `fs`.
+fn dterm_filters(log: &FlightLog, s: &Settings, x: Vec<f64>, k: usize, n: usize, fs: f64) -> Result<Matrix64, String> {
     let thr = throttle_frac(log);
     let (center, cutoff) = s.dterm_notch;
-    let mut x = delta;
+    let mut x = x;
     if let Some(sp) = static_notch(center, cutoff, s.pid_rate_hz() / 2.0) {
         x = apply(&x, k, n, Kind::Notch, &[sp.f_hz], fs, sp.q, &[1.0])?;
     }

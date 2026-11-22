@@ -700,6 +700,43 @@ notch suivi), les deux méthodes concordent au dixième de dB. Durée : 50 → 7
 occupés ; une session seule, 0,2 à 0,8 s de plus (0,26 → 0,45 s, 0,53 → 1,31 s, 0,80 → 1,38 s sur les trois plus lentes).
 `otb-parity check` (références fonction par fonction) : 0 écart.
 
+### Ordre du terme D (2026-11-22, lot 33)
+
+Le rejeu (page Filtres, assistant) et le contrôle par étage passent par `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`,
+qui suit désormais le firmware (`flight/pid.c`) : chaîne D sur le gyro, **puis** `−dg/dt` ; il dérivait avant de filtrer
+(W-072). `simulate_dterm` garde l'ancien ordre pour les références Python figées : `otb-parity check`, 0 écart (20 appels).
+Mesures avant / après sur le corpus entier (676 sessions), même binaire hormis l'ordre :
+
+- **Spectres exacts du D rejoué** (programme jetable, gyro du log, cadence du modèle) : 0,001 dB au plus entre les deux ordres
+  sur les vols aux gaz calmes, **−0,03 à −0,06 dB** entre 20 et 100 Hz et −0,008 dB entre 100 et 250 Hz sur
+  `Yohann/Gerry Mini/stocklp1.bbl` (gaz de 10e à 90e centile étalés sur 52 %, LPF1 D dynamique). L'ordre ne compte que quand la
+  coupure du LPF1 D suit des gaz qui bougent, et peu.
+- **Courbe « actuel » de la page Filtres** (`otb-dev corpus replay`, D arrondi à l'unité comme le log), |après − avant| :
+
+| Logs | LPF1 D | Gaz p90 − p10 | Sessions | 20–100 / 100–250 / 250–500 Hz : médiane (max) |
+|---|---|---|---|---|
+| à chaque boucle PID | dynamique | < 20 % | 29 | 0,000 (0,002) / 0,000 (0,003) / 0,001 (0,010) dB |
+| à chaque boucle PID | dynamique | ≥ 40 % | 2 | 0,010 (0,019) / 0,014 (0,017) / 0,009 (0,023) dB |
+| une boucle sur 2 ou moins | dynamique | < 20 % | 493 | 0,001 (0,384) / 0,001 (0,341) / 0,001 (0,256) dB |
+| une boucle sur 2 ou moins | dynamique | 20–40 % | 26 | 0,001 (0,013) / 0,003 (0,046) / 0,002 (0,013) dB |
+| une boucle sur 2 ou moins | dynamique | ≥ 40 % | 39 | 0,007 (0,049) / 0,008 (0,052) / 0,012 (0,053) dB |
+| une boucle sur 2 ou moins | fixe | toutes | 83 | 0,000 (0,019) / 0,000 (0,019) / 0,000 (0,008) dB |
+
+  Les maximums de 0,25 à 0,38 dB viennent de deux vols aux gaz presque immobiles (`1. PTB/NAiTiNAiN/03Hover.bbl`, un vol de
+  `1. PTB/ram`) dont le D enregistré est sous l'unité : l'arrondi, pas l'ordre (spectres exacts : 0,001 dB, L-108). Écart de la
+  courbe « actuel » au log, médiane : inchangé au centième dans chaque groupe (0,111 → 0,112 dB, 0,100 → 0,100, 0,256 → 0,257
+  sur les 29 vols à chaque boucle PID).
+- **Contrôle par étage, filtres D** (`otb-dev corpus stages`, 56 axes à chaque boucle PID) : |écart| médian inchangé entre 5 et
+  100 Hz (0,001 et 0,025 dB), 0,027 → 0,031 dB entre 100 et 250 Hz (maximum 0,428 → 0,433), 0,059 → 0,058 dB entre 250 et 500 ;
+  résidu médian 3,71 % inchangé, maximum 26,43 % inchangé. Ni amélioration ni dégradation mesurable : les logs à chaque boucle
+  PID du corpus ont peu de gaz qui bougent (2 sur 31).
+- **Assistant** (`otb-dev corpus rates --compare`) : **aucun constat ne bascule** ; 3 sessions sur 676 voient un chiffre du
+  conseil « Le LPF1 du gyro peut être coupé » bouger (terme D prévu −0,1 dB, sommet du D −1 dB PIDtoolbox à l'arrondi).
+- Durées inchangées : rejeu 66 s, contrôle par étage 21 s, assistant 61 s pour le corpus entier.
+
+Critère d'arrêt du lot (plus de 0,5 dB sous 250 Hz, ou un constat qui bascule) : non atteint. L'effet attendu « faible » est
+confirmé : quelques centièmes de dB au plus ; pas de capture, la courbe D ne bouge pas à l'œil.
+
 ### Bibliothèque de données en fichiers JSON (2026-11-18, lot 28)
 
 Mesuré par `rust/otb-store/tests/bibliotheque.rs` (`a_volume_reel_les_fichiers_restent_petits_et_louverture_rapide`),

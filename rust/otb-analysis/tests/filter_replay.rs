@@ -6,7 +6,8 @@ use std::f64::consts::PI;
 use std::path::PathBuf;
 
 use otb_analysis::bf_filters::{
-    GyroStage, Target, WhatIfCache, gyro_stage, gyro_stage_at, simulate_dterm, whatif_spectrum,
+    GyroStage, Target, WhatIfCache, dyn_lpf_cutoff, gyro_stage, gyro_stage_at, simulate_dterm, simulate_dterm_at,
+    whatif_spectrum,
 };
 use otb_analysis::filter_replay::{BeforeAfter, before_after, replay, replay_from};
 use otb_decoder::file::{Matrix, Stats};
@@ -145,7 +146,7 @@ fn fabricated(firmware: Option<&Settings>, peak: Option<f64>) -> FlightLog {
     for ax in 0..3 {
         set_row(&mut log.gyro, ax, &g);
     }
-    let d = simulate_dterm(&log, Some(&fw), None).unwrap();
+    let d = simulate_dterm_at(&log, Some(&fw), None, FS).unwrap();
     for ax in 0..3 {
         let v: Vec<f64> = d.row(ax).iter().map(|x| x * 0.0173).collect();
         set_row(&mut log.d_term, ax, &v);
@@ -314,4 +315,78 @@ fn replay_from_rend_le_rejeu_complet() {
         cur.gyro,
         "le LPF1 du gyro doit changer le gyro rejoué, sinon ce test ne prouve rien"
     );
+}
+
+/// Terme D comme `flight/pid.c` (W-072, lot 33), écrit pas à pas : LPF1 D en PT1 dont la coupure suit les gaz, LPF2 D en PT1
+/// fixe, **puis** `−dg/dt`. Coupure prise à chaque échantillon, comme le modèle (le firmware ne la change qu'au plus toutes
+/// les 5 ms, `flight/mixer.c` : écart commun aux deux ordres, hors de ce test).
+fn firmware_dterm(g: &[f64], throttle_pct: &[f32], lp1: &Lowpass, lp2_hz: f64) -> Vec<f64> {
+    let gain = |f: f64| {
+        let w = 2.0 * PI * f / FS;
+        w / (w + 1.0)
+    };
+    let (mut y1, mut y2) = (g[0], g[0]);
+    let filtered: Vec<f64> = g
+        .iter()
+        .zip(throttle_pct)
+        .map(|(&x, &t)| {
+            let f1 = dyn_lpf_cutoff(
+                lp1.dyn_min_hz as f64,
+                lp1.dyn_max_hz as f64,
+                lp1.expo as f64,
+                t as f64 / 100.0,
+            );
+            y1 += gain(f1) * (x - y1);
+            y2 += gain(lp2_hz) * (y1 - y2);
+            y2
+        })
+        .collect();
+    let mut d: Vec<f64> = (0..g.len())
+        .map(|i| {
+            if i == 0 {
+                0.0
+            } else {
+                -(filtered[i] - filtered[i - 1]) * FS
+            }
+        })
+        .collect();
+    d[0] = d[1];
+    d
+}
+
+#[test]
+fn terme_d_filtre_puis_derive_comme_le_firmware() {
+    let mut log = fabricated(None, Some(180.0));
+    let n = log.n();
+    // LPF1 D dynamique (75–150 Hz, défaut du firmware), gaz qui montent et descendent 4 fois par seconde de 10 à 90 %
+    log.settings.dterm_lpf1 = Lowpass {
+        kind: "PT1",
+        static_hz: 0,
+        dyn_min_hz: 75,
+        dyn_max_hz: 150,
+        expo: 5,
+    };
+    log.settings.dterm_lpf2 = lpf("PT1", 150);
+    log.throttle = (0..n)
+        .map(|i| (50.0 + 40.0 * (2.0 * PI * 4.0 * i as f64 / FS).sin()) as f32)
+        .collect();
+    let got = simulate_dterm_at(&log, None, None, FS).unwrap();
+    let old = simulate_dterm(&log, None, None).unwrap();
+    for ax in 0..3 {
+        let g: Vec<f64> = log.gyro.row(ax).iter().map(|&v| v as f64).collect();
+        let want = firmware_dterm(&g, &log.throttle, &log.settings.dterm_lpf1, 150.0);
+        let scale = want.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+        let err = |x: &[f64]| x.iter().zip(&want).fold(0.0_f64, |m, (a, b)| m.max((a - b).abs())) / scale;
+        assert!(
+            err(got.row(ax)) < 1e-9,
+            "axe {ax} : écart au firmware {:e}",
+            err(got.row(ax))
+        );
+        // contre-preuve : dériver puis filtrer (l'étalon Python) s'en écarte nettement
+        assert!(
+            err(old.row(ax)) > 1e-3,
+            "axe {ax} : les deux ordres ne diffèrent pas ({:e})",
+            err(old.row(ax))
+        );
+    }
 }

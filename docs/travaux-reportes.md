@@ -72,7 +72,7 @@ Règles d'écriture :
 | W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | EN PARTIE TRAITÉ le 2026-11-22 (lot 22f, `corpus predict`) : un notch dynamique de plus, vérifié en vol sur l'Air65 ; LPF, RPM et autres drones jamais vérifiés |
 | W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
 | W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; l'écart léger du D et du notch dynamique venait de la mesure, L-103) |
-| W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : lot 33 ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
+| W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-070 | Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle | ouvert (la demander à l'auteur du fork) |
 | W-069 | Place des traces (« Courbes ») dans le rail du prototype | ouvert (à trancher par Cédric au lot 30) |
@@ -1136,7 +1136,12 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   [`rust/otb-decoder/src/file.rs:DecodedSession`]
 
 - **W-072** — **La simulation des filtres dans le temps s'écarte du firmware sur deux points.**
-  1. **Ordre du terme D.** `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at` calcule −dg/dt **puis** passe la
+  1. **Ordre du terme D.** **Réglé le 2026-11-22 (lot 33)** : `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, appelé
+     par le rejeu et le contrôle par étage, filtre puis dérive comme le firmware ; effet mesuré : quelques centièmes de dB au
+     plus, aucun constat de l'assistant ne bascule ([validation.md](validation.md#ordre-du-terme-d-2026-11-22-lot-33), test
+     `rust/otb-analysis/tests/filter_replay.rs:terme_d_filtre_puis_derive_comme_le_firmware`). Seul `simulate_dterm`, appelé
+     par les tests et `otb-parity` contre les références Python figées, dérive encore avant de filtrer (comme le point 2).
+     Avant : `simulate_dterm_at` calculait −dg/dt **puis** passait la
      chaîne D (notch D, LPF1 D, LPF2 D) ; le firmware filtre `gyroADCf` **puis** dérive (`flight/pid.c`, relu le
      2026-11-22). Avec des filtres fixes, l'ordre ne change rien (deux filtres linéaires commutent) ; il compte quand la
      coupure du LPF1 D dynamique suit les gaz, et au premier échantillon. Le fork le disait « invisible dans
@@ -1149,9 +1154,9 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
      contre les références Python figées : le changer ferait diverger ces références sans rien changer à l'écran.
   **Pourquoi reporté** : point 1, décision de Cédric du 2026-11-22 — mesurer puis corriger dans une PR de code à part
   (lot 33), pas dans la reprise des registres. Point 2 : sans effet visible.
-  **Risque si on n'y touche pas** : point 1, le terme D rejoué s'écarte un peu du firmware quand les gaz bougent, dans
-  le « simulé » de la page Filtres et dans le bruit prévu par l'assistant. Point 2, un agent suivant peut prendre
-  `simulate_gyro` pour une référence fidèle au firmware.
-  **Reprise** : point 1, lot 33 de [plan.md](plan.md). Point 2, au prochain réenregistrement des références (W-028), ou
+  **Risque si on n'y touche pas** : point 1, plus rien à l'écran depuis le lot 33 (avant : le terme D rejoué s'écartait un
+  peu du firmware quand les gaz bougent). Point 2, un agent suivant peut prendre `simulate_gyro` ou `simulate_dterm` pour
+  une référence fidèle au firmware : leur commentaire le signale.
+  **Reprise** : point 1, fait (lot 33). Point 2, et l'ordre restant de `simulate_dterm`, au prochain réenregistrement des références (W-028), ou
   au lot 23, dont la description unique de la chaîne donne la simulation dans le temps avec la cadence de chaque étape.
-  [`rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`]
+  [`rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm`]

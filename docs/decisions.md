@@ -204,9 +204,9 @@ autres le 2026-11-18, une par une.
 - **dans le temps**, par les étages `rust/otb-analysis/src/bf_filters.rs:GyroStage`, communs à `simulate_gyro`, au
   contrôle par étage (`rust/otb-analysis/src/filter_stages.rs`) et au rejeu (`rust/otb-analysis/src/filter_replay.rs`).
   Le rejeu applique chaque filtre à sa cadence (L-104) ; `simulate_gyro` garde la cadence du log, mais n'est appelé que
-  par les tests et `otb-parity`. Le terme D passe par `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, qui
-  **dérive puis filtre** quand le firmware filtre puis dérive (`flight/pid.c`) : appelé par le rejeu, il touche la page
-  Filtres et l'assistant (W-072).
+  par les tests et `otb-parity`. Le terme D du rejeu passe par `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, qui
+  filtre puis dérive comme le firmware (`flight/pid.c`) depuis le lot 33 ; `simulate_dterm`, réservé aux références Python,
+  dérive encore avant de filtrer (W-072).
 
 Refus du copyleft : liste `allow` de `rust/deny.toml`, onze licences de code, aucune copyleft, plus les deux licences de
 polices de D-046. Licence GPL 3 de Betaflight **vérifiée** le 2026-11-22 (fichier `LICENSE` du dépôt du firmware) ;

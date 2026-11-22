@@ -3,7 +3,8 @@
 //! terme D, roulis et tangage, par bande de fréquences. Une ligne par session ; `--resume` en fait le tableau selon que le
 //! log enregistre chaque boucle PID ou non (sinon le gyro non filtré est sous-échantillonné sans anti-repliement, W-067).
 //!
-//! Période : celle de l'assistant (`analysed`).
+//! Période : celle de l'assistant (`analysed`). Chaque ligne garde aussi l'étendue des gaz (10e et 90e centiles, %) et si le
+//! LPF1 du D est dynamique : l'ordre filtrer / dériver du terme D ne compte que quand sa coupure suit les gaz (lot 33).
 
 use super::json::{as_f64, dump, num, parse};
 use super::{Args, Output, analysed, drone_id, log_files, logs_root, map_files, rel};
@@ -36,7 +37,7 @@ fn session_row(lg: &FlightLog, f: &Path, root: &Path) -> Result<Option<Value>, S
     let s = &lg.settings;
     let Some(sel) = analysed(lg) else { return Ok(None) };
     let t = Instant::now();
-    let Some(r) = before_after(lg, sel, s, s, 300.0)? else {
+    let Some(r) = before_after(lg, sel.clone(), s, s, 300.0)? else {
         return Ok(None);
     };
     let secs = t.elapsed().as_secs_f64();
@@ -70,6 +71,9 @@ fn session_row(lg: &FlightLog, f: &Path, root: &Path) -> Result<Option<Value>, S
         errs.insert(format!("gyro_{lo:.0}_{nominal_hi:.0}"), num(g));
         errs.insert(format!("d_{lo:.0}_{nominal_hi:.0}"), num(d));
     }
+    // gaz de la période (%) : la coupure du LPF1 D dynamique les suit, et l'ordre filtrer / dériver ne compte qu'alors (W-072)
+    let mut thr: Vec<f64> = lg.throttle[sel.clone()].iter().map(|&v| v as f64).collect();
+    let (thr_p10, thr_p90) = (percentile(&mut thr, 0.1), percentile(&mut thr, 0.9));
     let relf = rel(f, root);
     Ok(Some(json!({
         "file": relf,
@@ -80,6 +84,9 @@ fn session_row(lg: &FlightLog, f: &Path, root: &Path) -> Result<Option<Value>, S
         "log_hz": num(s.log_rate_hz()),
         "pid_hz": num(s.pid_rate_hz()),
         "seconds": num(secs),
+        "d_lpf1_dynamic": s.dterm_lpf1.dynamic(),
+        "throttle_p10": num(thr_p10),
+        "throttle_p90": num(thr_p90),
         "errors": errs,
     })))
 }
