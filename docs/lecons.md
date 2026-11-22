@@ -60,6 +60,23 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-109 : CodeQL refuse d'afficher tout nom en « uid », même réduit à une empreinte : il juge le nom, pas la valeur
+
+- **Symptôme** — 2026-11-22 (PR #169, lot 32a) : contrôle « CodeQL » rouge, tous les tests verts ; alerte « Cleartext
+  logging of sensitive information » sur `println!` de `otb-dev`, qui affichait `id.uid.to_hex()` (identifiant gravé dans
+  la puce de la carte, `MSP_UID`). Remplacé par une empreinte SHA-256 de 8 chiffres (`uid_summary`) : **3 alertes** au lieu
+  d'une, dont deux dans le test qui l'affichait en message d'échec.
+- **Cause** — mesurée dans les sources de CodeQL (`shared/concepts/.../SensitiveDataHeuristics.qll`, `maybeAccountInfo`) :
+  tout nom qui contient « uid » (sans casse) en début de nom, après `_`, après un `u`, ou en `Uid` après une minuscule
+  (`board_uid`, `uid_summary`, `boardUid`) est classé « identifiant de compte » (le `uid` Unix) ; la
+  source est l'expression **nommée**, si bien qu'un calcul d'empreinte ne la « nettoie » pas. Côté matériel, seule l'adresse
+  MAC est réputée sensible.
+- **Règle** — nommer un identifiant de matériel par ce qu'il est (`ChipId`, `chip_id`), jamais `uid` ; ne l'afficher
+  qu'en empreinte courte et ne jamais recopier l'identifiant complet d'une carte dans le dépôt (public). Une alerte CodeQL
+  se lit d'abord dans la règle qui l'a levée, avant d'y répondre par du code.
+- **Preuve** — `rust/otb-usb/tests/contrats.rs:aucun_nom_pris_pour_un_identifiant_de_compte` (même motif, réécrit ; vu rouge
+  avec un nom `board_uid` ajouté) ; PR #169.
+
 ### L-108 : comparer deux modèles par la courbe « actuel » du rejeu, arrondie comme le log, grossit l'écart des logs dont le D est sous l'unité
 
 - **Symptôme** — 2026-11-22 (lot 33) : l'ordre du terme D (filtrer puis dériver) change la courbe « actuel » du D de
@@ -1358,6 +1375,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-109 | CodeQL prend tout nom en « uid » pour un identifiant de compte et refuse qu'on l'affiche, même en empreinte : nommer l'identifiant de la carte `chip_id`, l'afficher en empreinte, jamais en entier dans le dépôt | Outillage |
 | L-108 | Deux modèles comparés par la courbe « actuel » du rejeu, arrondie comme le log : sur un D enregistré sous l'unité, un changement de 0,001 dB en paraît 0,38 ; comparer les spectres exacts | Analyses |
 | L-107 | Fork qui numérote ses registres de son côté : mêmes D-, W-, lots que `main` avec d'autres sens ; renuméroter ceux du fork, dans les registres et les seuls fichiers qu'il a touchés | Outillage |
 | L-106 | Durée d'une session prise pendant un passage du corpus en parallèle (32 s) ≠ son coût seul (0,45 s) : mesurer seul, `-j 1`, et copier le binaire « avant » avant de toucher au code | Outillage |

@@ -4,6 +4,8 @@
 //!
 //! `release` : préparation d'une version et notes de la page Releases (remplace `scripts/release.py`).
 //!
+//! `usb` : essai à la main de la récupération par USB sur une vraie carte (lot 32a) ; mesures de `docs/spec-usb.md`.
+//!
 //! `docs` : cohérence de la documentation avec le code. Remplace `tests/test_docs.py` (Python, supprimé en 7-5) : les mêmes contrôles, un par fonction.
 //! Chaque contrôle reçoit les textes ou les listes à comparer et rend la liste des problèmes (vide = tout va bien) ; les listes réelles
 //! (outils, profils, commandes…) sont rassemblées par `tests/docs.rs`, les cas fabriqués qui doivent échouer sont dans `tests/checks.rs`.
@@ -14,4 +16,5 @@ pub mod docs;
 pub mod icons;
 pub mod licenses;
 pub mod release;
+pub mod usb;
 pub mod verify;

@@ -13,11 +13,11 @@ Les chemins de fichiers ci-dessous sont ceux du dépôt Betaflight (`src/main/�
 | # | Point | Réponse | Sûr ? |
 |---|---|---|---|
 | 1 | Le mode stockage de masse (MSC) lit-il la mémoire interne ? | Oui depuis avril 2018, **en lecture seule** | lu dans le code |
-| 2 | Débit réel de la lecture MSP | blocs de 4 096 octets au plus ; débit **non mesuré** | à mesurer sur une vraie carte |
-| 3 | Durée d'un effacement de 16 Mo, et comment savoir qu'il est fini | drapeau « prête » du résumé MSP ; jusqu'à 200 s par tranche de 16 Mo | fin : lue ; durée : à mesurer |
+| 2 | Débit réel de la lecture MSP | blocs de 4 096 octets au plus ; **3,25 Mo par minute** mesurés (≈ 5 min pour 16 Mo) | mesuré sur une carte (2026-11-22) |
+| 3 | Durée d'un effacement de 16 Mo, et comment savoir qu'il est fini | drapeau « prête » du résumé MSP ; jusqu'à 200 s par tranche de 16 Mo ; **42,5 s** mesurées | fin : lue ; durée : mesurée sur une carte (2026-11-22) |
 | 4 | Identifiant de la carte | `MSP_UID` : 96 bits gravés dans le microcontrôleur, **0 sur deux cas** | lu dans le code |
 | 5 | Effacement d'une carte SD | **impossible en MSP** ; par le système, une fois la carte montée en MSC | lu dans le code |
-| 6 | Bibliothèque série côté Rust | `serial2` (BSD-2 ou Apache-2.0) ; `serialport` **refusée** (MPL-2.0) | licences vérifiées |
+| 6 | Bibliothèque série côté Rust | `serial2` (BSD-2 ou Apache-2.0) ; `serialport` **refusée** (MPL-2.0) | licences vérifiées, `cargo deny` vert (lot 32a) |
 | 7 | Autres firmwares qui parlent MSP | hors périmètre (D-062) : refuser tout ce qui n'est pas `BTFL` | décision existante |
 | 8 | Appliquer les réglages « Et si » sur la carte | possible techniquement ; **à trancher par Cédric** | question ouverte |
 
@@ -102,7 +102,7 @@ avec les mêmes contrôles avant (lot 32). `MSP_SDCARD_SUMMARY` (79) donne l'ét
 | Crate | Version (2026-11-22) | Licence | Verdict |
 |---|---|---|---|
 | `serialport` | 4.10.1 | MPL-2.0 | **refusée** : copyleft faible, absente de `rust/deny.toml` (D-043, D-045) |
-| `serial2` | 0.2.39 | BSD-2-Clause OR Apache-2.0 | **retenue sous réserve** : ses propres dépendances passent `cargo deny` au lot 32 |
+| `serial2` | 0.2.39 | BSD-2-Clause OR Apache-2.0 | **retenue** : ses dépendances (`libc`, `cfg-if`, `windows-sys`) passent `cargo deny`, vérifié au lot 32a (2026-11-22) |
 
 `serial2` liste les ports sans donner l'identifiant USB du fabricant : un port se reconnaît en lui demandant
 `MSP_API_VERSION`, ce qui évite aussi de dépendre de la marque du contrôleur. Les droits sur le port sous Linux
@@ -127,12 +127,55 @@ Même port : un caractère `#` fait entrer dans le CLI, `diff all` renvoie la co
 Sur une version plus ancienne, le redémarrage ferme le port : la sauvegarde se fait donc **en dernier**, après la copie et
 l'éventuel effacement.
 
-## Procédure d'essai à la main (à compléter au lot 32)
+## Procédure d'essai à la main
 
-Aucune carte en CI : le lot 32 teste sur un port simulé, et ces mesures se font une fois sur une vraie carte, notées ici
-avec la date et la carte.
+Aucune carte en CI : `otb-usb` (lot 32a) est testé sur une carte simulée et, sous Linux, par un pseudo-terminal. Ces
+essais se font sur une vraie carte, résultats notés ici avec la date et la carte. Depuis `rust/`, carte branchée,
+**hélices retirées**, fichiers écrits **hors du dépôt** (jamais dans `$OTB_LOGS`) :
 
-- [ ] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine.
-- [ ] Durée d'un effacement complet, et place occupée relue à 0 ensuite.
-- [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour.
+```sh
+cargo run -p otb-dev -- usb ports                          # ports où une carte répond en MSP
+cargo run -p otb-dev -- usb info /dev/ttyACM0              # identité, état armé, mémoire (COM3… sous Windows)
+cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 ~/Documents/Drones/usb            # copie, contrôles, débit (dossier créé s'il manque)
+cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 ~/Documents/Drones/usb --erase    # idem, puis effacement après avoir tapé « effacer »
+cargo run -p otb-dev -- usb diff /dev/ttyACM0 ~/Documents/Drones/usb/config.txt  # `diff all` ; la carte redémarre ensuite
+```
+
+- [x] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine (`usb copy`) : 3,25 Mo par minute.
+- [x] Durée d'un effacement complet, et place occupée relue à 0 ensuite (`usb copy … --erase`) : 42,5 s, relue à 0.
+- [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour (`usb info` en montre
+      une empreinte courte, pas le numéro : ne jamais recopier l'identifiant complet d'une carte dans le dépôt, public).
 - [ ] Mode stockage de masse : fichiers vus sous Linux et Windows, contenu identique à la lecture MSP.
+- [ ] Copie relue dans OpenTuneBox : mêmes vols que le fichier téléchargé par le configurateur.
+- [ ] `usb diff` : même texte que `diff all` tapé dans le CLI du configurateur (forme déjà vérifiée, voir les résultats).
+- [ ] Port déjà ouvert : configurateur Betaflight connecté, `usb info` doit dire le port occupé (Linux : le verrou
+      d'OpenTuneBox n'arrête que les programmes qui le prennent aussi ; **supposé** que le configurateur ouvre le port
+      en exclusif, à vérifier) ; Windows : message « déjà ouvert par un autre programme ».
+- [ ] Drone armé (sur batterie, hélices retirées) : `usb copy … --erase` refuse d'effacer.
+
+Choix de `otb-usb` pour la sortie du CLI : `exit` (la carte redémarre), et non `exit noreboot`, absent avant 2024-09 et qui
+laisse l'armement bloqué (`ARMING_DISABLED_CLI`) jusqu'au prochain redémarrage.
+
+### Résultats
+
+**2026-11-22, Linux, carte F722 (STM32F722), Betaflight 2026.6.2, API MSP 1.48**, branchée seule en USB :
+
+- `usb ports` : la carte répond sur `/dev/ttyACM0`, ouvert sans réglage de droits (compte déjà dans `dialout`).
+- `usb info` : identité lue (`F722`, `STM32F722`, nom vide), identifiant non nul, non
+  armée, mémoire de 8 Mo (128 secteurs) **vide** — débit de copie et durée d'effacement donc **pas encore mesurés**.
+- `usb copy` : mémoire vide, copie refusée comme prévu (« rien à copier », effacement refusé).
+- `usb diff` : 62 lignes, de `# version` à `save`, sans écho de la commande ni invite du CLI ; la carte a redémarré.
+
+**2026-11-22, Linux, carte G474 (STM32G474), Betaflight 2026.12.0, API MSP 1.49**, mémoire de 16 Mo (256 secteurs), nom
+`AIR65 CED`, identifiant non nul, non armée :
+
+- `usb copy … --erase` : **8 187 904 octets copiés en 144,2 s, soit 3,25 Mo par minute** (≈ 57 Ko/s, environ 70 ms par
+  bloc de 4 080 octets). Une mémoire de 16 Mo pleine prendrait donc **environ 5 minutes** : l'écran du lot 32b doit
+  montrer une progression, pas un sablier. Contrôles passés : 1 log, 1 fragment de vol ; le fichier relu par
+  `opentunebox info` donne un vol de 45,1 s enregistré à 4 kHz (debug `FFT_FREQ`) ; ses 1 469 derniers octets valent `0xFF`
+  (mémoire vierge comprise dans la place annoncée), sans gêne pour le décodeur.
+- Effacement confirmé en tapant « effacer » : **42,5 s**, place occupée relue à **0** ensuite — loin des 300 s du délai
+  du configurateur pour 16 Mo.
+- Pas encore essayé : refus d'effacer drone armé, port tenu par le configurateur, identifiant après changement de
+  firmware, stockage de masse, Windows.
+
