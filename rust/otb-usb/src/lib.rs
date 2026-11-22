@@ -17,6 +17,6 @@ pub mod frame;
 pub mod link;
 pub mod sim;
 
-pub use client::{FlashSummary, Identity, Msp, MspError, Uid};
+pub use client::{ChipId, FlashSummary, Identity, Msp, MspError};
 pub use erase::{CopyReport, ErasePermit, VerifiedCopy, erase_flash, verify_and_save};
 pub use link::{Link, SerialLink};

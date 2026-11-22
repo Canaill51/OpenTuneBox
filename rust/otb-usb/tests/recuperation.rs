@@ -65,8 +65,8 @@ fn parcours_complet() {
         ("BTFL", "S7X2", "STM32F7X2")
     );
     assert_eq!((id.name.as_str(), id.version, id.api), ("jeno5", (25, 12, 0), (1, 47)));
-    assert!(id.uid.is_known());
-    assert_eq!(id.uid.to_hex().len(), 24);
+    assert!(id.chip_id.is_known());
+    assert_eq!(id.chip_id.to_hex().len(), 24);
 
     let mut pas = Vec::new();
     let copy = msp
@@ -134,7 +134,7 @@ fn vol_enregistre_pendant_la_copie() {
 #[test]
 fn autre_carte_branchee() {
     let (mut msp, v) = copie_verifiee(SimBoard::new(jeno()), "autre");
-    msp.link_mut().uid[2] ^= 1;
+    msp.link_mut().chip_id[2] ^= 1;
     let e = erase_flash(&mut msp, v.confirm(), vite(), |_| {}).unwrap_err();
     assert!(matches!(e, EraseError::OtherBoard), "{e:?}");
     assert_eq!(msp.link().count(Command::DataflashErase), 0);
@@ -143,8 +143,8 @@ fn autre_carte_branchee() {
 #[test]
 fn identifiant_nul_seulement_sur_la_meme_connexion() {
     let mut board = SimBoard::new(jeno());
-    board.uid = [0; 3];
-    let (msp, v) = copie_verifiee(board, "uid-nul");
+    board.chip_id = [0; 3];
+    let (msp, v) = copie_verifiee(board, "puce-nulle");
     // Nouvelle connexion : rien ne prouve que c'est la même carte.
     let mut autre = Msp::new(msp.into_link());
     let e = erase_flash(&mut autre, v.confirm(), vite(), |_| {}).unwrap_err();
@@ -152,8 +152,8 @@ fn identifiant_nul_seulement_sur_la_meme_connexion() {
     assert_eq!(autre.link().count(Command::DataflashErase), 0);
 
     let mut board = SimBoard::new(jeno());
-    board.uid = [0; 3];
-    let (mut msp, v) = copie_verifiee(board, "uid-nul-meme");
+    board.chip_id = [0; 3];
+    let (mut msp, v) = copie_verifiee(board, "puce-nulle-meme");
     erase_flash(&mut msp, v.confirm(), vite(), |_| {}).unwrap();
     assert!(msp.link().flash.is_empty());
 }

@@ -36,7 +36,7 @@ pub struct SimBoard {
     pub total: u32,
     /// `false` : pas de mémoire interne (logs sur carte SD).
     pub has_flash: bool,
-    pub uid: [u32; 3],
+    pub chip_id: [u32; 3],
     pub variant: [u8; 4],
     pub version: (u8, u8, u8),
     pub board: [u8; 4],
@@ -75,7 +75,7 @@ impl SimBoard {
             flash,
             total: 16 * 1024 * 1024,
             has_flash: true,
-            uid: [0x0033_0021, 0x3438_5107, 0x3436_3432],
+            chip_id: [0x0033_0021, 0x3438_5107, 0x3436_3432],
             variant: *b"BTFL",
             version: (25, 12, 0),
             board: *b"S7X2",
@@ -143,7 +143,7 @@ impl SimBoard {
                 p.extend_from_slice(&[0, 0]);
             }
             Command::Name => p.extend_from_slice(self.name.as_bytes()),
-            Command::Uid => self.uid.iter().for_each(|w| p.extend_from_slice(&w.to_le_bytes())),
+            Command::ChipId => self.chip_id.iter().for_each(|w| p.extend_from_slice(&w.to_le_bytes())),
             Command::StatusEx => {
                 p.extend_from_slice(&[0; 6]);
                 p.extend_from_slice(&u32::from(self.armed).to_le_bytes());

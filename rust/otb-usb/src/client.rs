@@ -24,7 +24,7 @@ pub enum Command {
     /// Envoyée par [`crate::erase::erase_flash`] seulement.
     DataflashErase,
     StatusEx,
-    Uid,
+    ChipId,
 }
 
 impl Command {
@@ -38,7 +38,7 @@ impl Command {
         Command::DataflashRead,
         Command::DataflashErase,
         Command::StatusEx,
-        Command::Uid,
+        Command::ChipId,
     ];
 
     pub fn code(self) -> u16 {
@@ -52,7 +52,7 @@ impl Command {
             Command::DataflashRead => 71,
             Command::DataflashErase => 72,
             Command::StatusEx => 150,
-            Command::Uid => 160,
+            Command::ChipId => 160,
         }
     }
 
@@ -129,9 +129,9 @@ impl From<std::io::Error> for MspError {
 
 /// Identifiant unique du microcontrôleur (`MSP_UID`, 96 bits gravés à la fabrication).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Uid(pub [u32; 3]);
+pub struct ChipId(pub [u32; 3]);
 
-impl Uid {
+impl ChipId {
     /// ⚠️ Nul sur le cœur M4 des H7 double cœur et sur le simulateur SITL : jamais une clé (`docs/spec-usb.md` §4).
     pub fn is_known(&self) -> bool {
         self.0 != [0; 3]
@@ -158,7 +158,7 @@ pub struct Identity {
     pub target: String,
     /// `craft_name` : le pilote le change d'une commande, ce n'est pas une clé.
     pub name: String,
-    pub uid: Uid,
+    pub chip_id: ChipId,
 }
 
 /// Résumé de la mémoire interne (`MSP_DATAFLASH_SUMMARY`).
@@ -324,7 +324,7 @@ impl<L: Link> Msp<L> {
         let mut at = 8;
         let target = pstring(&p, &mut at).unwrap_or_default();
         let name = String::from_utf8_lossy(&self.request(Command::Name, &[])?).into_owned();
-        let uid = self.uid()?;
+        let chip_id = self.chip_id()?;
         Ok(Identity {
             api,
             variant,
@@ -332,14 +332,14 @@ impl<L: Link> Msp<L> {
             board,
             target,
             name,
-            uid,
+            chip_id,
         })
     }
 
-    pub fn uid(&mut self) -> Result<Uid, MspError> {
-        let p = self.request(Command::Uid, &[])?;
-        Self::expect_len(Command::Uid, &p, 12)?;
-        Ok(Uid([le_u32(&p, 0), le_u32(&p, 4), le_u32(&p, 8)]))
+    pub fn chip_id(&mut self) -> Result<ChipId, MspError> {
+        let p = self.request(Command::ChipId, &[])?;
+        Self::expect_len(Command::ChipId, &p, 12)?;
+        Ok(ChipId([le_u32(&p, 0), le_u32(&p, 4), le_u32(&p, 8)]))
     }
 
     /// Le drone est-il armé ? Bit 0 des 32 premiers bits de modes de `MSP_STATUS_EX` : le mode `ARM` est toujours le

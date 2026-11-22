@@ -135,3 +135,44 @@ fn ports_candidats_sous_linux() {
     );
     assert_eq!(board_candidates(ports.clone(), false), ports);
 }
+
+/// Le motif « identifiant de compte » de CodeQL (`SensitiveDataHeuristics.qll`, `maybeAccountInfo`) :
+/// `([uU]|^|_|[a-z](?=U))([uU][iI][dD])` dans un nom. Réécrit à la main (pas de dépendance `regex` ici).
+fn looks_like_account_id(name: &str) -> bool {
+    let b = name.as_bytes();
+    (0..b.len().saturating_sub(2)).any(|i| {
+        b[i..i + 3].eq_ignore_ascii_case(b"uid")
+            && (i == 0 || matches!(b[i - 1], b'u' | b'U' | b'_') || (b[i - 1].is_ascii_lowercase() && b[i] == b'U'))
+    })
+}
+
+/// ⚠️ CodeQL prend tout nom en « uid » pour un identifiant d'utilisateur et refuse qu'on l'affiche ou l'écrive
+/// (alerte « Cleartext logging », PR #169) ; une empreinte ne change rien, il juge le nom. L'identifiant de la carte
+/// s'appelle donc `ChipId` / `chip_id` (L-109). Seul `MSP_UID`, nom du firmware cité en commentaire, est permis.
+#[test]
+fn aucun_nom_pris_pour_un_identifiant_de_compte() {
+    assert!(looks_like_account_id("uid") && looks_like_account_id("Uid") && looks_like_account_id("board_uid"));
+    assert!(looks_like_account_id("uid_summary") && looks_like_account_id("boardUid"));
+    assert!(!looks_like_account_id("guide") && !looks_like_account_id("chip_id") && !looks_like_account_id("build"));
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut files: Vec<_> = std::fs::read_dir(root.join("src"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    files.push(root.join("../otb-dev/src/usb.rs"));
+    let mut found = Vec::new();
+    for f in files {
+        let src = std::fs::read_to_string(&f).unwrap();
+        for (i, line) in src.lines().enumerate() {
+            for name in line.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
+                if name != "MSP_UID" && looks_like_account_id(name) {
+                    found.push(format!("{}:{} {name}", f.display(), i + 1));
+                }
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "noms pris pour un identifiant de compte par CodeQL : {found:?}"
+    );
+}

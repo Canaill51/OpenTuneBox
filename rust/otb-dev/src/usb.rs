@@ -43,12 +43,12 @@ pub fn ports() -> Result<String, String> {
 /// L'identifiant de la carte, sans l'afficher en entier : c'est un numéro de série fixe du matériel, et la sortie de
 /// cet outil se recopie volontiers (issue, documentation publique). Une empreinte courte suffit à vérifier qu'il ne
 /// change pas après un nouveau firmware (`docs/spec-usb.md`, procédure d'essai). Fonction pure.
-pub fn uid_summary(uid: &otb_usb::Uid) -> String {
+pub fn chip_id_summary(chip_id: &otb_usb::ChipId) -> String {
     use sha2::{Digest, Sha256};
-    if !uid.is_known() {
+    if !chip_id.is_known() {
         return "nul".into();
     }
-    let digest = Sha256::digest(uid.0.map(u32::to_le_bytes).concat());
+    let digest = Sha256::digest(chip_id.0.map(u32::to_le_bytes).concat());
     let short: String = digest[..4].iter().map(|b| format!("{b:02x}")).collect();
     format!("non nul, empreinte {short}")
 }
@@ -71,8 +71,8 @@ pub fn info(port: &str) -> Result<String, String> {
         id.board,
         id.target,
         if id.name.is_empty() { "(aucun)" } else { &id.name },
-        uid_summary(&id.uid),
-        if id.uid.is_known() {
+        chip_id_summary(&id.chip_id),
+        if id.chip_id.is_known() {
             ""
         } else {
             " — ne sert pas de clé"

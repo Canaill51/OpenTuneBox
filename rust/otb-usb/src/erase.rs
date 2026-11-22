@@ -16,7 +16,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use crate::client::{Command, FlashSummary, Identity, Msp, MspError, Uid};
+use crate::client::{ChipId, Command, FlashSummary, Identity, Msp, MspError};
 use crate::link::Link;
 
 /// Le contenu de la mémoire, tel que copié, avec ce que la carte annonçait au début de la copie.
@@ -130,7 +130,7 @@ pub struct CopyReport {
 
 /// Une copie écrite, relue et décodée : il ne lui manque que l'accord du pilote.
 pub struct VerifiedCopy {
-    uid: Uid,
+    chip_id: ChipId,
     used: u32,
     session: u64,
     report: CopyReport,
@@ -144,7 +144,7 @@ impl VerifiedCopy {
     /// Le pilote a lu le résultat et accepte d'effacer. À n'appeler qu'après sa réponse.
     pub fn confirm(self) -> ErasePermit {
         ErasePermit {
-            uid: self.uid,
+            chip_id: self.chip_id,
             used: self.used,
             session: self.session,
         }
@@ -154,7 +154,7 @@ impl VerifiedCopy {
 /// Le droit d'effacer, une fois, la mémoire d'où vient une copie vérifiée.
 #[derive(Debug)]
 pub struct ErasePermit {
-    uid: Uid,
+    chip_id: ChipId,
     used: u32,
     session: u64,
 }
@@ -203,7 +203,7 @@ pub fn verify_and_save(copy: FlashCopy, path: &Path) -> Result<VerifiedCopy, Not
         return Err(refuse(true, CheckFailure::LogWithoutFragment { log, logs }));
     }
     Ok(VerifiedCopy {
-        uid: copy.identity.uid,
+        chip_id: copy.identity.chip_id,
         used: copy.summary.used,
         session: copy.session,
         report: CopyReport {
@@ -310,11 +310,11 @@ pub fn erase_flash<L: Link>(
     mut waiting: impl FnMut(Duration),
 ) -> Result<(), EraseError> {
     // Même carte. Un identifiant nul ne prouve rien : il faut alors la même connexion que la copie.
-    let uid = msp.uid()?;
-    let same = if permit.uid.is_known() {
-        uid == permit.uid
+    let chip_id = msp.chip_id()?;
+    let same = if permit.chip_id.is_known() {
+        chip_id == permit.chip_id
     } else {
-        !uid.is_known() && msp.session() == permit.session
+        !chip_id.is_known() && msp.session() == permit.session
     };
     if !same {
         return Err(EraseError::OtherBoard);

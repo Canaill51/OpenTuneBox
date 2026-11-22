@@ -116,6 +116,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 
 ## Outillage, vérification et crochets
 
+- CodeQL classe tout nom en « uid » comme identifiant de compte et rougit dès qu'il est affiché ou écrit, empreinte comprise :
+  l'identifiant de la carte s'appelle `chip_id` (`ChipId`) ; ne jamais recopier l'identifiant complet d'une carte dans le dépôt. L-109
 - Un crochet ou un script de vérification ne dépend que de ce qui est sûr d'être présent sur les deux postes (pas de `jq`) :
   ce qu'il n'a pas pu vérifier se dit sur la sortie d'erreur, ce qui l'empêche de travailler échoue **visiblement** (code 2),
   jamais `exit 0` sur un chemin d'erreur — sinon il rend « tout va bien » sans rien avoir lu. L-087
