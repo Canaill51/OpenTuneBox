@@ -163,6 +163,14 @@ ils viennent du bruit (`validation.md`).
 - H = Sxy/Sxx du firmware et du modèle (Welch, Hann d'environ 0,5 s, recouvrement de moitié, aucune fenêtre sur un trou) ; par
   bande (5–50, 50–100, 100–250, 250–500 Hz, au-delà) : gain moyen en dB pondéré par la cohérence, écart, retard tiré de la
   phase, cohérence moyenne (bande concluante à 0,5), résidu (énergie de sortie − modèle sur énergie de sortie).
+- Arrondi de l'entrée retiré de Sxx pour le firmware (`filter_stages::InputNoise`) : le log arrondit l'entrée (au °/s pour les
+  canaux debug, au 1/10 en haute résolution pour `gyroUnfilt` et le gyro), le firmware filtre la valeur exacte. Bruit blanc de
+  variance pas²/12, × |2·fs·sin(πf/fs)|² pour l'entrée dérivée du D ; une case où il dépasse 10 % de Sxx sort des moyennes
+  (`MAX_INPUT_NOISE_SHARE`). Sans cela, le gain du firmware paraît plus faible d'environ 10·log10(cohérence) (L-103).
+- Filtres du modèle à la cadence où le firmware les applique (`bf_filters::gyro_stage_upsampled`) : la cadence gyro pour le LPF2,
+  la cadence PID pour RPM, notchs statiques, LPF1 et notch dynamique quand le log saute des boucles. Échantillons absents du log
+  reconstruits par sinus cardinal fenêtré (Hann, ±16 échantillons), valeurs lues dans le log (gaz, eRPM, centres) tenues ; sortie
+  gardée aux échantillons enregistrés (L-104).
 - Décalage d'horloge de `gyroUnfilt` retiré : ⌊`pid_process_denom` / 2⌋ ticks gyro (L-100). Terme D : log à chaque boucle PID,
   D sans D max ; gain Kd ajusté sur 10–50 Hz, facteur TPA de chaque instant appliqué au modèle (gaz d'avant le throttle boost,
   `filter_stages::tpa_d_factor`, `bf_filters::pre_boost_throttle`) ; instants où le firmware force le D à zéro (PID coupé,
@@ -170,7 +178,7 @@ ils viennent du bruit (`validation.md`).
 - Filtres du modèle calculés pour la cadence **nominale** de l'en-tête (`filter_stages::model_rate_hz`), comme le firmware, et
   bandes comptées en hertz du firmware : sur un contrôleur surchargé, la boucle tourne moins vite qu'annoncé et tous les
   filtres coupent plus bas en hertz réels (L-101). Le simulateur affiché (`simulate_gyro`, `simulate_dterm`) prend encore la
-  cadence mesurée et ignore le TPA (W-064).
+  cadence mesurée, ignore le TPA et calcule le LPF2 à la cadence du log (W-064).
 
 ## Suivi du notch dynamique (`rust/otb-analysis/src/dyn_notch.rs`)
 

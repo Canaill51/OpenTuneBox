@@ -412,14 +412,15 @@ Les références figées (`$OTB_GOLDEN`) avaient disparu du poste : elles ont é
   ok 624, gap 67, slow 8, values 5, refhang 3, rows 2. Les 15 non conformes sont exactement celles de la ligne de
   base du 2026-11-04 ; l'écart sur le total vient du corpus lui-même, qui a perdu 3 fichiers (525 lus au lieu de 528).
 
-### Modèle de filtres étage par étage (2026-11-22, lots 22a et 22a bis, D-057)
+### Modèle de filtres étage par étage (2026-11-22, lots 22a, 22a bis et 22b)
 
 Outil : `rust/otb-analysis/src/filter_stages.rs:check_stages` (méthode dans son en-tête) ; corpus :
-`(cd rust && cargo run --release -p otb-dev -- corpus stages SORTIE.json)` (14 s pour tout le corpus le 2026-11-22, 508 sessions
+`(cd rust && cargo run --release -p otb-dev -- corpus stages SORTIE.json)` (22 s pour tout le corpus le 2026-11-22 après le lot 22b, 14 s avant ; 508 sessions
 lues ; `--resume SORTIE.json` refait le tableau). Écart = gain du firmware − gain du modèle, moyenne en dB pondérée par la
 cohérence ; une bande n'est retenue que si sa cohérence moyenne atteint 0,5. Décalage d'horloge de L-100 retiré. Depuis 22a bis :
 filtres du modèle calculés pour la cadence nominale et bandes en hertz du firmware (L-101), TPA appliqué au terme D, instants
-où le firmware force le D à zéro écartés.
+où le firmware force le D à zéro écartés. Depuis 22b : arrondi de l'entrée retiré (L-103), LPF2 à la cadence gyro (L-104) ;
+résultats ci-dessous (« Lot 22b »), les tableaux qui suivent sont ceux d'avant. Logs à 1,6 kHz ou plus (D-057).
 
 **Logs chirp de l'Air65** (`Cedric/Air65/Test BF Chirp`, 3 logs, Betaflight 2026.12, gyro 8 kHz, PID 4 kHz, log à chaque boucle PID,
 `FFT_FREQ`, sans haute résolution) : écarts signés, du plus petit au plus grand des 3 logs (axes roll et pitch pour le D).
@@ -436,10 +437,10 @@ plupart du temps). Même ordre de grandeur que l'essai jetable du plan (0,2 / 0,
 (moyenne par bande ici). Les écarts sont tous du même signe d'un log à l'autre : le firmware atténue un peu plus que le modèle
 entre 50 et 250 Hz (W-062).
 
-**Hypothèse écartée : un biais de la mesure.** Partout, l'écart ressemble à 10·log10(cohérence) (cohérence 0,7 → −1,5 dB), la
-signature d'un bruit sur l'**entrée** (arrondi au °/s) qui fait sous-estimer le gain. Essai : l'entrée décalée d'un échantillon
-comme référence (variable instrumentale, insensible à ce bruit). Résultat identique au centième de dB sur les 12 étages : le bruit
-d'entrée est négligeable, les écarts ne viennent pas de l'estimateur. L'écart du notch dynamique entre 250 et 500 Hz reste à expliquer.
+**⚠️ Conclusion fausse, corrigée en 22b (L-103).** Le texte de 22a disait : « Hypothèse écartée : un biais de la mesure. Partout,
+l'écart ressemble à 10·log10(cohérence), la signature d'un bruit sur l'entrée (arrondi au °/s) ; essai : l'entrée décalée d'un
+échantillon comme variable instrumentale ; résultat identique au centième. » L'essai ne pouvait que redonner le même chiffre :
+dans une fenêtre, l'entrée décalée a la même transformée à une phase près, bruit compris. Le biais était bien là.
 
 **Corpus** (aucun log `GYRO_SAMPLE` : les étages séparés attendent les vols 22b). |écart| médian et maximal, bandes concluantes,
 après 22a bis (entre parenthèses dans la colonne Sessions : le maximum sous 250 Hz mesuré en 22a, avant les corrections) :
@@ -477,7 +478,89 @@ PID, bande concluante. Les 7 sessions en alerte de 22a, examinées une à une :
 
 **Restent 2 alertes**, toutes deux sur le D entre 100 et 250 Hz, cohérence 0,85 : `KM HOVER WOBBLE 5` #1 axe pitch −1,31 dB et
 `Cedric/Air65/Tune/F1.bbl` #1 axe roll −1,35 dB. Même signe et même bande que l'écart léger de tous les autres logs (W-062) :
-cause à chercher, suite décidée avec Cédric ([plan.md](plan.md), lot 22).
+cause à chercher, suite décidée avec Cédric ([plan.md](plan.md), lot 22). **Toutes deux disparaissent en 22b** (arrondi de l'entrée,
+ci-dessous) : −0,27 et −0,43 dB au plus sur le D de ces deux sessions.
+
+#### Lot 22b : étages séparés (`GYRO_SAMPLE`), arrondi de l'entrée, cadence des filtres, log à 2 kHz
+
+**Vols** (`Cedric/Air65/Test BF Chirp/GYRO_SAMPLE_*.bbl`, 12 logs) : mêmes réglages que les logs chirp (Betaflight 2026.12, gyro
+8 kHz, PID 4 kHz, log à chaque boucle PID, PT1 partout, aucun notch statique), `debug_mode = GYRO_SAMPLE`, axe debug roll ou pitch,
+avec et sans haute résolution, chirp de 25, 45 et 65 Hz. Le second vol prévu (SVF, PT2, notch statique, notch D) n'a pas été fait.
+
+**Premier passage, outil de 22a bis** : 0 alerte ; chaque étage sous 0,5 dB jusqu'à 250 Hz. Mais l'étage **horloge**
+(`gyroUnfilt` → `GYRO_SAMPLE[0]`, la même variable `gyro.gyroADC` lue à deux instants, gain 1 par construction) mesure −0,25 à
+−0,42 dB entre 50 et 100 Hz sans haute résolution, −0,04 à −0,22 dB avec : un défaut de la **mesure**. Essai jetable (hors dépôt,
+signaux exportés puis numpy) : en retirant de S(x, x) l'arrondi connu de l'entrée (pas²/12), l'étage horloge tombe à 0,00–0,11 dB
+sans haute résolution. Sur le D, les vols **en haute résolution** (gyro au 1/10 °/s) suivent le modèle à 0,04 dB près dans toutes les
+bandes **sans aucune correction**, contre −1,1 à −2,3 dB entre 250 et 500 Hz pour les mêmes vols sans haute résolution : même
+drone, mêmes filtres, seule la résolution change. L'écart « de même signe partout » (W-062) venait de la mesure (L-103).
+
+**LPF2** : une fois l'arrondi retiré, il reste +0,41 à +0,45 dB entre 250 et 500 Hz sur les 12 vols (cohérence 0,98) : le firmware
+calcule le LPF2 pour la cadence gyro, le modèle pour la cadence du log. Théorie (PT1 à 500 Hz, 8 kHz contre 4 kHz) : +0,44 dB
+(250–500 Hz), +0,17 dB (100–250 Hz) ; mesuré +0,41 à +0,45 et +0,08 à +0,18 (L-104). Rejoué à la cadence gyro
+(`bf_filters::gyro_stage_upsampled`), échantillons gyro absents du log reconstruits par interpolation. Interpolation **linéaire**
+d'abord : LPF2 à +0,12 à +0,17 dB entre 250 et 500 Hz, car elle agit comme un passe-bas sur l'entrée reconstruite ; cubique
+(Catmull-Rom) : −0,03 à +0,02 dB ; **sinus cardinal fenêtré** (Hann, ±16 échantillons, retenu) : −0,04 à +0,01 dB.
+
+**Vols `FFT_FREQ` à 2 kHz** (`FFT_FREQ_2k-CHIRP-25/45/65Hz.bbl`, `blackbox_sample_rate = 1/2`, mêmes réglages que les logs chirp,
+et `FFT_FREQ_4k-CHIRP-25Hz.bbl`, même jour, à chaque boucle PID, qui redonne les chiffres des logs chirp du 2026-11-17) : le notch
+dynamique est aussi juste qu'à 4 kHz (±0,11 dB), mais le bloc gyro dévie de +0,25 à +0,32 dB entre 100 et 250 Hz (+0,01 à +0,04 à
+4 kHz). Même cause que le LPF2 : le firmware applique RPM, notchs statiques et LPF1 à chaque boucle PID (4 kHz), le modèle les
+calculait pour la cadence du log (2 kHz) ; théorie pour le LPF1 de l'Air65 (PT1 de 250 à 500 Hz) : +0,31 à +0,41 dB entre 100 et
+250 Hz. Rejoués à la cadence PID (même fonction) : interpolation linéaire, +0,09 à +0,17 dB entre 100 et 250 Hz mais +0,94 à
++1,16 dB entre 250 et 500 Hz ; sinus cardinal, −0,23 à −0,15 et +0,11 à +0,19 dB. Reste à 2 kHz un petit écart négatif sous 250 Hz
+(−0,35 à −0,15 dB) qu'aucune interpolation ne change, alors que la théorie leur prête à toutes moins de 0,03 dB d'erreur à
+50–100 Hz : pas le modèle ; cause supposée, le repliement dans le log du bruit au-dessus de 1 kHz, qui agit sur la mesure comme un
+bruit d'entrée.
+
+**Après les corrections**, écarts signés (12 vols `GYRO_SAMPLE` ; bloc et notch dynamique : 4 vols `FFT_FREQ` à chaque boucle PID,
+3 à 2 kHz ; D : 32 axes, log à chaque boucle PID seulement) :
+
+| Étage | 5–50 Hz | 50–100 Hz | 100–250 Hz | 250–500 Hz |
+|---|---|---|---|---|
+| horloge (aucun filtre) | −0,02 à +0,03 dB | −0,22 à +0,00 dB | −0,09 à −0,01 dB | −0,07 à −0,00 dB |
+| LPF2 | −0,04 à +0,00 dB | −0,22 à −0,02 dB | −0,09 à +0,00 dB | −0,04 à +0,01 dB |
+| notchs RPM | −0,03 à +0,01 dB | −0,06 à +0,05 dB | −0,01 à +0,03 dB | +0,25 à +0,35 dB |
+| notchs statiques + LPF1 | −0,01 à +0,03 dB | −0,04 à +0,10 dB | −0,01 à +0,07 dB | +0,03 à +0,22 dB |
+| bloc LPF2 + RPM + LPF1 | −0,01 à +0,01 dB | −0,08 à +0,00 dB | −0,02 à −0,00 dB | +0,14 à +0,32 dB |
+| bloc, log à 2 kHz | −0,03 à −0,00 dB | −0,35 à −0,17 dB | −0,23 à −0,15 dB | +0,11 à +0,19 dB |
+| notch dynamique | −0,00 à +0,01 dB | −0,07 à +0,01 dB | −0,11 à +0,03 dB | −0,11 à −0,01 dB |
+| notch dynamique, log à 2 kHz | −0,01 à +0,00 dB | +0,02 à +0,09 dB | −0,02 à +0,06 dB | +0,05 à +0,12 dB |
+| filtres D | −0,00 à +0,00 dB | −0,27 à +0,01 dB | −0,28 à +0,02 dB | −0,43 à +0,01 dB |
+
+Restes connus, tous sous 0,5 dB : les notchs RPM entre 250 et 500 Hz (+0,25 à +0,35 dB, cohérence 0,65 seulement : la bande des
+moteurs) ; l'étage horloge en haute résolution, −0,1 à −0,2 dB entre 50 et 100 Hz, sans explication (piste supposée : repliement du
+bruit au-dessus de 2 kHz, invisible dans un log à 4 kHz).
+
+**Corpus** (`otb-dev corpus stages`, 22 s avec l'interpolation, 14 s avant ; avant = `main` au 2026-11-22, après = cette branche,
+mêmes sessions ; |écart| médian (maximal), bandes concluantes) :
+
+| Étage, log | 50–100 Hz avant → après | 100–250 Hz avant → après | 250–500 Hz avant → après |
+|---|---|---|---|
+| bloc gyro, chaque boucle PID (15) | 0,20 (0,52) → 0,05 (0,10) | 0,21 (0,76) → 0,06 (0,71) | 0,59 (2,78) → 0,35 (2,84) |
+| notch dynamique, chaque boucle PID (15) | 0,19 (0,49) → 0,01 (0,09) | 0,35 (0,99) → 0,02 (0,15) | 1,05 (1,97) → 0,03 (0,22) |
+| filtres D, chaque boucle PID (52 axes) | 0,27 (0,86) → 0,02 (0,27) | 0,22 (1,35) → 0,03 (0,43) | 1,36 (3,99) → 0,06 (0,69) |
+| bloc gyro, une boucle sur 2 ou moins | 0,90 (5,20) → 0,20 (4,46) | 0,59 (3,88) → 0,28 (4,09) | 0,63 (1,90) → 0,22 (3,01) |
+| notch dynamique, une boucle sur 2 ou moins | 0,76 (3,21) → 0,06 (0,94) | 0,73 (2,15) → 0,07 (2,41) | 1,12 (2,47) → 0,13 (4,51) |
+
+Moyenne signée, avant → après, à chaque boucle PID : notch dynamique −0,21 → −0,00 (50–100 Hz), −0,41 → +0,01 (100–250 Hz),
+−0,97 → −0,03 dB (250–500 Hz) ; D −0,29 → −0,07, −0,35 → −0,07, −1,24 → −0,11 dB ; une boucle sur 2 ou moins, notch dynamique
+−0,93 → +0,06, −0,72 → +0,18, −1,10 → +0,38 dB. **Alertes : 2 → 0.**
+
+**Garde-fou** (`MAX_INPUT_NOISE_SHARE`) : une case où l'arrondi dépasse cette part de l'énergie d'entrée sort des moyennes. À 0,5,
+47 bandes de logs à cadence réduite empiraient de plus de 0,5 dB, jusqu'à +5 dB : vols stationnaires très calmes (91 à 97 % des
+échantillons consécutifs identiques dans `debug[0]` : l'arrondi n'y est plus un bruit blanc), où la correction d'une case peut
+atteindre +6 dB. À 0,25 : 32 (jusqu'à +4,2 dB) ; à **0,1** (retenu ; correction bornée à +0,9 dB par case) : 14, et à chaque boucle PID rien
+n'empire, 2 bandes concluantes sur 511 perdues (mesuré avant l'interpolation à la cadence des filtres).
+
+**Logs à cadence réduite, cas extrêmes (W-067)** : avec l'arrondi retiré et les filtres à leur cadence, 24 bandes empirent de plus
+de 0,5 dB par rapport à `main` (14 avant l'interpolation), toutes vers le positif (le modèle filtre plus que le firmware, jusqu'à
++4,5 dB) ; 21 sur 24 entre 100 et 500 Hz, surtout dans le notch dynamique, cohérence 0,50 à 0,65, drones qui vibrent fort
+(`… hover wobble 1900k…`, `Sasha/Foxwhoop`, `Sasha/Amax`) ; PID 4 kHz et log 2 kHz pour 13, PID 3,2 kHz et log 1,6 kHz pour 8,
+PID 8 kHz et log 2 kHz pour 3. Cause supposée, non mesurée : le bruit au-dessus de la moitié de la cadence du log se replie dans le
+log ; le firmware n'applique pas son notch à ce bruit (il est ailleurs en fréquence), le modèle si (il le voit à la fréquence
+repliée). Aucun modèle ne peut le corriger : le contenu replié n'est pas dans le log. L'écart typique, lui, s'améliore (tableau
+ci-dessus).
 
 ### Suivi du notch dynamique (2026-11-22, lot 22c)
 

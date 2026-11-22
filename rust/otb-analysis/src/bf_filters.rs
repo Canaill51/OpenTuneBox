@@ -706,13 +706,41 @@ pub fn gyro_stage_at(
     stage: GyroStage,
     log: &FlightLog,
     s: &Settings,
-    mut x: Vec<f64>,
+    x: Vec<f64>,
     k: usize,
     fs: f64,
 ) -> Result<Vec<f64>, String> {
+    gyro_stage_held(stage, log, s, x, k, fs, 1)
+}
+
+/// Chaque valeur répétée `r` fois : une valeur lue dans le log (gaz, eRPM, centre de notch) tenue pendant les `r` pas
+/// d'un filtre qui tourne `r` fois plus vite que le log.
+fn held(v: Vec<f64>, r: usize) -> Vec<f64> {
+    if r <= 1 {
+        return v;
+    }
+    v.iter().flat_map(|&a| std::iter::repeat_n(a, r)).collect()
+}
+
+/// [`gyro_stage_at`] sur une entrée `x` déjà portée à `r` fois la cadence du log : les valeurs lues dans le log sont tenues
+/// `r` pas chacune ([`held`]). `fs` est la cadence de `x` ; `r` > 1 exige une seule ligne (`k` = 1).
+fn gyro_stage_held(
+    stage: GyroStage,
+    log: &FlightLog,
+    s: &Settings,
+    mut x: Vec<f64>,
+    k: usize,
+    fs: f64,
+    r: usize,
+) -> Result<Vec<f64>, String> {
+    if r > 1 && k != 1 {
+        return Err(format!(
+            "filtre rejoué {r} fois plus vite que le log : une seule ligne à la fois ({k} reçues)"
+        ));
+    }
     let n = x.len().checked_div(k).unwrap_or(0);
     match stage {
-        GyroStage::Lpf2 => lowpass_sim(x, k, n, &s.gyro_lpf2, &throttle_frac(log), fs),
+        GyroStage::Lpf2 => lowpass_sim(x, k, n, &s.gyro_lpf2, &held(throttle_frac(log), r), fs),
         GyroStage::Rpm => {
             if let Some(mhz) = log.motor_hz.as_ref().filter(|_| s.rpm_harmonics > 0) {
                 let q = s.rpm_q as f64 / 100.0;
@@ -723,7 +751,7 @@ pub fn gyro_stage_at(
                 };
                 for m in 0..mhz.k {
                     let row: Vec<f64> = mhz.row(m).iter().map(|&v| v as f64).collect();
-                    let tracked = pt1_track(&row, kk);
+                    let tracked = pt1_track(&held(row, r), kk);
                     for h in 0..s.rpm_harmonics {
                         let (f, w) = rpm_notch_freq_weight(&tracked, h, s, s.pid_rate_hz())?;
                         if !w.iter().any(|&v| v > 0.0) {
@@ -742,23 +770,96 @@ pub fn gyro_stage_at(
                     x = apply(&x, k, n, Kind::Notch, &[sp.f_hz], fs, sp.q, &[1.0])?;
                 }
             }
-            lowpass_sim(x, k, n, &s.gyro_lpf1, &throttle_frac(log), fs)
+            lowpass_sim(x, k, n, &s.gyro_lpf1, &held(throttle_frac(log), r), fs)
         }
         GyroStage::DynNotch => {
             if dyn_notch_enabled(s)
                 && let Some(centres) = fft_freq_centres(log, Some(s))
             {
                 let q = s.dyn_notch_q as f64 / 100.0;
-                for r in 0..centres.k {
-                    let c = centres.row(r);
+                for p in 0..centres.k {
+                    let c = held(centres.row(p).to_vec(), r);
                     if q > 0.0 && c.iter().any(|&v| v > 0.0) {
-                        x = apply(&x, k, n, Kind::Notch, c, fs, q, &[1.0])?;
+                        x = apply(&x, k, n, Kind::Notch, &c, fs, q, &[1.0])?;
                     }
                 }
             }
             Ok(x)
         }
     }
+}
+
+/// `gyro_stage_upsampled` : un étage gyro d'une ligne `x` enregistrée à la cadence `fs`, rejoué à `r` fois cette cadence,
+/// celle où le firmware le calcule et l'applique : la cadence gyro pour le LPF2 (`gyro.sampleLooptime`, `sensors/gyro_init.c`,
+/// depuis la 4.2), la cadence PID pour les autres quand le log n'enregistre qu'une boucle sur `r`. Les échantillons absents du
+/// log sont interpolés ([`upsample`]), les valeurs lues dans le log (gaz, eRPM, centres) tenues ; on garde la sortie au
+/// dernier, celui qu'enregistre le log. ⚠️ Calculé à la cadence du log, un filtre coupe trop :
+/// LPF2 (PT1 à 500 Hz) +0,45 dB d'écart entre 250 et 500 Hz à 8k / 4k ; LPF1 de l'Air65 +0,25 dB entre 100 et 250 Hz quand le
+/// log n'enregistre qu'une boucle PID sur deux (L-104). Seul le contrôle par étage s'en sert (W-064).
+pub fn gyro_stage_upsampled(
+    stage: GyroStage,
+    log: &FlightLog,
+    s: &Settings,
+    x: Vec<f64>,
+    fs: f64,
+    r: usize,
+) -> Result<Vec<f64>, String> {
+    if r <= 1 || x.is_empty() {
+        return gyro_stage_at(stage, log, s, x, 1, fs);
+    }
+    let n = x.len();
+    let y = gyro_stage_held(stage, log, s, upsample(&x, r), 1, fs * r as f64, r)?;
+    Ok((0..n).map(|i| y[i * r + r - 1]).collect())
+}
+
+/// Demi-largeur (échantillons du log) du noyau d'interpolation de [`upsample`].
+const UPSAMPLE_HALF_TAPS: usize = 16;
+
+/// `upsample` : `x` porté à `r` fois sa cadence, `r` valeurs par échantillon, la dernière égale à l'échantillon lui-même
+/// (positions `i − 1 + j/r`, j = 1…r). Sinus cardinal fenêtré (Hann, ±[`UPSAMPLE_HALF_TAPS`] échantillons, gain normalisé),
+/// bords prolongés par la première et la dernière valeur. ⚠️ Pas d'interpolation linéaire : elle agit comme un passe-bas
+/// sur l'entrée reconstruite, et le LPF2 rejoué à 8 kHz depuis un log à 4 kHz restait à +0,12 à +0,17 dB entre 250 et
+/// 500 Hz (−0,04 à +0,01 dB ainsi) ; le bloc gyro d'un log à 2 kHz, à +0,94 à +1,16 dB (+0,11 à +0,19 dB ainsi, lot 22b).
+fn upsample(x: &[f64], r: usize) -> Vec<f64> {
+    let n = x.len();
+    let h = UPSAMPLE_HALF_TAPS as isize;
+    // un noyau par position j : poids des échantillons x[i − 1 + m], m = −h+1…h
+    let kernels: Vec<Vec<f64>> = (1..=r)
+        .map(|j| {
+            let t = j as f64 / r as f64;
+            let w: Vec<f64> = (-h + 1..=h)
+                .map(|m| {
+                    let d = m as f64 - t;
+                    let sinc = if d.abs() < 1e-12 {
+                        1.0
+                    } else {
+                        (PI * d).sin() / (PI * d)
+                    };
+                    sinc * (0.5 + 0.5 * (PI * d / (h as f64 + 1.0)).cos())
+                })
+                .collect();
+            let sum: f64 = w.iter().sum();
+            w.into_iter().map(|v| v / sum).collect()
+        })
+        .collect();
+    let at = |i: isize| x[i.clamp(0, n as isize - 1) as usize];
+    let mut up = Vec::with_capacity(n * r);
+    for i in 0..n as isize {
+        for (j, kern) in kernels.iter().enumerate() {
+            if j + 1 == r {
+                up.push(x[i as usize]); // t = 1 : l'échantillon enregistré lui-même
+                continue;
+            }
+            up.push((-h + 1..=h).zip(kern).map(|(m, w)| w * at(i - 1 + m)).sum());
+        }
+    }
+    up
+}
+
+/// `lpf2_at_gyro_rate` : LPF2 gyro rejoué à la cadence gyro ([`gyro_stage_upsampled`], L-104).
+pub fn lpf2_at_gyro_rate(log: &FlightLog, s: &Settings, x: Vec<f64>, fs: f64) -> Result<Vec<f64>, String> {
+    let r = (s.gyro_rate_hz() / fs).round() as usize;
+    gyro_stage_upsampled(GyroStage::Lpf2, log, s, x, fs, r)
 }
 
 /// `simulate_gyro` : rejoue la chaîne de filtres gyro sur `gyro_unfilt` (`3 × n`) → gyro filtré simulé. Mêmes approximations

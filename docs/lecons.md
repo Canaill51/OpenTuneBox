@@ -60,6 +60,51 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-104 : le firmware calcule chaque filtre pour la cadence où il tourne (gyro pour le LPF2, PID pour les autres), pas pour celle du log : le modèle filtrait trop
+
+- **Symptôme** — 2026-11-22 (lot 22b) : une fois l'arrondi de l'entrée retiré (L-103), l'étage LPF2 des vols `GYRO_SAMPLE` de
+  l'Air65 garde +0,41 à +0,45 dB entre 250 et 500 Hz sur les 12 vols, cohérence 0,98 : le firmware atténue moins que le modèle.
+  Puis, sur des vols `FFT_FREQ` logués une boucle PID sur deux (2 kHz), le bloc gyro dévie de +0,25 à +0,32 dB entre 100 et 250 Hz
+  (+0,01 à +0,04 à chaque boucle PID).
+- **Cause** — mesurée. `sensors/gyro_init.c` calcule le LPF2 avec `gyro.sampleLooptime` (8 kHz) et `sensors/gyro.c` l'applique à
+  chaque échantillon gyro (filtre de sous-échantillonnage, depuis le commit `f58478094` du 2020-01-06, donc la 4.2) ; RPM, notchs
+  statiques, LPF1 et notch dynamique tournent à chaque boucle PID, même quand le log n'en garde qu'une sur N. Le modèle les
+  calculait tous pour la cadence du log. Théorie : LPF2 PT1 à 500 Hz, 8 kHz contre 4 kHz, +0,44 dB (250–500 Hz) et +0,17 dB
+  (100–250 Hz) ; LPF1 de l'Air65, 4 kHz contre 2 kHz, +0,31 à +0,41 dB (100–250 Hz) : ce qui est mesuré.
+- **Règle** — rejouer chaque filtre à la cadence où le firmware le **calcule et l'applique** : `bf_filters::gyro_stage_upsampled`
+  reconstruit les échantillons absents du log, filtre à cette cadence et garde les échantillons enregistrés. ⚠️ Reconstruire par
+  sinus cardinal fenêtré, pas linéairement : l'interpolation linéaire agit comme un passe-bas sur l'entrée et laissait le LPF2 à
+  +0,12 à +0,17 dB entre 250 et 500 Hz, et le bloc d'un log à 2 kHz à +0,94 à +1,16 dB (−0,04 à +0,01 et +0,11 à +0,19 dB ainsi).
+  Avant la 4.2, tous les filtres gyro tournaient à la cadence gyro (W-066). Le simulateur affiché ne suit pas encore cette règle
+  (W-064).
+- **Preuve** — tests `rust/otb-analysis/tests/filter_stages.rs:lpf2_calcule_a_la_cadence_gyro` et
+  `filtres_de_la_boucle_pid_rejoues_a_sa_cadence_quand_le_log_en_saute` (contre-preuves : à la cadence du log, +0,35 et +0,40 dB) ;
+  vols de l'Air65 dans [validation.md](validation.md#modèle-de-filtres-étage-par-étage-2026-11-22-lots-22a-22a-bis-et-22b).
+
+### L-103 : S(x, y) / S(x, x) sous-estime le gain quand l'entrée enregistrée est arrondie, et décaler l'entrée d'un échantillon ne le prouve pas : on accuse le firmware de filtrer plus
+
+- **Symptôme** — 2026-11-22 (lots 22a puis 22b) : partout, le contrôle par étage trouve le firmware « qui filtre un peu plus » que
+  le modèle, d'autant plus que la cohérence est basse : notch dynamique −1,2 à −1,35 dB entre 250 et 500 Hz, D jusqu'à −2,3 dB,
+  2 alertes acceptées (W-062). L'idée d'un biais de la mesure avait été « testée et écartée » en 22a : une variable
+  instrumentale (entrée décalée d'un échantillon) redonnait les mêmes chiffres au centième. Le doute est venu de l'étage
+  horloge des vols 22b, `gyroUnfilt` → `GYRO_SAMPLE[0]` : la **même** variable du firmware lue à deux instants, de gain 1 par
+  construction, mesurée à −0,3 dB entre 50 et 100 Hz.
+- **Cause** — mesurée. Le log n'a que l'arrondi de l'entrée (au °/s pour les canaux debug) ; le firmware a filtré la valeur exacte.
+  La différence est un bruit blanc de variance pas²/12 qui gonfle S(x, x) sans entrer dans S(x, y) : le gain mesuré est multiplié
+  par S/(S + bruit), environ la cohérence. L'essai de 22a ne pouvait rien montrer : dans une fenêtre, l'entrée décalée d'un
+  échantillon a la **même** transformée à une phase près, bruit compris ; ce n'est pas un instrument. Retirer pas²/12 ramène
+  l'étage horloge à 0,00–0,11 dB ; et le D des vols en haute résolution (gyro au 1/10 °/s) suit à 0,04 dB près dans toutes les
+  bandes, contre −1,1 à −2,3 dB pour les mêmes vols sans haute résolution.
+- **Règle** — avant d'accuser un filtre, mesurer un étage dont le gain est connu (l'étage horloge vaut 1) et retirer le bruit
+  connu de l'entrée (`filter_stages::InputNoise`). Une variable instrumentale doit avoir un bruit **indépendant** de celui de
+  l'entrée (une autre mesure du même signal), jamais l'entrée elle-même décalée. L'arrondi n'est un bruit blanc que si le signal
+  bouge assez : au-delà de 10 % de l'énergie d'une case, la case sort des moyennes (`MAX_INPUT_NOISE_SHARE` ; à 50 %, des vols
+  stationnaires très calmes s'emballaient jusqu'à +5 dB).
+- **Preuve** — tests `rust/otb-analysis/tests/filter_stages.rs:arrondi_de_l_entree_retire_de_la_mesure` et
+  `arrondi_du_gyro_retire_de_l_etage_d` (contre-preuve : sans correction, −0,3 dB au moins) ; corpus : 2 alertes → 0, moyenne
+  signée du notch dynamique entre 250 et 500 Hz −0,97 → −0,02 dB
+  ([validation.md](validation.md#modèle-de-filtres-étage-par-étage-2026-11-22-lots-22a-22a-bis-et-22b)).
+
 ### L-102 : le firmware calcule la cadence du notch dynamique en `float`, et l'arrondi change le sous-échantillonnage de sa SDFT : la cadence exacte fausse le suivi
 - **Symptôme** — 2026-11-22 (lot 22c) : en rejouant le suivi des pics du notch dynamique, rien n'avertit ; mais avec la cadence
   exacte, les centres rejoués de 42 sessions s'écartent des centres enregistrés (`FFT_FREQ`) : 14,9 Hz médian au lieu de 5,6, part à
@@ -1254,6 +1299,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-104 | Filtres rejoués à la cadence du log au lieu de celle où le firmware les applique (gyro pour le LPF2, depuis la 4.2 ; PID pour les autres, même si le log saute des boucles) : le modèle filtre trop (+0,45 dB entre 250 et 500 Hz pour un PT1 à 500 Hz) ; `bf_filters::gyro_stage_upsampled`, interpolation par sinus cardinal, jamais linéaire | Analyses |
+| L-103 | Gain S(x, y) / S(x, x) sur une entrée arrondie (canaux debug au °/s) : biaisé vers le bas d'environ la cohérence ; retirer pas²/12 de S(x, x) (`filter_stages::InputNoise`) ; l'entrée décalée d'un échantillon n'est pas une variable instrumentale ; vérifier sur l'étage horloge, de gain 1 | Analyses |
 | L-102 | Notch dynamique rejoué : le firmware calcule sa cadence en `float` (formule différente selon la version) et tronque Nyquist / `maxHz` ; quand ce rapport est entier, la 2026.6 moyenne 3 boucles au lieu de 4 ; reproduire la formule et le type de la version du log, jamais la valeur exacte | Analyses |
 | L-101 | Contrôleur surchargé : la boucle tourne moins vite que l'en-tête (`petrel` : 1 976 Hz pour 4 000), mais le firmware calcule ses filtres pour la cadence annoncée, donc coupe plus bas en hertz réels ; le modèle doit prendre la cadence nominale (`filter_stages::model_rate_hz`), pas `FlightLog::fs` ; tous les étages qui dévient ensemble : comparer d'abord cadence mesurée et annoncée | Analyses |
 | L-100 | `gyroUnfilt` a ⌊`pid_process_denom`/2⌋ échantillons gyro d'avance sur le gyro filtré (125 µs à 8 kHz, denom 2 : filtrage et Blackbox ne tombent pas sur le même tick) : retirer ce décalage de toute comparaison `gyroUnfilt` → signal filtré avant d'accuser un filtre ; l'outil Retards l'inclut aujourd'hui | Analyses |

@@ -6,9 +6,10 @@ use std::collections::BTreeSet;
 use std::f64::consts::PI;
 use std::path::PathBuf;
 
-use otb_analysis::bf_filters::{GyroStage, gyro_stage, pre_boost_throttle, simulate_dterm};
+use otb_analysis::bf_filters::{GyroStage, gyro_stage, gyro_stage_at, pre_boost_throttle, simulate_dterm};
 use otb_analysis::filter_stages::{
-    Stage, StageCheck, check_stages, clock_offset_s, compare, model_rate_hz, stage_signals, tpa_d_factor,
+    InputNoise, Stage, StageCheck, StageSignals, check_stages, clock_offset_s, compare, model_rate_hz, stage_signals,
+    tpa_d_factor,
 };
 use otb_decoder::file::{Matrix, Stats};
 use otb_log::flightlog::{FlightLog, Rows};
@@ -70,9 +71,12 @@ fn settings(debug: &str) -> Settings {
     s
 }
 
-/// Somme de sinus de 5 à 900 Hz, phases fixes, échantillonnée à 8 kHz (cadence gyro) : `(pair, impair)`. Le firmware
-/// filtre l'échantillon `2i` et le Blackbox écrit `gyroUnfilt` = l'échantillon `2i + 1`, un tick gyro plus tard (L-100).
-fn gyro_8k(n: usize) -> (Vec<f64>, Vec<f64>) {
+/// Somme de sinus de 5 à 900 Hz, phases fixes, échantillonnée à 8 kHz (cadence gyro) : les `2n` échantillons gyro. Assez
+/// ample pour que l'arrondi au °/s supposé par l'outil (L-103) soit négligeable, même au fond des notchs : ces valeurs ne
+/// sont pas arrondies, et à une amplitude 10 fois plus faible, l'outil y retire un bruit absent (0,0025 dB d'écart). Le
+/// firmware filtre l'échantillon `2i` et le Blackbox écrit `gyroUnfilt` = l'échantillon `2i + 1`, un tick gyro plus tard
+/// (L-100).
+fn gyro_8k(n: usize) -> Vec<f64> {
     let mut state = 12345u64;
     let mut next = || {
         state = state
@@ -85,12 +89,9 @@ fn gyro_8k(n: usize) -> (Vec<f64>, Vec<f64>) {
         .collect();
     let at = |k: usize| {
         let t = k as f64 / 8000.0;
-        tones.iter().map(|(f, p)| (2.0 * PI * f * t + p).sin()).sum::<f64>() * 4.0
+        tones.iter().map(|(f, p)| (2.0 * PI * f * t + p).sin()).sum::<f64>() * 4000.0
     };
-    (
-        (0..n).map(|i| at(2 * i)).collect(),
-        (0..n).map(|i| at(2 * i + 1)).collect(),
-    )
+    (0..2 * n).map(at).collect()
 }
 
 /// Log fabriqué : `filtered_with` donne les réglages des filtres « du firmware » (ceux du log par défaut).
@@ -132,12 +133,16 @@ fn fabricated(debug: &str, filtered_with: Option<&Settings>) -> FlightLog {
             .collect::<BTreeSet<_>>(),
     };
     let fw = filtered_with.unwrap_or(&s).clone();
-    let (filtered, unfilt) = gyro_8k(n);
+    let g8 = gyro_8k(n);
+    let filtered: Vec<f64> = (0..n).map(|i| g8[2 * i]).collect();
+    let unfilt: Vec<f64> = (0..n).map(|i| g8[2 * i + 1]).collect();
     let stage = |log: &FlightLog, st, x: &[f64]| gyro_stage(st, log, &fw, x.to_vec(), 1).unwrap();
     for ax in 0..3 {
         set_row(log.gyro_unfilt.as_mut().unwrap(), ax, &unfilt);
     }
-    let a = stage(&log, GyroStage::Lpf2, &filtered);
+    // LPF2 comme le firmware : calculé pour 8 kHz, appliqué à chaque échantillon gyro (L-104)
+    let a8 = gyro_stage_at(GyroStage::Lpf2, &log, &fw, g8, 1, 2.0 * FS).unwrap();
+    let a: Vec<f64> = (0..n).map(|i| a8[2 * i]).collect();
     let b = stage(&log, GyroStage::Rpm, &a);
     let c = stage(&log, GyroStage::StaticLpf1, &b);
     if debug == "GYRO_SAMPLE" {
@@ -183,12 +188,18 @@ fn worst(c: &StageCheck, max_hz: f64) -> (f64, f64) {
 fn gyro_sample_identique_au_modele_donne_un_ecart_nul() {
     let log = fabricated("GYRO_SAMPLE", None);
     let r = check_stages(&log, 0..log.n()).unwrap();
-    for st in [Stage::Lpf2, Stage::Rpm, Stage::StaticLpf1] {
+    for st in [Stage::Rpm, Stage::StaticLpf1] {
         let c = find(&r.checks, st);
         let (e, d) = worst(c, 500.0);
         assert!(e < 1e-3 && d < 1e-3, "{st:?} : écart {e} dB, retard {d} ms");
         assert!(c.residual < 1e-4, "{st:?} : résidu {}", c.residual);
     }
+    // LPF2 : les échantillons gyro absents du log sont interpolés, d'où un petit écart qui croît avec la fréquence
+    let c = find(&r.checks, Stage::Lpf2);
+    let (e, d) = worst(c, 250.0);
+    assert!(e < 0.05 && d < 0.002, "LPF2 sous 250 Hz : écart {e} dB, retard {d} ms");
+    let (e, _) = worst(c, 500.0);
+    assert!(e < 0.25, "LPF2 sous 500 Hz : écart {e} dB");
     // filtres D : gain retrouvé (0,0173 × Kd inconnu), puis aucun écart
     let dt = find(&r.checks, Stage::Dterm);
     assert!((dt.gain_factor - 0.0173).abs() < 1e-5, "gain D {}", dt.gain_factor);
@@ -205,10 +216,185 @@ fn un_filtre_fausse_ne_fait_rougir_que_son_etage() {
     let r = check_stages(&log, 0..log.n()).unwrap();
     let (e, _) = worst(find(&r.checks, Stage::StaticLpf1), 250.0);
     assert!(e > 1.0, "LPF1 faussé non vu : {e} dB");
-    for st in [Stage::Lpf2, Stage::Rpm] {
-        let (e, _) = worst(find(&r.checks, st), 500.0);
-        assert!(e < 1e-3, "{st:?} accusé à tort : {e} dB");
+    let (e, _) = worst(find(&r.checks, Stage::Rpm), 500.0);
+    assert!(e < 1e-3, "RPM accusé à tort : {e} dB");
+    let (e, _) = worst(find(&r.checks, Stage::Lpf2), 250.0);
+    assert!(e < 0.05, "LPF2 accusé à tort : {e} dB");
+}
+
+#[test]
+fn lpf2_calcule_a_la_cadence_gyro() {
+    // le firmware fabriqué filtre à 8 kHz (L-104) ; le modèle aussi, d'où un écart d'interpolation seulement
+    let log = fabricated("GYRO_SAMPLE", None);
+    let (sigs, _) = stage_signals(&log, 0..log.n()).unwrap();
+    let mut lpf2 = sigs.into_iter().find(|s| s.stage == Stage::Lpf2).unwrap();
+    let band = |c: &StageCheck| c.bands.iter().find(|b| b.lo_hz == 250.0).unwrap().error_db;
+    let ok = band(&compare(&lpf2, FS, &[], true).unwrap());
+    assert!(ok.abs() < 0.25, "LPF2 à la cadence gyro : {ok} dB entre 250 et 500 Hz");
+    // contre-preuve : calculé à la cadence du log, le LPF2 filtre trop (PT1 à 500 Hz : ≈ +0,45 dB)
+    lpf2.model = gyro_stage(GyroStage::Lpf2, &log, &log.settings, lpf2.input.clone(), 1).unwrap();
+    let wrong = band(&compare(&lpf2, FS, &[], true).unwrap());
+    assert!(wrong > 0.35, "cadence du log non distinguée : {wrong} dB");
+}
+
+/// Une ligne sur deux (la seconde de chaque paire) : `Rows` d'un log qui n'enregistre qu'une boucle PID sur deux.
+fn every_other(r: &Rows) -> Rows {
+    let n = r.n / 2;
+    let mut out = rows(r.k, n);
+    for i in 0..r.k {
+        let v: Vec<f64> = (0..n).map(|j| r.row(i)[2 * j + 1] as f64).collect();
+        set_row(&mut out, i, &v);
     }
+    out
+}
+
+/// Le log fabriqué à 4 kHz (filtres « firmware » à la cadence PID), dont on ne garde qu'une boucle sur deux : log à 2 kHz.
+fn reduced_rate(debug: &str) -> FlightLog {
+    let full = fabricated(debug, None);
+    let mut log = full.clone();
+    log.settings.p_interval = (1, 2);
+    log.fs = FS / 2.0;
+    let n = full.n() / 2;
+    log.t = (0..n).map(|i| i as f64 / log.fs).collect();
+    log.throttle = (0..n).map(|j| full.throttle[2 * j + 1]).collect();
+    for (dst, src) in [
+        (&mut log.gyro, &full.gyro),
+        (&mut log.setpoint, &full.setpoint),
+        (&mut log.rc_command, &full.rc_command),
+        (&mut log.p_term, &full.p_term),
+        (&mut log.i_term, &full.i_term),
+        (&mut log.d_term, &full.d_term),
+        (&mut log.f_term, &full.f_term),
+        (&mut log.motors, &full.motors),
+        (&mut log.debug, &full.debug),
+    ] {
+        *dst = every_other(src);
+    }
+    log.gyro_unfilt = full.gyro_unfilt.as_ref().map(every_other);
+    log.motor_hz = full.motor_hz.as_ref().map(every_other);
+    log
+}
+
+#[test]
+fn filtres_de_la_boucle_pid_rejoues_a_sa_cadence_quand_le_log_en_saute() {
+    let log = reduced_rate("FFT_FREQ");
+    assert_eq!(model_rate_hz(&log.settings), FS / 2.0);
+    let r = check_stages(&log, 0..log.n()).unwrap();
+    let (e, d) = worst(find(&r.checks, Stage::GyroBlock), 250.0);
+    assert!(e < 0.01 && d < 0.005, "bloc : écart {e} dB, retard {d} ms");
+    let (e, d) = worst(find(&r.checks, Stage::DynNotch), 250.0);
+    assert!(e < 0.01 && d < 0.005, "notch dynamique : écart {e} dB, retard {d} ms");
+    // contre-preuve : le bloc calculé pour la cadence du log (2 kHz) filtre trop (L-104)
+    let (sigs, _) = stage_signals(&log, 0..log.n()).unwrap();
+    let mut block = sigs.into_iter().find(|s| s.stage == Stage::GyroBlock).unwrap();
+    let mut y = block.input.clone();
+    for st in [GyroStage::Lpf2, GyroStage::Rpm, GyroStage::StaticLpf1] {
+        y = gyro_stage(st, &log, &log.settings, y, 1).unwrap();
+    }
+    block.model = y;
+    let (e, _) = worst(&compare(&block, FS / 2.0, &[], true).unwrap(), 250.0);
+    assert!(e > 0.3, "cadence du log non distinguée : {e} dB");
+}
+
+/// Bruit blanc déterministe (variance 1).
+fn white(n: usize, seed: u64) -> Vec<f64> {
+    let mut state = seed;
+    (0..n)
+        .map(|_| {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 11) as f64 / (1u64 << 53) as f64 - 0.5) * 12f64.sqrt()
+        })
+        .collect()
+}
+
+fn pt1(x: &[f64], hz: f64) -> Vec<f64> {
+    let w = 2.0 * PI * hz / FS;
+    let k = w / (w + 1.0);
+    let mut y = 0.0;
+    x.iter()
+        .map(|&v| {
+            y += k * (v - y);
+            y
+        })
+        .collect()
+}
+
+/// Étage fabriqué : le « firmware » filtre l'entrée exacte, le log n'en garde que l'arrondi ; le modèle filtre l'arrondi.
+fn rounded_stage(exact: Vec<f64>, logged: Vec<f64>, noise: InputNoise) -> StageSignals {
+    StageSignals {
+        stage: Stage::Lpf2,
+        axis: 0,
+        model: pt1(&logged, 400.0),
+        output: pt1(&exact, 400.0),
+        input: logged,
+        clock_offset_s: 0.0,
+        fit_gain: false,
+        breaks: Vec::new(),
+        input_noise: noise,
+    }
+}
+
+fn worst_signed(c: &StageCheck, max_hz: f64) -> f64 {
+    c.bands
+        .iter()
+        .filter(|b| b.hi_hz <= max_hz && b.conclusive)
+        .map(|b| b.error_db)
+        .fold(0.0, |a, e| if e.abs() > a.abs() { e } else { a })
+}
+
+#[test]
+fn arrondi_de_l_entree_retire_de_la_mesure() {
+    // gyro surtout lent (PT1 à 60 Hz d'un bruit blanc), arrondi au °/s comme les canaux debug : peu de signal en haut
+    let n = FS as usize * SECONDS;
+    let exact: Vec<f64> = pt1(&white(n, 7), 30.0).iter().map(|v| v * 12.0).collect();
+    let logged: Vec<f64> = exact.iter().map(|v| v.round()).collect();
+    let fixed = compare(
+        &rounded_stage(exact.clone(), logged.clone(), InputNoise::Rounded(1.0)),
+        FS,
+        &[],
+        false,
+    )
+    .unwrap();
+    let e = worst_signed(&fixed, 500.0);
+    assert!(e.abs() < 0.1, "arrondi retiré : écart {e} dB");
+    // contre-preuve : sans la correction, le firmware paraît filtrer plus (L-103)
+    let raw = compare(&rounded_stage(exact, logged, InputNoise::None), FS, &[], false).unwrap();
+    let e = worst_signed(&raw, 500.0);
+    assert!(e < -0.3, "biais de l'arrondi invisible : {e} dB");
+}
+
+#[test]
+fn arrondi_du_gyro_retire_de_l_etage_d() {
+    // entrée du D = −dg/dt d'un gyro arrondi : le bruit de l'arrondi croît avec la fréquence
+    let n = FS as usize * SECONDS;
+    let g: Vec<f64> = pt1(&white(n, 11), 30.0).iter().map(|v| v * 12.0).collect();
+    let deriv = |g: &[f64]| -> Vec<f64> {
+        let mut x: Vec<f64> = (0..g.len())
+            .map(|i| if i > 0 { -(g[i] - g[i - 1]) * FS } else { 0.0 })
+            .collect();
+        x[0] = x[1];
+        x
+    };
+    let rounded: Vec<f64> = g.iter().map(|v| v.round()).collect();
+    let stage = |noise| {
+        let mut s = rounded_stage(deriv(&g), deriv(&rounded), noise);
+        s.fit_gain = true;
+        s.output.iter_mut().for_each(|v| *v *= 0.0173);
+        s
+    };
+    let fixed = compare(&stage(InputNoise::RoundedDerivative(1.0)), FS, &[], false).unwrap();
+    assert!(
+        (fixed.gain_factor - 0.0173).abs() < 1e-4,
+        "gain D {}",
+        fixed.gain_factor
+    );
+    let e = worst_signed(&fixed, 500.0);
+    assert!(e.abs() < 0.1, "arrondi retiré : écart {e} dB");
+    let raw = compare(&stage(InputNoise::None), FS, &[], false).unwrap();
+    let e = worst_signed(&raw, 500.0);
+    assert!(e < -0.3, "biais de l'arrondi invisible : {e} dB");
 }
 
 #[test]

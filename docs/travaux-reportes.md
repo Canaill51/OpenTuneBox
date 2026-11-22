@@ -71,9 +71,11 @@ Règles d'écriture :
 | W-059 | Simulateur de filtres : notchs RPM et dynamiques posés à leur position moyenne par fenêtre, pleine profondeur | ouvert |
 | W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | ouvert |
 | W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
-| W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; reste un écart léger du D et du notch dynamique) |
+| W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; l'écart léger du D et du notch dynamique venait de la mesure, L-103) |
+| W-067 | Contrôle par étage, logs enregistrés une boucle sur 2 ou moins : 24 bandes du notch dynamique et du bloc gyro où le modèle filtre plus que le firmware (jusqu'à +4,5 dB), sur des drones qui vibrent fort ; repliement supposé | ouvert (vols de calibration à faire sur le premier drone moyen logué à 2 kHz) |
+| W-066 | Avant la 4.2, **tous** les filtres gyro tournaient à la cadence gyro ; le modèle ne rejoue ainsi que le LPF2 (L-104) | ouvert (aucun log d'avant la 4.2 à chaque boucle PID en `GYRO_SAMPLE` ou `FFT_FREQ`) |
 | W-065 | Suivi du notch dynamique rejoué : variante 4.3 et plancher de bruit au-dessus de 60 Hz (2026.12) écrits d'après le firmware, jamais confrontés à un log | ouvert (aucun log pour les vérifier) |
-| W-064 | Simulateur affiché : filtres calculés pour la cadence mesurée (pas nominale), TPA du D ignoré, instants où le firmware force le D à zéro non écartés | ouvert (à décider avec Cédric) |
+| W-064 | Simulateur affiché : filtres calculés pour la cadence mesurée (pas nominale), TPA du D ignoré, instants où le firmware force le D à zéro non écartés, LPF2 calculé à la cadence du log (L-104) | ouvert (à décider avec Cédric) |
 | W-063 | LPF2 gyro coupé : le firmware moyenne les échantillons gyro avant la boucle PID, le modèle n'applique rien | ouvert (effet faible à 8k/4k) |
 | W-053 | 45 messages d'erreur du Rust imitent encore les exceptions de Python (« KeyError : 'delays' »…), écrits pour la parité ; certains peuvent remonter dans la barre d'état et dans `report` | ouvert (atteignabilité non vérifiée) |
 | W-052 | Cadre du viewer dominé par le **tracé** des points rendus (≈ 3 840 par courbe) depuis D-048 : 4,7 ms en vue entière contre 2,1 ms zoomé sur un huitième du même log, à nombre de points rendus égal | ouvert |
@@ -967,12 +969,17 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   appliquée au simulateur. Reste un écart léger, du même signe partout, que cette piste n'explique pas : terme D −0,1 à −0,9 dB
   entre 50 et 250 Hz (deux sessions à −1,3 dB entre 100 et 250 Hz : les deux dernières alertes du lot 22), notch dynamique
   −0,2 à −0,6 dB ; cause à chercher (22b séparera les étages).
+  **Expliqué le 2026-11-22** (lot 22b) : cet écart léger venait de la **mesure** (arrondi de l'entrée, L-103) ; corrigé, il tombe à
+  −0,07 dB en moyenne (D, 50–250 Hz) et +0,01 dB (notch dynamique), plus aucune alerte. Le sujet de W-062 (gaz d'avant le boost
+  pour le LPF dynamique) reste ouvert tel quel, sans écart mesurable à expliquer.
   [`rust/otb-analysis/src/bf_filters.rs:throttle_frac`]
 
 - **W-064** — **Simulateur affiché en retard sur le contrôle par étage.** Le lot 22a bis a corrigé trois écarts entre le
   modèle et le firmware dans le seul contrôle par étage (`rust/otb-analysis/src/filter_stages.rs`) : filtres calculés pour la
   cadence nominale de l'en-tête (L-101), facteur TPA appliqué au terme D (gaz d'avant le throttle boost), instants où le
-  firmware force le D à zéro écartés. Le simulateur que voit le pilote (`simulate_gyro`, `simulate_dterm`, `whatif_spectrum`)
+  firmware force le D à zéro écartés. Le lot 22b y ajoute les filtres rejoués à la cadence où le firmware les applique (L-104,
+  `rust/otb-analysis/src/bf_filters.rs:gyro_stage_upsampled` : LPF2 à la cadence gyro, +0,45 dB d'écart entre 250 et 500 Hz pour
+  un PT1 à 500 Hz ; autres filtres à la cadence PID quand le log saute des boucles). Le simulateur que voit le pilote (`simulate_gyro`, `simulate_dterm`, `whatif_spectrum`)
   prend toujours la cadence mesurée (`FlightLog::fs`) et un D sans TPA.
   **Pourquoi reporté** : 22a bis mesure et corrige l'outil de contrôle ; changer le simulateur change des valeurs affichées
   et les références figées de `otb-parity` (écart de 0,8 % de cadence sur l'Air65, par exemple), décision de Cédric.
@@ -1002,4 +1009,40 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   de 4 ou plus.
   **Reprise** : quand 22a mesure l'étage LPF2 sur un vol `GYRO_SAMPLE` au LPF2 coupé (22b), ou avec la correction des écarts du lot 22.
   **Piste** : moyenne glissante de `pid_process_denom` échantillons à la cadence gyro, ramenée à la cadence du log.
+  `rust/otb-analysis/src/bf_filters.rs:gyro_stage_upsampled` (lot 22b) reconstruit déjà ces échantillons par interpolation.
+  Les vols 22b ont tous le LPF2 actif : la reprise attend toujours un vol au LPF2 coupé.
   [`rust/otb-analysis/src/bf_filters.rs:gyro_stage`, `rust/otb-analysis/src/bf_filters.rs:gyro_chain`]
+
+- **W-066** — **Avant la 4.2, tous les filtres gyro tournaient à la cadence gyro.** Le commit `f58478094` (2020-01-06) a
+  déplacé le filtrage à la cadence PID, sauf le LPF2 qui sert de filtre de sous-échantillonnage. Le contrôle par étage rejoue le
+  LPF2 à la cadence gyro (L-104) pour toutes les versions, mais les autres filtres à la cadence du log, même avant la 4.2.
+  Vu en lisant l'historique du firmware pour le lot 22b.
+  **Pourquoi reporté** : aucun log d'avant la 4.2 enregistré à chaque boucle PID en `GYRO_SAMPLE` ou `FFT_FREQ` dans le corpus
+  (familles 4.5, 2025.12 et 2026.6 seulement) : rien à mesurer ni à vérifier.
+  **Risque si on n'y touche pas** : sur un tel log, les passe-bas et notchs paraîtraient filtrer un peu trop (de l'ordre de
+  0,4 dB entre 250 et 500 Hz pour un PT1 à 500 Hz).
+  **Reprise** : premier log d'avant la 4.2 contrôlé par `otb-dev corpus stages`.
+  **Piste** : passer à `gyro_stage_upsampled` la cadence gyro pour tous les étages selon la version.
+  [`rust/otb-analysis/src/bf_filters.rs:gyro_stage_upsampled`]
+
+- **W-067** — **Logs à cadence réduite : écarts positifs sur des drones qui vibrent fort.** Une fois l'arrondi de l'entrée retiré
+  (L-103) et les filtres rejoués à la cadence PID (L-104), l'écart typique des logs enregistrés une boucle sur 2 ou moins devient
+  petit (notch dynamique : 0,07 dB médian entre 100 et 250 Hz), mais 24 bandes empirent de plus de 0,5 dB par rapport à `main`,
+  toutes vers le positif (le modèle filtre plus que le firmware, jusqu'à +4,5 dB) : surtout le notch dynamique entre 250 et
+  500 Hz, cohérence 0,50 à 0,65, vols `… hover wobble 1900k…`, `Sasha/Foxwhoop`, `Sasha/Amax`
+  ([validation.md](validation.md#modèle-de-filtres-étage-par-étage-2026-11-22-lots-22a-22a-bis-et-22b)). Sur l'Air65 à 2 kHz, rien de
+  tel (notch dynamique à ±0,12 dB). Cause **supposée** : repliement. Le bruit au-dessus de la moitié de la cadence du log se replie
+  dans le log ; le firmware n'y applique pas son notch (il est ailleurs en fréquence), le modèle si. Aucun modèle ne peut le
+  corriger : le contenu replié n'est pas dans le log.
+  **Pourquoi reporté** : ces logs ne sont pas jugés (pas d'alerte sous une boucle PID sur une, D-057) ; la cause demande des vols
+  faits pour la mesurer.
+  **Risque si on n'y touche pas** : sur un drone qui vibre fort, logué à 2 kHz, le contrôle et le simulateur peuvent se tromper de
+  quelques dB au fond des notchs. Cédric loguera ses drones moyens à 2 kHz (dit le 2026-11-22) : le risque le concerne.
+  **Reprise** : premier drone moyen logué à 2 kHz. Deux vols à la suite, mêmes réglages : `debug_mode = FFT_FREQ`,
+  `gyro_filter_debug_axis = ROLL`, notch dynamique et filtre RPM actifs (DShot bidirectionnel), même `blackbox_high_resolution`,
+  boucle PID inchangée ; vol A `blackbox_sample_rate = 1/1`, vol B celui qui donne 2 kHz (`1/2` à 4 kHz de PID, `1/4` à 8 kHz) ;
+  mode angle, une dizaine de secondes de stationnaire calme puis le chirp sur le roll. Passer `otb-dev corpus stages` : A juste et B
+  qui dévie au fond des notchs confirme le repliement.
+  **Piste** : si c'est confirmé, écarter de la mesure les fréquences où un notch du firmware est actif dans les logs à cadence
+  réduite, ou l'annoncer comme non mesurable.
+  [`rust/otb-analysis/src/filter_stages.rs:compare`]
