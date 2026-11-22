@@ -58,7 +58,8 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Simulateur de filtres (page Filtres) : chaîne du firmware **rejouée** sur le gyro non filtré (`filter_replay::before_after`),
   spectre loggé × rejeu modifié / rejeu actuel, fenêtre par fenêtre : exact quand rien ne change. Sur un log enregistré une
   boucle PID sur 2 ou moins, le gyro non filtré est replié et le rejeu « actuel » s'écarte du log aux basses fréquences (W-067).
-  L'assistant garde le rapport des réponses |H|² (`bf_filters.whatif_spectrum`, W-068). D-058, D-008, L-024
+  L'assistant aussi (D-059) ; le rapport des réponses |H|² (`bf_filters.whatif_spectrum`) ne sert plus que sans gyro non
+  filtré et pour les références Python (`FilterModel::Ratio`). D-058, D-059, D-008, L-024
 - `gyroUnfilt` contre un signal filtré : retirer d'abord ⌊`pid_process_denom`/2⌋ / fréquence gyro (125 µs à 8 kHz,
   denom 2), décalage d'horloge du firmware et non retard de filtre. L-100
 - Modèle contre firmware : filtres calculés pour la cadence **nominale** de l'en-tête (`filter_stages::model_rate_hz`), pas

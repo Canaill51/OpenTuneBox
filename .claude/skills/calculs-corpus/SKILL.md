@@ -21,7 +21,8 @@ comparer), et le noyau de `step_response` partage ce même pool. Toujours en `--
 | `… corpus replay SCRATCH/replay.json [--dir SOUS-DOSSIER]` | simulateur de la page Filtres : rejeu « actuel » contre le spectre enregistré (lot 22e, D-058) ; `--resume` : tableau seul | 68 s, corpus entier (2026-11-22, 675 sessions) |
 | `… corpus predict AVANT.bbl APRÈS.bbl` | vérification en vol du simulateur (lot 22f) : filtres d'APRÈS appliqués à AVANT, rejeu et rapport des \|H\|² contre APRÈS, par bande ; deux vols à la même cadence | 0,8 s par paire (Air65, deux vols de 43 s, 2026-11-22) |
 
-Relever la durée du premier passage et la noter ici : c'est une mesure à faire, pas à supposer.
+Relever la durée du premier passage et la noter ici : c'est une mesure à faire, pas à supposer. ⚠️ La durée **par session**
+d'un passage en parallèle (`t_analyze`) est gonflée par les autres fils : la mesurer seule, `-j 1` (L-106).
 
 **Prouver qu'une modification ne change aucun conseil** (optimisation, refactorisation) : un passage de
 `corpus rates` sur `main` (copie isolée par `git worktree add SCRATCH/main main`, lancée depuis ce dossier), un sur la

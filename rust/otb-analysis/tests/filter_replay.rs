@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use otb_analysis::bf_filters::{
     GyroStage, Target, WhatIfCache, gyro_stage, gyro_stage_at, simulate_dterm, whatif_spectrum,
 };
-use otb_analysis::filter_replay::{BeforeAfter, before_after, replay};
+use otb_analysis::filter_replay::{BeforeAfter, before_after, replay, replay_from};
 use otb_decoder::file::{Matrix, Stats};
 use otb_log::flightlog::{FlightLog, Rows};
 use otb_log::settings::{AxisPid, Lowpass, Settings};
@@ -285,4 +285,33 @@ fn notchs_dynamiques_ajoutes_suivent_les_pics_et_non_les_centres_initiaux() {
     let old = band(&w.freqs, &w.modified_db, &w.current_db, 505.0, 530.0);
     assert!(old < -6.0, "l'ancienne méthode ne creuse plus à 517 Hz : {old:+.2} dB");
     assert!(dip > -3.0, "creux sans pic à 517 Hz : {dip:+.2} dB");
+}
+
+/// `replay_from` reprend le rejeu actuel (l'assistant essaie plusieurs réglages sur un même vol) : il doit rendre au bit près le
+/// rejeu complet, qu'on ne change que les filtres du D (gyro repris) ou aussi ceux du gyro (tout est refait).
+#[test]
+fn replay_from_rend_le_rejeu_complet() {
+    let log = fabricated(None, Some(180.0));
+    let base = &log.settings;
+    let cur = replay(&log, base).unwrap().unwrap();
+    let mut d_only = base.clone();
+    d_only.dterm_lpf1 = lpf("PT1", 140);
+    d_only.dterm_notch = (220, 160);
+    let mut gyro_too = d_only.clone();
+    gyro_too.gyro_lpf1 = lpf("PT1", 150);
+    for (what, s) in [
+        ("filtres du D seuls", &d_only),
+        ("filtres du gyro aussi", &gyro_too),
+        ("rien", base),
+    ] {
+        let want = replay(&log, s).unwrap().unwrap();
+        let got = replay_from(&log, s, base, &cur).unwrap().unwrap();
+        assert_eq!(got.gyro, want.gyro, "{what} : gyro");
+        assert_eq!(got.dterm.data, want.dterm.data, "{what} : terme D");
+    }
+    assert_ne!(
+        replay(&log, &gyro_too).unwrap().unwrap().gyro,
+        cur.gyro,
+        "le LPF1 du gyro doit changer le gyro rejoué, sinon ce test ne prouve rien"
+    );
 }

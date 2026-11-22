@@ -20,6 +20,10 @@ use common::*;
 mod support;
 use support::*;
 
+/// Méthode de prévision de Python (rapport des |H|², D-008) : l'assistant rejoue la chaîne de filtres depuis D-059, mais ces cas
+/// comparent tout le reste (textes, seuils, choix du pas) aux références Python, qui ne connaissent que le rapport.
+const RATIO: rules::FilterModel = rules::FilterModel::Ratio;
+
 /// Tolérance absolue des prévisions (dB, ms) : les niveaux viennent de spectres `realfft` / pocketfft (L-048). **Mesurée** : voir la ligne
 /// « écart max prévisions » affichée avec `--nocapture`.
 const PRED_ATOL: f64 = 1e-9;
@@ -66,7 +70,7 @@ fn analyze_rend_les_constats_de_retard_de_python() {
         let sel = case["sel"]
             .as_array()
             .map(|s| s[0].as_u64().unwrap() as usize..s[1].as_u64().unwrap() as usize);
-        let got = rules::analyze(&lg, sel, Some(&prof));
+        let got = rules::analyze_with(&lg, sel, Some(&prof), rules::FilterModel::Ratio);
         if is_error(case) {
             assert!(got.is_err(), "{label} : Python lève, Rust rend un rapport");
             continue;
@@ -135,7 +139,8 @@ fn appels_directs_identiques_a_python() {
         match call {
             "predict" => {
                 let hi = f1(&a["hi"]);
-                let got = rules::predict_filter_change(&lg, &sel, &mod_settings(&lg, a), hi);
+                let got =
+                    rules::predict_filter_change_with(&lg, &sel, &mod_settings(&lg, a), hi, rules::FilterModel::Ratio);
                 if err {
                     assert!(got.is_err(), "{label} : Python lève, Rust rend une prévision");
                     continue;
@@ -173,6 +178,7 @@ fn appels_directs_identiques_a_python() {
                 &list("d_db"),
                 f1(&a["d_ptb"]),
                 a["hover"].as_bool().unwrap(),
+                &rules::Predictor::new(&lg, RATIO),
             )),
             "dterm_lift" => check(
                 rules::dterm_lift(
@@ -184,6 +190,7 @@ fn appels_directs_identiques_a_python() {
                     &list("d_db"),
                     f1(&a["d_ptb"]),
                     a["d_goal"].as_str().unwrap(),
+                    &rules::Predictor::new(&lg, RATIO),
                 )
                 .map(Some),
             ),
@@ -196,6 +203,7 @@ fn appels_directs_identiques_a_python() {
                 f1(&a["d_ptb"]),
                 a["hover"].as_bool().unwrap(),
                 f1(&a["delay_ms"]),
+                &rules::Predictor::new(&lg, RATIO),
             )),
             "strategy" => {
                 let fs: Vec<Finding> = a["findings"].as_array().unwrap().iter().map(finding_of).collect();
@@ -229,4 +237,35 @@ fn main_action_prend_l_action_qui_change_un_reglage() {
     );
     assert_eq!(rules::main_action(&mk(&["premier", "second"])).unwrap(), "premier");
     assert!(rules::main_action(&mk(&[])).is_err());
+}
+
+/// L'assistant prévoit le bruit par le rejeu de la chaîne de filtres (D-059) : sur un cas où un constat chiffre une prévision
+/// (relèvement des filtres du D), `analyze` ne rend pas le texte du rapport des |H|² de Python. Un seul cas : le rejeu coûte
+/// plusieurs secondes par analyse en mode debug.
+#[test]
+fn analyze_prevoit_le_bruit_par_le_rejeu() {
+    const LABEL: &str = "retards sous les repères, D propre : dterm_lift";
+    let c = cas("rules_delay");
+    let case = c["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k["label"] == LABEL)
+        .unwrap_or_else(|| panic!("cas « {LABEL} » introuvable"));
+    let lg = log_of(&c, &case["log"]);
+    let prof = profile_of(&case["profile"]);
+    let sel = case["sel"]
+        .as_array()
+        .map(|s| s[0].as_u64().unwrap() as usize..s[1].as_u64().unwrap() as usize);
+    let detail = |rep: rules::Report| {
+        rep.findings
+            .into_iter()
+            .find(|f| f.key == "dterm_lift")
+            .map(|f| f.detail)
+            .expect("constat dterm_lift attendu")
+    };
+    let replay = detail(rules::analyze(&lg, sel.clone(), Some(&prof)).unwrap());
+    let ratio = detail(rules::analyze_with(&lg, sel, Some(&prof), RATIO).unwrap());
+    assert!(replay.contains("le simulateur prévoit"), "{replay}");
+    assert_ne!(replay, ratio, "`analyze` doit prévoir par le rejeu, pas par le rapport");
 }

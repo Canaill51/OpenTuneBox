@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-059 | Assistant : bruit prévu après un conseil de filtres par le **rejeu** de la page Filtres, vérifié en vol (amende D-008) | 2026-11-22 |
 | D-058 | Page Filtres : chaîne du firmware rejouée ; « modifié » = spectre du log × rejeu modifié / rejeu actuel (amende D-008, remplace D-041 pour la page) | 2026-11-22 |
 | D-057 | Contrôle du modèle de filtres par étage : seuls les logs enregistrés à **1,6 kHz ou plus** sont jugés (complète D-017, sans changer ses conseils) | 2026-11-22 |
 | D-056 | Notes de version **générées par GitHub** : titre de PR = phrase en français, une étiquette `RN: …` par PR (rubriques de `.github/release.yml`, contrôle `etiquette-pr.yml`) ; `CHANGELOG.md` supprimé ; remplace « titre de PR = nom de la branche » | 2026-11-11 |
@@ -120,7 +121,7 @@ ici, jamais dans le code.
 | D-011 | Seuils de l'assistant : 90e percentile du corpus par taille, origine notée | 2026-10-05 |
 | D-010 | Retard des filtres jugé seulement sur un vol avec des mouvements **(amendée par D-026)** | 2026-10-05 |
 | D-009 | Style Qt Fusion imposé sur tous les systèmes **(remplacée par D-035)** | 2026-10-01 |
-| D-008 | Simulateur de filtres en méthode relative **(amendée par D-058)** | 2026-10-01 |
+| D-008 | Simulateur de filtres en méthode relative **(amendée par D-058, D-059)** | 2026-10-01 |
 | D-007 | Retards mesurés par la phase, pas par l'intercorrélation | 2026-10-01 |
 | D-006 | Aucune dépendance à compiler **(amendée par D-031)** | 2026-10-01 |
 | D-005 | Exception à D-004 : icônes Lucide | 2026-10-01 |
@@ -132,6 +133,33 @@ ici, jamais dans le code.
 ---
 
 ## 2026-11-22 — Simulateur de filtres rejoué
+
+### D-059 : l'assistant prévoit le bruit après un conseil de filtres par le rejeu de la page Filtres
+
+**Tranché par Cédric** le 2026-11-22, après la vérification en vol du lot 22f : « le plus proche de la réalité ».
+
+**Contexte.** Depuis D-058, la page Filtres rejoue la chaîne du firmware ; l'assistant (`rules.rs:predict_filter_change`,
+conseils « couper le LPF1 du gyro » et « relever les filtres du D ») gardait le rapport des réponses |H|² de `whatif_spectrum`
+(W-068). Le vol de l'Air65 avec un notch dynamique de plus a tranché : entre 100 et 250 Hz, le rejeu se trompe de 0,3 dB en
+médiane, le rapport de 2,0 dB, et celui-ci change selon le mode debug du vol
+([validation.md](validation.md#prédiction-vérifiée-en-vol-2026-11-22-lot-22f)).
+
+**Décision.**
+- Le bruit prévu (variation du niveau moyen et du sommet entre 80 Hz et la borne haute, gyro et D, roulis et tangage) vient de
+  `filter_replay::before_after` : spectre « modifié » contre le spectre enregistré, comme la page Filtres. Les retards gagnés
+  restent calculés sur les chaînes de filtres au gaz médian.
+- Sans gyro non filtré : rapport des réponses |H|² comme avant (D-008, D-041), seul possible.
+- Le rejeu des réglages du log se calcule une fois par analyse (`rules.rs:Predictor`) ; quand seuls les filtres du D changent,
+  le gyro rejoué est repris (`filter_replay::replay_from`, identique au bit près au rejeu complet).
+- Le rapport reste disponible (`FilterModel::Ratio`) pour comparer aux références Python (tests, `otb-parity`), qui ne
+  connaissent que lui ; tout le reste des textes s'y compare toujours au caractère près.
+
+**Écartés.** Garder le rapport (moins juste en vol, dépend du mode debug) ; rejeu temporel pur sans rapport au log (D-058).
+
+**Témoins.** Tests `rust/otb-advisor/tests/predict_replay.rs` (sans changement : variation nulle ; sans gyro non filtré :
+le rapport), `rust/otb-advisor/tests/rules_delay.rs` (`analyze` ne rend plus le texte du rapport),
+`rust/otb-analysis/tests/filter_replay.rs` (`replay_from` = rejeu complet) ; corpus : un conseil en moins sur 676 sessions,
+162 chiffres changés ([validation.md](validation.md#assistant-passé-au-rejeu-2026-11-22-d-059)).
 
 ### D-058 : la page Filtres rejoue la chaîne de filtres du firmware ; « modifié » = spectre du log × rejeu modifié / rejeu actuel
 
@@ -157,7 +185,7 @@ du notch dynamique (22c).
 - Sans gyro non filtré : rapport des réponses |H|² comme avant, sans courbe « actuel ».
 - Pas de rejeu temporel pur pour « modifié » : l'erreur du modèle (repliement des logs enregistrés une boucle sur deux,
   W-067) s'y verrait même sans rien changer.
-- L'assistant garde `whatif_spectrum` jusqu'à la vérification en vol de 22f (W-068).
+- L'assistant garde `whatif_spectrum` jusqu'à la vérification en vol de 22f (W-068). ✏️ AMENDÉ par D-059 : il rejoue lui aussi.
 
 **Témoins.** Tests `rust/otb-analysis/tests/filter_replay.rs` (réglages inchangés = log au bit près ; LPF1 faussé vu par la
 courbe « actuel » ; filtrer plus ne prévoit jamais plus de bruit ; notchs ajoutés sans creux aux centres initiaux, contre −6 dB
@@ -1567,7 +1595,8 @@ associé : L-007.
 
 ### D-008 : simulateur de filtres en méthode relative
 
-✏️ AMENDÉE par D-058 (dans la page Filtres, le rapport vient du rejeu de la chaîne, et non plus des réponses |H|²).
+✏️ AMENDÉE par D-058 (dans la page Filtres, le rapport vient du rejeu de la chaîne, et non plus des réponses |H|²), puis par
+D-059 (l'assistant aussi).
 
 **Contexte.** Le simulateur doit montrer l'effet d'un changement de filtres sur le spectre loggé, et
 retomber exactement sur ce spectre quand rien ne change.

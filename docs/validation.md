@@ -682,6 +682,24 @@ filtré +0,87 / +0,52 dB. Terme D, même paire : −0,34 / −1,50 prédit, −0
   mêmes réglages varient déjà de 0,4 à 1,0 dB, et le vol APRÈS a été fait avec la batterie la plus basse et les gaz les plus
   hauts. Une seule paire de réglages, un seul vol APRÈS : ces chiffres valent pour ce changement, pas pour un LPF ou le RPM.
 
+### Assistant passé au rejeu (2026-11-22, D-059)
+
+`otb-dev corpus rates` avant et après sur 676 sessions (`--compare`) : **un seul conseil change**, « le LPF1 du gyro peut
+être coupé » disparaît sur `1. PTB/Kris/Wobble.bbl` (gyro prévu à −33,4 dB par l'ancienne méthode, à 2 dB du seuil de
+−31,4 ; le rejeu le met au-dessus ; log enregistré une boucle sur 2, W-067). 162 sessions gardent les mêmes constats avec
+d'autres chiffres prévus. Écart rejeu − ancienne méthode, valeur affichée :
+
+| Constat | Valeur | Sessions | Médiane | 10e / 90e centile | Extrêmes |
+|---|---|---|---|---|---|
+| Couper le LPF1 du gyro | gyro filtré | 51 | +1,0 dB | 0,0 / +3,7 dB | −0,4 / +4,8 dB |
+| Couper le LPF1 du gyro | terme D | 51 | +0,8 dB | +0,1 / +3,6 dB | −0,2 / +4,9 dB |
+| Relever les filtres du D | terme D | 124 | 0,0 dB | 0,0 / 0,0 dB | 0,0 / 0,0 dB |
+
+L'ancienne méthode sous-estimait donc le bruit ajouté en coupant un filtre du gyro ; pour les filtres du D seuls (pas de
+notch suivi), les deux méthodes concordent au dixième de dB. Durée : 50 → 71 s pour le corpus entier, tous les cœurs
+occupés ; une session seule, 0,2 à 0,8 s de plus (0,26 → 0,45 s, 0,53 → 1,31 s, 0,80 → 1,38 s sur les trois plus lentes).
+`otb-parity check` (références fonction par fonction) : 0 écart.
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui

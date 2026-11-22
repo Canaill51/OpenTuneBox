@@ -195,7 +195,9 @@ ils viennent du bruit (`validation.md`).
   signal d'avant filtres (sous −20 dB) et que les modifiés filtrent moins, le rejeu modifié sert de plancher. Réglages
   inchangés : exactement le log (D-008). Terme D rejoué mis à l'échelle du D enregistré par un gain ajusté sous ~30 Hz.
 - **Sans gyro non filtré** : rien à rejouer ; rapport des réponses |H|² des chaînes (`bf_filters::whatif_spectrum`, D-008),
-  sans courbe « actuel ». L'assistant s'en sert encore (W-068).
+  sans courbe « actuel ».
+- **Assistant** (D-059) : même rejeu pour le bruit prévu après un conseil de filtres (`rules.rs:predict_filter_change`),
+  variation du niveau moyen et du sommet entre 80 Hz et la borne haute ; rejeu des réglages du log calculé une fois par analyse.
 - **Limite** : log enregistré une boucle PID sur 2 ou moins, gyro non filtré sous-échantillonné sans anti-repliement : le bruit
   à haute fréquence s'y replie et le rejeu « actuel » dépasse le log, surtout aux basses fréquences (W-067, `validation.md`).
 

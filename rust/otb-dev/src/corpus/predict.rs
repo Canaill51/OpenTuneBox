@@ -2,7 +2,7 @@
 //! réglages de filtres du vol APRÈS sont appliqués au vol AVANT ; la prédiction est comparée au vol APRÈS, gyro et terme D,
 //! roulis et tangage, par bande de fréquences, pour les deux méthodes :
 //! - « rejeu » : la page Filtres (`filter_replay::before_after`, D-058) ;
-//! - « rapport » : l'assistant (`bf_filters::whatif_spectrum`, rapport des |H|², D-008, W-068).
+//! - « rapport » : rapport des |H|² (`bf_filters::whatif_spectrum`, D-008), la méthode de l'assistant jusqu'à D-059.
 //!
 //! Chaque colonne est un **changement** en dB par rapport au vol AVANT (spectre moyen de la période analysée) :
 //! prédit par chaque méthode, mesuré dans le vol APRÈS, et changement du gyro **non filtré** (bruit d'avant les filtres).
