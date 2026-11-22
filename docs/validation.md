@@ -700,6 +700,28 @@ notch suivi), les deux méthodes concordent au dixième de dB. Durée : 50 → 7
 occupés ; une session seule, 0,2 à 0,8 s de plus (0,26 → 0,45 s, 0,53 → 1,31 s, 0,80 → 1,38 s sur les trois plus lentes).
 `otb-parity check` (références fonction par fonction) : 0 écart.
 
+### Bibliothèque de données en fichiers JSON (2026-11-18, lot 28)
+
+Mesuré par `rust/otb-store/tests/bibliotheque.rs` (`a_volume_reel_les_fichiers_restent_petits_et_louverture_rapide`),
+poste Linux, profil de test. Volume simulé : **535 logs** (la taille du corpus de Cédric), 4 fragments par log, et
+12 grandeurs × 3 axes par fragment, soit **2 140 fragments et 77 040 mesures**.
+
+| Grandeur | Mesure |
+|---|---|
+| Tous les fichiers de la bibliothèque | **9 Mo**, dont **8 Mo** pour les seules mesures |
+| Écriture complète | 928 ms |
+| Ouverture complète | 959 ms |
+
+**Ce que ces chiffres disent.** Le déclencheur écrit d'avance dans [plan.md](plan.md) — « un fichier qui dépasse
+quelques Mo, un lancement visiblement plus lent » — est **atteint au volume plein**, et seulement par la table des
+mesures. Les cinq autres tables réunies pèsent 1 Mo. Deux conséquences, dans cet ordre : la table des mesures ne doit
+pas se charger au lancement mais à la première question posée (lot 31), et le passage à une vraie base est un
+**quand**, pas un **si** — ce pour quoi tout passe par un seul module d'accès.
+
+**Au passage, un piège mesuré** : avec les mesures rangées en liste, chaque enregistrement parcourait toute la table
+et le test mettait **47 s** ; rangées par clé (fragment, axe, grandeur), **2,1 s**. Le commentaire de `measures` dans
+`rust/otb-store/src/lib.rs` porte le chiffre.
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui

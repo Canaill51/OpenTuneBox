@@ -214,6 +214,7 @@ impl Tool for FreqTimeTool {
     type Options = Options;
     type Output = FreqTimeOutput;
     const TITLE: &'static str = "Fréquence × temps";
+    const SPACE: Option<&'static str> = Some(crate::tools::common::ESPACE_BRUIT);
     const HAS_VIEW: bool = true;
     const HIDDEN: bool = true;
     const TAB: Option<&'static str> = Some("Analyse spectrale");

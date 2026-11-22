@@ -60,15 +60,23 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 
 - **Titre de la fenêtre** : le nom du programme suivi de sa **version** (« OpenTuneBox 0.9.0 ») — utile pour savoir
   laquelle vous utilisez avant de signaler un problème.
-- **Barre d'outils** en haut : ouvrir et fermer les logs, puis les boutons **Guide**, **Courbes**,
-  **Analyse spectrale**, **Réponse indicielle**…, chacun avec sa couleur ; la case **Thème sombre** et l'icône
-  qui exporte la fenêtre en image sont tout à droite. Survolez un bouton pour sa description.
+- **Barre du haut** : ouvrir et fermer les logs, la case **Thème sombre** et l'icône qui exporte la fenêtre en
+  image. Elle n'agit que sur les logs et sur la fenêtre.
+- **Rail de navigation à gauche** : les boutons **Tableau de bord**, **Guide**, **Courbes**, **Analyse spectrale**,
+  **Réponse indicielle**…, chacun avec sa couleur, l'un sous l'autre. Survolez un bouton pour sa description.
   Les pages du Guide désignent les mêmes outils par un nom plus court (« Spectre », « Filtres », « Visualiseur »).
-- **Les boutons servent d'onglets** : un clic remplace l'affichage par l'outil choisi, dans la même fenêtre
-  (aucune nouvelle fenêtre) ; le bouton de l'affichage en cours est mis en valeur. **Courbes** ramène aux
-  courbes du vol. Un outil garde ses réglages et ses résultats quand on passe à un autre. Fréq. × gaz et
-  Fréq. × temps s'ouvrent depuis l'outil Spectre ; Configuration, depuis le bouton en bas du panneau de
-  droite du visualiseur.
+- **Un clic dans le rail** remplace l'affichage par l'outil choisi, dans la même fenêtre
+  (aucune nouvelle fenêtre) ; l'entrée de l'affichage en cours est mise en valeur. **Courbes** ramène aux
+  courbes du vol. Un outil garde ses réglages et ses résultats quand on passe à un autre.
+- **Tableau de bord** : une carte par drone que le logiciel a déjà vu — son nom, sa taille, où il en est du parcours
+  de réglage, son nombre de **fragments** et la date du dernier vol. Cliquer une carte ouvre à droite la liste de ses
+  fragments, du plus récent en haut ; le rond **+** rouvre le vol correspondant sans passer par la boîte de fichiers,
+  et une coche verte marque ceux qui sont déjà ouverts. Le logiciel retient ces drones et ces vols **d'un lancement à
+  l'autre** : un drone est reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un
+  fragment couvrant le vol entier.
+- **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
+  **Fréq. × temps** et le **Et si** des filtres. Ses onglets, en haut de la page, passent de l'une à l'autre sans
+  repasser par le rail. Configuration, elle, s'ouvre depuis le bouton en bas du panneau de droite du visualiseur.
 - **Traces** à gauche, rangées par groupe (Gyro, Consigne et PID, Autres, Moteurs). Les traces que le log
   ne contient pas sont masquées.
 - **Période d'analyse** : la zone claire, affichée sur les graphiques roll, pitch, yaw et moteurs (le reste
@@ -90,7 +98,7 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 
 ## 5. Les outils
 
-Chaque outil s'affiche par son bouton dans la barre d'outils. Le titre ci-dessous est celui du bouton ;
+Chaque outil s'affiche par son entrée du rail, à gauche. Le titre ci-dessous est celui de l'entrée ;
 entre parenthèses, le nom plus court que les pages du Guide emploient pour le même outil.
 
 **Les boutons communs à tous les outils**, en haut de chaque page :
@@ -198,6 +206,7 @@ Positions des curseurs (lues dans le log, ou estimées si le réglage simplifié
 simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, copiez les commandes CLI.
 
 ### Simulateur de filtres (Filtres)
+S'ouvre par l'onglet **Et si** de l'entrée **Bruit et filtres** du rail.
 Reconstitue la chaîne de filtres de Betaflight à partir du log. Modifiez un filtre, puis cliquez sur
 **Appliquer** : le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
 les filtres sur le gyro non filtré du vol, comme le firmware (notch dynamique compris : il suit les pics avec vos

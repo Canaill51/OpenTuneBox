@@ -206,13 +206,13 @@ fn status_style(status: &str) -> (&'static str, &'static str) {
 
 /// Un titre de phase (liste de gauche et frise), précédé d'une coche quand la phase est finie. Vrai si on le clique.
 fn phase_button(ui: &mut Ui, th: &Theme, selected: bool, text: String, finished: bool) -> bool {
-    ui.horizontal(|ui| {
-        if finished {
-            ui.add(icon("check", 14.0).tint(th.accent("green")).alt_text("Phase terminée"));
-        }
-        ui.selectable_label(selected, text).clicked()
-    })
-    .inner
+    // ⚠️ Pas de `ui.horizontal` ici : imbriqué dans le `horizontal_wrapped` de l'en-tête, il formerait un bloc
+    // insécable que le parent ne sait pas renvoyer à la ligne — la dernière phase se faisait **rogner** au lieu de
+    // passer à la ligne dès que la fenêtre se resserrait (vu le 2026-11-19, quand le rail a pris 212 points).
+    if finished {
+        ui.add(icon("check", 14.0).tint(th.accent("green")).alt_text("Phase terminée"));
+    }
+    ui.selectable_label(selected, text).clicked()
 }
 
 /// Icône colorée suivie d'un texte.

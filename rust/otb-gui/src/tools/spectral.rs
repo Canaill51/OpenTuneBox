@@ -492,6 +492,7 @@ impl Tool for SpectralTool {
     type Options = Options;
     type Output = SpectralOutput;
     const TITLE: &'static str = "Analyse spectrale";
+    const SPACE: Option<&'static str> = Some(crate::tools::common::ESPACE_BRUIT);
     const HAS_VIEW: bool = true;
 
     fn reset_view(&mut self) {
@@ -600,14 +601,8 @@ impl Tool for SpectralTool {
             for (i, (_, label)) in DATASETS.iter().enumerate() {
                 ui.checkbox(&mut self.datasets[i], *label);
             }
-            ui.horizontal(|ui| {
-                for (title, color) in [("Fréq. × gaz", "red"), ("Fréq. × temps", "purple")] {
-                    let b = egui::Button::new(RichText::new(title).color(theme.accent(color)).strong());
-                    if ui.add(b).clicked() {
-                        self.goto = Some(if title == "Fréq. × gaz" { "Fréquence × gaz" } else { "Fréquence × temps" });
-                    }
-                }
-            });
+            // Fréq. × gaz et Fréq. × temps s'atteignent par les onglets de l'espace, en haut de la page (D-060) :
+            // deux boutons de plus ici feraient deux chemins pour le même geste
             ui.separator();
             let mut psd = self.psd;
             ui.horizontal(|ui| {

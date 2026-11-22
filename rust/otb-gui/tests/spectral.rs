@@ -207,8 +207,10 @@ fn la_page_affiche_les_deux_colonnes_et_bascule_vers_le_bruit_moteur() {
     h.run();
     h.get_by_label("Spectre complet");
     h.get_by_label("Sous 100 Hz");
-    // l'outil est un onglet de la barre, mis en valeur
-    h.get_by_label("Analyse spectrale");
+    // la vue appartient à l'espace « Bruit et filtres » : c'est son entrée qui est dans le rail (D-060),
+    // et l'onglet « Spectre » qui désigne la vue affichée
+    h.get_by_label("Bruit et filtres");
+    h.get_by_label("Spectre");
     // « Bruit moteur » : choix dans la liste déroulante
     h.get_by_value("< 100 Hz").click();
     h.run_steps(2);
@@ -355,8 +357,8 @@ fn le_bruit_moteur_compte_les_harmoniques_des_20_hz() {
 #[test]
 fn tous_les_jeux_de_donnees_sont_visibles_sans_ascenseur() {
     let h = banc();
-    // la liste est suivie du bouton « Fréq. × gaz » : le dernier jeu doit être au-dessus de lui, pas replié dans un ascenseur
-    let suite = h.get_by_label("Fréq. × gaz").rect().min.y;
+    // la liste est suivie de la case « PSD (dB) » : le dernier jeu doit être au-dessus d'elle, pas replié dans un ascenseur
+    let suite = h.get_by_label("PSD (dB)").rect().min.y;
     for (_, label) in otb_analysis::datasets::DATASETS {
         let r = h.get_by_label(label).rect();
         assert!(

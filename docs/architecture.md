@@ -93,8 +93,22 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   | Configuration (panneau de droite) | `rust/otb-gui/src/tools/setup.rs` | réglages des logs côte à côte (lignes alignées par nom : D-038) |
   | Assistant | `rust/otb-gui/src/tools/advisor.rs` | rapport de l'assistant de réglage ; `rust/otb-gui/src/tools/report_ui.rs` : constats et diagnostic |
 
-  `rust/otb-gui/src/tools/common.rs` : briques partagées (dont `ViewMemo`, la vue retenue d'un graphique : « Tout voir » l'oublie).
-- `app.rs` : fenêtre principale, écrans Guide / Courbes / outil, boutons de la barre qui servent d'onglets ; un outil caché ne
+  `rust/otb-gui/src/tools/common.rs` : briques partagées (dont `ViewMemo`, la vue retenue d'un graphique : « Tout voir » l'oublie,
+  et `space_tabs` : les onglets d'un espace, avec `ESPACE_BRUIT` et `VUES_BRUIT` — le nom de l'espace « Bruit et filtres » et ses
+  quatre vues, D-060).
+- `dashboard.rs` : le **tableau de bord** (lot 30c), premier écran du rail. Une carte par drone connu de la bibliothèque
+  (`otb-store`), **au dessin du prototype** (D-061) : badge teinté de la couleur du drone, nom et sous-titre, pastille d'état,
+  nombre de fragments et date du dernier vol côte à côte, étape du parcours et barre d'avancement ; la carte choisie prend un
+  trait bleu de 2 points et une ombre portée. Les mesures relevées dans la maquette sont des constantes nommées en tête du
+  fichier. Le panneau de droite montre les **fragments** du drone choisi, du plus récent en haut, chacun derrière un rond
+  « + » (ou une coche quand son vol est déjà ouvert). Un drone est reconnu par le **nom de machine** de
+  l'en-tête (`Craft name`) tant que la récupération par USB n'apporte pas l'identifiant de la carte (lot 32).
+- `app.rs` : fenêtre principale, écrans Tableau de bord / Guide / Courbes / outil. L'application tient la bibliothèque
+  (`App::library`) : **en mémoire** partout sauf au lancement réel, pour qu'aucun banc de test n'écrive celle de l'utilisateur ;
+  chaque fichier ouvert y est rangé (`remember`), et elle est écrite quand eframe enregistre. La navigation est un **rail à gauche** (`rail`, largeur
+  `RAIL_WIDTH`, D-060) : une entrée par outil ou par **espace**, les vues d'un espace (`HIDDEN`) n'en ayant pas à elles —
+  c'est l'entrée nommée par leur `TAB` qui reste mise en valeur. La barre du haut garde ce qui agit sur les logs et sur la
+  fenêtre (ouvrir, fermer, thème, export), et la page exportée commence au bord droit du rail. Un outil caché ne
   recalcule qu'à son affichage. `main.rs` : démarrage (pas de console sous Windows, icône de fenêtre, ouvre les logs passés en
   argument) ; le titre de la fenêtre vient d'`app.rs:window_title` (nom + numéro de version du paquet), tandis que
   l'`app_id` garde le nom seul, qui est celui du fichier `.desktop` (L-076).
@@ -154,6 +168,19 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   courbes (`minmax.rs` : `MinMaxPyramid`, index multi-résolution par courbe, `window_points` en O(points rendus) ; D-048) ;
   dépendances realfft et rayon (D-033).
 - **otb-format** : formats de nombres (`{:.2f}`, `%g`, `repr`, `round`, D-035), pour que les textes restent identiques à ceux de l'ancienne version.
+- **otb-store** : la bibliothèque de données (lot 28), en **fichiers JSON** et non en base — tranché par Cédric le 2026-11-18,
+  le volume étant petit et une base embarquée apportant un compilateur C et une frontière FFI (D-054). Six tables dans
+  `<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` : drones (clé = identifiant de la carte), logs connus (copiés ou laissés
+  en place), fragments de vol, configurations (`diff all` datés, gardés seulement quand ils changent), mesures (une par
+  fragment, axe et grandeur, avec l'empreinte des réglages et la **version de calcul** qui les périme) et liste d'analyse.
+  `model.rs` : les tables et leur écriture JSON, conversion à la main et lecture tolérante. `link.rs` : la période d'un
+  fragment dans un log ouvert (`range_of`, en **numéros d'échantillon**), avec un message clair quand le fichier a changé
+  depuis — sans dépendre du décodeur, l'appelant passant `FlightLog::n()`. La liste d'analyse est tenue par la
+  bibliothèque : ordre, **indice** de couleur attribué à l'entrée et jamais changé ensuite (les couleurs restent dans
+  `theme.rs`, L-016), actif ou non, et un fragment de travail qui doit appartenir à la liste. **Un seul module d'accès** : le
+  reste du programme ne voit jamais un fichier, ce qui limitera à ce fichier le passage à une vraie base le jour où le
+  déclencheur du plan sera atteint. Un fichier illisible ou d'une version plus récente est **mis de côté**, jamais écrasé
+  (même règle que les fiches drone, D-039). Mesures de volume dans [validation](validation.md). Dépendance : serde_json.
 - **otb-analysis** : voir « Modules d'analyse » ; dépend d'otb-dsp et de rayon (L-041, L-042).
 - **otb-advisor** : l'assistant. `profiles.rs` (profils de taille et seuils), `rules.rs` (constats), `noise.rs`, `step_tuning.rs`,
   `drone_card.rs`, `log_check.rs`, `tuning_path.rs` (voir « Flux de données ») ; `pyclasses.rs` : tables de caractères (`\d`, `\w`) qui

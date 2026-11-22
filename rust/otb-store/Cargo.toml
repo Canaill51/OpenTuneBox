@@ -1,0 +1,18 @@
+[package]
+name = "otb-store"
+description = "Bibliothèque de données : drones, logs copiés, fragments, historique des réglages, mesures suivies (lot 28) ; fichiers JSON, aucune base, aucune dépendance nouvelle"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+
+# Le test « un vrai fragment rend les mêmes échantillons » ouvre `tests/data/jeno5_5s.bbl` : la bibliothèque elle-même
+# ne dépend ni du décodeur ni de l'analyse, et l'appelant lui passe le nombre d'échantillons du log.
+[dev-dependencies]
+otb-log = { path = "../otb-log" }
+
+[lints]
+workspace = true

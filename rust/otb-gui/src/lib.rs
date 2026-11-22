@@ -3,6 +3,7 @@
 
 pub mod app;
 pub mod colormaps;
+pub mod dashboard;
 pub mod export;
 pub mod guide;
 pub mod guide_page;
