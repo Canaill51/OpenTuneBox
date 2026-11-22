@@ -295,7 +295,7 @@ pâle de la maquette.
 `rust/otb-gui/tests/app.rs` (`le_tableau_de_bord_montre_une_carte_par_drone_et_ses_fragments`, contre-preuve vue
 en échec) ; captures hors écran du tableau de bord dans les deux thèmes, comparées à la maquette.
 
-**Ouvert.** W-070, clos le 2026-11-22 : la maquette est retrouvée dans le canevas claude.ai privé de Cédric (planche « Prototype complet — toute l'application », `Application.dc.html`) ; une session la lit avec l'outil d'artefacts de Claude Code, le lien est gardé hors dépôt.
+**Maquette.** W-070, clos le 2026-11-22 : la maquette est retrouvée dans le canevas claude.ai privé de Cédric (planche « Prototype complet — toute l'application », `Application.dc.html`) ; copiée le même jour dans [maquettes/](maquettes/README.md).
 
 ## 2026-11-19 — Navigation de la fenêtre principale
 

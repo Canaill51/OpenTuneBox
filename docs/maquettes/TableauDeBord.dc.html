@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Tableau de bord — drones et fragments</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&amp;family=Ubuntu+Mono&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1f57c3}a:hover{color:#163f8f}
+button{font-family:inherit}
+
+.otb-chip{position:relative;height:30px;flex:none;transition:min-width .18s ease}
+.otb-chip-card{position:absolute;top:0;left:0;right:0;box-sizing:border-box;border-radius:16px;overflow:hidden;z-index:30;transition:box-shadow .18s ease, border-radius .18s ease}
+.otb-chip-details{max-height:0;overflow:hidden;transition:max-height .2s ease}
+.otb-chip:hover,.otb-chip:focus-within{min-width:210px;z-index:60}
+.otb-chip:hover .otb-chip-card,.otb-chip:focus-within .otb-chip-card{z-index:61}
+.otb-chip:hover .otb-chip-card,.otb-chip:focus-within .otb-chip-card{border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.14)}
+.otb-chip:hover .otb-chip-details,.otb-chip:focus-within .otb-chip-details{max-height:200px}
+.otb-dragging .otb-chip{min-width:0 !important}
+.otb-dragging .otb-chip-details{max-height:0 !important}
+.otb-dragging .otb-chip-card{box-shadow:none !important;border-radius:16px !important}
+.otb-frag-details{max-height:0;overflow:hidden;transition:max-height .2s ease}
+.otb-frag:hover .otb-frag-details,.otb-frag:focus-within .otb-frag-details{max-height:320px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #f3f3f3; color: #1b1b1b; font-family: Ubuntu, sans-serif; font-size: 14px; display: flex; flex-direction: column; overflow: hidden">
+<div style="min-height: 52px; flex: none; display: flex; align-items: flex-start; gap: 12px; padding: 0 12px 0 16px; background: #ffffff; border-bottom: 1px solid #e1e3e8; position: relative; z-index: 10">
+<div style="width: 196px; height: 52px; display: flex; align-items: center; gap: 9px; flex: none"><span style="width: 26px; height: 26px; border-radius: 7px; background: #1f57c3; display: inline-flex; align-items: center; justify-content: center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="5" cy="5" r="3"/><circle cx="19" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/><rect x="10" y="10" width="4" height="4"/></svg></span><span style="font-weight: 500; font-size: 15px">OpenTuneBox</span></div>
+<div ref="{{ barRef }}" class="{{ barClass }}" style="position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; padding: 10px 0">
+
+<sc-for list="{{ chips }}" as="c" hint-placeholder-count="3">
+<div class="otb-chip" data-chip="{{ c.key }}" onPointerDown="{{ c.down }}" title="{{ c.tip }}" style="margin-left: {{ c.ml }}; margin-right: {{ c.mr }}; transition: margin .15s ease, min-width .18s ease; border-radius: 16px; cursor: grab; touch-action: none"><div aria-hidden="true" style="visibility: hidden; display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 30px 0 10px; border: 1px solid transparent; font-size: 13px; white-space: nowrap"><span style="width: {{ c.ds }}; height: 10px"></span><span style="font-weight: 500">{{ c.name }}</span><span style="font-size: 12px">{{ c.drone }}</span></div><div class="otb-chip-card" style="border: 1px {{ c.bs }} {{ c.bc }}; background: {{ c.bg }}"><div style="display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 4px 0 10px; font-size: 13px; white-space: nowrap"><span data-dot="1" title="{{ c.dotTip }}" style="width: {{ c.ds }}; height: {{ c.ds }}; border-radius: 50%; background: {{ c.dot }}; flex: none; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 0 0 3px transparent"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: {{ c.chkd }}"><path d="M20 6 9 17l-5-5"/></svg></span><span style="font-weight: 500; color: {{ c.fg }}; text-decoration: {{ c.td }}">{{ c.name }}</span><span style="color: #5c5c5c; font-size: 12px">{{ c.drone }}</span><button type="button" onClick="{{ c.remove }}" aria-label="{{ c.removeLabel }}" style="margin-left: auto; width: 22px; height: 22px; border-radius: 50%; border: 0; background: transparent; color: #5c5c5c; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="otb-chip-details"><div style="display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; padding: 6px 10px 8px; border-top: 1px solid #e1e3e8; font-size: 12px"><span style="color: #5c5c5c">Rôle</span><span style="font-family: 'Ubuntu Mono', monospace; color: #1b1b1b; text-align: right; white-space: nowrap">{{ c.role }}</span><span style="color: #5c5c5c">Date</span><span style="font-family: 'Ubuntu Mono', monospace; color: #1b1b1b; text-align: right; white-space: nowrap">{{ c.date }}</span><span style="color: #5c5c5c">Début</span><span style="font-family: 'Ubuntu Mono', monospace; color: #1b1b1b; text-align: right; white-space: nowrap">{{ c.start }}</span><span style="color: #5c5c5c">Durée</span><span style="font-family: 'Ubuntu Mono', monospace; color: #1b1b1b; text-align: right; white-space: nowrap">{{ c.dur }}</span><span style="color: #5c5c5c">PID roll</span><span style="font-family: 'Ubuntu Mono', monospace; color: #1b1b1b; text-align: right; white-space: nowrap">{{ c.pid }}</span><span style="color: #5c5c5c">Firmware</span><span style="font-family: 'Ubuntu Mono', monospace; color: #1b1b1b; text-align: right; white-space: nowrap">{{ c.fw }}</span></div></div></div></div>
+</sc-for>
+<sc-if value="{{ dragging }}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="position: absolute; top: {{ ghost.top }}; left: {{ ghost.left }}; z-index: 40; pointer-events: none; display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px 0 10px; border-radius: 16px; border: 1px solid #1f57c3; background: #ffffff; font-size: 13px; white-space: nowrap; box-shadow: 0 6px 16px rgba(0,0,0,.18); transform: rotate(-2deg)"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{ ghost.color }}"></span><span style="font-weight: 500">{{ ghost.name }}</span><span style="color: #5c5c5c; font-size: 12px">{{ ghost.drone }}</span></div></sc-if>
+<sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}"><span style="font-size: 13px; color: #5c5c5c; line-height: 30px">Aucun fragment — ajoutez-en avec le rond + d’un drone</span></sc-if>
+</div>
+<div style="height: 52px; display: flex; align-items: center; gap: 8px; flex: none"><button type="button" aria-label="Thème sombre" title="Thème sombre" style="width: 32px; height: 32px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: #5c5c5c; display: inline-flex; align-items: center; justify-content: center; cursor: pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></button></div>
+</div><div style="flex: 1; min-height: 0; display: flex"><nav aria-label="Navigation" style="width: 212px; flex: none; background: #ffffff; border-right: 1px solid #e1e3e8; padding: 14px 10px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; flex-direction: column; gap: 2px"><button type="button" style="background: #e8eefa; color: #1f57c3; font-weight: 500; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg><span>Tableau de bord</span></button></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #5c5c5c; padding: 0 10px 4px">Régler</div><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg><span>Guide</span></button><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg><span>Assistant</span></button></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #5c5c5c; padding: 0 10px 4px">Analyser</div><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2"/></svg><span>Spectre</span></button><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span>Fréq. × gaz</span></button><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Fréq. × temps</span></button><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M3 20h4V8h6v6h8"/></svg><span>Réponse indicielle</span></button></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #5c5c5c; padding: 0 10px 4px">Outils</div><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3"/></svg><span>Curseurs PID</span></button><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M10 20a1 1 0 0 0 .55.9l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .52-1.34L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.74 1.67l7.22 7.99A2 2 0 0 1 10 14z"/></svg><span>Simulateur de filtres</span></button><button type="button" style="background: transparent; color: #1b1b1b; border: 0; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; text-align: left; width: 100%"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg><span>Configuration</span></button></div>
+</nav><main style="flex: 1; min-width: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; overflow: auto">
+<div style="display: flex; align-items: flex-end; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px"><h1 style="margin: 0; font-size: 24px; font-weight: 400">Tableau de bord</h1></div>
+<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 8px"><button type="button" style="background: #ffffff; color: #1b1b1b; border: 1px solid #c4c4c4; border-radius: 6px; padding: 7px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>Ouvrir des logs…</button><button type="button" style="background: #1f57c3; color: #fff; border: 1px solid #1f57c3; border-radius: 6px; padding: 7px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 5v14M5 12h14"/></svg>Nouveau drone</button></span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; align-content: start">
+<sc-for list="{{ drones }}" as="d" hint-placeholder-count="4">
+<div style="position: relative; display: flex; min-width: 0">
+<button type="button" onClick="{{ d.pick }}" aria-pressed="{{ d.pressed }}" style="all: unset; box-sizing: border-box; width: 100%; cursor: pointer; background: #ffffff; border-radius: 12px; border: {{ d.border }}; box-shadow: {{ d.shadow }}; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px; padding-right: 34px">
+<span style="width: 44px; height: 44px; border-radius: 10px; background: {{ d.tint }}; color: {{ d.color }}; display: inline-flex; align-items: center; justify-content: center; flex: none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="5" cy="5" r="3"/><circle cx="19" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/><rect x="10" y="10" width="4" height="4"/></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 16px; font-weight: 500">{{ d.name }}</span><span style="font-size: 12.5px; color: #5c5c5c">{{ d.sub }}</span></span>
+<span style="margin-left: auto; align-self: flex-start; font-size: 11.5px; font-weight: 500; padding: 3px 8px; border-radius: 10px; border: 1px solid #e1e3e8; color: {{ d.scol }}">{{ d.status }}</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11.5px; color: #5c5c5c">Fragments</span><span style="font-size: 20px; font-weight: 500; font-family: 'Ubuntu Mono', monospace">{{ d.count }}</span></span>
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11.5px; color: #5c5c5c">Dernier vol</span><span style="font-size: 14px; font-weight: 500; padding-top: 4px">{{ d.last }}</span></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between; font-size: 12px; color: #5c5c5c"><span>{{ d.stage }}</span><span>{{ d.fw }}</span></div><div style="height: 6px; border-radius: 3px; background: #e4e7ec"><div style="height: 6px; border-radius: 3px; background: #1f57c3; width: {{ d.pctw }}"></div></div></div>
+</button>
+<button type="button" onClick="{{ d.edit }}" aria-label="Modifier {{ d.name }}" title="Modifier le drone" style="position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 7px; border: 1px solid transparent; background: transparent; color: #5c5c5c; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M21.2 6.8a2.8 2.8 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5z"/><path d="m15 5 4 4"/></svg></button>
+</div>
+</sc-for>
+</div>
+</main><sc-if value="{{ open }}" hint-placeholder-val="{{ true }}">
+<aside aria-label="Fragments du drone" style="width: 400px; flex: none; background: #ffffff; border-left: 1px solid #e1e3e8; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.06)">
+<div style="padding: 18px 20px 14px; border-bottom: 1px solid #e1e3e8; display: flex; align-items: flex-start; gap: 12px">
+<span style="width: 36px; height: 36px; border-radius: 9px; background: {{ cur.tint }}; color: {{ cur.color }}; display: inline-flex; align-items: center; justify-content: center; flex: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="5" cy="5" r="3"/><circle cx="19" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/><rect x="10" y="10" width="4" height="4"/></svg></span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><h2 style="margin: 0; font-size: 17px; font-weight: 500">{{ cur.name }}</h2><span style="font-size: 12.5px; color: #5c5c5c">{{ cur.count }} fragments · plus récent en haut</span></div>
+<button type="button" onClick="{{ close }}" aria-label="Fermer le panneau" style="margin-left: auto; width: 32px; height: 32px; border-radius: 6px; border: 0; background: transparent; color: #5c5c5c; display: inline-flex; align-items: center; justify-content: center; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+</div>
+<div style="flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column">
+<div style="flex: 1 0 auto; position: relative; padding: 20px 20px 8px">
+<span aria-hidden="true" style="position: absolute; left: 33px; top: 0; bottom: 0; width: 2px; background: #e1e3e8"></span>
+<ol style="list-style: none; margin: 0; padding: 0; position: relative">
+<sc-for list="{{ cur.items }}" as="f" hint-placeholder-count="5">
+<sc-if value="{{ f.isCfg }}" hint-placeholder-val="{{ false }}"><li style="display: flex; gap: 14px; position: relative; padding-bottom: 18px">
+<span title="Réglages modifiés" style="position: relative; z-index: 1; flex: none; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center"><span style="width: 22px; height: 22px; border-radius: 6px; box-sizing: border-box; border: 1.5px solid #5c5c5c; background: #ffffff; color: #5c5c5c; display: inline-flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3"/></svg></span></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; margin-top: -4px; border-radius: 8px; background: #f5f7fa; border: 1px dashed #c4c4c4">
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 13px; font-weight: 500">Réglages modifiés · {{ f.title }}</span><span style="margin-left: auto; font-size: 12px; color: #5c5c5c; white-space: nowrap">{{ f.date }} · {{ f.start }}</span></div>
+<span style="font-family: 'Ubuntu Mono', monospace; font-size: 12.5px; color: #1b1b1b">{{ f.changes }}</span>
+<button type="button" style="align-self: flex-start; border: 0; background: transparent; padding: 0; font-size: 12px; color: #1f57c3; cursor: pointer">Voir le diff complet</button>
+</div>
+</li></sc-if>
+<sc-if value="{{ f.isFrag }}" hint-placeholder-val="{{ true }}"><li style="display: flex; gap: 14px; position: relative; padding-bottom: 18px">
+<button type="button" onClick="{{ f.toggle }}" aria-label="{{ f.label }}" title="{{ f.label }}" style="position: relative; z-index: 1; flex: none; width: 28px; height: 28px; border-radius: 50%; box-sizing: border-box; border: 2px solid {{ f.ring }}; background: {{ f.bg }}; color: {{ f.fg }}; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0">
+<sc-if value="{{ f.added }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M20 6 9 17l-5-5"/></svg></sc-if>
+<sc-if value="{{ f.notAdded }}" hint-placeholder-val="{{ true }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 5v14M5 12h14"/></svg></sc-if>
+</button>
+<div onMouseEnter="{{ f.enter }}" onMouseLeave="{{ f.leave }}" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; margin-top: -6px; border-radius: 8px; transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; background: {{ f.cardBg }}; border: 1px solid {{ f.bd }}; box-shadow: {{ f.sh }}">
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 14px; font-weight: 500">{{ f.name }}</span><span style="margin-left: auto; font-size: 12px; color: #5c5c5c">{{ f.date }}</span><a href="Main.dc.html" aria-label="{{ f.editLabel }}" title="Modifier les limites" style="width: 26px; height: 26px; border-radius: 6px; color: #5c5c5c; display: inline-flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M21.2 6.8a2.8 2.8 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5z"/><path d="m15 5 4 4"/></svg></a></div>
+<div style="display: flex; gap: 16px; font-size: 12.5px; color: #5c5c5c">
+<span style="display: inline-flex; align-items: center; gap: 5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Début <span style="color: #1b1b1b; font-family: 'Ubuntu Mono', monospace; font-size: 13px">{{ f.start }}</span></span>
+<span style="display: inline-flex; align-items: center; gap: 5px">Durée <span style="color: #1b1b1b; font-family: 'Ubuntu Mono', monospace; font-size: 13px">{{ f.dur }}</span></span>
+</div>
+</div>
+</li></sc-if>
+</sc-for>
+</ol>
+</div>
+</div>
+<div style="padding: 12px 20px; border-top: 1px solid #e1e3e8; display: flex; align-items: center; gap: 10px">
+<span style="font-size: 13px; color: #5c5c5c">Liste d’analyse : <b style="color: #1b1b1b; font-weight: 500">{{ total }} / 10</b></span>
+<span style="margin-left: auto"><button type="button" style="background: #1f57c3; color: #fff; border: 1px solid #1f57c3; border-radius: 6px; padding: 7px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg>Analyser</button></span>
+</div>
+</aside>
+</sc-if></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'jeno', list: ['jeno/FINAL', 'jeno/FINAL.02', 'jeno/LAST'], colors: { 'jeno/FINAL': 0, 'jeno/FINAL.02': 1, 'jeno/LAST': 2 }, added: { 'jeno/FINAL': 1, 'jeno/FINAL.02': 2, 'jeno/LAST': 3 } }; }
+  chipDown(key, e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    if (e.target && e.target.closest && e.target.closest('button')) return;
+    const bar = this.barEl; if (!bar) return;
+    e.preventDefault();
+    const br = bar.getBoundingClientRect();
+    const scale = (br.width / (bar.offsetWidth || br.width)) || 1;
+    const rects = Array.prototype.map.call(bar.querySelectorAll('[data-chip]'), (el) => ({ key: el.getAttribute('data-chip'), r: el.getBoundingClientRect(), w: el.firstChild ? el.firstChild.getBoundingClientRect().width : el.getBoundingClientRect().width }));
+    const me = rects.find((x) => x.key === key); if (!me) return;
+    const others = rects.filter((x) => x.key !== key);
+    const x0 = e.clientX, y0 = e.clientY, gx = x0 - me.r.left, gy = y0 - me.r.top;
+    const onDot = !!(e.target && e.target.closest && e.target.closest('[data-dot]'));
+    let started = false, idx = 0;
+    const move = (ev) => {
+      if (!started && Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 5) return;
+      started = true;
+      idx = others.length;
+      for (let i = 0; i < others.length; i++) {
+        const r = others[i].r;
+        const above = ev.clientY < r.top;
+        const sameRow = ev.clientY >= r.top && ev.clientY <= r.top + r.height + 8;
+        if (above || (sameRow && ev.clientX < r.left + r.width / 2)) { idx = i; break; }
+      }
+      this.setState({ drag: { key: key, idx: idx, left: (ev.clientX - br.left - gx) / scale, top: (ev.clientY - br.top - gy) / scale, w: me.w / scale } });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      if (!started && onDot) { const o = Object.assign({}, this.state.off); o[key] = false; this.setState({ masterPick: key, off: o }); return; }
+      if (!started) { if (this.host && this.host.singleMode && this.host.singleMode()) { this.host.pickSingle(key); return; } const o = Object.assign({}, this.state.off); o[key] = !o[key]; this.setState({ off: o }); return; }
+      const l = this.state.list.filter((k) => k !== key);
+      l.splice(idx, 0, key);
+      this.setState({ list: l, drag: null });
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+  renderVals() {
+    const DATA0 = [{"id": "jeno", "name": "JeNo Ced", "sub": "5 pouces · 6S", "fw": "Betaflight 2026.6.0-rc3", "color": "#e6194b", "stage": "Étape 2 / 4 · Filtres", "pct": 38, "status": "À corriger", "scol": "#9a5300", "frags": [{"name": "LAST", "date": "13 nov. 2026", "start": "18:42:10", "dur": "41,2 s", "fw": "BF 2026.6.0-rc3", "board": "STM32F405", "rate": "1 613 Hz", "debug": "FFT_FREQ", "pid": "58·93·39·156", "role": "Série PID", "drone": "JeNo Ced"}, {"name": "FINAL.02", "date": "13 nov. 2026", "start": "18:31:47", "dur": "33,6 s", "fw": "BF 2026.6.0-rc3", "board": "STM32F405", "rate": "1 613 Hz", "debug": "FFT_FREQ", "pid": "58·72·48·178", "role": "Série PID", "drone": "JeNo Ced"}, {"name": "FINAL", "date": "13 nov. 2026", "start": "18:20:05", "dur": "33,6 s", "fw": "BF 2026.6.0-rc3", "board": "STM32F405", "rate": "1 613 Hz", "debug": "FFT_FREQ", "pid": "58·31·39·156", "role": "Filtres", "drone": "JeNo Ced"}, {"name": "BTFL_017 · 3", "date": "9 nov. 2026", "start": "16:12:31", "dur": "52,8 s", "fw": "BF 2026.6.0-rc3", "board": "STM32F405", "rate": "1 613 Hz", "debug": "FFT_FREQ", "pid": "58·52·42·160", "role": "Série PID", "drone": "JeNo Ced"}, {"name": "BTFL_017 · 2", "date": "9 nov. 2026", "start": "16:04:02", "dur": "47,1 s", "fw": "BF 2026.6.0-rc3", "board": "STM32F405", "rate": "1 613 Hz", "debug": "FFT_FREQ", "pid": "58·45·42·160", "role": "Série PID", "drone": "JeNo Ced"}, {"name": "BTFL_017 · 1", "date": "9 nov. 2026", "start": "15:55:40", "dur": "38,9 s", "fw": "BF 2026.6.0-rc3", "board": "STM32F405", "rate": "1 613 Hz", "debug": "FFT_FREQ", "pid": "58·40·39·156", "role": "Série PID", "drone": "JeNo Ced"}, {"name": "BTFL_014 · 1", "date": "2 nov. 2026", "start": "11:20:17", "dur": "1 min 04 s", "fw": "BF 2026.6.0-rc3", "board": "STM32F405", "rate": "1 613 Hz", "debug": "FFT_FREQ", "pid": "54·40·36·150", "role": "Filtres", "drone": "JeNo Ced"}], "count": 7, "last": "13 nov. 2026", "cfgs": [{"date": "13 nov. 2026", "start": "18:38:30", "title": "PID roll", "changes": "I 72 → 93 · D 48 → 39 · F 178 → 156"}, {"date": "13 nov. 2026", "start": "18:26:05", "title": "PID roll", "changes": "I 31 → 72 · D 39 → 48 · F 156 → 178"}, {"date": "13 nov. 2026", "start": "18:10:12", "title": "Filtres", "changes": "gyro_lpf1_static_hz 150 → 165 · dyn_notch_count 3 → 2"}, {"date": "9 nov. 2026", "start": "16:00:48", "title": "PID", "changes": "simplified_i_gain 80 → 100"}, {"date": "2 nov. 2026", "start": "11:05:00", "title": "Configuration initiale", "changes": "enregistrée au premier branchement"}]}, {"id": "whoop", "name": "Whoop 65", "sub": "65 mm · 1S", "fw": "Betaflight 4.5.1", "color": "#f58231", "stage": "Étape 3 / 4 · Séries PID", "pct": 64, "status": "Vérifié", "scol": "#137a2c", "frags": [{"name": "BTFL_042 · 2", "date": "11 nov. 2026", "start": "20:05:12", "dur": "2 min 11 s", "fw": "BF 4.5.1", "board": "STM32F411", "rate": "2 000 Hz", "debug": "GYRO_SCALED", "pid": "72·80·64·120", "role": "Série PID", "drone": "Whoop 65"}, {"name": "BTFL_042 · 1", "date": "11 nov. 2026", "start": "19:58:40", "dur": "1 min 48 s", "fw": "BF 4.5.1", "board": "STM32F411", "rate": "2 000 Hz", "debug": "GYRO_SCALED", "pid": "70·80·60·120", "role": "Série PID", "drone": "Whoop 65"}, {"name": "BTFL_039 · 1", "date": "4 nov. 2026", "start": "21:14:03", "dur": "2 min 30 s", "fw": "BF 4.5.1", "board": "STM32F411", "rate": "2 000 Hz", "debug": "GYRO_SCALED", "pid": "70·75·60·120", "role": "Filtres", "drone": "Whoop 65"}], "count": 3, "last": "11 nov. 2026", "cfgs": [{"date": "11 nov. 2026", "start": "19:50:20", "title": "Filtres", "changes": "rpm_filter_q 500 → 450"}]}, {"id": "cine", "name": "Cinewhoop 3″", "sub": "3 pouces · 4S", "fw": "Betaflight 4.5.2", "color": "#2f6fd6", "stage": "Étape 1 / 4 · Préparer", "pct": 12, "status": "À préparer", "scol": "#5c5c5c", "frags": [{"name": "BTFL_003 · 1", "date": "28 oct. 2026", "start": "14:40:55", "dur": "3 min 02 s", "fw": "BF 4.5.2", "board": "STM32F405", "rate": "1 600 Hz", "debug": "FFT_FREQ", "pid": "45·80·40·0", "role": "Filtres", "drone": "Cinewhoop 3″"}], "count": 1, "last": "28 oct. 2026", "cfgs": [{"date": "28 oct. 2026", "start": "14:30:02", "title": "Configuration initiale", "changes": "enregistrée au premier branchement"}]}, {"id": "lr7", "name": "Long Range 7″", "sub": "7 pouces · 6S", "fw": "Betaflight 2026.6.0", "color": "#7ccd3a", "stage": "Étape 4 / 4 · Finitions", "pct": 90, "status": "Vérifié", "scol": "#137a2c", "frags": [{"name": "BTFL_088 · 1", "date": "7 nov. 2026", "start": "10:02:44", "dur": "6 min 40 s", "fw": "BF 2026.6.0", "board": "STM32H743", "rate": "1 000 Hz", "debug": "RPM_FILTER", "pid": "48·90·44·110", "role": "Série PID", "drone": "Long Range 7″"}, {"name": "BTFL_087 · 2", "date": "31 oct. 2026", "start": "09:48:20", "dur": "5 min 12 s", "fw": "BF 2026.6.0", "board": "STM32H743", "rate": "1 000 Hz", "debug": "RPM_FILTER", "pid": "48·90·44·110", "role": "Série PID", "drone": "Long Range 7″"}, {"name": "BTFL_087 · 1", "date": "31 oct. 2026", "start": "09:36:01", "dur": "4 min 57 s", "fw": "BF 2026.6.0", "board": "STM32H743", "rate": "1 000 Hz", "debug": "RPM_FILTER", "pid": "46·85·42·110", "role": "Filtres", "drone": "Long Range 7″"}, {"name": "BTFL_085 · 1", "date": "24 oct. 2026", "start": "15:10:39", "dur": "7 min 03 s", "fw": "BF 2026.6.0", "board": "STM32H743", "rate": "1 000 Hz", "debug": "RPM_FILTER", "pid": "46·85·42·110", "role": "Filtres", "drone": "Long Range 7″"}], "count": 4, "last": "7 nov. 2026", "cfgs": [{"date": "31 oct. 2026", "start": "09:30:41", "title": "PID", "changes": "simplified_master_multiplier 100 → 110"}, {"date": "24 oct. 2026", "start": "15:01:10", "title": "Configuration initiale", "changes": "enregistrée au premier branchement"}]}]; const ED = this.state.edits || {}, HID = this.state.hidden || {}; const DATA = DATA0.concat(this.state.newDrones || []).filter((d) => !HID[d.id]).map((d) => Object.assign({}, d, ED[d.id] || {}));
+    const COLORS = ["#e6194b", "#f58231", "#e6c619", "#7ccd3a", "#2ec4c4", "#2f6fd6", "#1c2f8c", "#9b4fd1", "#d65fa6", "#7f7f7f"];
+    const sel = this.state.sel;
+    const list = this.state.list || [];
+    const toggleKey = (key) => {
+      const l = this.state.list.slice();
+      const c = Object.assign({}, this.state.colors);
+      const i = l.indexOf(key);
+      if (i >= 0) { l.splice(i, 1); delete c[key]; }
+      else if (l.length < 10) {
+        const used = Object.values(c);
+        let k = 0; while (used.indexOf(k) >= 0) k += 1;
+        c[key] = k; l.push(key);
+        const ad = Object.assign({}, this.state.added); ad[key] = Math.max(0, ...Object.values(ad)) + 1; this.setState({ added: ad });
+      }
+      this.setState({ list: l, colors: c });
+    };
+    const drones = DATA.map((d) => {
+      const on = d.id === sel;
+      return Object.assign({}, d, {
+        tint: d.color + '1f',
+        pctw: d.pct + '%',
+        pressed: on ? 'true' : 'false',
+        border: on ? '2px solid #1f57c3' : '1px solid #e1e3e8',
+        shadow: on ? '0 4px 16px rgba(31,87,195,.15)' : '0 1px 2px rgba(0,0,0,.04)',
+        pick: () => this.setState({ sel: d.id })
+      });
+    });
+    const colors = this.state.colors || {};
+    const drag = this.state.drag || null;
+    const shown = drag ? list.filter((k) => k !== drag.key) : list;
+    const MOIS = { 'janv.': 0, 'févr.': 1, 'mars': 2, 'avr.': 3, 'mai': 4, 'juin': 5, 'juil.': 6, 'août': 7, 'sept.': 8, 'oct.': 9, 'nov.': 10, 'déc.': 11 };
+    const tsOf = (key) => { const p = key.split('/'); const d = DATA.find((x) => x.id === p[0]); const f = d ? d.frags.find((x) => x.name === p.slice(1).join('/')) : null; if (!f) return 0; const q = f.date.split(' '); const h = f.start.split(':'); return Date.UTC(Number(q[2]), MOIS[q[1]] || 0, Number(q[0]), Number(h[0]), Number(h[1]), Number(h[2])); };
+    const addedM = this.state.added || {};
+    const offM = this.state.off || {};
+    const activeK = list.filter((k) => !offM[k]);
+    let master = null;
+    if (this.state.masterPick && activeK.indexOf(this.state.masterPick) >= 0) { master = this.state.masterPick; }
+    else if (activeK.length) {
+      const byDrone = {};
+      activeK.forEach((k) => { const dId = k.split('/')[0]; (byDrone[dId] = byDrone[dId] || []).push(k); });
+      const multi = Object.keys(byDrone).filter((dId) => byDrone[dId].length > 1);
+      const firstAdded = (ks) => ks.slice().sort((a, b) => (addedM[a] || 0) - (addedM[b] || 0))[0];
+      if (multi.length) {
+        const dId = multi.slice().sort((a, b) => (addedM[firstAdded(byDrone[a])] || 0) - (addedM[firstAdded(byDrone[b])] || 0))[0];
+        master = byDrone[dId].slice().sort((a, b) => tsOf(b) - tsOf(a))[0];
+      } else {
+        master = firstAdded(activeK);
+      }
+    }
+    const masterName = master ? master.split('/').slice(1).join('/') : '';
+    const chips = shown.map((key) => {
+      const off = !!(this.state.off || {})[key];
+      const parts = key.split('/');
+      const d = DATA.find((x) => x.id === parts[0]);
+      const nm = parts.slice(1).join('/');
+      const fr = d ? d.frags.find((x) => x.name === nm) : null;
+      return { ...(fr || {}), name: nm, drone: d ? d.name : '', color: COLORS[colors[key]],
+               removeLabel: 'Retirer ' + nm + ' de l’analyse', remove: () => toggleKey(key),
+               key: key, down: (e) => this.chipDown(key, e), isMaster: key === master, dotTip: key === master ? 'Fragment maître' : 'Cliquer pour en faire le fragment maître', ds: key === master ? '20px' : '15px', chkd: key === master ? 'block' : 'none',
+               dot: off ? '#c4c4c4' : COLORS[colors[key]], fg: off ? '#8a8a8a' : '#1b1b1b', td: off ? 'line-through' : 'none',
+               bs: off ? 'dashed' : 'solid', bc: off ? '#c4c4c4' : '#c4c4c4', bg: off ? '#f3f3f3' : '#ffffff',
+               tip: off ? 'Désactivé · cliquer pour réactiver, glisser pour réordonner' : 'Cliquer pour désactiver, glisser pour réordonner' };
+    });
+    chips.forEach((c, i) => { c.ml = drag && i === drag.idx ? (drag.w + 8) + 'px' : '0px'; c.mr = drag && drag.idx >= chips.length && i === chips.length - 1 ? (drag.w + 8) + 'px' : '0px'; });
+    let ghost = { left: '0px', top: '0px', color: '', name: '', drone: '' };
+    if (drag) {
+      const parts = drag.key.split('/'); const dd = DATA.find((x) => x.id === parts[0]);
+      ghost = { left: drag.left + 'px', top: drag.top + 'px', color: COLORS[colors[drag.key]], name: parts.slice(1).join('/'), drone: dd ? dd.name : '' };
+    }
+    const curD = drones.find((d) => d.id === sel) || null;
+    let cur = { name: '', count: 0, tint: '', color: '', frags: [], items: [] };
+    if (curD) {
+      cur = Object.assign({}, curD, {
+        frags: curD.frags.map((f) => {
+          const key = curD.id + '/' + f.name;
+          const hovK = this.state.hov, openF = this.state.openF || {};
+          const i = list.indexOf(key);
+          const a = i >= 0;
+          const col = a ? COLORS[colors[key]] : '#1f57c3';
+          return Object.assign({}, f, {
+            added: a, notAdded: !a,
+            ring: col, bg: a ? col : '#ffffff', fg: a ? (col === '#e6c619' ? '#1b1b1b' : '#ffffff') : '#1f57c3',
+            cardBg: (hovK === key) ? (a ? col + '22' : '#f5f7fa') : (a ? col + '14' : '#ffffff'),
+            bd: (hovK === key) ? '#1f57c3' : '#e1e3e8',
+            sh: hovK === key ? '0 4px 12px rgba(0,0,0,.08)' : 'none',
+            rot: (hovK === key) ? 'rotate(180deg)' : 'none',
+            ariaExp: openF[key] ? 'true' : 'false',
+            expLabel: (openF[key] ? 'Replier ' : 'Déplier ') + f.name,
+            enter: () => { if (this.state.hov !== key) this.setState({ hov: key }); },
+            leave: () => { if (this.state.hov === key) this.setState({ hov: null }); },
+            toggleOpen: (e) => { if (e && e.stopPropagation) e.stopPropagation(); const o = Object.assign({}, this.state.openF); o[key] = !o[key]; this.setState({ openF: o }); },
+            label: a ? 'Retirer ' + f.name + ' de l’analyse' : 'Ajouter ' + f.name + ' à l’analyse',
+            editLabel: 'Modifier les limites de ' + f.name,
+            toggle: () => toggleKey(key),
+            isFrag: true, isCfg: false
+          });
+        })
+      });
+      const tsF = (date, start) => { const q = date.split(' '); const h = start.split(':'); return Date.UTC(Number(q[2]), MOIS[q[1]] || 0, Number(q[0]), Number(h[0]), Number(h[1]), Number(h[2])); };
+      const cfgItems = (curD.cfgs || []).map((c) => Object.assign({}, c, { isCfg: true, isFrag: false, ts: tsF(c.date, c.start) }));
+      cur.frags.forEach((f) => { f.ts = tsF(f.date, f.start); });
+      cur.items = cur.frags.concat(cfgItems).sort((a, b) => b.ts - a.ts);
+    }
+    return { masterKey: master, masterName: masterName, ghost, dragging: !!drag, barClass: drag ? 'otb-dragging' : '', barRef: (el) => { this.barEl = el; }, drones, cur, chips, empty: list.length === 0, total: list.length, open: !!curD, close: () => this.setState({ sel: null }) };
+  }
+}
+</script>
+</body>
+</html>

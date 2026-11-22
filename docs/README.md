@@ -16,4 +16,5 @@
 | [spec-usb.md](spec-usb.md) | Développeurs | Récupération des logs par USB : messages MSP, mode stockage de masse, effacement, vérifiés dans le firmware (lot 32) |
 | [spec-methodes.md](spec-methodes.md) | Développeurs | Méthodes d'analyse (FFT, Wiener, retards) et repères de réglage |
 | [spec-ecrans.md](spec-ecrans.md) | Développeurs | Écrans PIDtoolbox de référence et leurs contrôles |
+| [maquettes/](maquettes/README.md) | Développeurs, agents IA | Maquettes de l'interface ; le **prototype complet** fait foi pour le dessin (D-061) |
 | [images/](images/) | — | Captures utilisées par le README |

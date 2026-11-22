@@ -1106,8 +1106,8 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
 - ~~**W-070** — **La maquette qui fait foi pour le dessin (D-061) n'est pas dans le dépôt.**~~
   ✅ **CLOS (2026-11-22)** — Cédric a retrouvé le lien de son canevas claude.ai « OpenTuneBox — refonte navigation et
   mise en page » : neuf planches, dont le **prototype complet** (`Application.dc.html`, planche « Prototype complet —
-  toute l'application »). Une session le lit avec l'outil d'artefacts de Claude Code (lien gardé hors dépôt, le canevas
-  est privé) ; le verser dans `docs/` reste à décider par Cédric, le dépôt étant public. Texte d'origine : Le « prototype complet de
+  toute l'application »). Copié le même jour, à la demande de Cédric, dans [maquettes/](maquettes/README.md) (sans les 44
+  images d'exemple du canevas). Texte d'origine : Le « prototype complet de
   l'application » du canevas du 2026-11-16 a servi à écrire le rail et le tableau de bord dans le fork
   `GerryNatif/OpenTuneBox` ; Cédric ne l'a pas (2026-11-22). D-061 oblige pourtant à suivre ce dessin au détail près.
   **Pourquoi reporté** : rien à reprendre ici sans le document ; le dessin déjà codé reste juste.
