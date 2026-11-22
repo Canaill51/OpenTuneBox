@@ -70,6 +70,8 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
+| D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
 | D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels), prouvé par le banc **et** les vrais vols | 2026-11-18 |
 | D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit | 2026-11-19 |
 | D-060 | Amende D-015 : une entrée de navigation est **un outil ou un espace** qui regroupe plusieurs vues ; les boutons deviennent un **rail à gauche** ; deux écrans hors rail sont permis. Ce qui reste : aucune fenêtre séparée, une vue cachée ne calcule pas | 2026-11-19 |
@@ -134,6 +136,47 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-22 — Bibliothèque et récupération par USB
+
+### D-064 : la bibliothèque reste en fichiers JSON, table des mesures comprise
+
+**Contexte.** Le lot 28 a choisi des fichiers JSON (`otb-store`) et renvoyé au lot 31 la question d'une vraie base :
+au volume plein du corpus, la table des mesures pèse 8 Mo et met 959 ms à se lire ([validation.md](validation.md)).
+Question posée à Cédric le 2026-11-22.
+
+**Décision.**
+- Les six tables restent des **fichiers JSON**, lus et écrits par le seul module d'accès d'`otb-store`.
+- La table des mesures se lit **à la première question posée**, **hors du fil de l'interface** : l'écran ne gèle pas
+  pendant la seconde de lecture.
+- Pas SQLite : une dépendance de plus et un format qu'on ne relit plus d'un coup d'œil, pour un volume qu'un
+  chargement à la demande suffit à absorber.
+
+**Témoins.** Mesure du lot 28 (8 Mo, 959 ms, 535 logs, 77 040 mesures) ; le test du chargement à la demande viendra
+avec le lot 31.
+
+**Ouvert.** À reprendre seulement si une mesure du lot 31 montre un temps de lecture qui gêne malgré le chargement en
+arrière-plan.
+
+### D-063 : la récupération par USB lit et efface, elle n'écrit jamais de réglage sur la carte
+
+**Contexte.** Vérification du firmware avant le lot 32 ([spec-usb.md](spec-usb.md)) : Betaflight n'empêche ni la
+lecture ni l'effacement de la mémoire quand le drone est armé, et la bibliothèque série Rust la plus connue,
+`serialport`, est sous MPL-2.0. Cédric a tranché les trois points le 2026-11-22.
+
+**Décision.**
+- OpenTuneBox **lit** l'identité, les logs et la configuration (`diff all`), **vérifie** la copie, puis **efface**
+  après confirmation. Il n'écrit **jamais** un réglage sur la carte : les réglages « Et si » et les conseils de
+  l'assistant restent des **lignes CLI à copier** — pas d'écriture directe, parce qu'elle change la façon dont le
+  drone vole sans que le pilote ait relu la commande.
+- L'**état armé se relit juste avant l'effacement**, pas seulement au branchement : le firmware ne s'en charge pas.
+- Le port série passe par **`serial2`** (BSD-2-Clause OR Apache-2.0) ; pas `serialport` : MPL-2.0, copyleft
+  refusé par `rust/deny.toml` (D-043, D-045).
+- La partie **protocole** (32a : trames MSP, port simulé, contrôles avant effacement) peut se faire **avant la fin du
+  lot 30** : elle ne touche pas l'interface.
+
+**Témoins.** [spec-usb.md](spec-usb.md) (points 3, 4, 6 et 8, lus dans Betaflight au commit `1b94a3871`) ;
+`cargo info serialport` (MPL-2.0) et `cargo info serial2` (BSD-2-Clause OR Apache-2.0) le 2026-11-22.
 
 ## 2026-11-18 — Scripts firmware
 
@@ -252,8 +295,7 @@ pâle de la maquette.
 `rust/otb-gui/tests/app.rs` (`le_tableau_de_bord_montre_une_carte_par_drone_et_ses_fragments`, contre-preuve vue
 en échec) ; captures hors écran du tableau de bord dans les deux thèmes, comparées à la maquette.
 
-**Ouvert.** W-070 : la maquette n'est **pas** dans le dépôt, et Cédric ne l'a pas (2026-11-22). En attendant, la
-référence est le dessin déjà codé : les constantes en tête de `rust/otb-gui/src/dashboard.rs` et les captures.
+**Ouvert.** W-070, clos le 2026-11-22 : la maquette est retrouvée dans le canevas claude.ai privé de Cédric (planche « Prototype complet — toute l'application », `Application.dc.html`) ; une session la lit avec l'outil d'artefacts de Claude Code, le lien est gardé hors dépôt.
 
 ## 2026-11-19 — Navigation de la fenêtre principale
 

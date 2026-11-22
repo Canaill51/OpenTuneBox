@@ -70,10 +70,10 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **29** | Fragments : écran d'extraction, index, liste d'analyse | `otb-store` (lot 28, fait) |
+| 3 | **29** | Fragments : écran d'extraction, index, liste d'analyse | `otb-store` (lot 28, fait) ; maquette retrouvée le 2026-11-22 (W-070 clos) |
 | 4 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) |
 | 5 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 |
-| 6 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | lot 30 |
+| 6 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) : rien, permis avant la fin du lot 30 (D-063) ; 32b (écran) : lot 30 |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
 | — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
@@ -209,10 +209,10 @@ Cédric, sous GPL : D-004).
       au rejeu (D-059, W-068). Texte d'origine : vol de l'Air65 après un changement de filtres, comparé à la prédiction faite
       depuis le vol d'avant. C'est la seule mesure de la vraie limite du simulateur : la **boucle fermée** (moins filtrer
       envoie plus de bruit aux moteurs, qui en produisent davantage ; le simulateur garde le bruit d'avant).
-- [ ] **Ensuite seulement** : conseiller aux pilotes `FFT_FREQ`, un log à chaque boucle PID et `blackbox_high_resolution`
-      (guide intégré, compétence `guide-integre`), si 22a à 22f le justifient.
-- [ ] **Simulateur externe de Cédric** : mêmes logs de référence et mêmes mesures par étage ; on n'échange que des
-      valeurs mesurées, jamais de code (D-004).
+- **Ensuite seulement** : conseiller aux pilotes `FFT_FREQ`, un log à chaque boucle PID et `blackbox_high_resolution`
+      (guide intégré, compétence `guide-integre`), si 22a à 22f le justifient. **Reporté par Cédric le 2026-11-22** :
+      `FFT_FREQ` est déjà conseillé ; le reste attend d'autres vols (W-073).
+- **Simulateur externe de Cédric** : **mis de côté par Cédric le 2026-11-22**, outil trop différent d'OpenTuneBox.
 - [ ] **Critère d'arrêt** : si 22a trouve, sur les logs à pleine cadence, un écart de plus de 1 dB sous 250 Hz pour une
       version du firmware ou un type de filtre, s'arrêter et revenir vers Cédric avant 22e.
       **Atteint le 2026-11-22** : 7 sessions sur 18 (liste dans [validation.md](validation.md)), dont deux termes D que le modèle
@@ -409,8 +409,8 @@ correspondre à 100 % à la maquette ». Les trois lots précédents en avaient 
 - [ ] ⚠️ **La table des mesures ne se charge pas au lancement, mais à la première question posée.** Mesuré au lot 28
       ([validation.md](validation.md)) : au volume plein (535 logs, 77 040 mesures) elle pèse **8 Mo** et met **959 ms**
       à se lire — à elle seule le déclencheur du plan. Les cinq autres tables réunies pèsent 1 Mo.
-- [ ] **Fichiers JSON ou vraie base (SQLite) : à trancher dans ce lot** (Cédric, 2026-11-22). Le JSON est gardé jusque-là ;
-      la question revient ici parce que c'est la table des mesures qui atteint le déclencheur.
+- [x] **Fichiers JSON ou vraie base (SQLite)** : **tranché le 2026-11-22, JSON gardé** (D-064) ; la table des mesures
+      se lit à la première question, hors du fil de l'interface.
 - [ ] **Fiche cible par drone** (réactivité des PID, filtrage) et un graphique par mesure sur tous ses fragments,
       la cible en bande.
 - [ ] ⚠️ **Dire lequel prime** : la cible du drone n'est pas un seuil de l'assistant (D-011, calibré sur le
@@ -426,7 +426,12 @@ effacement reporté ne coûte rien.
 
 **Branche** : `feat/usb-retrieve`. **Dépend du lot 30** ; la bibliothèque et le refus des doublons existent déjà.
 
-**À lire** : [spec-usb.md](spec-usb.md) (ce que fait le firmware, vérifié le 2026-11-22).
+**À lire** : [spec-usb.md](spec-usb.md) (ce que fait le firmware, vérifié le 2026-11-22), [decisions.md](decisions.md) D-063.
+
+**Découpage** (Cédric, 2026-11-22, D-063) : **32a — le protocole**, sans interface et avant la fin du lot 30 : trames MSP
+v1 (jumbo) et v2, identité, lecture par blocs, effacement, `diff all`, port simulé pour les tests, et la suite des
+contrôles avant effacement ; port série par `serial2`. **32b — l'écran**, après le lot 30. **Aucune écriture de
+réglage sur la carte** : les « Et si » restent des lignes CLI.
 
 - [ ] **Identité de la machine** par MSP : nom, identifiant de la carte, version du firmware, état armé,
       occupation de la mémoire. L'identifiant de la carte est la clé ; le nom seul ne suffit pas (deux drones
