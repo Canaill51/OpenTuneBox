@@ -41,7 +41,7 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22b attend les vols `GYRO_SAMPLE` de Cédric ; 22a et 22c peuvent commencer sans eux |
+| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a fait ; **22a bis d'abord** (examen des alertes, décidé le 2026-11-22) ; 22b attend les vols `GYRO_SAMPLE` de Cédric |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -106,6 +106,21 @@ Cédric, sous GPL : D-004).
       `otb-log` quand le log en a. Test sur un log fabriqué dont les canaux debug sortent de filtres connus (écart nul),
       contre-preuve en faussant un filtre (L-071). Puis passage sur **tout le corpus `FFT_FREQ`** (compétence
       `calculs-corpus`) : écarts par version du firmware et par type de filtre, résultats dans [validation.md](validation.md).
+- [ ] **22a bis — Examen des alertes de 22a** (branche `fix/filter-stage-alerts`, Opus ; décidé par Cédric le 2026-11-22, avant 22c
+      à 22f) : les 7 sessions en alerte ([validation.md](validation.md)) se rangent en trois familles ; mesurer chaque
+      hypothèse sur le corpus, sans la supposer, puis relancer `otb-dev corpus stages` et revenir vers Cédric avec ce qui reste.
+      1. **TPA** : `Cedric/BF Chirp/Air65-4.bbl` #2 et `1. PTB/cupidstunt/petrel-85mm-issues.bbl` #2 et #4 (résidu D de 0,36
+         à 0,90, contre 4 % sur les vols chirp) ont un TPA fort sur le D (`tpa_rate` 65, `tpa_breakpoint` 1350, `tpa_mode` 1),
+         alors que l'étage D ajuste un gain constant. Recalculer le gain instant par instant d'après les gaz et l'en-tête
+         (lire `flight/pid.c`, `getTpaFactor`) : si le résidu retombe vers 4 %, la correction entre dans `filter_stages`.
+      2. **Fiabilité** : les alertes de `KM HOVER 4K 3`, `KM HOVER WOBBLE 5`, `redhonu` et en partie `F1` tombent à une
+         cohérence de 0,45 à 0,61 (stationnaire : au-dessus de 100 Hz, surtout du bruit moteur pile sur les notchs). Relancer
+         avec `MIN_COHERENCE` à 0,7 et compter les alertes qui restent ; choisir le seuil avec Cédric.
+      3. **W-062** : écart léger et de même signe partout (notch dynamique et D, −0,3 à −0,8 dB entre 50 et 250 Hz, firmware
+         qui filtre plus). Essayer les gaz d'avant le throttle boost pour le LPF dynamique du D et mesurer l'effet ; pour le
+         notch dynamique, cause à chercher.
+      4. `petrel-85mm-issues` dévie aussi sur le gyro (+7 à +17 dB au-dessus de 100 Hz) : log d'un drone en difficulté, à
+         écarter seulement si 1 à 3 ne l'expliquent pas, et en le disant.
 - [ ] **22b — Vols de calibration** (Cédric, sur l'Air65, mêmes réglages que les logs chirp) : `debug_mode = GYRO_SAMPLE`,
       `gyro_filter_debug_axis = ROLL`, `blackbox_sample_rate = 1/1`, `blackbox_high_resolution = ON` (il n'affine que le gyro
       et `gyroUnfilt`, **pas** les canaux `GYRO_SAMPLE`, arrondis au °/s : un chirp plus ample aide davantage), mode angle,
