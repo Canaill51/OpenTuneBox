@@ -13,8 +13,8 @@ Les chemins de fichiers ci-dessous sont ceux du dépôt Betaflight (`src/main/�
 | # | Point | Réponse | Sûr ? |
 |---|---|---|---|
 | 1 | Le mode stockage de masse (MSC) lit-il la mémoire interne ? | Oui depuis avril 2018, **en lecture seule** | lu dans le code |
-| 2 | Débit réel de la lecture MSP | blocs de 4 096 octets au plus ; débit **non mesuré** | à mesurer sur une vraie carte |
-| 3 | Durée d'un effacement de 16 Mo, et comment savoir qu'il est fini | drapeau « prête » du résumé MSP ; jusqu'à 200 s par tranche de 16 Mo | fin : lue ; durée : à mesurer |
+| 2 | Débit réel de la lecture MSP | blocs de 4 096 octets au plus ; **3,25 Mo par minute** mesurés (≈ 5 min pour 16 Mo) | mesuré sur une carte (2026-11-22) |
+| 3 | Durée d'un effacement de 16 Mo, et comment savoir qu'il est fini | drapeau « prête » du résumé MSP ; jusqu'à 200 s par tranche de 16 Mo ; **42,5 s** mesurées | fin : lue ; durée : mesurée sur une carte (2026-11-22) |
 | 4 | Identifiant de la carte | `MSP_UID` : 96 bits gravés dans le microcontrôleur, **0 sur deux cas** | lu dans le code |
 | 5 | Effacement d'une carte SD | **impossible en MSP** ; par le système, une fois la carte montée en MSC | lu dans le code |
 | 6 | Bibliothèque série côté Rust | `serial2` (BSD-2 ou Apache-2.0) ; `serialport` **refusée** (MPL-2.0) | licences vérifiées, `cargo deny` vert (lot 32a) |
@@ -141,8 +141,8 @@ cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 ~/Documents/Drones/usb -
 cargo run -p otb-dev -- usb diff /dev/ttyACM0 ~/Documents/Drones/usb/config.txt  # `diff all` ; la carte redémarre ensuite
 ```
 
-- [ ] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine (`usb copy`).
-- [ ] Durée d'un effacement complet, et place occupée relue à 0 ensuite (`usb copy … --erase`).
+- [x] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine (`usb copy`) : 3,25 Mo par minute.
+- [x] Durée d'un effacement complet, et place occupée relue à 0 ensuite (`usb copy … --erase`) : 42,5 s, relue à 0.
 - [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour (`usb info`).
 - [ ] Mode stockage de masse : fichiers vus sous Linux et Windows, contenu identique à la lecture MSP.
 - [ ] Copie relue dans OpenTuneBox : mêmes vols que le fichier téléchargé par le configurateur.
@@ -164,4 +164,17 @@ laisse l'armement bloqué (`ARMING_DISABLED_CLI`) jusqu'au prochain redémarrage
   armée, mémoire de 8 Mo (128 secteurs) **vide** — débit de copie et durée d'effacement donc **pas encore mesurés**.
 - `usb copy` : mémoire vide, copie refusée comme prévu (« rien à copier », effacement refusé).
 - `usb diff` : 62 lignes, de `# version` à `save`, sans écho de la commande ni invite du CLI ; la carte a redémarré.
+
+**2026-11-22, Linux, carte G474 (STM32G474), Betaflight 2026.12.0, API MSP 1.49**, mémoire de 16 Mo (256 secteurs), nom
+`AIR65 CED`, identifiant `003600413841501220343141`, non armée :
+
+- `usb copy … --erase` : **8 187 904 octets copiés en 144,2 s, soit 3,25 Mo par minute** (≈ 57 Ko/s, environ 70 ms par
+  bloc de 4 080 octets). Une mémoire de 16 Mo pleine prendrait donc **environ 5 minutes** : l'écran du lot 32b doit
+  montrer une progression, pas un sablier. Contrôles passés : 1 log, 1 fragment de vol ; le fichier relu par
+  `opentunebox info` donne un vol de 45,1 s enregistré à 4 kHz (debug `FFT_FREQ`) ; ses 1 469 derniers octets valent `0xFF`
+  (mémoire vierge comprise dans la place annoncée), sans gêne pour le décodeur.
+- Effacement confirmé en tapant « effacer » : **42,5 s**, place occupée relue à **0** ensuite — loin des 300 s du délai
+  du configurateur pour 16 Mo.
+- Pas encore essayé : refus d'effacer drone armé, port tenu par le configurateur, identifiant après changement de
+  firmware, stockage de masse, Windows.
 
