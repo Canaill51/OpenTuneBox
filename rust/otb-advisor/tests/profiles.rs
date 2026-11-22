@@ -46,11 +46,14 @@ fn les_cinq_profils_ont_les_seuils_de_python() {
             ("roll_pitch_gap_high", p.roll_pitch_gap_high),
             ("resonance_high_db", p.resonance_high_db),
         ] {
-            assert!(
-                same(got, f1(&w[name])),
-                "{key}.{name} : Rust {got} / Python {}",
+            // repère gyro du whoop : 1,5 ms chez Python, 1,4 ms depuis le 2026-11-22 (choix de Cédric : p90 du corpus
+            // 1,48 → 1,36 ms une fois le décalage d'horloge de `gyroUnfilt` retiré, L-100)
+            let want = if key == "whoop" && name == "gyro_delay_max_ms" {
+                1.4
+            } else {
                 f1(&w[name])
-            );
+            };
+            assert!(same(got, want), "{key}.{name} : Rust {got} / attendu {want}");
         }
         assert_eq!(
             p.provisional,

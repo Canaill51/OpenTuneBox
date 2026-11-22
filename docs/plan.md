@@ -156,8 +156,8 @@ Cédric, sous GPL : D-004).
       de l'axe debug, alors que le firmware suit chaque axe à part. Reprendre W-059 avec lui.
 - [x] **22d — Retard des filtres corrigé** (branche `feat/filter-sim-before-after`, 2026-11-22) : fait — `compute_delays`
       retire ⌊denom/2⌋ / fréquence gyro (−0,125 ms à 8 kHz, denom 2) ; seule comparaison `gyroUnfilt` → gyro par la phase
-      (le bruit de l'assistant compare des amplitudes). Corpus : 16 sessions sur 675 changent de constat ; repères de retard
-      inchangés, à revoir avec Cédric (p90 du whoop 1,48 → 1,36 ms, [validation.md](validation.md)). Texte d'origine :
+      (le bruit de l'assistant compare des amplitudes). Corpus : 16 sessions sur 675 changent de constat ; repère de retard
+      gyro du whoop 1,5 → 1,4 ms (choix de Cédric, p90 1,48 → 1,36 ms), les autres inchangés ([validation.md](validation.md)). Texte d'origine :
       retirer le décalage d'horloge du retard gyro de `compute_delays`, et de toute autre comparaison `gyroUnfilt` → gyro ;
       mesurer l'effet sur le corpus avant de livrer (valeur affichée qui change : le dire dans la PR).
 - [x] **22e — Avant / après filtrage dans la page Filtres** (même branche, 2026-11-22) : fait — choix de Cédric : rejeu +

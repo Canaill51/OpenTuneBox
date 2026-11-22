@@ -87,8 +87,8 @@ Seuils retenus dans `rust/otb-advisor/src/profiles.rs` :
   1,9 / 2,7 ms. 7" : −31,4 / −17,5 / −21,7 / −31,8 dB, 15–24 ms, 2,6 / 2,8 ms.
 - **Whoop** (provisoire, 11 drones) : inchangé depuis la calibration précédente (10 drones, une voix par
   drone) — gyro −28,0 dB, D −14,7 dB, 20–80 Hz −13,9 dB, harmonique −32,2 dB, latence 13–20 ms. Un seul
-  drone ajouté (un whoop 1S) déplaçait le seuil gyro de 4 dB. Retards recalculés (voir ci-dessous) :
-  1,5 / 2,5 ms.
+  drone ajouté (un whoop 1S) déplaçait le seuil gyro de 4 dB. Retards : **1,4 / 2,5 ms**
+  (gyro recalculé à 1,5 ms le 2026-10-05, puis 1,4 ms le 2026-11-22 sans le décalage d'horloge : voir ci-dessous).
 - **8"+** (provisoire, 6 drones, 20 sessions) : seuils estimés à la main, inchangés (gyro −31 dB, D −17 dB,
   20–80 Hz −22 dB, harmonique −32 dB, latence 18–30 ms) ; retards recalculés : 3,5 / 3,1 ms.
 - **Retards des filtres, toutes tailles** (recalculés le 2026-10-05, décision de Cédric) : p90 par session
@@ -98,6 +98,11 @@ Seuils retenus dans `rust/otb-advisor/src/profiles.rs` :
   en 2–5" au lieu d'environ 10 %. Effet sur le corpus : « Filtrage gyro peut-être trop prudent » 4 → 6 %
   des sessions (8 % des vols avec mouvements), « Filtrage du D peut-être trop fort » 2 → 4 %. Whoop : surtout les sessions d'un même AIR65 (une voix par drone : 2,1 /
   3,3 ms) ; 8"+ : 5 drones, provisoire.
+- **Retard gyro sans le décalage d'horloge** (2026-11-22, lot 22d, L-100) : le retard gyro mesuré baisse de ⌊denom/2⌋ /
+  fréquence gyro (0,125 ms à 8 kHz avec un denom de 2). p90 des vols avec mouvements (ms) : whoop 1,48 → 1,36, 2–3,5"
+  1,83 → 1,71, 5" 1,97 → 1,87, 7" 2,49 → 2,41, 8"+ 3,44 → 3,44 ([validation.md](validation.md)). Seul le repère du whoop change
+  à l'arrondi au dixième supérieur : **1,5 → 1,4 ms** (choix de Cédric) ; les autres restent. Effet : vols de whoop avec
+  mouvements au-dessus du repère 7 → 10 sur 98.
 
 Pour un profil provisoire, l'assistant ajoute le constat « Seuils provisoires pour cette taille » (info).
 

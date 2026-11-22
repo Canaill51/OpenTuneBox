@@ -425,14 +425,14 @@ prudent » (`gyro_filter_cautious`) disparaissent, remplacés par un conseil de 
 
 | Profil | Avant | Après | Repère de l'assistant |
 |---|---|---|---|
-| whoop | 0,97 / 1,28 / 1,48 | 0,85 / 1,16 / 1,36 | 1,5 |
+| whoop | 0,97 / 1,28 / 1,48 | 0,85 / 1,16 / 1,36 | 1,5 → 1,4 |
 | micro | 1,01 / 1,31 / 1,83 | 0,88 / 1,19 / 1,71 | 1,8 |
 | 5" | 0,98 / 1,35 / 1,97 | 0,93 / 1,27 / 1,87 | 1,9 |
 | 7" | 1,46 / 2,01 / 2,49 | 1,35 / 1,89 / 2,41 | 2,6 |
 | 8"+ | 1,89 / 2,79 / 3,44 | 1,76 / 2,68 / 3,44 | 3,5 |
 
-Repères inchangés à ce jour (décision de Cédric attendue : la règle « p90 arrondi vers le haut » donnerait 1,4 ms au whoop,
-les autres ne bougent pas). Les objectifs affichés par taille (`profiles::filter_delay_target_ms`) viennent de valeurs lues dans
+Repère du whoop passé de 1,5 à 1,4 ms (choix de Cédric, règle « p90 arrondi au dixième supérieur » ; vols de whoop avec
+mouvements au-dessus du repère 7 → 10 sur 98) ; les autres ne bougent pas à l'arrondi. Les objectifs affichés par taille (`profiles::filter_delay_target_ms`) viennent de valeurs lues dans
 PIDtoolbox, qui garde le décalage.
 
 ### Modèle de filtres étage par étage (2026-11-22, lots 22a, 22a bis et 22b)
