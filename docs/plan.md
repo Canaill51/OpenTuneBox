@@ -41,7 +41,7 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a et 22a bis faits (24 alertes → 2) ; **suite à décider avec Cédric** (W-062, W-064) ; 22b attend les vols `GYRO_SAMPLE` de Cédric |
+| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a et 22a bis faits (24 alertes → 2, acceptées le 2026-11-22) ; 22c, puis 22d et 22e avec W-064 ; 22b attend les vols `GYRO_SAMPLE` de Cédric |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -154,8 +154,9 @@ Cédric, sous GPL : D-004).
       version du firmware ou un type de filtre, s'arrêter et revenir vers Cédric avant 22e.
       **Atteint le 2026-11-22** : 7 sessions sur 18 (liste dans [validation.md](validation.md)), dont deux termes D que le modèle
       ne suit pas du tout (résidu 0,4 à 0,9). Après 22a bis : 2 alertes, sur 2 sessions, toutes deux à −1,3 dB sur le D entre
-      100 et 250 Hz. Suite à décider avec Cédric avant 22c à 22f : accepter ces 2 alertes (écart léger connu, W-062), porter les
-      corrections dans le simulateur affiché (W-064), attendre les vols 22b.
+      100 et 250 Hz. **Décidé par Cédric le 2026-11-22** : ces 2 alertes sont acceptées (écart léger connu, suivi par W-062 et
+      repris avec les vols 22b) ; les corrections de 22a bis passent dans le simulateur affiché avec 22d et 22e (W-064) ; 22c à
+      22f peuvent reprendre.
 
 ---
 

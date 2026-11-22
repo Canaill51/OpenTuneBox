@@ -970,7 +970,7 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   **Risque si on n'y touche pas** : sur un contrôleur surchargé (`petrel` : boucle à 1 976 Hz pour 4 000 annoncés), coupures
   simulées deux fois trop hautes ; ailleurs, écart de l'ordre du centième de dB. Le TPA ne change pas le spectre « et si »
   (rapport de deux réponses, même gain des deux côtés).
-  **Reprise** : avec 22d et 22e du lot 22, qui changent déjà des valeurs affichées.
+  **Reprise** : avec 22d et 22e du lot 22, qui changent déjà des valeurs affichées (accord de Cédric le 2026-11-22).
   **Piste** : `gyro_stage_at` / `simulate_dterm_at` existent déjà ; passer `filter_stages::model_rate_hz` partout, et refaire
   les références concernées.
   [`rust/otb-analysis/src/bf_filters.rs:simulate_gyro`, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm`]
