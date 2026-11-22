@@ -65,6 +65,7 @@ fn session_rows(lg: &FlightLog, f: &Path, root: &Path) -> Result<Vec<Value>, Str
         "gyro_hz": num(s.gyro_rate_hz()),
         "pid_hz": num(s.pid_rate_hz()),
         "log_hz": num(s.log_rate_hz()),
+        "measured_hz": num(lg.fs),
         "high_res": s.high_resolution,
     });
     let mut rows = Vec::new();

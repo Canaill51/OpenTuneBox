@@ -41,7 +41,7 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a fait ; **22a bis d'abord** (examen des alertes, décidé le 2026-11-22) ; 22b attend les vols `GYRO_SAMPLE` de Cédric |
+| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a et 22a bis faits (24 alertes → 2, acceptées le 2026-11-22) ; 22c, puis 22d et 22e avec W-064 ; 22b attend les vols `GYRO_SAMPLE` de Cédric |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -106,8 +106,15 @@ Cédric, sous GPL : D-004).
       `otb-log` quand le log en a. Test sur un log fabriqué dont les canaux debug sortent de filtres connus (écart nul),
       contre-preuve en faussant un filtre (L-071). Puis passage sur **tout le corpus `FFT_FREQ`** (compétence
       `calculs-corpus`) : écarts par version du firmware et par type de filtre, résultats dans [validation.md](validation.md).
-- [ ] **22a bis — Examen des alertes de 22a** (branche `fix/filter-stage-alerts`, Opus ; décidé par Cédric le 2026-11-22, avant 22c
-      à 22f) : les 7 sessions en alerte ([validation.md](validation.md)) se rangent en trois familles ; mesurer chaque
+- [x] **22a bis — Examen des alertes de 22a** (branche `fix/filter-stage-alerts`, 2026-11-22) : fait — **24 alertes → 2**
+      ([validation.md](validation.md)). Causes mesurées : deux **contrôleurs surchargés** dont la boucle tourne moins vite que
+      l'en-tête alors que le firmware calcule ses filtres pour la cadence annoncée (`petrel`, `redhonu` ; L-101 : piste absente
+      du plan, trouvée en lisant l'horloge du log) ; une **récupération de vrille en lacet** qui annule le D 23 ms (`Air65-4` #2) ;
+      le **TPA**, nécessaire mais pas suffisant seul. Seuil de cohérence (2) sans objet ; gaz d'avant le boost (3) sans effet
+      sur les LPF dynamiques ; `petrel` (4) expliqué, gardé. Ces corrections ne sont que dans `filter_stages` : le simulateur
+      affiché attend la décision de Cédric (W-064). Restent 2 alertes légères sur le D (−1,3 dB, 100–250 Hz), même famille que
+      l'écart de W-062. Le texte d'origine de 22a bis suit.
+      Examen des alertes (décidé par Cédric le 2026-11-22, avant 22c à 22f) : les 7 sessions en alerte ([validation.md](validation.md)) se rangent en trois familles ; mesurer chaque
       hypothèse sur le corpus, sans la supposer, puis relancer `otb-dev corpus stages` et revenir vers Cédric avec ce qui reste.
       1. **TPA** : `Cedric/BF Chirp/Air65-4.bbl` #2 et `1. PTB/cupidstunt/petrel-85mm-issues.bbl` #2 et #4 (résidu D de 0,36
          à 0,90, contre 4 % sur les vols chirp) ont un TPA fort sur le D (`tpa_rate` 65, `tpa_breakpoint` 1350, `tpa_mode` 1),
@@ -146,7 +153,10 @@ Cédric, sous GPL : D-004).
 - [ ] **Critère d'arrêt** : si 22a trouve, sur les logs à pleine cadence, un écart de plus de 1 dB sous 250 Hz pour une
       version du firmware ou un type de filtre, s'arrêter et revenir vers Cédric avant 22e.
       **Atteint le 2026-11-22** : 7 sessions sur 18 (liste dans [validation.md](validation.md)), dont deux termes D que le modèle
-      ne suit pas du tout (résidu 0,4 à 0,9). Suite à décider avec Cédric avant 22c à 22f.
+      ne suit pas du tout (résidu 0,4 à 0,9). Après 22a bis : 2 alertes, sur 2 sessions, toutes deux à −1,3 dB sur le D entre
+      100 et 250 Hz. **Décidé par Cédric le 2026-11-22** : ces 2 alertes sont acceptées (écart léger connu, suivi par W-062 et
+      repris avec les vols 22b) ; les corrections de 22a bis passent dans le simulateur affiché avec 22d et 22e (W-064) ; 22c à
+      22f peuvent reprendre.
 
 ---
 

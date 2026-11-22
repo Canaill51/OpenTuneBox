@@ -412,47 +412,72 @@ Les références figées (`$OTB_GOLDEN`) avaient disparu du poste : elles ont é
   ok 624, gap 67, slow 8, values 5, refhang 3, rows 2. Les 15 non conformes sont exactement celles de la ligne de
   base du 2026-11-04 ; l'écart sur le total vient du corpus lui-même, qui a perdu 3 fichiers (525 lus au lieu de 528).
 
-### Modèle de filtres étage par étage (2026-11-22, lot 22a, D-057)
+### Modèle de filtres étage par étage (2026-11-22, lots 22a et 22a bis, D-057)
 
 Outil : `rust/otb-analysis/src/filter_stages.rs:check_stages` (méthode dans son en-tête) ; corpus :
-`(cd rust && cargo run --release -p otb-dev -- corpus stages SORTIE.json)` (43 s pour tout le corpus, 508 sessions lues ;
-`--resume SORTIE.json` refait le tableau). Écart = gain du firmware − gain du modèle, moyenne en dB pondérée par la
-cohérence ; une bande n'est retenue que si sa cohérence moyenne atteint 0,5. Décalage d'horloge de L-100 retiré.
+`(cd rust && cargo run --release -p otb-dev -- corpus stages SORTIE.json)` (14 s pour tout le corpus le 2026-11-22, 508 sessions
+lues ; `--resume SORTIE.json` refait le tableau). Écart = gain du firmware − gain du modèle, moyenne en dB pondérée par la
+cohérence ; une bande n'est retenue que si sa cohérence moyenne atteint 0,5. Décalage d'horloge de L-100 retiré. Depuis 22a bis :
+filtres du modèle calculés pour la cadence nominale et bandes en hertz du firmware (L-101), TPA appliqué au terme D, instants
+où le firmware force le D à zéro écartés.
 
 **Logs chirp de l'Air65** (`Cedric/Air65/Test BF Chirp`, 3 logs, Betaflight 2026.12, gyro 8 kHz, PID 4 kHz, log à chaque boucle PID,
 `FFT_FREQ`, sans haute résolution) : écarts signés, du plus petit au plus grand des 3 logs (axes roll et pitch pour le D).
 
 | Étage | 5–50 Hz | 50–100 Hz | 100–250 Hz | 250–500 Hz (cohérence) |
 |---|---|---|---|---|
-| LPF2 + RPM + LPF1 (bloc) | −0,02 à +0,00 dB | −0,35 à −0,24 dB | −0,08 à +0,01 dB | +0,61 à +0,98 dB (0,52 à 0,63) |
-| notch dynamique | −0,03 à −0,00 dB | −0,49 à −0,22 dB | −0,54 à −0,25 dB | −1,34 à −1,15 dB (0,65 à 0,72) |
-| filtres D (gain ajusté sur 10–50 Hz) | ±0,01 dB | −0,81 à −0,37 dB | −0,70 à −0,05 dB | −1,85 à −1,12 dB (0,75 à 0,85) |
+| LPF2 + RPM + LPF1 (bloc) | −0,02 à +0,00 dB | −0,37 à −0,25 dB | −0,10 à −0,01 dB | +0,40 à +0,59 dB (0,51 à 0,62) |
+| notch dynamique | −0,03 à −0,00 dB | −0,49 à −0,22 dB | −0,57 à −0,29 dB | −1,35 à −1,17 dB (0,65 à 0,71) |
+| filtres D (gain ajusté sur 10–50 Hz) | +0,00 à +0,01 dB | −0,86 à −0,37 dB | −0,70 à −0,11 dB | −1,94 à −1,26 dB (0,74 à 0,84) |
 
-Retard résiduel, une fois le décalage d'horloge retiré : −0,02 à +0,01 ms pour tous les étages ; résidu 0,7 à 0,9 % (gyro), 4 % (D).
-Même ordre de grandeur que l'essai jetable du plan (0,2 / 0,4 / 0,6 dB sous 250 Hz) ; la méthode diffère (moyenne par bande ici).
-Les écarts sont tous du même signe d'un log à l'autre : le firmware atténue un peu plus que le modèle entre 50 et 250 Hz.
+Retard résiduel : −0,02 à +0,02 ms pour tous les étages ; résidu 0,7 à 0,9 % (gyro), 3,6 à 4,1 % (D). Les corrections de 22a bis
+ne changent ces logs que de quelques centièmes de dB (cadence mesurée 4 032 Hz, nominale 4 000 Hz ; gaz sous le seuil du TPA la
+plupart du temps). Même ordre de grandeur que l'essai jetable du plan (0,2 / 0,4 / 0,6 dB sous 250 Hz) ; la méthode diffère
+(moyenne par bande ici). Les écarts sont tous du même signe d'un log à l'autre : le firmware atténue un peu plus que le modèle
+entre 50 et 250 Hz (W-062).
 
 **Hypothèse écartée : un biais de la mesure.** Partout, l'écart ressemble à 10·log10(cohérence) (cohérence 0,7 → −1,5 dB), la
 signature d'un bruit sur l'**entrée** (arrondi au °/s) qui fait sous-estimer le gain. Essai : l'entrée décalée d'un échantillon
 comme référence (variable instrumentale, insensible à ce bruit). Résultat identique au centième de dB sur les 12 étages : le bruit
 d'entrée est négligeable, les écarts ne viennent pas de l'estimateur. L'écart du notch dynamique entre 250 et 500 Hz reste à expliquer.
 
-**Corpus** (aucun log `GYRO_SAMPLE` : les étages séparés attendent les vols 22b). |écart| médian et maximal, bandes concluantes :
+**Corpus** (aucun log `GYRO_SAMPLE` : les étages séparés attendent les vols 22b). |écart| médian et maximal, bandes concluantes,
+après 22a bis (entre parenthèses dans la colonne Sessions : le maximum sous 250 Hz mesuré en 22a, avant les corrections) :
 
 | Étage | Log | Sessions | 5–50 Hz | 50–100 Hz | 100–250 Hz |
 |---|---|---|---|---|---|
-| bloc gyro | chaque boucle PID | 15 | 0,03 (0,18) | 0,24 (2,54) | 0,19 (8,34) |
-| notch dynamique | chaque boucle PID | 15 | 0,02 (0,09) | 0,27 (2,21) | 0,42 (3,98) |
-| filtres D | chaque boucle PID | 14 (28 axes) | 0,01 (1,15) | 0,47 (4,11) | 0,62 (7,33) |
-| bloc gyro | une boucle sur 2 ou moins | 433 | 0,18 (2,67) | 0,87 (4,81) | 0,62 (5,35) |
-| notch dynamique | une boucle sur 2 ou moins | 433 | 0,12 (2,13) | 0,77 (3,24) | 0,72 (2,30) |
+| bloc gyro | chaque boucle PID | 15 (8,34) | 0,02 (0,08) | 0,20 (0,52) | 0,21 (0,76) |
+| notch dynamique | chaque boucle PID | 15 (3,98) | 0,01 (0,09) | 0,19 (0,49) | 0,35 (0,99) |
+| filtres D | chaque boucle PID | 14, 28 axes (7,33) | 0,00 (0,02) | 0,37 (0,86) | 0,38 (1,35) |
+| bloc gyro | une boucle sur 2 ou moins | 433 (5,35) | 0,19 (2,57) | 0,90 (5,20) | 0,59 (3,88) |
+| notch dynamique | une boucle sur 2 ou moins | 433 (3,24) | 0,11 (2,13) | 0,76 (3,21) | 0,73 (2,15) |
 
-**Critère d'arrêt du lot 22 atteint** : 7 des 18 sessions enregistrées à chaque boucle PID dépassent 1 dB sous 250 Hz
-(24 bandes) : `1. PTB/cupidstunt/petrel-85mm-issues.bbl` #2 et #4 (tous les étages ; D jusqu'à −7,3 dB, résidu D 0,36 à 0,45),
-`1. PTB/redhonu/redhonu_TMOTORVELOXF7SE.BBL` #1 (bloc +8,3 dB, notch dynamique −4,0 dB), `Cedric/BF Chirp/Air65-4.bbl` #2 (D, résidu
-0,85 à 0,9 : le modèle ne suit pas du tout la sortie), `1. PTB/StraylightFPV/KM/Filtering/011326 KM HOVER WOBBLE 5.bbl` #1 (bloc +2,3 dB,
-D −1,2 dB), `… KM HOVER 4K 3.bbl` #1 (notch dynamique −1,0 dB), `Cedric/Air65/Tune/F1.bbl` #1 (D −1,3 dB). Non examinés : suite
-décidée avec Cédric ([plan.md](plan.md), lot 22).
+**Critère d'arrêt du lot 22 : 24 alertes en 22a, 2 après 22a bis.** Une alerte = |écart| > 1 dB sous 250 Hz, log à chaque boucle
+PID, bande concluante. Les 7 sessions en alerte de 22a, examinées une à une :
+
+- `1. PTB/cupidstunt/petrel-85mm-issues.bbl` #2 et #4 (16 alertes, tous les étages ; D jusqu'à −7,3 dB, résidu D 0,36 à 0,45) et
+  `1. PTB/redhonu/redhonu_TMOTORVELOXF7SE.BBL` #1 (bloc +8,3 dB, notch dynamique −4,0 dB) : **contrôleurs surchargés**. Boucle
+  mesurée à 1 976 Hz pour 4 000 annoncés (`petrel`, F411), 6 329 Hz pour 8 000 (`redhonu`) ; le firmware calcule ses filtres pour
+  la cadence annoncée (L-101). Avec le modèle à la cadence nominale et le TPA : `petrel` résidu D 0,03 à 0,04, |écart| sous 0,3 dB
+  partout ; `redhonu` bloc −0,3 dB, notch dynamique −0,7 dB.
+- `Cedric/BF Chirp/Air65-4.bbl` #2 (4 alertes, D, résidu 0,85 à 0,90) : **récupération de vrille en lacet** à 11,2 s (choc, gyro
+  lacet au-delà du seuil). Le firmware y annule P, I et D du roulis et du tangage pendant 92 boucles (23 ms, `flight/pid.c`) ;
+  le modèle, lui, produisait un D énorme. Ces 23 ms suffisaient à fausser toute la session. Une fois ces instants écartés :
+  résidu 0,07 à 0,14, plus d'alerte. Repéré en découpant la session en tranches de 2 s (une seule tranche décrochait).
+- **TPA** (piste 1 du plan) : `petrel` et `Air65-4` ont un TPA fort (`tpa_rate` 65, `tpa_breakpoint` 1350, `tpa_mode` 1 — valeurs
+  par défaut, que tous les logs Air65 ont aussi). Seul, il ramène le résidu D de `petrel` de 0,36–0,45 à 0,27–0,30 et laisse
+  `Air65-4` #2 à 0,90 : seul, il n'expliquait pas les alertes. Mais la cadence nominale seule laisse le résidu D de `petrel` à
+  0,23–0,37 : il faut les deux (0,04). Le TPA entre donc dans le modèle, comme dans le firmware (résidu D des vols chirp 3,9 → 3,6 %).
+- **Seuil de cohérence** (piste 2) : à 0,6 ou 0,7 au lieu de 0,5, les alertes de 22a passaient de 24 à 19 ou 17 seulement ; après
+  22a bis, il en reste 2 aux trois seuils. `MIN_COHERENCE` reste à 0,5.
+- **Gaz d'avant le throttle boost** pour les LPF dynamiques (piste 3, W-062) : aucun effet au millième près ; non appliqué.
+- `1. PTB/StraylightFPV/KM/Filtering/011326 KM HOVER WOBBLE 5.bbl` #1 (bloc +2,3 dB) et `… KM HOVER 4K 3.bbl` #1 (notch dynamique
+  −1,03 dB) : bloc à +0,8 dB et notch à −1,0 dB, sous le seuil, une fois les bandes comptées à la cadence nominale (boucle à
+  4 049 Hz pour 4 000).
+
+**Restent 2 alertes**, toutes deux sur le D entre 100 et 250 Hz, cohérence 0,85 : `KM HOVER WOBBLE 5` #1 axe pitch −1,31 dB et
+`Cedric/Air65/Tune/F1.bbl` #1 axe roll −1,35 dB. Même signe et même bande que l'écart léger de tous les autres logs (W-062) :
+cause à chercher, suite décidée avec Cédric ([plan.md](plan.md), lot 22).
 
 ## Refaire une référence Python
 

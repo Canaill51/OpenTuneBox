@@ -60,6 +60,31 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-101 : un contrôleur surchargé tourne moins vite que son en-tête, mais calcule ses filtres pour la cadence annoncée : tous les étages paraissent « filtrer plus »
+
+- **Symptôme** — 2026-11-22 (lot 22a bis) : le contrôle par étage (`otb-dev corpus stages`) trouve deux logs où **tous** les
+  étages dévient à la fois, du même signe : `1. PTB/cupidstunt/petrel-85mm-issues.bbl` (sessions 2 et 4 : bloc gyro et notch
+  dynamique −2 à −4 dB, terme D −3 à −7 dB, résidu D 0,36 à 0,45 contre 4 % ailleurs) et `1. PTB/redhonu/redhonu_TMOTORVELOXF7SE.BBL`
+  (bloc gyro +8,3 dB, notch dynamique −4,0 dB). On cherche d'abord du côté du TPA (le D de `petrel` a un TPA fort) : la
+  correction ne ramène le résidu qu'à 0,27.
+- **Cause** — l'en-tête de `petrel` annonce un gyro à 8 kHz et un PID à 4 kHz (`looptime` 125, `pid_process_denom` 2), mais
+  l'horloge du log (`time`, `loopIteration` qui avance de 1 à chaque trame) montre une boucle à **1 976 Hz** (F411 surchargé) ;
+  `redhonu` : 6 329 Hz pour 8 000 annoncés. Le firmware calcule les coefficients de **tous** ses filtres (passe-bas, notchs RPM
+  et dynamiques, PT1 du throttle boost) avec la période **nominale** (`pidRuntime.dT`, `gyro.targetLooptime`), et ses
+  fréquences de notch (eRPM, FFT) dans cette même échelle : quand la boucle ralentit, toutes les coupures descendent en
+  hertz réels, d'un facteur cadence réelle / cadence nominale. Le modèle, lui, calculait ses filtres pour la cadence
+  **mesurée** sur le log (`FlightLog::fs`) : il filtrait donc moins que le firmware.
+- **Règle** — pour comparer le modèle au firmware, calculer les filtres pour la cadence nominale de l'en-tête
+  (`filter_stages::model_rate_hz`) et non pour `FlightLog::fs`. Quand tous les étages d'un log dévient ensemble, comparer
+  d'abord la cadence mesurée à la cadence annoncée (`measured_hz` et `log_hz` des lignes de `corpus stages`) avant de
+  soupçonner un filtre. Le simulateur affiché ne suit pas encore cette règle (W-064).
+- **Preuve** — passage du corpus avec le modèle à la cadence nominale : alertes du contrôle par étage de 24 à 7 (le D de
+  `petrel` garde un résidu de 0,23 à 0,37 tant que le TPA manque) ; avec aussi
+  le TPA et l'exclusion des instants où le firmware force le D à zéro, 2. `petrel` : résidu D 0,03 à 0,04, écarts sous
+  0,3 dB ; `redhonu` : bloc gyro −0,3 dB. Les logs dont la boucle tient sa cadence (+0,8 % sur l'Air65) ne bougent que
+  d'un centième de dB. Test : `rust/otb-analysis/tests/filter_stages.rs:filtres_calcules_a_la_cadence_nominale_meme_si_la_boucle_ralentit`.
+  Résultats : [validation.md](validation.md).
+
 ### L-100 : `gyroUnfilt` a un échantillon gyro d'avance sur le signal filtré quand `pid_process_denom` vaut 2 ou plus : on croit à un retard de filtre
 
 - **Symptôme** — 2026-11-22 : en rejouant le modèle de la chaîne gyro (`simulate_gyro`) sur `gyroUnfilt` et en le comparant
@@ -1213,6 +1238,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-101 | Contrôleur surchargé : la boucle tourne moins vite que l'en-tête (`petrel` : 1 976 Hz pour 4 000), mais le firmware calcule ses filtres pour la cadence annoncée, donc coupe plus bas en hertz réels ; le modèle doit prendre la cadence nominale (`filter_stages::model_rate_hz`), pas `FlightLog::fs` ; tous les étages qui dévient ensemble : comparer d'abord cadence mesurée et annoncée | Analyses |
 | L-100 | `gyroUnfilt` a ⌊`pid_process_denom`/2⌋ échantillons gyro d'avance sur le gyro filtré (125 µs à 8 kHz, denom 2 : filtrage et Blackbox ne tombent pas sur le même tick) : retirer ce décalage de toute comparaison `gyroUnfilt` → signal filtré avant d'accuser un filtre ; l'outil Retards l'inclut aujourd'hui | Analyses |
 | L-099 | PR de Dependabot rouge sur `le_fichier_du_depot_correspond_aux_dependances_livrees` : le fichier des licences cite les versions des crates livrées et Dependabot ne le refait pas ; sur sa branche, `otb-dev licenses`, `verify`, commit du seul fichier ; deux PR qui touchent la même ligne se gênent : refaire le fichier sur la seconde après la première fusion | Outillage |
 | L-098 | PR ouverte puis étiquetée dans la même seconde : deux passages du contrôle finissent ensemble et GitHub retient l'échec du premier, lu sans étiquette ; faire passer les passages d'une même PR dans l'ordre (`concurrency`, sans annulation) | Outillage |

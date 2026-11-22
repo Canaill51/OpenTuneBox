@@ -21,9 +21,18 @@
 //! sortie − modèle rapportée à celle de la sortie, mesurée dans les fenêtres). ⚠️ Le firmware écrit `gyroUnfilt` un tick
 //! gyro après avoir filtré l'échantillon précédent : tout étage qui part de `gyroUnfilt` retire ce décalage (L-100).
 //!
+//! Le modèle suit le firmware sur trois points que le simulateur affiché ignore encore (lot 22a bis) :
+//! - ⚠️ ses filtres sont calculés pour la cadence **nominale** de l'en-tête ([`model_rate_hz`]), pas pour celle mesurée sur
+//!   le log : un contrôleur surchargé dont la boucle tourne deux fois moins vite que prévu filtre deux fois plus bas en
+//!   hertz réels, et les fréquences des bandes sont comptées comme le firmware les compte (L-101) ;
+//! - le terme D est multiplié par le facteur TPA de chaque instant ([`tpa_d_factor`]), tiré des gaz d'avant le throttle
+//!   boost ([`pre_boost_throttle`]) ;
+//! - les instants où le firmware force le D à zéro (PID coupé, récupération de vrille en lacet : `flight/pid.c`) sont
+//!   écartés de l'étage D comme des trous du log.
+//!
 //! Seuls les logs enregistrés à [`MIN_LOG_RATE_HZ`] ou plus sont contrôlés (D-057).
 
-use crate::bf_filters::{GyroStage, dyn_notch_enabled, gyro_stage, simulate_dterm};
+use crate::bf_filters::{GyroStage, dyn_notch_enabled, gyro_stage_at, pre_boost_throttle, simulate_dterm_at};
 use crate::spectral::{rfftfreq, row_mean, segments};
 use otb_dsp::numeric::{hann, rfft_rows};
 use otb_log::flightlog::{FlightLog, GyroDebugTaps, clamp_range};
@@ -104,6 +113,9 @@ pub struct StageSignals {
     pub clock_offset_s: f64,
     /// Gain du modèle ajusté sur [`D_GAIN_FIT_HZ`] (étage D) au lieu d'être pris tel quel.
     pub fit_gain: bool,
+    /// Raccords propres à l'étage (indices depuis le début de la période), en plus des trous du log : instants où le
+    /// firmware a forcé le D à zéro (étage D).
+    pub breaks: Vec<i64>,
 }
 
 /// Résultat d'une bande de fréquences.
@@ -161,8 +173,79 @@ pub fn clock_offset_s(s: &Settings) -> f64 {
     }
 }
 
+/// `tpa_d_factor` : facteur TPA du terme D à chaque instant, d'après les gaz d'avant le throttle boost (fraction 0–1).
+/// Courbe « classique » du firmware (`flight/pid.c:getTpaFactorClassic`, constantes de `flight/pid_init.c`) : 1 −
+/// `tpa_rate` % au-dessus de `tpa_breakpoint`, en rampe jusqu'aux pleins gaz ; sous `tpa_low_breakpoint`, 1 −
+/// `tpa_low_rate` % au plus, jusqu'au premier passage au-dessus (sauf `tpa_low_always`). Le firmware l'applique au D quel que
+/// soit `tpa_mode`. `None` si l'en-tête n'a pas de TPA ou une autre courbe (`tpa_curve_type` ≠ 0).
+pub fn tpa_d_factor(s: &Settings, throttle: &[f64]) -> Option<Vec<f64>> {
+    if s.get("tpa_breakpoint").is_none() || s.get_int("tpa_curve_type", 0) != 0 {
+        return None;
+    }
+    let bp = ((s.get_int("tpa_breakpoint", 1350) - 1000) as f64 / 1000.0).clamp(0.0, 0.99);
+    let mult = (s.get_int("tpa_rate", 0) as f64 / 100.0) / (1.0 - bp);
+    let low_bp = ((s.get_int("tpa_low_breakpoint", 1000) - 1000) as f64 / 1000.0)
+        .clamp(0.01, 1.0)
+        .min(bp);
+    let low_mult = s.get_int("tpa_low_rate", 0) as f64 / (100.0 * low_bp);
+    let low_always = s.get_int("tpa_low_always", 0) != 0;
+    let mut faded = false;
+    Some(
+        throttle
+            .iter()
+            .map(|&t| {
+                let t = t.clamp(0.0, 1.0);
+                let rate = if t >= low_bp || low_bp <= 0.01 || faded {
+                    faded |= !low_always;
+                    mult * (t - bp).max(0.0)
+                } else {
+                    low_mult * (low_bp - t)
+                };
+                1.0 - rate
+            })
+            .collect(),
+    )
+}
+
 fn wide(r: &[f32]) -> Vec<f64> {
     r.iter().map(|&v| v as f64).collect()
+}
+
+/// `model_rate_hz` : cadence du log telle que le firmware la compte (en-tête : gyro, `pid_process_denom`, `P interval`).
+/// Le modèle calcule ses filtres pour elle, comme le firmware, même si la cadence mesurée sur le log en diffère (L-101).
+pub fn model_rate_hz(s: &Settings) -> f64 {
+    s.log_rate_hz()
+}
+
+/// Raccords (indices depuis `sel.start`) qui isolent les instants où le firmware a forcé le D à zéro (`flight/pid.c`) :
+/// PID coupé (gaz à zéro sans airmode, débordement du gyro : P, I, D nuls sur les trois axes) ou récupération de vrille
+/// en lacet (P, I, D nuls sur roulis et tangage, I nul en lacet). Critère commun : P, I et D du roulis et du tangage **et**
+/// I du lacet nuls au même instant. ⚠️ Pas moins : les termes sont arrondis à l'entier dans le log, et un seul axe à zéro
+/// arrive par hasard en vol calme, jusqu'à 60 échantillons d'affilée (mesuré sur le corpus, lot 22a bis). Chaque instant
+/// retenu et celui qui le suit deviennent des raccords : aucune fenêtre d'analyse n'en contient.
+fn pid_off_breaks(log: &FlightLog, sel: &Range<usize>) -> Vec<i64> {
+    let mut terms: Vec<&[f32]> = Vec::new();
+    for (c, rows, axes) in [
+        ('P', &log.p_term, 0..2),
+        ('I', &log.i_term, 0..3),
+        ('D', &log.d_term, 0..2),
+    ] {
+        terms.extend(axes.filter(|&a| log.term_present(c, a)).map(|a| rows.row(a)));
+    }
+    if terms.len() < 7 {
+        return Vec::new(); // un terme manque : impossible de distinguer une coupure d'un hasard
+    }
+    let mut out = Vec::new();
+    for i in sel.clone() {
+        if terms.iter().all(|r| r[i] == 0.0) {
+            let j = (i - sel.start) as i64;
+            if out.last() != Some(&j) {
+                out.push(j);
+            }
+            out.push(j + 1);
+        }
+    }
+    out
 }
 
 /// Le log enregistre-t-il chaque boucle PID ?
@@ -188,11 +271,12 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
     let sel = clamp_range(sel.start, sel.end, n);
     let cut = |v: &[f64]| v[sel.clone()].to_vec();
     let offset = clock_offset_s(s);
+    let fs = model_rate_hz(s);
     let rpm_missing = s.rpm_harmonics > 0 && log.motor_hz.is_none();
     let model = |stages: &[GyroStage], x: &[f32]| -> Result<Vec<f64>, String> {
         let mut y = wide(x);
         for &st in stages {
-            y = gyro_stage(st, log, s, y, 1)?;
+            y = gyro_stage_at(st, log, s, y, 1, fs)?;
         }
         Ok(y)
     };
@@ -205,6 +289,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
             model: cut(&m),
             clock_offset_s,
             fit_gain: false,
+            breaks: Vec::new(),
         });
     };
 
@@ -312,8 +397,14 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
         } else if constant.is_empty() {
             skipped.push((Stage::Dterm, "D max actif : le gain du D varie en vol".into()));
         } else {
-            let sim = simulate_dterm(log, None, None)?;
-            let fs = log.fs;
+            let mut sim = simulate_dterm_at(log, None, None, fs)?;
+            // le firmware multiplie le D filtré par le facteur TPA (`flight/pid.c`, `getTpaFactor`)
+            if let Some(tpa) = tpa_d_factor(s, &pre_boost_throttle(s, &log.throttle, fs)) {
+                for row in sim.data.chunks_mut(n) {
+                    row.iter_mut().zip(&tpa).for_each(|(v, f)| *v *= f);
+                }
+            }
+            let off = pid_off_breaks(log, &sel);
             for a in constant {
                 let g = wide(log.gyro.row(a));
                 let mut x = vec![0.0; n];
@@ -331,6 +422,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                     model: cut(sim.row(a)),
                     clock_offset_s: 0.0,
                     fit_gain: true,
+                    breaks: off.clone(),
                 });
             }
         }
@@ -435,7 +527,10 @@ fn spectra(x: &[f64], y: &[f64], m: &[f64], fs: f64, breaks: &[i64]) -> Option<S
 /// `sig.clock_offset_s` (toujours, sauf pour la contre-preuve). `breaks` : raccords de la période (indices relatifs).
 /// `None` si la période est trop courte pour une fenêtre.
 pub fn compare(sig: &StageSignals, fs: f64, breaks: &[i64], correct_clock: bool) -> Option<StageCheck> {
-    let sp = spectra(&sig.input, &sig.output, &sig.model, fs, breaks)?;
+    let mut all: Vec<i64> = breaks.iter().chain(&sig.breaks).copied().collect();
+    all.sort_unstable();
+    all.dedup();
+    let sp = spectra(&sig.input, &sig.output, &sig.model, fs, &all)?;
     let tau = if correct_clock { sig.clock_offset_s } else { 0.0 };
     let nf = sp.freqs.len();
     // modèle complet par case : c = K · e^(−j2πfτ), appliqué à la sortie du modèle
@@ -529,14 +624,15 @@ pub fn compare(sig: &StageSignals, fs: f64, breaks: &[i64], correct_clock: bool)
     })
 }
 
-/// `check_stages` : tous les étages contrôlables du log sur `sel`, décalage d'horloge retiré.
+/// `check_stages` : tous les étages contrôlables du log sur `sel`, décalage d'horloge retiré, fréquences comptées à la
+/// cadence nominale ([`model_rate_hz`]).
 pub fn check_stages(log: &FlightLog, sel: Range<usize>) -> Result<StageChecks, String> {
     let sel = clamp_range(sel.start, sel.end, log.n());
     let (signals, mut skipped) = stage_signals(log, sel.clone())?;
     let breaks: Vec<i64> = log.breaks(sel, 4.0).iter().map(|&b| b as i64).collect();
     let mut checks = Vec::new();
     for sig in &signals {
-        match compare(sig, log.fs, &breaks, true) {
+        match compare(sig, model_rate_hz(&log.settings), &breaks, true) {
             Some(c) => checks.push(c),
             None => skipped.push((sig.stage, "période trop courte pour une fenêtre d'analyse".into())),
         }
