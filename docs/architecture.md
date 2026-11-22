@@ -197,7 +197,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     suivi du notch dynamique rejoué contre les centres enregistrés en `FFT_FREQ`, une ligne par session et par notch ;
     `--resume SORTIE.json` : tableau par version et cadence du log) ; `replay.rs` (`corpus replay SORTIE.json [--dir SOUS-DOSSIER]
     [--limit N] [-j FILS]` : rejeu de la page Filtres avec les réglages du log contre le spectre enregistré, gyro et D, par
-    bande ; `--resume SORTIE.json` : tableau selon que le log enregistre chaque boucle PID ou non, D-058).
+    bande ; `--resume SORTIE.json` : tableau selon que le log enregistre chaque boucle PID ou non, D-058) ; `predict.rs`
+    (`corpus predict AVANT APRÈS` : filtres du vol APRÈS appliqués au vol AVANT, rejeu et rapport des |H|² contre le vol
+    APRÈS, et changement du gyro non filtré, par bande ; lot 22f, W-060).
 
 ## Hors périmètre (pour l'instant)
 

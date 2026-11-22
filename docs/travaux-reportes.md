@@ -69,10 +69,10 @@ Règles d'écriture :
 | W-057 | Simulateur de filtres : sans debug `FFT_FREQ`, les notchs dynamiques du modèle restent à leurs centres initiaux, d'où de faux creux dès qu'on change leur nombre, leur Q ou leur plage (49 logs sur 75 du corpus) | TRAITÉ le 2026-11-22 pour la page Filtres (lot 22e, D-058 : suivi rejoué avec les réglages simulés) ; l'assistant garde l'ancienne méthode (W-068) |
 | W-058 | Notch dynamique compté actif à 2 kHz de boucle PID, alors que le firmware le coupait de la 4.3 à la 2026.6 (arrondi en `float`) | ouvert (aucun log à 2 kHz dans le corpus) |
 | W-059 | Simulateur de filtres : notchs RPM et dynamiques posés à leur position moyenne par fenêtre, pleine profondeur | TRAITÉ le 2026-11-22 pour la page Filtres (lot 22e, D-058 : notchs rejoués échantillon par échantillon) ; l'assistant garde l'ancienne méthode (W-068) |
-| W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | ouvert |
+| W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | EN PARTIE TRAITÉ le 2026-11-22 (lot 22f, `corpus predict`) : un notch dynamique de plus, vérifié en vol sur l'Air65 ; LPF, RPM et autres drones jamais vérifiés |
 | W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
 | W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; l'écart léger du D et du notch dynamique venait de la mesure, L-103) |
-| W-068 | Assistant (`rules.rs:predict_filter_change`) : effet d'un changement de filtres encore estimé par le rapport des réponses \|H\|² (D-008), alors que la page Filtres rejoue la chaîne (D-058) ; les deux peuvent se contredire (notch dynamique ajouté, RPM coupé) | ouvert (après la vérification en vol de 22f) |
+| W-068 | Assistant (`rules.rs:predict_filter_change`) : effet d'un changement de filtres encore estimé par le rapport des réponses \|H\|² (D-008), alors que la page Filtres rejoue la chaîne (D-058) ; les deux peuvent se contredire (notch dynamique ajouté, RPM coupé) | ouvert : la vérification en vol (22f) donne l'avantage au rejeu, à décider par Cédric |
 | W-067 | Contrôle par étage, logs enregistrés une boucle sur 2 ou moins : 24 bandes du notch dynamique et du bloc gyro où le modèle filtre plus que le firmware (jusqu'à +4,5 dB), sur des drones qui vibrent fort ; repliement supposé | ouvert (vols de calibration à faire sur le premier drone moyen logué à 2 kHz) |
 | W-066 | Avant la 4.2, **tous** les filtres gyro tournaient à la cadence gyro ; le modèle ne rejoue ainsi que le LPF2 (L-104) | ouvert (aucun log d'avant la 4.2 à chaque boucle PID en `GYRO_SAMPLE` ou `FFT_FREQ`) |
 | W-065 | Suivi du notch dynamique rejoué : variante 4.3 et plancher de bruit au-dessus de 60 Hz (2026.12) écrits d'après le firmware, jamais confrontés à un log | ouvert (aucun log pour les vérifier) |
@@ -952,6 +952,11 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   premier (`whatif_spectrum`, réglages du premier → réglages du second) et comparer au second, à gaz comparables ;
   y ajouter le rejeu temporel pour trancher entre les deux méthodes (D-008 ne change qu'avec l'accord de Cédric).
   [`rust/otb-analysis/src/bf_filters.rs:whatif_spectrum`, `rust/otb-analysis/src/bf_filters.rs:simulate_gyro`]
+  **En partie traité le 2026-11-22 (lot 22f)** : `otb-dev corpus predict AVANT APRÈS` fait cette comparaison pour les deux
+  méthodes ; un vol de l'Air65 avec un notch dynamique de plus, comparé aux 16 vols du même jour avec un seul : entre 100 et
+  250 Hz, le rejeu se trompe de 0,3 dB en médiane, le rapport de 2,0 dB ([validation.md](validation.md#prédiction-vérifiée-en-vol-2026-11-22-lot-22f)).
+  Reste ouvert : un changement de passe-bas ou du RPM, un autre drone, la boucle fermée (noyée ici dans la variation d'un vol
+  à l'autre).
 
 - **W-061** — **Limites de Nyquist pas tout à fait celles du firmware.** La marge de 95 % n'existe que depuis la 2026.6
   (commit `3166c8206`, 2026-05-31) : avant, `1000000 / 2 / looptime` pour le notch gyro et `pidFrequency / 2` pour le
@@ -1012,6 +1017,10 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
   qui dira laquelle des deux méthodes prédit le mieux.
   **Risque si on n'y touche pas** : un conseil de l'assistant chiffré autrement que ce que la page Filtres montre pour le
   même changement.
+  **Mesure en vol (lot 22f, 2026-11-22)** : un notch dynamique de plus sur l'Air65, |prédit − mesuré| médian entre 100 et 250 Hz :
+  rejeu 0,3 dB, rapport 2,0 dB (retirer le notch : 2,0 contre 4,0) ; le rapport change aussi de −3,1 à 0,0 dB selon le mode
+  debug du vol ([validation.md](validation.md#prédiction-vérifiée-en-vol-2026-11-22-lot-22f)). Passer l'assistant au rejeu
+  change D-008 : à décider par Cédric.
   **Reprise** : après 22f (W-060).
   [`rust/otb-advisor/src/rules.rs:predict_filter_change`, `rust/otb-analysis/src/bf_filters.rs:whatif_spectrum`]
 

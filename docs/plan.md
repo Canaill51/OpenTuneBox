@@ -41,7 +41,7 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; reste 22f |
+| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f mesuré (le rejeu prédit mieux que le rapport) ; reste la décision de Cédric sur l'assistant (W-068) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -167,7 +167,12 @@ Cédric, sous GPL : D-004).
       boucle PID ([validation.md](validation.md#simulateur-de-filtres-rejoué-2026-11-22-lot-22e)). À voler en 22f : un notch
       dynamique de plus, que le rejeu donne **plus** bruyant (+0,7 à +1,9 dB entre 100 et 250 Hz) et l'ancienne méthode
       moins (W-068). Texte d'origine : gyro et terme D, mesurés et simulés, pour les réglages actuels et modifiés.
-- [ ] **22f — Prédiction vérifiée** (W-060) : vol de l'Air65 après un changement de filtres, comparé à la prédiction faite
+- [x] **22f — Prédiction vérifiée** (W-060, branche `feat/filter-sim-flight-check`, 2026-11-22) : fait —
+      `otb-dev corpus predict AVANT APRÈS`. Vol de Cédric avec deux notchs dynamiques au lieu d'un, comparé aux 16 vols du
+      même jour : entre 100 et 250 Hz, le rejeu se trompe de 0,3 dB en médiane (2,0 dB dans l'autre sens), le rapport des
+      |H|² de 2,0 dB (4,0). Boucle fermée non séparable de la variation d'un vol à l'autre (batterie, gaz)
+      ([validation.md](validation.md#prédiction-vérifiée-en-vol-2026-11-22-lot-22f)). Suite : passer l'assistant au rejeu
+      (W-068), à décider par Cédric. Texte d'origine : vol de l'Air65 après un changement de filtres, comparé à la prédiction faite
       depuis le vol d'avant. C'est la seule mesure de la vraie limite du simulateur : la **boucle fermée** (moins filtrer
       envoie plus de bruit aux moteurs, qui en produisent davantage ; le simulateur garde le bruit d'avant).
 - [ ] **Ensuite seulement** : conseiller aux pilotes `FFT_FREQ`, un log à chaque boucle PID et `blackbox_high_resolution`

@@ -647,6 +647,41 @@ coupé, +2,99 / +10,93 contre +0,15 / +13,50 ; LPF1 de l'Air65 × 0,7, −0,46 c
 rejoué place le notch unique de l'Air65 sur le pic principal (médiane 183 Hz) ; avec deux notchs, triés par fréquence, plus
 aucun n'y reste (169 et 258 Hz). Seul un vol avec un notch de plus peut trancher (22f, W-068).
 
+### Prédiction vérifiée en vol (2026-11-22, lot 22f)
+
+`otb-dev corpus predict AVANT APRÈS` (W-060) : les filtres du vol APRÈS appliqués au vol AVANT, prédiction comparée au vol
+APRÈS, période de l'assistant, spectre moyen, changement en dB par bande ; les deux méthodes : « rejeu » (page Filtres, D-058)
+et « rapport » des |H|² (assistant, D-008). Il donne aussi le changement du gyro **non filtré** d'un vol à l'autre, que le
+simulateur garde tel quel (boucle fermée, batterie, gaz).
+
+Vols : Air65 (`Cedric/Air65/Test BF Chirp`, Betaflight 2026.12, gyro 8 kHz, PID et log à 4 kHz). APRÈS :
+`2DNF-FFT_FREQ_4k-CHIRP-65Hz` (`dyn_notch_count` 1 → 2, seul filtre changé ; haute résolution ; batterie à 3,65 V à
+l'armement, gaz moyen 45 %). AVANT : les 16 vols du même jour à 4 kHz avec un seul notch (gaz moyen 36 à 45 %) ; les 3 vols
+à 2 kHz sont écartés (cadence différente). Paire la plus proche : `GYRO_SAMPLE_Roll-HR-CHIRP-65Hz`, qui ne diffère que par le
+nombre de notchs et le mode debug. Le rejeu reproduit chacun de ces vols à 0,02–0,07 dB entre 100 et 250 Hz (`corpus replay`).
+
+Gyro filtré, roulis et tangage, 100–250 Hz (bande du notch dynamique), |prédit − mesuré| médian (maximum), 32 valeurs :
+
+| Sens | Rejeu | Rapport | Rejeu, corrigé du non filtré | Rapport, corrigé | Non filtré, médiane |
+|---|---|---|---|---|---|
+| 1 → 2 notchs (AVANT → APRÈS) | **0,32** (1,77) dB | 1,95 (5,42) dB | 0,58 (2,21) dB | 1,62 (2,21) dB | +0,82 dB |
+| 2 → 1 notch (APRÈS → AVANT) | **1,99** (4,93) dB | 4,01 (6,85) dB | 1,11 (1,72) dB | 3,08 (3,64) dB | −0,82 dB |
+
+« Corrigé » : comparé au changement mesuré moins celui du gyro non filtré (effet des seuls filtres). Paire la plus proche,
+gyro roulis / tangage : prédit −0,34 / −1,49 dB par le rejeu, −3,12 / −3,12 par le rapport ; mesuré −0,33 / −1,22 dB, non
+filtré +0,87 / +0,52 dB. Terme D, même paire : −0,34 / −1,50 prédit, −0,54 / −1,44 mesuré.
+
+- **Le rejeu prédit le mieux**, dans les deux sens. Le notch de plus **baisse** le bruit de ce vol (−0,3 à −1,6 dB) : le
+  rejeu le voit, alors qu'il prévoyait +0,69 dB depuis le vol `CHIRP-45Hz` (section précédente) ; mesuré depuis ce vol-là :
+  +1,87 dB en roulis, mais le gyro non filtré y a monté de 3,3 dB (vols d'un autre moment) : corrigé, −1,4 dB.
+- Le rapport dépend du mode debug du vol AVANT (W-057) : −3,12 dB sans `FFT_FREQ` (notchs à leurs centres initiaux), −0,02 dB
+  avec (centres du debug, que le second notch ne déplace pas).
+- Retirer le second notch : le rejeu prévoit +2,6 dB, les vols montrent +1,2 à +1,7 dB une fois corrigés du non filtré. Il
+  surestime donc la perte d'un notch d'environ 1 dB (cause non cherchée).
+- Boucle fermée : non mesurable ici. Le gyro non filtré a monté de 0,8 dB en médiane avec deux notchs, mais deux vols aux
+  mêmes réglages varient déjà de 0,4 à 1,0 dB, et le vol APRÈS a été fait avec la batterie la plus basse et les gaz les plus
+  hauts. Une seule paire de réglages, un seul vol APRÈS : ces chiffres valent pour ce changement, pas pour un LPF ou le RPM.
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui
