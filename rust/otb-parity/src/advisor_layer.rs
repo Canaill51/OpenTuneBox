@@ -236,7 +236,7 @@ fn put_noise(f: &mut Flat, nr: &noise::NoiseReport) {
 fn ported(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<(Flat, rules::Report), String> {
     let mut f = Flat::new();
     // le diagnostic du bruit refait `analyze` (profil détecté) : son rapport est celui qu'on compare
-    let nr = noise::noise_report(lg, Some(sel), None)?;
+    let nr = noise::noise_report_with(lg, Some(sel), None, rules::FilterModel::Ratio)?;
     let rep = nr.report.clone();
     put_noise(&mut f, &nr);
     f.insert("report|profile".into(), Item::S(rep.profile.key.into()));

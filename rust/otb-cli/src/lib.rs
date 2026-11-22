@@ -3,7 +3,7 @@
 //! caractère par caractère à celui de Python.
 
 use otb_advisor::profiles::{self, CraftProfile};
-use otb_advisor::rules::analyze;
+use otb_advisor::rules::{FilterModel, analyze_with};
 use otb_analysis::period::auto_period;
 use otb_format::fixed;
 use otb_log::flightlog::{FlightLog, load};
@@ -77,11 +77,16 @@ pub fn info_to(files: &[String], out: Sink) {
 /// `opentunebox report FICHIER… [--profil P]`. `Err` si l'analyse échoue (Python : trace d'erreur) ; le texte des sessions
 /// précédentes est alors déjà remis au puits, comme Python l'a déjà écrit.
 pub fn report_to(files: &[String], profil: Option<&str>, out: Sink) -> Result<(), String> {
+    report_to_with(files, profil, FilterModel::Replay, out)
+}
+
+/// [`report_to`] avec la méthode de prévision du bruit `model` (`FilterModel::Ratio` : celle de Python, pour `otb-parity`).
+pub fn report_to_with(files: &[String], profil: Option<&str>, model: FilterModel, out: Sink) -> Result<(), String> {
     let forced: Option<&CraftProfile> = profil.and_then(profiles::profile);
     for f in files {
         for lg in load_or_say(f, out) {
             let (t0, t1) = auto_period(&lg, 8.0, 0.5)?;
-            let rep = analyze(&lg, Some(lg.slice_time(t0, t1)), forced)?;
+            let rep = analyze_with(&lg, Some(lg.slice_time(t0, t1)), forced, model)?;
             out(&format!("=== {} — {}\n", lg.name(), lg.settings.firmware));
             out(&format!(
                 "    {} ({}) ; période {}–{} s\n",
@@ -117,8 +122,13 @@ pub fn info(files: &[String]) -> String {
 
 /// Texte de `report` et son erreur éventuelle : le texte écrit avant l'erreur est gardé.
 pub fn report(files: &[String], profil: Option<&str>) -> (String, Option<String>) {
+    report_with(files, profil, FilterModel::Replay)
+}
+
+/// [`report`] avec la méthode de prévision du bruit `model`.
+pub fn report_with(files: &[String], profil: Option<&str>, model: FilterModel) -> (String, Option<String>) {
     let mut text = String::new();
-    let err = report_to(files, profil, &mut |s| text.push_str(s)).err();
+    let err = report_to_with(files, profil, model, &mut |s| text.push_str(s)).err();
     (text, err)
 }
 

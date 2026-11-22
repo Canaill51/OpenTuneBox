@@ -17,6 +17,7 @@
 use crate::profiles::{CraftProfile, detect_profile};
 use otb_analysis::bf_filters::{self, Target, WhatIfCache, WhatIfSpectrum};
 use otb_analysis::delay::{Delays, MOVING_SETPOINT_DPS, compute_delays};
+use otb_analysis::filter_replay::{self, BeforeAfterSpectra, Replay};
 use otb_analysis::motors::{SpectrumLine, hover_motor_hz};
 use otb_analysis::npstat::{argmax_f64, mean_f32, median_f32, py_min};
 use otb_analysis::numpy_mean;
@@ -30,6 +31,7 @@ use otb_analysis::step_series::{FF_KEY, flight_conditions};
 use otb_format::{fixed, general};
 use otb_log::flightlog::{FlightLog, Rows, clamp_range};
 use otb_log::settings::Settings;
+use std::cell::OnceCell;
 use std::ops::Range;
 
 // Stabilité (boucle ouverte mesurée), en conseil : 7 dB et 35° retenus sur le corpus du 2026-10-05.
@@ -600,6 +602,8 @@ impl Report {
 /// ce qu'une section calcule pour les suivantes.
 pub struct Analysis<'a> {
     pub log: &'a FlightLog,
+    /// Prévisions du bruit après un changement de filtres (méthode, rejeu actuel gardé pour tous les essais).
+    pub pred: Predictor<'a>,
     pub sel: Range<usize>,
     pub profile: &'a CraftProfile,
     /// Constats accumulés, dans l'ordre d'affichage à gravité égale (`F`).
@@ -689,7 +693,18 @@ pub fn band_peak_ptb_db(x: &[f32], fs: f64, lo: f64, hi: f64, breaks: Option<&[i
 }
 
 /// `analyze` : le diagnostic complet d'un vol. `sel` : période (tout le journal si absente) ; `profile` : taille choisie (détectée si absente).
+/// Bruit prévu après un changement de filtres : rejeu de la chaîne du firmware ([`FilterModel::Replay`], D-059).
 pub fn analyze(log: &FlightLog, sel: Option<Range<usize>>, profile: Option<&CraftProfile>) -> Result<Report, String> {
+    analyze_with(log, sel, profile, FilterModel::Replay)
+}
+
+/// [`analyze`] avec la méthode de prévision `model` ([`FilterModel::Ratio`] : celle de Python, pour les références).
+pub fn analyze_with(
+    log: &FlightLog,
+    sel: Option<Range<usize>>,
+    profile: Option<&CraftProfile>,
+    model: FilterModel,
+) -> Result<Report, String> {
     let sel = sel.unwrap_or(0..log.n());
     let (profile, reason) = match profile {
         Some(p) => (p, "choisi par l'utilisateur".to_string()),
@@ -714,6 +729,7 @@ pub fn analyze(log: &FlightLog, sel: Option<Range<usize>>, profile: Option<&Craf
         dterm_noisy: false,
         delays: None,
         br,
+        pred: Predictor::new(log, model),
     };
     if profile.provisional {
         a.f.push(Finding::new(
@@ -904,14 +920,73 @@ fn widen_row(r: &Rows, ax: usize) -> Vec<f64> {
     wide(r.row(ax))
 }
 
-/// `predict_filter_change` : effet de réglages de filtres `modf` (simulateur `whatif_spectrum`, exact quand rien ne change) sur le bruit
-/// et sur les retards des chaînes gyro et D (au gaz médian).
+/// Méthode de prévision du bruit après un changement de filtres.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterModel {
+    /// Chaîne du firmware rejouée sur le gyro non filtré, comme la page Filtres (D-058, D-059) ; sans gyro non filtré,
+    /// [`FilterModel::Ratio`].
+    Replay,
+    /// Rapport des réponses |H|² (`whatif_spectrum`, D-008) : la méthode de Python, gardée pour les logs sans gyro non filtré
+    /// et pour comparer aux références Python.
+    Ratio,
+}
+
+/// `predict_filter_change` : effet de réglages de filtres `modf` sur le bruit (rejeu de la chaîne du firmware, D-059 ; exact quand
+/// rien ne change) et sur les retards des chaînes gyro et D (au gaz médian).
 pub fn predict_filter_change(
     log: &FlightLog,
     sel: &Range<usize>,
     modf: &Settings,
     hi: f64,
 ) -> Result<Prediction, String> {
+    predict_filter_change_with(log, sel, modf, hi, FilterModel::Replay)
+}
+
+/// [`predict_filter_change`] avec la méthode `model`.
+pub fn predict_filter_change_with(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    modf: &Settings,
+    hi: f64,
+    model: FilterModel,
+) -> Result<Prediction, String> {
+    Predictor::new(log, model).predict(sel, modf, hi)
+}
+
+/// Prévisions du bruit d'un vol après des changements de filtres : la méthode, et le rejeu des réglages du log, calculé au
+/// premier essai et repris pour les suivants (la règle de relèvement des filtres du D essaie jusqu'à plusieurs pas).
+pub struct Predictor<'a> {
+    log: &'a FlightLog,
+    pub model: FilterModel,
+    current: OnceCell<Option<Replay>>,
+}
+
+impl<'a> Predictor<'a> {
+    pub fn new(log: &'a FlightLog, model: FilterModel) -> Self {
+        Predictor {
+            log,
+            model,
+            current: OnceCell::new(),
+        }
+    }
+
+    /// Rejeu des réglages du log (`None` sans gyro non filtré).
+    fn current(&self) -> Result<Option<&Replay>, String> {
+        if self.current.get().is_none() {
+            let r = filter_replay::replay(self.log, &self.log.settings)?;
+            let _ = self.current.set(r);
+        }
+        Ok(self.current.get().and_then(Option::as_ref))
+    }
+
+    /// Effet des réglages `modf` sur le bruit et les retards ([`predict_filter_change`]).
+    pub fn predict(&self, sel: &Range<usize>, modf: &Settings, hi: f64) -> Result<Prediction, String> {
+        predict_with(self, sel, modf, hi)
+    }
+}
+
+fn predict_with(p: &Predictor, sel: &Range<usize>, modf: &Settings, hi: f64) -> Result<Prediction, String> {
+    let (log, model) = (p.log, p.model);
     let s = &log.settings;
     let mut out = Prediction {
         gyro_mean: Vec::new(),
@@ -921,6 +996,72 @@ pub fn predict_filter_change(
         gyro_delay_gain_ms: 0.0,
         d_delay_gain_ms: 0.0,
     };
+    let replayed = match model {
+        FilterModel::Replay => match p.current()? {
+            Some(cur) => replay_noise(log, cur, sel, modf, hi, &mut out)?,
+            None => false,
+        },
+        FilterModel::Ratio => false,
+    };
+    if !replayed {
+        ratio_noise(log, sel, modf, hi, &mut out)?;
+    }
+    let thr = median_f32(&log.throttle[clamp_range(sel.start, sel.end, log.throttle.len())]) as f64 / 100.0;
+    let delay =
+        |chain: &bf_filters::Chain| -> Result<f64, String> { Ok(bf_filters::chain_delay_ms(chain, 10.0)?.phase_ms) };
+    out.gyro_delay_gain_ms = delay(&bf_filters::gyro_chain(s, thr, None, Some(&[]))?)?
+        - delay(&bf_filters::gyro_chain(modf, thr, None, Some(&[]))?)?;
+    out.d_delay_gain_ms = delay(&bf_filters::dterm_chain(s, thr))? - delay(&bf_filters::dterm_chain(modf, thr))?;
+    Ok(out)
+}
+
+/// Bruit prévu par le rejeu (`filter_replay::before_after`, comme la page Filtres) : spectre « modifié » contre le spectre
+/// enregistré. `false` sans gyro non filtré (rien n'est rempli).
+fn replay_noise(
+    log: &FlightLog,
+    cur: &Replay,
+    sel: &Range<usize>,
+    modf: &Settings,
+    hi: f64,
+    out: &mut Prediction,
+) -> Result<bool, String> {
+    let Some(ba) = filter_replay::before_after_from(log, sel.clone(), &log.settings, cur, modf, 300.0)? else {
+        return Ok(false);
+    };
+    let deltas = |sp: &BeforeAfterSpectra| {
+        whatif_deltas(
+            &WhatIfSpectrum {
+                freqs: ba.freqs.clone(),
+                current_db: sp.logged_db.clone(),
+                modified_db: sp.modified_db.clone(),
+            },
+            hi,
+        )
+    };
+    for a in 0..2 {
+        if let Some(g) = deltas(&ba.gyro[a])? {
+            out.gyro_mean.push(g.0);
+            out.gyro_peak.push(g.1);
+        }
+        if let Some(Some(d)) = ba.dterm.get(a)
+            && let Some(d) = deltas(d)?
+        {
+            out.d_mean.push(d.0);
+            out.d_peak.push(d.1);
+        }
+    }
+    Ok(true)
+}
+
+/// Bruit prévu par le rapport des réponses |H|² (`whatif_spectrum`, D-008) : la méthode de Python.
+fn ratio_noise(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    modf: &Settings,
+    hi: f64,
+    out: &mut Prediction,
+) -> Result<(), String> {
+    let s = &log.settings;
     let mut cache = WhatIfCache::default(); // réponses des filtres par fenêtre, communes aux deux axes et au gyro / D
     let mut prefilter: Option<Rows> = None; // `log.d_term_prefilter` (propriété mise en cache en Python)
     for a in 0..2 {
@@ -963,13 +1104,7 @@ pub fn predict_filter_change(
             }
         }
     }
-    let thr = median_f32(&log.throttle[clamp_range(sel.start, sel.end, log.throttle.len())]) as f64 / 100.0;
-    let delay =
-        |chain: &bf_filters::Chain| -> Result<f64, String> { Ok(bf_filters::chain_delay_ms(chain, 10.0)?.phase_ms) };
-    out.gyro_delay_gain_ms = delay(&bf_filters::gyro_chain(s, thr, None, Some(&[]))?)?
-        - delay(&bf_filters::gyro_chain(modf, thr, None, Some(&[]))?)?;
-    out.d_delay_gain_ms = delay(&bf_filters::dterm_chain(s, thr))? - delay(&bf_filters::dterm_chain(modf, thr))?;
-    Ok(out)
+    Ok(())
 }
 
 /// `_noise_after` : bruits prévus (maximum roll / pitch) : gyro moyen, D moyen, sommet du D (échelle PIDtoolbox). `None` si la mesure manque.
@@ -1028,11 +1163,12 @@ pub fn gyro_lpf1_off(
     d_db: &[f64],
     d_ptb: f64,
     hover: bool,
+    pred: &Predictor,
 ) -> Result<Option<Finding>, String> {
     let s = &log.settings;
     let mut modf = s.clone();
     modf.gyro_lpf1 = bf_filters::lowpass_off(&s.gyro_lpf1);
-    let pred = predict_filter_change(log, sel, &modf, hi)?;
+    let pred = pred.predict(sel, &modf, hi)?;
     let (g, d, dp) = noise_after(&pred, d_db, d_ptb, Some(g_db));
     let (Some(g), Some(d), Some(dp)) = (g, d, dp) else {
         return Ok(None);
@@ -1095,6 +1231,7 @@ pub fn dterm_lift(
     d_db: &[f64],
     d_ptb: f64,
     d_goal: &str,
+    pred: &Predictor,
 ) -> Result<Finding, String> {
     let s = &log.settings;
     let mult = dterm_mult(s);
@@ -1106,7 +1243,7 @@ pub fn dterm_lift(
     };
     let modf = scaled_dterm(s, factor)?;
     let pred = if any_nonzero(log.d_term.row(0)) {
-        Some(predict_filter_change(log, sel, &modf, hi)?)
+        Some(pred.predict(sel, &modf, hi)?)
     } else {
         None
     };
@@ -1189,6 +1326,7 @@ pub fn dterm_lift_noise(
     d_ptb: f64,
     hover: bool,
     delay_ms: f64,
+    pred: &Predictor,
 ) -> Result<Option<Finding>, String> {
     let s = &log.settings;
     let mult = dterm_mult(s);
@@ -1221,7 +1359,7 @@ pub fn dterm_lift_noise(
         if (&modf.dterm_lpf1, &modf.dterm_lpf2) == (&s.dterm_lpf1, &s.dterm_lpf2) {
             continue; // coupures plafonnées à 1000 Hz : rien ne change
         }
-        let pred = predict_filter_change(log, sel, &modf, hi)?;
+        let pred = pred.predict(sel, &modf, hi)?;
         let (_, d, dp) = noise_after(&pred, d_db, d_ptb, None);
         if let (Some(d), Some(dp)) = (d, dp)
             && d <= profile.dterm_noise_high_db
@@ -1436,7 +1574,17 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
         };
         if delays.dterm_ms > max_ms && !a.dterm_noisy {
             let f = if !a.aliased {
-                dterm_lift(log, &sel, hi, profile, delays.dterm_ms, &a.d_db, d_ptb, &d_goal)?
+                dterm_lift(
+                    log,
+                    &sel,
+                    hi,
+                    profile,
+                    delays.dterm_ms,
+                    &a.d_db,
+                    d_ptb,
+                    &d_goal,
+                    &a.pred,
+                )?
             } else {
                 Finding::new(
                     "dterm_delay",
@@ -1478,7 +1626,7 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
         && any_nonzero(log.d_term.row(0))
     {
         let delay_ms = if moving { delays.dterm_ms } else { f64::NAN };
-        if let Some(f) = dterm_lift_noise(log, &sel, hi, profile, &a.d_db, d_ptb, hover, delay_ms)? {
+        if let Some(f) = dterm_lift_noise(log, &sel, hi, profile, &a.d_db, d_ptb, hover, delay_ms, &a.pred)? {
             // remplace le conseil +0,1 fondé sur le retard, qui en dit moins
             a.f.retain(|x| !(x.key == "dterm_filter_too_strong" && x.severity == CONSEIL));
             a.f.push(f);
@@ -3505,7 +3653,7 @@ fn filter_rules(a: &mut Analysis) -> Result<(), String> {
         && !a.dterm_noisy
     {
         let hover = a.hover()?;
-        if let Some(f) = gyro_lpf1_off(log, &sel, hi, profile, &a.g_db, &a.d_db, a.d_ptb, hover)? {
+        if let Some(f) = gyro_lpf1_off(log, &sel, hi, profile, &a.g_db, &a.d_db, a.d_ptb, hover, &a.pred)? {
             a.f.push(f);
         }
     }

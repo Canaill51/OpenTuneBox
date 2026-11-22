@@ -60,6 +60,19 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-106 : la durée d'une session mesurée pendant un passage du corpus en parallèle n'est pas son coût : 32 s affichées, 0,45 s seule
+
+- **Symptôme** — 2026-11-22 (D-059) : après le passage de l'assistant au rejeu, `corpus rates` donne 32 s pour `Cedric/KL/f3.bbl`
+  (contre 11 s au plus avant), puis 43 s pour une autre session au passage suivant, avec des résultats identiques. On croit
+  l'assistant devenu inutilisable dans l'interface.
+- **Cause** — la durée `t_analyze` est prise pendant que tous les cœurs travaillent sur d'autres fichiers. Seules, les mêmes
+  sessions prennent 0,45 s et 1,38 s (`-j 1`). Mesurée ; la cause de l'écart (mémoire et cœurs partagés entre les fils) est
+  supposée.
+- **Règle** — une durée par session se mesure seule : `OTB_LOGS` vers un dossier temporaire de liens vers les fichiers
+  lents, et `-j 1`, avec l'ancien et le nouveau binaire. Pour la mesure « avant », copier le binaire **avant** de toucher au
+  code (une compilation lancée en arrière-plan peut prendre la modification).
+- **Preuve** — [validation.md](validation.md#assistant-passé-au-rejeu-2026-11-22-d-059).
+
 ### L-105 : la moyenne d'un rapport de deux spectres arrondis est biaisée vers le haut : tout changement de filtres « ajoutait » du bruit
 
 - **Symptôme** — 2026-11-22 (lot 22e) : dans le nouveau simulateur de la page Filtres (spectre enregistré × rejeu modifié /
@@ -1317,6 +1330,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-106 | Durée d'une session prise pendant un passage du corpus en parallèle (32 s) ≠ son coût seul (0,45 s) : mesurer seul, `-j 1`, et copier le binaire « avant » avant de toucher au code | Outillage |
 | L-105 | Rapport case par case de deux spectres qui portent chacun un bruit d'arrondi (rejeux arrondis comme le log) : biaisé vers le haut, tout changement de filtres « ajoutait » du bruit ; calculer le rapport sur les signaux exacts, l'arrondi ne sert qu'à la courbe comparée au log | Analyses |
 | L-104 | Filtres rejoués à la cadence du log au lieu de celle où le firmware les applique (gyro pour le LPF2, depuis la 4.2 ; PID pour les autres, même si le log saute des boucles) : le modèle filtre trop (+0,45 dB entre 250 et 500 Hz pour un PT1 à 500 Hz) ; `bf_filters::gyro_stage_upsampled`, interpolation par sinus cardinal, jamais linéaire | Analyses |
 | L-103 | Gain S(x, y) / S(x, x) sur une entrée arrondie (canaux debug au °/s) : biaisé vers le bas d'environ la cohérence ; retirer pas²/12 de S(x, x) (`filter_stages::InputNoise`) ; l'entrée décalée d'un échantillon n'est pas une variable instrumentale ; vérifier sur l'étage horloge, de gain 1 | Analyses |

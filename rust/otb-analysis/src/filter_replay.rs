@@ -78,6 +78,40 @@ fn dyn_centres(log: &FlightLog, s: &Settings, pre: &[Vec<f64>]) -> Vec<Vec<Vec<f
 /// `replay` : chaîne de filtres de `s` rejouée sur le gyro non filtré de tout le log (voir l'en-tête du module).
 /// `None` sans gyro non filtré.
 pub fn replay(log: &FlightLog, s: &Settings) -> Result<Option<Replay>, String> {
+    let Some(gyro) = replay_gyro(log, s)? else {
+        return Ok(None);
+    };
+    let dterm = replay_dterm(log, s, &gyro)?;
+    Ok(Some(Replay { gyro, dterm }))
+}
+
+/// Vrai si `s` et `base` ne diffèrent que par les filtres du terme D (passe-bas et notch du D), qui ne touchent pas au gyro.
+fn same_gyro_chain(s: &Settings, base: &Settings) -> bool {
+    let mut t = s.clone();
+    t.dterm_lpf1 = base.dterm_lpf1.clone();
+    t.dterm_lpf2 = base.dterm_lpf2.clone();
+    t.dterm_notch = base.dterm_notch;
+    t == *base
+}
+
+/// `replay` de `s`, en reprenant `cur` (rejeu de `base` sur le même log) : tel quel si rien ne change, son gyro si seuls les
+/// filtres du D changent (le gyro rejoué coûte l'essentiel du calcul).
+pub fn replay_from(log: &FlightLog, s: &Settings, base: &Settings, cur: &Replay) -> Result<Option<Replay>, String> {
+    if s == base {
+        return Ok(Some(cur.clone()));
+    }
+    if same_gyro_chain(s, base) {
+        let dterm = replay_dterm(log, s, &cur.gyro)?;
+        return Ok(Some(Replay {
+            gyro: cur.gyro.clone(),
+            dterm,
+        }));
+    }
+    replay(log, s)
+}
+
+/// Gyro filtré rejoué (une ligne par axe) ; `None` sans gyro non filtré.
+fn replay_gyro(log: &FlightLog, s: &Settings) -> Result<Option<Vec<Vec<f64>>>, String> {
     let Some(gu) = &log.gyro_unfilt else {
         return Ok(None);
     };
@@ -101,6 +135,12 @@ pub fn replay(log: &FlightLog, s: &Settings) -> Result<Option<Replay>, String> {
     for (y, c) in pre.into_iter().zip(&centres) {
         gyro.push(dyn_notch_with_centres(s, y, c, fs, pid_loops)?);
     }
+    Ok(Some(gyro))
+}
+
+/// Terme D rejoué à partir du gyro rejoué `gyro` (× facteur TPA).
+fn replay_dterm(log: &FlightLog, s: &Settings, gyro: &[Vec<f64>]) -> Result<Matrix64, String> {
+    let fs = model_rate_hz(s);
     let n = log.n();
     let m = Matrix64 {
         k: gyro.len(),
@@ -114,7 +154,7 @@ pub fn replay(log: &FlightLog, s: &Settings) -> Result<Option<Replay>, String> {
             row.iter_mut().zip(&tpa).for_each(|(v, f)| *v *= f);
         }
     }
-    Ok(Some(Replay { gyro, dterm }))
+    Ok(dterm)
 }
 
 /// Spectres d'un signal (dB, moyenne des fenêtres) : enregistré, rejoué avec les réglages actuels, estimé avec les réglages
@@ -193,16 +233,33 @@ pub fn before_after(
     modf: &Settings,
     seg_ms: f64,
 ) -> Result<Option<BeforeAfter>, String> {
+    let Some(cur) = replay(log, base)? else {
+        return Ok(None);
+    };
+    before_after_from(log, sel, base, &cur, modf, seg_ms)
+}
+
+/// [`before_after`] avec `cur`, rejeu de `base` déjà calculé sur ce log ([`replay`]) : l'assistant essaie plusieurs réglages
+/// modifiés sur le même vol sans refaire le rejeu actuel.
+pub fn before_after_from(
+    log: &FlightLog,
+    sel: Range<usize>,
+    base: &Settings,
+    cur: &Replay,
+    modf: &Settings,
+    seg_ms: f64,
+) -> Result<Option<BeforeAfter>, String> {
     let Some(gu) = &log.gyro_unfilt else {
         return Ok(None);
     };
     let sel = clamp_range(sel.start, sel.end, log.n());
-    let Some(cur) = replay(log, base)? else {
-        return Ok(None);
-    };
     let changed = modf != base;
-    let new = if changed { replay(log, modf)? } else { None };
-    let new = new.as_ref().unwrap_or(&cur);
+    let new = if changed {
+        replay_from(log, modf, base, cur)?
+    } else {
+        None
+    };
+    let new = new.as_ref().unwrap_or(cur);
     let fs = log.fs;
     let l = 32.max(py_round(seg_ms * fs / 1000.0)?) as usize;
     let br: Vec<i64> = log.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect();

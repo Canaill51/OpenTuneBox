@@ -573,8 +573,18 @@ pub fn noise_report(
     sel: Option<Range<usize>>,
     profile: Option<&CraftProfile>,
 ) -> Result<NoiseReport, String> {
+    noise_report_with(log, sel, profile, rules::FilterModel::Replay)
+}
+
+/// [`noise_report`] avec la méthode de prévision `model` (`rules::analyze_with`).
+pub fn noise_report_with(
+    log: &FlightLog,
+    sel: Option<Range<usize>>,
+    profile: Option<&CraftProfile>,
+    model: rules::FilterModel,
+) -> Result<NoiseReport, String> {
     let sel = sel.unwrap_or(0..log.n());
-    let rep = rules::analyze(log, Some(sel.clone()), profile)?;
+    let rep = rules::analyze_with(log, Some(sel.clone()), profile, model)?;
     let hi = py_min(500.0, 0.95 * log.fs / 2.0);
     let band = (80.0, hi);
     let moving = rep.measures.delays.as_ref().ok_or("KeyError : 'delays'")?.moving();
