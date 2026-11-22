@@ -55,9 +55,10 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Notch dynamique : prévoir ses pics avec la **réponse** des notchs RPM du firmware (poids, Q), jamais en
   retirant les bandes des harmoniques : une harmonique à poids réduit laisse un reste qu'il suit. Le debug
   FFT_FREQ (`bf_filters.fft_freq_centres`) donne ce qu'il a vraiment suivi : y vérifier tout modèle. D-022, L-028
-- Simulateur de filtres : méthode **relative** `bf_filters.whatif_spectrum` (spectre loggé × |H_modifié|²/|H_actuel|²
-  à la cadence de la boucle PID, fenêtre par fenêtre), exacte quand rien ne change. La simulation temporelle
-  `simulate_gyro` est approximative au-dessus de ~0,4 × fréquence du log. D-008, L-011, L-024
+- Simulateur de filtres (page Filtres) : chaîne du firmware **rejouée** sur le gyro non filtré (`filter_replay::before_after`),
+  spectre loggé × rejeu modifié / rejeu actuel, fenêtre par fenêtre : exact quand rien ne change. Sur un log enregistré une
+  boucle PID sur 2 ou moins, le gyro non filtré est replié et le rejeu « actuel » s'écarte du log aux basses fréquences (W-067).
+  L'assistant garde le rapport des réponses |H|² (`bf_filters.whatif_spectrum`, W-068). D-058, D-008, L-024
 - `gyroUnfilt` contre un signal filtré : retirer d'abord ⌊`pid_process_denom`/2⌋ / fréquence gyro (125 µs à 8 kHz,
   denom 2), décalage d'horloge du firmware et non retard de filtre. L-100
 - Modèle contre firmware : filtres calculés pour la cadence **nominale** de l'en-tête (`filter_stages::model_rate_hz`), pas
@@ -70,6 +71,9 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Chaque filtre se rejoue à la cadence où le firmware l'applique : **gyro** pour le LPF2 (depuis la 4.2), **PID** pour les autres,
   même quand le log saute des boucles ; à la cadence du log, il filtre trop (`bf_filters::gyro_stage_upsampled`). Échantillons
   manquants reconstruits par sinus cardinal, jamais linéairement (passe-bas caché). L-104
+- Rapport « modifié / actuel » de deux spectres : sur des signaux **exacts** ; arrondis comme le log, chacun porte son bruit
+  d'arrondi et la moyenne du rapport monte (filtrer plus « ajoutait » du bruit). L'arrondi ne sert qu'à la courbe comparée au
+  log. L-105
 
 ## Assistant de réglage
 

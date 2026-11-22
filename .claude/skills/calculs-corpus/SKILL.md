@@ -18,6 +18,7 @@ comparer), et le noyau de `step_response` partage ce même pool. Toujours en `--
 | `… corpus validate [--limit N] [--start N] [-j N]` | décodeur contre `blackbox_decode` | 6 min, corpus entier, 4 fichiers à la fois |
 | `… corpus stages SCRATCH/stages.json [--dir SOUS-DOSSIER]` | modèle de filtres contre le firmware, étage par étage (lot 22) ; `--resume` : tableau seul | 22 s, corpus entier (2026-11-22, lot 22b, fichiers déjà lus une fois ; 14 s avant les filtres rejoués à leur cadence, 43 s au lot 22a) |
 | `… corpus dyntrack SCRATCH/dyntrack.json [--dir SOUS-DOSSIER]` | suivi du notch dynamique rejoué contre les centres `FFT_FREQ` (lot 22c) ; `--resume` : tableau seul | 21 s, corpus entier (2026-11-22, fichiers déjà lus une fois) |
+| `… corpus replay SCRATCH/replay.json [--dir SOUS-DOSSIER]` | simulateur de la page Filtres : rejeu « actuel » contre le spectre enregistré (lot 22e, D-058) ; `--resume` : tableau seul | 68 s, corpus entier (2026-11-22, 675 sessions) |
 
 Relever la durée du premier passage et la noter ici : c'est une mesure à faire, pas à supposer.
 

@@ -812,6 +812,37 @@ pub fn gyro_stage_upsampled(
     Ok((0..n).map(|i| y[i * r + r - 1]).collect())
 }
 
+/// `dyn_notch_with_centres` : notchs dynamiques de `s` appliqués à une ligne `x` (cadence du log `fs`), aux centres donnés :
+/// `centres[p]` = centre du notch `p` à chaque échantillon du log (le suivi rejoué, `dyn_notch::DynNotchTracker`, en donne
+/// un par axe). Rejoué à `r` fois la cadence du log, celle de la boucle PID où le firmware les applique (L-104), centres
+/// tenus. Notch coupé, Q nul ou centres tous nuls : `x` inchangé.
+pub fn dyn_notch_with_centres(
+    s: &Settings,
+    x: Vec<f64>,
+    centres: &[Vec<f64>],
+    fs: f64,
+    r: usize,
+) -> Result<Vec<f64>, String> {
+    let q = s.dyn_notch_q as f64 / 100.0;
+    if !dyn_notch_enabled(s) || q <= 0.0 || x.is_empty() {
+        return Ok(x);
+    }
+    let (n, r) = (x.len(), r.max(1));
+    let mut y = if r > 1 { upsample(&x, r) } else { x };
+    for c in centres.iter().take(s.dyn_notch_count.max(0) as usize) {
+        if c.len() != n || !c.iter().any(|&v| v > 0.0) {
+            continue;
+        }
+        let len = y.len();
+        y = apply(&y, 1, len, Kind::Notch, &held(c.clone(), r), fs * r as f64, q, &[1.0])?;
+    }
+    Ok(if r > 1 {
+        (0..n).map(|i| y[i * r + r - 1]).collect()
+    } else {
+        y
+    })
+}
+
 /// Demi-largeur (échantillons du log) du noyau d'interpolation de [`upsample`].
 const UPSAMPLE_HALF_TAPS: usize = 16;
 

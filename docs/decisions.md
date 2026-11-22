@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-058 | Page Filtres : chaîne du firmware rejouée ; « modifié » = spectre du log × rejeu modifié / rejeu actuel (amende D-008, remplace D-041 pour la page) | 2026-11-22 |
 | D-057 | Contrôle du modèle de filtres par étage : seuls les logs enregistrés à **1,6 kHz ou plus** sont jugés (complète D-017, sans changer ses conseils) | 2026-11-22 |
 | D-056 | Notes de version **générées par GitHub** : titre de PR = phrase en français, une étiquette `RN: …` par PR (rubriques de `.github/release.yml`, contrôle `etiquette-pr.yml`) ; `CHANGELOG.md` supprimé ; remplace « titre de PR = nom de la branche » | 2026-11-11 |
 | D-055 | Workflows relus par `actionlint` **dans la CI** (job de `tests.yml`, version figée vérifiée par empreinte), pas installé sur le poste | 2026-11-11 |
@@ -86,7 +87,7 @@ ici, jamais dans le code.
 | D-044 | Décodeur : en-tête refusé au-delà de 512 champs ou hors de 1 à 65 535 pour les intervalles ; mémoire insuffisante = erreur ; réglages à zéro signalés | 2026-11-04 |
 | D-043 | Dépôt public sous licence GPL 3 ; anciennes versions publiées supprimées ; adresse noreply ; noms de tiers neutres **(amendée par D-045)** | 2026-11-04 |
 | D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
-| D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial | 2026-11-02 |
+| D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial **(amendée par D-058)** | 2026-11-02 |
 | D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
 | D-039 | Guide egui : mémoire du guide dans la persistance d'eframe, `drones.json` lu avec tolérance et jamais écrasé s'il est illisible, police Hack de secours | 2026-11-02 |
 | D-038 | Configuration egui : lignes alignées entre logs par nom de réglage (Python : par position) | 2026-11-02 |
@@ -119,7 +120,7 @@ ici, jamais dans le code.
 | D-011 | Seuils de l'assistant : 90e percentile du corpus par taille, origine notée | 2026-10-05 |
 | D-010 | Retard des filtres jugé seulement sur un vol avec des mouvements **(amendée par D-026)** | 2026-10-05 |
 | D-009 | Style Qt Fusion imposé sur tous les systèmes **(remplacée par D-035)** | 2026-10-01 |
-| D-008 | Simulateur de filtres en méthode relative | 2026-10-01 |
+| D-008 | Simulateur de filtres en méthode relative **(amendée par D-058)** | 2026-10-01 |
 | D-007 | Retards mesurés par la phase, pas par l'intercorrélation | 2026-10-01 |
 | D-006 | Aucune dépendance à compiler **(amendée par D-031)** | 2026-10-01 |
 | D-005 | Exception à D-004 : icônes Lucide | 2026-10-01 |
@@ -129,6 +130,39 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-22 — Simulateur de filtres rejoué
+
+### D-058 : la page Filtres rejoue la chaîne de filtres du firmware ; « modifié » = spectre du log × rejeu modifié / rejeu actuel
+
+**Tranché par Cédric** le 2026-11-22 (lot 22e de `docs/plan.md`), parmi trois propositions : garder le rapport des réponses
+|H|² en y branchant le suivi du notch dynamique, tout passer en rejeu temporel pur, ou rejeu + rapport (retenu).
+
+**Contexte.** Avant le lot 22, la courbe « simulé actuel » de la page Filtres recopiait le log (rapport de deux réponses
+identiques) et ne prouvait rien ; « simulé modifié » multipliait le spectre enregistré par |H_modifié|² / |H_actuel|², notchs
+posés à leur position moyenne par fenêtre (W-059) et, sans debug `FFT_FREQ`, notchs dynamiques à leurs centres initiaux
+(W-057). Le lot 22 a vérifié le modèle étage par étage (0,5 dB jusqu'à 500 Hz, `validation.md`) et rejoué le suivi des pics
+du notch dynamique (22c).
+
+**Décision.**
+- `filter_replay::replay` rejoue la chaîne du firmware sur le gyro non filtré, avec les règles du contrôle par étage (cadence
+  nominale, filtres à leur cadence, TPA du D) et le suivi du notch dynamique rejoué sur chaque axe **avec les réglages
+  simulés** (spec-methodes.md, « Simulateur de filtres »).
+- « Simulé actuel » = ce rejeu avec les réglages du log, arrondi comme le Blackbox : il juge le modèle sur chaque vol.
+- « Simulé modifié » = spectre enregistré × (rejeu modifié / rejeu actuel), case par case et fenêtre par fenêtre, rapport tiré
+  des rejeux exacts (L-105). Amende D-008 : la méthode reste relative (exacte quand rien ne change), mais le rapport vient du
+  rejeu et non plus des réponses |H|².
+- Remplace D-041 pour la page Filtres : les notchs dynamiques ajoutés suivent les pics comme en vol, sans pics prévus ni
+  centres initiaux. D-041 reste en vigueur pour `bf_filters::whatif_spectrum` (assistant, logs sans gyro non filtré).
+- Sans gyro non filtré : rapport des réponses |H|² comme avant, sans courbe « actuel ».
+- Pas de rejeu temporel pur pour « modifié » : l'erreur du modèle (repliement des logs enregistrés une boucle sur deux,
+  W-067) s'y verrait même sans rien changer.
+- L'assistant garde `whatif_spectrum` jusqu'à la vérification en vol de 22f (W-068).
+
+**Témoins.** Tests `rust/otb-analysis/tests/filter_replay.rs` (réglages inchangés = log au bit près ; LPF1 faussé vu par la
+courbe « actuel » ; filtrer plus ne prévoit jamais plus de bruit ; notchs ajoutés sans creux aux centres initiaux, contre −6 dB
+et plus pour l'ancienne méthode) ; `otb-dev corpus replay` sur 675 sessions : rejeu « actuel » à 0,1–0,2 dB du log en médiane
+sur les logs enregistrés à chaque boucle PID ([validation.md](validation.md#simulateur-de-filtres-rejoué-2026-11-22-lot-22e)).
 
 ## 2026-11-22 — Calibration des filtres
 
@@ -707,6 +741,8 @@ mais personne ne peut les lancer. Cédric (2026-11-03, parmi : fabriquer sans es
 **Ouvert.** W-021 (écarts sur ARM, à voir au premier test macOS) et le chemin macOS de `drones.json` (W-037 point 4) deviennent sans objet.
 
 ### D-041 : notchs dynamiques ajoutés placés sur les pics prévus, sinon à leur centre initial
+
+✏️ AMENDÉE par D-058 (la page Filtres rejoue le suivi du firmware ; D-041 ne vaut plus que pour `bf_filters::whatif_spectrum`).
 
 **Contexte.** Quand on monte `dyn_notch_count` au-delà des centres enregistrés dans le log (debug FFT_FREQ), `_gyro_h2` plaçait les
 notchs ajoutés aux centres initiaux du firmware, `(p + 0,5)(max − min)/n + min`. Cédric a vu, sur `1.Stock.bbl` (Air65, 1 notch
@@ -1530,6 +1566,8 @@ associé : L-007.
 **Témoins.** Commits `861660d` (couleurs d'accent à contraste ≥ 4,5:1 dans les deux thèmes), `d000968`.
 
 ### D-008 : simulateur de filtres en méthode relative
+
+✏️ AMENDÉE par D-058 (dans la page Filtres, le rapport vient du rejeu de la chaîne, et non plus des réponses |H|²).
 
 **Contexte.** Le simulateur doit montrer l'effet d'un changement de filtres sur le spectre loggé, et
 retomber exactement sur ce spectre quand rien ne change.

@@ -621,6 +621,32 @@ Le suivi rejoué est plus proche des centres enregistrés que les centres initia
 - **Non vérifié** : le plancher au-dessus de 60 Hz (2026.12 compilé à partir du 2026-09-05) ne change rien sur les logs de
   l'Air65, dont la plage commence déjà au-dessus ; la variante 4.3 n'a aucun log `FFT_FREQ` dans le corpus (W-065).
 
+### Simulateur de filtres rejoué (2026-11-22, lot 22e)
+
+`otb-dev corpus replay` (D-058) : spectre du rejeu des réglages du log (« simulé actuel » de la page Filtres) contre le spectre
+enregistré, période de l'assistant, moyenne du roulis et du tangage, écart moyen en dB dans chaque bande (positif : le rejeu
+laisse passer plus que le firmware). 675 sessions avec gyro non filtré, 68 s pour le corpus entier.
+
+| Logs | Sessions | Gyro 20–100 / 100–250 / 250–500 Hz : \|écart\| médian (90e centile) | Terme D, mêmes bandes |
+|---|---|---|---|
+| à chaque boucle PID, ≥ 1,6 kHz | 31 | 0,09 (0,16) / 0,10 (0,23) / 0,21 (0,32) dB | 0,11 (0,29) / 0,10 (0,54) / 0,25 (0,40) dB |
+| une boucle sur 2 ou moins, ≥ 1,6 kHz | 493 (D : 490) | 0,47 (1,51) / 0,45 (1,13) / 0,39 (0,96) dB | 0,56 (2,27) / 0,66 (2,06) / 0,73 (2,29) dB |
+| une boucle sur 2 ou moins, < 1,6 kHz | 151 | 3,03 (5,81) / 1,89 (6,24) / 1,61 (3,58) dB | 2,72 (7,29) / 1,95 (7,70) / 1,81 (4,40) dB |
+
+Sur les logs ralentis, le rejeu dépasse le log (moyenne signée du gyro +0,4 à +0,8 dB, +1,8 à +3,3 dB sous 1,6 kHz), surtout
+entre 20 et 100 Hz où les filtres n'agissent presque pas : le gyro non filtré y est sous-échantillonné sans anti-repliement,
+et le bruit à haute fréquence replié passe dans le rejeu alors que le firmware l'avait filtré avant (supposé, même cause que
+W-067). Le rapport « modifié / actuel » l'annule en grande partie, pas la courbe « actuel ». Sans arrondir le rejeu comme le
+Blackbox, l'écart entre 250 et 500 Hz monte à −1,6 dB sur l'Air65 (L-103). Durée d'un rejeu : 1,25 s en médiane par session
+avec tous les cœurs occupés, 16,6 s au plus (vol le plus long) ; 0,3 à 0,5 s par calcul sur un vol de l'Air65 seul.
+
+Effet de changements de filtres, gyro modifié − log entre 100 et 250 Hz (Air65 `CHIRP-45Hz`, puis JeNo 5 `FINAL` #1), rejeu
+contre l'ancien rapport des réponses |H|² : Q du notch dynamique divisé par 2, −1,49 / −2,21 dB contre −2,38 / −2,79 ; un notch
+dynamique de plus, **+0,69 / +1,91 dB contre −0,02 / −0,97** ; plus de notch dynamique, +2,86 / +5,86 contre +6,26 / +7,66 ; RPM
+coupé, +2,99 / +10,93 contre +0,15 / +13,50 ; LPF1 de l'Air65 × 0,7, −0,46 contre −0,83, et × 1,5, +1,30 contre +0,58. Le suivi
+rejoué place le notch unique de l'Air65 sur le pic principal (médiane 183 Hz) ; avec deux notchs, triés par fréquence, plus
+aucun n'y reste (169 et 258 Hz). Seul un vol avec un notch de plus peut trancher (22f, W-068).
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui

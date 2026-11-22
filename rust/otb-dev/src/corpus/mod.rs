@@ -10,6 +10,7 @@ pub mod dyntrack;
 pub mod json;
 pub mod labels;
 pub mod rates;
+pub mod replay;
 pub mod stages;
 pub mod validate;
 
@@ -264,7 +265,7 @@ impl Output {
 }
 
 pub const USAGE: &str =
-    "Usage :\n  otb-dev corpus <outil> …\nOutils : rates, calibrate, labels, validate, stages, dyntrack";
+    "Usage :\n  otb-dev corpus <outil> …\nOutils : rates, calibrate, labels, validate, stages, dyntrack, replay";
 
 /// Point d'entrée de `otb-dev corpus …`.
 pub fn run(args: &[&str]) -> Result<Output, String> {
@@ -275,6 +276,7 @@ pub fn run(args: &[&str]) -> Result<Output, String> {
         ["validate", rest @ ..] => validate::run(rest),
         ["stages", rest @ ..] => stages::run(rest),
         ["dyntrack", rest @ ..] => dyntrack::run(rest),
+        ["replay", rest @ ..] => replay::run(rest),
         [outil, ..] => Err(format!("outil inconnu : {outil}\n{USAGE}")),
         [] => Err(USAGE.into()),
     }
