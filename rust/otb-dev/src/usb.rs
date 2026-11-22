@@ -79,8 +79,9 @@ pub fn info(port: &str) -> Result<String, String> {
     ))
 }
 
-/// Copie la mémoire dans `dir`, vérifie, mesure le débit ; avec `erase`, propose l'effacement.
+/// Copie la mémoire dans `dir` (créé s'il manque), vérifie, mesure le débit ; avec `erase`, propose l'effacement.
 pub fn copy(port: &str, dir: &Path, erase: bool) -> Result<String, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("{} : {e}", dir.display()))?;
     let mut msp = open(port)?;
     let start = Instant::now();
     let mut last = Instant::now();
@@ -99,10 +100,15 @@ pub fn copy(port: &str, dir: &Path, erase: bool) -> Result<String, String> {
     eprintln!();
     let secs = start.elapsed().as_secs_f64();
     let n = copy.bytes().len();
-    let mut out = format!(
-        "Copié : {n} octets en {secs:.1} s, soit {:.2} Mo par minute.\n",
-        n as f64 / 1_048_576.0 / (secs / 60.0).max(1e-9)
-    );
+    // Mémoire vide : pas de débit à donner, `verify_and_save` dit pourquoi rien n'est copié.
+    let mut out = if n == 0 {
+        String::new()
+    } else {
+        format!(
+            "Copié : {n} octets en {secs:.1} s, soit {:.2} Mo par minute.\n",
+            n as f64 / 1_048_576.0 / (secs / 60.0).max(1e-9)
+        )
+    };
     let name = if copy.identity().name.is_empty() {
         "carte".to_string()
     } else {

@@ -131,14 +131,14 @@ l'éventuel effacement.
 
 Aucune carte en CI : `otb-usb` (lot 32a) est testé sur une carte simulée et, sous Linux, par un pseudo-terminal. Ces
 essais se font sur une vraie carte, résultats notés ici avec la date et la carte. Depuis `rust/`, carte branchée,
-**hélices retirées** :
+**hélices retirées**, fichiers écrits **hors du dépôt** (jamais dans `$OTB_LOGS`) :
 
 ```sh
 cargo run -p otb-dev -- usb ports                          # ports où une carte répond en MSP
 cargo run -p otb-dev -- usb info /dev/ttyACM0              # identité, état armé, mémoire (COM3… sous Windows)
-cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 DOSSIER            # copie, contrôles, débit
-cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 DOSSIER --erase    # idem, puis effacement après avoir tapé « effacer »
-cargo run -p otb-dev -- usb diff /dev/ttyACM0 FICHIER.txt  # `diff all` ; la carte redémarre ensuite
+cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 ~/Documents/Drones/usb            # copie, contrôles, débit (dossier créé s'il manque)
+cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 ~/Documents/Drones/usb --erase    # idem, puis effacement après avoir tapé « effacer »
+cargo run -p otb-dev -- usb diff /dev/ttyACM0 ~/Documents/Drones/usb/config.txt  # `diff all` ; la carte redémarre ensuite
 ```
 
 - [ ] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine (`usb copy`).
@@ -146,7 +146,7 @@ cargo run -p otb-dev -- usb diff /dev/ttyACM0 FICHIER.txt  # `diff all` ; la car
 - [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour (`usb info`).
 - [ ] Mode stockage de masse : fichiers vus sous Linux et Windows, contenu identique à la lecture MSP.
 - [ ] Copie relue dans OpenTuneBox : mêmes vols que le fichier téléchargé par le configurateur.
-- [ ] `usb diff` : même texte que `diff all` tapé dans le CLI du configurateur.
+- [ ] `usb diff` : même texte que `diff all` tapé dans le CLI du configurateur (forme déjà vérifiée, voir les résultats).
 - [ ] Port déjà ouvert : configurateur Betaflight connecté, `usb info` doit dire le port occupé (Linux : le verrou
       d'OpenTuneBox n'arrête que les programmes qui le prennent aussi ; **supposé** que le configurateur ouvre le port
       en exclusif, à vérifier) ; Windows : message « déjà ouvert par un autre programme ».
@@ -154,3 +154,14 @@ cargo run -p otb-dev -- usb diff /dev/ttyACM0 FICHIER.txt  # `diff all` ; la car
 
 Choix de `otb-usb` pour la sortie du CLI : `exit` (la carte redémarre), et non `exit noreboot`, absent avant 2024-09 et qui
 laisse l'armement bloqué (`ARMING_DISABLED_CLI`) jusqu'au prochain redémarrage.
+
+### Résultats
+
+**2026-11-22, Linux, carte F722 (STM32F722), Betaflight 2026.6.2, API MSP 1.48**, branchée seule en USB :
+
+- `usb ports` : la carte répond sur `/dev/ttyACM0`, ouvert sans réglage de droits (compte déjà dans `dialout`).
+- `usb info` : identité lue (`F722`, `STM32F722`, nom vide), identifiant `0026002c3756500120393558` (non nul), non
+  armée, mémoire de 8 Mo (128 secteurs) **vide** — débit de copie et durée d'effacement donc **pas encore mesurés**.
+- `usb copy` : mémoire vide, copie refusée comme prévu (« rien à copier », effacement refusé).
+- `usb diff` : 62 lignes, de `# version` à `save`, sans écho de la commande ni invite du CLI ; la carte a redémarré.
+
