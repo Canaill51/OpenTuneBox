@@ -34,8 +34,13 @@ le fork `GerryNatif/OpenTuneBox` (sa demande de fusion n° 1), parti de la 0.10.
 avec leurs registres renumérotés — deux décisions devenues **D-060** et **D-061**, un travail reporté devenu **W-069** —
 parce que leurs numéros du fork étaient déjà pris ici. Le même fork porte un second chantier, **scripts firmware** (ses
 lots 22 à 27 et sa décision sur la forme d'un script), écrit le
-2026-11-18 **avant** le lot 22 de ce dépôt : il n'est **pas repris** ici, et ses constats sont à relire contre le rejeu
-de la chaîne de filtres (D-058) avant de l'être.
+2026-11-18 **avant** le lot 22 de ce dépôt. Il est **repris dans les registres le 2026-11-22** (sa demande de fusion
+n° 2), relu contre le rejeu de la chaîne de filtres (D-058) : décision **D-062**, travaux reportés **W-071** et **W-072**,
+contrat d'un script en [spec-betaflight.md](spec-betaflight.md) §8. Cédric a confirmé ses quatre arbitrages du 2026-11-18
+et en a ajouté trois : le chantier est **conditionnel** (lots 23 à 25, en attente de vrais logs INAV ou ArduCopter :
+pour Betaflight seul, le lot 22 a déjà vérifié le simulateur sur de vrais vols) ; le lot 24 se prouvera par le banc
+**et** par le contrôle par étage du lot 22 ; et le seul écart qui touche déjà l'écran, l'**ordre du terme D**, est
+corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis du plan.
 
 ## Comment s'en servir
 
@@ -55,20 +60,24 @@ de la chaîne de filtres (D-058) avant de l'être.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 21
-  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22 et les 29 à 32 sont ouverts (le 28 est fait) ;
-  les numéros **23 à 27** sont ceux du chantier des scripts firmware du fork, pas encore repris (ci-dessus) ; le
-  prochain numéro libre est **33**.
+  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22, les 29 à 32 et le 33 sont ouverts (le 28 est
+  fait) ; les **23 à 25** sont le chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
+  sortis le 2026-11-18 ; le prochain numéro libre est **34**.
 
 ## Ordre des étapes
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
-| 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **29** | Fragments : écran d'extraction, index, liste d'analyse | `otb-store` (lot 28, fait) |
-| 4 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) |
-| 5 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 |
-| 6 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | lot 30 |
+| 2 | **33** | Terme D rejoué dans l'ordre du firmware : filtrer puis dériver (W-072) | rien ; mesurer avant de livrer |
+| 3 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
+| 4 | **29** | Fragments : écran d'extraction, index, liste d'analyse | `otb-store` (lot 28, fait) |
+| 5 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) |
+| 6 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 |
+| 7 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | lot 30 |
+| — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
+| — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
+| — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
 de 3 sur la plus longue session du corpus. Les lots qui touchaient à un utilisateur réel ont été réglés le
@@ -212,6 +221,39 @@ Cédric, sous GPL : D-004).
       100 et 250 Hz. **Décidé par Cédric le 2026-11-22** : ces 2 alertes sont acceptées (écart léger connu, suivi par W-062 et
       repris avec les vols 22b) ; les corrections de 22a bis passent dans le simulateur affiché avec 22d et 22e (W-064) ; 22c à
       22f peuvent reprendre. **Après 22b** : 0 alerte (les 2 venaient de l'arrondi de l'entrée, L-103).
+
+---
+
+## Lot 33 : terme D rejoué dans l'ordre du firmware (Opus)
+
+**But** (Cédric, 2026-11-22) : que le terme D rejoué par la page Filtres et par l'assistant suive l'ordre du firmware —
+**filtrer `gyroADCf` puis dériver** — au lieu de dériver puis filtrer (W-072, point 1). Seul écart repris du fork qui
+touche déjà l'écran (D-062).
+
+**Branche** : `fix/dterm-filter-order`.
+
+**À lire** : [travaux-reportes.md](travaux-reportes.md) W-072, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`,
+`rust/otb-analysis/src/filter_replay.rs:replay`, `rust/otb-analysis/src/filter_stages.rs` (étage D), [lecons.md](lecons.md)
+L-071, L-104 ; firmware : `flight/pid.c` (`pidController`, chaîne D puis `delta`), lu, jamais copié (D-004).
+
+**Pourquoi l'effet devrait être faible** : deux filtres linéaires fixes commutent ; l'ordre ne compte que quand la coupure
+du LPF1 D dynamique suit les gaz (actif par défaut, 75–150 Hz), et au premier échantillon. Le contrôle par étage du D
+reste sous 0,5 dB (lot 22b). C'est à **chiffrer**, pas à supposer.
+
+- [ ] **Mesurer d'abord** : écart entre les deux ordres sur le corpus (`otb-dev corpus replay`, compétence
+      `calculs-corpus`), par bande de fréquences, en isolant les vols où les gaz bougent beaucoup ; chiffres dans
+      [validation.md](validation.md), **montrés à Cédric avant de livrer**.
+- [ ] **Corriger** le chemin du rejeu (page Filtres, assistant) et l'étage D du contrôle par étage, puis relancer
+      `otb-dev corpus stages` : il ne doit pas se dégrader.
+- [ ] ⚠️ `simulate_dterm` est aussi comparé aux **références Python figées** (`rust/otb-analysis/tests/bf_sim.rs`,
+      `otb-parity`, tolérance 1e-12), qui dérivent avant de filtrer : soit la correction laisse ce chemin-là intact,
+      soit les références divergent — à décider avec Cédric, jamais en affaiblissant le test.
+- [ ] **Contre-preuve** (L-071) : un log fabriqué avec un LPF1 D dynamique et des gaz qui varient, où les deux ordres
+      diffèrent ; le test rougit avec l'ancien ordre, vu en échec.
+- [ ] **Assistant** : le bruit prévu change un peu (D-059) ; vérifier sur le corpus qu'aucun constat ne bascule
+      (`otb-dev corpus rates`). Captures de la page Filtres si la courbe D bouge à l'œil.
+- [ ] **Critère d'arrêt** : un écart plus grand que 0,5 dB sous 250 Hz, ou un constat de l'assistant qui bascule →
+      s'arrêter et revenir vers Cédric avec le log et le chiffre.
 
 ---
 
@@ -444,6 +486,108 @@ effacement reporté ne coûte rien.
 - [ ] **Critère d'arrêt** : un seul chemin de code où l'effacement pourrait partir sans vérification complète →
       s'arrêter net.
 
+---
+
+## Lots 23 à 25 : scripts firmware — **conditionnels**
+
+Repris du fork `GerryNatif/OpenTuneBox` (sa demande de fusion n° 2, écrite le 2026-11-18 avant le lot 22), relus le
+2026-11-22 (D-062). **Déclencheur** : de vrais logs INAV ou ArduCopter, et la demande de Cédric. Pour un pilote Betaflight
+seul, ces lots ne corrigent rien : le lot 22 a déjà vérifié le simulateur sur de vrais vols, et le calcul au bit près ne
+réduirait pas l'écart qui reste (il vient de ce que le log n'enregistre pas). L'ordre du terme D, seul écart visible,
+est sorti dans le lot 33.
+
+### Lot 23 : la chaîne Betaflight décrite en données (Opus)
+
+**But** : **une seule description** de la chaîne de filtres, au lieu de deux, **sans changer un seul résultat**. C'est
+ce qui rend un script de firmware possible : D-062 veut une chaîne décrite une fois.
+
+**Branche** : `refactor/chain-as-data`.
+
+**À lire** : `rust/otb-analysis/src/bf_filters.rs:gyro_chain`, `rust/otb-analysis/src/bf_filters.rs:GyroStage`,
+`rust/otb-analysis/src/filter_replay.rs`, [spec-betaflight.md](spec-betaflight.md) §3 et §8, [lecons.md](lecons.md) L-048,
+L-071, L-104.
+
+**Constats du dépôt, relus le 2026-11-22** (le fork les avait écrits avant le rejeu de D-058) :
+
+- **La chaîne est écrite deux fois** : en **réponse en fréquence** (`gyro_chain`, `dterm_chain` : repli de la page
+  Filtres et de l'assistant pour un log sans gyro non filtré, retard gagné par un conseil, boucle ouverte), et **dans le
+  temps** (étages `GyroStage`, communs à `simulate_gyro`, au contrôle par étage et au rejeu). Le temps a donc déjà une
+  seule description ; la seconde est la réponse en fréquence.
+- La cadence propre à chaque filtre est déjà dans le rejeu (L-104) ; seul `simulate_gyro` garde celle du log (W-072,
+  point 2), pour les tests et `otb-parity`.
+
+- [ ] **Description de la chaîne en données** : étapes ordonnées (brique, cadence, paramètres, en service ou non),
+      **prises** (où le log a enregistré chaque signal — c'est ce qui décide du badge « simulé » de
+      `rust/otb-gui/src/tools/filter_sim.rs`) et **position de la dérivation**. La réponse en fréquence et le rejeu la
+      lisent au lieu de porter l'ordre en dur.
+- [ ] **Preuve d'iso-résultat** : `cargo run --release -p otb-parity -- check` 0 écart, `verify --strict` 0 saut,
+      `otb-dev corpus replay` et `corpus stages` inchangés, captures de la page Filtres **identiques au bit près** sur les
+      deux thèmes.
+- [ ] **Contre-preuve** (L-071) : une étape déplacée ou une cadence changée dans la description fait **rougir** un
+      test, vu en échec.
+- [ ] **Critère d'arrêt** : un seul résultat qui change sans explication chiffrée → s'arrêter et revenir vers Cédric.
+
+### Lot 24 : briques à l'arithmétique du firmware (Opus)
+
+**But** : atteindre le bit à bit contre le firmware compilé sur PC, **et basculer l'application sur cette nouvelle
+chaîne dans le même lot** (D-062). C'est le plus gros lot du plan : il déplace un chiffre dans presque tous les écrans,
+y compris le rejeu de la page Filtres (D-058) et le bruit prévu par l'assistant (D-059).
+
+**Branche** : `feat/firmware-exact-bricks`. **Dépend du lot 23.**
+
+**À lire** : `rust/otb-dsp/src/lib.rs` (les noyaux actuels, D-033), [decisions.md](decisions.md) D-029 (float32),
+D-047 et D-011, [travaux-reportes.md](travaux-reportes.md) W-028, [lecons.md](lecons.md) L-048 et L-051
+(⚠️ jamais `suboptimal_flops` : il change le résultat des calculs), [spec-betaflight.md](spec-betaflight.md) §2 (biquads
+RBJ jusqu'à la 2025.12, filtres SVF ensuite : même réponse, autre arithmétique).
+
+⚠️ **Pourquoi l'ordre des étapes n'est pas négociable.** La chaîne actuelle est la référence de tout : les
+références figées, les seuils de l'assistant, les captures au bit près et le contrôle par étage du lot 22. La bascule
+d'un coup a été choisie en connaissance de cause ; elle ne tient que si chaque étape ci-dessous est **livrée et vérifiée
+avant la suivante**, et qu'aucune ne saute.
+
+- [ ] **24a — les briques, sans rien brancher.** Float32 à côté des actuelles, rangées par famille de firmware même si
+      **seule celle de Betaflight est écrite** : tout en float32 sauf là où le firmware calcule lui-même en double ;
+      approximations du firmware recopiées ; **ordre exact des opérations** (`état + k × (entrée − état)` n'a pas les
+      mêmes bits que `(1 − k) × état + k × entrée`) ; initialisations et moment du recalcul des coefficients recopiés ;
+      **deux domaines de cadence** réellement exécutés (cadence gyro, décimation, cadence PID). Rien de visible.
+- [ ] **24b — le banc et les vecteurs de référence.** Le banc écrit par le projet télécharge et compile le firmware,
+      ne garde que des vecteurs (D-062) ; licences d'INAV et d'ArduPilot vérifiées à leur source à ce moment-là.
+      Balayage de fréquence, bruit, échelons, fréquences de notch variables. La CI les rejoue et exige l'**égalité bit à
+      bit** ; elle n'a pas le corpus, donc tout se prouve sur vecteurs et sur `tests/data/jeno5_5s.bbl` (L-023).
+- [ ] **24c — l'écart chiffré sur tout le corpus, avant de brancher quoi que ce soit.** Différence entre l'ancienne
+      et la nouvelle chaîne sur tout le corpus, et `otb-dev corpus stages` / `corpus replay` relancés : le contrôle par
+      étage **ne doit pas se dégrader** (preuve par les vrais vols, D-062). Chiffres dans [validation.md](validation.md).
+      **C'est le point de non-retour** : un écart plus grand que prévu s'explique **ici**, pas après la bascule.
+- [ ] **24d — la bascule.** L'interface passe à la nouvelle chaîne, les références figées sont réenregistrées
+      (W-028 et W-072 point 2 en profitent), et les captures sont refaites sur les deux thèmes.
+- [ ] **24e — les seuils de l'assistant revérifiés** (`otb-dev corpus calibrate`, compétence `calculs-corpus`).
+      ⚠️ Si un seuil change l'**avis** de l'assistant sur un vrai log, **s'arrêter** et revenir vers Cédric avec le
+      log et le chiffre : c'est exactement le risque accepté en choisissant la bascule d'un coup.
+- [ ] **Écart au vol réel mesuré et affiché**, jamais promis : écart entre gyro simulé et gyro enregistré, montré
+      dans l'interface avec sa cause quand le log ne contient pas l'entrée des filtres à pleine cadence.
+- [ ] **Critère d'arrêt** : un vecteur qui ne tombe pas au bit près sans cause identifiée (approximation, ordre des
+      opérations, initialisation), un étage du lot 22 qui se dégrade, ou un avis de l'assistant qui change sans
+      explication → s'arrêter, consigner, revenir vers Cédric.
+
+### Lot 25 : plages de versions et veille du firmware (Sonnet)
+
+**But** : qu'un script dise de quelles versions il répond, et qu'un changement d'arithmétique en amont soit vu
+**avant** qu'un pilote ne voie une simulation fausse.
+
+**Branche** : `feat/version-ranges`. **Dépend du lot 24.**
+
+- [ ] **Plage déclarée** par script : première version couverte, dernière version **vérifiée**, « ouverte » tant
+      qu'aucun changement n'est connu. Au-delà de la dernière vérifiée, la simulation reste possible mais
+      **marquée « non vérifiée »** dans l'interface.
+- [ ] **Ce qui coupe une plage** ([spec-betaflight.md](spec-betaflight.md) §8) : arithmétique d'une brique, ordre de la
+      chaîne, cadence, façon de calculer le terme D, noms ou plages des réglages. **Ce qui ne la coupe pas** : un nouveau
+      réglage par défaut, un champ de log sans effet sur le calcul.
+- [ ] **Veille** : un travail de CI compare, d'une version du firmware à la suivante, les fichiers qui portent le
+      calcul, puis rejoue les vecteurs. Il **télécharge et compare, ne garde rien** (D-045), et prend `--locked`
+      comme le reste de la CI.
+- [ ] **Critère d'arrêt** : une veille qui crie à chaque version sans rien apprendre → la retirer plutôt que la
+      laisser grincer.
+
 ## Hors plan, volontairement
 
 Ces travaux reportés sont **vus et laissés** : aucun n'empêche un pilote d'utiliser OpenTuneBox aujourd'hui.
@@ -457,6 +601,7 @@ a été traité par le lot 21.
 | ID | Pourquoi il n'est pas dans un lot |
 |---|---|
 | W-001 | Logs KISS (`.TXT`) et INAV non décodés : hors périmètre, à rouvrir si Cédric change de radio ou de firmware |
+| W-071 | ArduCopter (logs DataFlash) : périmètre **Betaflight seul** (D-062), aucun log ArduCopter réel dans le corpus |
 | W-002 | Profils whoop, 2–3,5" et 8"+ appuyés sur trop peu de drones : il faut **plus de logs**, pas plus de calcul |
 | W-004 | La boucle ouverte ne se mesure que jusqu'à 20–40 Hz : limite physique de l'énergie du manche |
 | W-022 | Tolérance par fonction et non par champ dans `otb-parity` : reprise si un écart est soupçonné sur `freqs` / `bins` / `resolution_hz` |

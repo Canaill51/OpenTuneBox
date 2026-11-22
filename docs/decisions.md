@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels), prouvé par le banc **et** les vrais vols | 2026-11-18 |
 | D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit | 2026-11-19 |
 | D-060 | Amende D-015 : une entrée de navigation est **un outil ou un espace** qui regroupe plusieurs vues ; les boutons deviennent un **rail à gauche** ; deux écrans hors rail sont permis. Ce qui reste : aucune fenêtre séparée, une vue cachée ne calcule pas | 2026-11-19 |
 | D-059 | Assistant : bruit prévu après un conseil de filtres par le **rejeu** de la page Filtres, vérifié en vol (amende D-008) | 2026-11-22 |
@@ -133,6 +134,86 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-18 — Scripts firmware
+
+### D-062 : un script par firmware et par plage de versions — chaîne décrite en données, briques compilées en Rust
+
+Numérotée D-057 dans le fork `GerryNatif/OpenTuneBox` (sa demande de fusion n° 2), écrite le 2026-11-18 **avant** le lot 22
+de ce dépôt, renumérotée à la reprise le 2026-11-22. **Confirmée par Cédric** le même jour : les quatre arbitrages du
+2026-11-18 sont bien les siens. Il en a ajouté trois le 2026-11-22, après avoir relu la décision à la lumière du lot 22
+(« Reprise du 2026-11-22 » ci-dessous).
+
+**Contexte.** L'étude du 2026-11-17 (document de travail de Cédric, hors dépôt) propose d'étendre OpenTuneBox à
+INAV et à ArduCopter au moyen d'un « script » par firmware et par version : le script décrit la chaîne de filtres
+et de PID, et fournit les briques de calcul avec l'arithmétique exacte de sa famille ; le cœur assemble et exécute.
+Elle laisse sept questions ouvertes. Trois avaient déjà leur réponse dans les registres (la licence, D-045 ; le
+hors ligne, D-003 ; l'ordre de travail, Betaflight étant le seul firmware du corpus) ; Cédric a tranché les quatre
+autres le 2026-11-18, une par une.
+
+**Décision.**
+- **Forme d'un script.** La chaîne est décrite dans un **fichier de données versionné** du dépôt : étapes
+  ordonnées (brique, cadence, paramètres, en service ou non), **prises** des signaux enregistrés par le log, et
+  position de la **dérivation** du terme D ([spec-betaflight.md](spec-betaflight.md) §8). Les **briques de calcul sont
+  du Rust compilé** dans le programme, rangées par famille de firmware. **Pas** de moteur de script embarqué (Rhai, Lua)
+  ni de WASM : ils n'achètent qu'un rechargement à chaud, au prix de la vitesse sur des millions d'échantillons, d'une
+  surface de chargement de code exécutable (D-054) et d'une dépendance de plus. Conséquence assumée : **ajouter un
+  firmware demande de recompiler et de publier une version.**
+- **Rien du code des firmwares n'entre dans le dépôt.** Les briques sont réimplémentées d'après la lecture du code
+  (D-004), jamais copiées. Betaflight, INAV et ArduPilot sont sous GPL 3, que D-045 refuse : aucun fichier de
+  firmware versionné, et rien de compilé depuis leur code dans ce qui est livré. L'option de l'étude « compiler
+  directement le code du firmware » (en WASM) est **écartée pour cette raison**, pas pour une raison technique.
+- **Banc de référence dans le dépôt.** Un script **écrit par le projet** télécharge le firmware au moment de
+  s'exécuter, le compile sur le poste, et ne verse dans le dépôt que des **vecteurs de nombres**. La preuve reste
+  refaisable par quiconque, la CI comprise, sans redistribuer de code sous GPL. Option écartée : un banc hors
+  dépôt — les vecteurs seraient là sans que personne puisse les refaire.
+- **Bascule d'un coup, pas de cohabitation.** La chaîne float32 à l'arithmétique du firmware **remplace** la chaîne
+  `f64` actuelle dans un seul lot, qui réenregistre les références figées (W-028) et revérifie les seuils de
+  l'assistant (D-011). Option écartée : garder les deux chaînes le temps de prouver la nouvelle. Le risque — un
+  seuil qui change l'**avis** de l'assistant sur un vrai log — est **accepté par Cédric** et borné par l'ordre des
+  étapes du lot 24 de [plan.md](plan.md) : l'écart est chiffré sur tout le corpus **avant** que l'interface ne
+  change, et un avis qui bascule arrête le lot. Depuis le lot 22, la chaîne remplacée porte aussi le rejeu de la page
+  Filtres (D-058) et le bruit prévu par l'assistant (D-059).
+- **Périmètre : Betaflight seul.** W-001 reste fermé (INAV, logs KISS) et ArduCopter est consigné en W-071. Raison :
+  le corpus ne contient aucun log de ces firmwares, et le projet valide sur de vrais logs en plus des tests
+  synthétiques. Reprise : des logs réels, à la demande de Cédric.
+- **Trois niveaux de fidélité, jamais confondus** dans les textes affichés : *même algorithme* (même ordre, mêmes
+  formules de coefficients, mêmes approximations) est l'engagement du logiciel ; *bit à bit contre le firmware
+  compilé sur PC* est le critère de test de chaque script ; *identité au vol réel* est **mesurée et affichée,
+  jamais promise**, car le log ne contient pas toujours l'entrée des filtres à pleine cadence.
+
+**Reprise du 2026-11-22** (Cédric, après le lot 22, D-057 à D-059) :
+- **Chantier conditionnel.** OpenTuneBox lira **peut-être un jour** d'autres firmwares que Betaflight : les lots 23 à 25
+  restent au plan, **en attente de vrais logs INAV ou ArduCopter** et de la demande de Cédric. Raison : pour un pilote
+  Betaflight, le lot 22 a déjà vérifié le simulateur contre ses vols (rejeu à 0,1–0,2 dB du log, étages sous 0,5 dB
+  jusqu'à 500 Hz, [validation.md](validation.md)), et le calcul au bit près ne réduirait pas cet écart : 0,1 dB, c'est
+  environ 1 % d'amplitude, quand l'arrondi du float32 pèse 1e-7. L'écart restant vient de ce que le log n'enregistre
+  pas (arrondis, L-103), pas de l'arithmétique.
+- **Preuve du lot 24 : le banc et les vrais vols.** Le banc au bit près vérifie le **calcul** ; le contrôle par étage
+  du lot 22 (`otb-dev corpus stages`, `corpus replay`) vérifie le **drone**, et **ne doit pas se dégrader** à la
+  bascule. Les erreurs trouvées au lot 22 le montrent : la cadence du LPF2 (L-104), un banc l'aurait vue aussi ; le
+  contrôleur surchargé (L-101), l'arrondi du log (L-103) et le TPA du D, seuls de vrais vols les ont montrés.
+- **L'ordre du terme D n'attend pas le lot 23** : corrigé à part, mesuré sur le corpus (lot 33, W-072), parce qu'il est
+  maintenant visible dans la page Filtres et l'assistant.
+
+**Témoins.** Code relu le 2026-11-22 (le fork le décrivait avant le lot 22). La chaîne est écrite **deux fois** :
+- en **réponse en fréquence**, par `rust/otb-analysis/src/bf_filters.rs:gyro_chain` et
+  `rust/otb-analysis/src/bf_filters.rs:dterm_chain` : rapport des |H|² de `whatif_spectrum` (repli de la page Filtres
+  pour un log sans gyro non filtré, `rust/otb-gui/src/tools/filter_sim_calc.rs` ; repli de l'assistant,
+  `rust/otb-advisor/src/rules.rs`), retard gagné par un conseil, boucle ouverte (`rust/otb-analysis/src/open_loop.rs`) ;
+- **dans le temps**, par les étages `rust/otb-analysis/src/bf_filters.rs:GyroStage`, communs à `simulate_gyro`, au
+  contrôle par étage (`rust/otb-analysis/src/filter_stages.rs`) et au rejeu (`rust/otb-analysis/src/filter_replay.rs`).
+  Le rejeu applique chaque filtre à sa cadence (L-104) ; `simulate_gyro` garde la cadence du log, mais n'est appelé que
+  par les tests et `otb-parity`. Le terme D passe par `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, qui
+  **dérive puis filtre** quand le firmware filtre puis dérive (`flight/pid.c`) : appelé par le rejeu, il touche la page
+  Filtres et l'assistant (W-072).
+
+Refus du copyleft : liste `allow` de `rust/deny.toml`, onze licences de code, aucune copyleft, plus les deux licences de
+polices de D-046. Licence GPL 3 de Betaflight **vérifiée** le 2026-11-22 (fichier `LICENSE` du dépôt du firmware) ;
+celles d'INAV et d'ArduPilot restent lues dans l'étude, à confirmer au lot qui monte le banc (lot 24).
+
+**Ouvert.** W-001 (INAV, KISS), W-071 (ArduCopter), W-072 (simulation dans le temps), lots 23 à 25 et 33 de
+[plan.md](plan.md).
 
 ## 2026-11-19 — Fidélité au prototype
 

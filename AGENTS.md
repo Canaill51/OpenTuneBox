@@ -19,6 +19,8 @@ Contexte, options écartées et preuves : `docs/decisions.md`.
 - Dépôt **public**, licence **PolyForm Noncommercial 1.0.0** : code ouvert, tout usage commercial interdit, aucune dépendance copyleft (polices : chacune sous sa licence, D-046). D-043, D-045
 - **Aucune copie de code PIDtoolbox** ni d'autres projets : tout est réimplémenté d'après le firmware Betaflight et des méthodes publiées
   (`docs/spec-*.md`). Seule exception : les icônes [Lucide](https://lucide.dev) (ISC) dans `rust/otb-gui/assets/icons/`, avec leur licence. D-004, D-005
+- **Scripts firmware** (chantier conditionnel : de vrais logs INAV ou ArduCopter d'abord) : chaîne décrite en **données**, briques
+  en **Rust compilé** (jamais de moteur de script) ; rien du code des firmwares (GPL 3) dans le dépôt ; **Betaflight seul** d'ici là. D-062
 - **Dessin de l'interface** : le **prototype complet de l'application** (canevas de Cédric, hors dépôt) fait foi — mesures, couleurs et
   contenu s'y relèvent ; thème clair identique, thème sombre dérivé ; tout écart se justifie par écrit. D-060, D-061
 - **Les sources sont citées sans nommer leurs auteurs** : une entrée `[S…]` de `docs/spec-methodes.md` garde titre, date, lien et
