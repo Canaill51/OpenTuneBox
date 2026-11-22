@@ -16,23 +16,29 @@
 //! | filtres D | −dg/dt du gyro enregistré → `axisD`, gain ajusté | aucun (log à chaque boucle PID, D sans D max) |
 //!
 //! Mesure : fonctions de transfert de Welch (fenêtres de Hann d'environ 0,5 s, recouvrement de moitié, aucune sur un trou
-//! du log), H = S(x, y) / S(x, x) pour le firmware et pour le modèle, sur la même entrée. Par bande de fréquences : gain
+//! du log), H = S(x, y) / S(x, x) pour le firmware et pour le modèle, sur la même entrée. ⚠️ Pour le firmware, l'arrondi
+//! de l'entrée enregistrée (au °/s pour les canaux debug) est retiré de S(x, x) : il n'est pas dans le signal que le
+//! firmware a filtré, et le garder fait croire à un firmware qui filtre plus (L-103, [`InputNoise`]). Par bande : gain
 //! moyen en dB (pondéré par la cohérence firmware), écart, retard tiré de la phase, cohérence moyenne et résidu (énergie de
 //! sortie − modèle rapportée à celle de la sortie, mesurée dans les fenêtres). ⚠️ Le firmware écrit `gyroUnfilt` un tick
 //! gyro après avoir filtré l'échantillon précédent : tout étage qui part de `gyroUnfilt` retire ce décalage (L-100).
 //!
-//! Le modèle suit le firmware sur trois points que le simulateur affiché ignore encore (lot 22a bis) :
+//! Le modèle suit le firmware sur quatre points que le simulateur affiché ignore encore (lots 22a bis et 22b) :
 //! - ⚠️ ses filtres sont calculés pour la cadence **nominale** de l'en-tête ([`model_rate_hz`]), pas pour celle mesurée sur
 //!   le log : un contrôleur surchargé dont la boucle tourne deux fois moins vite que prévu filtre deux fois plus bas en
 //!   hertz réels, et les fréquences des bandes sont comptées comme le firmware les compte (L-101) ;
 //! - le terme D est multiplié par le facteur TPA de chaque instant ([`tpa_d_factor`]), tiré des gaz d'avant le throttle
 //!   boost ([`pre_boost_throttle`]) ;
 //! - les instants où le firmware force le D à zéro (PID coupé, récupération de vrille en lacet : `flight/pid.c`) sont
-//!   écartés de l'étage D comme des trous du log.
+//!   écartés de l'étage D comme des trous du log ;
+//! - ⚠️ le LPF2 gyro est calculé pour la cadence des échantillons gyro et appliqué à chacun d'eux
+//!   ([`lpf2_at_gyro_rate`]), pas à la cadence du log (L-104).
 //!
 //! Seuls les logs enregistrés à [`MIN_LOG_RATE_HZ`] ou plus sont contrôlés (D-057).
 
-use crate::bf_filters::{GyroStage, dyn_notch_enabled, gyro_stage_at, pre_boost_throttle, simulate_dterm_at};
+use crate::bf_filters::{
+    GyroStage, dyn_notch_enabled, gyro_stage_at, lpf2_at_gyro_rate, pre_boost_throttle, simulate_dterm_at,
+};
 use crate::spectral::{rfftfreq, row_mean, segments};
 use otb_dsp::numeric::{hann, rfft_rows};
 use otb_log::flightlog::{FlightLog, GyroDebugTaps, clamp_range};
@@ -56,6 +62,12 @@ pub const BANDS_HZ: [(f64, f64); 5] = [
 pub const D_GAIN_FIT_HZ: (f64, f64) = (10.0, 50.0);
 /// Durée visée d'une fenêtre de Welch (s) ; arrondie à la puissance de 2 supérieure, comme `delay::phase_delay_ms`.
 const WINDOW_S: f64 = 0.5;
+/// Part maximale de l'arrondi dans l'énergie d'entrée d'une case pour que la case compte (L-103) : au-delà, elle sort des
+/// moyennes au lieu d'être corrigée. La correction d'une case est ainsi bornée à 1 / (1 − 0,1), soit +0,9 dB. ⚠️ À 0,5,
+/// des vols stationnaires très calmes (signal presque immobile d'un échantillon à l'autre : l'arrondi n'y est plus un
+/// bruit blanc) s'emballaient jusqu'à +5 dB ; à 0,1, plus aucun emballement, et les logs à chaque boucle PID ne perdent que
+/// 2 bandes concluantes sous 500 Hz sur 511 (lot 22b, `docs/validation.md`).
+pub const MAX_INPUT_NOISE_SHARE: f64 = 0.1;
 /// Plancher des gains avant le passage en dB (un notch peut rendre une case nulle).
 const MIN_GAIN: f64 = 1e-12;
 
@@ -116,6 +128,35 @@ pub struct StageSignals {
     /// Raccords propres à l'étage (indices depuis le début de la période), en plus des trous du log : instants où le
     /// firmware a forcé le D à zéro (étage D).
     pub breaks: Vec<i64>,
+    /// Arrondi de l'entrée enregistrée, retiré de son spectre avant de mesurer le gain du firmware.
+    pub input_noise: InputNoise,
+}
+
+/// Bruit d'arrondi de l'entrée enregistrée d'un étage. Le firmware filtre la valeur exacte, le log n'en garde que
+/// l'arrondi : la différence, de variance pas² / 12, est un bruit blanc que l'estimateur S(x, y) / S(x, x) compte comme du
+/// signal d'entrée. ⚠️ Non retiré, il fait croire que le firmware filtre plus que le modèle, d'autant plus que le signal
+/// est faible : −0,3 dB entre 50 et 100 Hz sur un étage sans aucun filtre, −1,2 à −2,3 dB entre 250 et 500 Hz sur le D des
+/// vols chirp (L-103).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum InputNoise {
+    /// Entrée exacte (log fabriqué) ou arrondi inconnu.
+    None,
+    /// Entrée arrondie au pas donné (unité de l'entrée).
+    Rounded(f64),
+    /// Entrée = −(g[i] − g[i−1]) × cadence, g arrondi au pas donné (étage D).
+    RoundedDerivative(f64),
+}
+
+impl InputNoise {
+    /// Densité du bruit à la fréquence `f` : variance par échantillon, multipliée par |réponse de la dérivée|² s'il y a
+    /// lieu (à multiplier par Σ w² et par le nombre de fenêtres pour une somme de périodogrammes).
+    fn variance_at(self, f: f64, fs: f64) -> f64 {
+        match self {
+            InputNoise::None => 0.0,
+            InputNoise::Rounded(step) => step * step / 12.0,
+            InputNoise::RoundedDerivative(step) => step * step / 12.0 * (2.0 * fs * (PI * f / fs).sin()).powi(2),
+        }
+    }
 }
 
 /// Résultat d'une bande de fréquences.
@@ -276,11 +317,17 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
     let model = |stages: &[GyroStage], x: &[f32]| -> Result<Vec<f64>, String> {
         let mut y = wide(x);
         for &st in stages {
-            y = gyro_stage_at(st, log, s, y, 1, fs)?;
+            y = match st {
+                GyroStage::Lpf2 => lpf2_at_gyro_rate(log, s, y, fs)?,
+                _ => gyro_stage_at(st, log, s, y, 1, fs)?,
+            };
         }
         Ok(y)
     };
-    let mut push = |stage, axis, input: &[f32], output: &[f32], m: Vec<f64>, clock_offset_s| {
+    // pas d'arrondi des entrées (°/s) : canaux debug à l'unité, gyro et gyroUnfilt au dixième en haute résolution
+    let debug_step = InputNoise::Rounded(1.0);
+    let gyro_step = 1.0 / if s.high_resolution { 10.0 } else { 1.0 };
+    let mut push = |stage, axis, input: &[f32], output: &[f32], m: Vec<f64>, clock_offset_s, input_noise| {
         out.push(StageSignals {
             stage,
             axis,
@@ -290,6 +337,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
             clock_offset_s,
             fit_gain: false,
             breaks: Vec::new(),
+            input_noise,
         });
     };
 
@@ -309,6 +357,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                     before_lpf2,
                     wide(gu.row(axis)),
                     offset,
+                    InputNoise::Rounded(gyro_step),
                 ),
                 None => skipped.push((Stage::Clock, "pas de gyro non filtré dans ce log".into())),
             }
@@ -319,6 +368,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                 after_lpf2,
                 model(&[GyroStage::Lpf2], before_lpf2)?,
                 0.0,
+                debug_step,
             );
             if rpm_missing {
                 skipped.push((Stage::Rpm, "filtre RPM actif mais pas d'eRPM dans le log".into()));
@@ -330,6 +380,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                     after_rpm,
                     model(&[GyroStage::Rpm], after_lpf2)?,
                     0.0,
+                    debug_step,
                 );
             }
             push(
@@ -339,6 +390,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                 after_static,
                 model(&[GyroStage::StaticLpf1], after_rpm)?,
                 0.0,
+                debug_step,
             );
         }
         Some(GyroDebugTaps::FftFreq { axis, before_dyn_notch }) => {
@@ -360,6 +412,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                             before_dyn_notch,
                             model(&block, gu.row(axis))?,
                             offset,
+                            InputNoise::Rounded(gyro_step),
                         );
                     }
                     None => skipped.push((Stage::GyroBlock, "pas de gyro non filtré dans ce log".into())),
@@ -371,6 +424,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                     log.gyro.row(axis),
                     model(&[GyroStage::DynNotch], before_dyn_notch)?,
                     0.0,
+                    debug_step,
                 );
             }
         }
@@ -423,6 +477,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                     clock_offset_s: 0.0,
                     fit_gain: true,
                     breaks: off.clone(),
+                    input_noise: InputNoise::RoundedDerivative(gyro_step),
                 });
             }
         }
@@ -462,6 +517,8 @@ fn db(a: Cx) -> f64 {
 struct Spectra {
     freqs: Vec<f64>,
     windows: usize,
+    /// Σ w² de la fenêtre de Hann (puissance d'un bruit blanc de variance 1 dans une case, par fenêtre).
+    window_power: f64,
     sxx: Vec<f64>,
     syy: Vec<f64>,
     smm: Vec<f64>,
@@ -500,6 +557,7 @@ fn spectra(x: &[f64], y: &[f64], m: &[f64], fs: f64, breaks: &[i64]) -> Option<S
     let mut sp = Spectra {
         freqs: rfftfreq(nper, fs),
         windows: rows,
+        window_power: w.iter().map(|v| v * v).sum(),
         sxx: vec![0.0; nf],
         syy: vec![0.0; nf],
         smm: vec![0.0; nf],
@@ -545,7 +603,20 @@ pub fn compare(sig: &StageSignals, fs: f64, breaks: &[i64], correct_clock: bool)
             if d > 0.0 { cabs2(sp.sxy[j]) / d } else { 0.0 }
         })
         .collect();
-    let ratio = |j: usize| cdiv(sp.sxy[j], cmul(sp.sxm[j], rot[j]));
+    // S(x, x) sans l'arrondi de l'entrée (L-103) ; NaN là où l'arrondi dépasse MAX_INPUT_NOISE_SHARE de l'énergie
+    // d'entrée : la case ne mesure alors plus le gain et sort des moyennes
+    let sxx_signal: Vec<f64> = (0..nf)
+        .map(|j| {
+            let noise = sp.windows as f64 * sp.window_power * sig.input_noise.variance_at(sp.freqs[j], fs);
+            if noise <= MAX_INPUT_NOISE_SHARE * sp.sxx[j] {
+                sp.sxx[j] - noise
+            } else {
+                f64::NAN
+            }
+        })
+        .collect();
+    let gain_fw = |j: usize| cdiv(sp.sxy[j], (sxx_signal[j], 0.0));
+    let ratio = |j: usize| cdiv(gain_fw(j), cdiv(cmul(sp.sxm[j], rot[j]), (sp.sxx[j], 0.0)));
     let mut k = 1.0;
     if sig.fit_gain {
         let (mut num, mut den) = (0.0, 0.0);
@@ -578,7 +649,7 @@ pub fn compare(sig: &StageSignals, fs: f64, breaks: &[i64], correct_clock: bool)
         let (mut ey, mut ee, mut c) = (0.0, 0.0, 0.0);
         for &j in &idx {
             let f = sp.freqs[j];
-            let hy = cdiv(sp.sxy[j], (sp.sxx[j], 0.0));
+            let hy = gain_fw(j);
             let hm = cdiv(cmul(sp.sxm[j], rot[j]), (sp.sxx[j], 0.0));
             let hm = (hm.0 * k, hm.1 * k);
             c += coh[j];
@@ -609,7 +680,7 @@ pub fn compare(sig: &StageSignals, fs: f64, breaks: &[i64], correct_clock: bool)
             delay_ms: mean(dl, wd),
             coherence,
             residual: mean(ee, ey).sqrt(),
-            conclusive: coherence >= MIN_COHERENCE,
+            conclusive: coherence >= MIN_COHERENCE && gain_measured_db.is_finite(),
         });
     }
     let (ey, ee): (f64, f64) = (1..nf).fold((0.0, 0.0), |(a, b), j| (a + sp.syy[j], b + err(j)));

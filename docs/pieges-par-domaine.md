@@ -64,6 +64,11 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
   `FlightLog::fs` ; un contrôleur surchargé tourne moins vite qu'annoncé et coupe plus bas en hertz réels. L-101
 - Notch dynamique rejoué : calculer la cadence en `f32` **comme la version du firmware** (`dyn_notch::DynNotchTracker::new`) ;
   quand Nyquist / `dyn_notch_max_hz` est entier, la 2026.6 moyenne 3 boucles au lieu de 4, et la cadence exacte fausse le suivi. L-102
+- Gain mesuré par S(x, y) / S(x, x) sur une entrée **arrondie** (canaux debug au °/s) : retirer pas²/12 de S(x, x), sinon le
+  firmware paraît filtrer plus. Une « variable instrumentale » faite de l'entrée décalée d'un échantillon ne le corrige pas
+  (même bruit, phase tournée) ; preuve directe : l'étage horloge, de gain 1. L-103
+- LPF2 gyro : calculé par le firmware pour la cadence **gyro** et appliqué à chaque échantillon gyro (depuis la 4.2), pas à la
+  cadence du log : +0,45 dB d'écart entre 250 et 500 Hz pour un PT1 à 500 Hz (`bf_filters::lpf2_at_gyro_rate`). L-104
 
 ## Assistant de réglage
 

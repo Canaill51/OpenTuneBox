@@ -761,6 +761,31 @@ pub fn gyro_stage_at(
     }
 }
 
+/// `lpf2_at_gyro_rate` : LPF2 gyro d'une ligne `x` enregistrée à la cadence `fs`, rejoué comme le firmware le calcule, à la
+/// cadence des échantillons gyro (`gyro.sampleLooptime`, `sensors/gyro_init.c`, depuis la 4.2) et sur chacun d'eux.
+/// Les échantillons gyro absents du log sont interpolés linéairement entre deux échantillons enregistrés ; on garde la
+/// sortie au dernier, celui qu'enregistre le log. Écart au vrai filtre, PT1 de 150 à 800 Hz en 8k / 4k : 0,04 dB au plus
+/// sous 250 Hz, 0,2 dB sous 500 Hz, aucun retard (lot 22b). ⚠️ Calculé à la cadence du log, le LPF2 filtre trop :
+/// +0,45 dB d'écart entre 250 et 500 Hz pour un PT1 à 500 Hz (L-104). Seul le contrôle par étage s'en sert (W-064).
+pub fn lpf2_at_gyro_rate(log: &FlightLog, s: &Settings, x: Vec<f64>, fs: f64) -> Result<Vec<f64>, String> {
+    let r = (s.gyro_rate_hz() / fs).round() as usize;
+    if r <= 1 || x.is_empty() {
+        return gyro_stage_at(GyroStage::Lpf2, log, s, x, 1, fs);
+    }
+    let n = x.len();
+    let mut up = Vec::with_capacity(n * r);
+    for i in 0..n {
+        let a = if i > 0 { x[i - 1] } else { x[0] };
+        up.extend((1..=r).map(|j| a + (x[i] - a) * j as f64 / r as f64));
+    }
+    let thr: Vec<f64> = throttle_frac(log)
+        .iter()
+        .flat_map(|&t| std::iter::repeat_n(t, r))
+        .collect();
+    let y = lowpass_sim(up, 1, n * r, &s.gyro_lpf2, &thr, fs * r as f64)?;
+    Ok((0..n).map(|i| y[i * r + r - 1]).collect())
+}
+
 /// `simulate_gyro` : rejoue la chaîne de filtres gyro sur `gyro_unfilt` (`3 × n`) → gyro filtré simulé. Mêmes approximations
 /// que Python : filtres calculés à la cadence du log, ceux au-delà de 0,48·fs ignorés ; notchs RPM variables (fréquences
 /// moteur lissées par le PT1 du firmware) ; LPF dynamique selon les gaz ; notchs dynamiques d'après le debug FFT_FREQ.

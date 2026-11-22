@@ -41,7 +41,7 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22d et 22e avec W-064 et le branchement du suivi (W-057, décidé le 2026-11-22) ; vols 22b faits, à passer dans le contrôle par étage |
+| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e avec W-064 et le branchement du suivi (W-057, décidé le 2026-11-22) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -85,8 +85,8 @@ ne couvre ni le yaw ni rien que le gyro enregistré ne donne déjà, d'où « au
 modèle actuel suit le firmware à **0,2 dB** près pour le bloc LPF2 + RPM + LPF1, **0,4 dB** pour le notch dynamique et
 **0,6 dB** pour les filtres D ; résidu temporel ≈ 1 % (gyro) et 2 à 4 % (D). Au-dessus de 250 Hz, la cohérence tombe
 sous 0,3 (valeurs enregistrées arrondies au °/s) : pas de conclusion possible. Un écart reste à trancher : notch
-dynamique entre 250 et 500 Hz, −1,8 dB réels contre −0,3 dB modélisés, cohérence 0,65 à 0,7. Et le décalage d'horloge
-de L-100 (0,11 ms).
+dynamique entre 250 et 500 Hz, −1,8 dB réels contre −0,3 dB modélisés, cohérence 0,65 à 0,7 (tranché en 22b : biais de la
+mesure, L-103). Et le décalage d'horloge de L-100 (0,11 ms).
 
 **À lire** : [travaux-reportes.md](travaux-reportes.md) W-057, W-059, W-060 (et W-058, W-061, W-062, mêmes fonctions),
 [lecons.md](lecons.md) L-100, L-011, L-024, [decisions.md](decisions.md) D-008, D-022, D-041,
@@ -128,9 +128,14 @@ Cédric, sous GPL : D-004).
          notch dynamique, cause à chercher.
       4. `petrel-85mm-issues` dévie aussi sur le gyro (+7 à +17 dB au-dessus de 100 Hz) : log d'un drone en difficulté, à
          écarter seulement si 1 à 3 ne l'expliquent pas, et en le disant.
-- [ ] **22b — Vols de calibration** (Cédric, sur l'Air65, mêmes réglages que les logs chirp) : **vols faits** (confirmé par
-      Cédric le 2026-11-22 : `Cedric/Air65/Test BF Chirp/GYRO_SAMPLE_*.bbl`, roll et pitch, avec et sans haute résolution) ;
-      reste à les passer dans 22a. Consigne d'origine : `debug_mode = GYRO_SAMPLE`,
+- [x] **22b — Vols de calibration** (branche `fix/filter-stage-measurement`, 2026-11-22) : fait — les 12 vols
+      `Cedric/Air65/Test BF Chirp/GYRO_SAMPLE_*.bbl` passés dans 22a ([validation.md](validation.md)). LPF2, RPM et LPF1 séparés :
+      0 alerte. Deux défauts trouvés et corrigés dans le seul contrôle par étage : l'**arrondi de l'entrée** faussait la mesure
+      (L-103 : l'écart « de même signe partout » de W-062, l'écart du notch dynamique entre 250 et 500 Hz et les 2 alertes
+      acceptées en venaient ; corpus : 2 alertes → 0) ; le **LPF2** était calculé pour la cadence du log et non celle du gyro (L-104,
+      +0,45 dB entre 250 et 500 Hz ; s'ajoute à W-064 pour le simulateur affiché). Après correction, tous les étages sous 0,5 dB
+      jusqu'à 500 Hz. Le second vol (SVF, PT2, notch statique, notch D) n'a pas été fait : à voler si 22e en a besoin.
+      Consigne d'origine : `debug_mode = GYRO_SAMPLE`,
       `gyro_filter_debug_axis = ROLL`, `blackbox_sample_rate = 1/1`, `blackbox_high_resolution = ON` (il n'affine que le gyro
       et `gyroUnfilt`, **pas** les canaux `GYRO_SAMPLE`, arrondis au °/s : un chirp plus ample aide davantage), mode angle,
       10 s de stationnaire puis le chirp sur le roll. Un second vol avec d'autres types de filtres (BIQUAD, donc SVF en
@@ -165,7 +170,7 @@ Cédric, sous GPL : D-004).
       ne suit pas du tout (résidu 0,4 à 0,9). Après 22a bis : 2 alertes, sur 2 sessions, toutes deux à −1,3 dB sur le D entre
       100 et 250 Hz. **Décidé par Cédric le 2026-11-22** : ces 2 alertes sont acceptées (écart léger connu, suivi par W-062 et
       repris avec les vols 22b) ; les corrections de 22a bis passent dans le simulateur affiché avec 22d et 22e (W-064) ; 22c à
-      22f peuvent reprendre.
+      22f peuvent reprendre. **Après 22b** : 0 alerte (les 2 venaient de l'arrondi de l'entrée, L-103).
 
 ---
 
