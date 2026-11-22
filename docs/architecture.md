@@ -224,7 +224,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   - `bench_open.rs` : `otb-dev bench-open LOG [ESSAIS]` ouvre un log (`otb_log::flightlog::load`) et affiche durées et pic de mémoire (`VmHWM` de `/proc/self/status`, Linux seulement) ; un processus par log, car le pic ne redescend pas.
   - `usb.rs` : `otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER` : essai à la main de `otb-usb` sur une
     vraie carte avant l'écran (lot 32b), et mesures de [spec-usb](spec-usb.md) (débit de la copie, durée de l'effacement). L'effacement
-    passe par les mêmes contrôles que l'application et demande de taper « effacer ».
+    passe par les mêmes contrôles que l'application et demande de taper « effacer ». L'identifiant de la carte n'est montré que par une
+    empreinte courte (`uid_summary`) : c'est un numéro de série du matériel, et la sortie se recopie dans le dépôt public (alerte
+    CodeQL de la PR #169).
   - `release.rs` : `otb-dev release prepare X.Y.Z` (numéro de version dans `rust/Cargo.toml`) et `otb-dev release notes vX.Y.Z FICHIER` (contrôle
     du numéro, puis `translate_generated_notes`, fonction pure : traduit la liste générée par GitHub, ajoute le bloc Téléchargements,
     refuse une liste vide ou restée en anglais ; D-056).

@@ -143,7 +143,8 @@ cargo run -p otb-dev -- usb diff /dev/ttyACM0 ~/Documents/Drones/usb/config.txt 
 
 - [x] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine (`usb copy`) : 3,25 Mo par minute.
 - [x] Durée d'un effacement complet, et place occupée relue à 0 ensuite (`usb copy … --erase`) : 42,5 s, relue à 0.
-- [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour (`usb info`).
+- [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour (`usb info` en montre
+      une empreinte courte, pas le numéro : ne jamais recopier l'identifiant complet d'une carte dans le dépôt, public).
 - [ ] Mode stockage de masse : fichiers vus sous Linux et Windows, contenu identique à la lecture MSP.
 - [ ] Copie relue dans OpenTuneBox : mêmes vols que le fichier téléchargé par le configurateur.
 - [ ] `usb diff` : même texte que `diff all` tapé dans le CLI du configurateur (forme déjà vérifiée, voir les résultats).
@@ -160,13 +161,13 @@ laisse l'armement bloqué (`ARMING_DISABLED_CLI`) jusqu'au prochain redémarrage
 **2026-11-22, Linux, carte F722 (STM32F722), Betaflight 2026.6.2, API MSP 1.48**, branchée seule en USB :
 
 - `usb ports` : la carte répond sur `/dev/ttyACM0`, ouvert sans réglage de droits (compte déjà dans `dialout`).
-- `usb info` : identité lue (`F722`, `STM32F722`, nom vide), identifiant `0026002c3756500120393558` (non nul), non
+- `usb info` : identité lue (`F722`, `STM32F722`, nom vide), identifiant non nul, non
   armée, mémoire de 8 Mo (128 secteurs) **vide** — débit de copie et durée d'effacement donc **pas encore mesurés**.
 - `usb copy` : mémoire vide, copie refusée comme prévu (« rien à copier », effacement refusé).
 - `usb diff` : 62 lignes, de `# version` à `save`, sans écho de la commande ni invite du CLI ; la carte a redémarré.
 
 **2026-11-22, Linux, carte G474 (STM32G474), Betaflight 2026.12.0, API MSP 1.49**, mémoire de 16 Mo (256 secteurs), nom
-`AIR65 CED`, identifiant `003600413841501220343141`, non armée :
+`AIR65 CED`, identifiant non nul, non armée :
 
 - `usb copy … --erase` : **8 187 904 octets copiés en 144,2 s, soit 3,25 Mo par minute** (≈ 57 Ko/s, environ 70 ms par
   bloc de 4 080 octets). Une mémoire de 16 Mo pleine prendrait donc **environ 5 minutes** : l'écran du lot 32b doit
