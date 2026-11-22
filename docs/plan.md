@@ -73,7 +73,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 | 3 | **29** | Fragments : écran d'extraction, index, liste d'analyse | `otb-store` (lot 28, fait) ; maquette retrouvée le 2026-11-22 (W-070 clos) |
 | 4 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) |
 | 5 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 |
-| 6 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) : rien, permis avant la fin du lot 30 (D-063) ; 32b (écran) : lot 30 |
+| 6 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
 | — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
@@ -433,13 +433,21 @@ v1 (jumbo) et v2, identité, lecture par blocs, effacement, `diff all`, port sim
 contrôles avant effacement ; port série par `serial2`. **32b — l'écran**, après le lot 30. **Aucune écriture de
 réglage sur la carte** : les « Et si » restent des lignes CLI.
 
-- [ ] **Identité de la machine** par MSP : nom, identifiant de la carte, version du firmware, état armé,
+**32a fait le 2026-11-22** (branche `feat/usb-protocol`, crate `otb-usb`, détail dans [architecture.md](architecture.md)) :
+trames, identité, copie MSP par blocs avec progression et arrêt, contrôles avant effacement et seul chemin qui efface,
+`diff all`, port simulé, verrou du port sous Linux, erreurs d'ouverture expliquées. **Reste pour 32b** : l'écran, la voie
+du stockage de masse (redémarrage en MSC, fichiers `BTFL_*.BBL`, carte SD effacée par le système avec les mêmes
+contrôles), le rangement dans la bibliothèque (drone reconnu par l'identifiant de la carte, `diff all` gardé seulement
+s'il change : `rust/otb-usb/src/cli.rs:config_changed`), et les mesures sur une vraie carte de [spec-usb.md](spec-usb.md)
+(procédure d'essai à la main, par `otb-dev usb`).
+
+- [x] **Identité de la machine** par MSP (32a ; le rangement par identifiant : 32b) : nom, identifiant de la carte, version du firmware, état armé,
       occupation de la mémoire. L'identifiant de la carte est la clé ; le nom seul ne suffit pas (deux drones
       peuvent le porter, et il se change en une commande).
 - [ ] **Deux voies de copie** : mode stockage de masse quand la carte le permet (rapide, seule voie pour une carte
       SD), repli sur la lecture bloc par bloc en MSP (lent : plusieurs minutes pour 16 Mo). Barre de progression,
       et une copie interrompue reprend au début.
-- [ ] ⚠️ **Jamais d'effacement sans vérification**, dans cet ordre : taille copiée = place annoncée, le décodeur
+- [x] ⚠️ **Jamais d'effacement sans vérification** (32a : `rust/otb-usb/src/erase.rs`, l'écran de confirmation : 32b), dans cet ordre : taille copiée = place annoncée, le décodeur
       ouvre chaque log et en extrait au moins un fragment, les fichiers sont écrits sur le disque, **puis**
       l'utilisateur confirme. Un échec de lecture interdit l'effacement, quelle que soit l'option choisie.
 - [ ] ⚠️ **Sécurité** : drone armé → aucune opération ; conseil de retirer les hélices ; un seul accès au port à la
@@ -456,7 +464,7 @@ réglage sur la carte** : les « Et si » restent des lignes CLI.
       est armé** (l'état armé se relit juste avant d'effacer), et la mémoire interne est **en lecture seule en mode
       stockage de masse** (effacer demande de revenir en MSP). Bibliothèque série : `serial2` (BSD-2 ou Apache-2.0),
       `serialport` étant refusée par sa licence MPL-2.0.
-- [ ] ⚠️ **Nouvelle dépendance et nouvelle surface** : licence vérifiée par `cargo deny` (`rust/deny.toml`), et
+- [x] ⚠️ **Nouvelle dépendance et nouvelle surface** (32a : `cargo deny` vert, port simulé, procédure dans [spec-usb.md](spec-usb.md)) : licence vérifiée par `cargo deny` (`rust/deny.toml`), et
       **aucun matériel en CI** — donc un port simulé pour les tests automatiques et une procédure d'essai à la main
       écrite dans la documentation, comme pour les installateurs.
 - [ ] **Critère d'arrêt** : un seul chemin de code où l'effacement pourrait partir sans vérification complète →
@@ -636,3 +644,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 [migration-rust.md](migration-rust.md) (phases, preuves d'équivalence, verdict du prototype d'interface).
 | 28 | 2026-11-18 | **Bibliothèque de données** (branche `feat/data-library`) : crate `otb-store`, six tables en **fichiers JSON** dans `bibliotheque/` — drones, logs connus, fragments, `diff all` datés, mesures avec leur version de calcul, liste d'analyse. Un seul module d'accès ; un fichier illisible ou plus récent est mis de côté, jamais écrasé. 15 tests, **5 contre-preuves vues en échec** (mise de côté, version plus récente, péremption des mesures, doublon de log, réglages identiques). Volumes mesurés dans [validation.md](validation.md) | la table des mesures pèse 8 Mo et met 959 ms à se lire au volume plein : **à charger à la demande au lot 31** (noté dans ce lot) |
 | 33 | 2026-11-22 | **Terme D rejoué dans l'ordre du firmware** (branche `fix/dterm-filter-order`, W-072 point 1) : `simulate_dterm_at` (page Filtres, assistant, contrôle par étage) filtre puis dérive ; `simulate_dterm` garde l'ancien ordre pour les références Python (`otb-parity` 0 écart). Mesuré sur 676 sessions : quelques centièmes de dB au plus sur les spectres exacts, contrôle par étage du D inchangé, **aucun constat de l'assistant ne bascule** ([validation.md](validation.md#ordre-du-terme-d-2026-11-22-lot-33)). Contre-preuve : l'ancien ordre s'écarte de 1,3 % d'un D « firmware » écrit pas à pas (test rouge), L-108 | W-072 point 2 et l'ordre de `simulate_dterm` : au réenregistrement des références (W-028) ou au lot 23 |
+| 32a | 2026-11-22 | **Récupération par USB, protocole** (branche `feat/usb-protocol`, D-063) : crate `otb-usb` (trames MSP v1 jumbo et v2, `serial2`, copie par blocs, contrôles avant effacement, `diff all`, carte simulée) et `otb-dev usb` pour l'essai à la main. Preuve : 38 tests, dont un par refus d'effacer (drone armé, vol enregistré pendant ou après la copie, autre carte, identifiant nul sur une autre connexion, copie incomplète, log sans vol, fichier existant) ; chaque protection retirée à la main fait rougir un test (L-071) ; le vrai port essayé par un pseudo-terminal | 32b (écran, stockage de masse, bibliothèque) ; mesures sur une vraie carte |

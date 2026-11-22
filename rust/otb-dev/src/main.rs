@@ -8,12 +8,13 @@
 //! otb-dev corpus <outil> …                            outils du corpus de vrais logs (`OTB_LOGS`)
 //! otb-dev verify [--quick] [--strict]                 fmt, clippy, tests, cargo deny : code 0 seulement si tout passe
 //! otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]   durée et pic de mémoire de l'ouverture de logs (--jobs 1 : les uns après les autres)
+//! otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER   essai à la main sur une vraie carte (lot 32a)
 //! ```
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z\n  otb-dev release notes vX.Y.Z FICHIER\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]";
+const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z\n  otb-dev release notes vX.Y.Z FICHIER\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]\n  otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER";
 
 /// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `AGENTS.md` et `rust/Cargo.toml`.
 fn repo_root() -> Result<PathBuf, String> {
@@ -76,6 +77,11 @@ fn run(args: &[String]) -> Result<String, String> {
         ["licenses"] => otb_dev::licenses::generate(&repo_root()?),
         ["licenses", "--check"] => otb_dev::licenses::check(&repo_root()?),
         ["bench-open", rest @ ..] if !rest.is_empty() => bench_open(rest),
+        ["usb", "ports"] => otb_dev::usb::ports(),
+        ["usb", "info", port] => otb_dev::usb::info(port),
+        ["usb", "copy", port, dir] => otb_dev::usb::copy(port, Path::new(dir), false),
+        ["usb", "copy", port, dir, "--erase"] => otb_dev::usb::copy(port, Path::new(dir), true),
+        ["usb", "diff", port, file] => otb_dev::usb::diff(port, Path::new(file)),
         ["icons"] => otb_dev::icons::generate(&repo_root()?, None),
         ["icons", "--svg", path] => otb_dev::icons::generate(&repo_root()?, Some(Path::new(path))),
         _ => Err(USAGE.into()),

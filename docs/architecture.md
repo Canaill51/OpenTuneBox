@@ -181,6 +181,25 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   reste du programme ne voit jamais un fichier, ce qui limitera à ce fichier le passage à une vraie base le jour où le
   déclencheur du plan sera atteint. Un fichier illisible ou d'une version plus récente est **mis de côté**, jamais écrasé
   (même règle que les fiches drone, D-039). Mesures de volume dans [validation](validation.md). Dépendance : serde_json.
+- **otb-usb** : récupération des logs par USB, **partie protocole** (lot 32a, D-063 ; l'écran viendra au lot 32b). Ce que
+  fait le firmware : [spec-usb](spec-usb.md). `frame.rs` : trames MSP v1 (« jumbo » dès 255 octets) et v2 (CRC-8 DVB-S2),
+  écrites et lues octet par octet. `link.rs` : le trait `Link` (envoyer, recevoir dans un délai) et `SerialLink`, le vrai
+  port par `serial2`, **réservé** par un verrou exclusif sous Linux (Windows ne laisse qu'un propriétaire à un port COM) ;
+  erreurs d'ouverture expliquées au pilote (`classify_open_error` : groupe `dialout`, port tenu par le configurateur, pilote
+  Windows) ; `board_candidates` écarte les ports `ttyS*` sans matériel. `client.rs` : `Msp` — identité (`identify` s'arrête
+  si ce n'est pas `BTFL`, D-062), état armé, résumé et lecture de la mémoire par blocs (`copy_flash`, avec progression et
+  arrêt) ; la liste fermée `Command` ne contient **aucune écriture de réglage**, et `request` reste interne à la crate.
+  `erase.rs` : les contrôles avant effacement et **le seul chemin qui efface** (`erase_flash`) : `FlashCopy` →
+  `verify_and_save` (fichier neuf écrit, forcé sur le disque et relu à l'identique ; taille = place annoncée ; chaque début
+  de log du fichier relu donne au moins un fragment) → `VerifiedCopy::confirm` (accord du pilote) → `ErasePermit`, consommé
+  par `erase_flash`, qui relit juste avant d'envoyer : même carte (identifiant, ou même connexion s'il est nul), place
+  occupée inchangée, drone désarmé **en dernier** ; puis attente de « prête et vide ». Un contrôle échoué garde le fichier
+  et refuse l'effacement. `cli.rs` : `diff_all` (entre dans le CLI, lit jusqu'à l'invite **suivie d'un silence**, sort par
+  `exit`, qui redémarre la carte : la connexion est consommée) et `config_changed`. `sim.rs` : `SimBoard`, carte simulée
+  pour les tests (aucun matériel en CI), avec pannes à la demande (`Fault`), vol enregistré pendant la copie, effacement
+  sans effet. Tests : `trames.rs`, `recuperation.rs` (parcours complet et chaque refus), `contrats.rs` (commandes figées,
+  un seul envoi de l'effacement), `port_serie.rs` (Linux : le vrai `SerialLink` par un pseudo-terminal relié à la carte
+  simulée, et le second accès refusé). Dépendances : otb-decoder, otb-log, serial2 (BSD-2-Clause OR Apache-2.0).
 - **otb-analysis** : voir « Modules d'analyse » ; dépend d'otb-dsp et de rayon (L-041, L-042).
 - **otb-advisor** : l'assistant. `profiles.rs` (profils de taille et seuils), `rules.rs` (constats), `noise.rs`, `step_tuning.rs`,
   `drone_card.rs`, `log_check.rs`, `tuning_path.rs` (voir « Flux de données ») ; `pyclasses.rs` : tables de caractères (`\d`, `\w`) qui
@@ -203,6 +222,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.
   - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail, et non plus une liste de `-p` à tenir à jour), le contrôle des mentions de licences (`licenses::check`, dans le processus : aucune commande lancée) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard : `verify` les compte et `--strict` en fait un échec. Deux contrôles d'`otb-dev` cherchent eux-mêmes les sauts (et les fichiers réservés à un système, annoncés par `sauts_par_systeme.rs`), pour qu'un nouveau test conditionnel ne passe pas inaperçu.
   - `bench_open.rs` : `otb-dev bench-open LOG [ESSAIS]` ouvre un log (`otb_log::flightlog::load`) et affiche durées et pic de mémoire (`VmHWM` de `/proc/self/status`, Linux seulement) ; un processus par log, car le pic ne redescend pas.
+  - `usb.rs` : `otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER` : essai à la main de `otb-usb` sur une
+    vraie carte avant l'écran (lot 32b), et mesures de [spec-usb](spec-usb.md) (débit de la copie, durée de l'effacement). L'effacement
+    passe par les mêmes contrôles que l'application et demande de taper « effacer ».
   - `release.rs` : `otb-dev release prepare X.Y.Z` (numéro de version dans `rust/Cargo.toml`) et `otb-dev release notes vX.Y.Z FICHIER` (contrôle
     du numéro, puis `translate_generated_notes`, fonction pure : traduit la liste générée par GitHub, ajoute le bloc Téléchargements,
     refuse une liste vide ou restée en anglais ; D-056).

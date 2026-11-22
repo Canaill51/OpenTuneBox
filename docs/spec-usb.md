@@ -17,7 +17,7 @@ Les chemins de fichiers ci-dessous sont ceux du dépôt Betaflight (`src/main/�
 | 3 | Durée d'un effacement de 16 Mo, et comment savoir qu'il est fini | drapeau « prête » du résumé MSP ; jusqu'à 200 s par tranche de 16 Mo | fin : lue ; durée : à mesurer |
 | 4 | Identifiant de la carte | `MSP_UID` : 96 bits gravés dans le microcontrôleur, **0 sur deux cas** | lu dans le code |
 | 5 | Effacement d'une carte SD | **impossible en MSP** ; par le système, une fois la carte montée en MSC | lu dans le code |
-| 6 | Bibliothèque série côté Rust | `serial2` (BSD-2 ou Apache-2.0) ; `serialport` **refusée** (MPL-2.0) | licences vérifiées |
+| 6 | Bibliothèque série côté Rust | `serial2` (BSD-2 ou Apache-2.0) ; `serialport` **refusée** (MPL-2.0) | licences vérifiées, `cargo deny` vert (lot 32a) |
 | 7 | Autres firmwares qui parlent MSP | hors périmètre (D-062) : refuser tout ce qui n'est pas `BTFL` | décision existante |
 | 8 | Appliquer les réglages « Et si » sur la carte | possible techniquement ; **à trancher par Cédric** | question ouverte |
 
@@ -102,7 +102,7 @@ avec les mêmes contrôles avant (lot 32). `MSP_SDCARD_SUMMARY` (79) donne l'ét
 | Crate | Version (2026-11-22) | Licence | Verdict |
 |---|---|---|---|
 | `serialport` | 4.10.1 | MPL-2.0 | **refusée** : copyleft faible, absente de `rust/deny.toml` (D-043, D-045) |
-| `serial2` | 0.2.39 | BSD-2-Clause OR Apache-2.0 | **retenue sous réserve** : ses propres dépendances passent `cargo deny` au lot 32 |
+| `serial2` | 0.2.39 | BSD-2-Clause OR Apache-2.0 | **retenue** : ses dépendances (`libc`, `cfg-if`, `windows-sys`) passent `cargo deny`, vérifié au lot 32a (2026-11-22) |
 
 `serial2` liste les ports sans donner l'identifiant USB du fabricant : un port se reconnaît en lui demandant
 `MSP_API_VERSION`, ce qui évite aussi de dépendre de la marque du contrôleur. Les droits sur le port sous Linux
@@ -127,12 +127,30 @@ Même port : un caractère `#` fait entrer dans le CLI, `diff all` renvoie la co
 Sur une version plus ancienne, le redémarrage ferme le port : la sauvegarde se fait donc **en dernier**, après la copie et
 l'éventuel effacement.
 
-## Procédure d'essai à la main (à compléter au lot 32)
+## Procédure d'essai à la main
 
-Aucune carte en CI : le lot 32 teste sur un port simulé, et ces mesures se font une fois sur une vraie carte, notées ici
-avec la date et la carte.
+Aucune carte en CI : `otb-usb` (lot 32a) est testé sur une carte simulée et, sous Linux, par un pseudo-terminal. Ces
+essais se font sur une vraie carte, résultats notés ici avec la date et la carte. Depuis `rust/`, carte branchée,
+**hélices retirées** :
 
-- [ ] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine.
-- [ ] Durée d'un effacement complet, et place occupée relue à 0 ensuite.
-- [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour.
+```sh
+cargo run -p otb-dev -- usb ports                          # ports où une carte répond en MSP
+cargo run -p otb-dev -- usb info /dev/ttyACM0              # identité, état armé, mémoire (COM3… sous Windows)
+cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 DOSSIER            # copie, contrôles, débit
+cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 DOSSIER --erase    # idem, puis effacement après avoir tapé « effacer »
+cargo run -p otb-dev -- usb diff /dev/ttyACM0 FICHIER.txt  # `diff all` ; la carte redémarre ensuite
+```
+
+- [ ] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine (`usb copy`).
+- [ ] Durée d'un effacement complet, et place occupée relue à 0 ensuite (`usb copy … --erase`).
+- [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour (`usb info`).
 - [ ] Mode stockage de masse : fichiers vus sous Linux et Windows, contenu identique à la lecture MSP.
+- [ ] Copie relue dans OpenTuneBox : mêmes vols que le fichier téléchargé par le configurateur.
+- [ ] `usb diff` : même texte que `diff all` tapé dans le CLI du configurateur.
+- [ ] Port déjà ouvert : configurateur Betaflight connecté, `usb info` doit dire le port occupé (Linux : le verrou
+      d'OpenTuneBox n'arrête que les programmes qui le prennent aussi ; **supposé** que le configurateur ouvre le port
+      en exclusif, à vérifier) ; Windows : message « déjà ouvert par un autre programme ».
+- [ ] Drone armé (sur batterie, hélices retirées) : `usb copy … --erase` refuse d'effacer.
+
+Choix de `otb-usb` pour la sortie du CLI : `exit` (la carte redémarre), et non `exit noreboot`, absent avant 2024-09 et qui
+laisse l'armement bloqué (`ARMING_DISABLED_CLI`) jusqu'au prochain redémarrage.
