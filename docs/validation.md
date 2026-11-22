@@ -155,7 +155,7 @@ fichiers d'un autre firmware ou à plusieurs sessions ne sont pas mutés.
 
 | Mesure | Log | PIDtoolbox | OpenTuneBox |
 |---|---|---|---|
-| Retard des filtres gyro | Allykill `btfl_002` (log retiré du corpus le 2026-10-12) | 1,25 ms | 1,2 ms (modèle de filtres : 1,32 ms) |
+| Retard des filtres gyro | Allykill `btfl_002` (log retiré du corpus le 2026-10-12) | 1,25 ms | 1,2 ms (modèle de filtres : 1,32 ms ; `pid_process_denom` 1, donc rien à retirer depuis le lot 22d, L-100) |
 | Pic de réponse indicielle roll | BlackSummer *Damping* 0.8 / 1.0 / 1.2 / 1.4 | 1,23 / 1,11 / 1,00 / 0,98 | 1,24 / 1,13 / 1,03 / 1,04 |
 | Retard consigne → gyro | même série | 12,7 / 14,7 / 16,8 / 18,3 ms | 12,5 / 14,5 / 16,6 / 18,2 ms |
 | Pic / montée | JeNo 5 `LAST` | 1,02 / 15,6 ms | 1,05 / 15,9 ms |
@@ -412,6 +412,29 @@ Les références figées (`$OTB_GOLDEN`) avaient disparu du poste : elles ont é
   ok 624, gap 67, slow 8, values 5, refhang 3, rows 2. Les 15 non conformes sont exactement celles de la ligne de
   base du 2026-11-04 ; l'écart sur le total vient du corpus lui-même, qui a perdu 3 fichiers (525 lus au lieu de 528).
 
+### Retard des filtres gyro sans le décalage d'horloge (2026-11-22, lot 22d, L-100)
+
+`delay.rs:compute_delays` retire ⌊`pid_process_denom` / 2⌋ / fréquence gyro du retard gyro (0,125 ms à 8 kHz avec un denom de
+2 ; rien avec un denom de 1). Test : `rust/otb-analysis/tests/delay_clock.rs` (log fabriqué sans filtre : retard nul pour des
+denoms de 1, 2 et 4 ; sans la correction, 0,125 ms au denom 2). Effet mesuré sur le corpus (`otb-dev corpus rates`, `main`
+contre la branche, 675 sessions) : le texte d'un constat change dans 496 sessions (le chiffre du retard), et la nature d'un
+constat dans 16 seulement : 16 « retard des filtres gyro » correct (`gyro_delay`, ok) apparaissent ; 14 « filtrage gyro
+prudent » (`gyro_filter_cautious`) disparaissent, remplacés par un conseil de Q RPM plus haut (`rpm_q_raise`) ; 3
+`filter_strategy` et 2 « retard gyro au-dessus du repère avec du bruit » (`gyro_delay`, info) disparaissent. Centiles des retards gyro des vols avec mouvements
+(`otb-dev corpus calibrate`, p10 / p50 / p90, ms) :
+
+| Profil | Avant | Après | Repère de l'assistant |
+|---|---|---|---|
+| whoop | 0,97 / 1,28 / 1,48 | 0,85 / 1,16 / 1,36 | 1,5 → 1,4 |
+| micro | 1,01 / 1,31 / 1,83 | 0,88 / 1,19 / 1,71 | 1,8 |
+| 5" | 0,98 / 1,35 / 1,97 | 0,93 / 1,27 / 1,87 | 1,9 |
+| 7" | 1,46 / 2,01 / 2,49 | 1,35 / 1,89 / 2,41 | 2,6 |
+| 8"+ | 1,89 / 2,79 / 3,44 | 1,76 / 2,68 / 3,44 | 3,5 |
+
+Repère du whoop passé de 1,5 à 1,4 ms (choix de Cédric, règle « p90 arrondi au dixième supérieur » ; vols de whoop avec
+mouvements au-dessus du repère 7 → 10 sur 98) ; les autres ne bougent pas à l'arrondi. Les objectifs affichés par taille (`profiles::filter_delay_target_ms`) viennent de valeurs lues dans
+PIDtoolbox, qui garde le décalage.
+
 ### Modèle de filtres étage par étage (2026-11-22, lots 22a, 22a bis et 22b)
 
 Outil : `rust/otb-analysis/src/filter_stages.rs:check_stages` (méthode dans son en-tête) ; corpus :
@@ -597,6 +620,32 @@ Le suivi rejoué est plus proche des centres enregistrés que les centres initia
   104 notchs sur 107 sont moins bien suivis. Le firmware 2026.6 se trompe donc bien d'un `sampleCount`, et le modèle avec lui.
 - **Non vérifié** : le plancher au-dessus de 60 Hz (2026.12 compilé à partir du 2026-09-05) ne change rien sur les logs de
   l'Air65, dont la plage commence déjà au-dessus ; la variante 4.3 n'a aucun log `FFT_FREQ` dans le corpus (W-065).
+
+### Simulateur de filtres rejoué (2026-11-22, lot 22e)
+
+`otb-dev corpus replay` (D-058) : spectre du rejeu des réglages du log (« simulé actuel » de la page Filtres) contre le spectre
+enregistré, période de l'assistant, moyenne du roulis et du tangage, écart moyen en dB dans chaque bande (positif : le rejeu
+laisse passer plus que le firmware). 675 sessions avec gyro non filtré, 68 s pour le corpus entier.
+
+| Logs | Sessions | Gyro 20–100 / 100–250 / 250–500 Hz : \|écart\| médian (90e centile) | Terme D, mêmes bandes |
+|---|---|---|---|
+| à chaque boucle PID, ≥ 1,6 kHz | 31 | 0,09 (0,16) / 0,10 (0,23) / 0,21 (0,32) dB | 0,11 (0,29) / 0,10 (0,54) / 0,25 (0,40) dB |
+| une boucle sur 2 ou moins, ≥ 1,6 kHz | 493 (D : 490) | 0,47 (1,51) / 0,45 (1,13) / 0,39 (0,96) dB | 0,56 (2,27) / 0,66 (2,06) / 0,73 (2,29) dB |
+| une boucle sur 2 ou moins, < 1,6 kHz | 151 | 3,03 (5,81) / 1,89 (6,24) / 1,61 (3,58) dB | 2,72 (7,29) / 1,95 (7,70) / 1,81 (4,40) dB |
+
+Sur les logs ralentis, le rejeu dépasse le log (moyenne signée du gyro +0,4 à +0,8 dB, +1,8 à +3,3 dB sous 1,6 kHz), surtout
+entre 20 et 100 Hz où les filtres n'agissent presque pas : le gyro non filtré y est sous-échantillonné sans anti-repliement,
+et le bruit à haute fréquence replié passe dans le rejeu alors que le firmware l'avait filtré avant (supposé, même cause que
+W-067). Le rapport « modifié / actuel » l'annule en grande partie, pas la courbe « actuel ». Sans arrondir le rejeu comme le
+Blackbox, l'écart entre 250 et 500 Hz monte à −1,6 dB sur l'Air65 (L-103). Durée d'un rejeu : 1,25 s en médiane par session
+avec tous les cœurs occupés, 16,6 s au plus (vol le plus long) ; 0,3 à 0,5 s par calcul sur un vol de l'Air65 seul.
+
+Effet de changements de filtres, gyro modifié − log entre 100 et 250 Hz (Air65 `CHIRP-45Hz`, puis JeNo 5 `FINAL` #1), rejeu
+contre l'ancien rapport des réponses |H|² : Q du notch dynamique divisé par 2, −1,49 / −2,21 dB contre −2,38 / −2,79 ; un notch
+dynamique de plus, **+0,69 / +1,91 dB contre −0,02 / −0,97** ; plus de notch dynamique, +2,86 / +5,86 contre +6,26 / +7,66 ; RPM
+coupé, +2,99 / +10,93 contre +0,15 / +13,50 ; LPF1 de l'Air65 × 0,7, −0,46 contre −0,83, et × 1,5, +1,30 contre +0,58. Le suivi
+rejoué place le notch unique de l'Air65 sur le pic principal (médiane 183 Hz) ; avec deux notchs, triés par fréquence, plus
+aucun n'y reste (169 et 258 Hz). Seul un vol avec un notch de plus peut trancher (22f, W-068).
 
 ## Refaire une référence Python
 

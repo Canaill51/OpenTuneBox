@@ -7,6 +7,7 @@
 //! échantillon, c'est ce que la tolérance doit refuser.
 
 use otb_analysis::delay::{self, Delays};
+use otb_analysis::filter_stages::clock_offset_s;
 use serde_json::Value;
 
 mod common;
@@ -130,10 +131,12 @@ fn stick_p95_dps_identique() {
     assert!(errors > 10 && ok > 30, "{errors} {ok}");
 }
 
-fn delays_eq(got: &Delays, want: &Value, fs: f64, what: &str) {
+/// `offset_ms` : décalage d'horloge de `gyroUnfilt` (L-100), retiré du retard gyro par le Rust depuis le lot 22d du plan et
+/// inconnu de Python : on le rajoute avant de comparer à la référence.
+fn delays_eq(got: &Delays, want: &Value, fs: f64, offset_ms: f64, what: &str) {
     close1(
         "compute gyro",
-        got.gyro_ms,
+        got.gyro_ms + offset_ms,
         f1(&want["gyro"]),
         PHASE_RTOL,
         &format!("{what} gyro"),
@@ -187,7 +190,8 @@ fn compute_delays_conforme() {
             continue;
         }
         let g = got.unwrap_or_else(|e| panic!("{what} : Rust lève ({e})"));
-        delays_eq(&g, &k["out"], lg.fs, &what);
+        let offset_ms = clock_offset_s(&lg.settings) * 1000.0;
+        delays_eq(&g, &k["out"], lg.fs, offset_ms, &what);
         ok += 1;
         gyro_nan += usize::from(g.gyro_ms.is_nan());
         dterm_nan += usize::from(g.dterm_ms.is_nan());

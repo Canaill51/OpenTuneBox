@@ -69,10 +69,10 @@ fn texts_of_a_real_log_are_python_s_texts_character_for_character() {
     let f = data("jeno5_5s.bbl");
     assert_eq!(info(std::slice::from_ref(&f)), reference("info"));
     assert_eq!(report(std::slice::from_ref(&f), None), (reference("report"), None));
-    assert_eq!(
-        report(std::slice::from_ref(&f), Some("whoop")),
-        (reference("report_whoop"), None)
-    );
+    // repère gyro du whoop : 1,5 ms chez Python, 1,4 ms depuis le 2026-11-22 (choix de Cédric : p90 du corpus 1,48 → 1,36 ms
+    // une fois le décalage d'horloge de `gyroUnfilt` retiré, L-100)
+    let whoop = reference("report_whoop").replace("repère ≤ 1.5 ms pour Tiny whoop", "repère ≤ 1.4 ms pour Tiny whoop");
+    assert_eq!(report(std::slice::from_ref(&f), Some("whoop")), (whoop, None));
 }
 
 #[test]

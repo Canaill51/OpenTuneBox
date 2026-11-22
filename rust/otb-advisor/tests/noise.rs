@@ -11,6 +11,7 @@
 use otb_advisor::noise::{self, FilterBlock, NoiseReport};
 use otb_advisor::profiles::profile;
 use otb_advisor::rules::{self, Finding};
+use otb_analysis::filter_stages::clock_offset_s;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -260,6 +261,29 @@ fn check_invariants(label: &str, nr: &NoiseReport) {
     );
 }
 
+/// Le retard gyro du Rust ne compte plus le décalage d'horloge de `gyroUnfilt` (L-100, lot 22d du plan) ; Python le comptait.
+/// Le texte attendu de chaque constat `gyro_delay` (« 0.11 ms (repère… ») est donc diminué de `offset_ms` (0,5 ms pour le cas
+/// à 1 kHz de boucle PID et 8 kHz de gyro ; rien pour un `pid_process_denom` de 1).
+fn without_clock_offset(v: &mut Value, offset_ms: f64) {
+    if offset_ms == 0.0 {
+        return;
+    }
+    match v {
+        Value::Object(m) => {
+            if m.get("key").and_then(Value::as_str) == Some("gyro_delay")
+                && let Some(Value::String(d)) = m.get_mut("detail")
+                && let Some((num, rest)) = d.split_once(" ms (")
+                && let Ok(x) = num.parse::<f64>()
+            {
+                *d = format!("{:.2} ms ({rest}", x - offset_ms);
+            }
+            m.values_mut().for_each(|x| without_clock_offset(x, offset_ms));
+        }
+        Value::Array(a) => a.iter_mut().for_each(|x| without_clock_offset(x, offset_ms)),
+        _ => {}
+    }
+}
+
 #[test]
 fn noise_report_rend_le_diagnostic_de_python() {
     let c = data();
@@ -284,7 +308,9 @@ fn noise_report_rend_le_diagnostic_de_python() {
             continue;
         }
         let nr = got.unwrap_or_else(|e| panic!("{label} : Rust lève ({e}), Python rend un diagnostic"));
-        check_noise(label, &nr, &case["out"]);
+        let mut want = case["out"].clone();
+        without_clock_offset(&mut want, clock_offset_s(&lg.settings) * 1000.0);
+        check_noise(label, &nr, &want);
         check_invariants(label, &nr);
         for b in nr.gyro_blocks.iter().chain(nr.dterm_block.iter()) {
             if let Some(v) = &b.verdict {

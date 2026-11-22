@@ -655,8 +655,9 @@ fn convolve_same(a: &[f64], v: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-/// Gain k minimisant |d − k·raw| sur les composantes < ~30 Hz (moyenne glissante).
-fn slow_gain(raw: &[f32], d: &[f32], fs: f64) -> Result<f64, String> {
+/// Gain k minimisant |d − k·raw| sur les composantes < ~30 Hz (moyenne glissante). Sert aussi à mettre le terme D rejoué
+/// par le simulateur de filtres à l'échelle du D enregistré (`otb_analysis::filter_replay`).
+pub fn slow_gain(raw: &[f32], d: &[f32], fs: f64) -> Result<f64, String> {
     if !(fs / 60.0).is_finite() {
         return Err("ValueError : cannot convert float NaN or infinity to integer".into());
     }

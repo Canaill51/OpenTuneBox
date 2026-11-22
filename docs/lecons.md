@@ -60,6 +60,23 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-105 : la moyenne d'un rapport de deux spectres arrondis est biaisée vers le haut : tout changement de filtres « ajoutait » du bruit
+
+- **Symptôme** — 2026-11-22 (lot 22e) : dans le nouveau simulateur de la page Filtres (spectre enregistré × rejeu modifié /
+  rejeu actuel), **chaque** changement prévoit plus de bruit : +0,2 à +0,4 dB entre 20 et 100 Hz, où les filtres n'agissent
+  presque pas, et même un LPF1 abaissé à 0,7 × donnait +0,4 dB (100–250 Hz) et +1,2 dB (250–500 Hz) sur un vol de l'Air65.
+  Aucune erreur, des chiffres plausibles.
+- **Cause** — mesurée. Les deux rejeux avaient été arrondis au °/s, comme le Blackbox arrondit le log, pour que la courbe
+  « actuel » soit comparable au log (sinon elle paraît filtrer jusqu'à 1,7 dB de plus au-dessus de 250 Hz, L-103). Mais chaque
+  rejeu porte alors son propre bruit d'arrondi, indépendant de l'autre ; là où le signal filtré est faible, le rapport case par
+  case de deux spectres bruités a une moyenne plus grande que le rapport des moyennes (inégalité de Jensen sur 1/x).
+- **Règle** — un rapport « modifié / actuel » se calcule sur des signaux **exacts** ; l'arrondi (ou tout bruit de mesure
+  simulé) ne sert qu'à la courbe comparée au log. Contrôle simple d'un simulateur : filtrer plus ne doit jamais prévoir plus de
+  bruit, dans aucune bande.
+- **Preuve** — `rust/otb-analysis/src/filter_replay.rs:before_after` ; test
+  `rust/otb-analysis/tests/filter_replay.rs:filtrer_plus_ne_prevoit_jamais_plus_de_bruit` (contre-preuve : avec les rejeux
+  arrondis, +1,99 dB entre 250 et 500 Hz pour un LPF1 plus bas).
+
 ### L-104 : le firmware calcule chaque filtre pour la cadence où il tourne (gyro pour le LPF2, PID pour les autres), pas pour celle du log : le modèle filtrait trop
 
 - **Symptôme** — 2026-11-22 (lot 22b) : une fois l'arrondi de l'entrée retiré (L-103), l'étage LPF2 des vols `GYRO_SAMPLE` de
@@ -166,7 +183,8 @@ est celle du commit qui les a introduites.
   vérification du simulateur) retire d'abord ⌊`pid_process_denom` / 2⌋ / fréquence gyro du retard mesuré (ou la phase
   correspondante) ; ce n'est souvent qu'une demi-période du log, donc pas un décalage d'échantillons entiers. L'outil
   Retards (`rust/otb-analysis/src/delay.rs:compute_delays`) mesure justement `gyroUnfilt` → gyro : son retard gyro
-  contient ce décalage (déduit, pas encore mesuré sur l'outil lui-même ; correction prévue au lot 22 du plan).
+  contient ce décalage : retiré depuis le lot 22d (`delay.rs:compute_delays`, test
+  `rust/otb-analysis/tests/delay_clock.rs`), −0,125 ms à 8 kHz avec un denom de 2.
 - **Preuve** — essai jetable du 2026-11-22 (programme hors dépôt : fonctions de transfert de Welch, entrée et sortie
   enregistrées contre entrée et sortie du modèle), mêmes chiffres sur les trois logs ; sources du firmware lues :
   `fc/core.c` (`taskGyroSample`, `gyroFilterReady`, `pidLoopReady`, `taskMainPidLoop`), `blackbox/blackbox.c`. Plan :
@@ -1299,6 +1317,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-105 | Rapport case par case de deux spectres qui portent chacun un bruit d'arrondi (rejeux arrondis comme le log) : biaisé vers le haut, tout changement de filtres « ajoutait » du bruit ; calculer le rapport sur les signaux exacts, l'arrondi ne sert qu'à la courbe comparée au log | Analyses |
 | L-104 | Filtres rejoués à la cadence du log au lieu de celle où le firmware les applique (gyro pour le LPF2, depuis la 4.2 ; PID pour les autres, même si le log saute des boucles) : le modèle filtre trop (+0,45 dB entre 250 et 500 Hz pour un PT1 à 500 Hz) ; `bf_filters::gyro_stage_upsampled`, interpolation par sinus cardinal, jamais linéaire | Analyses |
 | L-103 | Gain S(x, y) / S(x, x) sur une entrée arrondie (canaux debug au °/s) : biaisé vers le bas d'environ la cohérence ; retirer pas²/12 de S(x, x) (`filter_stages::InputNoise`) ; l'entrée décalée d'un échantillon n'est pas une variable instrumentale ; vérifier sur l'étage horloge, de gain 1 | Analyses |
 | L-102 | Notch dynamique rejoué : le firmware calcule sa cadence en `float` (formule différente selon la version) et tronque Nyquist / `maxHz` ; quand ce rapport est entier, la 2026.6 moyenne 3 boucles au lieu de 4 ; reproduire la formule et le type de la version du log, jamais la valeur exacte | Analyses |

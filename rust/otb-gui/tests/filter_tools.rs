@@ -998,6 +998,20 @@ fn sim_sel(c: &serde_json::Value, st: &AppState) -> std::ops::Range<usize> {
     sel
 }
 
+/// Moyenne de `a − b` (dB) sur les fréquences de [`lo`, `hi`[.
+fn band_db(f: &[f64], a: &[f64], b: &[f64], lo: f64, hi: f64) -> f64 {
+    let v: Vec<f64> = f
+        .iter()
+        .zip(a.iter().zip(b))
+        .filter(|(x, _)| **x >= lo && **x < hi)
+        .map(|(_, (p, q))| p - q)
+        .collect();
+    v.iter().sum::<f64>() / v.len() as f64
+}
+
+/// Spectres enregistrés : ceux de Python. Spectres simulés : depuis le lot 22e (D-058), la chaîne de filtres est rejouée et
+/// non plus déduite du rapport des réponses |H|² ; leurs valeurs ne sont plus celles de Python (changement voulu), seule leur
+/// présence l'est. On vérifie à la place ce que la méthode garantit.
 #[test]
 fn les_spectres_simules_sont_ceux_de_python() {
     let st = etat();
@@ -1006,7 +1020,7 @@ fn les_spectres_simules_sont_ceux_de_python() {
     let base = &log.settings;
     assert_eq!(filters_of(base), c["base"], "les réglages du log");
     let sel = sim_sel(c, &st);
-    let (mut nones, mut nans, mut nb) = (0, 0, 0);
+    let (mut nones, mut nans, mut nb, mut simulated) = (0, 0, 0, 0);
     for r in c["results"].as_array().unwrap() {
         let name = r["mod"].as_str().unwrap();
         let what = format!("{name} (actuel : {})", r["with_current"]);
@@ -1034,7 +1048,7 @@ fn les_spectres_simules_sont_ceux_de_python() {
                 let g = res.spectrum(key, ax);
                 assert_eq!(g.is_some(), !w.is_null(), "{what} : {key}[{ax}] présent");
                 match (g, w.is_null()) {
-                    (Some(g), false) => {
+                    (Some(g), false) if !key.contains("_sim") => {
                         close(
                             "spectres (dB)",
                             g,
@@ -1045,12 +1059,41 @@ fn les_spectres_simules_sont_ceux_de_python() {
                         );
                         nb += 1;
                     }
+                    (Some(g), false) => {
+                        assert!(g.iter().all(|v| v.is_finite()), "{what} {key}[{ax}]");
+                        nb += 1;
+                        simulated += 1;
+                    }
                     _ => nones += 1,
                 }
             }
         }
+        for ax in 0..2 {
+            for (logged, sim, cur) in [("gyro", "gyro_sim", "gyro_sim_cur"), ("d", "d_sim", "d_sim_cur")] {
+                let (l, m) = (res.spectrum(logged, ax).unwrap(), res.spectrum(sim, ax).unwrap());
+                if name == "same" {
+                    // réglages inchangés : exactement le log
+                    assert_eq!(l, m, "{what} {sim}[{ax}]");
+                }
+                if name == "off" {
+                    // aucun filtre : jamais moins de bruit que le log
+                    for (lo, hi) in [(20.0, 100.0), (100.0, 250.0), (250.0, 500.0)] {
+                        let e = band_db(&res.freqs, m, l, lo, hi);
+                        assert!(e > -0.01, "{what} {sim}[{ax}] {lo}–{hi} Hz : {e:+.3} dB");
+                    }
+                }
+                if let Some(c) = res.spectrum(cur, ax) {
+                    // le rejeu des réglages actuels juge le modèle : proche du log sans le recopier
+                    let e = band_db(&res.freqs, c, l, 20.0, 250.0);
+                    assert!(e.abs() < 1.0 && c != l, "{what} {cur}[{ax}] : {e:+.3} dB");
+                }
+            }
+        }
     }
-    assert!(nones == 115 && nb == 245 && nans == 15, "{nones} {nb} {nans}");
+    assert!(
+        nones == 115 && nb == 245 && nans == 15 && simulated == 95,
+        "{nones} {nb} {nans} {simulated}"
+    );
     report();
 }
 

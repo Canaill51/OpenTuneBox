@@ -26,14 +26,27 @@ pub fn strings(v: &Value) -> Vec<String> {
         .collect()
 }
 
+/// Repère de retard gyro du whoop : 1,5 ms dans les références Python, 1,4 ms depuis le 2026-11-22 (choix de Cédric, p90 du
+/// corpus 1,48 → 1,36 ms une fois le décalage d'horloge de `gyroUnfilt` retiré, L-100). Seul ce texte change.
+pub const WHOOP_GYRO_DELAY: (&str, &str) = ("repère ≤ 1.5 ms pour Tiny whoop", "repère ≤ 1.4 ms pour Tiny whoop");
+
+/// Texte attendu de Python, mis aux repères actuels ([`WHOOP_GYRO_DELAY`]).
+pub fn current_thresholds(text: &str) -> String {
+    text.replace(WHOOP_GYRO_DELAY.0, WHOOP_GYRO_DELAY.1)
+}
+
 pub fn check_finding(what: &str, got: &Finding, want: &Value) {
-    let s = |k: &str| want[k].as_str().unwrap().to_string();
+    let s = |k: &str| current_thresholds(want[k].as_str().unwrap());
     assert_eq!(got.key, s("key"), "{what} : clé");
     assert_eq!(got.category, s("category"), "{what} : catégorie");
     assert_eq!(got.severity, s("severity"), "{what} : gravité");
     assert_eq!(got.title, s("title"), "{what} : titre");
     assert_eq!(got.detail, s("detail"), "{what} : détail");
-    assert_eq!(got.actions, strings(&want["actions"]), "{what} : actions");
+    let actions: Vec<String> = strings(&want["actions"])
+        .iter()
+        .map(|t| current_thresholds(t))
+        .collect();
+    assert_eq!(got.actions, actions, "{what} : actions");
     assert_eq!(got.axis, want["axis"].as_str().map(str::to_string), "{what} : axe");
     assert_eq!(got.settings, strings(&want["settings"]), "{what} : réglages déclarés");
 }

@@ -30,7 +30,7 @@ l'outil Spectre, Configuration depuis le panneau de droite du visualiseur).
 | Fréquence × temps | Spectrogrammes avec harmoniques moteur et notchs dynamiques |
 | Réponse indicielle | Déconvolution de Wiener : pic, latence, temps de montée, bande passante, marge de phase… |
 | Curseurs PID | Position des curseurs simplifiés retrouvée depuis les PID, simulation « et si » + commandes CLI |
-| Simulateur de filtres | Chaînes gyro et D exactes de la version Betaflight, Bode, retards, spectre filtré recalculé sur le vrai vol |
+| Simulateur de filtres | Chaînes gyro et D exactes de la version Betaflight, Bode, retards, filtres rejoués sur le vrai vol comme le firmware (avant / après, réglages actuels et modifiés) |
 | Configuration | Réglages des logs côte à côte, différences surlignées |
 | Assistant | Diagnostic à règles, seuils calibrés par taille de drone, chaque conseil justifié par sa mesure ; retard consigne → gyro (série feedforward) |
 

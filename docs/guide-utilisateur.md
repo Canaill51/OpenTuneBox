@@ -198,10 +198,16 @@ Positions des curseurs (lues dans le log, ou estimées si le réglage simplifié
 simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, copiez les commandes CLI.
 
 ### Simulateur de filtres (Filtres)
-Reconstitue exactement la chaîne de filtres de Betaflight à partir du log. Modifiez un filtre, puis cliquez sur
+Reconstitue la chaîne de filtres de Betaflight à partir du log. Modifiez un filtre, puis cliquez sur
 **Appliquer** : le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
-le vrai gyro du vol (comptez environ une seconde de calcul). Les spectres ne bougent **pas** tant que vous n'avez pas
-cliqué sur Appliquer ; **Réinitialiser** revient aux réglages du log. Copiez ensuite les commandes CLI. Les deux spectres (gyro et terme D) sont sur
+les filtres sur le gyro non filtré du vol, comme le firmware (notch dynamique compris : il suit les pics avec vos
+nouveaux réglages ; une à quelques secondes de calcul). Les spectres ne bougent **pas** tant que vous n'avez pas
+cliqué sur Appliquer ; **Réinitialiser** revient aux réglages du log. Chaque spectre montre le signal **avant filtres**,
+**filtré** (le log), **simulé modifié** et, case « simulation réglages actuels » cochée, **simulé actuel** : les filtres du
+log rejoués. Plus « simulé actuel » se confond avec le log filtré, plus la simulation est fiable sur ce vol ; elle l'est
+le plus avec un log enregistré à chaque boucle PID (0,1 à 0,2 dB d'écart en général), un peu moins une boucle sur deux, et
+beaucoup moins sous 1 600 Hz. « Simulé modifié » part du spectre du log : sans changement, il le recouvre exactement. Sans
+gyro non filtré, il n'y a rien à rejouer : la simulation se contente des réponses des filtres, sans « simulé actuel ». Copiez ensuite les commandes CLI. Les deux spectres (gyro et terme D) sont sur
 l'échelle de PIDtoolbox, **−50 à 20 dB**, la même que la page Spectre : les deux lignes et les deux pages
 se lisent l'une contre l'autre.
 

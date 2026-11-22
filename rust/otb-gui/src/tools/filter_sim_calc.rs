@@ -8,6 +8,7 @@ use otb_analysis::bf_filters::{
     Chain, Target, WhatIfCache, chain_delay_ms, chain_response, dterm_chain, dyn_lpf_cutoff, gyro_chain,
     whatif_spectrum,
 };
+use otb_analysis::filter_replay::before_after;
 use otb_analysis::npstat::unwrap;
 use otb_analysis::spectral::{Mode, spectrum, to_ptb_db};
 use otb_log::flightlog::{FlightLog, Rows};
@@ -82,10 +83,12 @@ impl FilterSimResult {
     }
 }
 
-/// `simulate_filters` : spectres enregistrés et spectres « et si » avec les filtres `modf`, sur la période `sel`.
+/// `simulate_filters` : spectres enregistrés et simulés avec les filtres `base` (ceux du log) et `modf`, sur la période `sel`.
 ///
-/// Méthode relative (`whatif_spectrum`) : spectre réellement enregistré × rapport des réponses des chaînes de filtres (modifiée /
-/// actuelle), évaluées à la vraie cadence PID fenêtre par fenêtre. Réglages inchangés : on retombe exactement sur le log.
+/// Avec gyro non filtré : chaîne de filtres du firmware rejouée (`filter_replay::before_after`, D-058). « Simulé actuel » est
+/// le rejeu avec les réglages du log, à comparer au log pour juger le modèle ; « simulé modifié » = spectre enregistré ×
+/// (rejeu modifié / rejeu actuel), exactement le log quand rien ne change. Sans gyro non filtré, rien à rejouer : rapport des
+/// réponses des chaînes de filtres (`whatif_spectrum`, D-008), et pas de « simulé actuel ».
 pub fn simulate_filters(
     log: &FlightLog,
     sel: Range<usize>,
@@ -105,60 +108,85 @@ pub fn simulate_filters(
             &spectrum(&x, fs, Mode::Psd, 1000.0 / 300.0, 0, Some(&br))?.values,
         ))
     };
-    // réponses des filtres par fenêtre, communes aux trois axes et au gyro / D
-    let mut cache = WhatIfCache::default();
+    let mut set = |key: &'static str, ax: usize, db: &[f64]| {
+        spectra.get_mut(key).unwrap()[ax] = Some(to_ptb_db(db));
+    };
     let mut freqs = Vec::new();
     let mut d_scale = Vec::new();
-    let mut prefilter: Option<Rows> = None;
-    for ax in 0..3 {
-        let unfilt = log.gyro_unfilt.as_ref().map(|u| wide(u.row(ax)));
-        let w = whatif_spectrum(
-            &wide(log.gyro.row(ax)),
-            unfilt.as_deref(),
-            log,
-            sel.clone(),
-            base,
-            modf,
-            Target::Gyro,
-            300.0,
-            &mut cache,
-        )?;
-        freqs = w.freqs;
-        spectra.get_mut("gyro").unwrap()[ax] = Some(to_ptb_db(&w.current_db));
-        spectra.get_mut("gyro_sim").unwrap()[ax] = Some(to_ptb_db(&w.modified_db));
-        if with_current {
-            spectra.get_mut("gyro_sim_cur").unwrap()[ax] = Some(to_ptb_db(&w.current_db));
+    let has_d = |ax: usize| log.d_term.row(ax).iter().any(|&v| v != 0.0);
+    if let Some(ba) = before_after(log, sel.clone(), base, modf, 300.0)? {
+        freqs = ba.freqs;
+        for (ax, g) in ba.gyro.iter().enumerate() {
+            set("gyro", ax, &g.logged_db);
+            set("gyro_sim", ax, &g.modified_db);
+            if with_current {
+                set("gyro_sim_cur", ax, &g.current_db);
+            }
         }
-        if let Some(u) = &log.gyro_unfilt {
+        for (ax, d) in ba.dterm.iter().enumerate() {
+            d_scale.push(if has_d(ax) { 1.0 } else { f64::NAN });
+            if let Some(d) = d {
+                set("d", ax, &d.logged_db);
+                set("d_sim", ax, &d.modified_db);
+                if with_current {
+                    set("d_sim_cur", ax, &d.current_db);
+                }
+            }
+        }
+    } else {
+        // pas de gyro non filtré : rapport des réponses des chaînes (D-008)
+        let mut cache = WhatIfCache::default();
+        let mut prefilter: Option<Rows> = None;
+        for ax in 0..3 {
+            let w = whatif_spectrum(
+                &wide(log.gyro.row(ax)),
+                None,
+                log,
+                sel.clone(),
+                base,
+                modf,
+                Target::Gyro,
+                300.0,
+                &mut cache,
+            )?;
+            freqs = w.freqs;
+            set("gyro", ax, &w.current_db);
+            set("gyro_sim", ax, &w.modified_db);
+            if !has_d(ax) {
+                d_scale.push(f64::NAN);
+                continue;
+            }
+            d_scale.push(1.0);
+            if prefilter.is_none() {
+                prefilter = Some(log.d_term_prefilter()?);
+            }
+            let pf = prefilter.as_ref().unwrap().row(ax);
+            let wd = whatif_spectrum(
+                &wide(log.d_term.row(ax)),
+                Some(&wide(pf)),
+                log,
+                sel.clone(),
+                base,
+                modf,
+                Target::Dterm,
+                300.0,
+                &mut cache,
+            )?;
+            set("d", ax, &wd.current_db);
+            set("d_sim", ax, &wd.modified_db);
+        }
+    }
+    // signaux d'avant filtres, tels qu'enregistrés (gyro) ou reconstruits depuis le gyro (D)
+    if let Some(u) = &log.gyro_unfilt {
+        for ax in 0..3 {
             spectra.get_mut("gyro_pf").unwrap()[ax] = Some(psd(u.row(ax))?);
         }
-        let d = log.d_term.row(ax);
-        if !d.iter().any(|&v| v != 0.0) {
-            d_scale.push(f64::NAN);
-            continue;
+    }
+    if (0..3).any(has_d) {
+        let pf = log.d_term_prefilter()?;
+        for ax in (0..3).filter(|&a| has_d(a)) {
+            spectra.get_mut("d_pf").unwrap()[ax] = Some(psd(pf.row(ax))?);
         }
-        d_scale.push(1.0);
-        if prefilter.is_none() {
-            prefilter = Some(log.d_term_prefilter()?);
-        }
-        let pf = prefilter.as_ref().unwrap().row(ax);
-        let wd = whatif_spectrum(
-            &wide(d),
-            Some(&wide(pf)),
-            log,
-            sel.clone(),
-            base,
-            modf,
-            Target::Dterm,
-            300.0,
-            &mut cache,
-        )?;
-        spectra.get_mut("d").unwrap()[ax] = Some(to_ptb_db(&wd.current_db));
-        spectra.get_mut("d_sim").unwrap()[ax] = Some(to_ptb_db(&wd.modified_db));
-        if with_current {
-            spectra.get_mut("d_sim_cur").unwrap()[ax] = Some(to_ptb_db(&wd.current_db));
-        }
-        spectra.get_mut("d_pf").unwrap()[ax] = Some(psd(pf)?);
     }
     Ok(FilterSimResult {
         log_id: 0,

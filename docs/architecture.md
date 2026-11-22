@@ -60,8 +60,9 @@ Dans `rust/otb-analysis/src/` (noyaux de calcul dans `rust/otb-dsp/src/`).
 | `open_loop.rs` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.rs` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
 | `filter_stages.rs` | Contrôle du modèle de filtres étage par étage contre le firmware (canaux debug `GYRO_SAMPLE` / `FFT_FREQ`, terme D), par bande de fréquences ; lot 22 du plan, D-057 |
+| `filter_replay.rs` | Simulateur de la page Filtres : chaîne du firmware rejouée sur le gyro non filtré (règles du contrôle par étage, suivi du notch dynamique), spectres avant / après (« actuel » rejoué, « modifié » = log × rejeu modifié / rejeu actuel) ; lot 22e, D-058 |
 | `dyn_notch.rs` | Suivi des pics du notch dynamique rejoué comme le firmware (SDFT, pics, lissage, variantes par version), centres par axe, contrôle contre les centres enregistrés en `FFT_FREQ` ; lot 22c du plan, W-057 |
-| `bf_filters.rs` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si », passe-bas relevé ou coupé ; noyaux de calcul dans `rust/otb-dsp` (D-032) |
+| `bf_filters.rs` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D, spectre « et si » par les réponses \|H\|² (assistant, logs sans gyro non filtré), passe-bas relevé ou coupé ; noyaux de calcul dans `rust/otb-dsp` (D-032) |
 | `numeric.rs` (d'otb-dsp), `npstat.rs` | Primitives numériques (fenêtre de Hann, moyenne glissante, flou gaussien, intercorrélation : D-032) et statistiques de numpy sur des `float32` dans `npstat.rs` (somme par paires, moyenne, écart-type, médiane, centile, histogramme) |
 | `sliders.rs` | Curseurs simplifiés ⇄ PID et filtres, commandes CLI |
 | `motors.rs` | Fréquences moteur depuis l'eRPM, harmoniques, centres des notchs dynamiques, bruit moteur, hauteur des harmoniques et poids RPM juste suffisant, pics à suivre par le notch dynamique, raies hors moteurs (vol stationnaire) ; boucles par fenêtre génériques f32 / f64 (D-034) |
@@ -194,7 +195,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     une ligne par session, étage et axe ; `--resume SORTIE.json` : tableau par étage, version et type de filtre, alertes du
     critère d'arrêt du lot 22) ; `dyntrack.rs` (`corpus dyntrack SORTIE.json [--dir SOUS-DOSSIER] [--limit N] [-j FILS]` :
     suivi du notch dynamique rejoué contre les centres enregistrés en `FFT_FREQ`, une ligne par session et par notch ;
-    `--resume SORTIE.json` : tableau par version et cadence du log).
+    `--resume SORTIE.json` : tableau par version et cadence du log) ; `replay.rs` (`corpus replay SORTIE.json [--dir SOUS-DOSSIER]
+    [--limit N] [-j FILS]` : rejeu de la page Filtres avec les réglages du log contre le spectre enregistré, gyro et D, par
+    bande ; `--resume SORTIE.json` : tableau selon que le log enregistre chaque boucle PID ou non, D-058).
 
 ## Hors périmètre (pour l'instant)
 

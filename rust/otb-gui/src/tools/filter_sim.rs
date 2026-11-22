@@ -29,16 +29,15 @@ use crate::tools::filter_sim_calc::{
     delays, filter_cli, simulate_filters,
 };
 
-/// Texte d'aide du panneau (mot pour mot celui de Python).
-pub const HELP: &str =
-    "Bode : trait plein = log, tirets = modifié. Spectres : « Appliquer » relance la simulation (≈ 1 s).";
+/// Texte d'aide du panneau.
+pub const HELP: &str = "Bode : trait plein = log, tirets = modifié. Spectres : « Appliquer » relance la simulation (quelques secondes sur un long vol).";
 /// Info-bulle de la case « simulation réglages actuels ».
-pub const CURRENT_HINT: &str = "La simulation tourne à la cadence du log : comparez « simulé modifié » à « simulé actuel » plutôt qu'au gyro du log.";
+pub const CURRENT_HINT: &str = "Filtres du log rejoués sur le gyro non filtré, comme le firmware. Plus la courbe « simulé actuel » colle au log filtré, plus la simulation est fiable sur ce vol ; un écart vers le haut des fréquences peut venir d'un log enregistré à moins de 1600 Hz.";
 /// Statut quand l'éditeur diffère du dernier calcul.
 pub const STALE_STATUS: &str = "Réglages modifiés : cliquez sur « Appliquer » pour simuler les spectres.";
 pub const COPIED_STATUS: &str = "Commandes CLI copiées dans le presse-papiers.";
 /// Note grisée sous le tableau des retards.
-pub const DELAY_NOTE: &str = "Spectres simulés = spectre enregistré × (filtres modifiés / filtres actuels), calculé à la cadence PID fenêtre par fenêtre.";
+pub const DELAY_NOTE: &str = "Spectres simulés : filtres rejoués sur le gyro non filtré, comme le firmware (notch dynamique compris). « Modifié » = spectre enregistré × (rejeu modifié / rejeu actuel), donc exactement le log quand rien ne change.";
 /// Titre du spectre gyro quand le log n'a pas de gyro non filtré.
 pub const NO_UNFILT_TITLE: &str = "Spectre gyro — pas de gyro non filtré dans ce log : pas de simulation";
 /// Écart (ms) au-delà duquel un retard est vert (plus court) ou rouge (plus long).

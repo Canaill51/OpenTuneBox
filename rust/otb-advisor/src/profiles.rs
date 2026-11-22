@@ -68,7 +68,9 @@ pub const PROFILES: [CraftProfile; 5] = [
         hover_hz: (345.0, 900.0),
         resonance_hz: (250.0, 600.0),
         latency_ms: (13.0, 20.0),
-        gyro_delay_max_ms: 1.5,
+        // 1,5 → 1,4 ms le 2026-11-22 (choix de Cédric) : p90 des vols avec mouvements une fois le décalage d'horloge de
+        // `gyroUnfilt` retiré du retard (L-100), 1,48 → 1,36 ms, arrondi au dixième supérieur
+        gyro_delay_max_ms: 1.4,
         dterm_delay_max_ms: 2.5,
         gyro_noise_high_db: -28.0,
         dterm_noise_high_db: -14.7,

@@ -149,6 +149,9 @@ ils viennent du bruit (`validation.md`).
   H = Sxy/Sxx (Welch, fenêtres d'environ 0,5 s), entre 10 et 100 Hz, points de cohérence ≥ 0,6, moyenne
   pondérée par la cohérence, roll et pitch moyennés. L'intercorrélation est écartée : elle est dominée par
   le bruit haute fréquence.
+- **Décalage d'horloge** retiré du retard gyro : ⌊`pid_process_denom` / 2⌋ / fréquence gyro (0,125 ms à 8 kHz avec un denom
+  de 2, rien avec un denom de 1), car le Blackbox écrit `gyroUnfilt` un échantillon gyro après celui que le firmware a filtré
+  (L-100, lot 22d). PIDtoolbox ne le retire pas : notre retard gyro est plus court que le sien d'autant.
 - **Représentativité** : retard des filtres retenu seulement si la consigne dépasse 30 °/s au moins 5 % du
   temps (95e centile de |consigne|, roll ou pitch, `delay.stick_p95_dps` ; D-026). En vol stationnaire, les
   filtres dynamiques (LPF dynamiques, notchs RPM et dynamiques) ne travaillent qu'au régime du stationnaire
@@ -177,8 +180,24 @@ ils viennent du bruit (`validation.md`).
   récupération de vrille en lacet) écartés comme des trous. Logs à 1,6 kHz ou plus (D-057). Résultats : `validation.md`.
 - Filtres du modèle calculés pour la cadence **nominale** de l'en-tête (`filter_stages::model_rate_hz`), comme le firmware, et
   bandes comptées en hertz du firmware : sur un contrôleur surchargé, la boucle tourne moins vite qu'annoncé et tous les
-  filtres coupent plus bas en hertz réels (L-101). Le simulateur affiché (`simulate_gyro`, `simulate_dterm`) prend encore la
-  cadence mesurée, ignore le TPA et calcule le LPF2 à la cadence du log (W-064).
+  filtres coupent plus bas en hertz réels (L-101). Le simulateur de la page Filtres suit les mêmes règles (ci-dessous, D-058).
+
+## Simulateur de filtres (`rust/otb-analysis/src/filter_replay.rs`)
+
+- **Rejeu** (`filter_replay::replay`) : la chaîne du firmware appliquée au gyro non filtré de tout le log, avec les règles du
+  contrôle par étage : cadence nominale (L-101), LPF2 à la cadence gyro et autres filtres à la cadence PID même si le log saute
+  des boucles (L-104), notch dynamique aux centres du suivi rejoué sur chaque axe avec les réglages simulés (ci-dessous) ; terme
+  D = chaîne D sur −dg/dt du gyro rejoué, × facteur TPA de chaque instant.
+- **Spectres** (`filter_replay::before_after`), fenêtres de 300 ms, roulis, tangage et lacet : « actuel » = rejeu avec les
+  réglages du log, arrondi comme le Blackbox (gyro au °/s ou au 1/10, D à l'unité ; sinon jusqu'à 1,7 dB d'écart au-dessus de
+  250 Hz, L-103), à comparer au log ; « modifié » = spectre enregistré × (rejeu modifié / rejeu actuel) case par case et fenêtre
+  par fenêtre, rapport plafonné à ×1 000, calculé sur les rejeux **exacts** (L-105) ; là où les filtres actuels écrasent le
+  signal d'avant filtres (sous −20 dB) et que les modifiés filtrent moins, le rejeu modifié sert de plancher. Réglages
+  inchangés : exactement le log (D-008). Terme D rejoué mis à l'échelle du D enregistré par un gain ajusté sous ~30 Hz.
+- **Sans gyro non filtré** : rien à rejouer ; rapport des réponses |H|² des chaînes (`bf_filters::whatif_spectrum`, D-008),
+  sans courbe « actuel ». L'assistant s'en sert encore (W-068).
+- **Limite** : log enregistré une boucle PID sur 2 ou moins, gyro non filtré sous-échantillonné sans anti-repliement : le bruit
+  à haute fréquence s'y replie et le rejeu « actuel » dépasse le log, surtout aux basses fréquences (W-067, `validation.md`).
 
 ## Suivi du notch dynamique (`rust/otb-analysis/src/dyn_notch.rs`)
 
@@ -189,8 +208,8 @@ ils viennent du bruit (`validation.md`).
 - Entrée : le gyro modélisé d'avant le notch (`dyn_notch::modelled_input` : LPF2, RPM, notchs statiques et LPF1 appliqués au
   gyro non filtré, cadence nominale) pour les trois axes ; ou, pour le contrôle, le gyro enregistré du debug `FFT_FREQ`.
 - Contrôle (`dyn_notch::check_tracking`, `otb-dev corpus dyntrack`) : centres rejoués contre centres enregistrés sur l'axe
-  debug, écart absolu médian, 90e centile, part à moins d'une case. Résultats : `validation.md`. Le simulateur affiché ne
-  s'en sert pas encore (W-057).
+  debug, écart absolu médian, 90e centile, part à moins d'une case. Résultats : `validation.md`. Le simulateur de la page
+  Filtres s'en sert depuis le lot 22e (D-058), sur le gyro rejoué d'avant le notch.
 
 ## Autres outils
 
