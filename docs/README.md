@@ -10,9 +10,10 @@
 | [pieges-par-domaine.md](pieges-par-domaine.md) | Développeurs, agents IA | Règles courtes des pièges rangées par domaine (décodeur, analyses, filtres, interface, exécutables) |
 | [travaux-reportes.md](travaux-reportes.md) | Développeurs, agents IA | Ce qui est vu et laissé de côté (`W-xxx`), et quand le reprendre |
 | [migration-rust.md](migration-rust.md) | Développeurs, agents IA | Plan de migration vers Rust (D-031), phases, preuves d'équivalence |
-| [plan.md](plan.md) | Développeurs, agents IA | **Le seul plan du projet** : ce qu'il reste à faire (lots 13, 14, 11, 15), ce qui est écarté, et l'historique d'une ligne par lot fait |
+| [plan.md](plan.md) | Développeurs, agents IA | **Le seul plan du projet** : ce qu'il reste à faire (lots ouverts et conditionnels), ce qui est écarté, et l'historique d'une ligne par lot fait |
 | [validation.md](validation.md) | Développeurs, agents IA | Preuves de justesse (décodeur, recoupement PIDtoolbox) |
 | [spec-betaflight.md](spec-betaflight.md) | Développeurs | Formules du firmware : filtres, debug, en-têtes, unités |
+| [spec-usb.md](spec-usb.md) | Développeurs | Récupération des logs par USB : messages MSP, mode stockage de masse, effacement, vérifiés dans le firmware (lot 32) |
 | [spec-methodes.md](spec-methodes.md) | Développeurs | Méthodes d'analyse (FFT, Wiener, retards) et repères de réglage |
 | [spec-ecrans.md](spec-ecrans.md) | Développeurs | Écrans PIDtoolbox de référence et leurs contrôles |
 | [images/](images/) | — | Captures utilisées par le README |

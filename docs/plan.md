@@ -426,6 +426,8 @@ effacement reporté ne coûte rien.
 
 **Branche** : `feat/usb-retrieve`. **Dépend du lot 30** ; la bibliothèque et le refus des doublons existent déjà.
 
+**À lire** : [spec-usb.md](spec-usb.md) (ce que fait le firmware, vérifié le 2026-11-22).
+
 - [ ] **Identité de la machine** par MSP : nom, identifiant de la carte, version du firmware, état armé,
       occupation de la mémoire. L'identifiant de la carte est la clé ; le nom seul ne suffit pas (deux drones
       peuvent le porter, et il se change en une commande).
@@ -441,11 +443,14 @@ effacement reporté ne coûte rien.
 - [ ] **Sauvegarde de la configuration** au même branchement (`diff all`), gardée seulement si elle diffère de la
       précédente : l'écran Configuration peut alors comparer deux versions des réglages, et plus seulement les
       en-têtes de deux logs.
-- [ ] **Les huit points à vérifier** de l'étude, dans le code et la documentation de Betaflight, **avant** d'écrire
-      (elle a été rédigée de mémoire) : versions où le mode stockage de masse lit la mémoire interne, débit réel de
-      la lecture MSP, durée d'un effacement de 16 Mo et comment savoir qu'il est fini, format et stabilité de
-      l'identifiant de carte, effacement sur carte SD, bibliothèque série côté Rust, autres firmwares qui parlent
-      MSP, et faut-il appliquer les réglages « et si » directement sur la carte.
+- [x] **Les huit points à vérifier** de l'étude, dans le code et la documentation de Betaflight, **avant** d'écrire
+      (elle a été rédigée de mémoire) : faits le 2026-11-22, branche « docs/usb-firmware-check », consignés dans
+      [spec-usb.md](spec-usb.md). Six tranchés par le code ; le **débit MSP** et la **durée d'un effacement** se mesurent
+      sur une vraie carte (procédure dans le même document) ; **appliquer les réglages « Et si » sur la carte** reste
+      à Cédric. Deux constats changent le dessin : le firmware **n'empêche ni la lecture ni l'effacement quand le drone
+      est armé** (l'état armé se relit juste avant d'effacer), et la mémoire interne est **en lecture seule en mode
+      stockage de masse** (effacer demande de revenir en MSP). Bibliothèque série : `serial2` (BSD-2 ou Apache-2.0),
+      `serialport` étant refusée par sa licence MPL-2.0.
 - [ ] ⚠️ **Nouvelle dépendance et nouvelle surface** : licence vérifiée par `cargo deny` (`rust/deny.toml`), et
       **aucun matériel en CI** — donc un port simulé pour les tests automatiques et une procédure d'essai à la main
       écrite dans la documentation, comme pour les installateurs.
