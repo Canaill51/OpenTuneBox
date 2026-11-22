@@ -166,7 +166,8 @@ est celle du commit qui les a introduites.
   vérification du simulateur) retire d'abord ⌊`pid_process_denom` / 2⌋ / fréquence gyro du retard mesuré (ou la phase
   correspondante) ; ce n'est souvent qu'une demi-période du log, donc pas un décalage d'échantillons entiers. L'outil
   Retards (`rust/otb-analysis/src/delay.rs:compute_delays`) mesure justement `gyroUnfilt` → gyro : son retard gyro
-  contient ce décalage (déduit, pas encore mesuré sur l'outil lui-même ; correction prévue au lot 22 du plan).
+  contient ce décalage : retiré depuis le lot 22d (`delay.rs:compute_delays`, test
+  `rust/otb-analysis/tests/delay_clock.rs`), −0,125 ms à 8 kHz avec un denom de 2.
 - **Preuve** — essai jetable du 2026-11-22 (programme hors dépôt : fonctions de transfert de Welch, entrée et sortie
   enregistrées contre entrée et sortie du modèle), mêmes chiffres sur les trois logs ; sources du firmware lues :
   `fc/core.c` (`taskGyroSample`, `gyroFilterReady`, `pidLoopReady`, `taskMainPidLoop`), `blackbox/blackbox.c`. Plan :

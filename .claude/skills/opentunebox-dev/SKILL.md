@@ -24,7 +24,8 @@ Cela demande sur le poste Linux la cible `x86_64-pc-windows-gnu` et les paquets 
 l'icône d'`otb-gui`), `gcc-mingw-w64-x86-64` (éditeur de liens) et `wine64` (pour exécuter les tests).
 
 ⚠️ **Vérifier leur présence, ne pas la supposer** : elle a déjà été perdue (2026-11-08, cible et paquets absents alors que cette
-page les disait installés depuis le 2026-11-05). Sans eux, `cargo check --target` échoue sur « can't find crate for `core` »
+page les disait installés depuis le 2026-11-05). Encore le 2026-11-22 : la cible seule (paquets présents), sans doute
+au changement de version de Rust figée par `rust-toolchain.toml`, qui installe sa propre liste de cibles. Sans eux, `cargo check --target` échoue sur « can't find crate for `core` »
 (cible) ou « ajout de l'icône à l'exécutable Windows: NotFound » (`windres`), ce qui n'a rien à voir avec le code en cours.
 
 ```sh

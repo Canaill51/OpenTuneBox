@@ -155,7 +155,7 @@ fichiers d'un autre firmware ou à plusieurs sessions ne sont pas mutés.
 
 | Mesure | Log | PIDtoolbox | OpenTuneBox |
 |---|---|---|---|
-| Retard des filtres gyro | Allykill `btfl_002` (log retiré du corpus le 2026-10-12) | 1,25 ms | 1,2 ms (modèle de filtres : 1,32 ms) |
+| Retard des filtres gyro | Allykill `btfl_002` (log retiré du corpus le 2026-10-12) | 1,25 ms | 1,2 ms (modèle de filtres : 1,32 ms ; `pid_process_denom` 1, donc rien à retirer depuis le lot 22d, L-100) |
 | Pic de réponse indicielle roll | BlackSummer *Damping* 0.8 / 1.0 / 1.2 / 1.4 | 1,23 / 1,11 / 1,00 / 0,98 | 1,24 / 1,13 / 1,03 / 1,04 |
 | Retard consigne → gyro | même série | 12,7 / 14,7 / 16,8 / 18,3 ms | 12,5 / 14,5 / 16,6 / 18,2 ms |
 | Pic / montée | JeNo 5 `LAST` | 1,02 / 15,6 ms | 1,05 / 15,9 ms |
@@ -411,6 +411,29 @@ Les références figées (`$OTB_GOLDEN`) avaient disparu du poste : elles ont é
 - `cargo run --release -p otb-dev -- corpus validate` : **694 sessions conformes sur 709**, statuts
   ok 624, gap 67, slow 8, values 5, refhang 3, rows 2. Les 15 non conformes sont exactement celles de la ligne de
   base du 2026-11-04 ; l'écart sur le total vient du corpus lui-même, qui a perdu 3 fichiers (525 lus au lieu de 528).
+
+### Retard des filtres gyro sans le décalage d'horloge (2026-11-22, lot 22d, L-100)
+
+`delay.rs:compute_delays` retire ⌊`pid_process_denom` / 2⌋ / fréquence gyro du retard gyro (0,125 ms à 8 kHz avec un denom de
+2 ; rien avec un denom de 1). Test : `rust/otb-analysis/tests/delay_clock.rs` (log fabriqué sans filtre : retard nul pour des
+denoms de 1, 2 et 4 ; sans la correction, 0,125 ms au denom 2). Effet mesuré sur le corpus (`otb-dev corpus rates`, `main`
+contre la branche, 675 sessions) : le texte d'un constat change dans 496 sessions (le chiffre du retard), et la nature d'un
+constat dans 16 seulement : 16 « retard des filtres gyro » correct (`gyro_delay`, ok) apparaissent ; 14 « filtrage gyro
+prudent » (`gyro_filter_cautious`) disparaissent, remplacés par un conseil de Q RPM plus haut (`rpm_q_raise`) ; 3
+`filter_strategy` et 2 « retard gyro au-dessus du repère avec du bruit » (`gyro_delay`, info) disparaissent. Centiles des retards gyro des vols avec mouvements
+(`otb-dev corpus calibrate`, p10 / p50 / p90, ms) :
+
+| Profil | Avant | Après | Repère de l'assistant |
+|---|---|---|---|
+| whoop | 0,97 / 1,28 / 1,48 | 0,85 / 1,16 / 1,36 | 1,5 |
+| micro | 1,01 / 1,31 / 1,83 | 0,88 / 1,19 / 1,71 | 1,8 |
+| 5" | 0,98 / 1,35 / 1,97 | 0,93 / 1,27 / 1,87 | 1,9 |
+| 7" | 1,46 / 2,01 / 2,49 | 1,35 / 1,89 / 2,41 | 2,6 |
+| 8"+ | 1,89 / 2,79 / 3,44 | 1,76 / 2,68 / 3,44 | 3,5 |
+
+Repères inchangés à ce jour (décision de Cédric attendue : la règle « p90 arrondi vers le haut » donnerait 1,4 ms au whoop,
+les autres ne bougent pas). Les objectifs affichés par taille (`profiles::filter_delay_target_ms`) viennent de valeurs lues dans
+PIDtoolbox, qui garde le décalage.
 
 ### Modèle de filtres étage par étage (2026-11-22, lots 22a, 22a bis et 22b)
 

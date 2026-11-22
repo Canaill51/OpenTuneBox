@@ -41,7 +41,7 @@ lot 21 a relu les licences livrées et les sources, en vue de la **0.10.0** (la 
 
 | # | Lot | Sujet | Dépend de |
 |---|---|---|---|
-| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e avec W-064 et le branchement du suivi (W-057, décidé le 2026-11-22) |
+| 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d fait (retard gyro sans décalage d'horloge) ; 22e avec W-064 et le branchement du suivi (W-057, décidé le 2026-11-22) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -154,9 +154,12 @@ Cédric, sous GPL : D-004).
       (`flight/dyn_notch_filter.c`, `common/sdft.c`), le vérifier contre les centres enregistrés du corpus `FFT_FREQ`.
       Il donne aussi les centres des deux autres axes : aujourd'hui, `simulate_gyro` applique aux trois axes les centres
       de l'axe debug, alors que le firmware suit chaque axe à part. Reprendre W-059 avec lui.
-- [ ] **22d — Retard des filtres corrigé** (L-100) : retirer le décalage d'horloge du retard gyro de `compute_delays`, et de
-      toute autre comparaison `gyroUnfilt` → gyro ; mesurer l'effet sur le corpus avant de livrer (valeur affichée qui
-      change : le dire dans la PR).
+- [x] **22d — Retard des filtres corrigé** (branche `feat/filter-sim-before-after`, 2026-11-22) : fait — `compute_delays`
+      retire ⌊denom/2⌋ / fréquence gyro (−0,125 ms à 8 kHz, denom 2) ; seule comparaison `gyroUnfilt` → gyro par la phase
+      (le bruit de l'assistant compare des amplitudes). Corpus : 16 sessions sur 675 changent de constat ; repères de retard
+      inchangés, à revoir avec Cédric (p90 du whoop 1,48 → 1,36 ms, [validation.md](validation.md)). Texte d'origine :
+      retirer le décalage d'horloge du retard gyro de `compute_delays`, et de toute autre comparaison `gyroUnfilt` → gyro ;
+      mesurer l'effet sur le corpus avant de livrer (valeur affichée qui change : le dire dans la PR).
 - [ ] **22e — Avant / après filtrage dans la page Filtres** (compétence `opentunebox-dev`) : gyro et terme D, mesurés et
       simulés, pour les réglages actuels et modifiés.
 - [ ] **22f — Prédiction vérifiée** (W-060) : vol de l'Air65 après un changement de filtres, comparé à la prédiction faite

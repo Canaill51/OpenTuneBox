@@ -7,6 +7,7 @@
 //! `xcorr_delay_ms` ne lisse pas les signaux : le paramètre `smooth` de l'origine n'a jamais eu d'appelant et a été
 //! retiré le 2026-11-08 (W-024 clos).
 
+use crate::filter_stages::clock_offset_s;
 use crate::npstat::{argmax_f64, cdiv, conj_mul_fma, percentile_f32, std_f32, unwrap};
 use crate::numpy_mean;
 use crate::spectral::{py_round, rfftfreq, row_mean, segments};
@@ -187,7 +188,7 @@ pub fn stick_p95_dps(log: &FlightLog, sel: Range<usize>) -> Result<f64, String> 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Delays {
-    /// Filtres gyro (gyro non filtré → gyro filtré).
+    /// Filtres gyro (gyro non filtré → gyro filtré), décalage d'horloge de `gyroUnfilt` retiré (L-100).
     pub gyro_ms: f64,
     /// Filtres du D (D préfiltre → D).
     pub dterm_ms: f64,
@@ -218,6 +219,8 @@ fn wide(r: &[f32]) -> Vec<f64> {
 }
 
 /// Retards des filtres (méthode de phase, roll + pitch) et latence consigne → gyro (intercorrélation).
+/// ⚠️ Le retard gyro compare `gyroUnfilt`, lu un échantillon gyro plus tard que celui que le firmware a filtré quand
+/// `pid_process_denom` vaut 2 ou plus : sans retirer ce décalage, il compte 0,125 ms de trop à 8 kHz (L-100).
 pub fn compute_delays(log: &FlightLog, sel: Range<usize>) -> Result<Delays, String> {
     let n = log.n();
     let sel = clamp_range(sel.start, sel.end, n);
@@ -230,7 +233,7 @@ pub fn compute_delays(log: &FlightLog, sel: Range<usize>) -> Result<Delays, Stri
             phase(&gu.row(0)[sel.clone()], &log.gyro.row(0)[sel.clone()])?,
             phase(&gu.row(1)[sel.clone()], &log.gyro.row(1)[sel.clone()])?,
         ];
-        gyro_ms = nanmean_if_finite(v);
+        gyro_ms = nanmean_if_finite(v) - clock_offset_s(&log.settings) * 1000.0;
     }
     let mut dterm_ms = f64::NAN;
     if log.d_term.row(0).iter().any(|&v| v != 0.0) {
