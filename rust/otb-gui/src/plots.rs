@@ -409,6 +409,44 @@ pub fn nice_grid(input: GridInput, label_factor: f64) -> Vec<GridMark> {
         .collect()
 }
 
+/// Grille d'un axe de numéros (vols du suivi) : des repères **entiers** seulement, tous étiquetés, au pas rond
+/// (1, 2, 5 × 10^k) qui les écarte d'au moins 64 px — `nice_grid` poserait 0,5 ou 2,5 sur un axe court.
+pub fn integer_grid(input: GridInput) -> Vec<GridMark> {
+    let (lo, hi) = input.bounds;
+    let base = input.base_step_size;
+    if !lo.is_finite() || !hi.is_finite() || !base.is_finite() || base <= 0.0 || hi <= lo {
+        return Vec::new();
+    }
+    let step = nice_up(base * 8.0).max(1.0);
+    let (k0, k1) = ((lo / step - 1e-9).ceil(), (hi / step + 1e-9).floor());
+    if k1 - k0 > 4000.0 {
+        return Vec::new();
+    }
+    (k0 as i64..=k1 as i64)
+        .map(|k| GridMark {
+            value: k as f64 * step,
+            step_size: step,
+        })
+        .collect()
+}
+
+/// Étiquette d'un repère d'axe en français : virgule décimale, autant de chiffres que le pas en demande (pas de 0,5 →
+/// un chiffre ; pas de 2 → aucun). Sans cela, egui_plot écrit « 1.4 », ou « 2 » pour 1,5 sur un axe court.
+pub fn tick_fr(value: f64, step: f64) -> String {
+    let decimals = if step > 0.0 && step.is_finite() {
+        (-(step.log10()) - 1e-9).ceil().max(0.0) as usize
+    } else {
+        0
+    };
+    let t = format!("{value:.decimals$}").replace('.', ",");
+    // « -0 » ou « -0,0 » : un zéro arrondi n'a pas de signe
+    if t.starts_with('-') && t[1..].chars().all(|c| c == '0' || c == ',') {
+        t[1..].to_string()
+    } else {
+        t
+    }
+}
+
 /// Un tracé avec la grille à repères ronds sur les deux axes (`nice_grid`).
 pub fn nice_axes(plot: egui_plot::Plot<'_>) -> egui_plot::Plot<'_> {
     plot.x_grid_spacer(|i| nice_grid(i, 8.0))

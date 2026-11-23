@@ -60,7 +60,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 21
-  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22, le 31 (31a et 31b faits) et le 32 sont ouverts (les 28 à 30 et le 33
+  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22, le 31 (31a, 31b et 31c faits) et le 32 sont ouverts (les 28 à 30 et le 33
   sont faits) ; les **23 à 25** sont le chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
   sortis le 2026-11-18 ; le prochain numéro libre est **34**.
 
@@ -70,7 +70,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) ; 31a (le calcul) et 31b (fiche cible) **faits le 2026-11-23**, puis 31c (graphiques), 31d (W-076) |
+| 3 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) ; 31a (le calcul), 31b (fiche cible) et 31c (graphiques) **faits le 2026-11-23**, puis 31d (W-076) |
 | 4 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 (fait) |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
 | — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
@@ -467,6 +467,9 @@ l'assistant), champ `cible` de la fiche dans la bibliothèque, section « Fiche 
 du drone, « Suivi des mesures » dessous. Choix de Cédric : pic haut sans feedforward (1,20), valeurs qui suivent la taille
 tant qu'elles ne sont pas changées (D-072, précisé).
 
+**31c fait le 2026-11-23** (branche `feat/metrics-charts`) : `tracking::charts_of`, neuf graphiques sous « Suivi des
+mesures ». Choix de Cédric : vols numérotés par date en abscisse, zone visée teintée, colonne de droite (D-072, précisé).
+
 - [x] **Une ligne par fragment, axe et mesure** (31a) : latence, pic, temps de montée, marges, bruit du gyro et du
       terme D, retard des filtres — avec les réglages de calcul qui l'ont produite et la version de calcul du
       lot 28. Une mesure se jette quand les bornes du fragment ou cette version changent.
@@ -477,8 +480,8 @@ tant qu'elles ne sont pas changées (D-072, précisé).
 - [x] **Fichiers JSON ou vraie base (SQLite)** : **tranché le 2026-11-22, JSON gardé** (D-064) ; la table des mesures
       se lit à la première question, hors du fil de l'interface.
 - [x] **Fiche cible par drone** (réactivité des PID, filtrage ; 31b).
-- [ ] **Un graphique par mesure sur tous les fragments du drone**, la cible en bande (31c) : bornes de la bande lues dans
-      `otb_advisor::target::ROWS` (`tracked`, `bound`) et la cible du drone (`target_texts`, case vide = pas de bande).
+- [x] **Un graphique par mesure sur tous les fragments du drone**, la cible en bande (31c) : bornes de la bande lues dans
+      `otb_advisor::target::ROWS` (`target::band`) et les cases du formulaire (`target_values`, case vide = pas de bande).
 - [x] ⚠️ **Dire lequel prime** : la cible du drone n'est pas un seuil de l'assistant (D-011, calibré sur le
       corpus). Deux chiffres qui se contredisent à l'écran, c'est un utilisateur perdu. **Tranché** (D-072) : les valeurs
       proposées sont les seuils de l'assistant, qui garde les siens dans ses constats.
@@ -722,3 +725,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 30g | 2026-11-23 | **Avancement du parcours** (branche `feat/guide-progress`, D-071, D-039, D-061 et D-066 amendées, W-074 traité) : le Guide lit le rôle de chaque log sur son fragment et l'y écrit (anciens rôles par fichier repris pour les fragments qui n'en ont pas, « Ouvrir les logs des filtres… » donne le sien) ; seuls les fragments actifs sont vérifiés ; la carte du tableau de bord compte le dernier relevé du Guide (`DroneSheet::verified`), barre au nom accessible. Preuve : 4 tests nouveaux et 2 récrits, 8 contre-preuves vues en échec, captures des deux thèmes. **Lot 30 terminé** | « Fiche cible » (lot 31) ; écran de la récupération par USB (lot 32b) |
 | 31a | 2026-11-23 | **Mesures suivies, le calcul** (branche `feat/metrics-history`, D-072, D-064 prouvée) : `otb_advisor::tracked` lit 22 lignes par fragment dans le rapport de l'assistant ; la table des mesures se lit sur un autre fil (ouverture 5 ms, lecture 308 ms au volume plein en `--release`), ne se vide jamais avant sa lecture et ne se réécrit que si elle change ; la fiche d'un drone fait mesurer ses fragments en arrière-plan. Preuve : 16 tests nouveaux (7 de la bibliothèque, 2 du calcul, 5 de l'interface, 2 récrits), 9 contre-preuves vues en échec, recalcul au bit près sur 11 sessions réelles, captures des deux thèmes. La CI Windows a trouvé une relecture JSON fausse d'un bit, corrigée par `float_roundtrip` (L-116 ; `otb-parity` 0 échec) | fiche cible (31b) ; graphiques du suivi (31c) ; W-076 (31d) |
 | 31b | 2026-11-23 | **Fiche cible du drone** (branche `feat/drone-target`, D-072 précisé) : dix cases au dessin du prototype dans la colonne de droite de la fiche, valeurs proposées lues dans les seuils de l'assistant pour la taille (`otb_advisor::target`), vides sans seuil ; rien d'enregistré tant que le pilote n'a rien changé (les cases suivent la taille), une case changée fige les dix, « Valeurs proposées » les remet à suivre ; une case illisible refuse l'enregistrement. Preuve : 9 tests nouveaux (5 de l'assistant, 1 de la bibliothèque, 3 de la fiche), 4 contre-preuves vues en échec, captures des deux thèmes. Récidive de L-114 | graphiques du suivi (31c) ; W-076 (31d) |
+| 31c | 2026-11-23 | **Graphiques du suivi** (branche `feat/metrics-charts`, D-072 précisé) : neuf graphiques sous « Suivi des mesures » de la fiche du drone, un par grandeur de la fiche cible, vols numérotés par date, une couleur par axe, zone visée teintée lue dans les cases du formulaire (vide = « sans cible ») ; pas de point sous 20 fenêtres, point creux sous 200, comme l'assistant ; repères à virgule décimale. Preuve : 8 tests nouveaux (2 de l'assistant, 5 du suivi, 1 des repères), 10 contre-preuves vues en échec, captures des deux thèmes sur trois sessions réelles du JeNo 5 ; défaut hors sujet noté : W-077 (exemple `capture` à quatre logs) | W-076 (31d) |

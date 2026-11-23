@@ -75,6 +75,7 @@ Règles d'écriture :
 | W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
+| W-077 | L'exemple `capture` échoue avec quatre logs du JeNo 5 (« second fragment posé » : 10 au lieu de 7) | ouvert |
 | W-076 | Assistant en cartes : sans comparaison avec un autre vol, sans votes ni historique des conseils, sans lignes CLI à copier (prototype) | ouvert (lot 31d, après le suivi des mesures, D-072) |
 | W-075 | Supprimer un drone laisse sur le disque les logs **copiés** dans la bibliothèque (récupérés par USB) : plus rien ne les désigne | ouvert (au lot 32b, quand la copie par USB existera à l'écran) |
 | W-074 | ~~Le Guide lit le rôle d'un log par fichier, pas par fragment : deux fragments d'une session aux rôles différents n'en montrent qu'un au Guide~~ | TRAITÉ le 2026-11-23 (lot 30g, D-071 : le rôle est lu sur le fragment ; le Guide ne vérifie que les fragments actifs) |
@@ -1223,3 +1224,16 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Reprise** : au lot 31d, après 31a à 31c (D-072, choix de Cédric le 2026-11-23) ; lignes CLI à copier si Cédric les
   demande (jamais envoyées au drone, D-063).
   [`rust/otb-gui/src/tools/advisor.rs:AdvisorTool`]
+
+## Origine : graphiques du suivi (lot 31c, 2026-11-23)
+
+- **W-077** — **L'exemple `capture` refuse quatre logs à la fois.** Lancé sur `FINAL.bbl`, `LAST.bbl`, `PD.bbl` et `MM.bbl`
+  du JeNo 5, il s'arrête à `assertion left == right failed: second fragment posé` (left : 10, right : 7) : après
+  « Enregistrer comme nouveau fragment », la liste d'analyse a gagné trois entrées au lieu d'une. Avec `FINAL.bbl` et
+  `LAST.bbl` (la combinaison des captures du README), il passe. Cause **non cherchée** : hors du sujet du lot.
+  **Pourquoi reporté** : l'interface livrée n'est pas en cause tant que la cause n'est pas connue, et les captures du
+  lot se font avec deux logs.
+  **Risque si on n'y touche pas** : une capture sur plus de deux logs (beaucoup de vols dans le suivi) demande de
+  contourner l'exemple.
+  **Reprise** : à la prochaine capture qui a besoin de plus de deux logs ; commencer par regarder ce que le clic sur
+  « Enregistrer comme nouveau fragment » ajoute à `state.logs`. [`rust/otb-gui/examples/capture.rs`]

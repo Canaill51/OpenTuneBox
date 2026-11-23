@@ -181,6 +181,14 @@ prime » entre la cible du drone et le seuil de l'assistant (D-011), deux chiffr
   sont recalibrés ; la première case changée fige les dix, et « Valeurs proposées » les remet à suivre. Le sous-titre du
   prototype (« les jauges, le guide et le suivi s'y comparent ») devient « le suivi de ses vols s'y compare ; l'assistant
   garde ses propres seuils ». Liste des cases et valeurs proposées : `rust/otb-advisor/src/target.rs:proposed`.
+- **Précisé au lot 31c** (Cédric, 2026-11-23) : un graphique par grandeur de la fiche cible (le pic une fois, ses deux
+  bords), dans la colonne de droite ; en abscisse le **numéro du vol** (fragments mesurés rangés par date : la date d'un
+  fichier est au jour près, plusieurs vols d'un jour s'empileraient sur une vraie échelle de temps) ; la **zone visée
+  teintée** et ses bords en pointillés (une cible « ≤ » teint le dessous). Les points suivent l'assistant : aucun sous
+  `STEP_MIN_WINDOWS` fenêtres, creux (« moins sûr ») sous `STEP_SURE_WINDOWS`, sauf les marges de la boucle ouverte. La
+  bande suit les cases du **formulaire**, avant même l'enregistrement. Séries : `rust/otb-gui/src/tracking.rs:charts_of`.
+  Écartés : la vraie date en abscisse, un trait seul sans teinte (on voit moins vite de quel côté être), les graphiques
+  pleine largeur sous les deux colonnes (un écart de plus avec ce qui avait été tranché).
 
 **Options écartées.** La cible du drone à la place du seuil dans les jauges des cartes, comme le prototype : une carte
 pourrait alerter alors que sa jauge est dans la cible. Les valeurs du prototype : sans source (D-005, D-011). Calibrer sur le
@@ -191,7 +199,7 @@ recalibration) ; le pic haut lu sur le dernier log (1,60 avec feedforward), qui 
 
 **Témoins.** `rust/otb-advisor/tests/tracked.rs` (grandeurs identiques à celles du rapport, recalcul au bit près après
 fermeture de la bibliothèque) ; `rust/otb-gui/tests/tracking.rs` (calcul en arrière-plan, échec dit et pas relancé,
-fragment déplacé pendant le calcul) ; 11 sessions réelles identiques au bit près ([validation.md](validation.md#mesures-suivies-dans-le-temps-2026-11-23-lot-31a)).
+fragment déplacé pendant le calcul) ; `rust/otb-gui/tests/tracking_charts.rs` (ordre des vols, fenêtres, bande, fiche) ; 11 sessions réelles identiques au bit près ([validation.md](validation.md#mesures-suivies-dans-le-temps-2026-11-23-lot-31a)).
 
 ## 2026-11-23 — Avancement du parcours (lot 30g)
 

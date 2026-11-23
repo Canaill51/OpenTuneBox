@@ -11,7 +11,8 @@
 //!   seul le suivi s'y compare, l'assistant garde ses seuils (D-072) ;
 //! - **note de la fiche cible** : elle dit aussi quand les valeurs ont été changées, et quand les seuils de la
 //!   taille sont encore provisoires (`CraftProfile::provisional`) ;
-//! - **« Suivi des mesures »** sous la fiche cible, dans la colonne de droite (D-072 ; absent du prototype) ;
+//! - **« Suivi des mesures »** sous la fiche cible, dans la colonne de droite (D-072 ; absent du prototype) : l'état
+//!   du calcul, puis un graphique par grandeur de la fiche cible, au fil des vols, la zone visée teintée (lot 31c) ;
 //! - **taille « 8″ et plus »** en plus des sept du prototype : l'assistant a un profil pour ces drones ;
 //! - **boucle PID à 1,6 kHz** en plus des cinq du prototype : la moitié d'un gyro BMI270, déjà proposée avant.
 
@@ -23,8 +24,9 @@ use otb_store::Library;
 use otb_store::model::{Config, Drone, DroneSheet, config_changes};
 
 use crate::icons::icon;
-use crate::theme::{Theme, file_color, plot, with_alpha};
-use crate::tracking::{Progress, TrackingView};
+use crate::plots::{integer_grid, nice_grid, swatch, tick_fr};
+use crate::theme::{AXIS_NAMES, Theme, file_color, plot, with_alpha};
+use crate::tracking::{Chart, Charts, Flight, Progress, TrackingView, charts_of};
 
 // ---------------------------------------------------------------- choix proposés
 
@@ -268,6 +270,12 @@ pub fn target_note(sheet: &DroneSheet) -> String {
     )
 }
 
+/// Les cibles des dix cases en nombres, dans l'ordre de `ROWS` : `None` pour une case vide **ou illisible** (le
+/// suivi n'a pas de bande là ; l'enregistrement, lui, refuse une case illisible : `check_target`).
+pub fn target_values(sheet: &DroneSheet) -> [Option<f64>; 10] {
+    target_texts(sheet).map(|t| parse(&t).ok().flatten())
+}
+
 /// Refuse une case de la fiche cible qui n'est pas un nombre (une case vide est permise : pas de cible).
 pub fn check_target(sheet: &DroneSheet) -> Result<(), String> {
     for (r, t) in ROWS.iter().zip(target_texts(sheet)) {
@@ -473,7 +481,14 @@ impl DroneSheetPage {
                             ui.spacing_mut().item_spacing.y = GAP;
                             target(ui, form, th);
                             if let Some(v) = suivi {
-                                tracking(ui, th, v);
+                                // ⚠️ la bande suit les cases **du formulaire**, même pas encore enregistrées : le
+                                // pilote voit tout de suite où tombe la cible qu'il tape
+                                let charts = form
+                                    .id
+                                    .as_deref()
+                                    .filter(|_| lib.measures_loaded())
+                                    .map(|id| charts_of(lib, id, &target_values(&form.sheet)));
+                                tracking(ui, th, v, charts.as_ref());
                             }
                         });
                     });
@@ -947,8 +962,9 @@ fn target_row(ui: &mut Ui, th: &Theme, row: &TargetRow, text: &mut String) -> bo
     changed
 }
 
-/// « Suivi des mesures » : l'état du calcul des grandeurs de chaque fragment (lot 31a).
-fn tracking(ui: &mut Ui, th: &Theme, v: &TrackingView) {
+/// « Suivi des mesures » : l'état du calcul des grandeurs de chaque fragment (lot 31a), puis leurs graphiques au fil
+/// des vols (lot 31c) dès qu'un vol est mesuré.
+fn tracking(ui: &mut Ui, th: &Theme, v: &TrackingView, charts: Option<&Charts>) {
     section(
         ui,
         th,
@@ -957,11 +973,218 @@ fn tracking(ui: &mut Ui, th: &Theme, v: &TrackingView) {
             "Ce que l'assistant mesure sur chaque fragment de ce drone, gardé pour suivre son évolution d'un vol à l'autre.",
         ),
         |ui| {
-            for line in tracking_lines(v) {
-                hint(ui, th, &line);
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                for line in tracking_lines(v) {
+                    hint(ui, th, &line);
+                }
+            });
+            let Some(c) = charts.filter(|c| !c.flights.is_empty()) else {
+                return;
+            };
+            chart_legend(ui, th);
+            for chart in &c.charts {
+                tracking_chart(ui, th, chart, &c.flights);
             }
         },
     );
+}
+
+// mesures des graphiques du suivi (absents du prototype : tailles reprises de la fiche cible et de l'Assistant)
+const CHART_H: f32 = 110.0;
+/// Opacité de la zone visée (vert du thème).
+const BAND_ALPHA: u8 = 34;
+const POINT_R: f32 = 3.0;
+/// Largeur des graduations verticales : « -31,5 » y tient.
+const CHART_Y_AXIS_W: f32 = 34.0;
+
+/// Un nombre du suivi : virgule décimale, `decimals` chiffres (ceux de la case de la fiche cible).
+fn chart_number(c: &Chart, x: f64) -> String {
+    otb_format::fixed(x, c.decimals, false).replace('.', ",")
+}
+
+/// La cible d'un graphique, en clair : « cible ≤ 14 ms », « cible ≥ 35 ° », « cible 1,05 à 1,20 », « sans cible ».
+pub fn band_text(c: &Chart) -> String {
+    let unit = if c.unit.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", c.unit)
+    };
+    match c.band {
+        (Some(lo), Some(hi)) => format!("cible {} à {}{unit}", chart_number(c, lo), chart_number(c, hi)),
+        (Some(lo), None) => format!("cible ≥ {}{unit}", chart_number(c, lo)),
+        (None, Some(hi)) => format!("cible ≤ {}{unit}", chart_number(c, hi)),
+        (None, None) => "sans cible".to_string(),
+    }
+}
+
+/// La bulle d'un point survolé : le vol (numéro, nom, date), puis l'axe et la valeur. `x` est l'abscisse survolée ;
+/// `None` hors des vols.
+pub fn hover_text(c: &Chart, flights: &[Flight], series: &str, x: f64, y: f64) -> Option<String> {
+    let n = x.round();
+    let flight = flights.get((n as usize).checked_sub(1)?).filter(|_| n >= 1.0)?;
+    let date = if flight.date.is_empty() {
+        String::new()
+    } else {
+        format!(" — {}", date_fr(&flight.date))
+    };
+    let unit = if c.unit.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", c.unit)
+    };
+    let what = if series.is_empty() {
+        String::new()
+    } else {
+        format!("{series} : ")
+    };
+    Some(format!(
+        "Vol {n} : {}{date}\n{what}{}{unit}",
+        flight.name,
+        chart_number(c, y)
+    ))
+}
+
+/// Les bornes verticales d'un graphique : toutes les valeurs et les bords de la bande, avec une marge.
+fn chart_y_bounds(c: &Chart) -> (f64, f64) {
+    let values = c.lines.iter().flat_map(|l| l.points.iter().map(|p| p.value));
+    let edges = [c.band.0, c.band.1].into_iter().flatten();
+    let (lo, hi) = values
+        .chain(edges)
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), v| (a.min(v), b.max(v)));
+    if !lo.is_finite() {
+        return (0.0, 1.0);
+    }
+    let pad = if hi > lo {
+        (hi - lo) * 0.12
+    } else {
+        lo.abs().max(1.0) * 0.1
+    };
+    (lo - pad, hi + pad)
+}
+
+/// La légende des graphiques : couleur de chaque axe, et ce que veut dire un point creux.
+fn chart_legend(ui: &mut Ui, th: &Theme) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        for (name, color) in AXIS_NAMES.iter().zip(plot::AXES) {
+            swatch(ui, color);
+            ui.label(RichText::new(*name).size(HINT).color(th.ui.text));
+            ui.add_space(8.0);
+        }
+        let creux = format!(
+            "○ mesure moins sûre (moins de {} fenêtres)",
+            otb_advisor::rules::STEP_SURE_WINDOWS
+        );
+        ui.label(RichText::new(creux).size(HINT).color(th.ui.muted));
+    });
+}
+
+/// Un graphique du suivi : titre et cible au-dessus, puis la zone visée teintée (vert du thème), ses bords en
+/// pointillés, et une ligne par axe ; un point creux est une mesure moins sûre.
+fn tracking_chart(ui: &mut Ui, th: &Theme, c: &Chart, flights: &[Flight]) {
+    use egui_plot::{HLine, Line, LineStyle, Plot, PlotPoints, Points, Polygon};
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 2.0;
+        ui.horizontal(|ui| {
+            let unit = if c.unit.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", c.unit)
+            };
+            ui.label(
+                RichText::new(format!("{}{unit}", c.title))
+                    .size(LABEL)
+                    .strong()
+                    .color(th.ui.text),
+            );
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.label(RichText::new(band_text(c)).size(HINT).color(th.ui.muted));
+            });
+        });
+        if c.lines.is_empty() {
+            hint(ui, th, "Pas encore de mesure exploitable.");
+            return;
+        }
+        let green = th.severity("ok");
+        let (y_lo, y_hi) = chart_y_bounds(c);
+        let (x_lo, x_hi) = (0.5, flights.len() as f64 + 0.5);
+        let flights = flights.to_vec();
+        let chart = c.clone();
+        Plot::new(("suivi", c.key))
+            .width(ui.available_width())
+            .height(CHART_H)
+            .auto_bounds(false)
+            .allow_drag(false)
+            .allow_zoom(false)
+            .allow_scroll(false)
+            .allow_boxed_zoom(false)
+            .allow_double_click_reset(false)
+            .show_x(false)
+            .show_y(false)
+            .x_grid_spacer(integer_grid)
+            .y_grid_spacer(|i| nice_grid(i, 3.0))
+            .y_axis_formatter(|m, _| tick_fr(m.value, m.step_size))
+            // même largeur de graduations partout : les vols tombent à la même verticale d'un graphique à l'autre
+            .y_axis_min_width(CHART_Y_AXIS_W)
+            .grid_color(th.grid_color())
+            .label_formatter(move |pos| match pos {
+                egui_plot::HoverPosition::NearDataPoint {
+                    plot_name, position, ..
+                } => hover_text(&chart, &flights, plot_name, position.x, position.y),
+                egui_plot::HoverPosition::Elsewhere { .. } => None,
+            })
+            .show(ui, |pu| {
+                pu.set_plot_bounds_x(x_lo..=x_hi);
+                pu.set_plot_bounds_y(y_lo..=y_hi);
+                if c.band != (None, None) {
+                    let (b_lo, b_hi) = (c.band.0.unwrap_or(y_lo), c.band.1.unwrap_or(y_hi));
+                    pu.polygon(
+                        Polygon::new(
+                            "",
+                            PlotPoints::from(vec![[x_lo, b_lo], [x_hi, b_lo], [x_hi, b_hi], [x_lo, b_hi]]),
+                        )
+                        .fill_color(with_alpha(green, BAND_ALPHA))
+                        .stroke(egui::Stroke::NONE)
+                        .allow_hover(false),
+                    );
+                    for edge in [c.band.0, c.band.1].into_iter().flatten() {
+                        pu.hline(
+                            HLine::new("", edge)
+                                .color(green)
+                                .width(1.0)
+                                .style(LineStyle::dashed_loose())
+                                .allow_hover(false),
+                        );
+                    }
+                }
+                for line in &c.lines {
+                    let (color, name) = match line.axis {
+                        a @ 0..=2 => (plot::AXES[a as usize], AXIS_NAMES[a as usize]),
+                        _ => (th.fg, ""),
+                    };
+                    let pts: Vec<[f64; 2]> = line.points.iter().map(|p| [p.flight as f64, p.value]).collect();
+                    pu.line(Line::new(name, PlotPoints::from(pts)).color(color).width(1.5));
+                    for sure in [true, false] {
+                        let pts: Vec<[f64; 2]> = line
+                            .points
+                            .iter()
+                            .filter(|p| p.sure == sure)
+                            .map(|p| [p.flight as f64, p.value])
+                            .collect();
+                        if pts.is_empty() {
+                            continue;
+                        }
+                        pu.points(
+                            Points::new(name, PlotPoints::from(pts))
+                                .color(color)
+                                .radius(POINT_R)
+                                .filled(sure),
+                        );
+                    }
+                }
+            });
+    });
 }
 
 fn configurations(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {

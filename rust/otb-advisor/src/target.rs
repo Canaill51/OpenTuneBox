@@ -194,6 +194,35 @@ pub fn proposed_values(profile_key: &str) -> [Option<f64>; 10] {
     ROWS.map(|r| proposed(&r, p))
 }
 
+/// Les grandeurs suivies que fixe la fiche cible, une fois chacune, dans l'ordre des cases : le suivi trace un
+/// graphique par grandeur (lot 31c), le pic une seule fois pour ses deux bords.
+pub fn charted() -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::with_capacity(ROWS.len());
+    for r in &ROWS {
+        if !out.contains(&r.tracked) {
+            out.push(r.tracked);
+        }
+    }
+    out
+}
+
+/// La bande visée d'une grandeur suivie, `(bas, haut)`, lue dans les cibles des dix cases (`targets`, dans l'ordre de
+/// `ROWS`) : une case « ≥ » donne le bas, une case « ≤ » le haut. Un bord sans cible vaut `None` ; les deux à `None`,
+/// pas de bande (D-072 : une grandeur sans seuil se trace sans bande).
+pub fn band(tracked: &str, targets: &[Option<f64>; 10]) -> (Option<f64>, Option<f64>) {
+    let (mut lo, mut hi) = (None, None);
+    for (r, t) in ROWS.iter().zip(targets) {
+        if r.tracked != tracked || t.is_none() {
+            continue;
+        }
+        match r.bound {
+            Bound::AtLeast => lo = *t,
+            Bound::AtMost => hi = *t,
+        }
+    }
+    (lo, hi)
+}
+
 /// Une valeur telle qu'elle s'affiche dans sa case : virgule décimale, `decimals` chiffres.
 pub fn shown(row: &TargetRow, x: f64) -> String {
     fixed(x, row.decimals, false).replace('.', ",")
