@@ -149,115 +149,41 @@ fn le_multiplicateur_ne_sert_que_sans_erpm() {
     assert_eq!(motor_freqs(&log, 9.0).unwrap().row(0), &[1.0, 2.0, 3.0, 4.0]);
 }
 
+/// D-066 : une page ne choisit plus ses logs, elle lit la liste d'analyse (la barre de pastilles du haut).
 #[test]
-fn la_selection_des_fichiers_suit_les_libelles_et_retombe_sur_le_log_courant() {
+fn la_selection_d_une_page_suit_la_liste_d_analyse() {
     let mut state = AppState::new();
-    let sel = FileSelection::new(true);
-    assert!(sel.indices(&state).is_empty());
-    for nom in ["a", "b", "c"] {
-        state.add(synthetic_log(nom, 10, 1000.0));
-    }
-    // rien de choisi : le log courant (le dernier ouvert)
-    assert_eq!(sel.indices(&state), vec![2]);
-    state.set_current(Some(0));
-    assert_eq!(sel.indices(&state), vec![0]);
-    // un seul fichier à la fois en mode simple, même si deux libellés sont retenus
+    let multi = FileSelection::new(true);
     let simple = FileSelection::new(false);
-    assert_eq!(simple.indices(&state).len(), 1);
-    // sans choix, après la fermeture du log courant : le log courant qui reste (« b » passe à l'indice 0)
-    state.remove(0);
-    assert_eq!(sel.indices(&state), vec![0]);
-}
-
-#[test]
-fn un_clic_choisit_un_fichier_et_le_choix_survit_a_la_fermeture_d_un_autre() {
-    use egui_kittest::Harness;
-    use egui_kittest::kittest::Queryable;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    let mut state = AppState::new();
+    assert!(multi.indices(&state).is_empty());
+    assert!(simple.indices(&state).is_empty());
     for nom in ["a", "b", "c"] {
         state.add(synthetic_log(nom, 10, 1000.0));
     }
-    let sel = Rc::new(RefCell::new(FileSelection::new(true)));
-    let s2 = sel.clone();
-    let mut h = Harness::new_ui_state(
-        move |ui, st: &mut AppState| {
-            s2.borrow_mut().ui(ui, st);
-        },
-        state,
-    );
-    h.run();
-    h.get_by_label("a").click(); // « c » (courant) est déjà pris : « a » s'y ajoute
-    h.run();
-    assert_eq!(sel.borrow().indices(h.state()), vec![0, 2]);
-    h.get_by_label("c").click(); // un second clic retire
-    h.run();
-    assert_eq!(sel.borrow().indices(h.state()), vec![0]);
-    // fermer « b » : « a » reste choisi, par son libellé
-    h.state_mut().remove(1);
-    h.run();
-    assert_eq!(sel.borrow().indices(h.state()), vec![0]);
-    // fermer « a » : plus rien de choisi → le log courant
-    h.state_mut().remove(0);
-    h.run();
-    assert_eq!(sel.borrow().indices(h.state()), vec![0]);
-    assert_eq!(h.state().logs[0].label, "c");
-
-    // mode simple : un clic remplace
-    let mut st = AppState::new();
-    for nom in ["x", "y"] {
-        st.add(synthetic_log(nom, 10, 1000.0));
-    }
-    let one = Rc::new(RefCell::new(FileSelection::new(false)));
-    let o2 = one.clone();
-    let mut h = Harness::new_ui_state(move |ui, st: &mut AppState| o2.borrow_mut().ui(ui, st), st);
-    h.run();
-    h.get_by_label("x").click();
-    h.run();
-    assert_eq!(one.borrow().indices(h.state()), vec![0]);
-}
-
-/// Réponse indicielle (2026-11-06) : l'ordre des courbes est celui des clics, et tout décocher est un choix.
-#[test]
-fn la_selection_ordonnee_suit_les_clics_et_peut_rester_vide() {
-    use egui_kittest::Harness;
-    use egui_kittest::kittest::Queryable;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    let mut state = AppState::new();
-    for nom in ["a", "b", "c"] {
-        state.add(synthetic_log(nom, 10, 1000.0));
-    }
-    let sel = Rc::new(RefCell::new(FileSelection::new(true).user_order()));
-    let s2 = sel.clone();
-    let mut h = Harness::new_ui_state(move |ui, st: &mut AppState| s2.borrow_mut().ui(ui, st), state);
-    h.run();
-    assert_eq!(
-        sel.borrow().indices(h.state()),
-        vec![2],
-        "avant tout clic : le log courant"
-    );
-    h.get_by_label("b").click();
-    h.run();
-    h.get_by_label("a").click();
-    h.run();
-    assert_eq!(
-        sel.borrow().indices(h.state()),
-        vec![2, 1, 0],
-        "l'ordre des clics, pas l'ordre d'ouverture"
-    );
-    assert_eq!(sel.borrow().rank("a"), Some(2), "le dernier coché est le 3e tracé");
-    for nom in ["c", "b", "a"] {
-        h.get_by_label(nom).click();
-        h.run();
-    }
+    // tous actifs, dans l'ordre de la liste ; le maître est le log courant (le dernier ouvert)
+    assert_eq!(multi.indices(&state), vec![0, 1, 2]);
+    assert_eq!(simple.indices(&state), vec![2]);
+    // une pastille désactivée sort des pages ; si c'était le maître, le premier actif le remplace
+    state.set_active(2, false);
+    assert_eq!(multi.indices(&state), vec![0, 1]);
+    assert_eq!(simple.indices(&state), vec![0]);
+    // l'ordre des courbes est celui de la barre : glisser « c » en tête
+    state.set_active(2, true);
+    let avant = state.revision();
+    state.move_log(2, 0);
+    let noms: Vec<&str> = state.logs.iter().map(|l| l.label.as_str()).collect();
+    assert_eq!(noms, ["c", "a", "b"]);
     assert!(
-        sel.borrow().indices(h.state()).is_empty(),
-        "tout décocher laisse la page vide (pas de retour au log courant)"
+        state.revision() > avant,
+        "un ordre changé doit faire recalculer les pages"
     );
+    assert_eq!(state.current_log().unwrap().label, "c", "le log courant suit son log");
+    // tout désactiver est un choix : les pages restent vides
+    for i in 0..3 {
+        state.set_active(i, false);
+    }
+    assert!(multi.indices(&state).is_empty());
+    assert!(simple.indices(&state).is_empty());
 }
 
 #[test]

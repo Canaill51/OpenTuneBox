@@ -179,6 +179,9 @@ pub struct LoadedLog {
     pub fragment: Option<String>,
     pub color: Color32,
     pub label: String,
+    /// Montré par les outils (pastille de la liste d'analyse non barrée). Un log désactivé garde sa place, sa
+    /// couleur et ses calculs : le réactiver ne recalcule rien.
+    pub active: bool,
     /// Résultats de calculs par outil, vidés quand la période change.
     pub extras: Cache,
 }
@@ -241,6 +244,7 @@ impl AppState {
             fragment: None,
             color,
             label,
+            active: true,
             extras: Cache::default(),
         });
         self.bump();
@@ -270,6 +274,46 @@ impl AppState {
 
     pub fn current_log(&self) -> Option<&LoadedLog> {
         self.current.and_then(|i| self.logs.get(i))
+    }
+
+    /// Les logs que montrent les outils : les actifs, **dans l'ordre de la liste d'analyse** (D-066).
+    pub fn active_indices(&self) -> Vec<usize> {
+        (0..self.logs.len()).filter(|&i| self.logs[i].active).collect()
+    }
+
+    /// Le **fragment maître**, celui des pages qui n'analysent qu'un vol : le log courant s'il est actif, le
+    /// premier actif sinon, aucun si tout est désactivé (D-066).
+    pub fn master(&self) -> Option<usize> {
+        self.current
+            .filter(|&c| self.logs.get(c).is_some_and(|l| l.active))
+            .or_else(|| self.logs.iter().position(|l| l.active))
+    }
+
+    /// Montre ou cache un log sans le fermer. Les outils recalculent (leur sélection change).
+    pub fn set_active(&mut self, index: usize, active: bool) {
+        if let Some(l) = self.logs.get_mut(index)
+            && l.active != active
+        {
+            l.active = active;
+            self.bump();
+        }
+    }
+
+    /// Déplace un log à la place `to` de la liste : l'ordre des courbes suit. Le log courant reste le même log.
+    pub fn move_log(&mut self, from: usize, to: usize) {
+        if from >= self.logs.len() {
+            return;
+        }
+        let to = to.min(self.logs.len() - 1);
+        if from == to {
+            return;
+        }
+        let uid = self.current_log().map(|l| l.uid);
+        let l = self.logs.remove(from);
+        self.logs.insert(to, l);
+        self.current = uid.and_then(|u| self.logs.iter().position(|l| l.uid == u));
+        // ⚠️ les outils comparent les indices choisis : un ordre changé sous les mêmes indices doit recalculer
+        self.bump();
     }
 
     /// Borne la période au log et l'ordonne ; ne fait rien si elle ne change pas.

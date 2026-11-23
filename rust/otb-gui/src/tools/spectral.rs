@@ -592,8 +592,6 @@ impl Tool for SpectralTool {
 
     fn controls(&mut self, ui: &mut Ui, state: &AppState, theme: &Theme) {
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.files.ui(ui, state);
-            ui.separator();
             self.axes.ui(ui);
             ui.separator();
             ui.label(RichText::new("Jeux de données").strong());

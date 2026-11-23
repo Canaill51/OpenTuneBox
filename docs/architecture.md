@@ -74,7 +74,9 @@ Dans `rust/otb-analysis/src/` (noyaux de calcul dans `rust/otb-dsp/src/`).
 Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 
 - `state.rs` : logs ouverts (10 maximum, une couleur chacun), log courant, période d'analyse et fragment de la bibliothèque
-  correspondant (`LoadedLog::fragment`, D-065) ; `Cache` des résultats par log, clé = réglages + période (D-037). Un
+  correspondant (`LoadedLog::fragment`, D-065) ; c'est aussi la **liste d'analyse** à l'écran (D-066) : l'ordre des logs
+  est celui des courbes (`move_log`), un log désactivé (`LoadedLog::active`) reste ouvert mais sort des outils
+  (`active_indices`), et `master` désigne le fragment maître des pages à un seul vol ; `Cache` des résultats par log, clé = réglages + période (D-037). Un
   changement relance les outils ouverts. `period_of_range` passe des bornes d'un fragment (échantillons) à la période (secondes).
 - `worker.rs` : file d'attente d'un calcul par outil, en arrière-plan ; le résultat revient au thread de l'interface.
 - `tool.rs` : trait `Page` (une page de la fenêtre principale) et trait `Tool` ; `Tool::compute` est une fonction associée
@@ -102,7 +104,8 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   nombre de fragments et date du dernier vol côte à côte, étape du parcours et barre d'avancement ; la carte choisie prend un
   trait bleu de 2 points et une ombre portée. Les mesures relevées dans la maquette sont des constantes nommées en tête du
   fichier. Le panneau de droite montre les **fragments** du drone choisi, du plus récent en haut, chacun derrière un rond
-  « + » (ou une coche quand son vol est déjà ouvert) et suivi d'un crayon qui ouvre l'écran d'extraction sur lui
+  « + » (ou une coche à la couleur de sa pastille quand il est dans la liste d'analyse ; il l'y ajoute ou l'en retire,
+  `DashAction::Toggle`) et suivi d'un crayon qui ouvre l'écran d'extraction sur lui
   (`DashAction::Edit`). Un drone est reconnu par le **nom de machine** de
   l'en-tête (`Craft name`) tant que la récupération par USB n'apporte pas l'identifiant de la carte (lot 32).
 - `app.rs` : fenêtre principale, écrans Tableau de bord / Guide / outil, et l'écran d'extraction (`Screen::Viewer`), hors
@@ -112,11 +115,17 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   (`App::library`) : **en mémoire** partout sauf au lancement réel, pour qu'aucun banc de test n'écrive celle de l'utilisateur ;
   chaque fichier ouvert y est rangé (`remember`), et elle est écrite quand eframe enregistre. La navigation est un **rail à gauche** (`rail`, largeur
   `RAIL_WIDTH`, D-060) : une entrée par outil ou par **espace**, les vues d'un espace (`HIDDEN`) n'en ayant pas à elles —
-  c'est l'entrée nommée par leur `TAB` qui reste mise en valeur. La barre du haut garde ce qui agit sur les logs et sur la
-  fenêtre (ouvrir, fermer, thème, export), et la page exportée commence au bord droit du rail. Un outil caché ne
+  c'est l'entrée nommée par leur `TAB` qui reste mise en valeur. La barre du haut est celle du prototype : logo, **barre de
+  fragments** (`analysis_bar.rs`), thème, plus « Ouvrir… » et l'export (écarts écrits, D-066) ; la page exportée commence au
+  bord droit du rail. La liste d'analyse est recopiée dans la bibliothèque à chaque cadre (`sync_analysis`) et rouverte au
+  lancement (`restore_analysis`, appelée par `main.rs`) ; le « + » d'un fragment au tableau de bord n'ouvre que sa session
+  (`toggle_fragment`, filtre des sessions voulues dans `accepte`). Un outil caché ne
   recalcule qu'à son affichage. `main.rs` : démarrage (pas de console sous Windows, icône de fenêtre, ouvre les logs passés en
   argument) ; le titre de la fenêtre vient d'`app.rs:window_title` (nom + numéro de version du paquet), tandis que
   l'`app_id` garde le nom seul, qui est celui du fichier `.desktop` (L-076).
+- `analysis_bar.rs` : la **barre de fragments** (lot 29c, D-066), une pastille par log, au dessin du prototype (mesures en
+  constantes nommées) ; elle rend des `BarAction` (désactiver, maître, retirer, déplacer) que `App::apply_bar` exécute.
+  `drop_index` (place d'une pastille lâchée) est une fonction pure, testée sans souris.
 - `viewer.rs` (traces, lissage) et `viewer_page.rs` : l'**écran d'extraction d'un fragment** (lot 29b, D-065), au dessin du
   prototype — barre du haut (retour, « Modifier le fragment … », Annuler, Enregistrer), graphiques avec les bornes, leurs
   onglets et leurs poignées, barre de navigation sur le log entier (fenêtre visible déplaçable, fragment en bleu), panneau de

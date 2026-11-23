@@ -347,3 +347,24 @@ fn en_psd_les_cartes_sont_a_l_echelle_de_pidtoolbox() {
         m.z.iter().position(|v| v.is_finite()).map(|i| m.z[i])
     );
 }
+
+/// D-066 : glisser une pastille change la place des logs ; une colonne garde **son** vol, pas sa place.
+///
+/// **Contre-preuve vue en échec** : sans la remise en place par identifiant de `follow_logs`, la colonne passe
+/// au log qui a pris la place.
+#[test]
+fn une_colonne_garde_son_log_quand_l_ordre_de_la_barre_change() {
+    let mut st = etat(3);
+    let mut t = FreqThrottleTool::new();
+    let mut cols = t.columns();
+    cols[0].1 = Some(2);
+    cols[1].1 = Some(0);
+    t.set_columns(cols);
+    t.follow_logs(&st);
+    let (u2, u0) = (st.logs[2].uid, st.logs[0].uid);
+    st.move_log(2, 0); // le 3e log passe en tête
+    t.follow_logs(&st);
+    let cols = t.columns();
+    assert_eq!(st.logs[cols[0].1.unwrap()].uid, u2, "la colonne 1 suit son log");
+    assert_eq!(st.logs[cols[1].1.unwrap()].uid, u0, "la colonne 2 aussi");
+}

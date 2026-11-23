@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
-//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b) et `tableau-de-bord-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b) et `tableau-de-bord-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
@@ -60,6 +60,14 @@ fn main() {
             .expect("rendu")
             .save(out.join(format!("tableau-de-bord-{}.png", th.name)))
             .unwrap();
+        // la barre de fragments avec une pastille désactivée (pointillés, barrée), puis réactivée (lot 29c)
+        h.state_mut().state.set_active(0, false);
+        h.run_steps(4);
+        h.render()
+            .expect("rendu")
+            .save(out.join(format!("barre-desactivee-{}.png", th.name)))
+            .unwrap();
+        h.state_mut().state.set_active(0, true);
         // le guide : l'accueil, puis la phase des filtres avec la fiche du drone de ce log (fiche en mémoire, jamais le vrai fichier)
         let nom = h.state().state.logs[0].log.settings.craft_name.clone();
         let mut fiche = otb_advisor::drone_card::DroneCard::new(&nom);
@@ -91,26 +99,7 @@ fn main() {
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
             h.run_steps(6);
-            if wanted > 1 {
-                // coche les autres fichiers (le log courant est déjà pris) puis attend le nouveau calcul
-                let labels: Vec<String> = h.state().state.logs.iter().map(|l| l.label.clone()).collect();
-                let current = h.state().state.current;
-                for (k, l) in labels.iter().enumerate() {
-                    if Some(k) != current
-                        && let Some(n) = h.query_all_by_label(l.as_str()).next()
-                    {
-                        n.click();
-                    }
-                }
-                for _ in 0..600 {
-                    h.run_steps(2);
-                    if !h.state().pages[i].busy() {
-                        break;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                }
-                h.run_steps(6);
-            }
+            // tous les fragments ouverts sont actifs dans la barre : rien à cocher page par page (D-066)
             let title = h.state().pages[i].title();
             let name: String = title
                 .to_lowercase()

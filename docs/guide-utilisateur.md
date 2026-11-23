@@ -60,8 +60,18 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 
 - **Titre de la fenêtre** : le nom du programme suivi de sa **version** (« OpenTuneBox 0.9.0 ») — utile pour savoir
   laquelle vous utilisez avant de signaler un problème.
-- **Barre du haut** : ouvrir et fermer les logs, la case **Thème sombre** et l'icône qui exporte la fenêtre en
-  image. Elle n'agit que sur les logs et sur la fenêtre.
+- **Barre du haut** : la **barre de fragments** (une pastille par vol en analyse, voir ci-dessous), puis
+  **Ouvrir…**, l'icône qui exporte la fenêtre en image et la lune qui passe au **thème sombre** (ou clair).
+- **La barre de fragments** décide de ce que montrent **tous les outils** : chaque pastille porte la couleur de ses
+  courbes, le nom du fragment et celui du drone. Survolez-la pour sa fiche (rôle, date, heure de début, durée,
+  PID roll, firmware).
+  - **Un clic sur la pastille** la **désactive** (barrée, en pointillés) : ses courbes disparaissent des outils sans
+    que le vol soit fermé. Un second clic la réactive.
+  - **Un clic sur son rond** en fait le **fragment maître** (rond plus gros, coché) : c'est le vol des pages qui n'en
+    montrent qu'un (Assistant, Fréquence × temps, « Et si » des filtres).
+  - **Glissez-la** pour changer l'ordre des courbes ; sa couleur, elle, ne change jamais.
+  - **Le ×** la retire de l'analyse (le vol est fermé).
+  - La liste est **retrouvée au lancement suivant** : mêmes vols, même ordre, mêmes couleurs.
 - **Rail de navigation à gauche** : **Tableau de bord**, **Guide**, **Assistant**, **Bruit et filtres**,
   **Réponse indicielle**, **Curseurs PID** et **Configuration**, chacun avec sa couleur, l'un sous l'autre.
   Survolez une entrée pour sa description.
@@ -127,8 +137,8 @@ entre parenthèses, le nom plus court que les pages du Guide emploient pour le m
 - **Tout voir** : remet le graphique à sa vue d'ensemble après un zoom.
 - **Exporter image** : enregistre la page en PNG (nom proposé `OTB_FIGS_AAAA-MM-JJ-N.png`). L'icône tout à droite de
   la barre, elle, capture la fenêtre entière.
-- La **liste des fichiers** : une case par log ouvert ; un clic ajoute ou retire une courbe.
-- Fermer un log : les deux boutons à gauche de la barre (**Fermer** le log affiché, **Tout fermer**).
+- Les vols montrés, leur ordre et leurs couleurs viennent de la **barre de fragments** du haut : une page n'a pas
+  de liste à elle. Tout désactiver laisse la page vide.
 
 ### Analyse spectrale (Spectre)
 Spectres (FFT) du gyro et des termes PID : on y voit où se trouve le bruit et ce que les filtres
@@ -179,9 +189,9 @@ comme dans le Spectre.
 
 ### Réponse indicielle
 La réaction du drone à un ordre de manche « en marche d'escalier », moyennée sur tout le vol.
-**L'ordre des courbes et leurs couleurs sont les vôtres** : elles suivent l'ordre dans lequel vous cochez
-les fichiers (la 1re cochée prend la 1re couleur), et vous pouvez tout décocher pour vider la page. C'est
-propre à cette page : ailleurs, chaque log garde la couleur reçue à son ouverture.
+**L'ordre des courbes est le vôtre** : celui des pastilles de la barre de fragments, que vous changez en les
+glissant ; chaque courbe garde la couleur de sa pastille, la même que sur les autres pages. Désactivez une pastille
+pour retirer sa courbe, toutes pour vider la page.
 Objectifs : montée rapide, **pic proche de 1** (sans feedforward, une réponse sans dépassement visible donne
 environ 1,03 ; le feedforward fait monter le pic), pas de rebond. Colonnes de mesures au choix :
 latence, temps de montée, bande passante, pic de sensibilité (< 7 dB), marge de phase (> 35°), marge de

@@ -212,6 +212,9 @@ pub struct FreqThrottleTool {
     files: FileSelection,
     auto_scale: bool,
     preset: Option<usize>,
+    /// Le log de chaque colonne, par son identifiant de chargement : une colonne désigne son log par sa **place**,
+    /// et glisser une pastille de la barre change les places (D-066). Voir `follow_logs`.
+    column_uid: [Option<u64>; N_COLUMNS],
     /// Texture de chaque carte (colonne, axe) et la clé des réglages qui l'ont produite.
     textures: HashMap<(usize, usize), (u64, TextureHandle)>,
     pub view: ViewMemo<[u64; 3]>,
@@ -231,6 +234,7 @@ impl FreqThrottleTool {
         }
         Self {
             columns,
+            column_uid: [None; N_COLUMNS],
             sub100: [false; N_COLUMNS],
             scale: [0.5; N_COLUMNS],
             zmin: 0.0,
@@ -252,6 +256,19 @@ impl FreqThrottleTool {
 
     pub fn columns(&self) -> [ColumnChoice; N_COLUMNS] {
         self.columns
+    }
+
+    /// Remet chaque colonne sur **son** log quand l'ordre de la liste a changé, puis retient le log de chacune.
+    /// ⚠️ Sans cela, glisser une pastille ferait passer une colonne à un autre vol sans rien dire (D-066).
+    pub fn follow_logs(&mut self, state: &AppState) {
+        for c in 0..N_COLUMNS {
+            if let Some(u) = self.column_uid[c]
+                && let Some(i) = state.logs.iter().position(|l| l.uid == u)
+            {
+                self.columns[c].1 = Some(i);
+            }
+            self.column_uid[c] = self.columns[c].1.and_then(|i| state.logs.get(i)).map(|l| l.uid);
+        }
     }
 
     pub fn set_columns(&mut self, c: [ColumnChoice; N_COLUMNS]) {
@@ -509,10 +526,9 @@ impl Tool for FreqThrottleTool {
     }
 
     fn controls(&mut self, ui: &mut Ui, state: &AppState, theme: &Theme) {
+        self.follow_logs(state);
         let current = state.current.unwrap_or(0).min(state.logs.len().saturating_sub(1));
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.files.ui(ui, state);
-            ui.separator();
             self.axes.ui(ui);
             ui.separator();
             ui.label(RichText::new("Colonnes : données, fichier, échelle").strong());

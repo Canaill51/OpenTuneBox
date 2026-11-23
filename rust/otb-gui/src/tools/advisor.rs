@@ -199,7 +199,9 @@ impl Tool for AdvisorTool {
     }
 
     fn compute(o: Options, logs: Vec<LogInput>) -> Result<AdvisorOutput, String> {
-        let li = logs.first().ok_or("Sélectionnez au moins un log.")?;
+        let li = logs
+            .first()
+            .ok_or("Activez au moins un fragment dans la barre du haut.")?;
         // la clé contient le profil ET la période : un rapport calculé avant un changement ne peut pas servir
         let key = format!("advisor:{}:{:?}", o.profile.unwrap_or("auto"), li.period);
         let report = match li.cache.get::<Report>(&key) {
@@ -223,10 +225,8 @@ impl Tool for AdvisorTool {
         })
     }
 
-    fn controls(&mut self, ui: &mut Ui, state: &AppState, theme: &Theme) {
+    fn controls(&mut self, ui: &mut Ui, _state: &AppState, theme: &Theme) {
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.files.ui(ui, state);
-            ui.separator();
             ui.label("Taille du drone :");
             egui::ComboBox::from_id_salt("assistant-profil")
                 .selected_text(safe_text(Self::profile_label(self.profile)))

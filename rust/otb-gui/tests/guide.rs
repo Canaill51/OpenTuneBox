@@ -403,13 +403,11 @@ fn l_accueil_est_affiche_et_une_phase_sans_fiche_invite_a_en_creer_une() {
     h.state_mut().guide.phase = "prep";
     h.run();
     h.get_by_label_contains("Créez d'abord la fiche de votre drone");
-    assert!(
-        h.query_by_role_and_label(Role::CheckBox, "Thème sombre").is_some(),
-        "seule la case du thème reste"
-    );
+    // le thème est un bouton depuis la barre de la maquette (D-066), et aucun log n'est ouvert : aucune case
+    assert!(h.query_by_role_and_label(Role::Button, "Thème sombre").is_some());
     assert_eq!(
         h.query_all_by_role(Role::CheckBox).count(),
-        1,
+        0,
         "aucune case du parcours sans fiche"
     );
 }
@@ -430,8 +428,8 @@ fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
     }
     assert_eq!(
         h.query_all_by_role(Role::CheckBox).count(),
-        11 + 1,
-        "11 cases et celle du thème"
+        11,
+        "11 cases, et aucune autre (le thème est un bouton, D-066)"
     );
     assert_eq!(
         h.query_all_by_label("1. Préparer le drone (0/11)").count(),

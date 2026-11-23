@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-066 | La **barre de fragments** (liste d'analyse à l'écran) décide de ce que montrent toutes les pages : fragments actifs dans l'ordre de la barre, maître pour les pages à un seul vol, couleur fixe par fragment ; plus de liste « Fichiers » par page ; liste retrouvée au lancement (remplace D-049) | 2026-11-23 |
 | D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
@@ -86,7 +87,7 @@ ici, jamais dans le code.
 | D-052 | Données de test : seul `step_tuning.json` est stocké compressé (`.gz`) ; les autres gros fichiers de cas restent en clair | 2026-11-08 |
 | D-051 | Ouverture de plusieurs logs : **3 fichiers décodés en même temps** au plus, plafond posé en nombre de fichiers et non en mémoire | 2026-11-08 |
 | D-050 | Les sources ne sont plus nommées : titres, liens et citations gardés, aucun nom de personne dans le dépôt **(précisée le 2026-11-08 : les ouvrages publiés gardent leurs auteurs ; le 2026-11-12 : toute personne, pseudonymes compris)** | 2026-11-07 |
-| D-049 | Réponse indicielle : ordre des courbes et couleurs donnés par l'ordre où l'utilisateur coche les fichiers ; sélection vide permise ; les autres pages gardent la couleur attribuée à l'ouverture | 2026-11-06 |
+| D-049 | Réponse indicielle : ordre des courbes et couleurs donnés par l'ordre où l'utilisateur coche les fichiers ; sélection vide permise ; les autres pages gardent la couleur attribuée à l'ouverture **(remplacée par D-066)** | 2026-11-06 |
 | D-048 | Tracé du viewer : index multi-résolution min/max par courbe (`otb-dsp::minmax`), sortie identique point pour point à l'ancienne décimation ; un paquet contenant un trou est tracé comme un trou ; W-049 clos | 2026-11-05 |
 | D-047 | `golden.rs` compare chaque fonction portée avec la tolérance mesurée de `registry::tolerance` (bit près si aucune n'est déclarée), comme `otb-parity check` ; W-048 clos | 2026-11-05 |
 | D-046 | Polices embarquées (Ubuntu Light, Hack) gardées, chacune sous sa propre licence ; licences propres aux polices admises malgré « aucun copyleft » (D-045) ; W-046 clos | 2026-11-05 |
@@ -137,6 +138,49 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-23 — Liste d'analyse à l'écran
+
+### D-066 : la barre de fragments décide de ce que montrent toutes les pages
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 29c : « la barre remplace » les listes de chaque page (plutôt que
+de les faire coexister) ; la liste est **rouverte au lancement** ; « Ouvrir… » et l'export **restent** dans la barre du
+haut. Remplace D-049.
+
+**Contexte.** Le prototype qui fait foi (D-061) porte en haut de tous les écrans une barre de pastilles, une par fragment
+en analyse : rond de couleur, nom, drone, « × » ; clic pour désactiver, clic sur le rond pour le fragment maître, glisser
+pour réordonner. La bibliothèque savait déjà tenir cette liste (lot 29a), l'interface ne s'en servait pas : chaque page
+avait sa liste « Fichiers » à cocher, et la Réponse indicielle sa propre règle d'ordre et de couleurs (D-049).
+
+**Décision.**
+- Les **logs ouverts sont la liste d'analyse** : leur ordre est celui des courbes, chacun peut être **désactivé** sans
+  être fermé (`LoadedLog::active`). Une page à plusieurs vols montre les actifs dans l'ordre de la barre ; une page à un
+  seul vol montre le **fragment maître** — le log courant s'il est actif, le premier actif sinon (`AppState::master`).
+  Tout désactiver laisse les pages vides.
+- **Plus de liste « Fichiers » dans les pages** (`tools/common.rs:FileSelection` lit la barre).
+- **Couleur fixe par fragment**, reçue à l'ouverture, la même sur toutes les pages ; glisser change l'ordre, jamais la
+  couleur. Ce que D-049 demandait — l'ordre choisi par l'utilisateur, une page vide possible — passe par la barre, pour
+  toutes les pages ; l'inconvénient qu'elle assumait (une couleur par page) disparaît.
+- La liste est **recopiée dans la bibliothèque** (ordre, indice de couleur, actif, maître) et **rouverte au lancement**
+  en arrière-plan ; un fragment dont le fichier a disparu est signalé dans la barre d'état, pas ouvert. Un log rangé
+  sous aucun drone (sans nom de machine) n'a pas de fragment et n'est pas gardé.
+- Le **« + » d'un fragment** au tableau de bord l'ajoute à la liste en n'ouvrant **que sa session**, ou l'en retire ; il
+  prend la couleur de sa pastille.
+- **Écarts au prototype, assumés** (D-061) : « Ouvrir… » et l'export restent dans la barre du haut (la maquette n'ouvre
+  qu'au tableau de bord et n'exporte pas) ; les boutons « Fermer » et « Tout fermer » disparaissent (le « × » d'une
+  pastille) ; la fiche du fragment s'ouvre en **infobulle** au survol, au lieu de déplier la pastille ; pendant un glisser,
+  une **barre d'insertion** montre où la pastille tombera, sans pastille fantôme sous le pointeur.
+- Option écartée : garder les listes des pages en plus de la barre. Deux endroits pour le même geste, et une courbe qui
+  pouvait changer de couleur d'une page à l'autre.
+
+**Témoins.** `rust/otb-gui/tests/analysis_list.rs` (gestes de la barre, « + » qui n'ouvre que sa session, liste retrouvée
+au lancement, fragment introuvable, doublon, place d'une pastille lâchée), `rust/otb-gui/tests/tools_common.rs`
+(`la_selection_d_une_page_suit_la_liste_d_analyse`), `rust/otb-gui/tests/freq_throttle.rs`
+(`une_colonne_garde_son_log_quand_l_ordre_de_la_barre_change`) ; 9 contre-preuves vues en échec, une par protection
+nouvelle (gestes, filtre des sessions, relecture, doublon, pages, recalcul, colonnes ; L-071).
+Captures `barre-desactivee-clair.png` et `-sombre.png` de l'exemple `capture`.
+
+**Ouvert.** Créer un second fragment dans une même session (lot 29, reste).
 
 ## 2026-11-23 — Écran d'extraction d'un fragment
 
@@ -769,6 +813,8 @@ signé garde ses auteurs », qui aurait fait de presque chaque source une except
 les licences exigent elles-mêmes les noms et copyrights.
 
 ### D-049 : la Réponse indicielle est ordonnée et colorée par l'utilisateur
+
+🔁 REMPLACÉE par D-066 (la barre de fragments ordonne les courbes de toutes les pages ; chaque fragment garde sa couleur partout).
 
 **Tranché par Cédric** le 2026-11-06, à l'essai de la 0.9.0 : « la réponse indicielle doit afficher les courbes en fonction
 de l'ordre de sélection de l'utilisateur. Il doit être possible de ne pas sélectionner de courbe. C'est l'utilisateur qui

@@ -749,7 +749,9 @@ impl Tool for FilterSimTool {
     }
 
     fn compute(o: Options, logs: Vec<LogInput>) -> Result<Self::Output, String> {
-        let li = logs.first().ok_or("Sélectionnez au moins un log.")?;
+        let li = logs
+            .first()
+            .ok_or("Activez au moins un fragment dans la barre du haut.")?;
         let base = &li.log.settings;
         let id = li.uid;
         let modf = match o.applied {
@@ -772,8 +774,6 @@ impl Tool for FilterSimTool {
     fn controls(&mut self, ui: &mut Ui, state: &AppState, theme: &Theme) {
         self.sync(state);
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.files.ui(ui, state);
-            ui.separator();
             self.axes.ui(ui);
             ui.horizontal(|ui| {
                 for (i, t) in ["Gyro", "D", "Notch dyn / RPM"].into_iter().enumerate() {

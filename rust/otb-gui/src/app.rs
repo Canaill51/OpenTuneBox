@@ -14,6 +14,9 @@ use otb_log::flightlog::FlightLog;
 use otb_log::parallel::{MAX_PARALLEL_FILES, load_many};
 use otb_store::Library;
 
+use std::collections::{HashMap, HashSet};
+
+use crate::analysis_bar::{AnalysisBar, BarAction, ChipInfo};
 use crate::dashboard::{DashAction, DashboardPage};
 use crate::export::{crop, default_export_path, today_utc, with_png_extension, write_png};
 use crate::guide::ToolTarget;
@@ -92,6 +95,14 @@ pub fn tab_icon(title: &str) -> Option<(&'static str, Option<&'static str>)> {
 /// Mesures du rail, prises dans le prototype qui fait foi (D-060) : largeur, marges du panneau, espace entre
 /// deux entrées, et le dessin d'une entrée (coins, marges intérieures, taille du texte).
 pub const RAIL_WIDTH: f32 = 212.0;
+/// Barre du haut (maquette) : hauteur d'une ligne, bloc du logo, son carré bleu, marge verticale des pastilles,
+/// espace entre les blocs, et largeur réservée à droite (« Ouvrir… », export, thème).
+const TOP_H: f32 = 52.0;
+const LOGO_W: f32 = 196.0;
+const LOGO_BADGE: f32 = 26.0;
+const CHIPS_PAD: i8 = 11;
+const TOP_GAP: f32 = 12.0;
+const TOP_RIGHT_W: f32 = 190.0;
 const RAIL_PAD_X: i8 = 10;
 const RAIL_PAD_Y: i8 = 14;
 const RAIL_GAP: f32 = 6.0;
@@ -153,6 +164,14 @@ pub struct App {
     pub viewer: ViewerPage,
     pub guide: GuidePage,
     pub dash: DashboardPage,
+    /// La barre de fragments du haut (liste d'analyse, D-066).
+    pub bar: AnalysisBar,
+    /// Fichiers dont on n'ouvre que certaines sessions (le « + » d'un fragment, la liste relue au lancement) :
+    /// identifiants des fragments voulus. Un fichier absent d'ici s'ouvre en entier.
+    wanted: HashMap<PathBuf, HashSet<String>>,
+    /// Liste d'analyse relue au lancement, en attente que ses logs soient ouverts : tant qu'elle est là, la
+    /// bibliothèque n'est pas récrite depuis l'écran (elle serait vidée avant même d'être rouverte).
+    restoring: Option<otb_store::model::Analysis>,
     /// La bibliothèque de données (lot 28). ⚠️ `in_memory` par défaut : comme pour les fiches drone, **aucun banc
     /// de test n'écrit la vraie bibliothèque de l'utilisateur**. Seul `main.rs` ouvre celle du poste.
     pub library: Library,
@@ -237,6 +256,23 @@ pub fn taille_du_paquet(en_attente: usize, deja_ouverts: usize) -> usize {
 
 /// Nom du fichier seul, pour un message d'état court (le chemin complet reste dans les erreurs de lecture).
 /// Identifiant du fragment d'une session dans la bibliothèque : l'empreinte du fichier et le numéro de session.
+/// L'heure de début d'un log, lue dans son en-tête (« 2026-11-13T18:31:47.000+00:00 » → « 18:31:47 ») ; vide sans
+/// horloge (carte sans RTC : l'en-tête porte l'an 0000 ou 1970).
+pub fn start_time(raw: Option<&str>) -> String {
+    let Some(v) = raw else { return String::new() };
+    if v.starts_with("0000") || v.starts_with("1970") {
+        return String::new();
+    }
+    v.split_once('T')
+        .map(|(_, t)| t.chars().take(8).collect())
+        .unwrap_or_default()
+}
+
+/// Indice d'une couleur de fichier dans la palette (0 si elle n'y est pas).
+fn colour_index(c: egui::Color32) -> usize {
+    theme::FILE_COLORS.iter().position(|f| *f == c).unwrap_or(0)
+}
+
 pub fn fragment_id(log_id: &str, log: &FlightLog) -> String {
     format!("{log_id}-{}", log.session)
 }
@@ -266,6 +302,9 @@ impl App {
             viewer: ViewerPage::new(),
             guide,
             dash: DashboardPage::new(),
+            bar: AnalysisBar::new(),
+            wanted: HashMap::new(),
+            restoring: None,
             library: Library::in_memory(),
             return_to: Screen::Dashboard,
             edit_after_open: None,
@@ -500,6 +539,8 @@ impl App {
 
     /// Range les sessions d'un fichier ouvert (ou son erreur) ; `false` quand il n'y a plus de place pour un log.
     fn accepte(&mut self, path: &Path, r: std::io::Result<Vec<FlightLog>>) -> bool {
+        // le « + » d'un fragment ou la liste relue au lancement : seulement ces sessions-là, et pas deux fois
+        let voulus = self.wanted.remove(path);
         let logs = match r {
             Ok(logs) if logs.is_empty() => {
                 self.errors
@@ -514,10 +555,16 @@ impl App {
         };
         let log_id = self.remember(path, &logs);
         for log in logs {
+            let fid = log_id.as_ref().map(|id| fragment_id(id, &log));
+            if let Some(v) = &voulus {
+                let deja = |id: &String| self.state.logs.iter().any(|l| l.fragment.as_ref() == Some(id));
+                if !fid.as_ref().is_some_and(|id| v.contains(id) && !deja(id)) {
+                    continue;
+                }
+            }
             if let Some(m) = log.settings.implausible() {
                 self.errors.push(format!("{} : {m}", log.name()));
             }
-            let fid = log_id.as_ref().map(|id| fragment_id(id, &log));
             // bornes choisies dans l'écran d'extraction : elles deviennent la période d'analyse
             let choisi = fid
                 .as_ref()
@@ -530,10 +577,24 @@ impl App {
                     crate::state::MAX_LOGS
                 ));
                 self.queue.clear();
+                self.wanted.clear();
                 return false;
             }
             let index = self.state.logs.len() - 1;
             self.state.logs[index].fragment = fid.clone();
+            // relu au lancement : la couleur et l'état de sa pastille, si la couleur est encore libre
+            if let Some(item) = self
+                .restoring
+                .as_ref()
+                .and_then(|a| a.items.iter().find(|it| Some(&it.fragment_id) == fid.as_ref()))
+            {
+                let c = theme::file_color(item.colour as usize);
+                if self.state.logs.iter().all(|l| l.color != c) {
+                    self.state.logs[index].color = c;
+                }
+                let active = item.active;
+                self.state.set_active(index, active);
+            }
             match choisi {
                 Some(Ok(range)) => {
                     if let Some((a, b)) = crate::state::period_of_range(&self.state.logs[index].log, range) {
@@ -738,6 +799,7 @@ impl App {
             self.open(dropped);
         }
         self.poll_opening(&ctx);
+        self.sync_analysis();
         // ⚠️ Relever la capture **avant** d'examiner l'échéance : l'inverse jetait `shot_rect` au cadre où le délai
         // expirait, et `finish_export` ressortait alors sans rien écrire bien que l'image fût là — l'export échouait
         // avec « la capture d'écran n'est pas arrivée » alors qu'elle venait d'arriver (L-095).
@@ -778,61 +840,105 @@ impl App {
             return;
         }
         let mut export_all = false;
-        egui::Panel::top("barre").show(root, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                // bouton principal : plein, couleur d'accent (comme `QToolButton#primary` de Python)
-                let on_accent = theme::plot::ON_ACCENT;
-                let open = egui::Button::image_and_text(
-                    icon("folder-open", 16.0).tint(on_accent),
-                    egui::RichText::new("Ouvrir…").color(on_accent).strong(),
-                )
-                .fill(theme.ui.highlight);
-                if ui.add(open).on_hover_text("Ouvrir des logs Blackbox").clicked() {
-                    self.ask_files();
-                }
-                // fermer le log affiché / tous les logs (grisés sans log)
-                let any = !self.state.logs.is_empty();
-                let close = egui::Button::image(icon("x", 16.0).tint(theme.ui.text).alt_text("Fermer le log affiché"));
-                if ui
-                    .add_enabled(any, close)
-                    .on_hover_text("Fermer le log affiché")
-                    .clicked()
-                    && let Some(current) = self.state.current
-                {
-                    self.state.remove(current);
-                }
-                let close_all = egui::Button::image(
-                    icon("trash-2", 16.0)
-                        .tint(theme.ui.text)
-                        .alt_text("Fermer tous les logs"),
-                );
-                if ui
-                    .add_enabled(any, close_all)
-                    .on_hover_text("Fermer tous les logs")
-                    .clicked()
-                {
-                    self.state.clear();
-                }
-                ui.separator();
-                let mut dark = theme.dark;
-                if ui.checkbox(&mut dark, "Thème sombre").changed() {
-                    self.theme = if dark { theme::SOMBRE } else { theme::CLAIR };
-                }
-                ui.separator();
-                let export = egui::Button::image(
-                    icon("image-down", 16.0)
-                        .tint(theme.ui.text)
-                        .alt_text("Exporter la fenêtre en image PNG"),
-                );
-                if ui
-                    .add(export)
-                    .on_hover_text("Exporter la fenêtre en image PNG")
-                    .clicked()
-                {
-                    export_all = true;
-                }
+        let infos = self.chip_infos();
+        let mut bar_actions = Vec::new();
+        // La barre du haut du prototype : logo, **barre de fragments** (la liste d'analyse, D-066), thème. « Ouvrir… »
+        // et l'export y restent, écarts écrits (D-066) : la maquette n'ouvre qu'au tableau de bord et n'exporte pas.
+        egui::Panel::top("barre")
+            .frame(egui::Frame::new().fill(theme.ui.base).inner_margin(egui::Margin {
+                left: 16,
+                right: 12,
+                top: 0,
+                bottom: 0,
+            }))
+            .show(root, |ui| {
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = TOP_GAP;
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(LOGO_W, TOP_H),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.set_min_size(egui::vec2(LOGO_W, TOP_H));
+                            ui.spacing_mut().item_spacing.x = 9.0;
+                            let (r, _) = ui.allocate_exact_size(egui::Vec2::splat(LOGO_BADGE), egui::Sense::hover());
+                            ui.painter().rect_filled(r, 7.0, theme.ui.highlight);
+                            icon("drone", 17.0)
+                                .tint(theme::plot::ON_ACCENT)
+                                .paint_at(ui, egui::Rect::from_center_size(r.center(), egui::Vec2::splat(17.0)));
+                            ui.label(
+                                egui::RichText::new("OpenTuneBox")
+                                    .size(15.0)
+                                    .strong()
+                                    .color(theme.ui.text),
+                            );
+                        },
+                    );
+                    let chips_w = (ui.available_width() - TOP_RIGHT_W - TOP_GAP).max(120.0);
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(chips_w, TOP_H),
+                        egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
+                        |ui| {
+                            ui.set_width(chips_w);
+                            ui.add_space(0.0);
+                            egui::Frame::new()
+                                .inner_margin(egui::Margin::symmetric(0, CHIPS_PAD))
+                                .show(ui, |ui| {
+                                    ui.set_width(chips_w);
+                                    ui.set_min_height(crate::analysis_bar::CHIP_H);
+                                    bar_actions = self.bar.ui(ui, &self.state, &infos, &theme);
+                                });
+                        },
+                    );
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(ui.available_width(), TOP_H),
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            ui.set_min_height(TOP_H);
+                            ui.spacing_mut().item_spacing.x = 8.0;
+                            let texte = if theme.dark { "Thème clair" } else { "Thème sombre" };
+                            let bouton = egui::Button::image(icon("moon", 17.0).tint(theme.ui.muted).alt_text(texte))
+                                .min_size(egui::Vec2::splat(32.0))
+                                .fill(egui::Color32::TRANSPARENT)
+                                .stroke(egui::Stroke::NONE)
+                                .corner_radius(6);
+                            if ui.add(bouton).on_hover_text(texte).clicked() {
+                                self.theme = if theme.dark { theme::CLAIR } else { theme::SOMBRE };
+                            }
+                            let export = egui::Button::image(
+                                icon("image-down", 17.0)
+                                    .tint(theme.ui.muted)
+                                    .alt_text("Exporter la fenêtre en image PNG"),
+                            )
+                            .min_size(egui::Vec2::splat(32.0))
+                            .fill(egui::Color32::TRANSPARENT)
+                            .stroke(egui::Stroke::NONE)
+                            .corner_radius(6);
+                            if ui
+                                .add(export)
+                                .on_hover_text("Exporter la fenêtre en image PNG")
+                                .clicked()
+                            {
+                                export_all = true;
+                            }
+                            // bouton principal : plein, couleur d'accent
+                            let on_accent = theme::plot::ON_ACCENT;
+                            let open = egui::Button::image_and_text(
+                                icon("folder-open", 15.0).tint(on_accent),
+                                egui::RichText::new("Ouvrir…").size(13.0).color(on_accent).strong(),
+                            )
+                            .fill(theme.ui.highlight)
+                            .min_size(egui::vec2(0.0, 32.0))
+                            .corner_radius(6);
+                            if ui.add(open).on_hover_text("Ouvrir des logs Blackbox").clicked() {
+                                self.ask_files();
+                            }
+                        },
+                    );
+                });
             });
-        });
+        for a in bar_actions {
+            self.apply_bar(a);
+        }
         self.rail(root, &theme);
         self.status_bar(root);
         let mut goto = None;
@@ -882,7 +988,7 @@ impl App {
                         self.edit_after_open = Some(EditTarget::Any);
                     }
                 }
-                DashAction::Open(path) => self.open(vec![path]),
+                DashAction::Toggle { fragment, path } => self.toggle_fragment(&fragment, path),
                 DashAction::Edit { fragment, path } => self.edit_fragment(&fragment, path),
             }
         }
@@ -901,6 +1007,169 @@ impl App {
                 GuideAction::Tool(ToolTarget::Page(title)) => self.open_tool(title),
                 GuideAction::Open(paths) => self.open(paths),
             }
+        }
+    }
+
+    /// Ce que montre la pastille de chaque log ouvert : nom du fragment et du drone pris dans la bibliothèque, fiche
+    /// du survol lue dans le log.
+    pub fn chip_infos(&self) -> Vec<ChipInfo> {
+        self.state
+            .logs
+            .iter()
+            .map(|ll| {
+                let st = &ll.log.settings;
+                let stored = ll.fragment.as_ref().and_then(|id| self.library.fragment(id));
+                let drone = stored
+                    .and_then(|f| self.library.log(&f.log_id))
+                    .and_then(|e| self.library.drone(&e.drone_id))
+                    .map_or_else(|| st.craft_name.trim().to_string(), |d| d.name.clone());
+                let chemin = ll.log.path.to_string_lossy().into_owned();
+                let role = stored
+                    .map(|f| f.role.clone())
+                    .filter(|r| !r.is_empty())
+                    .or_else(|| self.guide.roles.get(&chemin).cloned())
+                    .unwrap_or_default();
+                let r = &st.pids[0];
+                ChipInfo {
+                    name: stored.map_or_else(|| ll.label.clone(), |f| f.name.clone()),
+                    drone,
+                    role,
+                    date: stored.map(|f| f.date.clone()).unwrap_or_default(),
+                    start: start_time(st.raw.get("Log start datetime").map(String::as_str)),
+                    duration: format!("{:.1} s", ll.period.1 - ll.period.0).replace('.', ","),
+                    pid: format!("{}·{}·{}·{}", r.p, r.i, r.d, r.f),
+                    firmware: st.firmware.clone(),
+                }
+            })
+            .collect()
+    }
+
+    /// Applique un geste de la barre de fragments.
+    pub fn apply_bar(&mut self, a: BarAction) {
+        match a {
+            BarAction::Toggle(i) => {
+                if let Some(on) = self.state.logs.get(i).map(|l| l.active) {
+                    self.state.set_active(i, !on);
+                }
+            }
+            BarAction::Master(i) => {
+                // le maître est montré : le choisir réactive sa pastille
+                self.state.set_active(i, true);
+                self.state.set_current(Some(i));
+            }
+            BarAction::Remove(i) => self.state.remove(i),
+            BarAction::Move { from, to } => self.state.move_log(from, to),
+        }
+    }
+
+    /// Le « + » d'un fragment au tableau de bord : l'ajoute à l'analyse (en n'ouvrant **que sa session**) ou l'en
+    /// retire s'il y est déjà.
+    pub fn toggle_fragment(&mut self, fragment: &str, path: PathBuf) {
+        if let Some(i) = self
+            .state
+            .logs
+            .iter()
+            .position(|l| l.fragment.as_deref() == Some(fragment))
+        {
+            self.state.remove(i);
+            return;
+        }
+        self.want(path, fragment);
+    }
+
+    /// Ouvre seulement la session `fragment` de `path` (ajoutée aux sessions déjà voulues de ce fichier).
+    fn want(&mut self, path: PathBuf, fragment: &str) {
+        let attendu = self.queue.contains(&path) || self.wanted.contains_key(&path);
+        self.wanted
+            .entry(path.clone())
+            .or_default()
+            .insert(fragment.to_string());
+        if !attendu {
+            self.open(vec![path]);
+        }
+    }
+
+    /// Relit la liste d'analyse de la bibliothèque et rouvre ses fragments, en arrière-plan : on retrouve ses
+    /// pastilles comme on les a laissées (D-066). Un fragment dont le log n'est plus connu est signalé, pas ouvert.
+    /// À appeler une fois la vraie bibliothèque posée (`main.rs`).
+    pub fn restore_analysis(&mut self) {
+        let saved = self.library.analysis().clone();
+        if saved.items.is_empty() {
+            return;
+        }
+        let mut perdus = Vec::new();
+        for item in &saved.items {
+            let chemin = self
+                .library
+                .fragment(&item.fragment_id)
+                .and_then(|f| self.library.log(&f.log_id))
+                .map(|l| PathBuf::from(&l.path));
+            match chemin {
+                Some(p) if p.exists() => self.want(p, &item.fragment_id),
+                Some(p) => perdus.push(nom_court(&p)),
+                None => perdus.push(item.fragment_id.clone()),
+            }
+        }
+        if !perdus.is_empty() {
+            self.errors
+                .push(format!("Liste d'analyse : introuvable(s) {}", perdus.join(", ")));
+        }
+        self.restoring = Some(saved);
+    }
+
+    /// Fin de la relecture : l'ordre et le maître de la liste enregistrée sont rendus aux logs rouverts.
+    fn finish_restore(&mut self, saved: &otb_store::model::Analysis) {
+        let rang = |l: &crate::state::LoadedLog| {
+            l.fragment
+                .as_ref()
+                .and_then(|id| saved.items.iter().position(|it| &it.fragment_id == id))
+                .unwrap_or(usize::MAX)
+        };
+        // tri par insertion, avec les seuls gestes de l'état (le log courant suit son log)
+        for k in 1..self.state.logs.len() {
+            let mut j = k;
+            while j > 0 && rang(&self.state.logs[j - 1]) > rang(&self.state.logs[j]) {
+                self.state.move_log(j, j - 1);
+                j -= 1;
+            }
+        }
+        if let Some(w) = &saved.working
+            && let Some(i) = self.state.logs.iter().position(|l| l.fragment.as_ref() == Some(w))
+        {
+            self.state.set_current(Some(i));
+        }
+    }
+
+    /// Recopie la liste d'analyse de l'écran dans la bibliothèque (écrite quand eframe enregistre) : ordre,
+    /// couleur, actif, maître. Un log rangé sous aucun drone n'a pas de fragment : il n'est pas gardé.
+    fn sync_analysis(&mut self) {
+        if let Some(saved) = &self.restoring {
+            if self.opening.busy() || !self.queue.is_empty() {
+                return;
+            }
+            let saved = saved.clone();
+            self.restoring = None;
+            self.finish_restore(&saved);
+        }
+        // un même fichier ouvert deux fois donne deux logs du même fragment : la liste n'en garde qu'un
+        let mut vus = HashSet::new();
+        let items = self
+            .state
+            .logs
+            .iter()
+            .filter_map(|l| {
+                let id = l.fragment.clone()?;
+                vus.insert(id.clone()).then(|| otb_store::model::AnalysisItem {
+                    fragment_id: id,
+                    colour: colour_index(l.color) as u64,
+                    active: l.active,
+                })
+            })
+            .collect();
+        let working = self.state.current_log().and_then(|l| l.fragment.clone());
+        let now = otb_store::model::Analysis { items, working };
+        if *self.library.analysis() != now {
+            self.library.set_analysis(now);
         }
     }
 
