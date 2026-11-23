@@ -60,6 +60,22 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-116 : `serde_json` relit parfois un nombre avec un bit d'écart, et seule une valeur de la CI Windows l'a montré
+
+- **Symptôme** — 2026-11-23 (PR #179, lot 31a) : `une_mesure_rangee_se_recalcule_a_lidentique` vert sous Linux, rouge sur
+  la CI Windows : `rise_ms (axe 1) : rangée 5.573208066099931e1, recalculée 5.5732080660999316e1`. Tout fait penser à un
+  calcul qui ne se répète pas, ou aux fonctions mathématiques de Windows (le même test avait les mêmes chiffres partout
+  ailleurs).
+- **Cause** — mesurée sous Linux : `serde_json::from_str("55.732080660999316")` rend `...931` (bits `…357` au lieu de `…358`),
+  alors que `str::parse` rend la bonne valeur. Sans l'option `float_roundtrip`, l'analyseur de `serde_json` cherche la
+  vitesse et n'arrondit pas toujours exactement ; l'écriture, elle, est exacte. Windows n'a fait que produire un temps de
+  montée (fonctions mathématiques de Microsoft) qui tombe sur un de ces nombres ; le calcul se répétait bien.
+- **Règle** — un fichier JSON qui doit rendre ses nombres au bit près (mesures de la bibliothèque) se lit avec
+  `float_roundtrip` (option de `rust/otb-store/Cargo.toml`, qui vaut pour tout ce qui est compilé avec elle). Un écart au
+  dernier bit entre « écrit » et « relu » accuse d'abord la relecture, avant le calcul.
+- **Preuve** — `rust/otb-store/tests/bibliotheque.rs:une_mesure_relue_est_identique_au_dernier_bit` : rouge sous Linux sans
+  l'option, vert avec ; `verify --strict` avec `OTB_GOLDEN` et `OTB_BITEXACT=1` : références Python inchangées.
+
 ### L-115 : un test qui attend une absence passe aussi quand le calcul a échoué pour une autre raison
 
 - **Symptôme** — 2026-11-23 (lot 31a) : `un_fragment_deplace_pendant_le_calcul_ne_recoit_pas_lancienne_mesure` passait du
@@ -1457,6 +1473,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-116 | `serde_json` sans `float_roundtrip` relit parfois un nombre avec un bit d'écart (55.732080660999316 → …931) : une mesure rangée ne se recalcule plus « à l'identique » ; un écart au dernier bit entre écrit et relu accuse d'abord la relecture | Outillage |
 | L-115 | Test qui attend une absence (« rien rangé ») : il passe aussi quand le calcul échoue pour une autre raison (session 0 alors que le décodeur compte à partir de 1) ; vérifier d'abord que le chemin heureux a eu lieu, lire la session dans le log | Tests |
 | L-114 | Clic de test (`Node::click`, un clic de pointeur) sur un widget sous le bas d'un `ScrollArea` : trouvé mais pas touché, l'échec vient au widget suivant ; `scroll_to_me()` puis `run_steps` avant de cliquer | Interface |
 | L-113 | Substitution `perl`/`sed` dont le délimiteur (`\|`, `#`, `/`) apparaît dans le texte : échappé, il devient une alternative et écrit n'importe où sans erreur ; outil d'édition pour le multi-ligne, sinon relire le diff et le début du fichier | Outillage |

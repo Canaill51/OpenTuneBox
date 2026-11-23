@@ -732,3 +732,29 @@ fn une_table_des_mesures_inchangee_nest_pas_reecrite() {
         "changée : réécrite"
     );
 }
+
+/// ⚠️ Une mesure relue est **exactement** celle qui a été écrite, au dernier bit : sans cela, le critère d'arrêt du
+/// lot 31 (une mesure rangée se recalcule à l'identique) tombe au hasard des valeurs. L'analyseur de nombres par défaut
+/// de `serde_json` n'arrondit pas toujours exactement : `55.732080660999316` (un temps de montée calculé sous Windows,
+/// CI de la PR #179) revenait avec un bit d'écart (L-116).
+///
+/// Contre-preuve vue en échec (2026-11-23) : sans l'option `float_roundtrip` de `serde_json` dans
+/// `rust/otb-store/Cargo.toml`, cette valeur revient différente, sous Linux comme sous Windows.
+#[test]
+fn une_mesure_relue_est_identique_au_dernier_bit() {
+    let dir = dossier("dernier-bit");
+    let mut lib = remplie(dir.clone());
+    let valeurs = [55.732080660999316, 0.1 + 0.2, 1.0 / 3.0, 2.2250738585072014e-308, 12.5];
+    for (i, &v) in valeurs.iter().enumerate() {
+        let mut m = mesure("fr-1", (0, 5_000), v, 1);
+        m.key = format!("grandeur_{i}");
+        lib.set_measure(m);
+    }
+    lib.save().expect("écriture");
+    let mut relue = Library::open(dir);
+    relue.load_measures();
+    for (i, &v) in valeurs.iter().enumerate() {
+        let lu = relue.measure("fr-1", 0, &format!("grandeur_{i}")).unwrap().value;
+        assert_eq!(lu.to_bits(), v.to_bits(), "{v:e} relue {lu:e}");
+    }
+}
