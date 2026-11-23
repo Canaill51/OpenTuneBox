@@ -23,8 +23,8 @@ nouvel emplacement et corrigez ou supprimez l'ancien raccourci
 
 Pour **désinstaller** sous Linux : supprimer l'AppImage et son raccourci
 (`~/.local/share/applications/OpenTuneBox.desktop`, et l'icône dans
-`~/.local/share/icons/hicolor/256x256/apps/`). Vos fiches drone ne sont pas touchées : elles restent dans
-`~/.local/share/OpenTuneBox/`.
+`~/.local/share/icons/hicolor/256x256/apps/`). Vos drones, leurs fiches et vos fragments ne sont pas touchés : ils
+restent dans `~/.local/share/OpenTuneBox/`.
 
 Lancer OpenTuneBox depuis ses sources ou fabriquer l'exécutable soi-même : voir la partie
 *Développement* du [README](../README.md#développement).
@@ -84,6 +84,14 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   une coche verte marque ceux qui sont déjà ouverts, et le **crayon** ouvre les courbes du fragment pour en
   régler les limites. Le logiciel retient ces drones et ces vols **d'un lancement à l'autre** : un drone est
   reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un fragment.
+- **Fiche du drone** : le crayon en haut à droite d'une carte, ou **Nouveau drone**, ouvre la fiche — nom (le même que
+  dans Betaflight, onglet Configuration : c'est lui qui relie les logs au drone), taille (elle choisit les seuils de
+  l'Assistant et les valeurs du Guide), batterie, poids, moteurs, hélices, ESC, version de Betaflight, boucle PID. La
+  carte de vol et son identifiant s'y liront au branchement USB, comme l'historique des **configurations** (`diff all`) :
+  **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis **Supprimer
+  définitivement** retire le drone, ses fragments et ses configurations du logiciel (vos fichiers de logs ne sont pas
+  effacés). Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier
+  `drones.json` est gardé sous le nom `drones.json.repris`.
 - **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
   **Fréq. × temps** et le **Et si** des filtres. Ses onglets, en haut de la page, passent de l'une à l'autre sans
   repasser par le rail.
@@ -280,14 +288,9 @@ température des moteurs.
 
 La méthode est le **parcours du guide intégré** (bouton **Guide**) : des cases à cocher, par drone.
 
-- **Fiche drone** (en haut de la page) : nom (le même que dans Betaflight : les logs sont reconnus grâce à
-  lui), version de Betaflight, taille, boucle PID, ESC ; préremplie d'après le log ouvert. Les valeurs du
-  guide s'y adaptent et chaque drone garde son avancement ; **Recommencer** décoche toutes ses cases, **Supprimer** retire la fiche (les logs ne sont pas
-  touchés).
-- **Où sont rangées vos fiches** : dans un fichier `drones.json`, à côté des réglages de l'application —
-  `%APPDATA%\OpenTuneBox\OpenTuneBox\` sous Windows, `~/.local/share/OpenTuneBox/OpenTuneBox/` sous Linux. C'est ce
-  fichier qu'il faut copier pour sauvegarder votre avancement ou le reprendre sur une autre machine. S'il devient
-  illisible, l'application ne l'écrase pas : elle le met de côté sous `drones.json.illisible` et le dit dans le Guide.
+- **Fiche drone** : **Nouveau drone** et **Modifier** (en haut de la page) ouvrent la fiche du drone (voir
+  ci-dessous) ; la nouvelle est préremplie d'après le log ouvert. Les valeurs du guide s'y adaptent et chaque drone garde
+  son avancement ; **Recommencer** décoche toutes ses cases.
 - **Frise et liste des phases** : où vous en êtes (cases faites / total).
 - **Cases** : un clic coche ; le bouton **ⓘ Aide** affiche l'aide ; **Ouvrir …** ouvre l'outil utile, avec la période
   d'analyse réglée sur la bonne partie du vol. Dès qu'un log du drone est ouvert, certaines cases se

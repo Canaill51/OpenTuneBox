@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-114 : un clic de test sur un widget sous le bas d'une zone qui défile ne fait rien, et l'échec arrive au widget suivant
+
+- **Symptôme** — 2026-11-23 (lot 30d) : `get_by_role_and_label(Role::Button, "Supprimer…").click()` passe sans erreur, puis
+  la ligne suivante échoue sur « No nodes found » pour « Garder » — le bouton qui aurait dû apparaître. Tout laisse
+  croire que l'écran n'a pas réagi au clic, ou que « Garder » est mal nommé.
+- **Cause** — mesurée : la section « Supprimer » de la fiche du drone est sous le bas d'une fenêtre de 800 points, dans un
+  `ScrollArea`. Le widget est **dans l'arbre d'accessibilité** (la recherche le trouve), mais `Node::click` d'egui_kittest
+  envoie un clic de **pointeur** au centre du nœud (`node.rs:click_button`) : hors de la zone visible, il ne touche rien.
+- **Règle** — sur un écran plus haut que le banc, appeler `scroll_to_me()` puis quelques `run_steps` avant de cliquer un
+  widget du bas ; un « No nodes found » juste après un clic qui « a marché » fait d'abord penser à cela. Même geste dans
+  l'exemple `capture`.
+- **Preuve** — `rust/otb-gui/tests/guide.rs` (`creer_modifier_recommencer_et_supprimer_une_fiche`) : rouge sans
+  `scroll_to_me`, vert avec.
+
 ### L-113 : une substitution Perl ou sed dont le délimiteur apparaît dans le texte écrit au mauvais endroit, sans erreur
 
 - **Symptôme** — 2026-11-23 (lot 29d) : après un `perl -0pi -e 's|…\|g\| g.log_id…|…|'` sur `rust/otb-gui/src/app.rs`, la
@@ -1428,6 +1442,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-114 | Clic de test (`Node::click`, un clic de pointeur) sur un widget sous le bas d'un `ScrollArea` : trouvé mais pas touché, l'échec vient au widget suivant ; `scroll_to_me()` puis `run_steps` avant de cliquer | Interface |
 | L-113 | Substitution `perl`/`sed` dont le délimiteur (`\|`, `#`, `/`) apparaît dans le texte : échappé, il devient une alternative et écrit n'importe où sans erreur ; outil d'édition pour le multi-ligne, sinon relire le diff et le début du fichier | Outillage |
 | L-112 | Clic par libellé (tests, exemple `capture`) : un libellé repris par un autre widget (nom de log devenu pastille) fait cliquer ailleurs sans erreur ; chercher les clics par ce libellé, viser par rôle, regarder les captures | Interface |
 | L-111 | Panneau egui de largeur fixe au contenu plus large (grille, noms longs) : il s'élargit et rogne le début des lignes, sans erreur ; borner colonnes et textes à la largeur, regarder la capture | Interface |

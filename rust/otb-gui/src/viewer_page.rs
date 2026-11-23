@@ -786,7 +786,7 @@ impl ViewerPage {
                 let oui = egui::Button::new(
                     RichText::new("Supprimer définitivement")
                         .size(13.0)
-                        .color(theme::plot::ON_ACCENT),
+                        .color(th.on_accent("red")),
                 )
                 .fill(rouge)
                 .stroke(egui::Stroke::new(1.0, rouge))

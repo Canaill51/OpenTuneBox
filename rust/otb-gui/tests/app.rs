@@ -380,7 +380,7 @@ fn le_lancement_sans_argument_reste_sur_le_guide_et_avec_un_log_ouvre_les_courbe
     use otb_gui::guide_page::GuidePage;
     use std::ffi::OsString;
     let args = |v: &[&str]| v.iter().map(OsString::from).collect::<Vec<_>>();
-    let lance = |v: &[&str]| App::from_launch(Vec::new(), GuidePage::in_memory(), None, args(v));
+    let lance = |v: &[&str]| App::from_launch(Vec::new(), GuidePage::new(), None, args(v));
     assert_eq!(lance(&["opentunebox-gui"]).screen, Screen::Guide);
     assert_eq!(lance(&["opentunebox-gui", "--option"]).screen, Screen::Guide);
     assert_eq!(lance(&["opentunebox-gui", "vol.bbl"]).screen, Screen::Viewer);

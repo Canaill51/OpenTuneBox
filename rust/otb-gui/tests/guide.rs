@@ -12,9 +12,12 @@ use otb_advisor::log_check::{FILTERS, PID};
 use otb_advisor::profiles::PROFILES;
 use otb_advisor::tuning_path::phases;
 use otb_gui::app::{App, Screen};
+use otb_gui::drone_sheet::{cards_of, import_old_file};
 use otb_gui::guide::*;
 use otb_gui::guide_page::{AIDE_ETAPE, GuidePage};
 use otb_gui::tools::all_pages;
+use otb_store::Library;
+use otb_store::model::{Drone, DroneSheet};
 use serde_json::Value;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -37,17 +40,16 @@ fn cas() -> Value {
     serde_json::from_str(include_str!("data/guide_cards.json")).unwrap()
 }
 
-// ------------------------------------------------------------------ fichier des fiches
+// ------------------------------------------------------------------ ancien fichier des fiches (repris dans la bibliothèque, D-068)
 #[test]
-fn le_fichier_est_reecrit_octet_pour_octet_comme_python() {
+fn l_ancien_fichier_se_lit_comme_python_l_ecrivait() {
     let c = cas();
     let list = c["roundtrip"].as_array().unwrap();
     assert_eq!(list.len(), 27);
     for w in list {
-        let (input, want) = (w["input"].as_str().unwrap(), w["output"].as_str().unwrap());
+        let input = w["input"].as_str().unwrap();
         let cards = cards_from_json(input).unwrap_or_else(|e| panic!("{e} : {input}"));
         assert_eq!(cards.len() as u64, w["n"].as_u64().unwrap(), "{input}");
-        assert_eq!(cards_to_json(&cards), want, "entrée : {input}");
     }
 }
 
@@ -60,120 +62,89 @@ fn un_fichier_que_python_ne_lit_pas_est_signale() {
     for t in list {
         let p = d.join("drones.json");
         std::fs::write(&p, t.as_str().unwrap()).unwrap();
-        let cards = Cards::load(p);
-        assert!(cards.list.is_empty() && cards.problem().is_some(), "{t}");
+        assert!(read_old_cards(&p).is_err(), "{t}");
     }
 }
 
 #[test]
 fn un_fichier_absent_n_est_pas_un_probleme() {
-    let c = Cards::load(dossier("absent").join("drones.json"));
-    assert!(c.list.is_empty() && c.problem().is_none());
+    assert_eq!(read_old_cards(&dossier("absent").join("drones.json")), Ok(Vec::new()));
+}
+
+/// Les fiches de l'ancien fichier entrent dans la bibliothèque, qui est **écrite**, puis le fichier est renommé
+/// `.repris` : relancer ne reprend plus rien (un drone supprimé entre-temps ne revient pas).
+///
+/// Contre-preuve vue en échec (2026-11-23) : sans le renommage, l'ancien fichier reste en place et l'assertion
+/// sur `drones.json.repris` rougit.
+#[test]
+fn l_ancien_fichier_est_repris_dans_la_bibliotheque_puis_mis_de_cote() {
+    let d = dossier("reprise");
+    let p = d.join("drones.json");
+    let mut sept = sept_pouces();
+    sept.done.push(("recording".into(), true));
+    let texte = Value::Array(vec![sept.to_value(), DroneCard::new("Whoop").to_value()]).to_string();
+    std::fs::write(&p, texte).unwrap();
+    let mut lib = Library::open(d.join("bibliotheque"));
+    // un drone connu par ses seuls logs reçoit sa fiche ; un drone qui en a déjà une la garde
+    lib.put_drone(Drone::new("uid-7", "Sept"));
+    let mut w = Drone::new("Whoop", "Whoop");
+    w.sheet = Some(DroneSheet {
+        size: "65 mm".into(),
+        ..DroneSheet::default()
+    });
+    lib.put_drone(w);
+    let m = import_old_file(&mut lib, &p).expect("un message");
+    assert!(m.starts_with("1 fiche drone reprise"), "{m}");
+    assert!(!p.exists() && d.join("drones.json.repris").exists());
+    let relue = Library::open(d.join("bibliotheque"));
+    let cartes = cards_of(&relue);
+    assert_eq!(cartes.len(), 2);
+    let s = cartes.iter().find(|c| c.name == "Sept").unwrap();
+    assert_eq!((s.size.as_str(), s.pid_khz), ("seven", 3.2));
+    assert_eq!(s.done, [("recording".to_string(), true)]);
+    assert_eq!(relue.drone_by_name("Sept").unwrap().id, "uid-7");
+    assert_eq!(
+        relue.drone("Whoop").unwrap().sheet.as_ref().unwrap().size,
+        "65 mm",
+        "la bibliothèque gagne"
+    );
+    assert_eq!(import_old_file(&mut lib, &p), None, "plus rien à reprendre");
 }
 
 #[test]
-fn un_fichier_illisible_est_mis_de_cote_avant_d_ecrire() {
-    let d = dossier("mis-de-cote");
+fn un_ancien_fichier_illisible_n_est_ni_repris_ni_touche() {
+    let d = dossier("reprise-illisible");
     let p = d.join("drones.json");
     std::fs::write(&p, "[{\"bf\": \"4.4\"}] précieux").unwrap();
-    let mut c = Cards::load(p.clone());
-    assert!(c.problem().is_some());
-    c.add(DroneCard::new("A")).unwrap();
-    assert!(c.problem().is_none());
-    assert_eq!(
-        std::fs::read_to_string(d.join("drones.json.illisible")).unwrap(),
-        "[{\"bf\": \"4.4\"}] précieux"
-    );
-    assert_eq!(Cards::load(p.clone()).list.len(), 1);
-    // un second fichier abîmé n'écrase pas le premier
-    std::fs::write(&p, "pas du json").unwrap();
-    let mut c = Cards::load(p);
-    c.add(DroneCard::new("B")).unwrap();
-    assert_eq!(
-        std::fs::read_to_string(d.join("drones.json.illisible")).unwrap(),
-        "[{\"bf\": \"4.4\"}] précieux"
-    );
-    assert_eq!(
-        std::fs::read_to_string(d.join("drones.json.illisible.1")).unwrap(),
-        "pas du json"
-    );
-    // et aucun fichier temporaire ne reste
-    let mut noms: Vec<String> = std::fs::read_dir(&d)
-        .unwrap()
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-        .collect();
-    noms.sort();
-    assert_eq!(
-        noms,
-        ["drones.json", "drones.json.illisible", "drones.json.illisible.1"]
-    );
+    let mut lib = Library::in_memory();
+    let m = import_old_file(&mut lib, &p).expect("un message");
+    assert!(m.contains("illisible"), "{m}");
+    assert_eq!(std::fs::read_to_string(&p).unwrap(), "[{\"bf\": \"4.4\"}] précieux");
+    assert!(lib.drones().is_empty() && !d.join("drones.json.repris").exists());
 }
 
 #[test]
-fn un_fichier_lisible_n_est_jamais_mis_de_cote() {
-    let d = dossier("lisible");
-    let mut c = Cards::load(d.join("drones.json"));
-    c.add(DroneCard::new("A")).unwrap();
-    c.add(DroneCard::new("B")).unwrap();
-    assert!(!d.join("drones.json.illisible").exists());
-}
-
-#[test]
-fn les_operations_sur_les_fiches_sont_celles_de_python() {
-    let d = dossier("operations");
-    let p = d.join("sous").join("dossier").join("drones.json");
-    let mut c = Cards::load(p.clone());
-    let a = c.add(DroneCard::new("A")).unwrap();
-    let b = c.add(DroneCard::new("B")).unwrap();
-    assert_eq!((a, b), (0, 1));
-    // une fiche de même nom en remplace une autre et passe à la fin
-    let mut a2 = DroneCard::new("A");
-    a2.bf = "4.4".into();
-    assert_eq!(c.add(a2).unwrap(), 1);
-    assert_eq!(c.list.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(), ["B", "A"]);
-    // cocher puis décocher : la clé disparaît, elle n'est pas écrite à false
-    c.set_done(1, "recording", true).unwrap();
-    c.set_done(1, "rpm", true).unwrap();
-    c.set_done(1, "recording", true).unwrap();
+fn les_cases_se_cochent_et_se_decochent_comme_python() {
+    let mut c = Cards::default();
+    c.list.push(DroneCard::new("A"));
+    c.set_done(0, "recording", true);
+    c.set_done(0, "rpm", true);
+    c.set_done(0, "recording", true);
     assert_eq!(
-        c.list[1].done,
+        c.list[0].done,
         [("recording".to_string(), true), ("rpm".to_string(), true)]
     );
-    c.set_done(1, "recording", false).unwrap();
-    assert_eq!(c.list[1].done, [("rpm".to_string(), true)]);
-    assert!(!std::fs::read_to_string(&p).unwrap().contains("recording"));
-    // le fichier relu est identique à la mémoire
-    assert_eq!(Cards::load(p.clone()).list, c.list);
-    c.reset(1).unwrap();
-    assert!(c.list[1].done.is_empty());
-    c.delete(0).unwrap();
-    assert_eq!(
-        Cards::load(p).list.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(),
-        ["A"]
-    );
+    // décocher : la clé disparaît, elle n'est pas gardée à false
+    c.set_done(0, "recording", false);
+    assert_eq!(c.list[0].done, [("rpm".to_string(), true)]);
+    c.reset(0);
+    assert!(c.list[0].done.is_empty());
     // un numéro hors liste ne fait rien (et ne plante pas)
-    c.set_done(9, "x", true).unwrap();
-    c.delete(9).unwrap();
-    c.reset(9).unwrap();
+    c.set_done(9, "x", true);
+    c.reset(9);
     assert_eq!(c.list.len(), 1);
 }
 
-#[test]
-fn la_fiche_modifiee_garde_son_avancement_et_sa_place() {
-    let d = dossier("remplacer");
-    let mut c = Cards::load(d.join("drones.json"));
-    c.add(DroneCard::new("A")).unwrap();
-    c.add(DroneCard::new("B")).unwrap();
-    c.set_done(0, "recording", true).unwrap();
-    let mut neuve = DroneCard::new("A2");
-    neuve.done = c.list[0].done.clone();
-    c.replace(0, neuve).unwrap();
-    let relu = Cards::load(d.join("drones.json")).list;
-    assert_eq!((relu[0].name.as_str(), relu[1].name.as_str()), ("A2", "B"));
-    assert_eq!(relu[0].done, [("recording".to_string(), true)]);
-}
-
-// ------------------------------------------------------------------ emplacement du fichier
 fn chemin(os: &str, env: &[(&str, &str)]) -> String {
     let var = |k: &str| env.iter().find(|(n, _)| *n == k).map(|(_, v)| OsString::from(v));
     cards_path_in(os, &var).to_string_lossy().replace('\\', "/")
@@ -364,8 +335,14 @@ fn banc(app: App) -> Harness<'static, App> {
         .build_ui_state(|ui, a: &mut App| a.ui(ui), app)
 }
 
-fn app_sur(path: &std::path::Path) -> App {
-    App::with_guide(all_pages(), GuidePage::new(Cards::load(path.to_path_buf())))
+/// L'application des bancs : bibliothèque en mémoire, jamais celle de l'utilisateur.
+fn appli() -> App {
+    App::new(all_pages())
+}
+
+/// Les fiches telles que la bibliothèque les tient (D-068).
+fn fiches(app: &App) -> Vec<DroneCard> {
+    cards_of(&app.library)
 }
 
 /// Un drone de 7", boucle PID 3,2 kHz (la fiche du test de Python).
@@ -395,8 +372,7 @@ fn attendre(h: &mut Harness<'static, App>, fin: impl Fn(&App) -> bool) {
 
 #[test]
 fn l_accueil_est_affiche_et_une_phase_sans_fiche_invite_a_en_creer_une() {
-    let d = dossier("accueil");
-    let mut h = banc(app_sur(&d.join("drones.json")));
+    let mut h = banc(appli());
     h.run();
     h.get_by_label("Régler son drone avec OpenTuneBox");
     assert!(h.state().guide.at_home());
@@ -415,10 +391,10 @@ fn l_accueil_est_affiche_et_une_phase_sans_fiche_invite_a_en_creer_une() {
 #[test]
 fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
     let d = dossier("cases");
-    let p = d.join("drones.json");
-    let mut c = Cards::load(p.clone());
-    c.add(sept_pouces()).unwrap();
-    let mut h = banc(app_sur(&p));
+    let mut app = appli();
+    app.library = otb_store::Library::open(d.clone());
+    app.put_card(sept_pouces());
+    let mut h = banc(app);
     h.state_mut().guide.phase = "prep";
     h.run_steps(3);
     let prep = &phases(&sept_pouces())[0];
@@ -436,7 +412,7 @@ fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
         2,
         "frise et liste"
     );
-    // cocher la case « recording » : enregistrée dans le fichier, comptée dans la phase
+    // cocher la case « recording » : enregistrée dans la bibliothèque, comptée dans la phase
     let titre = prep.steps.iter().find(|s| s.key == "recording").unwrap().title.clone();
     h.get_by_label(&titre).click();
     h.run_steps(3);
@@ -445,8 +421,8 @@ fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
         2,
         "frise et liste"
     );
-    assert_eq!(Cards::load(p.clone()).list[0].done, [("recording".to_string(), true)]);
-    // décocher : la clé disparaît du fichier
+    assert_eq!(fiches(h.state())[0].done, [("recording".to_string(), true)]);
+    // décocher : la clé disparaît de la bibliothèque
     h.get_by_label(&titre).click();
     h.run_steps(3);
     assert_eq!(
@@ -454,11 +430,14 @@ fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
         2,
         "frise et liste"
     );
-    assert!(Cards::load(p.clone()).list[0].done.is_empty());
+    assert!(fiches(h.state())[0].done.is_empty());
     h.get_by_label(&titre).click();
     h.run_steps(3);
-    // un nouveau lancement retrouve l'avancement
-    let mut h2 = banc(app_sur(&p));
+    // un nouveau lancement retrouve l'avancement : la bibliothèque écrite puis relue
+    h.state_mut().library.save().unwrap();
+    let mut app2 = appli();
+    app2.library = otb_store::Library::open(d);
+    let mut h2 = banc(app2);
     h2.state_mut().guide.phase = "prep";
     h2.run_steps(3);
     assert_eq!(
@@ -470,9 +449,8 @@ fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
 
 #[test]
 fn le_texte_de_la_case_suit_la_fiche_et_le_bouton_point_d_interrogation_affiche_l_aide() {
-    let d = dossier("aide");
-    let mut app = app_sur(&d.join("drones.json"));
-    app.guide.cards.add(sept_pouces()).unwrap();
+    let mut app = appli();
+    app.put_card(sept_pouces());
     app.guide.select_by_name("Sept");
     let mut h = banc(app);
     h.state_mut().guide.phase = "prep";
@@ -516,9 +494,8 @@ fn le_texte_de_la_case_suit_la_fiche_et_le_bouton_point_d_interrogation_affiche_
 
 #[test]
 fn un_lien_de_l_accueil_mene_a_la_phase() {
-    let d = dossier("lien");
-    let mut app = app_sur(&d.join("drones.json"));
-    app.guide.cards.add(sept_pouces()).unwrap();
+    let mut app = appli();
+    app.put_card(sept_pouces());
     app.guide.select_by_name("Sept");
     let mut h = banc(app);
     h.run_steps(3);
@@ -540,84 +517,73 @@ fn un_lien_de_l_accueil_mene_a_la_phase() {
 
 #[test]
 fn creer_modifier_recommencer_et_supprimer_une_fiche() {
-    let d = dossier("fiches");
-    let p = d.join("drones.json");
-    let mut h = banc(app_sur(&p));
+    let mut h = banc(appli());
     h.run_steps(3);
-    // nouvelle fiche : le nom saisi, les choix de la fenêtre
+    // « Nouveau drone » ouvre l'écran de la fiche (D-068) ; on y revient au Guide
     h.get_by_role_and_label(Role::Button, "Nouveau drone").click();
     h.run_steps(3);
-    // le champ est prérempli (« Mon drone ») : on remplace le texte comme le ferait un lecteur d'écran
-    h.get_by_label("Nom (comme dans Betaflight)")
-        .set_text_value_accesskit("Mon Cinq");
+    assert_eq!(h.state().screen, Screen::DroneSheet);
+    h.get_by_label("Nom du drone").set_text_value_accesskit("Mon Cinq");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.get_by_role_and_label(Role::Button, "Créer le drone").click();
     h.run_steps(4);
-    let relu = Cards::load(p.clone()).list;
+    assert_eq!(h.state().screen, Screen::Guide);
+    let relu = fiches(h.state());
     assert_eq!(relu.len(), 1);
     assert_eq!(relu[0].name, "Mon Cinq");
+    // un drone neuf : 5″, Betaflight 2026.6 (famille 2025.12 pour l'assistant), BLHeli_32, 8 kHz
     assert_eq!(
-        (relu[0].bf.as_str(), relu[0].size.as_str(), relu[0].esc.as_str()),
-        ("4.5", "five", "BLHeli_32")
-    );
-    assert!(
-        !relu[0].pid_khz_int,
-        "la fenêtre de saisie écrit un flottant, comme Python"
+        (
+            relu[0].bf.as_str(),
+            relu[0].size.as_str(),
+            relu[0].esc.as_str(),
+            relu[0].pid_khz
+        ),
+        ("2025.12", "five", "BLHeli_32", 8.0)
     );
     assert_eq!(h.state().guide.card().unwrap().name, "Mon Cinq");
-    // un nom vide devient « Mon drone »
+    // « Annuler » n'enregistre rien
     h.get_by_role_and_label(Role::Button, "Nouveau drone").click();
     h.run_steps(3);
     h.get_by_role_and_label(Role::Button, "Annuler").click();
     h.run_steps(3);
-    assert_eq!(Cards::load(p.clone()).list.len(), 1, "annuler n'enregistre rien");
+    assert_eq!(fiches(h.state()).len(), 1, "annuler n'enregistre rien");
     // cocher une case, puis Recommencer (confirmation « Non » puis « Oui »)
     h.state_mut().guide.phase = "prep";
     h.run_steps(3);
     let titre = phases(&relu[0])[0].steps[0].title.clone();
     h.get_by_label(&titre).click();
     h.run_steps(3);
-    assert_eq!(Cards::load(p.clone()).list[0].done.len(), 1);
+    assert_eq!(fiches(h.state())[0].done.len(), 1);
     h.get_by_role_and_label(Role::Button, "Recommencer").click();
     h.run_steps(3);
     h.get_by_role_and_label(Role::Button, "Non").click();
     h.run_steps(3);
-    assert_eq!(Cards::load(p.clone()).list[0].done.len(), 1, "« Non » ne change rien");
+    assert_eq!(fiches(h.state())[0].done.len(), 1, "« Non » ne change rien");
     h.get_by_role_and_label(Role::Button, "Recommencer").click();
     h.run_steps(3);
     h.get_by_role_and_label(Role::Button, "Oui").click();
     h.run_steps(3);
-    assert!(Cards::load(p.clone()).list[0].done.is_empty());
-    // Supprimer
-    h.get_by_role_and_label(Role::Button, "Supprimer").click();
+    assert!(fiches(h.state())[0].done.is_empty());
+    // Supprimer : depuis la fiche, en deux temps
+    h.get_by_role_and_label(Role::Button, "Modifier").click();
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Oui").click();
+    // la section « Supprimer » est sous le bas d'une fenêtre de 800 points : on la fait venir, comme on défilerait
+    h.get_by_role_and_label(Role::Button, "Supprimer…").scroll_to_me();
     h.run_steps(3);
-    assert!(Cards::load(p).list.is_empty());
+    h.get_by_role_and_label(Role::Button, "Supprimer…").click();
+    h.run_steps(3);
+    h.get_by_role_and_label(Role::Button, "Garder").click();
+    h.run_steps(3);
+    assert_eq!(fiches(h.state()).len(), 1, "« Garder » ne supprime rien");
+    h.get_by_role_and_label(Role::Button, "Supprimer…").click();
+    h.run_steps(3);
+    h.get_by_role_and_label(Role::Button, "Supprimer définitivement")
+        .click();
+    h.run_steps(3);
+    assert!(h.state().library.drones().is_empty());
     assert!(h.state().guide.card().is_none());
-}
-
-#[test]
-fn un_fichier_de_fiches_illisible_est_annonce_puis_mis_de_cote() {
-    let d = dossier("abime");
-    let p = d.join("drones.json");
-    std::fs::write(&p, "[{\"bf\": \"4.4\"}] précieux").unwrap();
-    let mut h = banc(app_sur(&p));
-    h.run_steps(3);
-    h.get_by_label_contains("est illisible");
-    assert!(
-        std::fs::read_to_string(&p).unwrap().contains("précieux"),
-        "rien n'est écrit tant qu'on n'enregistre pas"
-    );
-    h.get_by_role_and_label(Role::Button, "Nouveau drone").click();
-    h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
-    h.run_steps(4);
-    assert_eq!(
-        std::fs::read_to_string(d.join("drones.json.illisible")).unwrap(),
-        "[{\"bf\": \"4.4\"}] précieux"
-    );
-    assert!(h.query_by_label_contains("est illisible").is_none());
+    assert_eq!(h.state().screen, Screen::Dashboard);
 }
 
 struct Memoire(std::collections::HashMap<String, String>);
@@ -636,7 +602,7 @@ impl eframe::Storage for Memoire {
 
 #[test]
 fn la_phase_la_fiche_et_les_roles_sont_retrouves_au_lancement_suivant() {
-    let mut a = GuidePage::in_memory();
+    let mut a = GuidePage::new();
     a.cards.list.push(DroneCard::new("A"));
     a.cards.list.push(DroneCard::new("B"));
     a.select_by_name("B");
@@ -644,7 +610,7 @@ fn la_phase_la_fiche_et_les_roles_sont_retrouves_au_lancement_suivant() {
     a.roles.insert("/x/vol1.bbl".into(), PID.into());
     let mut m = Memoire(Default::default());
     a.save(&mut m);
-    let mut b = GuidePage::in_memory();
+    let mut b = GuidePage::new();
     b.cards.list.push(DroneCard::new("A"));
     b.cards.list.push(DroneCard::new("B"));
     b.restore(&m);
@@ -654,11 +620,11 @@ fn la_phase_la_fiche_et_les_roles_sont_retrouves_au_lancement_suivant() {
     let mut m2 = Memoire(Default::default());
     m2.set_string("guide.phase", "\"inconnue\"".into());
     m2.set_string("guide.roles", "{\"/y.bbl\": \"nimporte\"}".into());
-    let mut c = GuidePage::in_memory();
+    let mut c = GuidePage::new();
     c.restore(&m2);
     assert!(c.at_home() && c.roles.is_empty());
     // une fiche disparue : on retombe sur la première
-    let mut d = GuidePage::in_memory();
+    let mut d = GuidePage::new();
     d.cards.list.push(DroneCard::new("A"));
     d.restore(&m);
     assert_eq!(d.card().unwrap().name, "A");
@@ -710,14 +676,13 @@ fn les_textes_de_progression_sont_ceux_de_python() {
 
 #[test]
 fn le_premier_log_ouvert_depuis_l_accueil_passe_aux_courbes_mais_pas_depuis_une_phase() {
-    let d = dossier("premier-log");
-    let mut h = banc(app_sur(&d.join("drones.json")));
+    let mut h = banc(appli());
     h.run();
     h.state_mut().open(vec![donnees()]);
     attendre(&mut h, |a| !a.state.logs.is_empty());
     assert_eq!(h.state().screen, Screen::Viewer);
     // depuis une phase du guide : on reste sur le guide
-    let mut h = banc(app_sur(&d.join("drones.json")));
+    let mut h = banc(appli());
     h.state_mut().guide.phase = "filters";
     h.run();
     h.state_mut().open(vec![donnees()]);
@@ -727,17 +692,15 @@ fn le_premier_log_ouvert_depuis_l_accueil_passe_aux_courbes_mais_pas_depuis_une_
 
 #[test]
 fn les_logs_du_drone_sont_verifies_classes_et_les_commandes_copiables() {
-    let d = dossier("logs");
-    let p = d.join("drones.json");
     // le nom du drone dans l'en-tête du log de test
     let nom = otb_log::flightlog::load(&donnees()).unwrap()[0]
         .settings
         .craft_name
         .clone();
-    let mut app = app_sur(&p);
+    let mut app = appli();
     let mut fiche = DroneCard::new(&nom);
     fiche.pid_khz = 3.2;
-    app.guide.cards.add(fiche).unwrap();
+    app.put_card(fiche);
     app.guide.select_by_name(&nom);
     app.guide.phase = "filters";
     let mut h = banc(app);
@@ -806,14 +769,12 @@ fn les_logs_du_drone_sont_verifies_classes_et_les_commandes_copiables() {
 
 #[test]
 fn ouvrir_un_outil_depuis_une_case_regle_la_periode_sur_la_partie_du_vol() {
-    let d = dossier("outil");
-    let p = d.join("drones.json");
     let nom = otb_log::flightlog::load(&donnees()).unwrap()[0]
         .settings
         .craft_name
         .clone();
-    let mut app = app_sur(&p);
-    app.guide.cards.add(DroneCard::new(&nom)).unwrap();
+    let mut app = appli();
+    app.put_card(DroneCard::new(&nom));
     app.guide.select_by_name(&nom);
     app.guide.phase = "filters";
     let mut h = banc(app);
@@ -865,12 +826,11 @@ fn la_periode_d_une_partie_du_vol_vient_du_controle_du_log() {
 
 #[test]
 fn le_panneau_des_logs_garde_sa_hauteur_meme_s_il_commence_sans_fiche() {
-    let d = dossier("hauteur-panneau");
-    let mut h = banc(app_sur(&d.join("drones.json")));
+    let mut h = banc(appli());
     h.run_steps(3); // sans fiche : une seule phrase dans le panneau
     let mut app_card = DroneCard::new("Sept");
     app_card.size = "seven".into();
-    h.state_mut().guide.cards.add(app_card).unwrap();
+    h.state_mut().put_card(app_card);
     h.state_mut().guide.select_by_name("Sept");
     h.run_steps(4);
     let haut = h.get_by_label("Logs de « Sept »").rect().top();
@@ -881,13 +841,12 @@ fn le_panneau_des_logs_garde_sa_hauteur_meme_s_il_commence_sans_fiche() {
 
 #[test]
 fn changer_la_periode_d_un_log_relance_sa_verification() {
-    let d = dossier("periode");
     let nom = otb_log::flightlog::load(&donnees()).unwrap()[0]
         .settings
         .craft_name
         .clone();
-    let mut app = app_sur(&d.join("drones.json"));
-    app.guide.cards.add(DroneCard::new(&nom)).unwrap();
+    let mut app = appli();
+    app.put_card(DroneCard::new(&nom));
     app.guide.select_by_name(&nom);
     app.guide.phase = "filters";
     let mut h = banc(app);
@@ -918,20 +877,13 @@ fn changer_la_periode_d_un_log_relance_sa_verification() {
 
 #[test]
 fn un_nouveau_log_fait_passer_le_guide_sur_la_fiche_du_drone() {
-    let d = dossier("suivre-fiche");
     let nom = otb_log::flightlog::load(&donnees()).unwrap()[0]
         .settings
         .craft_name
         .clone();
-    let mut app = app_sur(&d.join("drones.json"));
-    app.guide
-        .cards
-        .add(DroneCard::new(&format!("{nom} (autre drone)")))
-        .unwrap();
-    app.guide
-        .cards
-        .add(DroneCard::new(&format!("  {}  ", nom.to_uppercase())))
-        .unwrap(); // casse et espaces ignorés
+    let mut app = appli();
+    app.put_card(DroneCard::new(&format!("{nom} (autre drone)")));
+    app.put_card(DroneCard::new(&format!("  {}  ", nom.to_uppercase()))); // casse et espaces ignorés
     app.guide.select_by_name(&format!("{nom} (autre drone)"));
     app.guide.phase = "filters";
     let mut h = banc(app);
@@ -949,8 +901,8 @@ fn un_nouveau_log_fait_passer_le_guide_sur_la_fiche_du_drone() {
     h.run_steps(4);
     assert_eq!(h.state().guide.card().unwrap().name, format!("{nom} (autre drone)"));
     // un log d'un drone sans fiche ne change pas la fiche choisie
-    let mut app = app_sur(&d.join("autre.json"));
-    app.guide.cards.add(DroneCard::new("Sans rapport")).unwrap();
+    let mut app = appli();
+    app.put_card(DroneCard::new("Sans rapport"));
     app.guide.select_by_name("Sans rapport");
     app.guide.phase = "filters";
     let mut h = banc(app);
@@ -996,95 +948,68 @@ fn la_partie_du_vol_vient_du_dernier_log_des_filtres() {
 }
 
 #[test]
-fn un_nom_vide_devient_mon_drone() {
-    let d = dossier("nom-vide");
-    let p = d.join("drones.json");
-    let mut h = banc(app_sur(&p));
+fn un_nom_vide_devient_nouveau_drone() {
+    let mut h = banc(appli());
     h.run_steps(3);
     h.get_by_role_and_label(Role::Button, "Nouveau drone").click();
     h.run_steps(3);
-    h.get_by_label("Nom (comme dans Betaflight)")
-        .set_text_value_accesskit("   ");
+    h.get_by_label("Nom du drone").set_text_value_accesskit("   ");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.get_by_role_and_label(Role::Button, "Créer le drone").click();
     h.run_steps(4);
     assert_eq!(
-        Cards::load(p).list.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
-        ["Mon drone"]
+        fiches(h.state()).iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+        ["Nouveau drone"]
     );
 }
 
-fn trois_fiches(nom: &str) -> (PathBuf, Harness<'static, App>) {
-    let d = dossier(nom);
-    let p = d.join("drones.json");
-    let mut app = app_sur(&p);
+fn trois_fiches() -> Harness<'static, App> {
+    let mut app = appli();
     for n in ["A", "B", "C"] {
         let mut c = DroneCard::new(n);
         c.done.push(("recording".into(), true));
-        app.guide.cards.add(c).unwrap();
+        app.put_card(c);
     }
     app.guide.select_by_name("B"); // la fiche du clic n'est ni la première ni la dernière
     app.guide.phase = "prep";
     let mut h = banc(app);
     h.run_steps(3);
-    (p, h)
+    h
+}
+
+fn sans_case(app: &App, nom: &str) -> bool {
+    fiches(app).iter().find(|c| c.name == nom).unwrap().done.is_empty()
 }
 
 #[test]
 fn la_confirmation_vise_la_fiche_du_clic_meme_si_la_fiche_choisie_change_ensuite() {
-    // Supprimer : B est la fiche du clic, la fiche choisie passe ensuite sur C (un log de ce drone vient d'arriver)
-    let (p, mut h) = trois_fiches("confirmation-supprimer");
-    h.get_by_role_and_label(Role::Button, "Supprimer").click();
-    h.run_steps(3);
-    h.state_mut().guide.select_by_name("C");
-    h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Oui").click();
-    h.run_steps(4);
-    assert_eq!(
-        Cards::load(p).list.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
-        ["A", "C"],
-        "B était la fiche du clic"
-    );
-    assert_eq!(
-        h.state().guide.card().unwrap().name,
-        "C",
-        "la fiche choisie reste C (Python : la première seulement si on supprime la choisie)"
-    );
-    // Recommencer : seule B est remise à zéro
-    let (p, mut h) = trois_fiches("confirmation-recommencer");
+    // Recommencer : B est la fiche du clic, la fiche choisie passe ensuite sur C (un log de ce drone vient d'arriver)
+    let mut h = trois_fiches();
     h.get_by_role_and_label(Role::Button, "Recommencer").click();
     h.run_steps(3);
     h.state_mut().guide.select_by_name("C");
     h.run_steps(2);
     h.get_by_role_and_label(Role::Button, "Oui").click();
     h.run_steps(4);
-    let relu = Cards::load(p).list;
-    let vide = |n: &str| relu.iter().find(|c| c.name == n).unwrap().done.is_empty();
-    assert!(!vide("A") && vide("B") && !vide("C"), "seule B est remise à zéro");
-    // supprimer la fiche choisie : le choix retombe sur la première, comme Python
-    let (_p, mut h) = trois_fiches("confirmation-choisie");
-    h.get_by_role_and_label(Role::Button, "Supprimer").click();
-    h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Oui").click();
-    h.run_steps(4);
-    assert_eq!(h.state().guide.card().unwrap().name, "A");
+    let a = h.state();
+    assert!(
+        !sans_case(a, "A") && sans_case(a, "B") && !sans_case(a, "C"),
+        "seule B est remise à zéro"
+    );
+    assert_eq!(a.guide.card().unwrap().name, "C");
 }
 
 #[test]
 fn la_confirmation_ne_touche_a_rien_si_la_liste_des_fiches_a_change() {
-    let (p, mut h) = trois_fiches("confirmation-liste-changee");
-    h.get_by_role_and_label(Role::Button, "Supprimer").click();
+    let mut h = trois_fiches();
+    h.get_by_role_and_label(Role::Button, "Recommencer").click();
     h.run_steps(3);
-    // pendant la confirmation, B disparaît : le numéro 1 désigne maintenant C
-    h.state_mut().guide.cards.delete(1).unwrap();
+    // pendant la confirmation, B quitte la bibliothèque : le numéro 1 désigne maintenant C
+    h.state_mut().library.remove_drone("B");
     h.run_steps(2);
     h.get_by_role_and_label(Role::Button, "Oui").click();
     h.run_steps(4);
-    assert_eq!(
-        Cards::load(p).list.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
-        ["A", "C"],
-        "C n'est pas supprimée"
-    );
+    assert!(!sans_case(h.state(), "C"), "C n'est pas remise à zéro");
 }
 
 #[test]
@@ -1098,25 +1023,23 @@ fn un_log_dont_la_verification_echoue_reste_au_drone() {
 
 #[test]
 fn le_bouton_modifier_garde_l_avancement_et_la_place_de_la_fiche() {
-    let d = dossier("modifier");
-    let p = d.join("drones.json");
-    let mut app = app_sur(&p);
+    let mut app = appli();
     for n in ["A", "B", "C"] {
         let mut c = DroneCard::new(n);
         c.done.push(("recording".into(), true));
-        app.guide.cards.add(c).unwrap();
+        app.put_card(c);
     }
     app.guide.select_by_name("B");
     let mut h = banc(app);
     h.run_steps(3);
     h.get_by_role_and_label(Role::Button, "Modifier").click();
     h.run_steps(3);
-    h.get_by_label("Nom (comme dans Betaflight)")
-        .set_text_value_accesskit("B2");
+    assert_eq!(h.state().screen, Screen::DroneSheet);
+    h.get_by_label("Nom du drone").set_text_value_accesskit("B2");
     h.run_steps(2);
     h.get_by_role_and_label(Role::Button, "Enregistrer").click();
     h.run_steps(4);
-    let relu = Cards::load(p).list;
+    let relu = fiches(h.state());
     assert_eq!(
         relu.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
         ["A", "B2", "C"],
@@ -1124,8 +1047,14 @@ fn le_bouton_modifier_garde_l_avancement_et_la_place_de_la_fiche() {
     );
     assert_eq!(relu[1].done, [("recording".to_string(), true)], "avancement gardé");
     assert_eq!(
+        h.state().library.drone_by_name("B2").unwrap().id,
+        "B",
+        "même drone, renommé"
+    );
+    assert_eq!(
         h.state().guide.card().unwrap().name,
         "B2",
         "la fiche modifiée reste la fiche choisie"
     );
+    assert_eq!(h.state().screen, Screen::Guide);
 }

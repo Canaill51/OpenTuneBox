@@ -107,7 +107,14 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   « + » (ou une coche à la couleur de sa pastille quand il est dans la liste d'analyse ; il l'y ajoute ou l'en retire,
   `DashAction::Toggle`) et suivi d'un crayon qui ouvre l'écran d'extraction sur lui
   (`DashAction::Edit`). Un drone est reconnu par le **nom de machine** de
-  l'en-tête (`Craft name`) tant que la récupération par USB n'apporte pas l'identifiant de la carte (lot 32).
+  l'en-tête (`Craft name`), cherché par nom (`Library::drone_by_name`) : un drone créé à la main ou renommé garde ses logs
+  (D-068). Le crayon d'une carte et « Nouveau drone » ouvrent la fiche du drone (`DashAction::EditDrone`, `DashAction::NewDrone`).
+- `drone_sheet.rs` : la **fiche d'un drone** (lot 30d, D-068), second écran hors rail du prototype (`Screen::DroneSheet` ; le
+  rail reste, « Tableau de bord » choisi) : Identité, Machine, Configurations Betaflight (« Voir », « Comparer » au
+  précédent), suppression en deux temps. La partie sans fenêtre : choix proposés, traduction fiche ↔ fiche du Guide
+  (`card_of`, `sheet_of_card` : la taille affichée choisit le profil de l'assistant), enregistrement (`save_form` : un nom
+  n'appartient qu'à un drone), reprise de l'ancien `drones.json` au lancement (`import_old_file`). L'écran rend des
+  `SheetAction` que `App::apply_sheet` exécute.
 - `app.rs` : fenêtre principale, écrans Tableau de bord / Guide / outil, et l'écran d'extraction (`Screen::Viewer`), hors
   rail (D-065) : il a sa propre barre du haut, retient l'écran d'où l'on vient (`App::return_to`) et y revient. Ouvrir un
   fichier range ses sessions comme fragments (`remember`) : bornes **choisies** gardées, sinon limites automatiques ; des
@@ -137,8 +144,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   droite à sections repliables (Fragment, Traces, Affichage, Lecteur, Au curseur). Les bornes vivent dans un brouillon
   (`Draft`) toujours posé sur un échantillon (`snap_bounds`) ; l'écran rend des `ExtAction` que `App` exécute. Chaque courbe affichée est gardée en cache avec son index multi-résolution
   (`Series`, clé : trace, axe, lissage) ; le tracé n'appelle plus que `otb_dsp::minmax::window_points` (D-048).
-- `guide.rs` : le Guide sans egui (fichier des fiches `drones.json` dans le dossier de données de l'utilisateur, fichier illisible
-  mis de côté : D-039 ; liens `otb:`, avancement, outils cités). `guide_page.rs` : la page **Guide** (accueil
+- `guide.rs` : le Guide sans egui (fiches du Guide : une **copie** de celles de la bibliothèque, relue par `App::sync_cards`
+  quand la table des drones change, D-068 ; lecture de l'ancien fichier `drones.json` pour sa reprise ; liens `otb:`,
+  avancement, outils cités). `guide_page.rs` : la page **Guide** (accueil
   `rust/otb-gui/assets/guide/accueil.md`, frise et liste des phases, fiches drone, cases décrites par `tuning_path.rs`, logs du drone
   vérifiés en arrière-plan par `log_check.rs`) ; elle rend des `GuideAction` que `App` exécute. Les liens `otb:phase/<clé>` et
   `otb:tool/<clé>` de l'accueil sont vérifiés par le test de documentation.
@@ -192,7 +200,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
 - **otb-format** : formats de nombres (`{:.2f}`, `%g`, `repr`, `round`, D-035), pour que les textes restent identiques à ceux de l'ancienne version.
 - **otb-store** : la bibliothèque de données (lot 28), en **fichiers JSON** et non en base — tranché par Cédric le 2026-11-18,
   le volume étant petit et une base embarquée apportant un compilateur C et une frontière FFI (D-054). Six tables dans
-  `<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` : drones (clé = identifiant de la carte), logs connus (copiés ou laissés
+  `<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` : drones (clé = identifiant de la carte ; avec leur **fiche**,
+  `DroneSheet`, absente tant qu'on ne l'a pas remplie, D-068), logs connus (copiés ou laissés
   en place), fragments de vol, configurations (`diff all` datés, gardés seulement quand ils changent), mesures (une par
   fragment, axe et grandeur, avec l'empreinte des réglages et la **version de calcul** qui les périme) et liste d'analyse.
   `model.rs` : les tables et leur écriture JSON, conversion à la main et lecture tolérante ; un fragment porte `chosen`
@@ -205,7 +214,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   `theme.rs`, L-016), actif ou non, et un fragment de travail qui doit appartenir à la liste. **Un seul module d'accès** : le
   reste du programme ne voit jamais un fichier, ce qui limitera à ce fichier le passage à une vraie base le jour où le
   déclencheur du plan sera atteint. Un fichier illisible ou d'une version plus récente est **mis de côté**, jamais écrasé
-  (même règle que les fiches drone, D-039). Mesures de volume dans [validation](validation.md). Dépendance : serde_json.
+  (même règle que l'ancien fichier des fiches, D-039). `Library::remove_drone` emporte tout ce qui désigne le drone (W-075 :
+  pas ses fichiers copiés) ; `model::config_changes` dit ce qui change d'un `diff all` au suivant. Mesures de volume dans [validation](validation.md). Dépendance : serde_json.
 - **otb-usb** : récupération des logs par USB, **partie protocole** (lot 32a, D-063 ; l'écran viendra au lot 32b). Ce que
   fait le firmware : [spec-usb](spec-usb.md). `frame.rs` : trames MSP v1 (« jumbo » dès 255 octets) et v2 (CRC-8 DVB-S2),
   écrites et lues octet par octet. `link.rs` : le trait `Link` (envoyer, recevoir dans un délai) et `SerialLink`, le vrai

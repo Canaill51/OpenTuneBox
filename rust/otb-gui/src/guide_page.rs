@@ -10,11 +10,10 @@ use std::sync::Arc;
 
 use egui::{Context, RichText, Ui};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
-use otb_advisor::drone_card::{BF_FAMILIES, DroneCard, ESCS, PID_RATES_KHZ, card_for_log, card_from_log};
+use otb_advisor::drone_card::{DroneCard, card_for_log, card_from_log};
 use otb_advisor::log_check::{
     BLOCK, FILTERS, FilterTargets, GroupCheck, INFO, LogCheck, OK, PID, WARN, check_log, check_logs, filter_targets,
 };
-use otb_advisor::profiles::PROFILES;
 use otb_advisor::tuning_path::{AUTO_OK, Phase, Step, auto_status, phases};
 use otb_log::flightlog::FlightLog;
 
@@ -29,12 +28,20 @@ const AIDE_BULLE: &str = "Afficher l'aide de cette étape";
 use crate::worker::Runner;
 
 /// Ce que la page demande à l'application.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GuideAction {
     /// Afficher cet outil (le garde-fou « ouvrez d'abord un log » est celui de `App::open_tool`).
     Tool(ToolTarget),
     /// Ouvrir ces fichiers de log.
     Open(Vec<PathBuf>),
+    /// « Nouveau drone » : l'écran de la fiche (D-068), prérempli d'après le log ouvert s'il y en a un.
+    NewDrone(Option<DroneCard>),
+    /// « Modifier » : l'écran de la fiche du drone de ce nom.
+    EditDrone(String),
+    /// Une case cochée ou décochée à la main, sur la fiche de ce nom : `App` l'écrit dans la bibliothèque.
+    Done { name: String, key: String, on: bool },
+    /// « Recommencer » confirmé : toutes les cases de cette fiche décochées.
+    Reset(String),
 }
 
 /// Résultat de `check_log` pour un log, vérification rapide ou complète (avec les repères des filtres).
@@ -61,68 +68,10 @@ struct LogView {
     error: Option<String>,
 }
 
-#[derive(Default)]
-struct CardForm {
-    /// Fiche modifiée (`None` : nouvelle fiche).
-    editing: Option<usize>,
-    name: String,
-    bf: String,
-    size: String,
-    pid: f64,
-    esc: String,
-    done: Vec<(String, bool)>,
-}
-
-impl CardForm {
-    /// Une valeur absente des choix tombe sur le premier, comme `findData` de Qt dans `CardDialog._combo`.
-    fn new(card: &DroneCard, editing: Option<usize>) -> CardForm {
-        let mut f = CardForm {
-            editing,
-            done: card.done.clone(),
-            ..CardForm::default()
-        };
-        f.set(card);
-        f
-    }
-
-    fn set(&mut self, card: &DroneCard) {
-        let pick = |v: &str, all: &[&str]| all.iter().find(|a| **a == v).unwrap_or(&all[0]).to_string();
-        self.name = card.name.clone();
-        self.bf = pick(&card.bf, &BF_FAMILIES.map(|c| c.0));
-        self.size = pick(&card.size, &PROFILES.map(|p| p.key));
-        self.esc = pick(&card.esc, &ESCS.map(|c| c.0));
-        self.pid = PID_RATES_KHZ
-            .iter()
-            .map(|c| c.0)
-            .find(|k| *k == card.pid_khz)
-            .unwrap_or(PID_RATES_KHZ[0].0);
-    }
-
-    /// `CardDialog.card` : un nom vide devient « Mon drone », la boucle PID reste un flottant (`4.0`).
-    fn card(&self) -> DroneCard {
-        let name = self.name.trim();
-        let mut c = DroneCard::new(if name.is_empty() { "Mon drone" } else { name });
-        c.bf = self.bf.clone();
-        c.size = self.size.clone();
-        c.pid_khz = self.pid;
-        c.esc = self.esc.clone();
-        c.done = self.done.clone();
-        c
-    }
-}
-
 enum Dialog {
-    Card(CardForm),
-    /// Fiche à supprimer : son numéro et son nom au moment du clic (la fiche choisie peut changer pendant la confirmation).
-    Delete {
-        index: usize,
-        name: String,
-    },
-    /// Fiche à remettre à zéro, idem.
-    Reset {
-        index: usize,
-        name: String,
-    },
+    /// Fiche à remettre à zéro : son numéro et son nom au moment du clic (la fiche choisie peut changer pendant la
+    /// confirmation).
+    Reset { index: usize, name: String },
 }
 
 /// Une demande de l'utilisateur, exécutée une fois le cadre dessiné (pas de modification de la page pendant qu'on la dessine).
@@ -154,8 +103,6 @@ pub struct GuidePage {
     /// Vérification complète en cours : (uid du log, clé du cache).
     running: Option<(u64, String)>,
     last_uid: Option<u64>,
-    /// Dernière erreur d'écriture du fichier des fiches.
-    notice: String,
     cli: Vec<String>,
     cli_note: String,
     groups: Option<(String, Vec<GroupCheck>)>,
@@ -223,8 +170,16 @@ fn marked(ui: &mut Ui, th: &Theme, accent: &str, icon_name: &str, alt: &str, tex
     });
 }
 
+impl Default for GuidePage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GuidePage {
-    pub fn new(cards: Cards) -> GuidePage {
+    /// Une page sans fiche : `App` lui donne celles de la bibliothèque (`refresh`).
+    pub fn new() -> GuidePage {
+        let cards = Cards::default();
         let mut md = CommonMarkCache::default();
         for part in HOME_TEXT.split("](").skip(1) {
             let dest = part.split(')').next().unwrap_or("");
@@ -244,7 +199,6 @@ impl GuidePage {
             runner: Runner::default(),
             running: None,
             last_uid: None,
-            notice: String::new(),
             cli: Vec::new(),
             cli_note: String::new(),
             groups: None,
@@ -252,9 +206,14 @@ impl GuidePage {
         }
     }
 
-    /// Fiches en mémoire seulement (bancs de test).
-    pub fn in_memory() -> GuidePage {
-        GuidePage::new(Cards::memory())
+    /// Les fiches de la bibliothèque ont changé : la fiche choisie le reste, retrouvée par son nom.
+    pub fn refresh(&mut self, list: Vec<DroneCard>) {
+        let keep = self.card().map(|c| c.name.clone());
+        self.cards.list = list;
+        match keep {
+            Some(n) => self.select_by_name(&n),
+            None => self.selected = if self.cards.list.is_empty() { None } else { Some(0) },
+        }
     }
 
     /// Une vérification complète est en cours (captures et tests : attendre sa fin).
@@ -428,13 +387,6 @@ impl GuidePage {
     }
 
     // ------------------------------------------------------------ actions
-    fn write_result(&mut self, r: std::io::Result<()>) {
-        match r {
-            Ok(()) => self.notice.clear(),
-            Err(e) => self.notice = format!("Enregistrement des fiches impossible : {e}"),
-        }
-    }
-
     fn run(
         &mut self,
         intent: Intent,
@@ -449,21 +401,21 @@ impl GuidePage {
                 self.selected = Some(i);
             }
             Intent::NewCard => {
-                let form = match state.current_log() {
-                    Some(l) => CardForm::new(&card_from_log(&l.log), None),
-                    None => CardForm::new(&DroneCard::new("Mon drone"), None),
-                };
-                self.dialog = Some(Dialog::Card(form));
+                actions.push(GuideAction::NewDrone(
+                    state.current_log().map(|l| card_from_log(&l.log)),
+                ));
             }
             Intent::EditCard => {
-                if let (Some(i), Some(c)) = (self.selected, self.card()) {
-                    self.dialog = Some(Dialog::Card(CardForm::new(c, Some(i))));
+                if let Some(c) = self.card() {
+                    actions.push(GuideAction::EditDrone(c.name.clone()));
                 }
             }
             Intent::Done(key, on) => {
                 if let Some(i) = self.selected {
-                    let r = self.cards.set_done(i, &key, on);
-                    self.write_result(r);
+                    // la copie tout de suite (l'image suivante la montre), la bibliothèque par `App`
+                    self.cards.set_done(i, &key, on);
+                    let name = self.cards.list[i].name.clone();
+                    actions.push(GuideAction::Done { name, key, on });
                 }
             }
             Intent::ToggleHelp(key) => {
@@ -554,13 +506,7 @@ impl GuidePage {
                     }
                 });
         });
-        // `card_from_log` (profil détecté…) ne se calcule que pendant que la fenêtre de fiche est ouverte
-        let fill = if matches!(self.dialog, Some(Dialog::Card(_))) {
-            state.current_log().map(|l| card_from_log(&l.log))
-        } else {
-            None
-        };
-        self.dialogs(&ctx, fill.as_ref());
+        self.dialogs(&ctx, &mut actions);
         for it in intents {
             self.run(it, &ctx, state, &views, &mut actions);
         }
@@ -576,24 +522,6 @@ impl GuidePage {
     }
 
     fn header(&mut self, ui: &mut Ui, th: &Theme, progress: &[(String, usize, usize)], intents: &mut Vec<Intent>) {
-        if let Some(p) = self.cards.problem() {
-            let where_ = self
-                .cards
-                .path
-                .as_ref()
-                .map(|p| p.display().to_string())
-                .unwrap_or_default();
-            ui.label(
-                RichText::new(format!(
-                    "Le fichier des fiches ({where_}) est illisible : {p}. Il sera mis de côté sous le nom « .illisible » avant \
-                     toute nouvelle écriture ; il n'est pas effacé."
-                ))
-                .color(th.accent("red")),
-            );
-        }
-        if !self.notice.is_empty() {
-            ui.label(RichText::new(self.notice.clone()).color(th.accent("red")));
-        }
         ui.horizontal_wrapped(|ui| {
             let label = ui.label("Drone :");
             let current = self.card().map_or("Aucune fiche".to_string(), |c| c.name.clone());
@@ -609,11 +537,19 @@ impl GuidePage {
                 })
                 .response
                 .labelled_by(label.id);
-            if ui.button("Nouveau drone").clicked() {
+            if ui
+                .button("Nouveau drone")
+                .on_hover_text("Ouvrir une fiche de drone neuve, préremplie d'après le log ouvert")
+                .clicked()
+            {
                 intents.push(Intent::NewCard);
             }
             let has = self.card().is_some();
-            if ui.add_enabled(has, egui::Button::new("Modifier")).clicked() {
+            if ui
+                .add_enabled(has, egui::Button::new("Modifier"))
+                .on_hover_text("Ouvrir la fiche de ce drone (on la supprime aussi depuis là)")
+                .clicked()
+            {
                 intents.push(Intent::EditCard);
             }
             if ui
@@ -624,15 +560,6 @@ impl GuidePage {
                 self.dialog = self
                     .selected_target()
                     .map(|(index, name)| Dialog::Reset { index, name });
-            }
-            if ui
-                .add_enabled(has, egui::Button::new("Supprimer"))
-                .on_hover_text("Supprimer la fiche de ce drone et son avancement (les logs ne sont pas touchés)")
-                .clicked()
-            {
-                self.dialog = self
-                    .selected_target()
-                    .map(|(index, name)| Dialog::Delete { index, name });
             }
             ui.separator();
             for (k, key) in PHASE_KEYS.iter().enumerate() {
@@ -917,148 +844,39 @@ impl GuidePage {
         }
     }
 
-    /// `fill` : la fiche que donnerait le log ouvert (bouton « Remplir d'après le log ouvert »).
-    fn dialogs(&mut self, ctx: &Context, fill: Option<&DroneCard>) {
+    /// La confirmation de « Recommencer ».
+    fn dialogs(&mut self, ctx: &Context, actions: &mut Vec<GuideAction>) {
         let Some(dialog) = self.dialog.take() else { return };
-        match dialog {
-            Dialog::Card(mut form) => {
-                let mut result = None; // Some(true) : enregistrer ; Some(false) : annuler
-                let m = egui::Modal::new(egui::Id::unique("guide-fiche-dialogue")).show(ctx, |ui| {
-                    ui.set_width(380.0);
-                    ui.heading("Fiche drone");
-                    egui::Grid::new("guide-fiche-grille").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                        let l = ui.label("Nom (comme dans Betaflight)");
-                        ui.add(egui::TextEdit::singleline(&mut form.name).desired_width(220.0))
-                            .labelled_by(l.id)
-                            .on_hover_text(
-                                "Le même nom que dans Betaflight (onglet Configuration, « Nom de l'appareil ») : les logs du \
-                                 drone sont reconnus grâce à lui",
-                            );
-                        ui.end_row();
-                        combo(ui, "Version de Betaflight", "guide-bf", &BF_FAMILIES.map(|c| (c.0.to_string(), c.1.to_string())), &mut form.bf);
-                        combo(ui, "Taille", "guide-taille", &PROFILES.map(|p| (p.key.to_string(), p.label.to_string())), &mut form.size);
-                        let mut pid = format!("{}", form.pid);
-                        combo(ui, "Boucle PID", "guide-pid", &PID_RATES_KHZ.map(|c| (format!("{}", c.0), c.1.to_string())), &mut pid);
-                        form.pid = pid.parse().unwrap_or(form.pid);
-                        combo(ui, "ESC", "guide-esc", &ESCS.map(|c| (c.0.to_string(), c.1.to_string())), &mut form.esc);
-                    });
-                    ui.label(
-                        "Boucle PID : onglet Configuration, « Fréquence de la boucle PID ». Gyro : commande « status » du CLI \
-                         (BMI270 → 3,2 kHz).",
-                    );
-                    ui.add_space(6.0);
-                    ui.horizontal(|ui| {
-                        if let Some(fill) = fill
-                            && ui.button("Remplir d'après le log ouvert").clicked()
-                        {
-                            form.set(fill);
-                        }
-                        if ui.button("Enregistrer").clicked() {
-                            result = Some(true);
-                        }
-                        if ui.button("Annuler").clicked() {
-                            result = Some(false);
-                        }
-                    });
-                });
-                if m.should_close() && result.is_none() {
-                    result = Some(false);
+        let Dialog::Reset { index, ref name } = dialog;
+        let name = name.clone();
+        let mut answer = None;
+        let m = egui::Modal::new(egui::Id::unique("guide-confirmer")).show(ctx, |ui| {
+            ui.set_width(380.0);
+            ui.heading("Recommencer le parcours");
+            ui.label(format!(
+                "Décocher toutes les cases de « {name} » ? Les cases vérifiées par un log ouvert resteront cochées \
+                 tant que ce log est ouvert."
+            ));
+            ui.horizontal(|ui| {
+                if ui.button("Oui").clicked() {
+                    answer = Some(true);
                 }
-                match result {
-                    Some(true) => {
-                        let card = form.card();
-                        let r = match form.editing {
-                            Some(i) => self.cards.replace(i, card.clone()).map(|()| Some(i)),
-                            None => self.cards.add(card.clone()).map(Some),
-                        };
-                        match r {
-                            Ok(_) => {
-                                self.notice.clear();
-                                self.select_by_name(&card.name);
-                            }
-                            Err(e) => self.notice = format!("Enregistrement des fiches impossible : {e}"),
-                        }
-                    }
-                    Some(false) => {}
-                    None => self.dialog = Some(Dialog::Card(form)),
-                }
-            }
-            Dialog::Delete { .. } | Dialog::Reset { .. } => {
-                let delete = matches!(dialog, Dialog::Delete { .. });
-                let (index, name) = match &dialog {
-                    Dialog::Delete { index, name } | Dialog::Reset { index, name } => (*index, name.clone()),
-                    Dialog::Card(_) => return,
-                };
-                let mut answer = None;
-                let m = egui::Modal::new(egui::Id::unique("guide-confirmer")).show(ctx, |ui| {
-                    ui.set_width(380.0);
-                    if delete {
-                        ui.heading("Supprimer la fiche");
-                        ui.label(format!(
-                            "Supprimer la fiche « {name} » et son avancement ? Les logs ne sont pas touchés ; cette suppression ne \
-                             peut pas être annulée."
-                        ));
-                    } else {
-                        ui.heading("Recommencer le parcours");
-                        ui.label(format!(
-                            "Décocher toutes les cases de « {name} » ? Les cases vérifiées par un log ouvert resteront cochées \
-                             tant que ce log est ouvert."
-                        ));
-                    }
-                    ui.horizontal(|ui| {
-                        if ui.button("Oui").clicked() {
-                            answer = Some(true);
-                        }
-                        if ui.button("Non").clicked() {
-                            answer = Some(false);
-                        }
-                    });
-                });
-                if m.should_close() && answer.is_none() {
+                if ui.button("Non").clicked() {
                     answer = Some(false);
                 }
-                match answer {
-                    Some(true) => {
-                        // seulement si la fiche du clic est toujours là sous ce nom (sinon la liste a changé : on ne touche à rien)
-                        if self.cards.list.get(index).is_some_and(|c| c.name == name) {
-                            // la fiche choisie le reste ; si c'est celle qu'on supprime, `select_by_name` retombe sur la première (Python)
-                            let keep = self.card().map(|c| c.name.clone()).unwrap_or_default();
-                            let r = if delete {
-                                self.cards.delete(index)
-                            } else {
-                                self.cards.reset(index)
-                            };
-                            if delete {
-                                self.select_by_name(&keep);
-                            }
-                            self.write_result(r);
-                        }
-                    }
-                    Some(false) => {}
-                    None => self.dialog = Some(dialog),
-                }
+            });
+        });
+        if m.should_close() && answer.is_none() {
+            answer = Some(false);
+        }
+        match answer {
+            // seulement si la fiche du clic est toujours là sous ce nom (sinon la liste a changé : on ne touche à rien)
+            Some(true) if self.cards.list.get(index).is_some_and(|c| c.name == name) => {
+                self.cards.reset(index);
+                actions.push(GuideAction::Reset(name));
             }
+            Some(_) => {}
+            None => self.dialog = Some(dialog),
         }
     }
-}
-
-/// Une ligne « libellé + liste déroulante » de la fenêtre de fiche ; `current` est la valeur enregistrée.
-fn combo(ui: &mut Ui, label: &str, id: &str, items: &[(String, String)], current: &mut String) {
-    let l = ui.label(label);
-    let shown = items
-        .iter()
-        .find(|(v, _)| v == current)
-        .map_or("", |(_, t)| t.as_str())
-        .to_string();
-    egui::ComboBox::from_id_salt(id)
-        .width(220.0)
-        .selected_text(shown)
-        .show_ui(ui, |ui| {
-            for (v, t) in items {
-                ui.selectable_value(current, v.clone(), t);
-            }
-        })
-        .response
-        .labelled_by(l.id);
-    ui.end_row();
 }

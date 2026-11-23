@@ -173,6 +173,13 @@ impl Theme {
         if self.dark { *dark } else { *light }
     }
 
+    /// Texte posé **sur** un fond plein de la couleur d'accent `name` (bouton « Supprimer définitivement »). Le
+    /// blanc du thème clair ne se lit pas sur les accents du thème sombre, plus clairs (rouge : 2,3:1) : on y
+    /// écrit avec le fond des panneaux, sombre.
+    pub fn on_accent(&self, _name: &str) -> Color32 {
+        if self.dark { self.ui.base } else { plot::ON_ACCENT }
+    }
+
     /// Fond translucide de la période d'analyse (zone claire déplaçable des graphiques).
     pub fn region_fill(&self) -> Color32 {
         self.ui.highlight.gamma_multiply(0.12)

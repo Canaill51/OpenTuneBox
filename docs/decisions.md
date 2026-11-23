@@ -70,13 +70,14 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) | 2026-11-23 |
 | D-067 | **Plusieurs fragments par session** : « Enregistrer comme nouveau fragment » dans l'écran d'extraction en range un autre, posé aussitôt en pastille sur les mêmes échantillons ; seul un fragment ajouté se supprime ; « Ouvrir… » ne met en analyse que le fragment de la session (amende D-061) | 2026-11-23 |
 | D-066 | La **barre de fragments** (liste d'analyse à l'écran) décide de ce que montrent toutes les pages : fragments actifs dans l'ordre de la barre, maître pour les pages à un seul vol, couleur fixe par fragment ; plus de liste « Fichiers » par page ; liste retrouvée au lancement (remplace D-049) | 2026-11-23 |
 | D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
 | D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels), prouvé par le banc **et** les vrais vols | 2026-11-18 |
-| D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit **(amendée par D-067)** | 2026-11-19 |
+| D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit **(amendée par D-067 et D-068)** | 2026-11-19 |
 | D-060 | Amende D-015 : une entrée de navigation est **un outil ou un espace** qui regroupe plusieurs vues ; les boutons deviennent un **rail à gauche** ; deux écrans hors rail sont permis. Ce qui reste : aucune fenêtre séparée, une vue cachée ne calcule pas | 2026-11-19 |
 | D-059 | Assistant : bruit prévu après un conseil de filtres par le **rejeu** de la page Filtres, vérifié en vol (amende D-008) | 2026-11-22 |
 | D-058 | Page Filtres : chaîne du firmware rejouée ; « modifié » = spectre du log × rejeu modifié / rejeu actuel (amende D-008, remplace D-041 pour la page) | 2026-11-22 |
@@ -98,10 +99,10 @@ ici, jamais dans le code.
 | D-042 | macOS abandonné : l'application est livrée pour Windows et Linux seulement ; plus d'installateur ni d'essai macOS | 2026-11-03 |
 | D-041 | Simulateur de filtres : les notchs dynamiques ajoutés au-delà de ceux du log sont placés sur les pics prévus, sinon à leur centre initial **(amendée par D-058)** | 2026-11-02 |
 | D-040 | Interface egui : écarts voulus avec l'interface Qt validés (liste de fichiers à cocher, diagnostic en widgets, « -> », Bode zoomables, calcul automatique) et limites gardées telles quelles (groupes repliables, date d'export en UTC, barres d'erreur sans capuchon) | 2026-11-02 |
-| D-039 | Guide egui : mémoire du guide dans la persistance d'eframe, `drones.json` lu avec tolérance et jamais écrasé s'il est illisible, police Hack de secours | 2026-11-02 |
+| D-039 | Guide egui : mémoire du guide dans la persistance d'eframe, `drones.json` lu avec tolérance et jamais écrasé s'il est illisible, police Hack de secours **(amendée par D-068 : fiches dans la bibliothèque)** | 2026-11-02 |
 | D-038 | Configuration egui : lignes alignées entre logs par nom de réglage (Python : par position) | 2026-11-02 |
 | D-037 | Outils egui : cache des résultats par log, partagé avec le thread de calcul, clé = réglages de calcul + période | 2026-11-02 |
-| D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris | 2026-11-01 |
+| D-036 | Phase 6 : ligne de commande Rust (5c) d'abord ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris **(amendée par D-068)** | 2026-11-01 |
 | D-035 | Migration complète vers Rust, plus aucun Python ; interface egui ; noyau Rust autonome | 2026-10-30 |
 | D-034 | Phase 3 « par le gain mesuré » : ouverture des logs en Rust d'abord ; le reste de analysis/ et log/ repoussé **(amendée par D-035)** | 2026-10-29 |
 | D-033 | Phase 2b limitée à un pilote : le noyau de `step_response` en Rust (FFT seule écartée : gain ≤ 5 %) | 2026-10-29 |
@@ -139,6 +140,58 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-23 — Fiche d'un drone
+
+### D-068 : une seule fiche par drone, rangée dans la bibliothèque ; le Guide la lit
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 30d, entre deux propositions : une seule fiche (retenue) ou deux
+fichiers gardés ; et la « Fiche cible » repoussée au lot 31. Amende D-036 et D-039 (le fichier des fiches) et D-061
+(trois écarts au prototype).
+
+**Contexte.** Deux « drones » cohabitaient : la fiche du Guide (`drones.json` : taille, version, boucle PID, ESC, cases
+cochées), créée à la main, et le drone de la bibliothèque (lot 28 : nom, firmware, dates), créé à l'ouverture d'un log.
+Le prototype n'a **qu'une** fiche, dans un écran hors rail (D-060), avec des champs que ni l'un ni l'autre n'avait
+(batterie, poids, KV, pôles, hélices, carte de vol) et une « Fiche cible ».
+
+**Décision.**
+- **La bibliothèque tient la fiche** (`otb_store::model::DroneSheet`, champ `fiche` du drone ; `None` tant qu'elle n'a
+  jamais été remplie — jamais de valeurs inventées, elles donneraient des conseils faux). Les valeurs sont gardées
+  telles qu'affichées ; l'interface les traduit pour l'assistant (`rust/otb-gui/src/drone_sheet.rs:card_of`).
+- **Le Guide n'a plus de fichier** : `guide::Cards` est une copie, relue quand la table des drones change
+  (`Library::drones_revision`, `App::sync_cards`). Il ne change que ses cases ; `App` les écrit dans la bibliothèque.
+  Sa fenêtre « Fiche drone » et son bouton « Supprimer » disparaissent : « Nouveau drone » et « Modifier » ouvrent l'écran.
+- **L'écran « fiche du drone »** (`DroneSheetPage`, `Screen::DroneSheet`) : Identité (nom, identifiant et carte lus au
+  branchement USB), Machine, Configurations Betaflight (« Voir » le texte, « Comparer » au précédent, réglage par
+  réglage : `otb_store::model::config_changes`), suppression en deux temps. Ouvert par le crayon d'une carte ou
+  « Nouveau drone » du tableau de bord, ou par le Guide ; il revient d'où l'on venait, le rail garde « Tableau de bord ».
+- **Le nom relie un log à son drone** (`craft_name`, comme l'écran le dit) : un log rejoint le drone qui porte son nom
+  (`Library::drone_by_name`), même créé à la main sous un autre identifiant. Deux drones ne partagent jamais un nom
+  (refusé à l'enregistrement) ; un nouveau drone du nom d'un drone connu par ses seuls logs lui donne sa fiche.
+- **Supprimer un drone** retire ses logs connus, leurs fragments (mesures et liste d'analyse comprises), ses
+  configurations, et ferme ses logs ouverts. Les fichiers **copiés** restent sur le disque (W-075).
+- **Reprise de l'ancien fichier** au lancement (`drone_sheet::import_old_file`) : fiches reprises (un drone qui a déjà la
+  sienne la garde), **bibliothèque écrite, puis** fichier renommé `drones.json.repris` — dans cet ordre, sinon une coupure
+  perdrait les fiches, ou un drone supprimé reviendrait au lancement suivant. Un fichier illisible n'est ni repris ni touché.
+- **Écarts au prototype** (D-061) : pas de « Fiche cible » avant le lot 31, seul à s'en servir (sa colonne reste vide
+  pour garder la largeur de la colonne de gauche) ; taille « 8″ et plus » en plus (l'assistant a ce profil) ; boucle PID à
+  1,6 kHz en plus (la moitié d'un gyro BMI270, déjà proposée avant). Le texte blanc sur un bouton rouge plein du thème
+  sombre devient sombre (`Theme::on_accent`) : 2,3:1 seulement, illisible ; même correction sur l'écran d'extraction.
+
+**Écartés.** Garder deux fichiers que l'écran écrirait tous les deux (deux sources pour un même drone finissent par se
+contredire) ; remplir la fiche d'un drone vu dans un log avec des valeurs par défaut (conseils faux sans que personne
+ne les ait choisis) ; relier les logs par l'identifiant (un drone renommé perdait ses logs suivants) ; effacer l'ancien
+fichier après reprise (on n'efface rien de l'utilisateur).
+
+**Témoins.** `rust/otb-store/tests/bibliotheque.rs` (`la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste`,
+`supprimer_un_drone_retire_ses_logs_fragments_mesures_et_configurations`, `deux_configurations_se_comparent_reglage_par_reglage`),
+`rust/otb-gui/tests/drone_sheet.rs` (8 tests), `rust/otb-gui/tests/guide.rs`
+(`l_ancien_fichier_est_repris_dans_la_bibliotheque_puis_mis_de_cote`, `creer_modifier_recommencer_et_supprimer_une_fiche`) ;
+6 contre-preuves vues en échec (L-071). Captures `fiche-drone-*.png` et `fiche-drone-bas-*.png` de l'exemple `capture` ;
+0,2 ms par cadre.
+
+**Ouvert.** La « Fiche cible » (lot 31) ; l'identifiant et la carte lus au branchement (lot 32b) ; l'avancement du parcours
+sur la carte du tableau de bord (lot 30, W-074).
 
 ## 2026-11-23 — Second fragment d'une session
 
@@ -389,7 +442,8 @@ celles d'INAV et d'ArduPilot restent lues dans l'étude, à confirmer au lot qui
 Numérotée D-059 dans le fork `GerryNatif/OpenTuneBox` où elle a été écrite, renumérotée à la reprise dans ce dépôt le 2026-11-22. **Confirmée par Cédric** le même jour : les arbitrages ci-dessous ont été discutés avec lui pendant l'écriture
 du fork.
 
-Complète D-060, qui ne fixait que la **structure** de la navigation. **AMENDÉE par D-067** (2026-11-23) : chaque
+Complète D-060, qui ne fixait que la **structure** de la navigation. **AMENDÉE par D-068** (2026-11-23) : trois écarts de
+plus, sur la fiche du drone (voir D-068). **AMENDÉE par D-067** (2026-11-23) : chaque
 session ouverte devient toujours un fragment, et peut en porter d'autres.
 
 **Contexte.** Le 2026-11-19, après la livraison du rail, de l'espace « Bruit et filtres » et du tableau de bord,
@@ -1184,6 +1238,11 @@ de test d'interface (règle d'affichage en fonction pure, L-071).
 
 ### D-039 : Guide egui : mémoire dans la persistance d'eframe, fiches tolérantes et protégées, Hack en police de secours
 
+**AMENDÉE par D-068** (2026-11-23) : les fiches ne vivent plus dans `drones.json` mais dans la bibliothèque ; l'ancien
+fichier n'est plus écrit, seulement lu une fois pour être repris, puis renommé `.repris`. Les points « mêmes octets » et
+« Supprimer » ci-dessous ne valent plus ; la lecture tolérante, la protection d'un fichier illisible et la confirmation de
+« Recommencer » tiennent.
+
 Écarts volontaires avec `gui/guide.py` ; questions posées à Cédric le 2026-11-02, il a choisi les options recommandées.
 
 **Contexte.** Python garde la dernière phase, la dernière fiche et le rôle de chaque log dans `QSettings` (D-036 : non repris), lit
@@ -1264,6 +1323,8 @@ période après le vidage : course entre le thread de calcul et l'interface).
 deux mutations tuées (clé sans la période, clé sans les réglages).
 
 ### D-036 : 5c avant la phase 6 ; fiches drone lues avec tolérance, même fichier ; réglages Qt non repris
+
+**AMENDÉE par D-068** (2026-11-23) : le même fichier n'est plus que lu, à la reprise des fiches dans la bibliothèque.
 
 Précise D-035 (phases 5c et 6) ; tranche le point 1 de W-029.
 

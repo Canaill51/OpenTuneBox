@@ -23,8 +23,10 @@ use crate::theme::{Theme, file_color, plot, with_alpha};
 /// Ce que l'utilisateur demande depuis le tableau de bord.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DashAction {
-    /// Ouvrir le Guide sur ce drone (nom de la fiche) ; `None` : le Guide, sans fiche choisie.
-    Guide(Option<String>),
+    /// « Nouveau drone » : l'écran de la fiche, vide (D-068).
+    NewDrone,
+    /// Crayon d'une carte : l'écran de la fiche de ce drone (son identifiant).
+    EditDrone(String),
     /// Ouvrir la boîte « Ouvrir des logs… ».
     OpenDialog,
     /// Rond « + » d'un fragment : l'ajouter à la liste d'analyse (en n'ouvrant que sa session) ou l'en retirer.
@@ -186,7 +188,7 @@ impl DashboardPage {
                 .fill(th.ui.highlight)
                 .corner_radius(6);
                 if ui.add(neuf).clicked() {
-                    actions.push(DashAction::Guide(None));
+                    actions.push(DashAction::NewDrone);
                 }
                 let ouvrir = egui::Button::image_and_text(
                     icon("folder-open", 15.0).tint(th.ui.text),
@@ -376,7 +378,7 @@ impl DashboardPage {
             .stroke(egui::Stroke::NONE)
             .corner_radius(7);
         if ui.put(crayon, bouton).on_hover_text("Modifier le drone").clicked() {
-            actions.push(DashAction::Guide(Some(nom)));
+            actions.push(DashAction::EditDrone(id.to_string()));
         }
     }
 

@@ -11,8 +11,9 @@ description: Modifier ou relire le guide intégré d'OpenTuneBox (page Guide : f
   éventuellement fonctions de la fiche ; `checks` / `usage` / `flight` / `targets` pour l'état automatique,
   `tool` + `part` pour le bouton « Ouvrir … »). Sans interface, testé par `rust/otb-advisor/tests/tuning_path.rs`.
 - **Fiche drone** : `rust/otb-advisor/src/drone_card.rs` (version, taille, boucle PID, ESC ; fréquence d'enregistrement,
-  mode de débogage, listes des séries, plages de finitions, filtres par défaut du firmware). Fiches en JSON
-  dans le dossier de données de l'utilisateur ; un log est relié à la fiche par `craft_name`.
+  mode de débogage, listes des séries, plages de finitions, filtres par défaut du firmware). Les fiches vivent
+  dans la bibliothèque (D-068) ; le Guide en lit une copie traduite par `rust/otb-gui/src/drone_sheet.rs:card_of`, et la
+  saisie se fait dans l'écran « fiche du drone ». Un log est relié à la fiche par `craft_name`.
 - **Contrôles des logs** : `rust/otb-advisor/src/log_check.rs:check_log` (un point par clé ; parties du vol par
   `rust/otb-analysis/src/period.rs:flight_parts` ; l'argument `exact` de `check_log` et `filter_targets` sont lents : arrière-plan).
 - **Interface** : `rust/otb-gui/src/guide.rs` (logique) et `guide_page.rs` (fiche, frise, phases, cases, logs du drone). Accueil :
@@ -39,6 +40,6 @@ description: Modifier ou relire le guide intégré d'OpenTuneBox (page Guide : f
 (cd rust && cargo test -p otb-dev --test docs && cargo test -p otb-advisor --test tuning_path --test log_check && cargo test -p otb-gui --test guide)
 ```
 
-Puis captures hors écran (compétence `opentunebox-dev` ; `App::new` prend un guide sans fichier, jamais le vrai
-`drones.json` de l'utilisateur) : accueil sans fiche, fiche, chaque phase avec un log du corpus, aides
+Puis captures hors écran (compétence `opentunebox-dev` ; `App::new` prend une bibliothèque en mémoire, jamais la
+vraie bibliothèque de l'utilisateur ; une fiche se pose par `App::put_card`) : accueil sans fiche, fiche, chaque phase avec un log du corpus, aides
 dépliées, **dans les deux thèmes** ; regarder chaque image. Cédric relit les textes avant fusion.

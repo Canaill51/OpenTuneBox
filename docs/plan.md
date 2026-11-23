@@ -70,7 +70,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 (fait) ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) ; rail aux sept entrées du prototype depuis le 29b ; reste : fiche drone, assistant en cartes, Gyro / Terme D, avancement du parcours |
+| 3 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 (fait) ; 30a à 30d faits (rail, espace « Bruit et filtres », tableau de bord, fiche drone) ; rail aux sept entrées du prototype depuis le 29b ; reste : Gyro / Terme D (30e), assistant en cartes (30f), avancement du parcours (30g, avec W-074) |
 | 4 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) |
 | 5 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
@@ -389,7 +389,7 @@ d'entrée unique — un espace s'y enregistre comme un outil, et chaque vue inte
 - [x] **La bibliothèque entre dans l'interface** : l'application la tient (`App::library`), range chaque fichier
       ouvert (empreinte du contenu : rouvrir le même fichier ne fait pas deux entrées) et l'écrit quand eframe
       enregistre. ⚠️ **En mémoire partout sauf au lancement réel**, pour qu'aucun banc n'écrive celle de
-      l'utilisateur — même règle que les fiches drone.
+      l'utilisateur — même règle que les fiches drone, qui y vivent depuis D-068.
 - [x] **Preuve** : deux tests (cartes et panneau, rangement à l'ouverture) avec **leurs deux contre-preuves vues en
       échec** ; 281 tests de l'interface verts ; capture du tableau de bord ajoutée à l'exemple `capture`, regardée
       dans les deux thèmes.
@@ -425,8 +425,11 @@ correspondre à 100 % à la maquette ». Les trois lots précédents en avaient 
       réalisée** : le regroupement est une affaire de navigation (`tool.rs`, `app.rs`), et n'a pas touché au calcul
       des filtres. Ce lot du chantier firmware reste indépendant.
 
-- [ ] **Fiche d'un drone** (second écran hors rail du prototype : Identité, Machine, Configurations Betaflight, Fiche
-      cible) : c'est là que le prototype lit la carte « au branchement USB », donc l'écran où le lot 32b se branchera.
+- [x] **Fiche d'un drone** — **fait le 2026-11-23, 30d** (branche `feat/drone-sheet`, D-068) : second écran hors
+      rail du prototype (Identité, Machine, Configurations Betaflight, suppression), ouvert par le crayon d'une carte,
+      « Nouveau drone » ou le Guide. **Une seule fiche par drone, dans la bibliothèque** (choix de Cédric) : le Guide en
+      lit une copie, sa fenêtre de fiche disparaît, l'ancien `drones.json` est repris au lancement puis renommé
+      `.repris`. La « Fiche cible » attend le lot 31 (choix de Cédric) ; l'identifiant et la carte, le lot 32b.
 - [ ] **Gyro / Terme D dans l'espace** : le choix du signal, que le prototype montre en tête de l'espace, reste à
       faire (les vues gardent pour l'instant leurs propres cases).
 - [ ] **Assistant en cartes** triées par gravité, mesure contre seuil en jauge, constats « OK » repliés. ⚠️ Un
@@ -688,3 +691,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 29b | 2026-11-23 | **Écran d'extraction d'un fragment** (branche `feat/fragment-extraction`, D-065, W-069 clos) : le visualiseur devient l'écran hors rail du prototype (barre « Modifier le fragment », bornes à onglets et poignées, barre de navigation, panneau Fragment / Traces / Lecteur) ; les bornes du fragment sont la période d'analyse, enregistrées et retrouvées à la réouverture ; rail aux sept entrées du prototype. Preuve : 13 tests nouveaux ou récrits, dont 9 vus en échec protection retirée, captures des deux thèmes, 2,2 ms par cadre sur `FINAL.bbl` | liste d'analyse à l'écran, second fragment d'une session ; fiche drone (lot 30) |
 | 29c | 2026-11-23 | **Liste d'analyse à l'écran** (branche `feat/analysis-list`, D-066, D-049 remplacée) : barre de fragments du prototype (désactiver, maître, glisser, retirer), les pages la lisent au lieu de leurs listes « Fichiers », « + » du tableau de bord qui n'ouvre que sa session, liste retrouvée au lancement. Preuve : 10 tests, 9 contre-preuves vues en échec, captures des deux thèmes | second fragment d'une session ; fiche drone (lot 30) |
 | 29d | 2026-11-23 | **Second fragment d'une session** (branche `feat/second-fragment`, D-067, D-061 amendée) : « Enregistrer comme nouveau fragment » dans l'écran d'extraction (pastille posée sur les mêmes échantillons, juste après l'origine), suppression d'un fragment ajouté en deux temps, réouverture par « + », crayon ou liste du lancement. Preuve : 5 tests, 8 contre-preuves vues en échec, captures des deux thèmes. **Lot 29 terminé** | W-074 (rôle vu par le Guide) ; fiche drone (lot 30) |
+| 30d | 2026-11-23 | **Fiche d'un drone** (branche `feat/drone-sheet`, D-068, D-036, D-039 et D-061 amendées) : écran hors rail au dessin du prototype (Identité, Machine, Configurations Betaflight avec « Voir » et « Comparer », suppression en deux temps) ; la fiche vit dans la bibliothèque et le Guide en lit une copie ; ancien `drones.json` repris puis renommé ; un log rejoint le drone qui porte son nom ; bouton rouge plein lisible en thème sombre. Preuve : 17 tests nouveaux (5 de la bibliothèque, 8 de la fiche, 4 du Guide), les tests du Guide récrits sur la bibliothèque, 6 contre-preuves vues en échec, captures des deux thèmes, 0,2 ms par cadre | « Fiche cible » (lot 31) ; identifiant et carte au branchement (lot 32b) ; W-075 |
