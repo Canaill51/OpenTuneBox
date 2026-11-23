@@ -54,7 +54,7 @@ impl FlashCopy {
 /// Pourquoi une copie n'ouvre pas l'effacement.
 #[derive(Debug)]
 pub enum CheckFailure {
-    /// Mémoire vide : rien à copier, rien à effacer.
+    /// Mémoire ou fichier vide : rien à copier, rien à effacer.
     Empty,
     /// Le fichier existe déjà : OpenTuneBox n'écrase jamais un log.
     AlreadyExists,
@@ -75,12 +75,16 @@ pub enum CheckFailure {
     },
     /// Aucun début de log dans le fichier.
     NoLog,
+    /// Le fichier de la carte SD (ou du disque de la carte) ne se lit pas.
+    Read(std::io::Error),
+    /// L'utilisateur a arrêté la copie : rien n'est gardé.
+    Cancelled,
 }
 
 impl std::fmt::Display for CheckFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CheckFailure::Empty => write!(f, "La mémoire est vide : rien à copier."),
+            CheckFailure::Empty => write!(f, "Rien à copier : la mémoire (ou le fichier) est vide."),
             CheckFailure::AlreadyExists => write!(f, "Un fichier porte déjà ce nom : OpenTuneBox ne l'écrase pas."),
             CheckFailure::Write(e) => write!(f, "Écriture du fichier impossible : {e}."),
             CheckFailure::DiskMismatch => write!(f, "Le fichier relu sur le disque ne correspond pas à la copie."),
@@ -93,6 +97,8 @@ impl std::fmt::Display for CheckFailure {
                 write!(f, "Le log {log} sur {logs} ne contient aucun vol lisible.")
             }
             CheckFailure::NoLog => write!(f, "Aucun log Blackbox dans la copie."),
+            CheckFailure::Read(e) => write!(f, "Lecture du fichier de la carte impossible : {e}."),
+            CheckFailure::Cancelled => write!(f, "Copie arrêtée : rien n'est gardé."),
         }
     }
 }
@@ -169,39 +175,15 @@ pub fn verify_and_save(copy: FlashCopy, path: &Path) -> Result<VerifiedCopy, Not
         return Err(refuse(false, CheckFailure::Empty));
     }
     // 1. Sur le disque : écrit, forcé jusqu'au support, relu à l'identique.
-    write_new(path, &copy.bytes).map_err(|e| {
-        let already = e.kind() == std::io::ErrorKind::AlreadyExists;
-        refuse(
-            false,
-            if already {
-                CheckFailure::AlreadyExists
-            } else {
-                CheckFailure::Write(e)
-            },
-        )
-    })?;
-    let on_disk = std::fs::read(path).map_err(|e| refuse(true, CheckFailure::Write(e)))?;
-    if on_disk != copy.bytes {
-        return Err(refuse(true, CheckFailure::DiskMismatch));
-    }
-    drop(on_disk);
+    save_and_reread(path, &copy.bytes).map_err(|(saved, reason)| refuse(saved, reason))?;
     // 2. Taille copiée = place annoncée.
     let copied = copy.bytes.len() as u64;
     let announced = u64::from(copy.summary.used);
     if copied != announced {
         return Err(refuse(true, CheckFailure::SizeMismatch { copied, announced }));
     }
-    let data = copy.bytes;
     // 3. Le décodeur lit le fichier **relu** et tire au moins un fragment de chaque log.
-    let logs = otb_decoder::header::find_log_starts(&data).len();
-    drop(data);
-    if logs == 0 {
-        return Err(refuse(true, CheckFailure::NoLog));
-    }
-    let flights = otb_log::flightlog::load(path).map_err(|e| refuse(true, CheckFailure::Decode(e.to_string())))?;
-    if let Some(log) = (1..=logs).find(|k| !flights.iter().any(|f| f.session == *k)) {
-        return Err(refuse(true, CheckFailure::LogWithoutFragment { log, logs }));
-    }
+    let (logs, fragments) = decode_check(path, copy.bytes).map_err(|reason| refuse(true, reason))?;
     Ok(VerifiedCopy {
         chip_id: copy.identity.chip_id,
         used: copy.summary.used,
@@ -210,9 +192,45 @@ pub fn verify_and_save(copy: FlashCopy, path: &Path) -> Result<VerifiedCopy, Not
             path: path.to_path_buf(),
             bytes: copied,
             logs,
-            fragments: flights.len(),
+            fragments,
         },
     })
+}
+
+/// Contrôle 1 : écrit `bytes` dans `path` (fichier neuf), le force sur le support et le relit à l'identique. En cas
+/// d'échec, dit si le fichier est resté sur le disque.
+pub(crate) fn save_and_reread(path: &Path, bytes: &[u8]) -> Result<(), (bool, CheckFailure)> {
+    write_new(path, bytes).map_err(|e| {
+        let already = e.kind() == std::io::ErrorKind::AlreadyExists;
+        (
+            false,
+            if already {
+                CheckFailure::AlreadyExists
+            } else {
+                CheckFailure::Write(e)
+            },
+        )
+    })?;
+    let on_disk = std::fs::read(path).map_err(|e| (true, CheckFailure::Write(e)))?;
+    if on_disk != bytes {
+        return Err((true, CheckFailure::DiskMismatch));
+    }
+    Ok(())
+}
+
+/// Contrôle 3 : le décodeur lit le fichier `path` (dont le contenu est `data`) et tire au moins un fragment de vol de
+/// chaque log. Rend le nombre de logs et de fragments.
+pub(crate) fn decode_check(path: &Path, data: Vec<u8>) -> Result<(usize, usize), CheckFailure> {
+    let logs = otb_decoder::header::find_log_starts(&data).len();
+    drop(data);
+    if logs == 0 {
+        return Err(CheckFailure::NoLog);
+    }
+    let flights = otb_log::flightlog::load(path).map_err(|e| CheckFailure::Decode(e.to_string()))?;
+    if let Some(log) = (1..=logs).find(|k| !flights.iter().any(|f| f.session == *k)) {
+        return Err(CheckFailure::LogWithoutFragment { log, logs });
+    }
+    Ok((logs, flights.len()))
 }
 
 /// Écrit un fichier neuf et le force sur le support. ⚠️ `create_new` : un log existant n'est jamais écrasé.

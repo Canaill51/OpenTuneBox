@@ -19,24 +19,29 @@ pub enum Command {
     FcVersion,
     BoardInfo,
     Name,
+    /// Envoyée par [`crate::msc::reboot_to_disk`] seulement, et seulement pour le mode stockage de masse (lot 32c).
+    Reboot,
     DataflashSummary,
     DataflashRead,
     /// Envoyée par [`crate::erase::erase_flash`] seulement.
     DataflashErase,
+    SdcardSummary,
     StatusEx,
     ChipId,
 }
 
 impl Command {
-    pub const ALL: [Command; 10] = [
+    pub const ALL: [Command; 12] = [
         Command::ApiVersion,
         Command::FcVariant,
         Command::FcVersion,
         Command::BoardInfo,
         Command::Name,
+        Command::Reboot,
         Command::DataflashSummary,
         Command::DataflashRead,
         Command::DataflashErase,
+        Command::SdcardSummary,
         Command::StatusEx,
         Command::ChipId,
     ];
@@ -48,9 +53,11 @@ impl Command {
             Command::FcVersion => 3,
             Command::BoardInfo => 4,
             Command::Name => 10,
+            Command::Reboot => 68,
             Command::DataflashSummary => 70,
             Command::DataflashRead => 71,
             Command::DataflashErase => 72,
+            Command::SdcardSummary => 79,
             Command::StatusEx => 150,
             Command::ChipId => 160,
         }
@@ -178,6 +185,12 @@ pub struct FlashSummary {
 /// carte est nul (voir [`crate::erase`]).
 static NEXT_SESSION: AtomicU64 = AtomicU64::new(1);
 
+/// Un numéro qu'aucune autre connexion ne porte (une copie lue sur le disque de la carte en reçoit un neuf : elle ne
+/// vaut d'effacement que par l'identifiant de la carte).
+pub(crate) fn new_session() -> u64 {
+    NEXT_SESSION.fetch_add(1, Ordering::Relaxed)
+}
+
 /// Une conversation MSP sur un fil.
 pub struct Msp<L: Link> {
     pub(crate) link: L,
@@ -212,7 +225,7 @@ impl<L: Link> Msp<L> {
             link,
             parser: Parser::new(),
             version,
-            session: NEXT_SESSION.fetch_add(1, Ordering::Relaxed),
+            session: new_session(),
             timeout: REPLY_TIMEOUT,
             pending: VecDeque::new(),
         }

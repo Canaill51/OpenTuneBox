@@ -36,6 +36,14 @@ pub struct SimBoard {
     pub total: u32,
     /// `false` : pas de mémoire interne (logs sur carte SD).
     pub has_flash: bool,
+    /// État de la carte SD (`MSP_SDCARD_STATE_*`, 4 = prête) ; `None` : carte faite sans carte SD.
+    pub sd_state: Option<u8>,
+    /// Firmware compilé avec le mode stockage de masse (`USE_USB_MSC`).
+    pub msc: bool,
+    /// Réponse « disque prêt » au redémarrage en stockage de masse.
+    pub msc_ready: bool,
+    /// Modes de redémarrage reçus (`MSP_REBOOT`), dans l'ordre.
+    pub reboots: Vec<u8>,
     pub chip_id: [u32; 3],
     pub variant: [u8; 4],
     pub version: (u8, u8, u8),
@@ -75,6 +83,10 @@ impl SimBoard {
             flash,
             total: 16 * 1024 * 1024,
             has_flash: true,
+            sd_state: None,
+            msc: true,
+            msc_ready: true,
+            reboots: Vec::new(),
             chip_id: [0x0033_0021, 0x3438_5107, 0x3436_3432],
             variant: *b"BTFL",
             version: (25, 12, 0),
@@ -186,6 +198,35 @@ impl SimBoard {
                     self.flash.extend_from_slice(&extra);
                 }
             }
+            Command::Reboot => {
+                // `src/main/msp/msp.c`, `MSP_REBOOT` : refusé armé, ou pour un mode que le firmware n'a pas.
+                let mode = req.first().copied().unwrap_or(0);
+                self.reboots.push(mode);
+                if self.armed || mode > 4 || (!self.msc && (mode == 2 || mode == 3)) {
+                    return None;
+                }
+                p.push(mode);
+                if mode == 2 {
+                    p.push(u8::from(self.msc_ready));
+                    if !self.msc_ready {
+                        return Some(p); // pas prêt : pas de redémarrage
+                    }
+                }
+                self.rebooted = true;
+            }
+            Command::SdcardSummary => match self.sd_state {
+                None => p.extend_from_slice(&[0; 11]),
+                Some(state) => {
+                    p.extend_from_slice(&[1, state, 0]);
+                    let (free, total) = if state == 4 {
+                        (1_000_000u32, 15_000_000u32)
+                    } else {
+                        (0, 0)
+                    };
+                    p.extend_from_slice(&free.to_le_bytes());
+                    p.extend_from_slice(&total.to_le_bytes());
+                }
+            },
             Command::DataflashErase => {
                 if !self.erase_ignored {
                     self.flash.clear();

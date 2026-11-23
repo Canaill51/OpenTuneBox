@@ -271,7 +271,7 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   déclencheur du plan sera atteint. Un fichier illisible ou d'une version plus récente est **mis de côté**, jamais écrasé
   (même règle que l'ancien fichier des fiches, D-039). `Library::remove_drone` emporte tout ce qui désigne le drone (W-075 :
   pas ses fichiers copiés) ; `model::config_changes` dit ce qui change d'un `diff all` au suivant. Mesures de volume dans [validation](validation.md). Dépendance : serde_json.
-- **otb-usb** : récupération des logs par USB, **partie protocole** (lot 32a, D-063 ; l'écran : lot 32b, `rust/otb-gui/src/usb.rs`). Ce que
+- **otb-usb** : récupération des logs par USB, **partie protocole** (lot 32a, D-063 ; mode stockage de masse et cartes SD : lot 32c, D-075 ; l'écran : lot 32b, `rust/otb-gui/src/usb.rs`). Ce que
   fait le firmware : [spec-usb](spec-usb.md). `frame.rs` : trames MSP v1 (« jumbo » dès 255 octets) et v2 (CRC-8 DVB-S2),
   écrites et lues octet par octet. `link.rs` : le trait `Link` (envoyer, recevoir dans un délai) et `SerialLink`, le vrai
   port par `serial2`, **réservé** par un verrou exclusif sous Linux (Windows ne laisse qu'un propriétaire à un port COM) ;
@@ -287,8 +287,18 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   et refuse l'effacement. `cli.rs` : `diff_all` (entre dans le CLI, lit jusqu'à l'invite **suivie d'un silence**, sort par
   `exit`, qui redémarre la carte : la connexion est consommée) et `config_changed`. `sim.rs` : `SimBoard`, carte simulée
   pour les tests (aucun matériel en CI), avec pannes à la demande (`Fault`), vol enregistré pendant la copie, effacement
-  sans effet. Tests : `trames.rs`, `recuperation.rs` (parcours complet et chaque refus), `contrats.rs` (commandes figées,
-  un seul envoi de l'effacement), `port_serie.rs` (Linux : le vrai `SerialLink` par un pseudo-terminal relié à la carte
+  sans effet, redémarrage en disque et état de la carte SD. `msc.rs` (lot 32c) : `reboot_to_disk` lit l'identité et ce que
+  la carte enregistre (`BeforeDisk` : mémoire et sa place occupée, ou carte SD prête), refuse armé, puis envoie `MSP_REBOOT`
+  avec le **seul** mode stockage de masse (2) ; `mounted_volumes` (points de montage FAT de `/proc/self/mountinfo`, lettres
+  de lecteur sous Windows), `inspect` (`BTFL_ALL.BBL` à la racine : mémoire interne ; dossier `LOGS` : carte SD, noms sans
+  casse), `new_disks` ; `copy_flash_disk` lit `BTFL_ALL.BBL` en une `FlashCopy` pour `verify_and_save` — son permis ne vaut
+  qu'après rebranchement et pour un identifiant connu. `sd.rs` (lot 32c) : `sd_logs`, `copy_sd_log` (lu, taille, écrit et
+  relu ou comparé à la copie déjà rangée, décodé) → `SdCopy` → `confirm_sd` → `SdErasePermit`, consommé par
+  `delete_sd_logs`, **le seul chemin qui supprime un fichier** : chaque log est relu et comparé octet pour octet à sa copie
+  juste avant d'être supprimé, un fichier changé reste. Tests : `trames.rs`, `recuperation.rs` (parcours complet et chaque
+  refus), `stockage_de_masse.rs` (redémarrage et ses refus, disques reconnus, copie par le disque puis effacement après
+  rebranchement, carte SD), `contrats.rs` (commandes figées, un seul envoi de l'effacement, un seul redémarrage et en
+  disque, une seule suppression de fichier), `port_serie.rs` (Linux : le vrai `SerialLink` par un pseudo-terminal relié à la carte
   simulée, et le second accès refusé). Dépendances : otb-decoder, otb-log, serial2 (BSD-2-Clause OR Apache-2.0).
 - **otb-analysis** : voir « Modules d'analyse » ; dépend d'otb-dsp et de rayon (L-041, L-042).
 - **otb-advisor** : l'assistant. `profiles.rs` (profils de taille et seuils), `rules.rs` (constats), `noise.rs`, `step_tuning.rs`,
@@ -312,7 +322,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.
   - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail, et non plus une liste de `-p` à tenir à jour), le contrôle des mentions de licences (`licenses::check`, dans le processus : aucune commande lancée) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard : `verify` les compte et `--strict` en fait un échec. Deux contrôles d'`otb-dev` cherchent eux-mêmes les sauts (et les fichiers réservés à un système, annoncés par `sauts_par_systeme.rs`), pour qu'un nouveau test conditionnel ne passe pas inaperçu.
   - `bench_open.rs` : `otb-dev bench-open LOG [ESSAIS]` ouvre un log (`otb_log::flightlog::load`) et affiche durées et pic de mémoire (`VmHWM` de `/proc/self/status`, Linux seulement) ; un processus par log, car le pic ne redescend pas.
-  - `usb.rs` : `otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER` : essai à la main de `otb-usb` sur une
+  - `usb.rs` : `otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER | msc PORT DOSSIER [--erase] | sd RACINE DOSSIER [--erase]`
+    (`msc` : mode stockage de masse ; `sd` : carte SD dans un lecteur ; lot 32c) : essai à la main de `otb-usb` sur une
     vraie carte avant l'écran (lot 32b), et mesures de [spec-usb](spec-usb.md) (débit de la copie, durée de l'effacement). L'effacement
     passe par les mêmes contrôles que l'application et demande de taper « effacer ». L'identifiant de la carte n'est montré que par une
     empreinte courte (`chip_id_summary`) : c'est un numéro de série du matériel, et la sortie se recopie dans le dépôt public (alerte
