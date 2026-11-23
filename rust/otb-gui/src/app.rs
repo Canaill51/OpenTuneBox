@@ -310,6 +310,9 @@ impl App {
     pub fn new(pages: Vec<Box<dyn Page>>) -> Self {
         let mut app = Self::with_guide(pages, GuidePage::new());
         app.save_dialog = Box::new(|_| None);
+        // ni disques du poste, ni boîte du système dans les bancs de test (L-075)
+        app.usb.volumes = std::sync::Arc::new(Vec::new);
+        app.usb.pick_folder = Box::new(|| None);
         app
     }
 
@@ -323,7 +326,7 @@ impl App {
             guide,
             dash: DashboardPage::new(),
             sheet: DroneSheetPage::default(),
-            usb: crate::usb_page::UsbPage::new(crate::usb::Ports::serial()),
+            usb: crate::usb_page::UsbPage::system(),
             sheet_return: Screen::Dashboard,
             tracking: Default::default(),
             cards_seen: None,
@@ -1441,7 +1444,47 @@ impl App {
                     .map_err(|e| format!("écriture de la bibliothèque impossible ({e})"));
                 self.usb.registered(r);
             }
-            UsbAction::Open(path) => self.open(vec![path]),
+            UsbAction::Open(paths) => self.open(paths),
+            UsbAction::ToDisk(choice) => {
+                let Some(identity) = self.usb.board.as_ref().map(|b| b.identity.clone()) else {
+                    return;
+                };
+                match crate::usb::apply_choice(&mut self.library, &choice, &identity, &today) {
+                    Ok(id) => self.usb.start_disk(id),
+                    Err(e) => self.usb.error = e,
+                }
+            }
+            UsbAction::CopyDisk(choice) => {
+                // carte SD d'un lecteur : le drone choisi à la main ; carte branchée : celui déjà rangé (`start_disk`)
+                let drone = match choice {
+                    Some(c) => match crate::usb::apply_reader_choice(&mut self.library, &c, &today) {
+                        Ok(id) => id,
+                        Err(e) => return self.usb.error = e,
+                    },
+                    None => match self.usb.drone_id() {
+                        Some(id) => id,
+                        None => return,
+                    },
+                };
+                let Some(disk) = self.usb.disk.clone() else { return };
+                let name = self.library.drone(&drone).map_or(drone.clone(), |d| d.name.clone());
+                match crate::usb::disk_plan(&self.library, &disk, &name, &crate::usb::stamp_now()) {
+                    Ok(plan) => self.usb.copy_disk(drone, plan),
+                    Err(e) => self.usb.error = e,
+                }
+            }
+            UsbAction::RegisterAll(copies, drone) => {
+                for c in &copies {
+                    crate::usb::register_copy(&mut self.library, c, &drone, &today);
+                }
+                // ⚠️ écrite tout de suite : la suppression ou l'effacement n'est proposé qu'une fois les copies connues
+                // **sur le disque**
+                let r = self
+                    .library
+                    .save()
+                    .map_err(|e| format!("écriture de la bibliothèque impossible ({e})"));
+                self.usb.registered(r);
+            }
             UsbAction::SaveConfig(choice, identity, text) => {
                 match crate::usb::apply_choice(&mut self.library, &choice, &identity, &today) {
                     Ok(id) => {

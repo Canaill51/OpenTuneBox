@@ -127,6 +127,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - Un JSON qui doit rendre ses nombres au bit près se lit avec l'option `float_roundtrip` de `serde_json` : sans elle, un nombre sur quelques milliers revient avec un bit d'écart. L-116
 - CodeQL classe tout nom en « uid » comme identifiant de compte et rougit dès qu'il est affiché ou écrit, empreinte comprise :
   l'identifiant de la carte s'appelle `chip_id` (`ChipId`) ; ne jamais recopier l'identifiant complet d'une carte dans le dépôt. L-109
+- CodeQL prend aussi tout nom en « salt » pour un sel cryptographique (alerte critique sur un simple identifiant de liste
+  egui) : l'identifiant d'un widget s'appelle `widget` ou `id`, `rust/otb-gui/tests/contracts.rs` refuse `salt`. L-117
 - Un crochet ou un script de vérification ne dépend que de ce qui est sûr d'être présent sur les deux postes (pas de `jq`) :
   ce qu'il n'a pas pu vérifier se dit sur la sortie d'erreur, ce qui l'empêche de travailler échoue **visiblement** (code 2),
   jamais `exit 0` sur un chemin d'erreur — sinon il rend « tout va bien » sans rien avoir lu. L-087

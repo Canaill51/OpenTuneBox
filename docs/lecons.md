@@ -60,6 +60,21 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-117 : CodeQL voit un « sel cryptographique écrit en dur » dans tout paramètre nommé `salt`, même l'identifiant d'une liste egui
+
+- **Symptôme** — 2026-11-23 (PR #186, lot 32c-2) : tests, Windows, `cargo deny` verts, mais CodeQL rouge avec **deux
+  alertes critiques** « Hard-coded cryptographic value — this hard-coded value is used as a salt », sur les appels
+  `drone_combo(…, "usb-drone", …)` de `rust/otb-gui/src/usb_page.rs`. Rien dans le dépôt ne fait de cryptographie.
+- **Cause** — la petite fonction `drone_combo` nommait `salt` le paramètre transmis à `egui::ComboBox::from_id_salt`
+  (l'identifiant de la liste déroulante, rien de secret). CodeQL juge le **nom** du paramètre, pas l'usage : une chaîne
+  littérale qui y arrive devient un sel écrit en dur. Même famille que L-109 (« uid »). Les appels directs
+  `from_id_salt("usb-port")` ne sont pas signalés : c'est le nom d'un paramètre **à nous** qui déclenche.
+- **Règle** — pas de nom `salt` (ni `salt_…`, `…_salt`) dans le code de l'interface ; l'identifiant d'un widget
+  s'appelle `widget` ou `id`. Une alerte CodeQL « critique » sur du code sans cryptographie ni secret : chercher d'abord
+  le nom qui l'a trompé.
+- **Preuve** — `rust/otb-gui/tests/contracts.rs:aucun_nom_pris_pour_un_sel_cryptographique` : rouge avec le paramètre
+  `salt` rétabli, vert avec `widget` ; CodeQL de la PR #186 relancé après le renommage.
+
 ### L-116 : `serde_json` relit parfois un nombre avec un bit d'écart, et seule une valeur de la CI Windows l'a montré
 
 - **Symptôme** — 2026-11-23 (PR #179, lot 31a) : `une_mesure_rangee_se_recalcule_a_lidentique` vert sous Linux, rouge sur
@@ -1486,6 +1501,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-117 | CodeQL prend tout nom en « salt » (paramètre `salt` d'une liste egui) pour un sel cryptographique écrit en dur, alerte critique : jamais de nom `salt` dans l'interface, `widget` ou `id` ; une alerte « critique » sans cryptographie accuse d'abord un nom | Outillage |
 | L-116 | `serde_json` sans `float_roundtrip` relit parfois un nombre avec un bit d'écart (55.732080660999316 → …931) : une mesure rangée ne se recalcule plus « à l'identique » ; un écart au dernier bit entre écrit et relu accuse d'abord la relecture | Outillage |
 | L-115 | Test qui attend une absence (« rien rangé ») : il passe aussi quand le calcul échoue pour une autre raison (session 0 alors que le décodeur compte à partir de 1) ; vérifier d'abord que le chemin heureux a eu lieu, lire la session dans le log | Tests |
 | L-114 | Clic de test (`Node::click`, un clic de pointeur) sur un widget sous le bas d'un `ScrollArea` : trouvé mais pas touché, l'échec vient au widget suivant ; tout clic passe par `support::Cliquer` (défile d'abord), un contrat refuse le clic nu | Interface |

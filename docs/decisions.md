@@ -70,8 +70,8 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
-| D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant | 2026-11-23 |
-| D-074 | **Récupération par USB, l'écran** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
+| D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
+| D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
 | D-073 | **L'assistant d'un vol à l'autre** : vol comparé = vol précédent du drone (ou choisi), repère du même constat sur chaque jauge, cartes nouvelles et disparues, pas de « drones de même taille » ; pouce levé (appliqué) inscrit au clic, pouce baissé avec sa raison, dans la bibliothèque ; « Fragment déjà traité » et son historique ; pas de lignes CLI (W-078) | 2026-11-23 |
 | D-072 | **Mesures suivies dans le temps** : dix grandeurs par fragment lues dans le rapport de l'assistant (jamais un second calcul), gardées avec les bornes du fragment et la version du calcul, mesurées en arrière-plan à l'ouverture de la fiche du drone ; la cible du drone part des seuils de l'assistant, une case sans seuil reste vide, l'assistant garde ses seuils ; le suivi est dans la fiche du drone | 2026-11-23 |
 | D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
@@ -187,6 +187,17 @@ redémarrage, en mode 2 ; une seule suppression de fichier, sous permis), avec *
 relecture avant suppression neutralisée, disque d'une autre taille accepté, état armé non relu, seconde suppression
 ajoutée ailleurs. Essai sur une vraie carte : procédure de [spec-usb.md](spec-usb.md) (`otb-dev usb msc`, `usb sd`).
 
+**L'écran (32c-2, tranché par Cédric le 2026-11-23).** La carte SD d'un lecteur est sur **le même écran** (section
+« Carte SD dans un lecteur », visible sans drone branché) ; après une copie de la mémoire par le disque, OpenTuneBox
+**guette le retour de la carte et s'y reconnecte seul** ; pour la mémoire interne, **« Copier les vols » (USB série)
+reste le bouton principal**, « Copier en mode disque » à côté. **Amende D-074** : l'effacement n'exige plus une copie
+vérifiée sur **cette** connexion, mais sur cette connexion **ou** une copie faite par le disque d'une carte au **même
+identifiant connu** et à la même place occupée (`rust/otb-gui/src/usb.rs:Held`), relue par `erase_flash`. Écartés : un
+bouton à part au tableau de bord pour le lecteur ; une reconnexion au clic du pilote ; le mode disque en bouton principal.
+Témoins : `rust/otb-gui/tests/usb_disque.rs` (8 tests, 3 contre-preuves vues en échec : carte rebranchée sans vérifier
+l'identifiant, log ouvert depuis la carte pris pour une copie, suppression proposée avant le rangement), et
+`rust/otb-usb/tests/stockage_de_masse.rs:carte_sd_copie_rangee_qui_est_le_fichier_de_la_carte` (contre-preuve vue).
+
 **Ouvert.** W-079 (carte à mémoire interne **et** carte SD).
 
 ---
@@ -194,6 +205,8 @@ ajoutée ailleurs. Essai sur une vraie carte : procédure de [spec-usb.md](spec-
 ## 2026-11-23 — L'écran de la récupération par USB (lot 32b)
 
 ### D-074 : la récupération par USB, un écran hors rail qui range sous le drone de la carte et efface en deux temps
+
+**AMENDÉE par D-075** (2026-11-23) : une copie faite par le mode disque d'une carte au même identifiant connu ouvre aussi l'effacement, après rebranchement.
 
 **Tranché par Cédric** le 2026-11-23, au début du lot 32b : six questions de la phase « planifier » (aucune planche du
 prototype ne dessine cet écran ; la fiche du drone y montre seulement l'identifiant et la carte « lus au branchement USB »).

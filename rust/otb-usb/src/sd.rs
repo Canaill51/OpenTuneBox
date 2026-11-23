@@ -102,7 +102,9 @@ pub fn copy_sd_log(
             },
         ));
     }
-    let path = match existing(&bytes) {
+    // ⚠️ La « copie rangée » ne peut pas être le fichier de la carte lui-même (un log ouvert depuis la carte) : on le
+    // supprimerait en croyant en garder un double. On écrit alors une vraie copie.
+    let path = match existing(&bytes).filter(|p| !same_file(p, &file.path)) {
         Some(p) => {
             let on_disk = std::fs::read(&p).map_err(|e| refuse(None, CheckFailure::Write(e)))?;
             if on_disk != bytes {
@@ -126,6 +128,14 @@ pub fn copy_sd_log(
             fragments,
         },
     })
+}
+
+/// Deux chemins désignent-ils le même fichier ? (Chemins résolus ; un chemin illisible n'est pas le même.)
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => a == b,
+    }
 }
 
 /// Le droit de supprimer de la carte, une fois, les logs copiés et vérifiés.

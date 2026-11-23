@@ -7,6 +7,10 @@
 //! (`VerifiedCopy::confirm`) pour `otb_usb::erase_flash`, qui relit l'identifiant, la place occupée et l'état armé
 //! juste avant d'effacer. Sans copie vérifiée sur **cette** connexion, l'effacement est refusé sans rien envoyer.
 //! L'écran, lui, ne propose d'effacer qu'une fois la copie rangée dans la bibliothèque et la bibliothèque écrite.
+//!
+//! Lot 32c (D-075) : une copie de la mémoire faite **par le mode disque** (`usb_disk.rs`) n'a pas de connexion MSP. Elle
+//! attend dans une boîte fermée ([`Held`]) que la carte soit rebranchée ; seule une connexion à **la même carte**
+//! (identifiant gravé connu et identique, place occupée inchangée) l'en sort, sur `Request::Erase`.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,7 +22,7 @@ use otb_log::flightlog::{self, FlightLog};
 use otb_store::Library;
 use otb_store::model::{Drone, Fragment, LogEntry};
 use otb_usb::erase::{ErasePolling, erase_flash, verify_and_save};
-use otb_usb::{CopyReport, FlashSummary, Identity, Link, Msp, VerifiedCopy};
+use otb_usb::{BeforeDisk, ChipId, CopyReport, FlashSummary, Identity, Link, Msp, VerifiedCopy};
 
 // ---------------------------------------------------------------- le port
 
@@ -76,6 +80,8 @@ pub enum Request {
     Erase,
     /// Lire `diff all` ; la carte redémarre et la connexion se ferme ensuite.
     Config,
+    /// Redémarrer la carte en mode stockage de masse (lot 32c) ; la connexion se ferme ensuite.
+    ToDisk,
 }
 
 /// Ce que la carte a dit d'elle.
@@ -123,6 +129,58 @@ pub enum Event {
     Erased(u32),
     /// `diff all` lu ; la carte redémarre, la connexion est fermée.
     Config(String),
+    /// La carte redémarre en disque : ce qui la désignera ensuite. La connexion est fermée.
+    ToDisk(BeforeDisk),
+}
+
+/// La copie de la mémoire faite par le mode disque, en attente du rebranchement (lot 32c, D-075). ⚠️ Elle ne sort
+/// d'ici que vers `erase_flash`, par le fil d'une connexion à la même carte ; l'écran ne voit que son rapport.
+#[derive(Clone, Default)]
+pub struct Held(Arc<Mutex<Option<HeldCopy>>>);
+
+struct HeldCopy {
+    copy: VerifiedCopy,
+    chip_id: ChipId,
+    used: u32,
+}
+
+impl Held {
+    /// Une copie attend la carte.
+    pub fn waiting(&self) -> bool {
+        self.0.lock().unwrap().is_some()
+    }
+
+    /// Le rapport de la copie qui attend.
+    pub fn report(&self) -> Option<CopyReport> {
+        self.0.lock().unwrap().as_ref().map(|h| h.copy.report().clone())
+    }
+
+    /// Cette carte est-elle celle de la copie ? Identifiant gravé **connu** et identique, place occupée inchangée (aucun
+    /// vol enregistré depuis). Un identifiant nul ne prouve rien : jamais.
+    pub fn matches(&self, b: &Board) -> bool {
+        self.0
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|h| h.chip_id.is_known() && h.chip_id == b.identity.chip_id && h.used == b.flash.used)
+    }
+
+    /// Oublie la copie (une nouvelle commence) : elle reste dans la bibliothèque, seul le droit d'effacer se perd.
+    pub fn clear(&self) {
+        *self.0.lock().unwrap() = None;
+    }
+
+    pub(crate) fn put(&self, copy: VerifiedCopy, chip_id: ChipId, used: u32) {
+        *self.0.lock().unwrap() = Some(HeldCopy { copy, chip_id, used });
+    }
+
+    /// La copie, seulement pour la carte qui l'a donnée.
+    fn take_for(&self, b: &Board) -> Option<VerifiedCopy> {
+        if !self.matches(b) {
+            return None;
+        }
+        self.0.lock().unwrap().take().map(|h| h.copy)
+    }
 }
 
 /// La connexion à une carte, tenue par un fil de travail.
@@ -137,11 +195,17 @@ pub struct Connection {
 impl Connection {
     /// Ouvre `port` sur un autre fil et identifie la carte ; la réponse arrive par `poll` (`Connected` ou `Lost`).
     pub fn open(ports: &Ports, port: PathBuf, polling: ErasePolling, ctx: egui::Context) -> Self {
+        Self::open_with(ports, port, polling, Held::default(), ctx)
+    }
+
+    /// Comme [`Connection::open`], avec la copie faite par le mode disque qui attend cette carte (lot 32c).
+    pub fn open_with(ports: &Ports, port: PathBuf, polling: ErasePolling, held: Held, ctx: egui::Context) -> Self {
         let (tx, rx_req) = channel();
         let (tx_ev, rx) = channel();
         let cancel = Arc::new(AtomicBool::new(false));
         let busy = Arc::new(Mutex::new(true));
         let open = ports.open.clone();
+        let held = held.clone();
         let (c, b) = (cancel.clone(), busy.clone());
         std::thread::spawn(move || {
             let send = |e: Event| {
@@ -155,7 +219,7 @@ impl Connection {
                     return send(Event::Lost(e));
                 }
             };
-            worker(Msp::new(link), rx_req, &send, &c, &b, polling);
+            worker(Msp::new(link), rx_req, &send, &c, &b, polling, &held);
         });
         Connection { tx, rx, cancel, busy }
     }
@@ -203,24 +267,31 @@ fn worker<L: Link>(
     cancel: &AtomicBool,
     busy: &Mutex<bool>,
     polling: ErasePolling,
+    held: &Held,
 ) {
     let done = || *busy.lock().unwrap() = false;
-    match board(&mut msp) {
+    // la dernière carte lue : une copie faite par le disque ne sert qu'à elle
+    let mut current = match board(&mut msp) {
         Ok(b) => {
             done();
-            send(Event::Connected(b));
+            send(Event::Connected(b.clone()));
+            b
         }
         Err(e) => {
             done();
             return send(Event::Lost(e));
         }
-    }
-    // ⚠️ la seule copie qui peut devenir un permis d'effacer : celle de cette connexion
+    };
+    // ⚠️ la seule copie qui peut devenir un permis d'effacer : celle de cette connexion (ou, pour la même carte,
+    // celle faite par le disque : `Held`)
     let mut verified: Option<VerifiedCopy> = None;
     while let Ok(req) = rx.recv() {
         match req {
             Request::Refresh => match board(&mut msp) {
-                Ok(b) => send(Event::Connected(b)),
+                Ok(b) => {
+                    current = b.clone();
+                    send(Event::Connected(b));
+                }
                 Err(e) => send(Event::Failed(e)),
             },
             Request::Copy(path) => {
@@ -228,9 +299,10 @@ fn worker<L: Link>(
                 send(copy(&mut msp, &path, cancel, send, &mut verified));
             }
             Request::Erase => {
-                let Some(v) = verified.take() else {
+                // ⚠️ la copie de cette connexion, sinon celle du disque si c'est la même carte (`erase_flash` relit tout)
+                let Some(v) = verified.take().or_else(|| held.take_for(&current)) else {
                     send(Event::Failed(
-                        "Aucune copie vérifiée sur cette connexion : effacement refusé.".into(),
+                        "Aucune copie vérifiée de cette carte : effacement refusé.".into(),
                     ));
                     done();
                     continue;
@@ -251,6 +323,14 @@ fn worker<L: Link>(
                     Err(e) => Event::Lost(e.to_string()),
                 });
             }
+            // ⚠️ armé : `reboot_to_disk` refuse sans rien envoyer ; un refus garde la connexion
+            Request::ToDisk => match otb_usb::reboot_to_disk(&mut msp) {
+                Ok(before) => {
+                    done();
+                    return send(Event::ToDisk(before));
+                }
+                Err(e) => send(Event::Failed(e.to_string())),
+            },
         }
         done();
     }
@@ -377,7 +457,44 @@ pub fn apply_choice(
     identity: &Identity,
     today: &str,
 ) -> Result<String, String> {
-    let mut drone = match choice {
+    let mut drone = resolve_choice(lib, choice, today)?;
+    let uid = uid_of(identity);
+    if !uid.is_empty() {
+        drone.uid = uid;
+    }
+    drone.board = board_text(identity);
+    if drone.firmware.is_empty() {
+        drone.firmware = firmware_text(identity);
+    }
+    drone.last_seen = today.to_string();
+    let id = drone.id.clone();
+    lib.put_drone(drone);
+    Ok(id)
+}
+
+/// Le drone choisi pour une carte SD venue d'un lecteur (lot 32c) : pas de carte branchée, donc rien de la carte à
+/// ranger (ni identifiant, ni firmware) ; le drone est créé s'il est nouveau.
+pub fn apply_reader_choice(lib: &mut Library, choice: &DroneChoice, today: &str) -> Result<String, String> {
+    let mut drone = resolve_choice(lib, choice, today)?;
+    drone.last_seen = today.to_string();
+    let id = drone.id.clone();
+    lib.put_drone(drone);
+    Ok(id)
+}
+
+/// La proposition pour une carte SD venue d'un lecteur : le drone du nom lu dans le log (`craft`), sinon un nouveau
+/// drone de ce nom (vide : le pilote le donne).
+pub fn reader_choice(lib: &Library, craft: &str) -> DroneChoice {
+    let name = craft.trim();
+    match (!name.is_empty()).then(|| lib.drone_by_name(name)).flatten() {
+        Some(d) => DroneChoice::Existing(d.id.clone()),
+        None => DroneChoice::New(name.to_string()),
+    }
+}
+
+/// Le drone désigné par `choice`, créé (sans l'écrire) s'il est nouveau. Un nom vide ou déjà pris est refusé.
+fn resolve_choice(lib: &Library, choice: &DroneChoice, today: &str) -> Result<Drone, String> {
+    Ok(match choice {
         DroneChoice::Existing(id) => lib
             .drone(id)
             .cloned()
@@ -396,19 +513,43 @@ pub fn apply_choice(
             d.first_seen = today.to_string();
             d
         }
+    })
+}
+
+/// Où copier un disque de carte (lot 32c) : `logs/<drone>/<instant>.bbl` pour la mémoire, et pour chaque log d'une
+/// carte SD `logs/<drone>/<instant>_<LOG00001>.bbl` ; avec les copies **faites par OpenTuneBox** déjà rangées, par
+/// empreinte. ⚠️ Seulement les copies (`LogEntry::copied`) : un log ouvert depuis la carte elle-même n'est pas un double.
+pub fn disk_plan(
+    lib: &Library,
+    disk: &otb_usb::Disk,
+    drone_name: &str,
+    stamp: &str,
+) -> Result<crate::usb_disk::DiskPlan, String> {
+    let path = |stamp: &str| match lib.copy_path(drone_name, stamp) {
+        None => Err("Bibliothèque sans dossier : rien ne peut y être copié.".to_string()),
+        Some(Err(e)) => Err(format!("Dossier des copies impossible à créer : {e}.")),
+        Some(Ok(p)) => Ok(p),
     };
-    let uid = uid_of(identity);
-    if !uid.is_empty() {
-        drone.uid = uid;
-    }
-    drone.board = board_text(identity);
-    if drone.firmware.is_empty() {
-        drone.firmware = firmware_text(identity);
-    }
-    drone.last_seen = today.to_string();
-    let id = drone.id.clone();
-    lib.put_drone(drone);
-    Ok(id)
+    let dests = match &disk.kind {
+        otb_usb::DiskKind::Flash { .. } => vec![path(stamp)?],
+        otb_usb::DiskKind::SdCard { logs } => logs
+            .iter()
+            .map(|f| {
+                let stem = f
+                    .path
+                    .file_stem()
+                    .map_or("log".into(), |s| s.to_string_lossy().into_owned());
+                path(&format!("{stamp}_{stem}"))
+            })
+            .collect::<Result<_, _>>()?,
+    };
+    let existing = lib
+        .logs()
+        .iter()
+        .filter(|l| l.copied)
+        .map(|l| (l.id.clone(), PathBuf::from(&l.path)))
+        .collect();
+    Ok(crate::usb_disk::DiskPlan { dests, existing })
 }
 
 // ---------------------------------------------------------------- le rangement

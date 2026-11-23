@@ -131,7 +131,16 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   fichier). `usb_page.rs` : l'écran, qui ne touche jamais la bibliothèque et rend des `UsbAction` que `App::apply_usb`
   exécute ; l'effacement n'est proposé qu'une fois la copie rangée **et la bibliothèque écrite**, en deux clics.
   `App::remember` garde à un log déjà connu son drone (une copie USB rangée sous le drone choisi ne bascule pas vers celui
-  de son nom de machine).
+  de son nom de machine). Lot 32c (D-075) : `Request::ToDisk` fait redémarrer la carte en disque (`otb_usb::reboot_to_disk`)
+  et ferme la connexion ; `usb_disk.rs` : un second fil (`DiskJob`) attend le disque (volumes apparus depuis le relevé
+  d'avant, ou dossier choisi), copie la mémoire (`BTFL_ALL.BBL`) ou chaque log d'une carte SD selon le `DiskPlan` de la
+  fenêtre (`disk_plan` : fichiers de copie, et copies **faites par OpenTuneBox** déjà rangées), et supprime les logs SD
+  vérifiés sur `DiskRequest::EraseSd` (seul permis : `otb_usb::confirm_sd`). ⚠️ La copie de la mémoire faite par le disque
+  attend dans `Held` : seule une connexion à **la même carte** (identifiant connu, place inchangée, `Held::matches`) l'en
+  sort pour effacer. L'écran : deux boutons de copie (USB série d'abord), attente du disque avec « Choisir le
+  dossier… », reconnexion seule après rebranchement, suppression SD en deux clics, section « Carte SD dans un lecteur »
+  (`apply_reader_choice`, nom proposé lu dans le log : `craft_name`) ; `volumes` et `pick_folder` sont inertes dans les
+  tests (L-075).
 - `drone_sheet.rs` : la **fiche d'un drone** (lot 30d, D-068), second écran hors rail du prototype (`Screen::DroneSheet` ; le
   rail reste, « Tableau de bord » choisi) : Identité, Machine, Configurations Betaflight (« Voir », « Comparer » au
   précédent), suppression en deux temps. La partie sans fenêtre : choix proposés, traduction fiche ↔ fiche du Guide
