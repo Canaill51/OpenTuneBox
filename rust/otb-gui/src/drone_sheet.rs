@@ -19,6 +19,7 @@ use otb_store::model::{Config, Drone, DroneSheet, config_changes};
 
 use crate::icons::icon;
 use crate::theme::{Theme, file_color, plot, with_alpha};
+use crate::tracking::{Progress, TrackingView};
 
 // ---------------------------------------------------------------- choix proposés
 
@@ -370,7 +371,8 @@ pub struct DroneSheetPage {
 }
 
 impl DroneSheetPage {
-    pub fn ui(&mut self, ui: &mut Ui, lib: &Library, th: &Theme) -> Vec<SheetAction> {
+    /// `suivi` : où en sont les mesures du drone (`None` pour un drone pas encore enregistré).
+    pub fn ui(&mut self, ui: &mut Ui, lib: &Library, th: &Theme, suivi: Option<&TrackingView>) -> Vec<SheetAction> {
         let mut actions = Vec::new();
         let Some(form) = self.form.as_mut() else {
             actions.push(SheetAction::Leave);
@@ -403,6 +405,9 @@ impl DroneSheetPage {
                         identity(ui, form, lib, th);
                         machine(ui, form, th);
                         configurations(ui, form, lib, th);
+                        if let Some(v) = suivi {
+                            tracking(ui, th, v);
+                        }
                         if let Some(id) = form.id.clone() {
                             delete(ui, form, lib, &id, th, &mut actions);
                         }
@@ -722,6 +727,52 @@ fn small_button(ui: &mut Ui, th: &Theme, text: &str, on: bool) -> egui::Response
             .corner_radius(6)
             .selected(on),
     )
+}
+
+/// Les lignes de la section « Suivi des mesures » : où en est le calcul, combien de fragments sont mesurés, et ceux
+/// qui n'ont pas pu l'être (avec la raison, pour que le pilote sache quoi faire). Fonction pure : elle se teste sans
+/// écran (L-071).
+pub fn tracking_lines(v: &TrackingView) -> Vec<String> {
+    let pluriel = |n: usize| if n > 1 { "s" } else { "" };
+    let mut out = Vec::new();
+    match v.progress {
+        Progress::Reading => out.push("Lecture des mesures déjà faites…".to_string()),
+        Progress::Measuring { done, total } => out.push(format!(
+            "Mesure en arrière-plan : {done} fragment{} sur {total}…",
+            pluriel(done)
+        )),
+        Progress::Idle if v.total == 0 => {
+            out.push("Aucun fragment : les mesures viendront avec les logs de ce drone.".to_string())
+        }
+        Progress::Idle => out.push(format!(
+            "{} fragment{} mesuré{} sur {}.",
+            v.measured,
+            pluriel(v.measured),
+            pluriel(v.measured),
+            v.total
+        )),
+    }
+    for (name, why) in &v.failed {
+        out.push(format!("Non mesuré : « {name} » — {why}"));
+    }
+    out
+}
+
+/// « Suivi des mesures » : l'état du calcul des grandeurs de chaque fragment (lot 31a).
+fn tracking(ui: &mut Ui, th: &Theme, v: &TrackingView) {
+    section(
+        ui,
+        th,
+        "Suivi des mesures",
+        Some(
+            "Ce que l'assistant mesure sur chaque fragment de ce drone, gardé pour suivre son évolution d'un vol à l'autre.",
+        ),
+        |ui| {
+            for line in tracking_lines(v) {
+                hint(ui, th, &line);
+            }
+        },
+    );
 }
 
 fn configurations(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {

@@ -123,6 +123,12 @@ pub struct Library {
     /// **47 s** dans les tests (mesuré le 2026-11-18), contre 0,5 s ici. L'ordre des clés rend aussi le fichier
     /// écrit identique d'une fois sur l'autre, donc son diff lisible.
     measures: BTreeMap<MeasureKey, Measure>,
+    /// La table des mesures a été lue (`attach_measures`). ⚠️ Tant qu'elle ne l'est pas, `save` **n'écrit pas**
+    /// `mesures.json` : sinon le premier enregistrement après le lancement viderait le fichier (D-064).
+    measures_loaded: bool,
+    /// La table des mesures a changé depuis sa dernière écriture. ⚠️ Sans ce drapeau, l'enregistrement automatique
+    /// de l'interface (toutes les 30 s) réécrirait les 8 Mo de la table au volume plein, sur le fil de l'écran.
+    measures_dirty: bool,
     analysis: Analysis,
     problems: Vec<String>,
     /// Changements de la table des drones depuis l'ouverture (`drones_revision`).
@@ -136,6 +142,81 @@ type MeasureKey = (String, u64, String);
 
 fn measure_key(m: &Measure) -> MeasureKey {
     (m.fragment_id.clone(), m.axis, m.key.clone())
+}
+
+/// Une table lue : ses enregistrements lisibles, ce qui s'est mal passé, et le suffixe de mise de côté si le fichier
+/// entier est à écarter avant la première écriture.
+struct TableRead<T> {
+    items: Vec<T>,
+    problems: Vec<String>,
+    aside: Option<&'static str>,
+}
+
+/// Lit le fichier de table `file` du dossier `dir`. Fonction libre (sans `Library`) pour que la table des mesures
+/// puisse se lire **sur un autre fil** (`MeasuresSource::read`).
+fn read_table<T>(dir: Option<&Path>, file: &str, parse: impl Fn(&Value) -> Result<T, String>) -> TableRead<T> {
+    let mut out = TableRead {
+        items: Vec::new(),
+        problems: Vec::new(),
+        aside: None,
+    };
+    let Some(text) = read_text(dir, file, &mut out.problems) else {
+        return out;
+    };
+    match items_of(&text, file) {
+        Err((why, suffix)) => {
+            out.problems.push(why);
+            out.aside = Some(suffix);
+        }
+        Ok(items) => {
+            out.items.reserve(items.len());
+            for (i, v) in items.iter().enumerate() {
+                match parse(v) {
+                    Ok(t) => out.items.push(t),
+                    // un enregistrement abîmé ne fait pas perdre les autres : il est sauté et dit
+                    Err(e) => out
+                        .problems
+                        .push(format!("{file} : enregistrement {} ignoré ({e})", i + 1)),
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Le texte d'un fichier, ou `None` s'il n'existe pas (première ouverture) ou s'il est illisible (consigné).
+fn read_text(dir: Option<&Path>, file: &str, problems: &mut Vec<String>) -> Option<String> {
+    let path = dir?.join(file);
+    match std::fs::read_to_string(&path) {
+        Ok(t) => Some(t),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+        Err(e) => {
+            problems.push(format!("{file} : lecture impossible ({e})"));
+            None
+        }
+    }
+}
+
+/// Où lire la table des mesures, **sans** la bibliothèque : se déplace sur un autre fil (D-064 : au volume plein,
+/// la lecture prend une seconde, l'écran ne doit pas geler). Le chemin reste caché : le reste du programme ne voit
+/// jamais un fichier de la bibliothèque.
+#[derive(Clone, Debug)]
+pub struct MeasuresSource {
+    dir: Option<PathBuf>,
+}
+
+/// La table des mesures lue par `MeasuresSource::read`, à rattacher par `Library::attach_measures`.
+pub struct MeasuresFile {
+    read: TableRead<Measure>,
+}
+
+impl MeasuresSource {
+    /// Lit et décode `mesures.json`. Peut prendre une seconde : à appeler hors du fil de l'interface.
+    pub fn read(&self) -> MeasuresFile {
+        MeasuresFile {
+            read: read_table(self.dir.as_deref(), MEASURES, Measure::from_value),
+        }
+    }
 }
 
 /// Le contenu d'un fichier de table : `{"version": 1, "items": [ … ]}`.
@@ -159,12 +240,20 @@ fn items_of(text: &str, file: &str) -> Result<Vec<Value>, (String, &'static str)
 impl Library {
     /// Une bibliothèque qui ne s'écrit pas : pour les bancs de test et les essais.
     pub fn in_memory() -> Self {
-        Library::default()
+        Library {
+            // rien à lire : la table des mesures est d'office complète
+            measures_loaded: true,
+            ..Library::default()
+        }
     }
 
     /// La bibliothèque du dossier `dir`. **Ne rend jamais d'erreur** : un dossier absent est une première
     /// ouverture, et un fichier illisible laisse sa table vide, consigne la raison dans `problems()` et sera mis
     /// de côté à la première écriture.
+    ///
+    /// ⚠️ **La table des mesures n'est pas lue ici** (D-064) : au volume plein elle met une seconde à se lire, à
+    /// elle seule plus que les cinq autres réunies. Elle se lit à la première question, par `measures_source`
+    /// (sur un autre fil) puis `attach_measures`, ou d'un coup par `load_measures`.
     pub fn open(dir: PathBuf) -> Self {
         let mut lib = Library {
             dir: Some(dir),
@@ -174,11 +263,6 @@ impl Library {
         lib.logs = lib.read_items(LOGS, LogEntry::from_value);
         lib.fragments = lib.read_items(FRAGMENTS, Fragment::from_value);
         lib.configs = lib.read_items(CONFIGS, Config::from_value);
-        lib.measures = lib
-            .read_items(MEASURES, Measure::from_value)
-            .into_iter()
-            .map(|m| (measure_key(&m), m))
-            .collect();
         let items = lib.read_items(ANALYSIS, AnalysisItem::from_value);
         lib.analysis = Analysis {
             items,
@@ -189,29 +273,17 @@ impl Library {
 
     /// Lit un fichier de table et rend ses enregistrements lisibles ; les autres sont comptés dans `problems`.
     fn read_items<T>(&mut self, file: &str, parse: impl Fn(&Value) -> Result<T, String>) -> Vec<T> {
-        let Some(text) = self.read_file(file) else {
-            return Vec::new();
-        };
-        match items_of(&text, file) {
-            Err((why, suffix)) => {
-                self.problems.push(why);
-                self.set_aside(file, suffix);
-                Vec::new()
-            }
-            Ok(items) => {
-                let mut out = Vec::with_capacity(items.len());
-                for (i, v) in items.iter().enumerate() {
-                    match parse(v) {
-                        Ok(t) => out.push(t),
-                        // un enregistrement abîmé ne fait pas perdre les autres : il est sauté et dit
-                        Err(e) => self
-                            .problems
-                            .push(format!("{file} : enregistrement {} ignoré ({e})", i + 1)),
-                    }
-                }
-                out
-            }
+        let read = read_table(self.dir.as_deref(), file, parse);
+        self.take_read(file, read)
+    }
+
+    /// Consigne les problèmes d'une table lue et la met de côté s'il le faut ; rend ses enregistrements.
+    fn take_read<T>(&mut self, file: &str, read: TableRead<T>) -> Vec<T> {
+        self.problems.extend(read.problems);
+        if let Some(suffix) = read.aside {
+            self.set_aside(file, suffix);
         }
+        read.items
     }
 
     /// Le fragment de travail, rangé à côté de la liste d'analyse.
@@ -226,15 +298,7 @@ impl Library {
 
     /// Le texte d'un fichier, ou `None` s'il n'existe pas (première ouverture) ou s'il est illisible (consigné).
     fn read_file(&mut self, file: &str) -> Option<String> {
-        let path = self.dir.as_ref()?.join(file);
-        match std::fs::read_to_string(&path) {
-            Ok(t) => Some(t),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => None,
-            Err(e) => {
-                self.problems.push(format!("{file} : lecture impossible ({e})"));
-                None
-            }
-        }
+        read_text(self.dir.as_deref(), file, &mut self.problems)
     }
 
     fn set_aside(&mut self, file: &str, suffix: &'static str) {
@@ -300,12 +364,18 @@ impl Library {
             (ANALYSIS, Value::Object(analysis)),
         ];
         for (name, value) in files {
+            if name == MEASURES && !(self.measures_loaded && self.measures_dirty) {
+                continue; // jamais lue, ou inchangée : le fichier reste tel quel (D-064)
+            }
             // fichier temporaire puis renommage : une coupure laisse l'ancien fichier entier, jamais un
             // fichier à moitié écrit (même procédé que les fiches drone, D-039)
             let path = dir.join(name);
             let tmp = path.with_extension("json.tmp");
             std::fs::write(&tmp, serde_json::to_string(&value).expect("écriture en mémoire"))?;
             std::fs::rename(&tmp, &path)?;
+        }
+        if self.measures_loaded {
+            self.measures_dirty = false;
         }
         Ok(())
     }
@@ -469,6 +539,57 @@ impl Library {
 
     // ------------------------------------------------------------ mesures
 
+    /// Où lire la table des mesures sur un autre fil (D-064) ; le résultat se rattache par `attach_measures`.
+    pub fn measures_source(&self) -> MeasuresSource {
+        MeasuresSource { dir: self.dir.clone() }
+    }
+
+    /// La table des mesures a été lue : avant, les questions sur les mesures répondent « rien ».
+    pub fn measures_loaded(&self) -> bool {
+        self.measures_loaded
+    }
+
+    /// Rattache la table des mesures lue par `MeasuresSource::read`. Une mesure posée avant (`set_measure`) est plus
+    /// récente que le fichier et l'emporte. ⚠️ Une mesure dont le fragment a disparu ou dont les bornes ne sont plus
+    /// celles du fragment est **jetée ici** : elle a pu changer pendant que la table n'était pas lue. Sans effet si la
+    /// table est déjà rattachée (une seconde lecture n'a rien à apprendre).
+    pub fn attach_measures(&mut self, file: MeasuresFile) {
+        if self.measures_loaded {
+            return;
+        }
+        // une mesure posée avant la lecture, ou un fichier mis de côté : la table est à écrire
+        let mut dirty = !self.measures.is_empty() || file.read.aside.is_some();
+        for m in self.take_read(MEASURES, file.read) {
+            self.measures.entry(measure_key(&m)).or_insert(m);
+        }
+        let bounds: BTreeMap<&str, (u64, u64)> = self
+            .fragments
+            .iter()
+            .map(|f| (f.id.as_str(), (f.start, f.end)))
+            .collect();
+        let before = self.measures.len();
+        self.measures
+            .retain(|_, m| bounds.get(m.fragment_id.as_str()) == Some(&(m.start, m.end)));
+        dirty |= self.measures.len() != before;
+        self.measures_dirty |= dirty;
+        self.measures_loaded = true;
+    }
+
+    /// Lit et rattache la table des mesures **sur ce fil** : pour la ligne de commande et les tests, jamais pour
+    /// l'interface.
+    pub fn load_measures(&mut self) {
+        let file = self.measures_source().read();
+        self.attach_measures(file);
+    }
+
+    /// Le fragment a des mesures de la version `calc_version` ou plus récente, calculées sur ses bornes actuelles.
+    pub fn is_measured(&self, fragment: &Fragment, calc_version: u64) -> bool {
+        self.measures
+            .range((fragment.id.clone(), 0, String::new())..)
+            .take_while(|((f, _, _), _)| *f == fragment.id)
+            .any(|(_, m)| m.calc_version >= calc_version && m.start == fragment.start && m.end == fragment.end)
+    }
+
     /// Les mesures, rangées par fragment, axe et grandeur.
     pub fn measures(&self) -> impl Iterator<Item = &Measure> {
         self.measures.values()
@@ -480,6 +601,7 @@ impl Library {
 
     /// Ajoute ou remplace la mesure d'un fragment, d'un axe et d'une grandeur.
     pub fn set_measure(&mut self, measure: Measure) {
+        self.measures_dirty = true;
         self.measures.insert(measure_key(&measure), measure);
     }
 
@@ -491,6 +613,7 @@ impl Library {
     pub fn drop_measures_of_fragment(&mut self, fragment_id: &str) -> usize {
         let before = self.measures.len();
         self.measures.retain(|(f, _, _), _| f != fragment_id);
+        self.measures_dirty |= self.measures.len() != before;
         before - self.measures.len()
     }
 
@@ -499,6 +622,7 @@ impl Library {
     pub fn drop_measures_before_version(&mut self, version: u64) -> usize {
         let before = self.measures.len();
         self.measures.retain(|_, m| m.calc_version >= version);
+        self.measures_dirty |= self.measures.len() != before;
         before - self.measures.len()
     }
 
@@ -506,14 +630,21 @@ impl Library {
     /// question à laquelle la bibliothèque doit répondre — « l'évolution de la latence roll sur tous les vols de
     /// ce drone » — et la raison d'être de la table des mesures.
     pub fn history(&self, drone_id: &str, key: &str, axis: u64) -> Vec<(String, f64)> {
+        // les fragments du drone par identifiant : une recherche par mesure dans la liste des fragments coûterait
+        // fragments × mesures comparaisons au volume plein
+        let fragments: BTreeMap<&str, &Fragment> = self
+            .fragments_of_drone(drone_id)
+            .into_iter()
+            .map(|f| (f.id.as_str(), f))
+            .collect();
         let mut out: Vec<(String, String, f64)> = self
             .measures
             .values()
             .filter(|m| m.key == key && m.axis == axis)
             .filter_map(|m| {
-                let f = self.fragment(&m.fragment_id)?;
-                let l = self.log(&f.log_id)?;
-                (l.drone_id == drone_id).then(|| (f.date.clone(), f.id.clone(), m.value))
+                let f = fragments.get(m.fragment_id.as_str())?;
+                // calculée sur d'autres bornes : périmée
+                ((f.start, f.end) == (m.start, m.end)).then(|| (f.date.clone(), f.id.clone(), m.value))
             })
             .collect();
         // à date égale, l'identifiant du fragment range : deux fragments du même vol gardent un ordre stable

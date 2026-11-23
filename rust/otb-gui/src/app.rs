@@ -171,6 +171,8 @@ pub struct App {
     /// L'écran de la fiche d'un drone, et l'écran où revenir en le quittant.
     pub sheet: DroneSheetPage,
     pub sheet_return: Screen,
+    /// Mesures suivies dans le temps : lecture de leur table et calcul en arrière-plan (lot 31a).
+    pub tracking: crate::tracking::Tracking,
     /// Version de la table des drones déjà donnée au Guide (`Library::drones_revision`) ; `None` : jamais.
     cards_seen: Option<u64>,
     /// La barre de fragments du haut (liste d'analyse, D-066).
@@ -317,6 +319,7 @@ impl App {
             dash: DashboardPage::new(),
             sheet: DroneSheetPage::default(),
             sheet_return: Screen::Dashboard,
+            tracking: Default::default(),
             cards_seen: None,
             bar: AnalysisBar::new(),
             wanted: HashMap::new(),
@@ -1088,6 +1091,7 @@ impl App {
             self.open(dropped);
         }
         self.poll_opening(&ctx);
+        self.tracking.poll(&mut self.library);
         self.sync_analysis();
         self.sync_cards();
         // ⚠️ Relever la capture **avant** d'examiner l'échéance : l'inverse jetait `shot_rect` au cadre où le délai
@@ -1258,7 +1262,15 @@ impl App {
                     .dash
                     .ui(ui, &self.library, &self.guide.cards.list, &self.state, &theme);
             }
-            Screen::DroneSheet => sheet_actions = self.sheet.ui(ui, &self.library, &theme),
+            Screen::DroneSheet => {
+                // la fiche d'un drone enregistré demande ses mesures : lecture de la table, puis calcul en arrière-plan
+                let suivi = self.sheet.form.as_ref().and_then(|f| f.id.clone()).map(|id| {
+                    let open: Vec<_> = self.state.logs.iter().map(|l| l.log.clone()).collect();
+                    self.tracking.wish(&ctx, &self.library, &id, &open);
+                    self.tracking.view(&self.library, &id)
+                });
+                sheet_actions = self.sheet.ui(ui, &self.library, &theme, suivi.as_ref());
+            }
             Screen::Viewer => {} // dessiné plus haut, hors rail
             Screen::Tool(i) if i < self.pages.len() => {
                 self.pages[i].ui(ui, &mut self.state, &theme);

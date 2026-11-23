@@ -60,7 +60,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 21
-  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22, le 31 et le 32 sont ouverts (les 28 à 30 et le 33
+  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22, le 31 (31a fait) et le 32 sont ouverts (les 28 à 30 et le 33
   sont faits) ; les **23 à 25** sont le chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
   sortis le 2026-11-18 ; le prochain numéro libre est **34**.
 
@@ -70,7 +70,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) |
+| 3 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) ; 31a (le calcul) **fait le 2026-11-23**, puis 31b (fiche cible), 31c (graphiques), 31d (W-076) |
 | 4 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 (fait) |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
 | — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
@@ -451,21 +451,33 @@ correspondre à 100 % à la maquette ». Les trois lots précédents en avaient 
 
 **But** : répondre à « est-ce que ce drone s'améliore ? », ce qu'aucun écran ne sait faire aujourd'hui.
 
-**Branche** : `feat/metrics-history`. **Dépend du lot 29** ; la table des mesures existe déjà (`otb-store`).
+**Branche** : `feat/metrics-history` (31a). **Dépend du lot 29** ; la table des mesures existe déjà (`otb-store`).
 
-- [ ] **Une ligne par fragment, axe et mesure** : latence, pic, temps de montée, marges, bruit du gyro et du
+**Découpage et arbitrages** (Cédric, 2026-11-23, D-072) : **31a — les mesures** (calcul tiré du rapport de l'assistant,
+lecture de la table à la demande, calcul en arrière-plan, critère d'arrêt) ; **31b — la fiche cible** dans la fiche du
+drone, au dessin du prototype, valeurs proposées = seuils de l'assistant pour la taille, case vide sans seuil ; **31c — le
+suivi**, un graphique par grandeur sur tous les fragments du drone, la cible en bande, dans la fiche du drone ; **31d** —
+W-076 (comparaison avec le vol précédent, votes et historique des conseils).
+
+**31a fait le 2026-11-23** (branche `feat/metrics-history`) : `otb_advisor::tracked`, table des mesures lue sur un autre
+fil, section « Suivi des mesures » de la fiche du drone qui dit où en est le calcul.
+
+- [x] **Une ligne par fragment, axe et mesure** (31a) : latence, pic, temps de montée, marges, bruit du gyro et du
       terme D, retard des filtres — avec les réglages de calcul qui l'ont produite et la version de calcul du
       lot 28. Une mesure se jette quand les bornes du fragment ou cette version changent.
-- [ ] ⚠️ **La table des mesures ne se charge pas au lancement, mais à la première question posée.** Mesuré au lot 28
+- [x] ⚠️ **La table des mesures ne se charge pas au lancement, mais à la première question posée** (31a : 308 ms en
+      `--release`, sur un autre fil). Mesuré au lot 28
       ([validation.md](validation.md)) : au volume plein (535 logs, 77 040 mesures) elle pèse **8 Mo** et met **959 ms**
       à se lire — à elle seule le déclencheur du plan. Les cinq autres tables réunies pèsent 1 Mo.
 - [x] **Fichiers JSON ou vraie base (SQLite)** : **tranché le 2026-11-22, JSON gardé** (D-064) ; la table des mesures
       se lit à la première question, hors du fil de l'interface.
-- [ ] **Fiche cible par drone** (réactivité des PID, filtrage) et un graphique par mesure sur tous ses fragments,
-      la cible en bande.
-- [ ] ⚠️ **Dire lequel prime** : la cible du drone n'est pas un seuil de l'assistant (D-011, calibré sur le
-      corpus). Deux chiffres qui se contredisent à l'écran, c'est un utilisateur perdu.
-- [ ] **Critère d'arrêt** : une mesure stockée qui ne se recalcule pas à l'identique à la demande.
+- [ ] **Fiche cible par drone** (réactivité des PID, filtrage ; 31b) et un graphique par mesure sur tous ses fragments,
+      la cible en bande (31c).
+- [x] ⚠️ **Dire lequel prime** : la cible du drone n'est pas un seuil de l'assistant (D-011, calibré sur le
+      corpus). Deux chiffres qui se contredisent à l'écran, c'est un utilisateur perdu. **Tranché** (D-072) : les valeurs
+      proposées sont les seuils de l'assistant, qui garde les siens dans ses constats.
+- [x] **Critère d'arrêt** : une mesure stockée qui ne se recalcule pas à l'identique à la demande. **Non atteint** :
+      identique au bit près sur `jeno5_5s.bbl` (test) et sur 11 sessions réelles ([validation.md](validation.md#mesures-suivies-dans-le-temps-2026-11-23-lot-31a)).
 
 ---
 
@@ -702,3 +714,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 30e | 2026-11-23 | **Choix « Gyro \| Terme D » de l'espace** (branche `feat/signal-choice`, D-069) : un seul choix du signal et des axes partagés par le Spectre, Fréq. × gaz, Fréq. × temps et le « Et si », en tête de leur panneau ; un changement d'une vue vaut pour les autres, l'étage choisi (avant ou après filtres) est gardé ; cases détaillées gardées dessous ; × gaz s'ouvre sur « Gyro pf \| Gyro » par fragment ; doublons « Gyro » et « D » du « Et si » retirés. Preuve : 5 tests, 5 contre-preuves vues en échec, captures des deux thèmes ; temps d'un cadre mesuré pour chaque page par l'exemple `capture` | assistant en cartes (30f) ; avancement du parcours (30g, W-074) |
 | 30f | 2026-11-23 | **Assistant en cartes** (branche `feat/advisor-cards`, D-070) : une carte par constat triée par gravité, « info » et vérifications OK repliées, pastilles par gravité, réponse indicielle de chaque axe en petit à droite ; jauge « mesure contre seuil » sur chaque constat à un seul seuil (`Gauge`, mêmes variables que le texte), hors des références Python (`otb-parity` 0 échec sur 1 732 appels). Preuve : 12 tests nouveaux ou récrits (7 de la page, 5 de la jauge), 9 contre-preuves vues en échec, captures des deux thèmes, 0,4 ms par cadre | W-076 (comparaison, votes, historique, lignes CLI) ; avancement du parcours (30g, W-074) |
 | 30g | 2026-11-23 | **Avancement du parcours** (branche `feat/guide-progress`, D-071, D-039, D-061 et D-066 amendées, W-074 traité) : le Guide lit le rôle de chaque log sur son fragment et l'y écrit (anciens rôles par fichier repris pour les fragments qui n'en ont pas, « Ouvrir les logs des filtres… » donne le sien) ; seuls les fragments actifs sont vérifiés ; la carte du tableau de bord compte le dernier relevé du Guide (`DroneSheet::verified`), barre au nom accessible. Preuve : 4 tests nouveaux et 2 récrits, 8 contre-preuves vues en échec, captures des deux thèmes. **Lot 30 terminé** | « Fiche cible » (lot 31) ; écran de la récupération par USB (lot 32b) |
+| 31a | 2026-11-23 | **Mesures suivies, le calcul** (branche `feat/metrics-history`, D-072, D-064 prouvée) : `otb_advisor::tracked` lit 22 lignes par fragment dans le rapport de l'assistant ; la table des mesures se lit sur un autre fil (ouverture 5 ms, lecture 308 ms au volume plein en `--release`), ne se vide jamais avant sa lecture et ne se réécrit que si elle change ; la fiche d'un drone fait mesurer ses fragments en arrière-plan. Preuve : 15 tests nouveaux (6 de la bibliothèque, 2 du calcul, 5 de l'interface, 2 récrits), 8 contre-preuves vues en échec, recalcul au bit près sur 11 sessions réelles, captures des deux thèmes | fiche cible (31b) ; graphiques du suivi (31c) ; W-076 (31d) |

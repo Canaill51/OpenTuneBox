@@ -60,6 +60,21 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-115 : un test qui attend une absence passe aussi quand le calcul a échoué pour une autre raison
+
+- **Symptôme** — 2026-11-23 (lot 31a) : `un_fragment_deplace_pendant_le_calcul_ne_recoit_pas_lancienne_mesure` passait du
+  premier coup (« aucune mesure rangée sous les nouvelles bornes »), alors que le test voisin, qui attend une mesure sur le
+  même log, échouait.
+- **Cause** — mesurée : le fragment d'essai portait la session 0, or le décodeur numérote les sessions **à partir de 1** ;
+  le calcul échouait sur « session 0 absente du fichier », et rien n'était rangé — pour une tout autre raison que la
+  protection visée (les bornes comparées au retour du calcul).
+- **Règle** — un test qui vérifie qu'une chose **n'arrive pas** doit d'abord vérifier que le chemin heureux a eu lieu (ici :
+  aucun échec dans `TrackingView::failed`) ; lire la session d'un log d'essai dans le log, jamais la supposer. La
+  contre-preuve (L-071) l'aurait aussi trahi : la protection retirée, le test serait resté vert.
+- **Preuve** — `rust/otb-gui/tests/tracking.rs` : avec la session 0, le calcul n'allait jamais jusqu'au rangement (déduit
+  de l'échec du test voisin, même fragment) ; avec la session lue et l'assertion sur `failed`, le test rougit protection
+  retirée et passe protection en place.
+
 ### L-114 : un clic de test sur un widget sous le bas d'une zone qui défile ne fait rien, et l'échec arrive au widget suivant
 
 - **Symptôme** — 2026-11-23 (lot 30d) : `get_by_role_and_label(Role::Button, "Supprimer…").click()` passe sans erreur, puis
@@ -1442,6 +1457,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-115 | Test qui attend une absence (« rien rangé ») : il passe aussi quand le calcul échoue pour une autre raison (session 0 alors que le décodeur compte à partir de 1) ; vérifier d'abord que le chemin heureux a eu lieu, lire la session dans le log | Tests |
 | L-114 | Clic de test (`Node::click`, un clic de pointeur) sur un widget sous le bas d'un `ScrollArea` : trouvé mais pas touché, l'échec vient au widget suivant ; `scroll_to_me()` puis `run_steps` avant de cliquer | Interface |
 | L-113 | Substitution `perl`/`sed` dont le délimiteur (`\|`, `#`, `/`) apparaît dans le texte : échappé, il devient une alternative et écrit n'importe où sans erreur ; outil d'édition pour le multi-ligne, sinon relire le diff et le début du fichier | Outillage |
 | L-112 | Clic par libellé (tests, exemple `capture`) : un libellé repris par un autre widget (nom de log devenu pastille) fait cliquer ailleurs sans erreur ; chercher les clics par ce libellé, viser par rôle, regarder les captures | Interface |

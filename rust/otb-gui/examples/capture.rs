@@ -109,7 +109,13 @@ fn main() {
                 .expect("rendu")
                 .save(out.join(format!("fiche-drone-{}.png", th.name)))
                 .unwrap();
-            // le bas de l'écran : la configuration comparée, et la suppression qui attend sa confirmation
+            // le bas de l'écran : la configuration comparée, le suivi des mesures une fois le calcul en arrière-plan
+            // fini (lot 31a), et la suppression qui attend sa confirmation
+            let debut = std::time::Instant::now();
+            while h.state().tracking.busy() && debut.elapsed().as_secs() < 120 {
+                h.step();
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
             h.get_by_label("Supprimer…").scroll_to_me();
             h.run_steps(4);
             h.get_by_label("Supprimer…").click();

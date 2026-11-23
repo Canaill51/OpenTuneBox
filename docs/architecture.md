@@ -44,6 +44,8 @@ fichier .bbl/.bfl
                  │                        corrections (configurateur d'abord, CLI en repli), repères des filtres
                  ├─ drone_card.rs         fiche drone (version, taille, boucle PID, ESC) et valeurs qui en découlent
                  ├─ tuning_path.rs        parcours du guide : 4 phases de cases, état automatique d'après les logs
+                 ├─ tracked.rs            mesures suivies dans le temps (lot 31) : grandeurs d'un fragment lues
+                 │                        dans le rapport de l'assistant, version du calcul
                  ├─ rust/otb-cli          opentunebox info / report
                  └─ rust/otb-gui/src/tools/*   une page par outil (calcul en arrière-plan, affichage egui_plot)
 ```
@@ -118,7 +120,13 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   précédent), suppression en deux temps. La partie sans fenêtre : choix proposés, traduction fiche ↔ fiche du Guide
   (`card_of`, `sheet_of_card` : la taille affichée choisit le profil de l'assistant), enregistrement (`save_form` : un nom
   n'appartient qu'à un drone), reprise de l'ancien `drones.json` au lancement (`import_old_file`). L'écran rend des
-  `SheetAction` que `App::apply_sheet` exécute.
+  `SheetAction` que `App::apply_sheet` exécute. Sa section « Suivi des mesures » (lot 31a) dit où en est le calcul des
+  mesures du drone (`tracking_lines`, fonction pure).
+- `tracking.rs` : les **mesures suivies dans le temps** (lot 31a, D-072). Quand la fiche d'un drone enregistré s'affiche,
+  `Tracking::wish` fait lire la table des mesures **sur un autre fil** (D-064), puis mesure en arrière-plan, un par un, les
+  fragments du drone sans mesure valable (un fichier décodé une fois, une session déjà ouverte jamais relue) ;
+  `Tracking::poll`, à chaque cadre, range les résultats — seulement si le fragment a encore les bornes mesurées. Un fragment
+  en échec (log déplacé, fichier tronqué) est dit dans la fiche et n'est pas relancé pendant la séance.
 - `app.rs` : fenêtre principale, écrans Tableau de bord / Guide / outil, et l'écran d'extraction (`Screen::Viewer`), hors
   rail (D-065) : il a sa propre barre du haut, retient l'écran d'où l'on vient (`App::return_to`) et y revient. Ouvrir un
   fichier range ses sessions comme fragments (`remember`) : bornes **choisies** gardées, sinon limites automatiques ; des
@@ -209,7 +217,11 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   `<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` : drones (clé = identifiant de la carte ; avec leur **fiche**,
   `DroneSheet`, absente tant qu'on ne l'a pas remplie, D-068), logs connus (copiés ou laissés
   en place), fragments de vol, configurations (`diff all` datés, gardés seulement quand ils changent), mesures (une par
-  fragment, axe et grandeur, avec l'empreinte des réglages et la **version de calcul** qui les périme) et liste d'analyse.
+  fragment, axe et grandeur, avec les bornes du fragment, les réglages et la **version de calcul** qui les périment) et
+  liste d'analyse. ⚠️ La table des mesures **ne se lit pas à l'ouverture** (D-064) : `Library::measures_source` la lit sur un
+  autre fil, `Library::attach_measures` la rattache en jetant les mesures dont le fragment a disparu ou changé de bornes
+  entre-temps (`Library::load_measures` fait les deux d'un coup, pour la ligne de commande et les tests) ; tant qu'elle
+  n'est pas lue, `Library::save` laisse `mesures.json` intact, et ensuite ne le réécrit que s'il a changé.
   `model.rs` : les tables et leur écriture JSON, conversion à la main et lecture tolérante ; un fragment porte `chosen`
   (bornes choisies dans l'écran d'extraction, sinon elles suivent les limites automatiques, D-065). `link.rs` : la période d'un
   fragment dans un log ouvert (`range_of`, en **numéros d'échantillon**), avec un message clair quand le fichier a changé
@@ -243,7 +255,7 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   simulée, et le second accès refusé). Dépendances : otb-decoder, otb-log, serial2 (BSD-2-Clause OR Apache-2.0).
 - **otb-analysis** : voir « Modules d'analyse » ; dépend d'otb-dsp et de rayon (L-041, L-042).
 - **otb-advisor** : l'assistant. `profiles.rs` (profils de taille et seuils), `rules.rs` (constats), `noise.rs`, `step_tuning.rs`,
-  `drone_card.rs`, `log_check.rs`, `tuning_path.rs` (voir « Flux de données ») ; `pyclasses.rs` : tables de caractères (`\d`, `\w`) qui
+  `drone_card.rs`, `log_check.rs`, `tuning_path.rs` (voir « Flux de données »), `tracked.rs` (mesures suivies, D-072) ; `pyclasses.rs` : tables de caractères (`\d`, `\w`) qui
   reproduisent les classes d'expressions régulières de Python, nécessaires pour que les noms de drone se comparent comme avant.
 - **otb-cli** : binaire `opentunebox info` / `report` ; `lib.rs` produit le texte, `main.rs` l'écrit au fil de l'eau.
 - **otb-gui** : l'interface (voir « Interface ») ; `colormaps.rs` : palettes des cartes de fréquence (tables d'octets, licences en tête du fichier).
