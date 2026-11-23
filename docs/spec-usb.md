@@ -212,3 +212,7 @@ ci-dessus : connexion, choix du drone, copie, ouverture des vols, effacement, re
 deux sauvegardes de la configuration — **tout s'est passé comme prévu** (« extrêmement bien »). Durées et essais
 facultatifs (drone armé, port occupé) non relevés.
 
+**2026-11-23, Linux, même carte G474** — `usb msc` (lot 32c-1), par Cédric : la carte redémarre en mode stockage de
+masse, le disque apparaît **monté par le système, sous le nom du lecteur**, et la copie se fait. Débit non relevé ;
+`--erase` après rebranchement, Windows et **carte SD** pas encore essayés (aucune carte de vol à carte SD sous la main).
+
