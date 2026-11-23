@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-070 | **L'assistant en cartes, et la mesure contre son seuil en jauge** : une carte par constat triée par gravité, les « info » et les vérifications OK repliées ; un constat qui compare **une** mesure à **un** seul seuil porte une jauge (`Gauge`), hors des références Python ; le bouton « Appliquer » du prototype n'est pas repris (D-063 gardée) | 2026-11-23 |
 | D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) | 2026-11-23 |
 | D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) | 2026-11-23 |
 | D-067 | **Plusieurs fragments par session** : « Enregistrer comme nouveau fragment » dans l'écran d'extraction en range un autre, posé aussitôt en pastille sur les mêmes échantillons ; seul un fragment ajouté se supprime ; « Ouvrir… » ne met en analyse que le fragment de la session (amende D-061) | 2026-11-23 |
@@ -143,6 +144,55 @@ ici, jamais dans le code.
 ---
 
 ## 2026-11-23 — Fiche d'un drone
+
+### D-070 : l'assistant en cartes, et la mesure contre son seuil en jauge
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 30f : les **cartes seules** dans ce lot (la comparaison avec un
+autre vol, les votes et l'historique attendent le lot 31, W-076) ; **D-063 gardée** (le bouton « Appliquer » du prototype,
+qui enverrait les réglages au drone, n'est pas repris) ; une jauge pour **chaque constat à un seul seuil**. Applique D-061
+à l'écran Assistant.
+
+**Contexte.** Le prototype montre l'assistant en cartes : une par constat, triée par gravité, avec la mesure contre son
+seuil en jauge (« 13,8 ms mesuré », « 10 ms cible »), les vérifications OK sur une seule ligne, et à droite la réponse
+indicielle de chaque axe en petit. Un constat (`rust/otb-advisor/src/rules.rs:Finding`) ne portait que du texte : la
+mesure et le seuil étaient écrits dans son détail, jamais rendus en nombres.
+
+**Décision.**
+- **Contrat de la jauge** (`rust/otb-advisor/src/rules.rs:Gauge`) : un constat qui compare **une** mesure à **un** seuil porte
+  `gauge` — la mesure et le seuil **tirés des mêmes variables que la règle et son texte** (jamais un second calcul),
+  l'unité, les décimales, l'échelle et deux libellés (« mesuré », « seuil », « repère », « cible »…). Échelle par défaut :
+  de 0 à deux fois le seuil ; en décibels (`Gauge::db`), 10 dB de part et d'autre du seuil. `Gauge::marks` borne la mesure
+  à la jauge, et ne rend rien pour une valeur non finie : la carte s'affiche alors sans jauge. Pas de jauge quand
+  plusieurs mesures ou deux seuils décident ensemble (série de vols, plage, liste de raies) : mieux vaut pas de jauge
+  qu'une jauge fausse. La liste des constats avec et sans jauge est dans la PR du lot.
+- **Hors des références Python** : `otb-parity` ne compare pas la jauge ; les textes restent la seule sortie vérifiée au
+  bit près (0 échec sur 1 732 appels avec les jauges posées).
+- **La page** (`rust/otb-gui/src/tools/advisor.rs`) : en-tête du fragment à sa couleur (taille du drone, période,
+  firmware), une pastille par gravité, une carte par constat triée par gravité puis dans l'ordre des règles
+  (`split_cards`), la ligne « N vérifications OK » au bord pointillé. Une carte se reconnaît par sa clé et son axe,
+  jamais par son titre (`card_id`, D-028). Les catégories (« Réponse », « Bruit »…) ne sont plus des titres de la page.
+
+**Écarts avec le prototype, voulus.**
+- Les cartes **se replient et se déplient** (chevron en haut à droite), et la ligne des OK se déplie en cartes : le
+  prototype fige les « info » repliées et les OK sur une ligne, sans geste pour en lire le détail.
+- Les **actions restent des phrases entières** (« → … »), et non une étiquette courte suivie de son explication : leurs
+  textes sont comparés à ceux de Python.
+- Ni badge de drone ni « comparé à » dans l'en-tête, ni votes, historique ou lignes CLI dans les cartes : W-076.
+- Le **choix de la taille du drone** reste dans le panneau de droite commun aux pages, absent du prototype : sans lui, un
+  drone mal détecté n'a pas de recours.
+- Le bouton **« Appliquer »** n'est pas repris : la carte n'est jamais écrite (D-063).
+
+**Écartés.** Couper chaque action en « geste + explication » (les textes changeraient, et avec eux les références
+Python) ; une jauge pour tous les constats, même à plusieurs seuils (une jauge fausse trompe plus qu'une absence) ;
+recalculer la mesure dans l'interface à partir du rapport (deux calculs qui peuvent diverger).
+
+**Témoins.** `rust/otb-gui/tests/filter_tools.rs` (4 tests purs, 3 tests de la page) et `rust/otb-advisor/tests/gauge.rs`
+(5 tests, dont la mesure de la jauge égale au nombre du texte sur `tests/data/jeno5_5s.bbl`), avec **9 contre-preuves vues
+en échec** (L-071) : sans le tri, une info ouverte au départ (calcul et écran), les OK dépliés au départ, une pastille
+d'alerte vide, un sigle mis en minuscules, une carte reconnue par son titre, la jauge non bornée, l'échelle en décibels
+non centrée. Captures des deux thèmes ; 0,4 ms par cadre (`--example capture`, `FINAL.bbl`).
+
+**Ouvert.** W-076.
 
 ### D-069 : un seul choix « Gyro | Terme D » et des axes partagés pour l'espace « Bruit et filtres »
 

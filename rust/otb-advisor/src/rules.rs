@@ -97,9 +97,122 @@ pub struct Finding {
     pub axis: Option<String>,
     /// Réglages de `TRACKED_SETTINGS` que les actions citent.
     pub settings: Vec<String>,
+    /// La mesure contre son seuil, quand le constat compare **une** mesure à **un** seuil (D-070) ; absente sinon.
+    /// ⚠️ Hors des références Python : `otb-parity` ne la compare pas, les textes restent la seule sortie vérifiée au bit près.
+    pub gauge: Option<Gauge>,
+}
+
+/// Jauge d'un constat : une mesure, le seuil auquel la règle la compare, et l'échelle sur laquelle les placer (D-070).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Gauge {
+    pub value: f64,
+    pub threshold: f64,
+    /// Bornes de l'échelle (`lo < hi`) ; par défaut de 0 à deux fois le seuil.
+    pub lo: f64,
+    pub hi: f64,
+    /// Unité affichée après le nombre (« ms », « dB », « Hz », « % », ou vide).
+    pub unit: &'static str,
+    /// Chiffres après la virgule.
+    pub decimals: usize,
+    /// Mot sous la mesure (« mesuré », « curseur ») et sous le seuil (« seuil », « repère », « cible »).
+    pub value_label: &'static str,
+    pub threshold_label: &'static str,
+}
+
+/// Demi-largeur de l'échelle d'une jauge en décibels (`Gauge::db`).
+pub const DB_GAUGE_HALF_SPAN: f64 = 10.0;
+
+/// Positions d'une jauge sur sa largeur, de 0 à 1 : la mesure, le seuil, puis la bande qui les sépare (début, largeur).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GaugeMarks {
+    pub value: f64,
+    pub threshold: f64,
+    pub band_start: f64,
+    pub band_width: f64,
+}
+
+impl Gauge {
+    /// Mesure contre seuil sur l'échelle de 0 à deux fois le seuil (seuil au milieu), libellés « mesuré » et « seuil ».
+    pub fn new(value: f64, threshold: f64, unit: &'static str, decimals: usize) -> Gauge {
+        let hi = if threshold.abs() > 0.0 {
+            2.0 * threshold.abs()
+        } else {
+            value.abs().max(1.0)
+        };
+        Gauge {
+            value,
+            threshold,
+            lo: 0.0,
+            hi,
+            unit,
+            decimals,
+            value_label: "mesuré",
+            threshold_label: "seuil",
+        }
+    }
+
+    /// Mesure en décibels : échelle de 10 dB de part et d'autre du seuil (un seuil peut être négatif, l'échelle « 0 à 2 × seuil » n'a
+    /// plus de sens).
+    pub fn db(value: f64, threshold: f64, decimals: usize) -> Gauge {
+        Gauge::new(value, threshold, "dB", decimals)
+            .range(threshold - DB_GAUGE_HALF_SPAN, threshold + DB_GAUGE_HALF_SPAN)
+    }
+
+    /// Autre échelle (décibels, curseurs…).
+    pub fn range(mut self, lo: f64, hi: f64) -> Gauge {
+        self.lo = lo;
+        self.hi = hi;
+        self
+    }
+
+    /// Autres libellés.
+    pub fn labels(mut self, value_label: &'static str, threshold_label: &'static str) -> Gauge {
+        self.value_label = value_label;
+        self.threshold_label = threshold_label;
+        self
+    }
+
+    /// Positions à dessiner, bornées à la jauge : une mesure hors d'échelle reste visible à son bord.
+    /// `None` si une valeur n'est pas finie ou si l'échelle est vide (la carte s'affiche alors sans jauge).
+    pub fn marks(&self) -> Option<GaugeMarks> {
+        let span = self.hi - self.lo;
+        if !(self.value.is_finite() && self.threshold.is_finite() && span.is_finite() && span > 0.0) {
+            return None;
+        }
+        let at = |x: f64| ((x - self.lo) / span).clamp(0.0, 1.0);
+        let (v, t) = (at(self.value), at(self.threshold));
+        Some(GaugeMarks {
+            value: v,
+            threshold: t,
+            band_start: v.min(t),
+            band_width: (v - t).abs(),
+        })
+    }
+
+    /// « 13,8 ms » : le nombre à la française et son unité.
+    pub fn value_text(&self) -> String {
+        number_with_unit(self.value, self.decimals, self.unit)
+    }
+
+    pub fn threshold_text(&self) -> String {
+        number_with_unit(self.threshold, self.decimals, self.unit)
+    }
+}
+
+fn number_with_unit(x: f64, decimals: usize, unit: &str) -> String {
+    let n = otb_format::fixed(x, decimals, false)
+        .replace('.', ",")
+        .replace('-', "−");
+    if unit.is_empty() { n } else { format!("{n} {unit}") }
 }
 
 impl Finding {
+    /// Ajoute la jauge du constat (D-070).
+    pub fn with_gauge(mut self, gauge: Gauge) -> Finding {
+        self.gauge = Some(gauge);
+        self
+    }
+
     pub fn new(
         key: &str,
         category: &str,
@@ -118,6 +231,7 @@ impl Finding {
             actions,
             axis,
             settings: Vec::new(),
+            gauge: None,
         }
     }
 }
@@ -434,7 +548,7 @@ d'amortissement.",
             ),
             vec!["Curseur Damping (D) : +0,2.".to_string()],
             axis.clone(),
-        ));
+        ).with_gauge(Gauge::new(pk, strong, "", 2)));
     } else if pk > advice {
         f.push(Finding::new(
             "step_overshoot_light",
@@ -450,7 +564,7 @@ environ {} ; le feedforward fait monter le pic.",
             ),
             vec!["Curseur Damping (D) : +0,1.".to_string()],
             axis.clone(),
-        ));
+        ).with_gauge(Gauge::new(pk, advice, "", 2)));
     } else if pk < STEP_PEAK_SOFT && lat.is_finite() && lat > lat1 {
         f.push(Finding::new(
             "step_soft",
@@ -508,24 +622,27 @@ d'osciller.{}{}",
             ),
             actions,
             axis,
-        ));
+        ).with_gauge(Gauge::db(lp.sensitivity_peak_db, SENSITIVITY_HIGH_DB, 1)));
     } else if lp.phase_margin_deg.is_finite() && lp.phase_margin_deg < PHASE_MARGIN_LOW_DEG {
-        f.push(Finding::new(
-            "loop_phase_margin_low",
-            "Réponse",
-            CONSEIL,
-            &format!("Marge de phase réduite en {axl}"),
-            &format!(
-                "Marge de phase {}° (< {}°) au croisement de {} Hz.{}{}",
-                fixed(lp.phase_margin_deg, 0, false),
-                fixed(PHASE_MARGIN_LOW_DEG, 0, false),
-                fixed(lp.crossover_hz, 0, false),
-                loop_caveat(lp),
-                whoop_margin_note(profile)
-            ),
-            margin_actions(lp),
-            axis,
-        ));
+        f.push(
+            Finding::new(
+                "loop_phase_margin_low",
+                "Réponse",
+                CONSEIL,
+                &format!("Marge de phase réduite en {axl}"),
+                &format!(
+                    "Marge de phase {}° (< {}°) au croisement de {} Hz.{}{}",
+                    fixed(lp.phase_margin_deg, 0, false),
+                    fixed(PHASE_MARGIN_LOW_DEG, 0, false),
+                    fixed(lp.crossover_hz, 0, false),
+                    loop_caveat(lp),
+                    whoop_margin_note(profile)
+                ),
+                margin_actions(lp),
+                axis,
+            )
+            .with_gauge(Gauge::new(lp.phase_margin_deg, PHASE_MARGIN_LOW_DEG, "°", 0)),
+        );
     }
 }
 
@@ -1261,7 +1378,8 @@ pub fn dterm_lift(
             &format!("{head}{d_goal}"),
             vec!["Curseur « filtre D » : +0,1.".to_string()],
             None,
-        ));
+        )
+        .with_gauge(Gauge::new(delay_ms, profile.dterm_delay_max_ms, "ms", 2).labels("mesuré", "repère")));
     };
     let (_, d, dp) = noise_after(&pred, d_db, d_ptb, None);
     // `{d:.1f}` d'un `None` fait lever Python (TypeError) ; seule la branche de repli du `if` plus bas lit `d` et `dp` sans les tester
@@ -1294,7 +1412,8 @@ pub fn dterm_lift(
                     .to_string(),
             ],
             None,
-        ));
+        )
+        .with_gauge(Gauge::new(delay_ms, profile.dterm_delay_max_ms, "ms", 2).labels("mesuré", "repère")));
     }
     Ok(Finding::new(
         "dterm_delay",
@@ -1304,7 +1423,8 @@ pub fn dterm_lift(
         &format!("{head}{forecast} Le D dépasserait les repères : mieux vaut ne pas relever ses filtres.{d_goal}"),
         Vec::new(),
         None,
-    ))
+    )
+    .with_gauge(Gauge::new(delay_ms, profile.dterm_delay_max_ms, "ms", 2).labels("mesuré", "repère")))
 }
 
 /// `x:.1f` avec la virgule à la française (`f1` des actions de `_dterm_lift_noise`).
@@ -1449,7 +1569,7 @@ pub fn dterm_lift_noise(
                 .to_string(),
         ],
         None,
-    )))
+    ).with_gauge(Gauge::db(d_ptb, DTERM_PTB_IDEAL_DB, 1).labels("mesuré", "idéal"))))
 }
 
 /// `_delay_rules` (3b) : retards des filtres gyro et D (vol avec mouvements seulement, D-010) et relèvement des filtres du D.
@@ -1493,7 +1613,7 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
                     .to_string(),
             ],
             None,
-        ));
+        ).with_gauge(Gauge::new(delays.stick_p95_dps, MOVING_SETPOINT_DPS, "°/s", 0)));
     }
     if moving && delays.gyro_ms.is_finite() {
         let max_ms = profile.gyro_delay_max_ms;
@@ -1527,7 +1647,7 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
                 ),
                 actions,
                 None,
-            );
+            ).with_gauge(Gauge::new(delays.gyro_ms, max_ms, "ms", 2).labels("mesuré", "repère"));
             f.settings = settings;
             a.f.push(f);
         } else if delays.gyro_ms > max_ms {
@@ -1544,22 +1664,25 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
                 ),
                 Vec::new(),
                 None,
-            ));
+            ).with_gauge(Gauge::new(delays.gyro_ms, max_ms, "ms", 2).labels("mesuré", "repère")));
         } else {
-            a.f.push(Finding::new(
-                "gyro_delay",
-                "Filtres",
-                OK,
-                "Retard des filtres gyro",
-                &format!(
-                    "{} ms (repère ≤ {} ms pour {}).{g_goal}",
-                    fx(delays.gyro_ms, 2),
-                    fx(max_ms, 1),
-                    profile.label
-                ),
-                Vec::new(),
-                None,
-            ));
+            a.f.push(
+                Finding::new(
+                    "gyro_delay",
+                    "Filtres",
+                    OK,
+                    "Retard des filtres gyro",
+                    &format!(
+                        "{} ms (repère ≤ {} ms pour {}).{g_goal}",
+                        fx(delays.gyro_ms, 2),
+                        fx(max_ms, 1),
+                        profile.label
+                    ),
+                    Vec::new(),
+                    None,
+                )
+                .with_gauge(Gauge::new(delays.gyro_ms, max_ms, "ms", 2).labels("mesuré", "repère")),
+            );
         }
     }
     if moving && delays.dterm_ms.is_finite() {
@@ -1598,24 +1721,27 @@ fn delay_rules(a: &mut Analysis) -> Result<(), String> {
                     ),
                     Vec::new(),
                     None,
-                )
+                ).with_gauge(Gauge::new(delays.dterm_ms, max_ms, "ms", 2).labels("mesuré", "repère"))
             };
             a.f.push(f);
         } else if delays.dterm_ms <= max_ms {
-            a.f.push(Finding::new(
-                "dterm_delay",
-                "Filtres",
-                OK,
-                "Retard des filtres D",
-                &format!(
-                    "{} ms (repère ≤ {} ms pour {}).{d_goal}",
-                    fx(delays.dterm_ms, 2),
-                    fx(max_ms, 1),
-                    profile.label
-                ),
-                Vec::new(),
-                None,
-            ));
+            a.f.push(
+                Finding::new(
+                    "dterm_delay",
+                    "Filtres",
+                    OK,
+                    "Retard des filtres D",
+                    &format!(
+                        "{} ms (repère ≤ {} ms pour {}).{d_goal}",
+                        fx(delays.dterm_ms, 2),
+                        fx(max_ms, 1),
+                        profile.label
+                    ),
+                    Vec::new(),
+                    None,
+                )
+                .with_gauge(Gauge::new(delays.dterm_ms, max_ms, "ms", 2).labels("mesuré", "repère")),
+            );
         }
     }
     if !a.aliased
@@ -1750,7 +1876,7 @@ Le blackbox garde un échantillon sur N sans filtre anti-repliement : tout bruit
             ),
             actions,
             None,
-        ));
+        ).with_gauge(Gauge::new(fs, PID_LOG_RATE_MIN_HZ, "Hz", 0).labels("mesuré", "minimum")));
     } else if fs < 0.95 * base_hz {
         a.f.push(Finding::new(
             "log_rate_low_filters",
@@ -1767,7 +1893,7 @@ Le blackbox garde un échantillon sur N sans filtre anti-repliement : tout bruit
             ),
             filter_fix,
             None,
-        ));
+        ).with_gauge(Gauge::new(fs, base_hz, "Hz", 0).labels("mesuré", "minimum")));
     }
     if let Some(hz) = hz
         && 3.0 * hz > fs / 2.0
@@ -1795,7 +1921,7 @@ Le blackbox garde un échantillon sur N sans filtre anti-repliement : tout bruit
             ),
             vec![action],
             None,
-        ));
+        ).with_gauge(Gauge::new(3.0 * hz, fs / 2.0, "Hz", 0).labels("3e harmonique", "moitié du log")));
     }
     if log.gyro_unfilt.is_none() {
         a.f.push(Finding::new(
@@ -1924,24 +2050,27 @@ fn step_section(a: &mut Analysis) -> Result<(), String> {
         let d = r1.metrics.peak - r0.metrics.peak;
         if d.abs() > profile.roll_pitch_gap_high {
             let more = if d > 0.0 { "pitch" } else { "roll" };
-            a.f.push(Finding::new(
-                "step_roll_pitch_gap",
-                "Réponse",
-                CONSEIL,
-                "Roll et pitch se comportent différemment",
-                &format!(
-                    "Pic {} en roll contre {} en pitch : le {more} dépasse davantage (écart {}, seuil {}).",
-                    fx(r0.metrics.peak, 2),
-                    fx(r1.metrics.peak, 2),
-                    fx(d.abs(), 2),
-                    fx(profile.roll_pitch_gap_high, 2)
-                ),
-                vec![format!(
-                    "Curseur « D pitch » (pitch_d) : {}0,1 pour équilibrer.",
-                    if d > 0.0 { "+" } else { "−" }
-                )],
-                None,
-            ));
+            a.f.push(
+                Finding::new(
+                    "step_roll_pitch_gap",
+                    "Réponse",
+                    CONSEIL,
+                    "Roll et pitch se comportent différemment",
+                    &format!(
+                        "Pic {} en roll contre {} en pitch : le {more} dépasse davantage (écart {}, seuil {}).",
+                        fx(r0.metrics.peak, 2),
+                        fx(r1.metrics.peak, 2),
+                        fx(d.abs(), 2),
+                        fx(profile.roll_pitch_gap_high, 2)
+                    ),
+                    vec![format!(
+                        "Curseur « D pitch » (pitch_d) : {}0,1 pour équilibrer.",
+                        if d > 0.0 { "+" } else { "−" }
+                    )],
+                    None,
+                )
+                .with_gauge(Gauge::new(d.abs(), profile.roll_pitch_gap_high, "", 2)),
+            );
         }
     }
     a.steps = steps;
@@ -2022,7 +2151,7 @@ fn noise_rules(a: &mut Analysis) -> Result<(), String> {
                 fx(DTERM_PTB_MAX_DB, 0)
             ));
         }
-        a.f.push(Finding::new(
+        let mut f = Finding::new(
             "dterm_noisy",
             "Bruit",
             ATTENTION,
@@ -2037,7 +2166,18 @@ fn noise_rules(a: &mut Analysis) -> Result<(), String> {
                 "Après le vol : moteurs tièdes = OK ; chauds = réduire D ou filtrer plus.".to_string(),
             ],
             None,
-        ));
+        );
+        // une seule mesure décide quand un seul des deux repères est dépassé ; sinon, pas de jauge
+        if dterm_corpus && !dterm_ptb {
+            f.gauge = Some(Gauge::db(
+                py_max_list(&d_db).unwrap_or(f64::NAN),
+                profile.dterm_noise_high_db,
+                1,
+            ));
+        } else if dterm_ptb && !dterm_corpus {
+            f.gauge = Some(Gauge::db(d_ptb, DTERM_PTB_MAX_DB, 0).labels("mesuré", "repère"));
+        }
+        a.f.push(f);
     }
     if a.gyro_noisy {
         a.f.push(Finding::new(
@@ -2059,7 +2199,7 @@ l'échelle de PIDtoolbox (repère : sous {} dB).",
                 "Curseur « filtre gyro » : −0,2.".to_string(),
             ],
             None,
-        ));
+        ).with_gauge(Gauge::db(g_max, profile.gyro_noise_high_db, 1)));
     } else if g_ptb.is_finite() {
         a.f.push(Finding::new(
             "gyro_noise_level",
@@ -2076,7 +2216,7 @@ l'échelle de PIDtoolbox (repère : sous {} dB).",
             ),
             Vec::new(),
             None,
-        ));
+        ).with_gauge(Gauge::db(g_ptb, GYRO_PTB_MAX_DB, 0).labels("mesuré", "repère")));
     }
     if !a.dterm_noisy && d_ptb.is_finite() {
         a.f.push(Finding::new(
@@ -2091,7 +2231,7 @@ l'échelle de PIDtoolbox (repère : sous {} dB).",
             ),
             Vec::new(),
             None,
-        ));
+        ).with_gauge(Gauge::db(d_ptb, DTERM_PTB_MAX_DB, 0).labels("mesuré", "repère")));
     }
     Ok(())
 }
@@ -2158,11 +2298,13 @@ fn motor_rules(a: &mut Analysis) -> Result<(), String> {
                 "Sinon : drone trop lourd pour ses moteurs/hélices, ou batterie faible.".to_string(),
             ],
             None,
-        ));
+        ).with_gauge(Gauge::new(fst.motor_saturation_pct, profile.saturation_high_pct, "%", 1)));
     }
     if fst.motor_imbalance_pct.is_finite() && fst.motor_imbalance_pct > profile.imbalance_high_pct {
         let means: Vec<f64> = fst.motors.iter().map(|m| m.mean).collect();
-        a.f.push(imbalance_finding(&means, fst.motor_imbalance_pct)?);
+        let mut f = imbalance_finding(&means, fst.motor_imbalance_pct)?;
+        f.gauge = Some(Gauge::new(fst.motor_imbalance_pct, profile.imbalance_high_pct, "%", 0));
+        a.f.push(f);
     }
     a.meas.stats = Some(fst);
     let pe = pid_error_stats(log, sel.clone(), 100.0, 50.0);
@@ -2187,7 +2329,7 @@ fn motor_rules(a: &mut Analysis) -> Result<(), String> {
                     "Vérifiez qu'aucun moteur ne tourne moins vite.".to_string(),
                 ],
                 None,
-            ));
+            ).with_gauge(Gauge::new(i_mean[x].abs(), profile.iterm_offset_high, "", 0)));
         }
     }
     Ok(())
@@ -2491,6 +2633,9 @@ pub fn rpm_weight_rules(
             ],
             None,
         );
+        if let [k] = low[..] {
+            f.gauge = Some(Gauge::db(left[k], HARMONIC_VISIBLE_DB, 1)); // une seule raie : sa mesure décide
+        }
         f.settings = vec!["rpm_filter_q".to_string()]; // Q attend les poids : rpm_q_raise se tait
         out.push(f);
     }
@@ -2512,7 +2657,12 @@ pub fn rpm_weight_rules(
                 fx(at(&left, k)?, 0)
             ));
         }
-        out.push(Finding::new(
+        let gauge = if let [k] = missing[..] {
+            Some(Gauge::db(at(&left, k)?, HARMONIC_VISIBLE_DB, 0)) // une seule raie : sa mesure décide
+        } else {
+            None
+        };
+        let mut f = Finding::new(
             "rpm_harmonic_missing",
             "Filtres",
             CONSEIL,
@@ -2523,7 +2673,9 @@ pub fn rpm_weight_rules(
                 mx + 1
             )],
             None,
-        ));
+        );
+        f.gauge = gauge;
+        out.push(f);
     }
     // 1re harmonique déjà signalée par « Bruit moteur mal éliminé » : pas de doublon
     let full: Vec<usize> = (0..nu)
@@ -2560,6 +2712,9 @@ reste visible.",
             ],
             None,
         );
+        if let [k] = full[..] {
+            f.gauge = Some(Gauge::db(left[k], HARMONIC_VISIBLE_DB, 0)); // une seule raie : sa mesure décide
+        }
         f.settings = vec!["rpm_filter_q".to_string()];
         out.push(f);
     }
@@ -2897,7 +3052,7 @@ les filtres actuels ne la traitent pas.{caveat}",
         ),
         actions,
         None,
-    );
+    ).with_gauge(Gauge::db(ln.left_db, HARMONIC_VISIBLE_DB, 0));
     f.settings = settings;
     Ok(f)
 }
@@ -3355,7 +3510,7 @@ antenne, d'une caméra ou pièce desserrée.{}",
         ),
         actions,
         None,
-    );
+    ).with_gauge(Gauge::db(excess, profile.resonance_high_db, 0));
     f.settings = settings;
     Ok(Some(f))
 }
@@ -3709,7 +3864,7 @@ fn filter_rules(a: &mut Analysis) -> Result<(), String> {
                     ),
                 ],
                 None,
-            );
+            ).with_gauge(Gauge::db(left, profile.motor_left_high_db, 1));
             f.settings = vec!["rpm_filter_q".to_string()];
             a.f.push(f);
         }
@@ -3743,7 +3898,7 @@ du propwash et des oscillations de réglage.",
                 "Regardez l'outil Fréquence × gaz pour voir à quel gaz le phénomène apparaît.".to_string(),
             ],
             None,
-        ));
+        ).with_gauge(Gauge::db(low_max, profile.low_band_high_db, 1)));
     }
     let res = frame_resonance_finding(log, fr.as_ref(), profile, Some(&sel))?;
     if let Some(r) = &res {

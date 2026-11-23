@@ -149,6 +149,9 @@ fn main() {
             let img = h.render().expect("rendu");
             img.save(out.join(format!("guide-{phase}-{}.png", th.name))).unwrap();
         }
+        // barre d'état vide pour les pages (les messages de l'essai des fragments n'ont rien à y faire) : `open` sans fichier
+        // ne fait que l'effacer
+        h.state_mut().open(Vec::new());
         // un outil après l'autre : on attend la fin de son calcul avant de regarder
         for i in 0..h.state().pages.len() {
             h.state_mut().screen = Screen::Tool(i);

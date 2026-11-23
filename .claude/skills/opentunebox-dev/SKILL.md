@@ -106,7 +106,7 @@ CI) écrit `courbes-clair.png`, `courbes-sombre.png`, puis une capture par outil
 Pour une capture du Guide, partir d'un test de `rust/otb-gui/tests/guide.rs` : `App::new` prend une bibliothèque en mémoire, jamais
 la vraie bibliothèque de Cédric (ses fiches drone y sont, D-068).
 Captures du README : `Cedric/JeNo 5/FINAL.bbl` (visualiseur, 1500 × 950, session FINAL.02) ; `LAST.bbl` +
-`FINAL.bbl` (réponse indicielle avec les trois sessions, Assistant sur FINAL.02, 1600 × 1000).
+`FINAL.bbl` (réponse indicielle avec les trois sessions, 1600 × 1000) ; Assistant : `LAST.bbl` seul, image `assistant-clair.png` de l'exemple `capture` (1500 × 900).
 
 ## Calibrer l'assistant
 
