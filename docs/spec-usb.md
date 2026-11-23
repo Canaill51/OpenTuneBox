@@ -152,6 +152,11 @@ cargo run -p otb-dev -- usb diff /dev/ttyACM0 ~/Documents/Drones/usb/config.txt 
       d'OpenTuneBox n'arrête que les programmes qui le prennent aussi ; **supposé** que le configurateur ouvre le port
       en exclusif, à vérifier) ; Windows : message « déjà ouvert par un autre programme ».
 - [ ] Drone armé (sur batterie, hélices retirées) : `usb copy … --erase` refuse d'effacer.
+- [ ] **L'écran « Récupérer par USB »** (lot 32b) : `cargo run --release -p otb-gui`, tableau de bord, **Récupérer par
+      USB**, **Se connecter**. Première connexion : choisir le drone, puis **Copier les vols** (barre de progression,
+      temps restant proche du débit mesuré) ; la copie apparaît sur la carte du drone ; **Effacer la mémoire du
+      drone…** puis **Effacer définitivement** ; **Relire l'état** : mémoire à 0, drone reconnu sans question.
+      **Sauvegarder la configuration** deux fois de suite : la seconde dit « identique ». Drone armé : boutons grisés.
 
 Choix de `otb-usb` pour la sortie du CLI : `exit` (la carte redémarre), et non `exit noreboot`, absent avant 2024-09 et qui
 laisse l'armement bloqué (`ARMING_DISABLED_CLI`) jusqu'au prochain redémarrage.

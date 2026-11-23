@@ -58,9 +58,10 @@ fn object(pairs: Vec<(&str, Value)>) -> Value {
 
 // ---------------------------------------------------------------- drones
 
-/// Un drone. La clé est l'**identifiant de la carte de vol** (`MSP_UID` quand il vient de l'USB, sinon un
-/// identifiant choisi par l'appelant) : le nom reste un libellé modifiable, parce que deux drones peuvent porter
-/// le même et qu'il se change en une commande.
+/// Un drone. Sa clé `id` est choisie à sa création (le nom de machine de son premier log, ou le nom donné au
+/// branchement USB) et ne change plus ; le nom reste un libellé modifiable. Une fois branché par USB, le drone porte
+/// aussi l'**identifiant gravé de sa carte** (`uid`, lot 32b, D-074) : c'est lui qui le reconnaît ensuite, même
+/// renommé, et même si deux drones portent le même nom.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Drone {
     pub id: String,
@@ -71,6 +72,9 @@ pub struct Drone {
     pub last_seen: String,
     /// Carte de vol (`STM32F405`…), lue au branchement USB ; vide sinon.
     pub board: String,
+    /// Identifiant gravé de la carte de vol (`MSP_UID`, 24 chiffres hexadécimaux), lu au branchement USB ; vide tant
+    /// que le drone n'a pas été branché. ⚠️ Donnée de l'utilisateur : ne jamais la recopier dans le dépôt (public).
+    pub uid: String,
     /// La fiche du drone (D-068). `None` : jamais remplie — le drone n'est connu que par ses logs, et le Guide
     /// n'a pas de fiche pour lui. ⚠️ Ne pas la remplacer par des valeurs par défaut : une fiche inventée
     /// donnerait des conseils faux (taille, version) sans que personne ne l'ait choisie.
@@ -175,6 +179,7 @@ impl Drone {
             first_seen: String::new(),
             last_seen: String::new(),
             board: String::new(),
+            uid: String::new(),
             sheet: None,
         }
     }
@@ -191,6 +196,9 @@ impl Drone {
         if !self.board.is_empty() {
             pairs.push(("carte", self.board.clone().into()));
         }
+        if !self.uid.is_empty() {
+            pairs.push(("carte_uid", self.uid.clone().into()));
+        }
         if let Some(sheet) = &self.sheet {
             pairs.push(("fiche", sheet.to_value()));
         }
@@ -205,6 +213,7 @@ impl Drone {
             first_seen: text(v, "vu_le"),
             last_seen: text(v, "revu_le"),
             board: text(v, "carte"),
+            uid: text(v, "carte_uid"),
             sheet: v.get("fiche").filter(|f| f.is_object()).map(DroneSheet::from_value),
         })
     }

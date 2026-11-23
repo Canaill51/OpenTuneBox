@@ -29,6 +29,8 @@ pub enum DashAction {
     EditDrone(String),
     /// Ouvrir la boîte « Ouvrir des logs… ».
     OpenDialog,
+    /// « Récupérer par USB » : l'écran de la récupération (lot 32b, D-074).
+    Usb,
     /// Rond « + » d'un fragment : l'ajouter à la liste d'analyse (en n'ouvrant que sa session) ou l'en retirer.
     Toggle { fragment: String, path: PathBuf },
     /// Crayon d'un fragment : l'écran d'extraction sur ce fragment (son log est ouvert d'abord s'il le faut).
@@ -199,6 +201,16 @@ impl DashboardPage {
                 .corner_radius(6);
                 if ui.add(ouvrir).clicked() {
                     actions.push(DashAction::OpenDialog);
+                }
+                let usb = egui::Button::image_and_text(
+                    icon("cpu", 15.0).tint(th.ui.text),
+                    RichText::new(crate::usb_page::TITLE).color(th.ui.text),
+                )
+                .fill(th.ui.base)
+                .stroke(egui::Stroke::new(1.0, th.ui.mid))
+                .corner_radius(6);
+                if ui.add(usb).clicked() {
+                    actions.push(DashAction::Usb);
                 }
             });
         });

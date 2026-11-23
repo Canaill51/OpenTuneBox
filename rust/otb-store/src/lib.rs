@@ -321,6 +321,61 @@ impl Library {
         self.dir.as_ref().map(|d| d.join(LOGS_FOLDER))
     }
 
+    /// Où écrire la copie de la mémoire d'un drone faite à l'instant `stamp` (`AAAA-MM-JJ_HH-MM-SS`) :
+    /// `logs/<drone>/<stamp>.bbl`, le dossier créé s'il manque. `None` pour une bibliothèque en mémoire. Le nom du
+    /// drone est réduit aux lettres, chiffres, tirets et soulignés ; le fichier lui-même n'est jamais écrasé
+    /// (`otb_usb::verify_and_save` refuse un fichier qui existe).
+    pub fn copy_path(&self, drone_name: &str, stamp: &str) -> Option<io::Result<PathBuf>> {
+        let dir = self.logs_dir()?;
+        let safe: String = drone_name
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        let dir = dir.join(if safe.is_empty() { "drone".to_string() } else { safe });
+        Some(std::fs::create_dir_all(&dir).map(|()| dir.join(format!("{stamp}.bbl"))))
+    }
+
+    /// Les fichiers **copiés** dans la bibliothèque pour ce drone, et leur place totale (W-075).
+    pub fn copies_of_drone(&self, drone_id: &str) -> (usize, u64) {
+        let copies = self.logs.iter().filter(|l| l.drone_id == drone_id && l.copied);
+        copies.fold((0, 0), |(n, b), l| (n + 1, b + l.bytes))
+    }
+
+    /// Efface du disque les fichiers **copiés** de ce drone (W-075, geste du pilote : case cochée à la suppression).
+    /// ⚠️ Seulement ceux qui sont **dans le dossier des logs copiés** : un log ouvert depuis un dossier de
+    /// l'utilisateur (`copied` faux) n'est jamais touché, ni un chemin qui sortirait de la bibliothèque. Rend le
+    /// nombre de fichiers effacés et la liste de ceux qui n'ont pas pu l'être. Les enregistrements restent : c'est
+    /// `remove_drone` qui les retire.
+    pub fn delete_copies_of_drone(&self, drone_id: &str) -> (usize, Vec<String>) {
+        let Some(root) = self.logs_dir() else {
+            return (0, Vec::new());
+        };
+        let mut done = 0;
+        let mut failed = Vec::new();
+        for l in self.logs.iter().filter(|l| l.drone_id == drone_id && l.copied) {
+            let path = PathBuf::from(&l.path);
+            if !path.starts_with(&root) || path.components().any(|c| c == std::path::Component::ParentDir) {
+                failed.push(format!(
+                    "{} : hors du dossier des logs copiés, laissé en place",
+                    path.display()
+                ));
+                continue;
+            }
+            match std::fs::remove_file(&path) {
+                Ok(()) => done += 1,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => failed.push(format!("{} : {e}", path.display())),
+            }
+        }
+        (done, failed)
+    }
+
     /// Place occupée par les logs **copiés**, à annoncer à l'utilisateur avant une récupération.
     pub fn copied_bytes(&self) -> u64 {
         self.logs.iter().filter(|l| l.copied).map(|l| l.bytes).sum()
@@ -409,6 +464,14 @@ impl Library {
     /// même renommé ; le chercher par identifiant raterait ses logs suivants. Le premier, si deux le portent.
     pub fn drone_by_name(&self, name: &str) -> Option<&Drone> {
         self.drones.iter().find(|d| d.name == name)
+    }
+
+    /// Le drone dont la carte porte cet identifiant gravé (lot 32b) ; `None` pour un identifiant vide.
+    pub fn drone_by_uid(&self, uid: &str) -> Option<&Drone> {
+        if uid.is_empty() {
+            return None;
+        }
+        self.drones.iter().find(|d| d.uid == uid)
     }
 
     /// Compteur des changements de la table des drones : l'interface s'en sert pour savoir quand relire les

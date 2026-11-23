@@ -75,6 +75,9 @@ pub enum Screen {
     /// La fiche d'un drone (D-068) : ouverte par le crayon d'une carte, « Nouveau drone » ou le Guide, elle se
     /// referme vers l'écran d'où l'on venait (`App::sheet_return`). Le rail reste, « Tableau de bord » choisi.
     DroneSheet,
+    /// La récupération des logs par USB (lot 32b, D-074) : ouverte par le tableau de bord, elle y revient. Le rail
+    /// reste, « Tableau de bord » choisi.
+    Usb,
     /// Index dans `App::pages`.
     Tool(usize),
 }
@@ -170,6 +173,8 @@ pub struct App {
     pub dash: DashboardPage,
     /// L'écran de la fiche d'un drone, et l'écran où revenir en le quittant.
     pub sheet: DroneSheetPage,
+    /// L'écran de la récupération par USB ; ses ports se remplacent dans les tests par une carte simulée.
+    pub usb: crate::usb_page::UsbPage,
     pub sheet_return: Screen,
     /// Mesures suivies dans le temps : lecture de leur table et calcul en arrière-plan (lot 31a).
     pub tracking: crate::tracking::Tracking,
@@ -318,6 +323,7 @@ impl App {
             guide,
             dash: DashboardPage::new(),
             sheet: DroneSheetPage::default(),
+            usb: crate::usb_page::UsbPage::new(crate::usb::Ports::serial()),
             sheet_return: Screen::Dashboard,
             tracking: Default::default(),
             cards_seen: None,
@@ -865,8 +871,18 @@ impl App {
                     Err(e) => form.error = e,
                 }
             }
-            SheetAction::Delete(id) => {
+            SheetAction::Delete(id, copies) => {
                 let name = self.library.drone(&id).map(|d| d.name.clone()).unwrap_or_default();
+                // W-075 : les fichiers copiés ne partent que si la case a été cochée, et avant les enregistrements
+                // qui les désignent
+                if copies {
+                    let (n, refus) = self.library.delete_copies_of_drone(&id);
+                    if n > 0 {
+                        self.errors
+                            .push(format!("{n} fichier(s) copié(s) effacé(s) du disque."));
+                    }
+                    self.errors.extend(refus);
+                }
                 // ses fragments quittent aussi l'écran : rien ne doit montrer un fragment absent de la bibliothèque
                 for f in self.library.remove_drone(&id) {
                     while let Some(i) = self.state.logs.iter().position(|l| l.fragment.as_ref() == Some(&f)) {
@@ -933,12 +949,18 @@ impl App {
         }
         let bytes = std::fs::read(path).ok()?;
         let date = crate::dashboard::file_date(path);
-        // le nom relie un log à son drone (D-068) : un drone créé à la main garde l'identifiant de sa création
-        let mut drone = self
+        let id = otb_store::fingerprint(&bytes);
+        // ⚠️ un log déjà rangé garde son drone : une copie par USB a été rangée sous le drone choisi au branchement
+        // (D-074), que son nom de machine ne désigne pas forcément
+        let known = self
             .library
-            .drone_by_name(&nom)
-            .or_else(|| self.library.drone(&nom))
-            .cloned()
+            .log(&id)
+            .and_then(|l| self.library.drone(&l.drone_id))
+            .cloned();
+        // sinon le nom relie un log à son drone (D-068) : un drone créé à la main garde l'identifiant de sa création
+        let mut drone = known
+            .or_else(|| self.library.drone_by_name(&nom).cloned())
+            .or_else(|| self.library.drone(&nom).cloned())
             .unwrap_or_else(|| otb_store::model::Drone::new(&nom, &nom));
         let drone_id = drone.id.clone();
         drone.firmware = first.settings.firmware.clone();
@@ -947,7 +969,6 @@ impl App {
         }
         drone.last_seen = date.clone();
         self.library.put_drone(drone);
-        let id = otb_store::fingerprint(&bytes);
         self.library.add_log(otb_store::model::LogEntry {
             id: id.clone(),
             drone_id,
@@ -1038,7 +1059,7 @@ impl App {
                     if ui
                         .add(rail_entry(
                             "Tableau de bord",
-                            matches!(self.screen, Screen::Dashboard | Screen::DroneSheet),
+                            matches!(self.screen, Screen::Dashboard | Screen::DroneSheet | Screen::Usb),
                             theme,
                         ))
                         .clicked()
@@ -1256,6 +1277,8 @@ impl App {
         };
         let mut dash_actions = Vec::new();
         let mut sheet_actions = Vec::new();
+        // la connexion USB vit hors de son écran : une copie finie pendant qu'on regarde ailleurs se range quand même
+        let mut usb_actions = self.usb.poll(&self.library);
         egui::CentralPanel::default().show(root, |ui| match self.screen {
             Screen::Dashboard => {
                 dash_actions = self
@@ -1271,6 +1294,7 @@ impl App {
                 });
                 sheet_actions = self.sheet.ui(ui, &self.library, &theme, suivi.as_ref());
             }
+            Screen::Usb => usb_actions.extend(self.usb.ui(ui, &self.library, &theme)),
             Screen::Viewer => {} // dessiné plus haut, hors rail
             Screen::Tool(i) if i < self.pages.len() => {
                 self.pages[i].read_library(&self.library, &self.state);
@@ -1292,6 +1316,10 @@ impl App {
         }
         for a in dash_actions {
             match a {
+                DashAction::Usb => {
+                    self.usb.enter();
+                    self.screen = Screen::Usb;
+                }
                 DashAction::NewDrone => self.open_sheet(SheetForm::new("", crate::drone_sheet::new_sheet())),
                 DashAction::EditDrone(id) => {
                     if let Some(d) = self.library.drone(&id) {
@@ -1377,6 +1405,56 @@ impl App {
         }
         for a in sheet_actions {
             self.apply_sheet(a);
+        }
+        for a in usb_actions {
+            self.apply_usb(a);
+        }
+    }
+
+    /// Ce que l'écran de récupération demande à la bibliothèque (lot 32b, D-074).
+    fn apply_usb(&mut self, a: crate::usb_page::UsbAction) {
+        use crate::usb_page::UsbAction;
+        let today = crate::advice::now_iso()[..10].to_string();
+        match a {
+            UsbAction::Leave => self.screen = Screen::Dashboard,
+            UsbAction::Copy(choice) => {
+                let Some(identity) = self.usb.board.as_ref().map(|b| b.identity.clone()) else {
+                    return;
+                };
+                let drone = match crate::usb::apply_choice(&mut self.library, &choice, &identity, &today) {
+                    Ok(id) => id,
+                    Err(e) => return self.usb.error = e,
+                };
+                let name = self.library.drone(&drone).map_or(drone.clone(), |d| d.name.clone());
+                match self.library.copy_path(&name, &crate::usb::stamp_now()) {
+                    None => self.usb.error = "Bibliothèque sans dossier : rien ne peut y être copié.".into(),
+                    Some(Err(e)) => self.usb.error = format!("Dossier des copies impossible à créer : {e}."),
+                    Some(Ok(path)) => self.usb.start_copy(drone, path),
+                }
+            }
+            UsbAction::Register(copied, drone) => {
+                crate::usb::register_copy(&mut self.library, &copied, &drone, &today);
+                // ⚠️ écrite tout de suite : l'effacement n'est proposé qu'une fois la copie connue **sur le disque**
+                let r = self
+                    .library
+                    .save()
+                    .map_err(|e| format!("écriture de la bibliothèque impossible ({e})"));
+                self.usb.registered(r);
+            }
+            UsbAction::Open(path) => self.open(vec![path]),
+            UsbAction::SaveConfig(choice, identity, text) => {
+                match crate::usb::apply_choice(&mut self.library, &choice, &identity, &today) {
+                    Ok(id) => {
+                        let kept = self.library.record_config(&id, &crate::advice::now_iso(), &text);
+                        self.usb.message = if kept {
+                            "Configuration sauvegardée : la fiche du drone peut la comparer à la précédente.".into()
+                        } else {
+                            "Configuration identique à la dernière sauvegardée : rien de nouveau à garder.".into()
+                        };
+                    }
+                    Err(e) => self.usb.error = e,
+                }
+            }
         }
     }
 

@@ -198,7 +198,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-2. Bibliothèques Rust (323 composants)
+2. Bibliothèques Rust (324 composants)
 -------------------------------------
 
 Textes des paquets publiés ; pour un composant dont le paquet n'en contient aucun, textes de son dépôt d'origine, avec
@@ -7283,7 +7283,34 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-### Texte 42 — utilisé par : clipboard-win 5.4.3, error-code 3.4.0
+### Texte 42 — utilisé par : serial2 0.2.39
+
+BSD 2-Clause License
+
+Copyright (c) 2021, Maarten de Vries <maarten@de-vri.es>
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+### Texte 43 — utilisé par : clipboard-win 5.4.3, error-code 3.4.0
 
 Boost Software License - Version 1.0 - August 17th, 2003
 
@@ -7309,7 +7336,7 @@ FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 43 — utilisé par : adler2 2.0.1
+### Texte 44 — utilisé par : adler2 2.0.1
 
 Copyright (C) Jonas Schievink <jonasschievink@gmail.com>
 
@@ -7324,7 +7351,7 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
 AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-### Texte 44 — utilisé par : rayon 1.12.0, rayon-core 1.13.0
+### Texte 45 — utilisé par : rayon 1.12.0, rayon-core 1.13.0
 
 Copyright (c) 2010 The Rust Project Developers
 
@@ -7352,7 +7379,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 45 — utilisé par : tiny-skia 0.11.4, tiny-skia-path 0.11.4
+### Texte 46 — utilisé par : tiny-skia 0.11.4, tiny-skia-path 0.11.4
 
 Copyright (c) 2011 Google Inc. All rights reserved.
 Copyright (c) 2020 Yevhenii Reizner All rights reserved.
@@ -7385,7 +7412,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-### Texte 46 — utilisé par : euclid 0.22.14
+### Texte 47 — utilisé par : euclid 0.22.14
 
 Copyright (c) 2012-2013 Mozilla Foundation
 
@@ -7413,7 +7440,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 47 — utilisé par : hex 0.4.3
+### Texte 48 — utilisé par : hex 0.4.3
 
 Copyright (c) 2013-2014 The Rust Project Developers.
 Copyright (c) 2015-2020 The rust-hex Developers
@@ -7436,7 +7463,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 48 — utilisé par : form_urlencoded 1.2.3
+### Texte 49 — utilisé par : form_urlencoded 1.2.3
 
 Copyright (c) 2013-2016 The rust-url developers
 
@@ -7464,7 +7491,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 49 — utilisé par : data-url 0.3.2, idna 1.1.0, percent-encoding 2.3.2, url 2.5.9
+### Texte 50 — utilisé par : data-url 0.3.2, idna 1.1.0, percent-encoding 2.3.2, url 2.5.9
 
 Copyright (c) 2013-2025 The rust-url developers
 
@@ -7492,7 +7519,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 50 — utilisé par : cfg-if 1.0.5, scoped-tls 1.0.1
+### Texte 51 — utilisé par : cfg-if 1.0.5, scoped-tls 1.0.1
 
 Copyright (c) 2014 Alex Crichton
 
@@ -7520,7 +7547,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 51 — utilisé par : errno 0.3.14
+### Texte 52 — utilisé par : errno 0.3.14
 
 Copyright (c) 2014 Chris Wong
 
@@ -7548,7 +7575,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 52 — utilisé par : primal-check 0.3.4
+### Texte 53 — utilisé par : primal-check 0.3.4
 
 Copyright (c) 2014 Huon Wilson
 
@@ -7576,7 +7603,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 53 — utilisé par : bitflags 1.3.2, bitflags 2.13.2, log 0.4.34, num-complex 0.4.6, num-integer 0.1.47, num-traits 0.2.19
+### Texte 54 — utilisé par : bitflags 1.3.2, bitflags 2.13.2, log 0.4.34, num-complex 0.4.6, num-integer 0.1.47, num-traits 0.2.19
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -7604,7 +7631,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 54 — utilisé par : uuid 1.29.0
+### Texte 55 — utilisé par : uuid 1.29.0
 
 Copyright (c) 2014 The Rust Project Developers
 Copyright (c) 2018 Ashley Mannix, Christopher Armstrong, Dylan DPC, Hunar Roop Kahlon
@@ -7633,7 +7660,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 55 — utilisé par : nom 8.0.0
+### Texte 56 — utilisé par : nom 8.0.0
 
 Copyright (c) 2014-2019 Geoffroy Couprie
 
@@ -7656,7 +7683,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 56 — utilisé par : float-cmp 0.9.0
+### Texte 57 — utilisé par : float-cmp 0.9.0
 
 Copyright (c) 2014-2020 Optimal Computing (NZ) Ltd
 
@@ -7678,7 +7705,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 
-### Texte 57 — utilisé par : flate2 1.1.11
+### Texte 58 — utilisé par : flate2 1.1.11
 
 Copyright (c) 2014-2026 Alex Crichton
 
@@ -7706,7 +7733,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 58 — utilisé par : unicase 2.10.0
+### Texte 59 — utilisé par : unicase 2.10.0
 
 Copyright (c) 2014-2026 Sean McArthur
 
@@ -7728,7 +7755,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 59 — utilisé par : either 1.19.0, itertools 0.15.0, petgraph 0.8.3
+### Texte 60 — utilisé par : either 1.19.0, itertools 0.15.0, petgraph 0.8.3
 
 Copyright (c) 2015
 
@@ -7756,7 +7783,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 60 — utilisé par : arrayref 0.3.9
+### Texte 61 — utilisé par : arrayref 0.3.9
 
 Copyright (c) 2015 David Roundy <roundyd@physics.oregonstate.edu>
 All rights reserved.
@@ -7785,7 +7812,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-### Texte 61 — utilisé par : wayland-backend 0.3.17, wayland-client 0.31.15, wayland-cursor 0.31.14, wayland-protocols 0.32.13, wayland-protocols-experimental 20250721.0.1, wayland-protocols-misc 0.3.12, wayland-protocols-plasma 0.3.12, wayland-protocols-wlr 0.3.12, wayland-sys 0.31.11
+### Texte 62 — utilisé par : wayland-backend 0.3.17, wayland-client 0.31.15, wayland-cursor 0.31.14, wayland-protocols 0.32.13, wayland-protocols-experimental 20250721.0.1, wayland-protocols-misc 0.3.12, wayland-protocols-plasma 0.3.12, wayland-protocols-wlr 0.3.12, wayland-sys 0.31.11
 
 Copyright (c) 2015 Elinor Berger
 
@@ -7807,7 +7834,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 62 — utilisé par : ordered-float 5.5.1
+### Texte 63 — utilisé par : ordered-float 5.5.1
 
 Copyright (c) 2015 Jonathan Reem
 
@@ -7835,7 +7862,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 63 — utilisé par : unicode-properties 0.1.5, unicode-segmentation 1.13.3, unicode-width 0.2.3
+### Texte 64 — utilisé par : unicode-properties 0.1.5, unicode-segmentation 1.13.3, unicode-width 0.2.3
 
 Copyright (c) 2015 The Rust Project Developers
 
@@ -7863,7 +7890,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 64 — utilisé par : rustfft 6.4.1, strength_reduce 0.2.4
+### Texte 65 — utilisé par : rustfft 6.4.1, strength_reduce 0.2.4
 
 Copyright (c) 2015 The RustFFT Developers
 
@@ -7885,7 +7912,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 65 — utilisé par : quick-error 2.0.1
+### Texte 66 — utilisé par : quick-error 2.0.1
 
 Copyright (c) 2015 The quick-error Developers
 
@@ -7907,7 +7934,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 66 — utilisé par : dlib 0.5.3
+### Texte 67 — utilisé par : dlib 0.5.3
 
 Copyright (c) 2015 Victor Berger
 
@@ -7929,7 +7956,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 67 — utilisé par : png 0.17.16, png 0.18.1
+### Texte 68 — utilisé par : png 0.17.16, png 0.18.1
 
 Copyright (c) 2015 nwin
 
@@ -7957,7 +7984,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 68 — utilisé par : fixedbitset 0.5.7
+### Texte 69 — utilisé par : fixedbitset 0.5.7
 
 Copyright (c) 2015-2017
 
@@ -7985,7 +8012,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 69 — utilisé par : ash 0.38.0+1.3.281
+### Texte 70 — utilisé par : ash 0.38.0+1.3.281
 
 Copyright (c) 2016 ASH
 
@@ -8013,7 +8040,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 70 — utilisé par : futures-core 0.3.34, futures-io 0.3.34, futures-task 0.3.34, futures-util 0.3.34
+### Texte 71 — utilisé par : futures-core 0.3.34, futures-io 0.3.34, futures-task 0.3.34, futures-util 0.3.34
 
 Copyright (c) 2016 Alex Crichton
 Copyright (c) 2017 The Tokio Authors
@@ -8042,7 +8069,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 71 — utilisé par : hashbrown 0.15.5, hashbrown 0.16.1, hashbrown 0.17.1
+### Texte 72 — utilisé par : hashbrown 0.15.5, hashbrown 0.16.1, hashbrown 0.17.1
 
 Copyright (c) 2016 Amanieu d'Antras
 
@@ -8070,7 +8097,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 72 — utilisé par : lock_api 0.4.14, parking_lot 0.12.5, parking_lot_core 0.9.12
+### Texte 73 — utilisé par : lock_api 0.4.14, parking_lot 0.12.5, parking_lot_core 0.9.12
 
 Copyright (c) 2016 The Rust Project Developers
 
@@ -8098,7 +8125,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 73 — utilisé par : indexmap 2.14.2
+### Texte 74 — utilisé par : indexmap 2.14.2
 
 Copyright (c) 2016--2017
 
@@ -8126,7 +8153,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 74 — utilisé par : equivalent 1.0.3
+### Texte 75 — utilisé par : equivalent 1.0.3
 
 Copyright (c) 2016--2023
 
@@ -8154,7 +8181,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 75 — utilisé par : scopeguard 1.2.0
+### Texte 76 — utilisé par : scopeguard 1.2.0
 
 Copyright (c) 2016-2019 Ulrik Sverdrup "bluss" and scopeguard developers
 
@@ -8182,7 +8209,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 76 — utilisé par : ron 0.12.3
+### Texte 77 — utilisé par : ron 0.12.3
 
 Copyright (c) 2017 RON developers
 
@@ -8210,7 +8237,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 77 — utilisé par : stable_deref_trait 1.2.1
+### Texte 78 — utilisé par : stable_deref_trait 1.2.1
 
 Copyright (c) 2017 Robert Grosse
 
@@ -8238,7 +8265,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 78 — utilisé par : signal-hook-registry 1.4.8
+### Texte 79 — utilisé par : signal-hook-registry 1.4.8
 
 Copyright (c) 2017 tokio-jsonrpc developers
 
@@ -8266,7 +8293,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 79 — utilisé par : enumflags2 0.7.12
+### Texte 80 — utilisé par : enumflags2 0.7.12
 
 Copyright (c) 2017-2023 Maik Klein, Maja Kądziołka
 
@@ -8294,7 +8321,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 80 — utilisé par : smithay-clipboard 0.7.3
+### Texte 81 — utilisé par : smithay-clipboard 0.7.3
 
 Copyright (c) 2018 Lucas Timmins & Victor Berger
 
@@ -8316,7 +8343,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 81 — utilisé par : fearless_simd 0.4.1, kurbo 0.11.3, kurbo 0.13.1, peniko 0.6.1, polycool 0.4.0
+### Texte 82 — utilisé par : fearless_simd 0.4.1, kurbo 0.11.3, kurbo 0.13.1, peniko 0.6.1, polycool 0.4.0
 
 Copyright (c) 2018 Raph Levien
 
@@ -8344,7 +8371,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 82 — utilisé par : smallvec 1.16.4
+### Texte 83 — utilisé par : smallvec 1.16.4
 
 Copyright (c) 2018 The Servo Project Developers
 
@@ -8372,7 +8399,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 83 — utilisé par : ahash 0.8.12
+### Texte 84 — utilisé par : ahash 0.8.12
 
 Copyright (c) 2018 Tom Kaitchuck
 
@@ -8400,7 +8427,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 84 — utilisé par : calloop 0.13.0, calloop 0.14.5, smithay-client-toolkit 0.19.2, smithay-client-toolkit 0.20.0
+### Texte 85 — utilisé par : calloop 0.13.0, calloop 0.14.5, smithay-client-toolkit 0.19.2, smithay-client-toolkit 0.20.0
 
 Copyright (c) 2018 Victor Berger
 
@@ -8422,7 +8449,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 85 — utilisé par : svgtypes 0.15.3, ttf-parser 0.25.1
+### Texte 86 — utilisé par : svgtypes 0.15.3, ttf-parser 0.25.1
 
 Copyright (c) 2018 Yevhenii Reizner
 
@@ -8444,7 +8471,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 86 — utilisé par : ecolor 0.37.0, eframe 0.37.0, egui 0.37.0, egui-wgpu 0.37.0, egui-winit 0.37.0, egui_extras 0.37.0, egui_glow 0.37.0, egui_system_font_provider 0.37.0, emath 0.37.0, epaint 0.37.0, epaint_default_fonts 0.37.0
+### Texte 87 — utilisé par : ecolor 0.37.0, eframe 0.37.0, egui 0.37.0, egui-wgpu 0.37.0, egui-winit 0.37.0, egui_extras 0.37.0, egui_glow 0.37.0, egui_system_font_provider 0.37.0, emath 0.37.0, epaint 0.37.0, epaint_default_fonts 0.37.0
 
 Copyright (c) 2018-2021 Emil Ernerfeldt <emil.ernerfeldt@gmail.com>
 
@@ -8472,7 +8499,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 87 — utilisé par : getrandom 0.3.4
+### Texte 88 — utilisé par : getrandom 0.3.4
 
 Copyright (c) 2018-2025 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
@@ -8501,7 +8528,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 88 — utilisé par : slab 0.4.12
+### Texte 89 — utilisé par : slab 0.4.12
 
 Copyright (c) 2019 Carl Lerche
 
@@ -8529,7 +8556,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 89 — utilisé par : bytemuck 1.25.2
+### Texte 90 — utilisé par : bytemuck 1.25.2
 
 Copyright (c) 2019 Daniel "Lokathor" Gee.
 
@@ -8543,7 +8570,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 3. This notice may not be removed or altered from any source distribution.
 
-### Texte 90 — utilisé par : poll-promise 0.3.0, presser 0.3.1
+### Texte 91 — utilisé par : poll-promise 0.3.0, presser 0.3.1
 
 Copyright (c) 2019 Embark Studios
 
@@ -8571,7 +8598,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 91 — utilisé par : font-types 0.12.7, read-fonts 0.41.0, skrifa 0.44.0
+### Texte 92 — utilisé par : font-types 0.12.7, read-fonts 0.41.0, skrifa 0.44.0
 
 Copyright (c) 2019 Fontations Developers
 
@@ -8599,7 +8626,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 92 — utilisé par : wl-clipboard-rs 0.9.5
+### Texte 93 — utilisé par : wl-clipboard-rs 0.9.5
 
 Copyright (c) 2019 Ivan Molodetskikh
 
@@ -8627,7 +8654,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 93 — utilisé par : tracing 0.1.44, tracing-core 0.1.36
+### Texte 94 — utilisé par : tracing 0.1.44, tracing-core 0.1.36
 
 Copyright (c) 2019 Tokio Contributors
 
@@ -8655,7 +8682,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 94 — utilisé par : pico-args 0.5.0
+### Texte 95 — utilisé par : pico-args 0.5.0
 
 Copyright (c) 2019 Yevhenii Reizner
 
@@ -8677,7 +8704,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 95 — utilisé par : downcast-rs 1.2.1
+### Texte 96 — utilisé par : downcast-rs 1.2.1
 
 Copyright (c) 2020 Ashish Myles and contributors
 
@@ -8705,7 +8732,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 96 — utilisé par : raw-window-handle 0.6.2
+### Texte 97 — utilisé par : raw-window-handle 0.6.2
 
 Copyright (c) 2020 Osspial
 
@@ -8719,7 +8746,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 3. This notice may not be removed or altered from any source distribution.
 
-### Texte 97 — utilisé par : litrs 1.0.1
+### Texte 98 — utilisé par : litrs 1.0.1
 
 Copyright (c) 2020 Project Developers
 
@@ -8747,7 +8774,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 98 — utilisé par : memmap2 0.9.12
+### Texte 99 — utilisé par : memmap2 0.9.12
 
 Copyright (c) 2020 Yevhenii Reizner
 Copyright (c) 2015 Dan Burkert
@@ -8776,7 +8803,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 99 — utilisé par : pollster 1.0.1
+### Texte 100 — utilisé par : pollster 1.0.1
 
 Copyright (c) 2020-2021 Joshua Barretto
 
@@ -8804,7 +8831,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 100 — utilisé par : gpu-allocator 0.28.0
+### Texte 101 — utilisé par : gpu-allocator 0.28.0
 
 Copyright (c) 2021 Traverse Research B.V.
 
@@ -8814,7 +8841,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 101 — utilisé par : renderdoc-sys 1.1.0
+### Texte 102 — utilisé par : renderdoc-sys 1.1.0
 
 Copyright (c) 2022 Eyal Kalderon
 
@@ -8842,7 +8869,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 102 — utilisé par : type-map 0.5.1
+### Texte 103 — utilisé par : type-map 0.5.1
 
 Copyright (c) 2022 Jacob Brown
 
@@ -8924,7 +8951,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 103 — utilisé par : atspi 0.29.0, atspi-common 0.13.0, atspi-proxies 0.13.0
+### Texte 104 — utilisé par : atspi 0.29.0, atspi-common 0.13.0, atspi-proxies 0.13.0
 
 Copyright (c) 2022 Tait Hoyem <tait@tait.tech>
 
@@ -8946,7 +8973,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 104 — utilisé par : transpose 0.2.3
+### Texte 105 — utilisé par : transpose 0.2.3
 
 Copyright (c) 2022 The transpose Developers
 
@@ -8974,7 +9001,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 105 — utilisé par : strict-num 0.1.1
+### Texte 106 — utilisé par : strict-num 0.1.1
 
 Copyright (c) 2022 Yevhenii Reizner
 
@@ -8996,7 +9023,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 106 — utilisé par : xkeysym 0.2.1
+### Texte 107 — utilisé par : xkeysym 0.2.1
 
 Copyright (c) 2022-2023 John Nunley
 
@@ -9018,7 +9045,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 107 — utilisé par : xkeysym 0.2.1
+### Texte 108 — utilisé par : xkeysym 0.2.1
 
 Copyright (c) 2022-2023 John Nunley
 
@@ -9032,7 +9059,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 3. This notice may not be removed or altered from any source distribution.
 
-### Texte 108 — utilisé par : egui_commonmark 0.26.0, egui_commonmark_backend 0.26.0
+### Texte 109 — utilisé par : egui_commonmark 0.26.0, egui_commonmark_backend 0.26.0
 
 Copyright (c) 2022-2025 Erlend Walstad
 
@@ -9060,7 +9087,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 109 — utilisé par : calloop-wayland-source 0.3.0, calloop-wayland-source 0.4.1
+### Texte 110 — utilisé par : calloop-wayland-source 0.3.0, calloop-wayland-source 0.4.1
 
 Copyright (c) 2023 Kirill Chibisov
 
@@ -9082,7 +9109,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 110 — utilisé par : cursor-icon 1.2.0, wayland-csd-frame 0.3.0
+### Texte 111 — utilisé par : cursor-icon 1.2.0, wayland-csd-frame 0.3.0
 
 Copyright (c) 2023 Kirill Chibisov
 
@@ -9104,7 +9131,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 111 — utilisé par : cursor-icon 1.2.0
+### Texte 112 — utilisé par : cursor-icon 1.2.0
 
 Copyright (c) 2023 Kirill Chibisov
 
@@ -9118,7 +9145,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 3. This notice may not be removed or altered from any source distribution.
 
-### Texte 112 — utilisé par : bit-vec 0.9.1
+### Texte 113 — utilisé par : bit-vec 0.9.1
 
 Copyright (c) 2023 The Rust Project Developers
 
@@ -9146,7 +9173,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 113 — utilisé par : foldhash 0.1.5, foldhash 0.2.0
+### Texte 114 — utilisé par : foldhash 0.1.5, foldhash 0.2.0
 
 Copyright (c) 2024 Orson Peters
 
@@ -9168,7 +9195,7 @@ the following restrictions:
 
 3. This notice may not be removed or altered from any source distribution.
 
-### Texte 114 — utilisé par : zbus 5.19.0, zbus_names 4.3.5, zbus_xml 5.2.1, zvariant 5.15.1
+### Texte 115 — utilisé par : zbus 5.19.0, zbus_names 4.3.5, zbus_xml 5.2.1, zvariant 5.15.1
 
 Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 
@@ -9196,7 +9223,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 115 — utilisé par : bit-set 0.10.0
+### Texte 116 — utilisé par : bit-set 0.10.0
 
 Copyright (c) 2026 The Rust Project Developers
 
@@ -9224,7 +9251,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 116 — utilisé par : zcheapstr 1.2.0
+### Texte 117 — utilisé par : zcheapstr 1.2.0
 
 Copyright (c) 2026 Zeeshan Ali Khan & zcheapstr contributors
 
@@ -9252,7 +9279,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 117 — utilisé par : toml_datetime 1.1.2+spec-1.1.0, toml_edit 0.25.17+spec-1.1.0, toml_parser 1.1.5+spec-1.1.0
+### Texte 118 — utilisé par : toml_datetime 1.1.2+spec-1.1.0, toml_edit 0.25.17+spec-1.1.0, toml_parser 1.1.5+spec-1.1.0
 
 Copyright (c) Individual contributors
 
@@ -9274,7 +9301,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 118 — utilisé par : moxcms 0.8.1, pxfm 0.1.30
+### Texte 119 — utilisé par : moxcms 0.8.1, pxfm 0.1.30
 
 Copyright (c) Radzivon Bartoshyk. All rights reserved.
 
@@ -9303,7 +9330,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-### Texte 119 — utilisé par : libc 0.2.191
+### Texte 120 — utilisé par : libc 0.2.191
 
 Copyright (c) The Rust Project Developers
 
@@ -9331,7 +9358,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 120 — utilisé par : idna_adapter 1.2.2
+### Texte 121 — utilisé par : idna_adapter 1.2.2
 
 Copyright (c) The rust-url developers
 
@@ -9359,7 +9386,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 121 — utilisé par : arrayvec 0.7.8
+### Texte 122 — utilisé par : arrayvec 0.7.8
 
 Copyright (c) Ulrik Sverdrup "bluss" 2015-2023
 
@@ -9387,7 +9414,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 122 — utilisé par : siphasher 1.0.4
+### Texte 123 — utilisé par : siphasher 1.0.4
 
 Copyright 2012-2016 The Rust Project Developers.
 Copyright 2016-2026 Frank Denis.
@@ -9397,7 +9424,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 option.
 
-### Texte 123 — utilisé par : miniz_oxide 0.8.9, miniz_oxide 0.9.1
+### Texte 124 — utilisé par : miniz_oxide 0.8.9, miniz_oxide 0.9.1
 
 Copyright 2013-2014 RAD Game Tools and Valve Software
 Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
@@ -9414,7 +9441,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 3. This notice may not be removed or altered from any source distribution.
 
-### Texte 124 — utilisé par : synstructure 0.14.0
+### Texte 125 — utilisé par : synstructure 0.14.0
 
 Copyright 2016 Nika Layzell
 
@@ -9424,7 +9451,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 125 — utilisé par : resvg 0.45.1, usvg 0.45.1
+### Texte 126 — utilisé par : resvg 0.45.1, usvg 0.45.1
 
 Copyright 2017 the Resvg Authors
 
@@ -9452,7 +9479,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 126 — utilisé par : nohash-hasher 0.2.0
+### Texte 127 — utilisé par : nohash-hasher 0.2.0
 
 Copyright 2018 Parity Technologies (UK) Ltd.
 
@@ -9473,7 +9500,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 127 — utilisé par : guillotiere 0.7.0
+### Texte 128 — utilisé par : guillotiere 0.7.0
 
 Copyright 2019 Nicolas Silva
 
@@ -9489,7 +9516,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-### Texte 128 — utilisé par : zerocopy 0.8.63
+### Texte 129 — utilisé par : zerocopy 0.8.63
 
 Copyright 2019 The Fuchsia Authors.
 
@@ -9516,7 +9543,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-### Texte 129 — utilisé par : as-raw-xcb-connection 1.0.1
+### Texte 130 — utilisé par : as-raw-xcb-connection 1.0.1
 
 Copyright 2019 as-raw-xcb-connection Contributers
 
@@ -9544,7 +9571,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 130 — utilisé par : x11rb 0.13.2, x11rb-protocol 0.13.2
+### Texte 131 — utilisé par : x11rb 0.13.2, x11rb-protocol 0.13.2
 
 Copyright 2019 x11rb Contributers
 
@@ -9572,7 +9599,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 131 — utilisé par : parlance 0.1.1
+### Texte 132 — utilisé par : parlance 0.1.1
 
 Copyright 2020 the Parley Authors
 
@@ -9600,7 +9627,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 132 — utilisé par : vello_common 0.2.0, vello_cpu 0.2.0
+### Texte 133 — utilisé par : vello_common 0.2.0, vello_cpu 0.2.0
 
 Copyright 2020 the Vello Authors
 
@@ -9628,7 +9655,23 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 133 — utilisé par : zerocopy 0.8.63
+### Texte 134 — utilisé par : serial2 0.2.39
+
+Copyright 2021, Maarten de Vries <maarten@de-vri.es>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+### Texte 135 — utilisé par : zerocopy 0.8.63
 
 Copyright 2023 The Fuchsia Authors
 
@@ -9656,7 +9699,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 134 — utilisé par : fontique 0.11.1
+### Texte 136 — utilisé par : fontique 0.11.1
 
 Copyright 2024 the Parley Authors
 
@@ -9684,7 +9727,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 135 — utilisé par : glifo 0.3.0
+### Texte 137 — utilisé par : glifo 0.3.0
 
 Copyright 2025 the Vello Authors
 
@@ -9712,7 +9755,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 136 — utilisé par : utf_types 1.0.0
+### Texte 138 — utilisé par : utf_types 1.0.0
 
 Copyright Mozilla Foundation
 
@@ -9735,7 +9778,7 @@ limitations under the Licenses.
 Test code is dedicated to the Public Domain when so designated (see
 the individual files for PD/CC0-dedicated sections).
 
-### Texte 137 — utilisé par : utf8_iter 1.1.0
+### Texte 139 — utilisé par : utf8_iter 1.1.0
 
 Copyright Mozilla Foundation
 
@@ -9780,7 +9823,7 @@ licensed under the Apache License, Version 2.0 <LICENSE-APACHE> or
 <http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 <LICENSE-MIT> or <http://opensource.org/licenses/MIT>, at your option.
 
-### Texte 138 — utilisé par : utf8_iter 1.1.0, utf_types 1.0.0
+### Texte 140 — utilisé par : utf8_iter 1.1.0, utf_types 1.0.0
 
 Copyright Mozilla Foundation
 
@@ -9808,7 +9851,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 139 — utilisé par : libloading 0.8.9
+### Texte 141 — utilisé par : libloading 0.8.9
 
 Copyright © 2015, Simonas Kazlauskas
 
@@ -9823,7 +9866,7 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF 
 NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
-### Texte 140 — utilisé par : fax 0.2.7
+### Texte 142 — utilisé par : fax 0.2.7
 
 Copyright © 2021 The pdf-rs contributers.
 
@@ -9833,7 +9876,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 141 — utilisé par : glutin-winit 0.5.0
+### Texte 143 — utilisé par : glutin-winit 0.5.0
 
 Copyright © 2022 Kirill Chibisov
 
@@ -9855,7 +9898,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 142 — utilisé par : unicode-properties 0.1.5, unicode-segmentation 1.13.3, unicode-width 0.2.3
+### Texte 144 — utilisé par : unicode-properties 0.1.5, unicode-segmentation 1.13.3, unicode-width 0.2.3
 
 Licensed under the Apache License, Version 2.0
 <LICENSE-APACHE or
@@ -9865,7 +9908,7 @@ at your option. All files in the project carrying such
 notice may not be copied, modified, or distributed except
 according to those terms.
 
-### Texte 143 — utilisé par : euclid 0.22.14
+### Texte 145 — utilisé par : euclid 0.22.14
 
 Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -9873,7 +9916,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option. All files in the project carrying such notice may not be
 copied, modified, or distributed except according to those terms.
 
-### Texte 144 — utilisé par : enum-map 3.1.0
+### Texte 146 — utilisé par : enum-map 3.1.0
 
 Lignes de copyright relevées dans les en-têtes des sources de la crate enum-map (champ SPDX-FileCopyrightText ; MIT.txt du dépôt est le modèle REUSE, sans titulaire) :
 
@@ -9889,7 +9932,7 @@ SPDX-FileCopyrightText: 2022 philipp <descpl@yahoo.de>
 SPDX-FileCopyrightText: 2023 Nicolas Carranza <nicarran@yandex.com>
 SPDX-FileCopyrightText: 2024 +merlan #flirora <uruwi@protonmail.com>
 
-### Texte 145 — utilisé par : accesskit 0.25.2, accesskit_atspi_common 0.21.1, accesskit_consumer 0.39.2, accesskit_unix 0.24.1, accesskit_windows 0.35.2, accesskit_winit 0.34.2
+### Texte 147 — utilisé par : accesskit 0.25.2, accesskit_atspi_common 0.21.1, accesskit_consumer 0.39.2, accesskit_unix 0.24.1, accesskit_windows 0.35.2, accesskit_winit 0.34.2
 
 Lignes de copyright relevées dans les en-têtes des sources des crates accesskit* (LICENSE-MIT du dépôt n'en porte pas) :
 
@@ -9898,7 +9941,7 @@ Copyright 2017, 2018, 2021 The Chromium Authors. All rights reserved. (code « D
 Copyright 2018 The kurbo Authors. (MIT ou Apache 2.0)
 Copyright 2024 Zeeshan Ali Khan. (MIT)
 
-### Texte 146 — utilisé par : tree_magic_mini 3.2.2
+### Texte 148 — utilisé par : tree_magic_mini 3.2.2
 
 MIT License
 
@@ -9922,7 +9965,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 147 — utilisé par : imagesize 0.13.0
+### Texte 149 — utilisé par : imagesize 0.13.0
 
 MIT License
 
@@ -9946,7 +9989,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 148 — utilisé par : static_assertions 1.1.0
+### Texte 150 — utilisé par : static_assertions 1.1.0
 
 MIT License
 
@@ -9970,7 +10013,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 149 — utilisé par : tiff 0.11.3
+### Texte 151 — utilisé par : tiff 0.11.3
 
 MIT License
 
@@ -9994,7 +10037,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 150 — utilisé par : crc32fast 1.5.3
+### Texte 152 — utilisé par : crc32fast 1.5.3
 
 MIT License
 
@@ -10018,7 +10061,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 151 — utilisé par : bytemuck 1.25.2
+### Texte 153 — utilisé par : bytemuck 1.25.2
 
 MIT License
 
@@ -10030,7 +10073,7 @@ The above copyright notice and this permission notice (including the next paragr
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 152 — utilisé par : rgb 0.8.53
+### Texte 154 — utilisé par : rgb 0.8.53
 
 MIT License
 
@@ -10054,7 +10097,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 153 — utilisé par : unicode-script 0.5.8
+### Texte 155 — utilisé par : unicode-script 0.5.8
 
 MIT License
 
@@ -10084,7 +10127,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 154 — utilisé par : raw-window-handle 0.6.2
+### Texte 156 — utilisé par : raw-window-handle 0.6.2
 
 MIT License
 
@@ -10108,7 +10151,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 155 — utilisé par : realfft 3.5.1
+### Texte 157 — utilisé par : realfft 3.5.1
 
 MIT License
 
@@ -10132,7 +10175,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 156 — utilisé par : profiling 1.0.18
+### Texte 158 — utilisé par : profiling 1.0.18
 
 MIT License
 
@@ -10156,7 +10199,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 157 — utilisé par : xcursor 0.3.11
+### Texte 159 — utilisé par : xcursor 0.3.11
 
 MIT License
 
@@ -10180,7 +10223,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 158 — utilisé par : sys-locale 0.3.2
+### Texte 160 — utilisé par : sys-locale 0.3.2
 
 MIT License
 
@@ -10204,7 +10247,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 159 — utilisé par : rfd 0.18.0, sctk-adwaita 0.10.1
+### Texte 161 — utilisé par : rfd 0.18.0, sctk-adwaita 0.10.1
 
 MIT License
 
@@ -10228,7 +10271,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 160 — utilisé par : arboard 3.7.0
+### Texte 162 — utilisé par : arboard 3.7.0
 
 MIT License
 
@@ -10252,7 +10295,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 161 — utilisé par : range-alloc 0.1.5
+### Texte 163 — utilisé par : range-alloc 0.1.5
 
 MIT License
 
@@ -10276,7 +10319,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 162 — utilisé par : web-time 1.1.0
+### Texte 164 — utilisé par : web-time 1.1.0
 
 MIT License
 
@@ -10300,7 +10343,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 163 — utilisé par : naga 30.0.1, naga-types 30.0.1, wgpu 30.0.1, wgpu-core 30.0.1, wgpu-core-deps-windows-linux-android 30.0.1, wgpu-hal 30.0.1, wgpu-naga-bridge 30.0.1, wgpu-types 30.0.1
+### Texte 165 — utilisé par : naga 30.0.1, naga-types 30.0.1, wgpu 30.0.1, wgpu-core 30.0.1, wgpu-core-deps-windows-linux-android 30.0.1, wgpu-hal 30.0.1, wgpu-naga-bridge 30.0.1, wgpu-types 30.0.1
 
 MIT License
 
@@ -10324,7 +10367,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 164 — utilisé par : enum-map 3.1.0
+### Texte 166 — utilisé par : enum-map 3.1.0
 
 MIT License
 
@@ -10336,7 +10379,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 165 — utilisé par : simd-adler32 0.3.10
+### Texte 167 — utilisé par : simd-adler32 0.3.10
 
 MIT License
 
@@ -10360,7 +10403,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 166 — utilisé par : zune-core 0.5.3, zune-jpeg 0.5.15
+### Texte 168 — utilisé par : zune-core 0.5.3, zune-jpeg 0.5.15
 
 MIT License
 
@@ -10384,7 +10427,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 167 — utilisé par : miniz_oxide 0.8.9, miniz_oxide 0.9.1
+### Texte 169 — utilisé par : miniz_oxide 0.8.9, miniz_oxide 0.9.1
 
 MIT License
 
@@ -10412,7 +10455,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 168 — utilisé par : miniz_oxide 0.8.9, miniz_oxide 0.9.1
+### Texte 170 — utilisé par : miniz_oxide 0.8.9, miniz_oxide 0.9.1
 
 MIT License
 
@@ -10439,7 +10482,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 169 — utilisé par : fdeflate 0.3.7, image 0.25.10
+### Texte 171 — utilisé par : fdeflate 0.3.7, image 0.25.10
 
 MIT License
 
@@ -10467,7 +10510,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 170 — utilisé par : color 0.3.3, half 2.7.1, linebender_resource_handle 0.1.1
+### Texte 172 — utilisé par : color 0.3.3, half 2.7.1, linebender_resource_handle 0.1.1
 
 MIT License
 
@@ -10489,7 +10532,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 171 — utilisé par : accesskit 0.25.2, accesskit_atspi_common 0.21.1, accesskit_consumer 0.39.2, accesskit_unix 0.24.1, accesskit_windows 0.35.2, accesskit_winit 0.34.2, adler2 2.0.1, allocator-api2 0.2.21, async-channel 2.5.0, async-executor 1.14.1, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-signal 0.2.14, async-task 4.7.1, atomic-waker 1.1.2, blocking 1.7.0, concurrent-queue 2.5.0, egui_plot 0.38.0, endi 1.1.1, event-listener 5.4.2, event-listener-strategy 0.5.4, fastrand 2.5.0, futures-lite 2.6.1, glow 0.17.0, itoa 1.0.18, khronos-egl 6.0.0, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, once_cell 1.21.4, ordered-stream 0.2.0, parking 2.2.1, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, proc-macro-crate 3.5.0, proc-macro2 1.0.107, quote 1.0.47, rustc-hash 1.1.0, rustc-hash 2.1.3, rustix 0.38.44, rustix 1.1.6, serde 1.0.229, serde_core 1.0.229, serde_json 1.0.154, smol_str 0.2.2, syn 2.0.119, syn 3.0.9, thiserror 1.0.69, thiserror 2.0.21, typeid 1.0.3, unicode-ident 1.0.27, x11-dl 2.21.0, zbus-lockstep 0.5.2, zmij 1.0.23, zvariant_utils 4.2.0
+### Texte 173 — utilisé par : accesskit 0.25.2, accesskit_atspi_common 0.21.1, accesskit_consumer 0.39.2, accesskit_unix 0.24.1, accesskit_windows 0.35.2, accesskit_winit 0.34.2, adler2 2.0.1, allocator-api2 0.2.21, async-channel 2.5.0, async-executor 1.14.1, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-signal 0.2.14, async-task 4.7.1, atomic-waker 1.1.2, blocking 1.7.0, concurrent-queue 2.5.0, egui_plot 0.38.0, endi 1.1.1, event-listener 5.4.2, event-listener-strategy 0.5.4, fastrand 2.5.0, futures-lite 2.6.1, glow 0.17.0, itoa 1.0.18, khronos-egl 6.0.0, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, once_cell 1.21.4, ordered-stream 0.2.0, parking 2.2.1, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, proc-macro-crate 3.5.0, proc-macro2 1.0.107, quote 1.0.47, rustc-hash 1.1.0, rustc-hash 2.1.3, rustix 0.38.44, rustix 1.1.6, serde 1.0.229, serde_core 1.0.229, serde_json 1.0.154, smol_str 0.2.2, syn 2.0.119, syn 3.0.9, thiserror 1.0.69, thiserror 2.0.21, typeid 1.0.3, unicode-ident 1.0.27, x11-dl 2.21.0, zbus-lockstep 0.5.2, zmij 1.0.23, zvariant_utils 4.2.0
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -10515,7 +10558,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 172 — utilisé par : winnow 1.0.4
+### Texte 174 — utilisé par : winnow 1.0.4
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -10536,7 +10579,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 173 — utilisé par : siphasher 1.0.4
+### Texte 175 — utilisé par : siphasher 1.0.4
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -10556,7 +10599,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 174 — utilisé par : linux-raw-sys 0.12.1, linux-raw-sys 0.4.15
+### Texte 176 — utilisé par : linux-raw-sys 0.12.1, linux-raw-sys 0.4.15
 
 Short version for non-lawyers:
 
@@ -10588,7 +10631,7 @@ is licensed under:
 
 at your option.
 
-### Texte 175 — utilisé par : rustix 0.38.44, rustix 1.1.6
+### Texte 177 — utilisé par : rustix 0.38.44, rustix 1.1.6
 
 Short version for non-lawyers:
 
@@ -10620,7 +10663,7 @@ is licensed under:
 
 at your option.
 
-### Texte 176 — utilisé par : pulldown-cmark 0.13.6
+### Texte 178 — utilisé par : pulldown-cmark 0.13.6
 
 The MIT License
 
@@ -10644,7 +10687,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 177 — utilisé par : phf 0.14.0, phf_generator 0.14.0, phf_shared 0.14.0
+### Texte 179 — utilisé par : phf 0.14.0, phf_generator 0.14.0, phf_shared 0.14.0
 
 The MIT License (MIT)
 
@@ -10667,7 +10710,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 178 — utilisé par : base64 0.22.1
+### Texte 180 — utilisé par : base64 0.22.1
 
 The MIT License (MIT)
 
@@ -10691,7 +10734,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 179 — utilisé par : byteorder-lite 0.1.0, memchr 2.8.3, termcolor 1.4.1
+### Texte 181 — utilisé par : byteorder-lite 0.1.0, memchr 2.8.3, termcolor 1.4.1
 
 The MIT License (MIT)
 
@@ -10715,7 +10758,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 180 — utilisé par : webbrowser 1.2.6
+### Texte 182 — utilisé par : webbrowser 1.2.6
 
 The MIT License (MIT)
 
@@ -10745,7 +10788,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 181 — utilisé par : quick-xml 0.41.0
+### Texte 183 — utilisé par : quick-xml 0.41.0
 
 The MIT License (MIT)
 
@@ -10771,7 +10814,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 182 — utilisé par : winapi-util 0.1.11
+### Texte 184 — utilisé par : winapi-util 0.1.11
 
 The MIT License (MIT)
 
@@ -10795,7 +10838,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 183 — utilisé par : simplecss 0.2.2
+### Texte 185 — utilisé par : simplecss 0.2.2
 
 The MIT License (MIT)
 
@@ -10819,7 +10862,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 184 — utilisé par : roxmltree 0.20.0
+### Texte 186 — utilisé par : roxmltree 0.20.0
 
 The MIT License (MIT)
 
@@ -10843,7 +10886,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 185 — utilisé par : guillotiere 0.7.0
+### Texte 187 — utilisé par : guillotiere 0.7.0
 
 The MIT License (MIT)
 
@@ -10866,7 +10909,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-### Texte 186 — utilisé par : xmlwriter 0.1.0
+### Texte 188 — utilisé par : xmlwriter 0.1.0
 
 The MIT License (MIT)
 
@@ -10890,7 +10933,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 187 — utilisé par : crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23
+### Texte 189 — utilisé par : crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23
 
 The MIT License (MIT)
 
@@ -10920,7 +10963,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-### Texte 188 — utilisé par : async-broadcast 0.7.2
+### Texte 190 — utilisé par : async-broadcast 0.7.2
 
 The MIT License (MIT)
 
@@ -10944,7 +10987,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 189 — utilisé par : xkbcommon-dl 0.4.2
+### Texte 191 — utilisé par : xkbcommon-dl 0.4.2
 
 The MIT License (MIT)
 
@@ -10968,7 +11011,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 190 — utilisé par : harfrust 0.12.0
+### Texte 192 — utilisé par : harfrust 0.12.0
 
 The MIT License (MIT)
 
@@ -10993,7 +11036,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 191 — utilisé par : weezl 0.1.12
+### Texte 193 — utilisé par : weezl 0.1.12
 
 The MIT License (MIT)
 
@@ -11017,7 +11060,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 192 — utilisé par : yeslogic-fontconfig-sys 6.0.1
+### Texte 194 — utilisé par : yeslogic-fontconfig-sys 6.0.1
 
 The MIT License (MIT)
 
@@ -11044,7 +11087,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-### Texte 193 — utilisé par : os_pipe 1.2.3
+### Texte 195 — utilisé par : os_pipe 1.2.3
 
 The MIT License (MIT)
 
@@ -11066,7 +11109,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-### Texte 194 — utilisé par : byteorder-lite 0.1.0, memchr 2.8.3, termcolor 1.4.1, winapi-util 0.1.11
+### Texte 196 — utilisé par : byteorder-lite 0.1.0, memchr 2.8.3, termcolor 1.4.1, winapi-util 0.1.11
 
 This is free and unencumbered software released into the public domain.
 
@@ -11093,13 +11136,13 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 For more information, please refer to <http://unlicense.org/>
 
-### Texte 195 — utilisé par : memchr 2.8.3, termcolor 1.4.1, winapi-util 0.1.11
+### Texte 197 — utilisé par : memchr 2.8.3, termcolor 1.4.1, winapi-util 0.1.11
 
 This project is dual-licensed under the Unlicense and MIT licenses.
 
 You may use this code under the terms of either license.
 
-### Texte 196 — utilisé par : glow 0.17.0
+### Texte 198 — utilisé par : glow 0.17.0
 
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -11117,7 +11160,7 @@ freely, subject to the following restrictions:
    misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 
-### Texte 197 — utilisé par : unicode-ident 1.0.27
+### Texte 199 — utilisé par : unicode-ident 1.0.27
 
 UNICODE LICENSE V3
 
@@ -11159,7 +11202,7 @@ not be used in advertising or otherwise to promote the sale, use or other
 dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
-### Texte 198 — utilisé par : unicode-properties 0.1.5
+### Texte 200 — utilisé par : unicode-properties 0.1.5
 
 UNICODE LICENSE V3
 
@@ -11201,7 +11244,7 @@ not be used in advertising or otherwise to promote the sale, use or other
 dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
-### Texte 199 — utilisé par : icu_collections 2.4.0, icu_locale_core 2.4.0, icu_normalizer 2.4.0, icu_normalizer_data 2.4.0, icu_properties 2.4.0, icu_properties_data 2.4.0, icu_provider 2.4.0, litemap 0.8.3, potential_utf 0.1.6, tinystr 0.8.5, writeable 0.6.4, yoke 0.8.4, zerofrom 0.1.8, zerotrie 0.2.5, zerovec 0.11.9
+### Texte 201 — utilisé par : icu_collections 2.4.0, icu_locale_core 2.4.0, icu_normalizer 2.4.0, icu_normalizer_data 2.4.0, icu_properties 2.4.0, icu_properties_data 2.4.0, icu_provider 2.4.0, litemap 0.8.3, potential_utf 0.1.6, tinystr 0.8.5, writeable 0.6.4, yoke 0.8.4, zerofrom 0.1.8, zerotrie 0.2.5, zerovec 0.11.9
 
 UNICODE LICENSE V3
 
@@ -11250,7 +11293,7 @@ SPDX-License-Identifier: Unicode-3.0
 Portions of ICU4X may have been adapted from ICU4C and/or ICU4J.
 ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation and others.
 
-### Texte 200 — utilisé par : libm 0.2.16
+### Texte 202 — utilisé par : libm 0.2.16
 
 rust-lang/libm as a whole is available for use under the MIT license:
 
@@ -11511,7 +11554,7 @@ have been licensed under extremely permissive terms.
 
 Copyright notices are retained in src/* files where relevant.
 
-### Texte 201 — utilisé par : dpi 0.1.2
+### Texte 203 — utilisé par : dpi 0.1.2
 
 rust-lang/libm as a whole is available for use under the MIT license:
 
@@ -11565,7 +11608,7 @@ and labelled as such in comments in the individual source files. All
 have been licensed under extremely permissive terms.
 ------------------------------------------------------------------------------
 
-### Texte 202 — utilisé par : zune-core 0.5.3, zune-jpeg 0.5.15
+### Texte 204 — utilisé par : zune-core 0.5.3, zune-jpeg 0.5.15
 
 zlib License
 

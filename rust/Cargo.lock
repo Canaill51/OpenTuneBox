@@ -2795,6 +2795,7 @@ dependencies = [
  "otb-log",
  "otb-parity",
  "otb-store",
+ "otb-usb",
  "rfd",
  "serde",
  "serde_json",

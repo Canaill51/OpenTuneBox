@@ -884,3 +884,71 @@ fn les_vols_dun_drone_se_rangent_par_date_puis_log_session_et_debut() {
     let ids: Vec<&str> = lib.flights_of_drone("d1").iter().map(|f| f.id.as_str()).collect();
     assert_eq!(ids, ["a-debut", "a-fin", "b", "tard"]);
 }
+
+// ---------------------------------------------------------------- récupération par USB (lot 32b)
+
+#[test]
+fn l_identifiant_de_la_carte_se_retrouve_et_reconnait_le_drone() {
+    let dir = dossier("uid");
+    let mut lib = Library::open(dir.clone());
+    let mut d = Drone::new("JeNo 5", "JeNo 5");
+    d.uid = "00330021343851073436343".into();
+    d.board = "STM32F7X2 (S7X2)".into();
+    lib.put_drone(d);
+    lib.put_drone(Drone::new("Whoop", "Whoop"));
+    lib.save().unwrap();
+    let relue = Library::open(dir);
+    assert_eq!(
+        relue.drone_by_uid("00330021343851073436343").map(|d| d.id.as_str()),
+        Some("JeNo 5")
+    );
+    assert!(
+        relue.drone_by_uid("").is_none(),
+        "un identifiant vide ne désigne aucun drone"
+    );
+    assert!(relue.drone_by_uid("autre").is_none());
+    assert_eq!(relue.drone("JeNo 5").unwrap().board, "STM32F7X2 (S7X2)");
+}
+
+#[test]
+fn une_copie_va_dans_le_dossier_du_drone_et_jamais_en_memoire() {
+    let dir = dossier("chemin-copie");
+    let lib = Library::open(dir.clone());
+    let p = lib.copy_path("JeNo 5/../x", "2026-11-23_18-26-05").unwrap().unwrap();
+    assert_eq!(p, dir.join("logs").join("JeNo_5____x").join("2026-11-23_18-26-05.bbl"));
+    assert!(p.parent().unwrap().is_dir(), "dossier créé");
+    assert!(Library::in_memory().copy_path("JeNo 5", "x").is_none());
+}
+
+#[test]
+fn seuls_les_fichiers_copies_du_drone_s_effacent() {
+    let dir = dossier("effacer-copies");
+    let mut lib = Library::open(dir.clone());
+    let copie = lib.copy_path("JeNo 5", "a").unwrap().unwrap();
+    std::fs::write(&copie, b"vol").unwrap();
+    // un log de l'utilisateur, hors de la bibliothèque : jamais touché
+    let a_lui = dir.join("mes-logs.bbl");
+    std::fs::write(&a_lui, b"vol").unwrap();
+    // un log marqué copié mais dont le chemin sort du dossier des copies : laissé, et dit
+    let dehors = dir.join("dehors.bbl");
+    std::fs::write(&dehors, b"vol").unwrap();
+    for (id, path, copied) in [("c1", &copie, true), ("u1", &a_lui, false), ("x1", &dehors, true)] {
+        lib.add_log(LogEntry {
+            id: id.into(),
+            drone_id: "d1".into(),
+            name: id.into(),
+            path: path.display().to_string(),
+            copied,
+            bytes: 3,
+            added: "2026-11-23".into(),
+        });
+    }
+    assert_eq!(lib.copies_of_drone("d1"), (2, 6));
+    let (n, refus) = lib.delete_copies_of_drone("d1");
+    assert_eq!(n, 1);
+    assert_eq!(refus.len(), 1, "{refus:?}");
+    assert!(!copie.exists());
+    assert!(a_lui.exists(), "le log de l'utilisateur reste");
+    assert!(dehors.exists(), "un chemin hors du dossier des copies reste");
+    // Contre-preuve : sans le contrôle `starts_with(&root)`, `dehors.bbl` est effacé et ce test échoue.
+}

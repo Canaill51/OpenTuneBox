@@ -120,6 +120,18 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   (`DashAction::Edit`). Un drone est reconnu par le **nom de machine** de
   l'en-tête (`Craft name`), cherché par nom (`Library::drone_by_name`) : un drone créé à la main ou renommé garde ses logs
   (D-068). Le crayon d'une carte et « Nouveau drone » ouvrent la fiche du drone (`DashAction::EditDrone`, `DashAction::NewDrone`).
+- `usb.rs` et `usb_page.rs` : la **récupération par USB** (lot 32b, D-074), écran hors rail (`Screen::Usb`) ouvert par
+  « Récupérer par USB » au tableau de bord. `usb.rs` : un **fil de travail** par connexion (`Connection`) tient le port
+  (`Ports` : le vrai par `serial2`, ou une carte simulée dans les tests) et traite une demande à la fois — relire l'état,
+  copier puis vérifier (`otb_usb::verify_and_save`), effacer, lire `diff all` ; ⚠️ la copie vérifiée ne quitte jamais ce
+  fil et seule la demande d'effacement en fait un permis (`VerifiedCopy::confirm`), donc pas d'effacement sans copie
+  vérifiée sur **cette** connexion. Fonctions pures : le drone de la carte (`default_choice` : reconnu par
+  `Drone::uid`, sinon le drone du même nom proposé, sinon un nouveau ; `apply_choice` y range identifiant, carte et
+  firmware), le rangement d'une copie (`register_copy` : log marqué copié, un fragment par vol, sans relire le
+  fichier). `usb_page.rs` : l'écran, qui ne touche jamais la bibliothèque et rend des `UsbAction` que `App::apply_usb`
+  exécute ; l'effacement n'est proposé qu'une fois la copie rangée **et la bibliothèque écrite**, en deux clics.
+  `App::remember` garde à un log déjà connu son drone (une copie USB rangée sous le drone choisi ne bascule pas vers celui
+  de son nom de machine).
 - `drone_sheet.rs` : la **fiche d'un drone** (lot 30d, D-068), second écran hors rail du prototype (`Screen::DroneSheet` ; le
   rail reste, « Tableau de bord » choisi) : Identité, Machine, Configurations Betaflight (« Voir », « Comparer » au
   précédent), suppression en deux temps. La partie sans fenêtre : choix proposés, traduction fiche ↔ fiche du Guide
@@ -249,14 +261,17 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   depuis — sans dépendre du décodeur, l'appelant passant `FlightLog::n()` ; il tient aussi le format des identifiants
   (`session_fragment_id` pour le fragment d'une session, `added_fragment_id` pour un fragment ajouté, `is_added` ; D-067),
   et `Library::remove_fragment` emporte mesures, place dans la liste d'analyse et choix sur les conseils.
-  `Library::flights_of_drone` range les fragments d'un drone en vols (date, nom du log, session, début). La liste d'analyse est tenue par la
+  `Library::flights_of_drone` range les fragments d'un drone en vols (date, nom du log, session, début).
+  Récupération par USB (lot 32b) : `Drone::uid` (identifiant gravé de la carte, `drone_by_uid`), `Library::copy_path`
+  (`logs/<drone>/<instant>.bbl`), `copies_of_drone` et `delete_copies_of_drone` (W-075 : seulement les fichiers copiés,
+  seulement dans le dossier des copies). La liste d'analyse est tenue par la
   bibliothèque : ordre, **indice** de couleur attribué à l'entrée et jamais changé ensuite (les couleurs restent dans
   `theme.rs`, L-016), actif ou non, et un fragment de travail qui doit appartenir à la liste. **Un seul module d'accès** : le
   reste du programme ne voit jamais un fichier, ce qui limitera à ce fichier le passage à une vraie base le jour où le
   déclencheur du plan sera atteint. Un fichier illisible ou d'une version plus récente est **mis de côté**, jamais écrasé
   (même règle que l'ancien fichier des fiches, D-039). `Library::remove_drone` emporte tout ce qui désigne le drone (W-075 :
   pas ses fichiers copiés) ; `model::config_changes` dit ce qui change d'un `diff all` au suivant. Mesures de volume dans [validation](validation.md). Dépendance : serde_json.
-- **otb-usb** : récupération des logs par USB, **partie protocole** (lot 32a, D-063 ; l'écran viendra au lot 32b). Ce que
+- **otb-usb** : récupération des logs par USB, **partie protocole** (lot 32a, D-063 ; l'écran : lot 32b, `rust/otb-gui/src/usb.rs`). Ce que
   fait le firmware : [spec-usb](spec-usb.md). `frame.rs` : trames MSP v1 (« jumbo » dès 255 octets) et v2 (CRC-8 DVB-S2),
   écrites et lues octet par octet. `link.rs` : le trait `Link` (envoyer, recevoir dans un délai) et `SerialLink`, le vrai
   port par `serial2`, **réservé** par un verrou exclusif sous Linux (Windows ne laisse qu'un propriétaire à un port COM) ;
