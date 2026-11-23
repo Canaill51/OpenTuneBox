@@ -176,6 +176,8 @@ pub struct SheetForm {
     pub sheet: DroneSheet,
     /// « Supprimer… » cliqué : on attend « Garder » ou « Supprimer définitivement ».
     pub ask_delete: bool,
+    /// « Supprimer aussi les fichiers copiés » cochée (W-075) : décochée à chaque ouverture de la fiche.
+    pub delete_copies: bool,
     /// Configuration dépliée : (identifiant, `true` pour « Comparer », `false` pour « Voir »).
     pub shown: Option<(String, bool)>,
     /// Pourquoi le dernier « Enregistrer » a été refusé.
@@ -198,6 +200,7 @@ impl SheetForm {
             name: drone.name.clone(),
             sheet,
             ask_delete: false,
+            delete_copies: false,
             shown: None,
             error: String::new(),
         }
@@ -210,6 +213,7 @@ impl SheetForm {
             name: name.to_string(),
             sheet,
             ask_delete: false,
+            delete_copies: false,
             shown: None,
             error: String::new(),
         }
@@ -400,8 +404,8 @@ pub enum SheetAction {
     Leave,
     /// « Enregistrer » / « Créer le drone ».
     Save,
-    /// « Supprimer définitivement » : ce drone.
-    Delete(String),
+    /// « Supprimer définitivement » : ce drone, et ses fichiers copiés si la case est cochée (W-075).
+    Delete(String, bool),
 }
 
 // mesures relevées dans le prototype (écran `droneEdit`)
@@ -1314,7 +1318,7 @@ fn delete(ui: &mut Ui, form: &mut SheetForm, lib: &Library, id: &str, th: &Theme
                     .fill(rouge)
                     .corner_radius(6);
                     if ui.add(oui).clicked() {
-                        actions.push(SheetAction::Delete(id.to_string()));
+                        actions.push(SheetAction::Delete(id.to_string(), form.delete_copies));
                     }
                     let garder = egui::Button::new(RichText::new("Garder").size(13.0).color(th.ui.text))
                         .fill(th.ui.base)
@@ -1341,9 +1345,23 @@ fn delete(ui: &mut Ui, form: &mut SheetForm, lib: &Library, id: &str, th: &Theme
                             .color(th.ui.text),
                     );
                     ui.add(egui::Label::new(RichText::new(info).size(LABEL).color(th.ui.muted)).wrap());
+                    // W-075 : les vols copiés par USB n'ont plus d'autre trace ; ils ne partent que sur un geste
+                    let (n, octets) = lib.copies_of_drone(id);
+                    if form.ask_delete && n > 0 {
+                        ui.checkbox(&mut form.delete_copies, copies_text(n, octets));
+                    }
                 });
             });
         });
+}
+
+/// « Supprimer aussi les 4 fichiers copiés (31,0 Mo) » : la case de la suppression d'un drone (W-075).
+pub fn copies_text(n: usize, bytes: u64) -> String {
+    let s = if n > 1 { "s" } else { "" };
+    format!(
+        "Supprimer aussi le{s} {n} fichier{s} copié{s} par USB ({})",
+        crate::usb::size_text(bytes)
+    )
 }
 
 /// Au lancement : reprend l'ancien fichier des fiches du Guide dans la bibliothèque, l'écrit, puis renomme l'ancien

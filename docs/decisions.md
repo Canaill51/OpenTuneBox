@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-074 | **Récupération par USB, l'écran** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
 | D-073 | **L'assistant d'un vol à l'autre** : vol comparé = vol précédent du drone (ou choisi), repère du même constat sur chaque jauge, cartes nouvelles et disparues, pas de « drones de même taille » ; pouce levé (appliqué) inscrit au clic, pouce baissé avec sa raison, dans la bibliothèque ; « Fragment déjà traité » et son historique ; pas de lignes CLI (W-078) | 2026-11-23 |
 | D-072 | **Mesures suivies dans le temps** : dix grandeurs par fragment lues dans le rapport de l'assistant (jamais un second calcul), gardées avec les bornes du fragment et la version du calcul, mesurées en arrière-plan à l'ouverture de la fiche du drone ; la cible du drone part des seuils de l'assistant, une case sans seuil reste vide, l'assistant garde ses seuils ; le suivi est dans la fiche du drone | 2026-11-23 |
 | D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
@@ -143,6 +144,52 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-23 — L'écran de la récupération par USB (lot 32b)
+
+### D-074 : la récupération par USB, un écran hors rail qui range sous le drone de la carte et efface en deux temps
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 32b : six questions de la phase « planifier » (aucune planche du
+prototype ne dessine cet écran ; la fiche du drone y montre seulement l'identifiant et la carte « lus au branchement USB »).
+
+**Décision.**
+- **L'écran** est **hors rail**, ouvert par « Récupérer par USB » en haut du tableau de bord, comme la fiche du drone ; il
+  revient au tableau de bord. Une colonne d'étapes : carte branchée, drone, vols, configuration.
+- **Découpage** : **32b = la voie MSP** (copie bloc par bloc, contrôles, effacement, rangement, configuration) ; le **mode
+  stockage de masse** et les **cartes SD** (redémarrage en MSC, disque monté selon le système, effacement par le système)
+  forment le **lot 32c**.
+- **Le drone** est reconnu par l'**identifiant gravé de sa carte** (`rust/otb-store/src/model.rs:Drone`, champ `uid`). À
+  la première connexion d'une carte, l'écran **demande** : le drone du même nom est proposé, un autre drone ou « Nouveau
+  drone » se choisissent (nom vide ou déjà pris refusé) ; le choix range l'identifiant, la carte et le firmware sur le
+  drone. Un identifiant nul ne reconnaît rien (D-063). Un log déjà rangé garde son drone quand on le rouvre
+  (`App::remember`), même si son nom de machine en désigne un autre.
+- **L'effacement** n'est proposé qu'**après** une copie vérifiée (taille, décodeur, fichier relu : `otb_usb::verify_and_save`),
+  **rangée** dans la bibliothèque et la bibliothèque **écrite sur le disque** ; un bouton « Effacer la mémoire du drone… »
+  puis « Effacer définitivement » (deux clics, rappel des hélices). Le fil de travail garde la copie vérifiée : sans elle,
+  sur **cette** connexion, l'effacement est refusé sans rien envoyer (`rust/otb-gui/src/usb.rs:Connection`). Drone armé :
+  rien n'est lu ni effacé (copie refusée par le fil, boutons grisés, et `erase_flash` relit l'état juste avant).
+- **La configuration** (`diff all`) se sauvegarde par **un bouton à part**, « Sauvegarder la configuration » (la carte
+  redémarre ensuite) ; gardée seulement si elle a changé (`Library::record_config`).
+- **Après la copie** : les vols sont rangés sous le drone (un fragment par vol) et **« Ouvrir les vols »** les met dans la
+  barre d'analyse, sans rien remplacer d'office.
+- **W-075** : la confirmation de suppression d'un drone propose **« Supprimer aussi les N fichiers copiés par USB »**,
+  **décochée** ; seuls les fichiers marqués copiés, et seulement dans le dossier des copies de la bibliothèque, partent
+  (`Library::delete_copies_of_drone`).
+- Copie rangée dans `bibliotheque/logs/<drone>/<AAAA-MM-JJ_HH-MM-SS>.bbl` (instant en temps universel), jamais écrasée.
+
+**Options écartées.** Une entrée « Récupération » dans le rail (écart de plus avec le prototype) ; le bouton dans la fiche
+du drone (un drone inconnu n'y aurait pas accès) ; les deux voies de copie dans le même lot ; le drone reconnu par son nom
+sans question (deux drones de même nom se mélangent, un drone renommé en devient un autre) ; une carte = toujours un
+nouveau drone ; une case « effacer après la copie » cochée avant le départ ; pas d'effacement à l'écran ; le `diff all` à
+chaque récupération ; garder ou supprimer d'office les fichiers copiés d'un drone supprimé ; ouvrir d'office les vols copiés.
+
+**Témoins.** `rust/otb-gui/tests/usb.rs` (15 tests sur la carte simulée d'`otb-usb`, dont le parcours complet à l'écran)
+et `rust/otb-store/tests/bibliotheque.rs` (3 tests), avec **5 contre-preuves vues en échec** (L-071) : log copié rouvert
+rangé par son nom, copie d'un drone armé, effacement proposé sans rangement, fichiers copiés effacés sans la case, fichier
+hors du dossier des copies effacé. Captures des deux thèmes sur la carte simulée. **Essayé à l'écran sur une vraie carte** (G474, Linux, 2026-11-23) :
+tout le parcours passe ([spec-usb.md](spec-usb.md), résultats).
 
 ---
 

@@ -78,7 +78,7 @@ Règles d'écriture :
 | W-078 | Lignes CLI (`set …`) à copier sous chaque conseil de l'assistant (prototype) | ouvert (si Cédric les demande, D-073) |
 | W-077 | L'exemple `capture` échoue avec quatre logs du JeNo 5 (« second fragment posé » : 10 au lieu de 7) | ouvert |
 | W-076 | ~~Assistant en cartes : sans comparaison avec un autre vol, sans votes ni historique des conseils, sans lignes CLI à copier (prototype)~~ | TRAITÉ le 2026-11-23 (lot 31d, D-073), sauf les lignes CLI : W-078 |
-| W-075 | Supprimer un drone laisse sur le disque les logs **copiés** dans la bibliothèque (récupérés par USB) : plus rien ne les désigne | ouvert (au lot 32b, quand la copie par USB existera à l'écran) |
+| W-075 | ~~Supprimer un drone laisse sur le disque les logs **copiés** dans la bibliothèque (récupérés par USB) : plus rien ne les désigne~~ | TRAITÉ le 2026-11-23 (lot 32b, D-074 : case « Supprimer aussi les fichiers copiés », décochée) |
 | W-074 | ~~Le Guide lit le rôle d'un log par fichier, pas par fragment : deux fragments d'une session aux rôles différents n'en montrent qu'un au Guide~~ | TRAITÉ le 2026-11-23 (lot 30g, D-071 : le rôle est lu sur le fragment ; le Guide ne vérifie que les fragments actifs) |
 | W-070 | ~~Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle~~ | ✅ CLOS (2026-11-22) — retrouvée dans le canevas claude.ai de Cédric |
 | W-069 | ~~Place des traces (« Courbes ») dans le rail du prototype~~ | ✅ CLOS (2026-11-23) — le visualiseur devient l'écran d'extraction, hors rail (D-065) |
@@ -1209,6 +1209,9 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Risque si on n'y touche pas** : des fichiers orphelins s'accumulent dans `bibliotheque/logs/`, sans que l'écran
   le dise (`Library::copied_bytes` ne les compte plus).
   **Reprise** : au lot 32b ; demander le geste à Cédric. [`rust/otb-store/src/lib.rs:Library`]
+  **✅ TRAITÉ le 2026-11-23** (lot 32b, D-074) : la confirmation de suppression propose « Supprimer aussi les N fichiers
+  copiés par USB », décochée ; seuls les fichiers copiés, et seulement dans le dossier des copies, partent
+  (`Library::delete_copies_of_drone`).
 
 ## Origine : assistant en cartes (lot 30f, 2026-11-23)
 

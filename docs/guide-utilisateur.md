@@ -41,6 +41,32 @@ sur un `.bbl` / `.bfl` (Windows, voir ci-dessus). Un log enregistré par liaison
 du bureau (KDE, GNOME…). Chaque session d'un fichier (un armement = une session) apparaît comme un log
 séparé ; 10 logs au maximum, chacun avec sa couleur, que l'on retrouve dans tous les outils.
 
+### Récupérer les logs par USB
+
+**Récupérer par USB**, en haut du tableau de bord, copie les vols de la **mémoire interne** du drone sans passer par
+le configurateur Betaflight (fermez-le : un seul programme à la fois peut tenir le port). **Retirez les hélices** avant
+de brancher une batterie.
+
+1. Branchez le drone en USB, puis **Se connecter** (**Chercher** si la carte n'est pas trouvée). L'écran montre son nom,
+   sa carte, sa version de Betaflight et la place occupée. Un drone **armé** bloque tout : rien n'est lu ni effacé.
+   Sous Linux, un refus de droits se règle une fois pour toutes (`sudo usermod -aG dialout $USER`, puis rouvrir la
+   session) : l'écran donne la commande.
+2. **Première connexion de cette carte** : choisissez le drone auquel la ranger (celui du même nom est proposé) ou
+   **Nouveau drone**. La carte porte un identifiant gravé : la fois suivante, le drone est **reconnu tout seul**, même
+   renommé.
+3. **Copier les vols** : environ 3 minutes pour 8 Mo, une barre montre l'avancement ; **Arrêter** abandonne (rien n'est
+   gardé, la copie suivante reprend au début). La copie est ensuite **vérifiée** — taille, lecture par le décodeur,
+   fichier relu sur le disque — puis rangée sous le drone : ses vols apparaissent sur sa carte au tableau de bord, et
+   **Ouvrir les vols** les met dans la barre d'analyse.
+4. **Effacer la mémoire du drone…** n'apparaît qu'après une copie vérifiée et rangée, et demande une seconde
+   confirmation (**Effacer définitivement**). Juste avant, OpenTuneBox relit l'identifiant de la carte, la place
+   occupée et l'état armé : un vol enregistré depuis la copie, ou une autre carte, et l'effacement est refusé.
+5. **Sauvegarder la configuration** lit le `diff all` de la carte et le garde s'il a changé depuis la dernière fois
+   (la fiche du drone peut alors comparer deux versions de ses réglages) ; la carte redémarre ensuite.
+
+OpenTuneBox **n'écrit jamais de réglage** sur la carte. Les logs d'une **carte SD** ne passent pas encore par cet
+écran : ils se récupèrent avec le mode « stockage de masse » du configurateur.
+
 ## 3. Bien enregistrer
 
 Le guide intégré (page **Guide**, phase « Préparer le drone ») donne les réglages d'enregistrement adaptés à
@@ -88,10 +114,11 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 - **Fiche du drone** : le crayon en haut à droite d'une carte, ou **Nouveau drone**, ouvre la fiche — nom (le même que
   dans Betaflight, onglet Configuration : c'est lui qui relie les logs au drone), taille (elle choisit les seuils de
   l'Assistant et les valeurs du Guide), batterie, poids, moteurs, hélices, ESC, version de Betaflight, boucle PID. La
-  carte de vol et son identifiant s'y liront au branchement USB, comme l'historique des **configurations** (`diff all`) :
-  **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis **Supprimer
-  définitivement** retire le drone, ses fragments et ses configurations du logiciel (vos fichiers de logs ne sont pas
-  effacés). La **Fiche cible**, à droite, dit ce que ce drone doit atteindre : latence, zone du pic, temps de montée,
+  carte de vol et son identifiant s'y lisent au premier branchement USB, comme l'historique des **configurations**
+  (`diff all`) : **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis
+  **Supprimer définitivement** retire le drone, ses fragments et ses configurations du logiciel. Vos fichiers de logs
+  ne sont pas effacés ; ceux que le logiciel a **copiés par USB** ne le sont que si vous cochez **Supprimer aussi les
+  fichiers copiés**, décochée d'office (ils sont alors la seule trace de ces vols). La **Fiche cible**, à droite, dit ce que ce drone doit atteindre : latence, zone du pic, temps de montée,
   marges de phase et de gain, bruit du gyro et du terme D, retard des filtres. Tant que vous n'y touchez pas, elle
   montre les seuils de l'Assistant pour la taille choisie (et les suit si vous changez la taille) ; une case sans seuil
   dans l'Assistant reste vide, à vous de la remplir. Changez une case et la fiche garde vos valeurs ; **Valeurs

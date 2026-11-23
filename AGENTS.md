@@ -49,7 +49,7 @@ ligne par lot fait. Ne jamais ouvrir un second document de plan : un plan qui ti
 - `otb-decoder` (BBL/BFL → valeurs brutes), `otb-log` (FlightLog en unités physiques, float32 : D-029 ; `parallel.rs` : plusieurs fichiers à la fois, D-051), `otb-dsp` (noyaux de calcul, D-033),
   `otb-analysis` (calculs purs), `otb-advisor` (assistant et guide intégré), `otb-format` (formats de nombres), `otb-cli` (`opentunebox info` / `report`),
   `otb-gui` (egui), `otb-store` (bibliothèque de données : drones, logs copiés, fragments, réglages datés, mesures suivies, choix sur les conseils — **fichiers JSON**, un seul module d'accès),
-  `otb-usb` (récupération par USB, protocole : trames MSP, copie, contrôles avant effacement, port simulé ; **jamais d'écriture de réglage**, D-063),
+  `otb-usb` (récupération par USB, protocole : trames MSP, copie, contrôles avant effacement, port simulé ; **jamais d'écriture de réglage**, D-063 ; l'écran : `otb-gui`, D-074),
   `otb-parity` (comparateur avec les références Python), `otb-dev` (outils de développement, jamais livrés).
 - `tests/data/jeno5_5s.bbl` : 5 s d'un vrai log, lu par une quinzaine de fichiers de tests ; les autres tests sont dans `rust/<crate>/tests/` ;
   `rust/otb-gui/tests/support/mod.rs:synthetic_log` fabrique un vol sans corpus ; tout clic de test passe par
