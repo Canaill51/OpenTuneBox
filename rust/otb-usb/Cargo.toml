@@ -1,6 +1,6 @@
 [package]
 name = "otb-usb"
-description = "Récupération des logs par USB, partie protocole (lot 32a) : trames MSP, lecture de la mémoire, contrôles avant effacement, port simulé ; aucune écriture de réglage sur la carte (D-063)"
+description = "Récupération des logs par USB, partie protocole (lots 32a et 32c) : trames MSP, lecture de la mémoire, mode stockage de masse et cartes SD, contrôles avant effacement, port simulé ; aucune écriture de réglage sur la carte (D-063)"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

@@ -75,6 +75,7 @@ Règles d'écriture :
 | W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
+| W-079 | Carte à mémoire interne **et** carte SD : le mode disque montre le support de `blackbox_device`, que MSP ne lit pas ; OpenTuneBox suppose la mémoire quand elle contient des logs | ouvert (aucune carte de ce type vue) |
 | W-078 | Lignes CLI (`set …`) à copier sous chaque conseil de l'assistant (prototype) | ouvert (si Cédric les demande, D-073) |
 | W-077 | L'exemple `capture` échoue avec quatre logs du JeNo 5 (« second fragment posé » : 10 au lieu de 7) | ouvert |
 | W-076 | ~~Assistant en cartes : sans comparaison avec un autre vol, sans votes ni historique des conseils, sans lignes CLI à copier (prototype)~~ | TRAITÉ le 2026-11-23 (lot 31d, D-073), sauf les lignes CLI : W-078 |
@@ -1254,3 +1255,16 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Risque si on n'y touche pas** : le pilote recopie les valeurs conseillées dans le configurateur.
   **Reprise** : si Cédric les demande ; lignes à copier, jamais envoyées au drone (D-063).
   [`rust/otb-advisor/src/rules.rs:Finding`]
+
+## Origine : mode stockage de masse et cartes SD (lot 32c, 2026-11-23)
+
+- **W-079** — **Carte à mémoire interne et lecteur de carte SD à la fois.** Le disque du mode stockage de masse montre le
+  support désigné par `blackbox_device` (`src/main/io/usb_msc.c:mscCheckFilesystemReady`), réglage que MSP ne lit pas sans
+  une commande de plus (`MSP_BLACKBOX_CONFIG`). `reboot_to_disk` suppose la mémoire interne dès qu'elle contient des logs ;
+  si la carte enregistre en fait sur la SD, le disque qui apparaît ne correspond pas (`BeforeDisk::matches`) et rien n'est
+  copié — aucun risque pour les logs, seulement une attente vaine.
+  **Pourquoi reporté** : aucune carte de ce type dans les mains de Cédric ni dans le corpus.
+  **Risque si on n'y touche pas** : sur une telle carte, la copie par le disque ne trouve pas le disque ; la voie MSP reste.
+  **Reprise** : quand un pilote a une telle carte ; lire `blackbox_device` par `MSP_BLACKBOX_CONFIG` (lecture seule, à
+  ajouter à la liste fermée avec l'accord de Cédric).
+  [`rust/otb-usb/src/msc.rs:reboot_to_disk`]

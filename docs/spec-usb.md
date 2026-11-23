@@ -44,7 +44,17 @@ Deux constats **changent le dessin du lot 32** :
   cherchant l'en-tête `H Product:Blackbox` tous les 2 048 octets. **Disque protégé en écriture**
   (`src/main/msc/usbd_storage_emfat.c:STORAGE_IsWriteProtected` rend 1) : on ne peut rien y effacer.
 - **Carte SD vue comme un disque** : c'est sa vraie FAT, inscriptible en SDIO (`src/main/msc/usbd_storage_sdio.c` rend 0).
-- **Sortie du mode MSC** : débrancher ou redémarrer la carte ; il n'y a plus de port série pendant ce temps.
+- **Sortie du mode MSC** : débrancher ou redémarrer la carte ; il n'y a plus de port série pendant ce temps. La carte
+  tourne en boucle sur le disque (`src/main/drivers/usb_msc_common.c:mscWaitForButton`) : seule une coupure
+  d'alimentation (USB **et** batterie) ou le bouton MSC, s'il est câblé, la ramène au firmware.
+- **Réponse au redémarrage** (lu le 2026-11-23, lot 32c) : `MSP_REBOOT` rend le mode accepté, puis, pour le mode 2
+  seulement, un octet « disque prêt » ; **pas prêt, la carte ne redémarre pas**. Prêt veut dire : le support désigné par
+  `blackbox_device` est utilisable (`src/main/io/usb_msc.c:mscCheckFilesystemReady`) — le disque montre **ce** support, pas
+  l'autre. Refus (`!`) : drone armé, ou firmware compilé sans `USE_USB_MSC`. OpenTuneBox n'envoie que le mode 2 (D-075).
+- **`BTFL_ALL.BBL` a la taille de la place occupée** (`flashfsIdentifyStartOfFreeSpace`, la valeur que rend
+  `MSP_DATAFLASH_SUMMARY`) : c'est, octet pour octet, la copie MSP, et elle passe par les mêmes contrôles. Il n'existe que
+  si la mémoire contient au moins un log. Le disque se présente comme `BETAFLT` / `Onboard Flash` (mémoire interne) ou
+  `STM` (carte SD) (`src/main/msc/usbd_storage_*.c`).
 
 ## 2. Lecture bloc par bloc en MSP
 
@@ -95,7 +105,12 @@ Deux constats **changent le dessin du lot 32** :
 
 `blackboxEraseAll` ne fait rien hors de la mémoire interne : **l'effacement MSP n'existe pas pour une carte SD.** Ses
 logs se récupèrent par le mode stockage de masse (point 1), et s'effacent comme des fichiers ordinaires, par le système,
-avec les mêmes contrôles avant (lot 32). `MSP_SDCARD_SUMMARY` (79) donne l'état de la carte et sa place libre.
+avec les mêmes contrôles avant (lot 32). `MSP_SDCARD_SUMMARY` (79) donne l'état de la carte et sa place libre : drapeaux
+(bit 0 : carte prévue), état (0 absente, 1 en panne, 2 et 3 en préparation, **4 prête**), dernière erreur, place libre puis
+totale en Ko (`serializeSDCardSummaryReply`). Les logs sont dans **`LOGS/LOG00001.BFL`**, `LOG00002.BFL`…
+(`src/main/blackbox/blackbox_io.c` : `LOGFILE_PREFIX`, `LOGFILE_SUFFIX`, dossier créé par `afatfs_mkdir("logs")`).
+OpenTuneBox les copie et vérifie un par un, puis ne supprime que ceux-là, chacun relu et comparé à sa copie juste avant
+(`rust/otb-usb/src/sd.rs:delete_sd_logs`, D-075).
 
 ## 6. Bibliothèque série
 
@@ -139,13 +154,21 @@ cargo run -p otb-dev -- usb info /dev/ttyACM0              # identité, état ar
 cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 ~/Documents/Drones/usb            # copie, contrôles, débit (dossier créé s'il manque)
 cargo run --release -p otb-dev -- usb copy /dev/ttyACM0 ~/Documents/Drones/usb --erase    # idem, puis effacement après avoir tapé « effacer »
 cargo run -p otb-dev -- usb diff /dev/ttyACM0 ~/Documents/Drones/usb/config.txt  # `diff all` ; la carte redémarre ensuite
+cargo run --release -p otb-dev -- usb msc /dev/ttyACM0 ~/Documents/Drones/usb [--erase]  # mode stockage de masse : copie, contrôles, débit ; --erase : rebrancher, puis effacer en MSP (mémoire) ou supprimer les logs vérifiés (SD)
+cargo run --release -p otb-dev -- usb sd /media/$USER/CARTE ~/Documents/Drones/usb [--erase]  # carte SD dans un lecteur de cartes (racine du disque monté)
 ```
 
 - [x] Débit de la lecture MSP par blocs de 4 096 octets (Mo par minute), sur une mémoire pleine (`usb copy`) : 3,25 Mo par minute.
 - [x] Durée d'un effacement complet, et place occupée relue à 0 ensuite (`usb copy … --erase`) : 42,5 s, relue à 0.
 - [ ] `MSP_UID` identique avant et après un nouveau firmware, et après redémarrage en MSC puis retour (`usb info` en montre
       une empreinte courte, pas le numéro : ne jamais recopier l'identifiant complet d'une carte dans le dépôt, public).
-- [ ] Mode stockage de masse : fichiers vus sous Linux et Windows, contenu identique à la lecture MSP.
+- [ ] Mode stockage de masse : fichiers vus sous Linux et Windows, contenu identique à la lecture MSP (`usb msc` puis
+      `usb copy` sur la même mémoire : mêmes octets). Disque monté seul ou à ouvrir dans le gestionnaire de fichiers ?
+      Débit de la copie par le disque (Mo par minute).
+- [ ] `usb msc … --erase` sur la mémoire interne : après rebranchement, l'effacement passe (même identifiant) et la place
+      relue vaut 0.
+- [ ] Carte SD (dans un drone, `usb msc`, et dans un lecteur, `usb sd`) : logs `LOGS/*.BFL` trouvés, copiés et vérifiés ;
+      `--erase` ne supprime qu'eux ; la carte se relit ensuite dans le drone (nouveau log enregistré).
 - [ ] Copie relue dans OpenTuneBox : mêmes vols que le fichier téléchargé par le configurateur.
 - [ ] `usb diff` : même texte que `diff all` tapé dans le CLI du configurateur (forme déjà vérifiée, voir les résultats).
 - [ ] Port déjà ouvert : configurateur Betaflight connecté, `usb info` doit dire le port occupé (Linux : le verrou

@@ -8,11 +8,11 @@ use std::path::PathBuf;
 use otb_usb::link::{PortError, board_candidates, classify_open_error};
 
 /// ⚠️ La liste fermée des commandes envoyées. **Aucune écriture de réglage** : ajouter une commande ici, c'est
-/// demander l'accord de Cédric (D-063).
+/// demander l'accord de Cédric (D-063 ; le redémarrage en stockage de masse et l'état de la carte SD : D-075).
 #[test]
 fn commandes_figees() {
     let codes: Vec<u16> = Command::ALL.iter().map(|c| c.code()).collect();
-    assert_eq!(codes, vec![1, 2, 3, 4, 10, 70, 71, 72, 150, 160]);
+    assert_eq!(codes, vec![1, 2, 3, 4, 10, 68, 70, 71, 72, 79, 150, 160]);
     for c in Command::ALL {
         assert_eq!(Command::from_code(c.code()), Some(c));
     }
@@ -78,6 +78,76 @@ fn un_seul_chemin_efface() {
     let confirm = erase.find("pub fn confirm(self) -> ErasePermit").unwrap();
     let construit = erase.find("\n        ErasePermit {").unwrap();
     assert!(confirm < construit && !erase[confirm..construit].contains("\n    pub fn "));
+}
+
+/// ⚠️ `MSP_REBOOT` ne part que d'un endroit, avec le seul mode « stockage de masse » (2) : jamais le chargeur de
+/// firmware (modes 1 et 4), qui laisserait la carte sans firmware lancé (D-075).
+#[test]
+fn seul_redemarrage_en_disque() {
+    let mut envois = Vec::new();
+    for (name, src) in sources() {
+        if name == "sim.rs" {
+            continue;
+        }
+        for (i, line) in src.lines().enumerate() {
+            if line.contains("Command::Reboot") && !line.trim_start().starts_with("Command::Reboot =>") {
+                envois.push((format!("{name}:{}", i + 1), line.trim().to_string()));
+            }
+        }
+    }
+    let requetes: Vec<_> = envois.iter().filter(|(_, l)| l.contains("request(")).collect();
+    assert_eq!(requetes.len(), 1, "envois du redémarrage : {envois:?}");
+    assert!(requetes[0].0.starts_with("msc.rs:"), "{requetes:?}");
+    assert!(
+        requetes[0].1.contains("request(Command::Reboot, &[REBOOT_MSC])"),
+        "{requetes:?}"
+    );
+    let msc = sources().into_iter().find(|(n, _)| n == "msc.rs").unwrap().1;
+    assert!(msc.contains("const REBOOT_MSC: u8 = 2;"));
+    // Ailleurs que dans `client.rs` (la liste), personne ne parle du redémarrage.
+    let ailleurs: Vec<_> = envois
+        .iter()
+        .filter(|(f, _)| !f.starts_with("msc.rs:") && !f.starts_with("client.rs:"))
+        .collect();
+    assert!(ailleurs.is_empty(), "redémarrage cité hors de msc.rs : {ailleurs:?}");
+}
+
+/// ⚠️ Critère d'arrêt du lot 32c : un seul chemin supprime un fichier (les logs d'une carte SD), et il exige un permis
+/// que seul `confirm_sd` fabrique.
+#[test]
+fn un_seul_chemin_supprime_un_fichier() {
+    let mut suppressions = Vec::new();
+    for (name, src) in sources() {
+        for (i, line) in src.lines().enumerate() {
+            for motif in ["remove_file", "remove_dir", "fs::rename", "set_len"] {
+                if line.contains(motif) && !line.trim_start().starts_with("//") {
+                    suppressions.push(format!("{name}:{} {motif}", i + 1));
+                }
+            }
+        }
+    }
+    assert_eq!(suppressions.len(), 1, "suppressions : {suppressions:?}");
+    assert!(suppressions[0].starts_with("sd.rs:"), "{suppressions:?}");
+    let sd = sources().into_iter().find(|(n, _)| n == "sd.rs").unwrap().1;
+    let f = sd.find("pub fn delete_sd_logs(permit: SdErasePermit)").unwrap();
+    let remove = sd.find("std::fs::remove_file(").unwrap();
+    assert!(
+        f < remove && !sd[f..remove].contains("\nfn "),
+        "la suppression n'est pas dans `delete_sd_logs`"
+    );
+    // Avant la suppression, la relecture comparée à la copie.
+    assert!(sd[f..remove].contains("same_content(&source, len, &copy)"));
+    let constructions: Vec<_> = sources()
+        .into_iter()
+        .flat_map(|(_, src)| src.lines().map(str::trim).map(String::from).collect::<Vec<_>>())
+        .filter(|l| l == "SdErasePermit {")
+        .collect();
+    assert_eq!(constructions.len(), 1, "seul `confirm_sd` construit un permis");
+    let confirm = sd
+        .find("pub fn confirm_sd(copies: Vec<SdCopy>) -> SdErasePermit")
+        .unwrap();
+    let construit = sd.find("\n    SdErasePermit {").unwrap();
+    assert!(confirm < construit && !sd[confirm..construit].contains("\npub fn "));
 }
 
 /// Le client n'envoie jamais de requête brute : `request` reste interne à la crate.

@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant | 2026-11-23 |
 | D-074 | **Récupération par USB, l'écran** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
 | D-073 | **L'assistant d'un vol à l'autre** : vol comparé = vol précédent du drone (ou choisi), repère du même constat sur chaque jauge, cartes nouvelles et disparues, pas de « drones de même taille » ; pouce levé (appliqué) inscrit au clic, pouce baissé avec sa raison, dans la bibliothèque ; « Fragment déjà traité » et son historique ; pas de lignes CLI (W-078) | 2026-11-23 |
 | D-072 | **Mesures suivies dans le temps** : dix grandeurs par fragment lues dans le rapport de l'assistant (jamais un second calcul), gardées avec les bornes du fragment et la version du calcul, mesurées en arrière-plan à l'ouverture de la fiche du drone ; la cible du drone part des seuils de l'assistant, une case sans seuil reste vide, l'assistant garde ses seuils ; le suivi est dans la fiche du drone | 2026-11-23 |
@@ -144,6 +145,49 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-23 — Le mode stockage de masse et les cartes SD (lot 32c)
+
+### D-075 : le mode stockage de masse, pour la mémoire interne au choix et pour toute carte SD, avec suppression vérifiée
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 32c : les quatre questions de la phase « planifier », après lecture
+du firmware ([spec-usb.md](spec-usb.md) §1 et §5).
+
+**Contexte.** Le mode stockage de masse lit la mémoire interne bien plus vite que MSP (3,25 Mo par minute mesurés en
+MSP), mais son disque est en lecture seule ; c'est la seule voie pour une carte SD, que MSP n'efface pas. Le disque ne
+porte pas l'identifiant de la carte, et il se monte selon le système.
+
+**Décision.**
+- **Le redémarrage** : `MSP_REBOOT` avec le **seul** mode 2 (stockage de masse), après avoir lu l'identité, l'état armé
+  (refus) et ce que la carte enregistre (`rust/otb-usb/src/msc.rs:reboot_to_disk`). Jamais le chargeur de firmware.
+  `MSP_REBOOT` et `MSP_SDCARD_SUMMARY` s'ajoutent à la liste fermée des commandes (`rust/otb-usb/tests/contrats.rs`) ; aucune n'écrit
+  de réglage (D-063 tient).
+- **Le disque** : OpenTuneBox **attend que le système le monte** et le repère seul (points de montage FAT sous Linux,
+  lettres de lecteur sous Windows ; `BTFL_ALL.BBL` à la taille de la place occupée, ou dossier `LOGS`) ; s'il ne vient
+  pas, un message dit de l'ouvrir dans le gestionnaire de fichiers, et **« Choisir le dossier… »** sert de secours.
+  Aucun programme extérieur (pas de `udisksctl`).
+- **Mémoire interne** : **deux voies au choix**, « Copier en mode disque » (rapide ; pour effacer, débrancher puis
+  rebrancher, puis effacement MSP qui vérifie le même identifiant gravé — refusé si l'identifiant est nul) et « Copier par
+  USB série » (MSP, lot 32b). La copie par le disque passe par les mêmes contrôles (`verify_and_save`).
+- **Carte SD** : prise en charge **dans le drone** (mode stockage de masse) **et dans un lecteur de cartes** du PC ; dans
+  ce dernier cas, pas d'identifiant : le drone se choisit à la main (le nom lu dans le log est proposé).
+- **Effacer une carte SD** : en deux clics, comme la mémoire interne ; seuls les logs copiés **et vérifiés** partent,
+  chacun **relu et comparé octet pour octet** à sa copie juste avant d'être supprimé ; les autres fichiers ne sont pas
+  touchés (`rust/otb-usb/src/sd.rs:delete_sd_logs`, seul chemin qui supprime un fichier). Le pilote éjecte le disque avant
+  de débrancher.
+
+**Options écartées.** Monter le disque soi-même sous Linux (`udisksctl`, dépend d'un programme du système) ; le mode
+disque d'office, ou MSP d'office, pour la mémoire interne ; la carte SD dans un lecteur reportée ; ne jamais effacer la
+carte SD (le pilote le ferait à la main, sans contrôle).
+
+**Témoins.** `rust/otb-usb/tests/stockage_de_masse.rs` (14 tests) et `rust/otb-usb/tests/contrats.rs` (un seul
+redémarrage, en mode 2 ; une seule suppression de fichier, sous permis), avec **4 contre-preuves vues en échec** (L-071) :
+relecture avant suppression neutralisée, disque d'une autre taille accepté, état armé non relu, seconde suppression
+ajoutée ailleurs. Essai sur une vraie carte : procédure de [spec-usb.md](spec-usb.md) (`otb-dev usb msc`, `usb sd`).
+
+**Ouvert.** W-079 (carte à mémoire interne **et** carte SD).
 
 ---
 
