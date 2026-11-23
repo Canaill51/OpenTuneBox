@@ -4,8 +4,8 @@
 //! **Contre-preuves** (L-071) notées sous les tests concernés.
 
 use otb_store::Library;
-use otb_store::link::{length, overlaps, range_of};
-use otb_store::model::{Fragment, LogEntry};
+use otb_store::link::{added_fragment_id, is_added, length, overlaps, range_of, session_fragment_id};
+use otb_store::model::{Fragment, LogEntry, Measure};
 use std::path::{Path, PathBuf};
 
 fn dossier(nom: &str) -> PathBuf {
@@ -258,4 +258,66 @@ fn des_bornes_choisies_se_relisent_et_un_ancien_fragment_ne_lest_pas() {
     let choisi = fragment("FINAL.02", (120, 4_000));
     assert!(choisi.chosen);
     assert_eq!(Fragment::from_value(&choisi.to_value()).expect("relu"), choisi);
+}
+
+/// Lot 29, second fragment d'une session : un fragment ajouté prend le premier numéro libre, et seul lui est
+/// « ajouté » (le fragment de la session revient à chaque ouverture du fichier, il ne se supprime pas).
+///
+/// Contre-preuve (L-071) : `added_fragment_id` sans le filtre des numéros pris rend `-2` deux fois, et le second
+/// fragment écraserait le premier au rangement — l'assertion `-3` échoue.
+#[test]
+fn un_fragment_ajoute_prend_un_numero_libre_et_se_distingue_de_celui_de_la_session() {
+    let principal = Fragment {
+        id: session_fragment_id("emp-aaa", 1),
+        ..fragment("x", (0, 10))
+    };
+    assert_eq!(principal.id, "emp-aaa-1");
+    assert!(!is_added(&principal));
+    let deux = Fragment {
+        id: added_fragment_id("emp-aaa", 1, [&principal]),
+        ..fragment("x", (2, 8))
+    };
+    assert_eq!(deux.id, "emp-aaa-1-2");
+    assert!(is_added(&deux));
+    assert_eq!(added_fragment_id("emp-aaa", 1, [&principal, &deux]), "emp-aaa-1-3");
+    // une autre session du même log a sa propre suite
+    assert_eq!(added_fragment_id("emp-aaa", 2, [&principal, &deux]), "emp-aaa-2-2");
+}
+
+/// Supprimer un fragment emporte ses mesures et sa place dans la liste d'analyse (sinon le lancement suivant
+/// rouvrirait un fantôme), sans toucher aux autres.
+///
+/// Contre-preuve (L-071) : `remove_fragment` sans `remove_from_analysis` laisse « f-2 » dans la liste relue.
+#[test]
+fn supprimer_un_fragment_emporte_ses_mesures_et_sa_place_dans_la_liste() {
+    let dir = dossier("suppression");
+    let mut lib = Library::open(dir.clone());
+    lib.add_log(log("emp-aaa"));
+    lib.put_fragment(fragment("f-1", (0, 10)));
+    lib.put_fragment(fragment("f-2", (2, 8)));
+    for f in ["f-1", "f-2"] {
+        lib.add_to_analysis(f);
+        lib.set_measure(Measure {
+            fragment_id: f.to_string(),
+            axis: 0,
+            key: "latence_ms".to_string(),
+            value: 4.0,
+            settings: "r".to_string(),
+            calc_version: 1,
+        });
+    }
+    lib.set_working(Some("f-2"));
+    assert!(lib.remove_fragment("f-2"));
+    assert!(!lib.remove_fragment("f-2"), "déjà parti");
+    lib.save().expect("écriture");
+
+    let relue = Library::open(dir);
+    assert!(relue.problems().is_empty(), "{:?}", relue.problems());
+    assert!(relue.fragment("f-2").is_none());
+    assert!(relue.fragment("f-1").is_some());
+    assert!(relue.measure("f-2", 0, "latence_ms").is_none());
+    assert!(relue.measure("f-1", 0, "latence_ms").is_some());
+    let ids: Vec<&str> = relue.analysis().items.iter().map(|i| i.fragment_id.as_str()).collect();
+    assert_eq!(ids, ["f-1"]);
+    assert_eq!(relue.analysis().working, None);
 }

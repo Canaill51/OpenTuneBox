@@ -75,6 +75,7 @@ Règles d'écriture :
 | W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
+| W-074 | Le Guide lit le rôle d'un log par fichier, pas par fragment : deux fragments d'une session aux rôles différents n'en montrent qu'un au Guide | ouvert (quand le Guide passera à la liste d'analyse, lot 30) |
 | W-070 | ~~Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle~~ | ✅ CLOS (2026-11-22) — retrouvée dans le canevas claude.ai de Cédric |
 | W-069 | ~~Place des traces (« Courbes ») dans le rail du prototype~~ | ✅ CLOS (2026-11-23) — le visualiseur devient l'écran d'extraction, hors rail (D-065) |
 | W-068 | Assistant (`rules.rs:predict_filter_change`) : effet d'un changement de filtres encore estimé par le rapport des réponses \|H\|² (D-008), alors que la page Filtres rejoue la chaîne (D-058) ; les deux peuvent se contredire (notch dynamique ajouté, RPM coupé) | TRAITÉ le 2026-11-22 (D-059 : l'assistant rejoue, le rapport ne sert plus que sans gyro non filtré) |
@@ -1179,3 +1180,16 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Risque si on n'y touche pas** : un pilote enregistre à une cadence où le contrôle par étage est moins sûr.
   **Reprise** : quand les vols de W-067 sont faits ; alors compétence `guide-integre`.
   [`rust/otb-advisor/src/drone_card.rs`]
+
+## Origine : second fragment d'une session (lot 29, 2026-11-23)
+
+- **W-074** — **Le Guide lit le rôle d'un log par fichier**, pas par fragment. Depuis D-067, une session peut porter
+  plusieurs fragments, chacun avec son rôle dans la bibliothèque (la pastille et sa fiche l'affichent) ; mais la
+  mémoire du Guide (D-039) range les rôles par **chemin de fichier** (`GuidePage::roles`), et sa vérification d'un log
+  lit celui-là. « Enregistrer comme nouveau fragment » ne l'écrit pas, pour ne pas écraser celui du fragment d'origine.
+  **Pourquoi reporté** : hors du sujet du lot (créer et supprimer un fragment) ; le Guide travaille encore par fichier
+  ouvert, et le passer aux fragments touche sa mémoire et ses écrans.
+  **Risque si on n'y touche pas** : un fragment « Série PID » taillé dans un log de filtres est vérifié par le Guide
+  comme un log de filtres.
+  **Reprise** : quand le Guide passera à la liste d'analyse (lot 30, assistant en cartes) ; compétence `guide-integre`.
+  [`rust/otb-gui/src/guide_page.rs:GuidePage`]

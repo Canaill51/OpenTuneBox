@@ -373,6 +373,20 @@ impl Library {
         self.fragments.iter().find(|f| f.id == id)
     }
 
+    /// Supprime un fragment, **avec ses mesures et sa place dans la liste d'analyse** : rien ne doit plus désigner
+    /// un fragment absent (une mesure orpheline ressortirait dans l'historique, une entrée de liste rouvrirait un
+    /// fantôme au lancement). `false` s'il n'existait pas.
+    pub fn remove_fragment(&mut self, id: &str) -> bool {
+        let before = self.fragments.len();
+        self.fragments.retain(|f| f.id != id);
+        if before == self.fragments.len() {
+            return false;
+        }
+        self.drop_measures_of_fragment(id);
+        self.remove_from_analysis(id);
+        true
+    }
+
     /// Les fragments d'un drone, par le log dont ils viennent.
     pub fn fragments_of_drone(&self, drone_id: &str) -> Vec<&Fragment> {
         self.fragments

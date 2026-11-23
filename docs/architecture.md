@@ -119,7 +119,11 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   fragments** (`analysis_bar.rs`), thème, plus « Ouvrir… » et l'export (écarts écrits, D-066) ; la page exportée commence au
   bord droit du rail. La liste d'analyse est recopiée dans la bibliothèque à chaque cadre (`sync_analysis`) et rouverte au
   lancement (`restore_analysis`, appelée par `main.rs`) ; le « + » d'un fragment au tableau de bord n'ouvre que sa session
-  (`toggle_fragment`, filtre des sessions voulues dans `accepte`). Un outil caché ne
+  (`toggle_fragment`, filtre des sessions voulues dans `accepte`). Une session peut porter **plusieurs fragments**
+  (D-067) : `save_new_fragment` en range un autre et le pose en pastille sur les mêmes échantillons (`place`,
+  `AppState::add_shared`), `delete_fragment` supprime un fragment ajouté ; « Ouvrir… » ne met en analyse que le fragment
+  de la session, les autres viennent par leur identifiant (`accepte` les cherche dans la bibliothèque) ou, leur session
+  déjà ouverte, sans relire le fichier (`loaded_session`). Un outil caché ne
   recalcule qu'à son affichage. `main.rs` : démarrage (pas de console sous Windows, icône de fenêtre, ouvre les logs passés en
   argument) ; le titre de la fenêtre vient d'`app.rs:window_title` (nom + numéro de version du paquet), tandis que
   l'`app_id` garde le nom seul, qui est celui du fichier `.desktop` (L-076).
@@ -127,7 +131,8 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   constantes nommées) ; elle rend des `BarAction` (désactiver, maître, retirer, déplacer) que `App::apply_bar` exécute.
   `drop_index` (place d'une pastille lâchée) est une fonction pure, testée sans souris.
 - `viewer.rs` (traces, lissage) et `viewer_page.rs` : l'**écran d'extraction d'un fragment** (lot 29b, D-065), au dessin du
-  prototype — barre du haut (retour, « Modifier le fragment … », Annuler, Enregistrer), graphiques avec les bornes, leurs
+  prototype — barre du haut (retour, « Modifier le fragment … », Annuler, Enregistrer comme nouveau fragment, Enregistrer ;
+  le troisième est un écart écrit, D-067), graphiques avec les bornes, leurs
   onglets et leurs poignées, barre de navigation sur le log entier (fenêtre visible déplaçable, fragment en bleu), panneau de
   droite à sections repliables (Fragment, Traces, Affichage, Lecteur, Au curseur). Les bornes vivent dans un brouillon
   (`Draft`) toujours posé sur un échantillon (`snap_bounds`) ; l'écran rend des `ExtAction` que `App` exécute. Chaque courbe affichée est gardée en cache avec son index multi-résolution
@@ -193,7 +198,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   `model.rs` : les tables et leur écriture JSON, conversion à la main et lecture tolérante ; un fragment porte `chosen`
   (bornes choisies dans l'écran d'extraction, sinon elles suivent les limites automatiques, D-065). `link.rs` : la période d'un
   fragment dans un log ouvert (`range_of`, en **numéros d'échantillon**), avec un message clair quand le fichier a changé
-  depuis — sans dépendre du décodeur, l'appelant passant `FlightLog::n()`. La liste d'analyse est tenue par la
+  depuis — sans dépendre du décodeur, l'appelant passant `FlightLog::n()` ; il tient aussi le format des identifiants
+  (`session_fragment_id` pour le fragment d'une session, `added_fragment_id` pour un fragment ajouté, `is_added` ; D-067),
+  et `Library::remove_fragment` emporte mesures et place dans la liste d'analyse. La liste d'analyse est tenue par la
   bibliothèque : ordre, **indice** de couleur attribué à l'entrée et jamais changé ensuite (les couleurs restent dans
   `theme.rs`, L-016), actif ou non, et un fragment de travail qui doit appartenir à la liste. **Un seul module d'accès** : le
   reste du programme ne voit jamais un fichier, ce qui limitera à ce fichier le passage à une vraie base le jour où le

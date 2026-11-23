@@ -254,8 +254,6 @@ pub fn taille_du_paquet(en_attente: usize, deja_ouverts: usize) -> usize {
     en_attente.min(MAX_PARALLEL_FILES).min(places)
 }
 
-/// Nom du fichier seul, pour un message d'état court (le chemin complet reste dans les erreurs de lecture).
-/// Identifiant du fragment d'une session dans la bibliothèque : l'empreinte du fichier et le numéro de session.
 /// L'heure de début d'un log, lue dans son en-tête (« 2026-11-13T18:31:47.000+00:00 » → « 18:31:47 ») ; vide sans
 /// horloge (carte sans RTC : l'en-tête porte l'an 0000 ou 1970).
 pub fn start_time(raw: Option<&str>) -> String {
@@ -273,10 +271,13 @@ fn colour_index(c: egui::Color32) -> usize {
     theme::FILE_COLORS.iter().position(|f| *f == c).unwrap_or(0)
 }
 
+/// Identifiant du fragment **de la session** dans la bibliothèque : l'empreinte du fichier et le numéro de session.
+/// Une session peut porter d'autres fragments, ajoutés dans l'écran d'extraction (D-067).
 pub fn fragment_id(log_id: &str, log: &FlightLog) -> String {
-    format!("{log_id}-{}", log.session)
+    otb_store::link::session_fragment_id(log_id, log.session as u64)
 }
 
+/// Nom du fichier seul, pour un message d'état court (le chemin complet reste dans les erreurs de lecture).
 fn nom_court(path: &Path) -> String {
     path.file_name()
         .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned())
@@ -480,7 +481,15 @@ impl App {
                 let drone = entry
                     .and_then(|e| self.library.drone(&e.drone_id))
                     .map_or_else(|| ll.log.settings.craft_name.clone(), |d| d.name.clone());
-                let sessions = self.library.fragments().iter().filter(|g| g.log_id == f.log_id).count();
+                // des sessions, pas des fragments : une session peut en porter plusieurs (D-067)
+                let sessions = self
+                    .library
+                    .fragments()
+                    .iter()
+                    .filter(|g| g.log_id == f.log_id)
+                    .map(|g| g.session)
+                    .collect::<HashSet<_>>()
+                    .len();
                 FragmentInfo {
                     drone,
                     file,
@@ -489,6 +498,7 @@ impl App {
                     name: f.name.clone(),
                     role: if f.role.is_empty() { role_guide } else { f.role.clone() },
                     stored: true,
+                    added: otb_store::link::is_added(f),
                 }
             }
             None => FragmentInfo {
@@ -499,6 +509,7 @@ impl App {
                 name: ll.log.name(),
                 role: role_guide,
                 stored: false,
+                added: false,
             },
         }
     }
@@ -555,67 +566,195 @@ impl App {
         };
         let log_id = self.remember(path, &logs);
         for log in logs {
-            let fid = log_id.as_ref().map(|id| fragment_id(id, &log));
-            if let Some(v) = &voulus {
-                let deja = |id: &String| self.state.logs.iter().any(|l| l.fragment.as_ref() == Some(id));
-                if !fid.as_ref().is_some_and(|id| v.contains(id) && !deja(id)) {
-                    continue;
-                }
+            // ⚠️ Une session peut porter **plusieurs** fragments (D-067) : « Ouvrir… » ne met en analyse que celui de
+            // la session ; le « + » d'un fragment ajouté, la liste relue au lancement ou son crayon le demandent par
+            // son identifiant, qui n'est pas celui de la session — d'où la recherche dans la bibliothèque.
+            let fids: Vec<Option<String>> = match (&voulus, &log_id) {
+                (None, _) => vec![log_id.as_ref().map(|id| fragment_id(id, &log))],
+                (Some(_), None) => Vec::new(),
+                (Some(v), Some(id)) => self
+                    .library
+                    .fragments()
+                    .iter()
+                    .filter(|f| f.log_id == *id && f.session == log.session as u64 && v.contains(&f.id))
+                    .filter(|f| !self.state.logs.iter().any(|l| l.fragment.as_ref() == Some(&f.id)))
+                    .map(|f| Some(f.id.clone()))
+                    .collect(),
+            };
+            if fids.is_empty() {
+                continue;
             }
             if let Some(m) = log.settings.implausible() {
                 self.errors.push(format!("{} : {m}", log.name()));
             }
-            // bornes choisies dans l'écran d'extraction : elles deviennent la période d'analyse
-            let choisi = fid
-                .as_ref()
-                .and_then(|id| self.library.fragment(id))
-                .filter(|f| f.chosen)
-                .map(|f| otb_store::link::range_of(f, log.n()));
-            if !self.state.add(log) {
-                self.errors.push(format!(
-                    "{} logs au plus : les suivants sont ignorés.",
-                    crate::state::MAX_LOGS
-                ));
-                self.queue.clear();
-                self.wanted.clear();
-                return false;
-            }
-            let index = self.state.logs.len() - 1;
-            self.state.logs[index].fragment = fid.clone();
-            // relu au lancement : la couleur et l'état de sa pastille, si la couleur est encore libre
-            if let Some(item) = self
-                .restoring
-                .as_ref()
-                .and_then(|a| a.items.iter().find(|it| Some(&it.fragment_id) == fid.as_ref()))
-            {
-                let c = theme::file_color(item.colour as usize);
-                if self.state.logs.iter().all(|l| l.color != c) {
-                    self.state.logs[index].color = c;
+            let log = Arc::new(log);
+            for fid in fids {
+                let Some(index) = self.place(log.clone(), fid.clone()) else {
+                    self.errors.push(format!(
+                        "{} logs au plus : les suivants sont ignorés.",
+                        crate::state::MAX_LOGS
+                    ));
+                    self.queue.clear();
+                    self.wanted.clear();
+                    return false;
+                };
+                let attendu = match &self.edit_after_open {
+                    Some(EditTarget::Any) => true,
+                    Some(EditTarget::Fragment(id)) => fid.as_ref() == Some(id),
+                    None => false,
+                };
+                if attendu {
+                    self.edit_after_open = None;
+                    self.state.set_current(Some(index));
+                    self.enter_extraction();
                 }
-                let active = item.active;
-                self.state.set_active(index, active);
-            }
-            match choisi {
-                Some(Ok(range)) => {
-                    if let Some((a, b)) = crate::state::period_of_range(&self.state.logs[index].log, range) {
-                        self.state.set_period(index, a, b);
-                    }
-                }
-                Some(Err(m)) => self.errors.push(m),
-                None => {}
-            }
-            let attendu = match &self.edit_after_open {
-                Some(EditTarget::Any) => true,
-                Some(EditTarget::Fragment(id)) => fid.as_ref() == Some(id),
-                None => false,
-            };
-            if attendu {
-                self.edit_after_open = None;
-                self.state.set_current(Some(index));
-                self.enter_extraction();
             }
         }
         true
+    }
+
+    /// Pose une pastille pour le fragment `fid` d'un log décodé (`None` : log rangé sous aucun drone) et rend son
+    /// rang ; `None` quand la liste d'analyse est pleine. Ses bornes choisies deviennent sa période d'analyse.
+    fn place(&mut self, log: Arc<FlightLog>, fid: Option<String>) -> Option<usize> {
+        let choisi = fid
+            .as_ref()
+            .and_then(|id| self.library.fragment(id))
+            .filter(|f| f.chosen)
+            .map(|f| otb_store::link::range_of(f, log.n()));
+        if !self.state.add_shared(log) {
+            return None;
+        }
+        let index = self.state.logs.len() - 1;
+        self.state.logs[index].fragment = fid.clone();
+        // relu au lancement : la couleur et l'état de sa pastille, si la couleur est encore libre
+        if let Some(item) = self
+            .restoring
+            .as_ref()
+            .and_then(|a| a.items.iter().find(|it| Some(&it.fragment_id) == fid.as_ref()))
+        {
+            let c = theme::file_color(item.colour as usize);
+            if self.state.logs.iter().all(|l| l.color != c) {
+                self.state.logs[index].color = c;
+            }
+            let active = item.active;
+            self.state.set_active(index, active);
+        }
+        match choisi {
+            Some(Ok(range)) => {
+                if let Some((a, b)) = crate::state::period_of_range(&self.state.logs[index].log, range) {
+                    self.state.set_period(index, a, b);
+                }
+            }
+            Some(Err(m)) => self.errors.push(m),
+            None => {}
+        }
+        Some(index)
+    }
+
+    /// Le log déjà décodé de la session de `fragment`, quand elle est ouverte sous un autre fragment : un second
+    /// fragment s'y pose **sans relire le fichier** (D-067).
+    fn loaded_session(&self, fragment: &str) -> Option<Arc<FlightLog>> {
+        let f = self.library.fragment(fragment)?;
+        let chemin = PathBuf::from(&self.library.log(&f.log_id)?.path);
+        self.state
+            .logs
+            .iter()
+            .find(|l| l.log.session as u64 == f.session && l.log.path == chemin)
+            .map(|l| l.log.clone())
+    }
+
+    /// Pose la pastille de `fragment` sur sa session déjà ouverte ; `None` (dit dans la barre d'état) si la liste
+    /// d'analyse est pleine.
+    fn place_shared(&mut self, log: Arc<FlightLog>, fragment: &str) -> Option<usize> {
+        let index = self.place(log, Some(fragment.to_string()));
+        if index.is_none() {
+            self.errors.push(format!(
+                "{} logs au plus dans la liste d'analyse.",
+                crate::state::MAX_LOGS
+            ));
+        }
+        index
+    }
+
+    /// « Enregistrer comme nouveau fragment » (D-067) : le fragment du log `index` ne change pas ; un autre est rangé
+    /// dans la même session avec les bornes, le nom et le rôle du brouillon, puis posé en pastille juste après
+    /// lui (même échantillons, aucune relecture du fichier) et devient le fragment maître.
+    fn save_new_fragment(&mut self, index: usize, draft: crate::viewer_page::Draft) {
+        let Some(ll) = self.state.logs.get(index) else { return };
+        if ll.uid != draft.uid {
+            return; // brouillon d'un autre log : jamais appliqué ailleurs (L-072)
+        }
+        let log = ll.log.clone();
+        let Some(origine) = ll.fragment.as_ref().and_then(|id| self.library.fragment(id)).cloned() else {
+            self.errors.push(
+                "Nouveau fragment impossible : ce log n'est rangé sous aucun drone (pas de nom de machine).".into(),
+            );
+            return;
+        };
+        let freres: Vec<&otb_store::model::Fragment> = self
+            .library
+            .fragments()
+            .iter()
+            .filter(|f| f.log_id == origine.log_id)
+            .collect();
+        let id = otb_store::link::added_fragment_id(&origine.log_id, origine.session, freres.iter().copied());
+        // un nom distinct de ceux du même fichier : deux pastilles « FINAL.02 » ne se distingueraient pas
+        let base = match draft.name.trim() {
+            "" => origine.name.clone(),
+            n => n.to_string(),
+        };
+        let pris = |n: &str| freres.iter().any(|f| f.name == n);
+        let nom = if pris(&base) {
+            (2..)
+                .map(|k| format!("{base} ({k})"))
+                .find(|n| !pris(n))
+                .expect("une suite infinie a toujours un nom libre")
+        } else {
+            base
+        };
+        let range = log.slice_time(draft.period.0, draft.period.1);
+        self.library.put_fragment(otb_store::model::Fragment {
+            id: id.clone(),
+            log_id: origine.log_id.clone(),
+            session: origine.session,
+            start: range.start as u64,
+            end: range.end as u64,
+            name: nom.clone(),
+            role: draft.role,
+            date: origine.date.clone(),
+            chosen: true,
+        });
+        match self.place(log, Some(id)) {
+            Some(nouveau) => {
+                self.state.move_log(nouveau, index + 1);
+                self.errors.push(format!("Nouveau fragment « {nom} » enregistré."));
+            }
+            None => self.errors.push(format!(
+                "Nouveau fragment « {nom} » enregistré ; liste d'analyse pleine ({} au plus) : ajoutez-le par son \
+                 rond « + » au tableau de bord.",
+                crate::state::MAX_LOGS
+            )),
+        }
+    }
+
+    /// « Supprimer définitivement » (D-067) : le fragment **ajouté** du log `index` quitte la bibliothèque (avec ses
+    /// mesures) et toutes ses pastilles. ⚠️ Jamais le fragment d'une session : il reviendrait à la prochaine
+    /// ouverture du fichier, l'écran ne le propose pas et ce garde-fou le refuse.
+    fn delete_fragment(&mut self, index: usize) {
+        let Some(id) = self.state.logs.get(index).and_then(|l| l.fragment.clone()) else {
+            return;
+        };
+        let Some(f) = self.library.fragment(&id).cloned() else {
+            return;
+        };
+        if !otb_store::link::is_added(&f) {
+            return;
+        }
+        self.library.remove_fragment(&id);
+        while let Some(i) = self.state.logs.iter().position(|l| l.fragment.as_ref() == Some(&id)) {
+            self.state.remove(i);
+        }
+        self.errors.push(format!("Fragment « {} » supprimé.", f.name));
     }
 
     /// Demande des fichiers au système, puis les ouvre. La barre du haut et le tableau de bord passent tous
@@ -830,6 +969,14 @@ impl App {
                     ExtAction::Leave => self.leave_extraction(),
                     ExtAction::Save { index, draft } => {
                         self.save_fragment(index, draft);
+                        self.leave_extraction();
+                    }
+                    ExtAction::SaveAsNew { index, draft } => {
+                        self.save_new_fragment(index, draft);
+                        self.leave_extraction();
+                    }
+                    ExtAction::Delete { index } => {
+                        self.delete_fragment(index);
                         self.leave_extraction();
                     }
                     ExtAction::ToggleTheme => {
@@ -1074,6 +1221,10 @@ impl App {
             self.state.remove(i);
             return;
         }
+        if let Some(log) = self.loaded_session(fragment) {
+            self.place_shared(log, fragment);
+            return;
+        }
         self.want(path, fragment);
     }
 
@@ -1183,6 +1334,15 @@ impl App {
         {
             self.state.set_current(Some(i));
             self.enter_extraction();
+        } else if let Some(log) = self.loaded_session(fragment) {
+            if let Some(i) = self.place_shared(log, fragment) {
+                self.state.set_current(Some(i));
+                self.enter_extraction();
+            }
+        } else if self.library.fragment(fragment).is_some_and(otb_store::link::is_added) {
+            // un fragment ajouté n'est pas celui que l'ouverture du fichier met en analyse : on le demande (D-067)
+            self.edit_after_open = Some(EditTarget::Fragment(fragment.to_string()));
+            self.want(path, fragment);
         } else {
             self.edit_after_open = Some(EditTarget::Fragment(fragment.to_string()));
             self.open(vec![path]);

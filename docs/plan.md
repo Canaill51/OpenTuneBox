@@ -60,7 +60,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 21
-  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22 et les 29 à 32 sont ouverts (le 28 et le 33
+  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22 et les 30 à 32 sont ouverts (les 28, 29 et 33
   sont faits) ; les **23 à 25** sont le chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
   sortis le 2026-11-18 ; le prochain numéro libre est **34**.
 
@@ -70,10 +70,9 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **29** | Fragments : écran d'extraction, index, liste d'analyse | 29a, 29b et 29c faits (le 2026-11-23 : le visualiseur devient l'écran d'extraction, D-065 ; la barre de fragments décide des pages, D-066) ; reste un second fragment par session |
-| 4 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) ; rail aux sept entrées du prototype depuis le 29b ; reste : fiche drone, assistant en cartes, Gyro / Terme D, avancement du parcours |
-| 5 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 |
-| 6 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 |
+| 3 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 (fait) ; 30a à 30c bis faits (rail, espace « Bruit et filtres », tableau de bord) ; rail aux sept entrées du prototype depuis le 29b ; reste : fiche drone, assistant en cartes, Gyro / Terme D, avancement du parcours |
+| 4 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) |
+| 5 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
 | — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
@@ -322,8 +321,19 @@ session, nommés, datés, avec leurs bornes.
 - [x] **Preuve** : 10 tests nouveaux ou récrits ; 9 contre-preuves vues en échec, une par protection nouvelle (L-071) ;
       toute la suite de l'interface verte ; captures des deux thèmes regardées, dont une pastille désactivée
       (`barre-desactivee-*.png`).
-- [ ] **Reste** : l'écran ne sait pas encore **créer un second fragment** dans la même session (un fragment par session
-      ouverte, D-061).
+
+**Fait le 2026-11-23 — 29d, le second fragment d'une session** (branche `feat/second-fragment`, D-067, D-061 amendée) :
+
+- [x] **« Enregistrer comme nouveau fragment »** dans la barre du haut de l'écran d'extraction (écart au prototype,
+      assumé) : l'origine ne bouge pas ; l'autre est rangé dans la même session (identifiant `<empreinte>-<session>-<k>`,
+      nom rendu distinct), posé en pastille juste après elle sur les **mêmes échantillons**, et devient maître.
+- [x] **Supprimer un fragment ajouté**, en deux temps, avec ses mesures et sa place dans la liste ; le fragment de la
+      session n'a pas ce bouton.
+- [x] « Ouvrir… » ne met en analyse que le fragment de chaque session ; un fragment ajouté revient par son « + », son
+      crayon ou la liste relue au lancement, sans relire le fichier si sa session est déjà ouverte.
+- [x] **Preuve** : 5 tests nouveaux (2 `otb-store`, 3 interface), 8 contre-preuves vues en échec (L-071) ; captures
+      `fragment-ajoute-*.png` des deux thèmes regardées.
+- Laissé de côté : le Guide lit encore le rôle par fichier (W-074).
 
 ---
 
@@ -394,7 +404,7 @@ correspondre à 100 % à la maquette ». Les trois lots précédents en avaient 
 - [x] **Entrée de rail** au fond bleu pâle et au texte bleu quand elle est choisie, à plat sinon ; panneau blanc,
       trait de séparation, marges de la maquette. ⚠️ `selected` est **gardé** : il met l'entrée à l'état « coché »
       pour un lecteur d'écran, ce que les couleurs seules ne font pas.
-- [x] **Trois écarts assumés et écrits** (D-061) : thème sombre dérivé, un fragment par session ouverte, avancement
+- [x] **Trois écarts assumés et écrits** (D-061) : thème sombre dérivé, un fragment par session ouverte (d'autres depuis D-067), avancement
       compté sur les cases cochées à la main.
 - [x] **Deux couleurs ajoutées au thème** (`select`, `border`) : tout le reste de la palette de la maquette s'y
       trouvait déjà. Trois icônes ajoutées, dont celle du drone, dessinée d'après la maquette.
@@ -677,3 +687,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 32a | 2026-11-22 | **Récupération par USB, protocole** (branche `feat/usb-protocol`, D-063) : crate `otb-usb` (trames MSP v1 jumbo et v2, `serial2`, copie par blocs, contrôles avant effacement, `diff all`, carte simulée) et `otb-dev usb` pour l'essai à la main. Preuve : 38 tests, dont un par refus d'effacer (drone armé, vol enregistré pendant ou après la copie, autre carte, identifiant nul sur une autre connexion, copie incomplète, log sans vol, fichier existant) ; chaque protection retirée à la main fait rougir un test (L-071) ; le vrai port essayé par un pseudo-terminal | 32b (écran, stockage de masse, bibliothèque) ; essais restants sur une vraie carte (drone armé, configurateur ouvert, Windows). **Essayé sur une G474** : 8 Mo copiés à 3,25 Mo par minute, vérifiés, effacés en 42,5 s ([spec-usb.md](spec-usb.md#résultats)) |
 | 29b | 2026-11-23 | **Écran d'extraction d'un fragment** (branche `feat/fragment-extraction`, D-065, W-069 clos) : le visualiseur devient l'écran hors rail du prototype (barre « Modifier le fragment », bornes à onglets et poignées, barre de navigation, panneau Fragment / Traces / Lecteur) ; les bornes du fragment sont la période d'analyse, enregistrées et retrouvées à la réouverture ; rail aux sept entrées du prototype. Preuve : 13 tests nouveaux ou récrits, dont 9 vus en échec protection retirée, captures des deux thèmes, 2,2 ms par cadre sur `FINAL.bbl` | liste d'analyse à l'écran, second fragment d'une session ; fiche drone (lot 30) |
 | 29c | 2026-11-23 | **Liste d'analyse à l'écran** (branche `feat/analysis-list`, D-066, D-049 remplacée) : barre de fragments du prototype (désactiver, maître, glisser, retirer), les pages la lisent au lieu de leurs listes « Fichiers », « + » du tableau de bord qui n'ouvre que sa session, liste retrouvée au lancement. Preuve : 10 tests, 9 contre-preuves vues en échec, captures des deux thèmes | second fragment d'une session ; fiche drone (lot 30) |
+| 29d | 2026-11-23 | **Second fragment d'une session** (branche `feat/second-fragment`, D-067, D-061 amendée) : « Enregistrer comme nouveau fragment » dans l'écran d'extraction (pastille posée sur les mêmes échantillons, juste après l'origine), suppression d'un fragment ajouté en deux temps, réouverture par « + », crayon ou liste du lancement. Preuve : 5 tests, 8 contre-preuves vues en échec, captures des deux thèmes. **Lot 29 terminé** | W-074 (rôle vu par le Guide) ; fiche drone (lot 30) |

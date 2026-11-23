@@ -60,6 +60,21 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-113 : une substitution Perl ou sed dont le délimiteur apparaît dans le texte écrit au mauvais endroit, sans erreur
+
+- **Symptôme** — 2026-11-23 (lot 29d) : après un `perl -0pi -e 's|…\|g\| g.log_id…|…|'` sur `rust/otb-gui/src/app.rs`, la
+  compilation signale un `let` en ligne 2 : le bloc de remplacement s'était inséré **au milieu du mot « onglets »** de la
+  ligne 1, et la ligne visée n'avait pas changé. Perl n'a rien dit. Un second script, au délimiteur `#`, a ensuite
+  buté sur les `## ` des titres Markdown (là, une erreur de syntaxe, sans dégât).
+- **Cause** — mesurée : un délimiteur **échappé** dans le motif (`\|` quand le délimiteur est `|`) redevient le
+  métacaractère, donc une **alternative** ; le motif « `…|g|…` » trouvait « g » n'importe où. Le code Rust (fermetures
+  `|x|`), le Markdown (`#`, `|` des tableaux) et les chemins (`/`) contiennent tous les délimiteurs usuels.
+- **Règle** — pour un changement de plusieurs lignes ou un texte qui contient `| # / { }`, prendre l'outil d'édition
+  (remplacement exact, refusé s'il ne trouve pas) plutôt que `perl`/`sed` ; sinon vérifier `git diff --stat` **et** le
+  début du fichier juste après, avant de compiler.
+- **Preuve** — reconstitué en direct : la première ligne d'`app.rs` reprise de `HEAD`, puis le même changement refait
+  par l'outil d'édition.
+
 ### L-112 : un clic par libellé (tests, exemple de capture) touche un autre widget quand un libellé change de propriétaire
 
 - **Symptôme** — 2026-11-23 (lot 29c) : les captures de l'Assistant montraient deux pastilles sur trois **désactivées**,
@@ -1413,6 +1428,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-113 | Substitution `perl`/`sed` dont le délimiteur (`\|`, `#`, `/`) apparaît dans le texte : échappé, il devient une alternative et écrit n'importe où sans erreur ; outil d'édition pour le multi-ligne, sinon relire le diff et le début du fichier | Outillage |
 | L-112 | Clic par libellé (tests, exemple `capture`) : un libellé repris par un autre widget (nom de log devenu pastille) fait cliquer ailleurs sans erreur ; chercher les clics par ce libellé, viser par rôle, regarder les captures | Interface |
 | L-111 | Panneau egui de largeur fixe au contenu plus large (grille, noms longs) : il s'élargit et rogne le début des lignes, sans erreur ; borner colonnes et textes à la largeur, regarder la capture | Interface |
 | L-110 | Sur `jeno5_5s.bbl`, limites auto = log entier (log coupé en plein vol) : un test qui les oppose au vol entier passe quoi qu'il arrive ; partir de bornes qui diffèrent des deux, et faire la contre-preuve | Tests |

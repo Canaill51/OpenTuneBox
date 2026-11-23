@@ -97,6 +97,15 @@ fragment au tableau de bord, ou par le bouton **Visualiseur** du Guide. Les page
 - **Barre du haut** : la flèche de retour, le drone, le fichier et la session, puis **Modifier le fragment …**.
   À droite, la lune change de thème, **Annuler** revient sans rien changer, **Enregistrer le fragment** garde les
   limites choisies et revient à l'écran d'où l'on venait.
+- **Plusieurs morceaux d'un même vol** : **Enregistrer comme nouveau fragment** laisse le fragment affiché tel quel
+  et en range un autre dans la même session, avec les limites, le nom et le rôle réglés (un nom déjà pris reçoit
+  « (2) »). Il rejoint aussitôt la barre de fragments avec sa propre couleur, juste après celui d'origine, et devient
+  le fragment maître : comparez par exemple une rafale de gaz et un vol stationnaire du même log. Il apparaît aussi
+  dans la liste du drone au tableau de bord. Rouvrir le fichier par « Ouvrir… » ne remet en analyse que le fragment
+  de chaque session ; les autres se rajoutent par leur rond **+**.
+- **Supprimer un fragment ajouté** : en bas de la section **Fragment**, **Supprimer ce fragment…** puis
+  **Supprimer définitivement** (ou **Garder**). Le fragment quitte la bibliothèque, ses mesures et la barre. Le
+  fragment de la session elle-même n'a pas ce bouton : il revient à chaque ouverture du fichier.
 - **Le fragment** : le morceau du vol que **tous les outils analysent** (la « période d'analyse »). Il est choisi
   automatiquement, du décollage à l'atterrissage, en s'arrêtant avant un crash. Ses limites sont les traits bleus
   « Début » et « Fin » ; le reste du vol est voilé. Tirez un trait (ou sa poignée) sur n'importe quel graphique
