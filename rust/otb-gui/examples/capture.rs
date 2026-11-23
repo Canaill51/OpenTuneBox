@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
-//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `tableau-de-bord-releve-<thème>.png` (la carte après le passage du Guide, D-071), `fiche-drone-<thème>.png`, `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `tableau-de-bord-releve-<thème>.png` (la carte après le passage du Guide, D-071), `fiche-drone-<thème>.png`, `fiche-drone-suivi-<thème>.png` (les graphiques du suivi, lot 31c), `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
@@ -115,6 +115,15 @@ fn main() {
             while h.state().tracking.busy() && debut.elapsed().as_secs() < 120 {
                 h.step();
                 std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            // les graphiques du suivi (lot 31c), défilés jusqu'au dernier
+            if let Some(dernier) = h.query_by_label_contains("Retard des filtres D (ms)") {
+                dernier.scroll_to_me();
+                h.run_steps(4);
+                h.render()
+                    .expect("rendu")
+                    .save(out.join(format!("fiche-drone-suivi-{}.png", th.name)))
+                    .unwrap();
             }
             h.get_by_label("Supprimer…").scroll_to_me();
             h.run_steps(4);

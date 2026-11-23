@@ -3,8 +3,8 @@
 
 use otb_advisor::profiles::PROFILES;
 use otb_advisor::rules::{PHASE_MARGIN_LOW_DEG, STEP_PEAK_HIGH};
-use otb_advisor::target::{Bound, ROWS, parse, proposed_values, shown};
-use otb_advisor::tracked::{AXIS_KEYS, WHOLE_KEYS};
+use otb_advisor::target::{Bound, ROWS, band, charted, parse, proposed_values, shown};
+use otb_advisor::tracked::{AXIS_KEYS, DTERM_NOISE_DB, LATENCY_MS, PEAK, PHASE_MARGIN_DEG, RISE_MS, WHOLE_KEYS};
 
 fn index(key: &str) -> usize {
     ROWS.iter().position(|r| r.key == key).unwrap()
@@ -82,4 +82,33 @@ fn lecture_des_cases() {
     assert!(parse("1,2,3").is_err());
     assert!(parse("inf").is_err());
     assert!(parse("NaN").is_err());
+}
+
+#[test]
+fn un_graphique_par_grandeur_le_pic_une_fois() {
+    let g = charted();
+    assert_eq!(g.len(), 9, "{g:?}");
+    assert_eq!(g.iter().filter(|k| **k == PEAK).count(), 1);
+    assert_eq!(g[0], LATENCY_MS, "ordre des cases");
+    for r in &ROWS {
+        assert!(g.contains(&r.tracked), "{} sans graphique", r.key);
+    }
+}
+
+#[test]
+fn bande_lue_dans_les_cases() {
+    let mut t = [None; 10];
+    t[index("latency_ms")] = Some(14.0);
+    t[index("peak_low")] = Some(1.05);
+    t[index("peak_high")] = Some(1.2);
+    t[index("phase_margin_deg")] = Some(35.0);
+    t[index("dterm_noise_db")] = Some(-10.0);
+    assert_eq!(band(LATENCY_MS, &t), (None, Some(14.0)), "« ≤ » donne le haut");
+    assert_eq!(band(PHASE_MARGIN_DEG, &t), (Some(35.0), None), "« ≥ » donne le bas");
+    assert_eq!(band(PEAK, &t), (Some(1.05), Some(1.2)), "le pic a ses deux bords");
+    assert_eq!(band(DTERM_NOISE_DB, &t), (None, Some(-10.0)));
+    assert_eq!(band(RISE_MS, &t), (None, None), "case vide : pas de bande");
+    // un bord vide laisse l'autre
+    t[index("peak_low")] = None;
+    assert_eq!(band(PEAK, &t), (None, Some(1.2)));
 }

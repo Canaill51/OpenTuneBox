@@ -47,7 +47,7 @@ fichier .bbl/.bfl
                  ├─ tracked.rs            mesures suivies dans le temps (lot 31) : grandeurs d'un fragment lues
                  │                        dans le rapport de l'assistant, version du calcul
                  ├─ target.rs             fiche cible d'un drone (lot 31b) : dix cases, valeurs proposées = seuils
-                 │                        de l'assistant pour la taille
+                 │                        de l'assistant pour la taille ; bande visée de chaque grandeur (31c)
                  ├─ rust/otb-cli          opentunebox info / report
                  └─ rust/otb-gui/src/tools/*   une page par outil (calcul en arrière-plan, affichage egui_plot)
 ```
@@ -125,12 +125,17 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   `SheetAction` que `App::apply_sheet` exécute. Colonne de droite : la **Fiche cible** (lot 31b, D-072 ; `target_texts`,
   `target_note`, `check_target`, sans fenêtre) — dix cases de `otb_advisor::target::ROWS` ; tant que `DroneSheet::target`
   est `None`, elles montrent `proposed_values` pour la taille du formulaire, et la première case changée fige les dix ;
-  puis « Suivi des mesures » (lot 31a), qui dit où en est le calcul des mesures du drone (`tracking_lines`, fonction pure).
+  puis « Suivi des mesures » (lot 31a), qui dit où en est le calcul des mesures du drone (`tracking_lines`, fonction pure),
+  et un graphique par grandeur (lot 31c) : `tracking::charts_of` les prépare, la bande lue dans les cases **du formulaire**
+  (`target_values`), et `band_text` / `hover_text` (fonctions pures) écrivent la cible et la bulle d'un point.
 - `tracking.rs` : les **mesures suivies dans le temps** (lot 31a, D-072). Quand la fiche d'un drone enregistré s'affiche,
   `Tracking::wish` fait lire la table des mesures **sur un autre fil** (D-064), puis mesure en arrière-plan, un par un, les
   fragments du drone sans mesure valable (un fichier décodé une fois, une session déjà ouverte jamais relue) ;
   `Tracking::poll`, à chaque cadre, range les résultats — seulement si le fragment a encore les bornes mesurées. Un fragment
-  en échec (log déplacé, fichier tronqué) est dit dans la fiche et n'est pas relancé pendant la séance.
+  en échec (log déplacé, fichier tronqué) est dit dans la fiche et n'est pas relancé pendant la séance. `charts_of`
+  (lot 31c, fonction pure) fait les séries des graphiques : les fragments aux mesures valables, rangés par date, numérotés
+  1, 2, 3… ; un graphique par grandeur de `target::charted`, bande par `target::band` ; pas de point de réponse indicielle
+  sous `STEP_MIN_WINDOWS` fenêtres, point « moins sûr » sous `STEP_SURE_WINDOWS` (sauf les marges de la boucle ouverte).
 - `app.rs` : fenêtre principale, écrans Tableau de bord / Guide / outil, et l'écran d'extraction (`Screen::Viewer`), hors
   rail (D-065) : il a sa propre barre du haut, retient l'écran d'où l'on vient (`App::return_to`) et y revient. Ouvrir un
   fichier range ses sessions comme fragments (`remember`) : bornes **choisies** gardées, sinon limites automatiques ; des
@@ -171,7 +176,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 - `theme.rs` : thèmes clair et sombre, **seul fichier** à contenir des couleurs (les tables de palettes de `colormaps.rs` ne contiennent
   que des octets) ; `rust/otb-gui/tests/contracts.rs` refuse tout code couleur ailleurs (L-016).
 - `icons.rs` : icônes Lucide (`rust/otb-gui/assets/icons/`, licence ISC) colorées selon le thème.
-- `plots.rs` : contournements d'egui_plot. `export.rs` : export PNG (nom `OTB_FIGS_AAAA-MM-JJ-N.png`, recadrage borné de la capture
+- `plots.rs` : contournements d'egui_plot (dont `integer_grid`, repères entiers d'un axe de vols, et `tick_fr`, repères à virgule décimale). `export.rs` : export PNG (nom `OTB_FIGS_AAAA-MM-JJ-N.png`, recadrage borné de la capture
   d'écran d'egui ; la boîte d'enregistrement est `App::save_dialog`, remplaçable dans les tests). `build.rs` : icône de l'exécutable Windows.
 - Exemples d'`otb-gui` : `examples/capture.rs` (captures sans fenêtre, rendu wgpu) ; `examples/banc_carte.rs` mesure
   `Heatmap` contre `PlotImage` ; `examples/banc_cadre.rs` mesure le temps de cadre de l'écran Guide et du viewer sur un

@@ -322,3 +322,29 @@ fn la_grille_lineaire_donne_des_repetes_ronds_et_etiquetables() {
         );
     }
 }
+
+/// Repères des graphiques du suivi (lot 31c) : virgule décimale, chiffres selon le pas, zéro sans signe ; axe des
+/// vols en entiers seulement.
+#[test]
+fn reperes_en_francais_et_vols_entiers() {
+    use otb_gui::plots::{integer_grid, tick_fr};
+    assert_eq!(tick_fr(1.4, 0.2), "1,4");
+    assert_eq!(tick_fr(1.5, 0.5), "1,5");
+    assert_eq!(tick_fr(20.0, 10.0), "20");
+    assert_eq!(tick_fr(-31.0, 1.0), "-31");
+    assert_eq!(tick_fr(0.05, 0.05), "0,05");
+    assert_eq!(tick_fr(-0.0001, 0.5), "0,0");
+    assert_eq!(tick_fr(-1e-12, 1.0), "0");
+    let g = integer_grid(GridInput {
+        bounds: (0.5, 3.5),
+        base_step_size: 0.01,
+    });
+    assert_eq!(g.iter().map(|m| m.value).collect::<Vec<_>>(), [1.0, 2.0, 3.0]);
+    // beaucoup de vols : un pas rond plus grand, toujours entier
+    let g = integer_grid(GridInput {
+        bounds: (0.5, 200.5),
+        base_step_size: 0.4,
+    });
+    assert!(g.iter().all(|m| m.value.fract() == 0.0 && m.value >= 1.0));
+    assert_eq!(g[0].value, 5.0);
+}

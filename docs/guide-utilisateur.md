@@ -99,7 +99,12 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   Sous elle, la section **Suivi des mesures** dit où en sont les mesures du drone : à l'ouverture de la fiche, le
   logiciel mesure en arrière-plan chaque fragment qui ne l'est pas encore (latence, pic, temps de montée, marges, bruit
   du gyro et du terme D, retard des filtres — les chiffres de l'Assistant) et les garde pour suivre le drone d'un vol à
-  l'autre. Un fragment dont le log a été déplacé ou supprimé est signalé avec la raison. Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier
+  l'autre. Un fragment dont le log a été déplacé ou supprimé est signalé avec la raison. Dès qu'un fragment est mesuré,
+  un **graphique par grandeur** montre son évolution au fil des vols (numérotés 1, 2, 3… par date) : une couleur par axe
+  (roll, pitch, lacet), la zone visée par votre fiche cible teintée en vert et bordée de pointillés, « sans cible » quand
+  la case est vide. Un point creux est une mesure moins sûre (moins de 200 fenêtres de réponse indicielle : peu de
+  mouvements de sticks) ; sous 20 fenêtres, le vol n'a pas de point, comme dans l'Assistant. Survolez un point pour voir
+  le vol, sa date et sa valeur. Changer une case de la fiche cible déplace la zone aussitôt. Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier
   `drones.json` est gardé sous le nom `drones.json.repris`.
 - **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
   **Fréq. × temps** et le **Et si** des filtres. Ses onglets, en haut de la page, passent de l'une à l'autre sans

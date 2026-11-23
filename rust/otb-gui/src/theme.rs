@@ -240,6 +240,9 @@ pub mod plot {
 
     /// Courbe de référence : gyro avant filtres, notchs.
     pub const NEUTRAL: Color32 = hex(0x9a9a9a);
+    /// Roll, pitch et lacet dans les graphiques du suivi (fiche du drone) : jamais le vert, réservé à la zone visée
+    /// par la fiche cible.
+    pub const AXES: [Color32; 3] = [hex(0x2f6fd6), hex(0xf58231), hex(0x9b4fd1)];
     /// Simulateur de filtres : réglages modifiés.
     pub const MODIFIED: Color32 = hex(0x2f6fd6);
     /// Simulateur de filtres : réglages actuels simulés.

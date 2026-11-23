@@ -267,3 +267,139 @@ impl Tracking {
         }
     }
 }
+
+// ---------------------------------------------------------------- graphiques du suivi (lot 31c)
+
+/// Un vol du suivi : un fragment mesuré, à sa place dans l'ordre des vols (abscisse 1, 2, 3…).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Flight {
+    pub fragment_id: String,
+    pub name: String,
+    /// Date ISO du fragment (celle du fichier, au jour près).
+    pub date: String,
+}
+
+/// Un point d'un graphique : le numéro du vol (à partir de 1), la valeur, et si la mesure est sûre.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChartPoint {
+    pub flight: usize,
+    pub value: f64,
+    /// `false` sous `STEP_SURE_WINDOWS` fenêtres de réponse indicielle : la « mesure moins sûre » de l'assistant.
+    pub sure: bool,
+}
+
+/// Les points d'un axe (0, 1, 2 : roll, pitch, lacet ; `ALL_AXES` pour une grandeur du fragment entier).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChartLine {
+    pub axis: u64,
+    pub points: Vec<ChartPoint>,
+}
+
+/// Le graphique d'une grandeur : ses lignes et la bande visée par la fiche cible (`target::band`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Chart {
+    /// La grandeur suivie (`otb_advisor::tracked`).
+    pub key: &'static str,
+    pub title: &'static str,
+    pub unit: &'static str,
+    pub decimals: usize,
+    pub band: (Option<f64>, Option<f64>),
+    /// Sans les axes qui n'ont aucun point.
+    pub lines: Vec<ChartLine>,
+}
+
+/// Les graphiques du suivi d'un drone : la liste des vols (l'abscisse) et un graphique par grandeur de la fiche cible.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Charts {
+    pub flights: Vec<Flight>,
+    pub charts: Vec<Chart>,
+}
+
+/// La mesure rangée d'un fragment, **si elle vaut pour ses bornes actuelles et le calcul en vigueur** (comme
+/// `Library::is_measured`) ; une mesure périmée ne se trace pas.
+fn current(lib: &Library, f: &Fragment, axis: u64, key: &str) -> Option<f64> {
+    let m = lib.measure(&f.id, axis, key)?;
+    let valid = m.calc_version >= CALC_VERSION && (m.start, m.end) == (f.start, f.end);
+    (valid && m.value.is_finite()).then_some(m.value)
+}
+
+/// Les graphiques du suivi du drone `drone_id`, la bande lue dans `targets` (les dix cases de la fiche cible, dans
+/// l'ordre de `target::ROWS`, `None` pour une case vide). Fonction pure : elle se teste sans écran (L-071).
+///
+/// - Les vols sont les fragments du drone qui ont des mesures valables, rangés par date, puis par log, session et
+///   début : un fragment pas encore mesuré n'a pas de numéro.
+/// - Une grandeur de la réponse indicielle n'a **pas de point** sous `STEP_MIN_WINDOWS` fenêtres (l'assistant ne la
+///   juge pas), et un point « moins sûr » sous `STEP_SURE_WINDOWS` — sauf les marges de la boucle ouverte, que
+///   l'assistant ne marque pas ainsi (`rules::step_rules`).
+pub fn charts_of(lib: &Library, drone_id: &str, targets: &[Option<f64>; 10]) -> Charts {
+    use otb_advisor::rules::{STEP_MIN_WINDOWS, STEP_SURE_WINDOWS};
+    use otb_advisor::target::{ROWS, band, charted};
+    use otb_advisor::tracked::{ALL_AXES, AXIS_KEYS, GAIN_MARGIN_DB, PHASE_MARGIN_DEG, STEP_WINDOWS};
+
+    let mut fragments: Vec<&Fragment> = lib
+        .fragments_of_drone(drone_id)
+        .into_iter()
+        .filter(|f| lib.is_measured(f, CALC_VERSION))
+        .collect();
+    let log_name = |f: &Fragment| lib.log(&f.log_id).map(|l| l.name.clone()).unwrap_or_default();
+    fragments
+        .sort_by(|a, b| (&a.date, log_name(a), a.session, a.start).cmp(&(&b.date, log_name(b), b.session, b.start)));
+    let flights = fragments
+        .iter()
+        .map(|f| Flight {
+            fragment_id: f.id.clone(),
+            name: if f.name.is_empty() {
+                f.id.clone()
+            } else {
+                f.name.clone()
+            },
+            date: f.date.clone(),
+        })
+        .collect();
+    let charts = charted()
+        .into_iter()
+        .map(|key| {
+            let row = ROWS.iter().find(|r| r.tracked == key).expect("grandeur tirée de ROWS");
+            let per_axis = AXIS_KEYS.contains(&key);
+            let axes: Vec<u64> = if per_axis { vec![0, 1, 2] } else { vec![ALL_AXES] };
+            let lines = axes
+                .into_iter()
+                .map(|axis| {
+                    let points = fragments
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, f)| {
+                            let value = current(lib, f, axis, key)?;
+                            let mut sure = true;
+                            if per_axis {
+                                let n = current(lib, f, axis, STEP_WINDOWS).unwrap_or(0.0);
+                                if n < STEP_MIN_WINDOWS as f64 {
+                                    return None;
+                                }
+                                let margin = key == PHASE_MARGIN_DEG || key == GAIN_MARGIN_DB;
+                                sure = margin || n >= STEP_SURE_WINDOWS as f64;
+                            }
+                            Some(ChartPoint {
+                                flight: i + 1,
+                                value,
+                                sure,
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    ChartLine { axis, points }
+                })
+                .filter(|l| !l.points.is_empty())
+                .collect();
+            Chart {
+                key,
+                // « Pic, bas de la zone » → « Pic » : le graphique porte les deux bords
+                title: row.label.split(',').next().unwrap_or(row.label),
+                unit: row.unit,
+                decimals: row.decimals,
+                band: band(key, targets),
+                lines,
+            }
+        })
+        .collect();
+    Charts { flights, charts }
+}
