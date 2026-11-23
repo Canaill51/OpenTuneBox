@@ -178,6 +178,9 @@ pub struct App {
     /// Fichiers dont on n'ouvre que certaines sessions (le « + » d'un fragment, la liste relue au lancement) :
     /// identifiants des fragments voulus. Un fichier absent d'ici s'ouvre en entier.
     wanted: HashMap<PathBuf, HashSet<String>>,
+    /// Fichiers ouverts par « Ouvrir les logs des filtres… » (ou de la série) du Guide : le rôle à donner aux
+    /// fragments de leurs sessions, consommé quand le fichier est rangé.
+    open_roles: HashMap<PathBuf, &'static str>,
     /// Liste d'analyse relue au lancement, en attente que ses logs soient ouverts : tant qu'elle est là, la
     /// bibliothèque n'est pas récrite depuis l'écran (elle serait vidée avant même d'être rouverte).
     restoring: Option<otb_store::model::Analysis>,
@@ -317,6 +320,7 @@ impl App {
             cards_seen: None,
             bar: AnalysisBar::new(),
             wanted: HashMap::new(),
+            open_roles: HashMap::new(),
             restoring: None,
             library: Library::in_memory(),
             return_to: Screen::Dashboard,
@@ -432,6 +436,15 @@ impl App {
     /// temps (D-051) : un fichier illisible n'empêche pas les autres, et chaque erreur est écrite dans la barre
     /// d'état avec le nom de son fichier.
     pub fn open(&mut self, paths: Vec<PathBuf>) {
+        self.open_as(paths, None);
+    }
+
+    /// Comme `open`, et avec un rôle (« filtres », « série PID ») : les fragments des sessions de ces fichiers le
+    /// prennent, à la place de celui qu'ils avaient (le pilote vient de le dire en choisissant ces fichiers).
+    pub fn open_as(&mut self, paths: Vec<PathBuf>, role: Option<&'static str>) {
+        if let Some(role) = role {
+            self.open_roles.extend(paths.iter().map(|p| (p.clone(), role)));
+        }
         self.errors.clear();
         self.export_status.clear();
         self.queue.extend(paths);
@@ -483,8 +496,6 @@ impl App {
         let Some(ll) = self.state.current_log() else {
             return FragmentInfo::default();
         };
-        let chemin = ll.log.path.to_string_lossy().into_owned();
-        let role_guide = self.guide.roles.get(&chemin).cloned().unwrap_or_default();
         let file = nom_court(&ll.log.path);
         let stored = ll.fragment.as_ref().and_then(|id| self.library.fragment(id));
         match stored {
@@ -508,7 +519,7 @@ impl App {
                     session: f.session as usize,
                     sessions,
                     name: f.name.clone(),
-                    role: if f.role.is_empty() { role_guide } else { f.role.clone() },
+                    role: f.role.clone(),
                     stored: true,
                     added: otb_store::link::is_added(f),
                 }
@@ -519,7 +530,7 @@ impl App {
                 session: ll.log.session,
                 sessions: 0,
                 name: ll.log.name(),
-                role: role_guide,
+                role: String::new(),
                 stored: false,
                 added: false,
             },
@@ -527,18 +538,14 @@ impl App {
     }
 
     /// « Enregistrer le fragment » : les bornes deviennent la période d'analyse du log (tous les outils la lisent),
-    /// et la bibliothèque les garde comme **choisies** ; le rôle est aussi donné au Guide, qui le retient par fichier.
+    /// et la bibliothèque les garde comme **choisies**, avec son rôle, que le Guide lit sur le fragment (W-074).
     fn save_fragment(&mut self, index: usize, draft: crate::viewer_page::Draft) {
         let Some(ll) = self.state.logs.get(index) else { return };
         if ll.uid != draft.uid {
             return; // brouillon d'un autre log : jamais appliqué ailleurs (L-072)
         }
         let (log, fragment) = (ll.log.clone(), ll.fragment.clone());
-        let chemin = log.path.to_string_lossy().into_owned();
         self.state.set_period(index, draft.period.0, draft.period.1);
-        if !draft.role.is_empty() {
-            self.guide.roles.insert(chemin, draft.role.clone());
-        }
         let nom = if draft.name.trim().is_empty() {
             log.name()
         } else {
@@ -577,6 +584,7 @@ impl App {
             }
         };
         let log_id = self.remember(path, &logs);
+        let role_choisi = self.open_roles.remove(path);
         for log in logs {
             // ⚠️ Une session peut porter **plusieurs** fragments (D-067) : « Ouvrir… » ne met en analyse que celui de
             // la session ; le « + » d'un fragment ajouté, la liste relue au lancement ou son crayon le demandent par
@@ -601,6 +609,9 @@ impl App {
             }
             let log = Arc::new(log);
             for fid in fids {
+                if let Some(id) = &fid {
+                    self.give_role(path, id, role_choisi);
+                }
                 let Some(index) = self.place(log.clone(), fid.clone()) else {
                     self.errors.push(format!(
                         "{} logs au plus : les suivants sont ignorés.",
@@ -623,6 +634,29 @@ impl App {
             }
         }
         true
+    }
+
+    /// Le rôle d'un fragment qui entre dans la liste d'analyse : celui que le pilote vient de choisir en ouvrant
+    /// son fichier, sinon l'**ancien** rôle de son fichier (W-074 : le Guide les rangeait par chemin) quand le
+    /// fragment n'en a pas encore. Un rôle déjà porté par le fragment n'est jamais remplacé par un ancien.
+    fn give_role(&mut self, path: &Path, id: &str, choisi: Option<&'static str>) {
+        let Some(mut f) = self.library.fragment(id).cloned() else {
+            return;
+        };
+        let ancien = || {
+            self.guide
+                .old_roles
+                .get(&*path.to_string_lossy())
+                .filter(|_| f.role.is_empty())
+                .cloned()
+        };
+        let Some(role) = choisi.map(str::to_string).or_else(ancien) else {
+            return;
+        };
+        if f.role != role {
+            f.role = role;
+            self.library.put_fragment(f);
+        }
     }
 
     /// Pose une pastille pour le fragment `fid` d'un log décodé (`None` : log rangé sous aucun drone) et rend son
@@ -787,6 +821,19 @@ impl App {
             Screen::DroneSheet => Screen::Dashboard,
             s => s,
         };
+    }
+
+    /// Le relevé des cases vérifiées par les logs, rangé sur la fiche de ce nom pour la carte du tableau de bord
+    /// (D-071). Écrit seulement s'il change : chaque écriture fait relire les fiches au Guide.
+    fn set_verified(&mut self, name: &str, keys: Vec<String>) {
+        let Some(mut d) = self.library.drone_by_name(name).cloned() else {
+            return;
+        };
+        let Some(sheet) = d.sheet.as_mut() else { return };
+        if sheet.verified != keys {
+            sheet.verified = keys;
+            self.library.put_drone(d);
+        }
     }
 
     /// Les cases cochées de la fiche de ce nom, changées par `f` dans la bibliothèque.
@@ -1219,7 +1266,7 @@ impl App {
                 space_goto = self.pages[i].take_space_goto();
                 export_page = self.pages[i].take_export();
             }
-            _ => guide_actions = self.guide.ui(ui, &mut self.state, &theme),
+            _ => guide_actions = self.guide.ui(ui, &mut self.state, &self.library, &theme),
         });
         // une vue d'espace s'ouvre directement : pas la peine d'avoir un log pour passer du Spectre au « Et si »
         if let Some(title) = space_goto
@@ -1258,7 +1305,14 @@ impl App {
             match a {
                 GuideAction::Tool(ToolTarget::Viewer) => self.enter_extraction(),
                 GuideAction::Tool(ToolTarget::Page(title)) => self.open_tool(title),
-                GuideAction::Open(paths) => self.open(paths),
+                GuideAction::Open(paths, role) => self.open_as(paths, role),
+                GuideAction::Role { fragment, role } => {
+                    if let Some(mut f) = self.library.fragment(&fragment).cloned() {
+                        f.role = role.to_string();
+                        self.library.put_fragment(f);
+                    }
+                }
+                GuideAction::Verified { name, keys } => self.set_verified(&name, keys),
                 GuideAction::NewDrone(card) => {
                     let form = match card {
                         Some(c) => {
@@ -1298,7 +1352,11 @@ impl App {
                         done.push(key.clone());
                     }
                 }),
-                GuideAction::Reset(name) => self.edit_cases(&name, Vec::clear),
+                GuideAction::Reset(name) => {
+                    // le relevé repart de zéro avec les cases : le Guide le refait à son prochain passage
+                    self.edit_cases(&name, Vec::clear);
+                    self.set_verified(&name, Vec::new());
+                }
             }
         }
         for a in sheet_actions {
@@ -1319,12 +1377,7 @@ impl App {
                     .and_then(|f| self.library.log(&f.log_id))
                     .and_then(|e| self.library.drone(&e.drone_id))
                     .map_or_else(|| st.craft_name.trim().to_string(), |d| d.name.clone());
-                let chemin = ll.log.path.to_string_lossy().into_owned();
-                let role = stored
-                    .map(|f| f.role.clone())
-                    .filter(|r| !r.is_empty())
-                    .or_else(|| self.guide.roles.get(&chemin).cloned())
-                    .unwrap_or_default();
+                let role = stored.map(|f| f.role.clone()).unwrap_or_default();
                 let r = &st.pids[0];
                 ChipInfo {
                     name: stored.map_or_else(|| ll.label.clone(), |f| f.name.clone()),

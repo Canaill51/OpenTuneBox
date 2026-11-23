@@ -446,6 +446,7 @@ fn fiche() -> DroneSheet {
         betaflight: "2026.6".into(),
         pid_khz: "8".into(),
         done: vec!["recording".into(), "rpm".into()],
+        verified: vec!["blackbox".into()],
     }
 }
 

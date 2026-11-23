@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
-//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `fiche-drone-<thème>.png`, `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `tableau-de-bord-releve-<thème>.png` (la carte après le passage du Guide, D-071), `fiche-drone-<thème>.png`, `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
@@ -149,6 +149,14 @@ fn main() {
             let img = h.render().expect("rendu");
             img.save(out.join(format!("guide-{phase}-{}.png", th.name))).unwrap();
         }
+        // la carte du drone après le passage du Guide : son étape et sa barre comptent le relevé (lot 30g, D-071)
+        h.state_mut().screen = Screen::Dashboard;
+        h.run_steps(4);
+        h.render()
+            .expect("rendu")
+            .save(out.join(format!("tableau-de-bord-releve-{}.png", th.name)))
+            .unwrap();
+        h.state_mut().screen = Screen::Guide;
         // barre d'état vide pour les pages (les messages de l'essai des fragments n'ont rien à y faire) : `open` sans fichier
         // ne fait que l'effacer
         h.state_mut().open(Vec::new());

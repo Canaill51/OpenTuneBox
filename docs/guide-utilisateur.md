@@ -79,7 +79,8 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   (aucune nouvelle fenêtre) ; l'entrée de l'affichage en cours est mise en valeur. Un outil garde ses réglages et
   ses résultats quand on passe à un autre.
 - **Tableau de bord** : une carte par drone que le logiciel a déjà vu — son nom, sa taille, où il en est du parcours
-  de réglage, son nombre de **fragments** et la date du dernier vol. Cliquer une carte ouvre à droite la liste de ses
+  de réglage, son nombre de **fragments** et la date du dernier vol. L'étape et la barre d'avancement comptent les
+  cases cochées à la main et celles que le Guide a vues vérifiées par un log **la dernière fois qu'il a été affiché**. Cliquer une carte ouvre à droite la liste de ses
   fragments, du plus récent en haut ; le rond **+** rouvre le vol correspondant sans passer par la boîte de fichiers,
   une coche verte marque ceux qui sont déjà ouverts, et le **crayon** ouvre les courbes du fragment pour en
   régler les limites. Le logiciel retient ces drones et ces vols **d'un lancement à l'autre** : un drone est
@@ -308,8 +309,10 @@ La méthode est le **parcours du guide intégré** (bouton **Guide**) : des case
 - **Logs du drone** (sous les cases), en deux parties : **logs des filtres** et **logs des séries PID**.
   Ouvrez-les avec le bouton de la case « Récupérer le log et l'ouvrir » (phase Filtres) ou « Ouvrir les logs
   de la série » (phase PID, et sa pareille pour la série Feedforward des Finitions) : chaque log garde ce rôle, et les cases d'une phase ne lisent que les logs de
-  cette phase. Un log ouvert autrement est classé tout seul (partie stationnaire → filtres, sinon série PID) ;
-  le lien « → classer dans les … » corrige le classement. Pour chaque log : à quoi il sert (identifier le
+  cette phase. Le rôle appartient au **fragment** (celui que montre l'écran d'extraction) : deux fragments d'un même
+  vol peuvent servir l'un aux filtres, l'autre à une série. Un fragment sans rôle est classé tout seul (partie
+  stationnaire → filtres, sinon série PID) ; le lien « → classer dans les … » corrige le classement. Seuls les
+  fragments **actifs** de la barre du haut sont vérifiés : un fragment désactivé est nommé sous les logs, sans plus. Pour chaque log : à quoi il sert (identifier le
   bruit, juger le retard des filtres, vol d'une série PID), ce qu'il faut corriger avant le prochain vol (où
   dans le configurateur), et un bouton qui copie les commandes CLI équivalentes. Sous les logs des séries PID :
   chaque série reconnue (un seul curseur changé, mêmes filtres), les vols aux réglages identiques et ceux

@@ -132,16 +132,34 @@ pub fn is_done(card: &DroneCard, key: &str) -> bool {
 /// Cases faites / total par phase : cochées à la main, ou vérifiées par un log (`AUTO_OK`). Une erreur de `auto_status` (usage absent
 /// d'un log, W-029 point 2) ne vérifie rien.
 pub fn progress(card: &DroneCard, checks: &[LogCheck], targets: Option<&FilterTargets>) -> Vec<(String, usize, usize)> {
+    let verified = verified_keys(card, checks, targets);
+    progress_with(card, &verified)
+}
+
+/// Cases faites / total par phase : cochées à la main, ou dont la clé est dans `verified` (relevé du Guide). C'est le
+/// compte de `progress` quand `verified` vient de `verified_keys` : la carte du tableau de bord et le Guide disent
+/// donc le même chiffre pour un même relevé (D-071).
+pub fn progress_with(card: &DroneCard, verified: &[String]) -> Vec<(String, usize, usize)> {
     phases(card)
         .iter()
         .map(|ph| {
             let n = ph
                 .steps
                 .iter()
-                .filter(|s| is_done(card, &s.key) || matches!(auto_status(s, checks, targets), Ok((Some(AUTO_OK), _))))
+                .filter(|s| is_done(card, &s.key) || verified.contains(&s.key))
                 .count();
             (ph.key.to_string(), n, ph.steps.len())
         })
+        .collect()
+}
+
+/// Les clés des cases que ces logs vérifient (`AUTO_OK`), dans l'ordre du parcours, cochées à la main ou non.
+pub fn verified_keys(card: &DroneCard, checks: &[LogCheck], targets: Option<&FilterTargets>) -> Vec<String> {
+    phases(card)
+        .iter()
+        .flat_map(|ph| ph.steps.iter())
+        .filter(|s| matches!(auto_status(s, checks, targets), Ok((Some(AUTO_OK), _))))
+        .map(|s| s.key.to_string())
         .collect()
 }
 

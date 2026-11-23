@@ -16,6 +16,7 @@ use otb_advisor::log_check::{
 };
 use otb_advisor::tuning_path::{AUTO_OK, Phase, Step, auto_status, phases};
 use otb_log::flightlog::FlightLog;
+use otb_store::Library;
 
 use crate::guide::*;
 use crate::icons::icon;
@@ -32,8 +33,14 @@ use crate::worker::Runner;
 pub enum GuideAction {
     /// Afficher cet outil (le garde-fou « ouvrez d'abord un log » est celui de `App::open_tool`).
     Tool(ToolTarget),
-    /// Ouvrir ces fichiers de log.
-    Open(Vec<PathBuf>),
+    /// Ouvrir ces fichiers de log ; avec un rôle, celui-ci est donné aux fragments de leurs sessions (le pilote l'a
+    /// choisi en demandant « Ouvrir les logs des filtres… »).
+    Open(Vec<PathBuf>, Option<&'static str>),
+    /// « → classer dans les … » : le rôle de ce fragment de la bibliothèque (W-074 : par fragment, plus par fichier).
+    Role { fragment: String, role: &'static str },
+    /// Les cases que les logs du drone de ce nom vérifient, relevées par le Guide : `App` les range sur sa fiche pour
+    /// la carte du tableau de bord (D-071). Rendu seulement quand le relevé change.
+    Verified { name: String, keys: Vec<String> },
     /// « Nouveau drone » : l'écran de la fiche (D-068), prérempli d'après le log ouvert s'il y en a un.
     NewDrone(Option<DroneCard>),
     /// « Modifier » : l'écran de la fiche du drone de ce nom.
@@ -59,7 +66,8 @@ struct LogView {
     index: usize,
     label: String,
     color: egui::Color32,
-    path: String,
+    /// Fragment de la bibliothèque : c'est lui qui porte le rôle (W-074).
+    fragment: Option<String>,
     /// Avec le rôle choisi par l'utilisateur.
     check: LogCheck,
     targets: Option<FilterTargets>,
@@ -84,7 +92,7 @@ enum Intent {
     ToggleHelp(String),
     Tool(&'static str, Option<&'static str>),
     OpenLogs(&'static str),
-    Role(String, &'static str),
+    Role(Option<String>, &'static str),
     CopyCli,
 }
 
@@ -94,8 +102,16 @@ pub struct GuidePage {
     pub selected: Option<usize>,
     /// `HOME` ou une clé de `PHASE_KEYS`.
     pub phase: &'static str,
-    /// Rôle choisi pour chaque fichier de log (chemin → `FILTERS` / `PID`).
-    pub roles: BTreeMap<String, String>,
+    /// **Anciens** rôles, rangés par fichier (chemin → `FILTERS` / `PID`) avant que le fragment ne les porte (W-074).
+    /// Relus et réécrits tels quels : `App` en donne un au fragment d'une session qui n'a pas encore de rôle, à
+    /// l'ouverture de son fichier. Plus rien ne les change.
+    pub old_roles: BTreeMap<String, String>,
+    /// Ce que le Guide a vu au dernier cadre : (uid du log, rôle) de chaque log vérifié, dans l'ordre de la barre.
+    seen: Vec<(u64, &'static str)>,
+    /// Fragments du drone désactivés dans la barre : ni vérifiés ni comptés (D-066), leurs noms seulement.
+    inactive: Vec<String>,
+    /// Dernier relevé rendu à `App` : (nom de la fiche, clés vérifiées).
+    reported: Option<(String, Vec<String>)>,
     help_open: BTreeSet<String>,
     md: CommonMarkCache,
     dialog: Option<Dialog>,
@@ -192,7 +208,10 @@ impl GuidePage {
             cards,
             selected,
             phase: HOME,
-            roles: BTreeMap::new(),
+            old_roles: BTreeMap::new(),
+            seen: Vec::new(),
+            inactive: Vec::new(),
+            reported: None,
             help_open: BTreeSet::new(),
             md,
             dialog: None,
@@ -260,7 +279,7 @@ impl GuidePage {
             self.select_by_name(&name);
         }
         if let Some(r) = eframe::get_value::<BTreeMap<String, String>>(storage, "guide.roles") {
-            self.roles = r.into_iter().filter(|(_, v)| role_static(v).is_some()).collect();
+            self.old_roles = r.into_iter().filter(|(_, v)| role_static(v).is_some()).collect();
         }
     }
 
@@ -271,10 +290,16 @@ impl GuidePage {
             "guide.card",
             &self.card().map(|c| c.name.clone()).unwrap_or_default(),
         );
-        eframe::set_value(storage, "guide.roles", &self.roles);
+        eframe::set_value(storage, "guide.roles", &self.old_roles);
+    }
+
+    /// (uid, rôle) de chaque log que le Guide a vérifié au dernier cadre, dans l'ordre de la barre : pour les tests.
+    pub fn seen(&self) -> &[(u64, &'static str)] {
+        &self.seen
     }
 
     // ------------------------------------------------------------ logs du drone et leur vérification
+    /// Les logs ouverts du drone de la fiche choisie, actifs ou non.
     fn card_logs(&self, state: &AppState) -> Vec<usize> {
         let Some(card) = self.card() else { return Vec::new() };
         (0..state.logs.len())
@@ -320,14 +345,25 @@ impl GuidePage {
 
     /// Les logs du drone vus par les cases et le panneau. Calcule au plus une vérification rapide par cadre et lance la complète
     /// du premier log qui n'en a pas (une à la fois).
-    fn views(&mut self, ctx: &Context, state: &AppState) -> Vec<LogView> {
+    ///
+    /// ⚠️ Le rôle d'un log est celui de **son fragment** dans la bibliothèque, pas celui de son fichier : deux fragments
+    /// d'une même session peuvent servir à deux phases (W-074). Un fragment désactivé dans la barre n'est pas vérifié,
+    /// comme sur toutes les pages (D-066).
+    fn views(&mut self, ctx: &Context, state: &AppState, lib: &Library) -> Vec<LogView> {
         let inch = self.inch();
         let mut out = Vec::new();
         let mut budget = 1;
         self.failures.clear();
+        self.inactive.clear();
         let mut wanted: Option<(usize, String)> = None;
         for i in self.card_logs(state) {
             let ll = &state.logs[i];
+            let stored = ll.fragment.as_deref().and_then(|id| lib.fragment(id));
+            let label = stored.map_or_else(|| ll.label.clone(), |f| f.name.clone());
+            if !ll.active {
+                self.inactive.push(label);
+                continue;
+            }
             let (qk, fk) = (
                 period_key("guide-quick", ll.period, None),
                 period_key("guide-full", ll.period, inch),
@@ -345,7 +381,7 @@ impl GuidePage {
             if full.is_none() && wanted.is_none() && self.running.as_ref().is_none_or(|r| r.0 != ll.uid) {
                 wanted = Some((i, fk.clone()));
             }
-            let path = ll.log.path.to_string_lossy().into_owned();
+            let role = stored.map(|f| f.role.as_str()).filter(|r| !r.is_empty());
             let (shown, error) = match (&full, &quick) {
                 (Some(f), q) => match f.as_ref() {
                     Ok(_) => (Some(f.clone()), None),
@@ -360,13 +396,13 @@ impl GuidePage {
             match shown.as_ref() {
                 Ok(g) => out.push(LogView {
                     index: i,
-                    label: ll.label.clone(),
+                    label,
                     color: ll.color,
-                    check: with_role(&g.check, self.roles.get(&path).map(String::as_str)),
+                    fragment: ll.fragment.clone(),
+                    check: with_role(&g.check, role),
                     targets: g.targets.clone(),
                     exact: g.exact,
                     error,
-                    path,
                 }),
                 Err(e) => self.failures.push((i, e.clone())),
             }
@@ -442,14 +478,13 @@ impl GuidePage {
                     .add_filter("Logs Blackbox", &["bbl", "bfl", "BBL", "BFL", "txt", "TXT"])
                     .pick_files();
                 if let Some(files) = picked {
-                    for f in &files {
-                        self.roles.insert(f.to_string_lossy().into_owned(), role.to_string());
-                    }
-                    actions.push(GuideAction::Open(files));
+                    actions.push(GuideAction::Open(files, Some(role)));
                 }
             }
-            Intent::Role(path, role) => {
-                self.roles.insert(path, role.to_string());
+            Intent::Role(fragment, role) => {
+                if let Some(fragment) = fragment {
+                    actions.push(GuideAction::Role { fragment, role });
+                }
             }
             Intent::CopyCli => {
                 ctx.copy_text(cli_text(&self.cli));
@@ -459,16 +494,24 @@ impl GuidePage {
     }
 
     // ------------------------------------------------------------ dessin
-    pub fn ui(&mut self, ui: &mut Ui, state: &mut AppState, th: &Theme) -> Vec<GuideAction> {
+    pub fn ui(&mut self, ui: &mut Ui, state: &mut AppState, lib: &Library, th: &Theme) -> Vec<GuideAction> {
         let ctx = ui.ctx().clone();
         self.follow_logs(state);
         self.poll_checks(&ctx, state);
-        let views = self.views(&ctx, state);
+        let views = self.views(&ctx, state, lib);
+        self.seen = views.iter().map(|v| (state.logs[v.index].uid, v.check.role)).collect();
         let card = self.card().cloned();
         let (checks, targets) = Self::card_checks(&views);
-        let progress = card.as_ref().map(|c| progress(c, &checks, targets)).unwrap_or_default();
-        let mut intents: Vec<Intent> = Vec::new();
         let mut actions = Vec::new();
+        let verified = card
+            .as_ref()
+            .map(|c| verified_keys(c, &checks, targets))
+            .unwrap_or_default();
+        if let Some(c) = &card {
+            self.report(c, state, &views, verified.clone(), &mut actions);
+        }
+        let progress = card.as_ref().map(|c| progress_with(c, &verified)).unwrap_or_default();
+        let mut intents: Vec<Intent> = Vec::new();
 
         egui::Panel::top("guide-haut").show(ui, |ui| self.header(ui, th, &progress, &mut intents));
         egui::Panel::left("guide-phases").default_size(230.0).show(ui, |ui| {
@@ -511,6 +554,35 @@ impl GuidePage {
             self.run(it, &ctx, state, &views, &mut actions);
         }
         actions
+    }
+
+    /// Rend le relevé des cases vérifiées quand il a changé (D-071). Seulement quand **chaque** fragment actif du drone a
+    /// sa vérification, rapide au moins : avant, un log pas encore vérifié retirerait ses cases pour un cadre. Sans
+    /// fragment actif du drone, rien n'est rendu : la carte garde le dernier relevé.
+    fn report(
+        &mut self,
+        card: &DroneCard,
+        state: &AppState,
+        views: &[LogView],
+        keys: Vec<String>,
+        actions: &mut Vec<GuideAction>,
+    ) {
+        let active = self
+            .card_logs(state)
+            .into_iter()
+            .filter(|&i| state.logs[i].active)
+            .count();
+        if views.is_empty() || views.len() + self.failures.len() < active {
+            return;
+        }
+        let now = (card.name.clone(), keys);
+        if self.reported.as_ref() != Some(&now) {
+            actions.push(GuideAction::Verified {
+                name: now.0.clone(),
+                keys: now.1.clone(),
+            });
+            self.reported = Some(now);
+        }
     }
 
     /// (vérifications des logs du drone, repères du dernier log des filtres) comme `_card_checks`.
@@ -736,7 +808,22 @@ impl GuidePage {
                 let label = state.logs.get(*i).map_or("", |l| l.label.as_str());
                 marked(ui, th, "red", "x", "Erreur", format!("{label} : vérification impossible : {e}"));
             }
-            let mine: Vec<usize> = views.iter().map(|v| v.index).collect();
+            if !self.inactive.is_empty() {
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(format!(
+                        "Désactivés dans la barre, non vérifiés : {}.",
+                        self.inactive.join(", ")
+                    ))
+                    .color(muted),
+                );
+            }
+            // les fragments désactivés du drone ne sont pas « d'un autre drone »
+            let mine: Vec<usize> = views
+                .iter()
+                .map(|v| v.index)
+                .chain(self.card_logs(state).into_iter().filter(|&i| !state.logs[i].active))
+                .collect();
             let failed: Vec<usize> = self.failures.iter().map(|f| f.0).collect();
             let others: Vec<&str> = other_drone_logs(state.logs.len(), &mine, &failed)
                 .into_iter()
@@ -769,11 +856,13 @@ impl GuidePage {
             if !v.exact && v.error.is_none() {
                 ui.label(RichText::new("(vérification complète en cours…)").color(th.ui.muted));
             }
-            if ui
-                .link(format!("→ classer dans les {}", role_name(other_role(role))))
-                .clicked()
+            // sans fragment (log rangé sous aucun drone), rien ne garderait le rôle : pas de lien
+            if v.fragment.is_some()
+                && ui
+                    .link(format!("→ classer dans les {}", role_name(other_role(role))))
+                    .clicked()
             {
-                intents.push(Intent::Role(v.path.clone(), other_role(role)));
+                intents.push(Intent::Role(v.fragment.clone(), other_role(role)));
             }
         });
         if let Some(e) = &v.error {
@@ -873,6 +962,8 @@ impl GuidePage {
             // seulement si la fiche du clic est toujours là sous ce nom (sinon la liste a changé : on ne touche à rien)
             Some(true) if self.cards.list.get(index).is_some_and(|c| c.name == name) => {
                 self.cards.reset(index);
+                // `App` efface aussi le relevé : celui des logs encore ouverts est rendu de nouveau au cadre suivant
+                self.reported = None;
                 actions.push(GuideAction::Reset(name));
             }
             Some(_) => {}

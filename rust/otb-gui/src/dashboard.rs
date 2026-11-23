@@ -90,27 +90,27 @@ pub fn file_date(path: &std::path::Path) -> String {
 
 /// L'avancement d'un drone dans le parcours du Guide : « Étape N / 4 · titre », et la part faite (0 à 1).
 ///
-/// ⚠️ Ne compte que les cases **cochées à la main** (arbitrage de Cédric, 2026-11-19) : les cases que le Guide
-/// vérifie tout seul demanderaient une analyse par log, trop chère pour une carte. Le chiffre du Guide peut donc
-/// être plus élevé que celui-ci.
-fn stage(card: &DroneCard) -> (String, f32) {
+/// Compte les cases cochées à la main **et** celles que le Guide a vues vérifiées par un log à son dernier relevé
+/// (`verified`, rangé sur la fiche, D-071) : aucune analyse en ouvrant le tableau de bord. Même compte que le Guide
+/// (`guide::progress_with`) ; il en diffère seulement si des logs ont changé depuis son dernier passage.
+pub fn stage(card: &DroneCard, verified: &[String]) -> (String, f32) {
     let phases = otb_advisor::tuning_path::phases(card);
-    let faites: Vec<(usize, usize)> = phases
-        .iter()
-        .map(|ph| {
-            (
-                ph.steps.iter().filter(|s| crate::guide::is_done(card, &s.key)).count(),
-                ph.steps.len(),
-            )
-        })
-        .collect();
-    let total: usize = faites.iter().map(|(_, t)| t).sum();
-    let fait: usize = faites.iter().map(|(n, _)| n).sum();
-    let courante = faites.iter().position(|(n, t)| n < t).unwrap_or(0);
+    let faites = crate::guide::progress_with(card, verified);
+    let total: usize = faites.iter().map(|(_, _, t)| t).sum();
+    let fait: usize = faites.iter().map(|(_, n, _)| n).sum();
+    let courante = faites.iter().position(|(_, n, t)| n < t).unwrap_or(0);
     let titre = phases.get(courante).map_or("", |p| p.title);
     (
         format!("Étape {} / {} · {titre}", courante + 1, phases.len()),
         if total == 0 { 0.0 } else { fait as f32 / total as f32 },
+    )
+}
+
+/// Nom accessible de la barre d'avancement d'une carte : « Avancement de JeNo Ced : 23 % ».
+pub fn progress_label(name: &str, part: f32) -> String {
+    format!(
+        "Avancement de {name} : {} %",
+        (part.clamp(0.0, 1.0) * 100.0).round() as u32
     )
 }
 
@@ -244,7 +244,10 @@ impl DashboardPage {
             .map(|l| lib.fragments().iter().filter(|f| f.log_id == l.id).count())
             .sum();
         let dernier = logs.iter().map(|l| l.added.as_str()).max().unwrap_or("—").to_string();
-        let (etape, part) = fiche.map_or_else(|| ("Pas de fiche drone".to_string(), 0.0), stage);
+        let releve = drone
+            .and_then(|d| d.sheet.as_ref())
+            .map_or(&[][..], |f| &f.verified[..]);
+        let (etape, part) = fiche.map_or_else(|| ("Pas de fiche drone".to_string(), 0.0), |c| stage(c, releve));
         let (etat, accent) = status(part, fragments);
         let sous_titre = fiche.map_or_else(
             || drone.map(|d| d.firmware.clone()).unwrap_or_default(),
@@ -350,8 +353,12 @@ impl DashboardPage {
                                 });
                             });
                         });
-                        let (piste, _) =
+                        let (piste, barre) =
                             ui.allocate_exact_size(Vec2::new(ui.available_width(), BAR_H), egui::Sense::hover());
+                        // la barre se lit aussi par un lecteur d'écran (et par les tests)
+                        barre.widget_info(|| {
+                            egui::WidgetInfo::labeled(egui::Role::ProgressIndicator, true, progress_label(&nom, part))
+                        });
                         ui.painter().rect_filled(piste, BAR_H / 2.0, th.ui.hover);
                         if part > 0.0 {
                             let plein = egui::Rect::from_min_size(
@@ -583,7 +590,38 @@ fn chip(ui: &mut Ui, th: &Theme, texte: &str, accent: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{date_iso, status};
+    use super::{date_iso, progress_label, stage, status};
+    use otb_advisor::drone_card::DroneCard;
+
+    /// L'étape de la carte compte les cases cochées à la main **et** le relevé du Guide (D-071), une clé en double
+    /// une seule fois ; une clé inconnue (case retirée du parcours depuis) ne compte pas.
+    #[test]
+    fn l_etape_compte_les_cases_cochees_et_le_releve_du_guide() {
+        let mut card = DroneCard::new("A");
+        let prep: Vec<String> = otb_advisor::tuning_path::phases(&card)[0]
+            .steps
+            .iter()
+            .map(|s| s.key.clone())
+            .collect();
+        assert_eq!(stage(&card, &[]), ("Étape 1 / 4 · Préparer le drone".to_string(), 0.0));
+        // la moitié cochée à la main, l'autre vue vérifiée par un log, la première dans les deux
+        let (main, log) = prep.split_at(prep.len() / 2);
+        card.done = main.iter().map(|k| (k.clone(), true)).collect();
+        let mut releve: Vec<String> = log.to_vec();
+        releve.push(main[0].clone());
+        releve.push("case-disparue".into());
+        let (etape, part) = stage(&card, &releve);
+        assert_eq!(etape, "Étape 2 / 4 · Filtres");
+        let total: usize = otb_advisor::tuning_path::phases(&card)
+            .iter()
+            .map(|p| p.steps.len())
+            .sum();
+        assert_eq!(part, prep.len() as f32 / total as f32);
+        assert_eq!(
+            progress_label("A", part),
+            format!("Avancement de A : {} %", (part * 100.0).round())
+        );
+    }
 
     /// La date d'un enregistrement de la bibliothèque, au format qui sert aussi à la ranger (l'ordre
     /// alphabétique de `AAAA-MM-JJ` est l'ordre chronologique).

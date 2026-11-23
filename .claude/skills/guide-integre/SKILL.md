@@ -16,7 +16,9 @@ description: Modifier ou relire le guide intégré d'OpenTuneBox (page Guide : f
   saisie se fait dans l'écran « fiche du drone ». Un log est relié à la fiche par `craft_name`.
 - **Contrôles des logs** : `rust/otb-advisor/src/log_check.rs:check_log` (un point par clé ; parties du vol par
   `rust/otb-analysis/src/period.rs:flight_parts` ; l'argument `exact` de `check_log` et `filter_targets` sont lents : arrière-plan).
-- **Interface** : `rust/otb-gui/src/guide.rs` (logique) et `guide_page.rs` (fiche, frise, phases, cases, logs du drone). Accueil :
+- **Interface** : `rust/otb-gui/src/guide.rs` (logique) et `guide_page.rs` (fiche, frise, phases, cases, logs du drone :
+  fragments **actifs** seulement, rôle lu sur le fragment de la bibliothèque ; le relevé des cases vérifiées va sur la
+  fiche pour la carte du tableau de bord, D-071). Accueil :
   `rust/otb-gui/assets/guide/accueil.md`, seul fichier Markdown ; liens `otb:phase/<clé>` et `otb:tool/<clé>`.
 - `cargo test -p otb-dev --test docs` vérifie les liens de l'accueil, les outils, parties et points de contrôle cités par
   le parcours.

@@ -104,7 +104,8 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   vue (`signal`), l'y met (`show_signal`) et prête ses axes (`axes_mut`).
 - `dashboard.rs` : le **tableau de bord** (lot 30c), premier écran du rail. Une carte par drone connu de la bibliothèque
   (`otb-store`), **au dessin du prototype** (D-061) : badge teinté de la couleur du drone, nom et sous-titre, pastille d'état,
-  nombre de fragments et date du dernier vol côte à côte, étape du parcours et barre d'avancement ; la carte choisie prend un
+  nombre de fragments et date du dernier vol côte à côte, étape du parcours et barre d'avancement (`stage` : cases cochées et
+  dernier relevé du Guide rangé sur la fiche, `DroneSheet::verified`, D-071) ; la carte choisie prend un
   trait bleu de 2 points et une ombre portée. Les mesures relevées dans la maquette sont des constantes nommées en tête du
   fichier. Le panneau de droite montre les **fragments** du drone choisi, du plus récent en haut, chacun derrière un rond
   « + » (ou une coche à la couleur de sa pastille quand il est dans la liste d'analyse ; il l'y ajoute ou l'en retire,
@@ -151,7 +152,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   quand la table des drones change, D-068 ; lecture de l'ancien fichier `drones.json` pour sa reprise ; liens `otb:`,
   avancement, outils cités). `guide_page.rs` : la page **Guide** (accueil
   `rust/otb-gui/assets/guide/accueil.md`, frise et liste des phases, fiches drone, cases décrites par `tuning_path.rs`, logs du drone
-  vérifiés en arrière-plan par `log_check.rs`) ; elle rend des `GuideAction` que `App` exécute. Les liens `otb:phase/<clé>` et
+  vérifiés en arrière-plan par `log_check.rs` : les fragments **actifs** du drone, chacun avec le rôle de son fragment de la
+  bibliothèque, D-071) ; elle rend des `GuideAction` que `App` exécute, dont le relevé des cases vérifiées (`Verified`) que
+  `App` range sur la fiche pour la carte du tableau de bord. Les liens `otb:phase/<clé>` et
   `otb:tool/<clé>` de l'accueil sont vérifiés par le test de documentation.
 - `theme.rs` : thèmes clair et sombre, **seul fichier** à contenir des couleurs (les tables de palettes de `colormaps.rs` ne contiennent
   que des octets) ; `rust/otb-gui/tests/contracts.rs` refuse tout code couleur ailleurs (L-016).

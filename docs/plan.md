@@ -60,7 +60,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14 et 16 à 21
-  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22 et les 30 à 32 sont ouverts (les 28, 29 et 33
+  sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 22, le 31 et le 32 sont ouverts (les 28 à 30 et le 33
   sont faits) ; les **23 à 25** sont le chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
   sortis le 2026-11-18 ; le prochain numéro libre est **34**.
 
@@ -70,9 +70,8 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 (fait) ; 30a à 30e faits (rail, espace « Bruit et filtres », tableau de bord, fiche drone, choix du signal) ; rail aux sept entrées du prototype depuis le 29b ; 30e fait (choix « Gyro | Terme D » et axes partagés) ; 30f fait (assistant en cartes, D-070) ; reste : avancement du parcours (30g, avec W-074) |
-| 4 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) |
-| 5 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 |
+| 3 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) |
+| 4 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 (fait) |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
 | — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
@@ -333,7 +332,7 @@ session, nommés, datés, avec leurs bornes.
       crayon ou la liste relue au lancement, sans relire le fichier si sa session est déjà ouverte.
 - [x] **Preuve** : 5 tests nouveaux (2 `otb-store`, 3 interface), 8 contre-preuves vues en échec (L-071) ; captures
       `fragment-ajoute-*.png` des deux thèmes regardées.
-- Laissé de côté : le Guide lit encore le rôle par fichier (W-074).
+- Laissé de côté : le Guide lit encore le rôle par fichier (W-074) — traité au lot 30g (D-071).
 
 ---
 
@@ -410,8 +409,8 @@ correspondre à 100 % à la maquette ». Les trois lots précédents en avaient 
       trouvait déjà. Trois icônes ajoutées, dont celle du drone, dessinée d'après la maquette.
 - [x] **Le « + » d'un fragment ajoute à la liste d'analyse** (et non plus seulement ouvrir son vol) : fait au lot 29c
       (D-066).
-- [ ] **L'avancement du parcours** sur la carte (« Étape 2 / 4 · Filtres ») demande les vérifications du Guide,
-      qui coûtent une analyse par log : à faire avec le lot 30d, pas en ouvrant le tableau de bord.
+- [x] **L'avancement du parcours** sur la carte (« Étape 2 / 4 · Filtres ») demande les vérifications du Guide,
+      qui coûtent une analyse par log : fait au lot 30g (D-071), par le dernier relevé du Guide rangé sur la fiche.
 **Fait le 2026-11-19 — 30b, l'espace** :
 
 - [x] **Espace « Bruit et filtres »** : une seule entrée de rail pour le Spectre, Fréq. × gaz, Fréq. × temps et le
@@ -441,7 +440,10 @@ correspondre à 100 % à la maquette ». Les trois lots précédents en avaient 
 - [x] **Preuve** : captures avant / après sur les deux thèmes (`docs/images/assistant.png` refaite), 0,4 ms par cadre.
 - [x] **Critère d'arrêt** : aucune page n'a perdu son test (les tests de l'ancienne mise en page sont récrits sur les
       cartes), budget tenu.
-- [ ] **Avancement du parcours** (30g) : la carte du tableau de bord et le Guide sur la liste d'analyse (W-074).
+- [x] **Avancement du parcours** — **fait le 2026-11-23, 30g** (branche `feat/guide-progress`, D-071, W-074 traité) : le
+      Guide lit le rôle sur le fragment et ne vérifie que les fragments actifs de la barre (choix de Cédric) ; la carte
+      du tableau de bord compte le **dernier relevé du Guide**, rangé sur la fiche (choix de Cédric), sans analyse.
+      **Lot 30 terminé.**
 
 ---
 
@@ -699,3 +701,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 30d | 2026-11-23 | **Fiche d'un drone** (branche `feat/drone-sheet`, D-068, D-036, D-039 et D-061 amendées) : écran hors rail au dessin du prototype (Identité, Machine, Configurations Betaflight avec « Voir » et « Comparer », suppression en deux temps) ; la fiche vit dans la bibliothèque et le Guide en lit une copie ; ancien `drones.json` repris puis renommé ; un log rejoint le drone qui porte son nom ; bouton rouge plein lisible en thème sombre. Preuve : 17 tests nouveaux (5 de la bibliothèque, 8 de la fiche, 4 du Guide), les tests du Guide récrits sur la bibliothèque, 6 contre-preuves vues en échec, captures des deux thèmes, 0,2 ms par cadre | « Fiche cible » (lot 31) ; identifiant et carte au branchement (lot 32b) ; W-075 |
 | 30e | 2026-11-23 | **Choix « Gyro \| Terme D » de l'espace** (branche `feat/signal-choice`, D-069) : un seul choix du signal et des axes partagés par le Spectre, Fréq. × gaz, Fréq. × temps et le « Et si », en tête de leur panneau ; un changement d'une vue vaut pour les autres, l'étage choisi (avant ou après filtres) est gardé ; cases détaillées gardées dessous ; × gaz s'ouvre sur « Gyro pf \| Gyro » par fragment ; doublons « Gyro » et « D » du « Et si » retirés. Preuve : 5 tests, 5 contre-preuves vues en échec, captures des deux thèmes ; temps d'un cadre mesuré pour chaque page par l'exemple `capture` | assistant en cartes (30f) ; avancement du parcours (30g, W-074) |
 | 30f | 2026-11-23 | **Assistant en cartes** (branche `feat/advisor-cards`, D-070) : une carte par constat triée par gravité, « info » et vérifications OK repliées, pastilles par gravité, réponse indicielle de chaque axe en petit à droite ; jauge « mesure contre seuil » sur chaque constat à un seul seuil (`Gauge`, mêmes variables que le texte), hors des références Python (`otb-parity` 0 échec sur 1 732 appels). Preuve : 12 tests nouveaux ou récrits (7 de la page, 5 de la jauge), 9 contre-preuves vues en échec, captures des deux thèmes, 0,4 ms par cadre | W-076 (comparaison, votes, historique, lignes CLI) ; avancement du parcours (30g, W-074) |
+| 30g | 2026-11-23 | **Avancement du parcours** (branche `feat/guide-progress`, D-071, D-039, D-061 et D-066 amendées, W-074 traité) : le Guide lit le rôle de chaque log sur son fragment et l'y écrit (anciens rôles par fichier repris pour les fragments qui n'en ont pas, « Ouvrir les logs des filtres… » donne le sien) ; seuls les fragments actifs sont vérifiés ; la carte du tableau de bord compte le dernier relevé du Guide (`DroneSheet::verified`), barre au nom accessible. Preuve : 4 tests nouveaux et 2 récrits, 8 contre-preuves vues en échec, captures des deux thèmes. **Lot 30 terminé** | « Fiche cible » (lot 31) ; écran de la récupération par USB (lot 32b) |
