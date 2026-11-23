@@ -49,6 +49,7 @@ fn le_tableau_de_bord_montre_une_carte_par_drone_et_ses_fragments() {
         name: "FINAL".into(),
         role: String::new(),
         date: "2026-11-13".into(),
+        chosen: false,
     });
     app.screen = Screen::Dashboard;
     let mut h = banc(app);
@@ -106,22 +107,131 @@ fn ouvrir_un_log_le_range_dans_la_bibliotheque() {
     );
 }
 
+/// Un fragment rangé d'office suit les **limites automatiques** du vol (décollage → atterrissage), qui sont aussi
+/// la période d'analyse du log ; un fragment rangé avant le lot 29b (vol entier, bornes non choisies) s'y ramène à
+/// la réouverture.
+///
+/// **Contre-preuve** : en gardant les bornes d'un fragment non choisi (`Some(mut f)` sans mise à jour dans
+/// `App::remember`), le fragment ancien reste sur le vol entier et l'assertion rougit.
+#[test]
+fn un_fragment_range_d_office_suit_les_limites_automatiques() {
+    let mut h = banc(App::new(otb_gui::tools::all_pages()));
+    h.state_mut().open(vec![donnees()]);
+    attendre_logs(&mut h, 1);
+    let ll = &h.state().state.logs[0];
+    let (sel, n) = (ll.sel(), ll.log.n());
+    let id = ll.fragment.clone().expect("rangé sous « JeNo Ced »");
+    let f = h.state().library.fragment(&id).unwrap().clone();
+    assert!(!f.chosen);
+    assert_eq!(
+        (f.start as usize, f.end as usize),
+        (sel.start, sel.end),
+        "bornes = période d'analyse"
+    );
+    // un fragment aux bornes non choisies qui ne sont plus les limites automatiques (sur ce log de 5 s pris en
+    // plein vol, les limites automatiques couvrent tout le log : le « vol entier » ne prouverait rien)
+    let mut lib = std::mem::replace(&mut h.state_mut().library, otb_store::Library::in_memory());
+    let mut ancien = f.clone();
+    ancien.start = 100;
+    ancien.end = n as u64 - 100;
+    lib.put_fragment(ancien);
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.library = lib;
+    let mut h = banc(app);
+    h.state_mut().open(vec![donnees()]);
+    attendre_logs(&mut h, 1);
+    let f = h.state().library.fragment(&id).unwrap();
+    assert_eq!(
+        (f.start as usize, f.end as usize),
+        (sel.start, sel.end),
+        "ramené aux limites automatiques"
+    );
+}
+
+/// ⚠️ Des bornes **choisies** dans l'écran d'extraction survivent à la réouverture du fichier, et deviennent la
+/// période d'analyse du log rouvert (lot 29b). Avant, rouvrir le fichier remettait le fragment au vol entier.
+///
+/// **Contre-preuve** : en remplaçant le fragment à chaque ouverture (`put_fragment` sans regarder `chosen`), ses
+/// bornes reviennent aux limites automatiques et les deux assertions rougissent.
+#[test]
+fn des_bornes_choisies_survivent_a_la_reouverture_et_donnent_la_periode() {
+    let mut h = banc(App::new(otb_gui::tools::all_pages()));
+    h.state_mut().open(vec![donnees()]);
+    attendre_logs(&mut h, 1);
+    let id = h.state().state.logs[0].fragment.clone().unwrap();
+    let mut lib = std::mem::replace(&mut h.state_mut().library, otb_store::Library::in_memory());
+    let mut f = lib.fragment(&id).unwrap().clone();
+    (f.start, f.end, f.chosen) = (1_000, 5_000, true);
+    f.name = "Hover".into();
+    lib.put_fragment(f);
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.library = lib;
+    let mut h = banc(app);
+    h.state_mut().open(vec![donnees()]);
+    attendre_logs(&mut h, 1);
+    let f = h.state().library.fragment(&id).unwrap();
+    assert_eq!(
+        (f.start, f.end, f.name.as_str()),
+        (1_000, 5_000, "Hover"),
+        "le fragment n'a pas bougé"
+    );
+    let ll = &h.state().state.logs[0];
+    assert_eq!(ll.sel(), 1_000..5_000, "la période d'analyse est celle du fragment");
+    assert_eq!(ll.period, (ll.log.t[1_000], ll.log.t[4_999]));
+}
+
+/// Le crayon d'un fragment au tableau de bord ouvre l'écran d'extraction sur ce fragment ; si son log n'est pas
+/// ouvert, il l'ouvre d'abord. En partant, l'écran revient au tableau de bord.
+#[test]
+fn le_crayon_d_un_fragment_ouvre_l_ecran_d_extraction() {
+    let mut h = banc(App::new(otb_gui::tools::all_pages()));
+    h.state_mut().open(vec![donnees()]);
+    attendre_logs(&mut h, 1);
+    let id = h.state().state.logs[0].fragment.clone().unwrap();
+    // log fermé : le crayon le rouvre, puis passe à l'écran
+    h.state_mut().state.clear();
+    h.state_mut().screen = Screen::Dashboard;
+    h.state_mut().dash.selected = Some("JeNo Ced".into());
+    h.run_steps(2);
+    h.get_by_label("Modifier les limites de jeno5_5s").click();
+    attendre_logs(&mut h, 1);
+    h.run_steps(2);
+    assert_eq!(h.state().screen, Screen::Viewer);
+    assert_eq!(
+        h.state().state.current_log().unwrap().fragment.as_deref(),
+        Some(id.as_str())
+    );
+    h.get_by_label("Modifier le fragment jeno5_5s");
+    h.get_by_label("Retour").click();
+    h.run_steps(2);
+    assert_eq!(h.state().screen, Screen::Dashboard);
+    // log ouvert : le crayon passe directement à l'écran, sans rouvrir
+    h.get_by_label("Modifier les limites de jeno5_5s").click();
+    h.run_steps(2);
+    assert_eq!(h.state().screen, Screen::Viewer);
+    assert_eq!(h.state().state.logs.len(), 1, "le log n'est pas rouvert");
+}
+
 /// ⚠️ D-060 : la navigation est un **rail à gauche**, une entrée par outil ou par espace. Les vues d'un espace
 /// (`HIDDEN`) n'ont pas d'entrée à elles — c'est celle de leur espace qui reste mise en valeur.
 ///
-/// **Contre-preuve** : en retirant le filtre `!p.hidden()` du rail, « Fréquence × gaz », « Fréquence × temps » et
-/// « Configuration » apparaissent et l'assertion sur les entrées cachées rougit.
+/// « Courbes » n'y est plus : le visualiseur est devenu l'écran d'extraction, hors rail (W-069, lot 29b), et
+/// « Configuration » a son entrée, comme dans le prototype. Les entrées suivent l'ordre du prototype.
+///
+/// **Contre-preuve** : en retirant le filtre `!p.hidden()` du rail, « Fréquence × gaz » et « Fréquence × temps »
+/// apparaissent et l'assertion sur les entrées cachées rougit ; sans le tri par `RAIL_ORDER`, l'Assistant passe
+/// après « Bruit et filtres » et l'assertion sur l'ordre rougit.
 #[test]
 fn le_rail_porte_les_entrees_de_navigation() {
     let mut h = banc(App::new(otb_gui::tools::all_pages()));
     h.run();
     for entree in [
         "Guide",
-        "Courbes",
         "Bruit et filtres",
         "Réponse indicielle",
         "Curseurs PID",
         "Assistant",
+        "Configuration",
     ] {
         assert!(
             h.query_by_label(entree).is_some(),
@@ -134,13 +244,28 @@ fn le_rail_porte_les_entrees_de_navigation() {
         "Fréquence × gaz",
         "Fréquence × temps",
         "Simulateur de filtres",
-        "Configuration",
+        "Courbes",
     ] {
         assert!(
             h.query_by_label(cachee).is_none(),
-            "« {cachee} » est une vue d'espace : pas d'entrée de rail"
+            "« {cachee} » n'a pas d'entrée de rail"
         );
     }
+    // l'ordre du prototype : Tableau de bord, Guide, Assistant, Bruit et filtres, Réponse indicielle, Curseurs PID,
+    // Configuration
+    let ordre: Vec<f32> = [
+        "Tableau de bord",
+        "Guide",
+        "Assistant",
+        "Bruit et filtres",
+        "Réponse indicielle",
+        "Curseurs PID",
+        "Configuration",
+    ]
+    .iter()
+    .map(|e| h.get_by_label(e).rect().min.y)
+    .collect();
+    assert!(ordre.windows(2).all(|w| w[0] < w[1]), "ordre du rail : {ordre:?}");
     // le rail est à gauche, à la largeur du prototype, et la page commence après lui
     let rail = h.get_by_label("Assistant").rect();
     assert!(rail.min.x < 20.0, "le rail est collé au bord gauche : {rail:?}");
@@ -191,9 +316,6 @@ fn cliquer_une_entree_du_rail_change_decran() {
     let mut h = banc(App::new(otb_gui::tools::all_pages()));
     h.run();
     assert_eq!(h.state().screen, Screen::Guide, "l'application démarre sur le Guide");
-    h.get_by_label("Courbes").click();
-    h.run();
-    assert_eq!(h.state().screen, Screen::Viewer);
     h.get_by_label("Assistant").click();
     h.run();
     let Screen::Tool(i) = h.state().screen else {
@@ -447,6 +569,10 @@ fn banc_export_avec(
         assert!(debut.elapsed() < Duration::from_secs(30), "ouverture jamais terminée");
         std::thread::sleep(Duration::from_millis(5));
     }
+    // le premier log ouvert mène à l'écran d'extraction, hors rail et sans la barre des logs (lot 29b) : on revient
+    // à un écran qui porte la barre du haut, celle que ces tests visent
+    h.state_mut().screen = Screen::Dashboard;
+    h.run();
     h
 }
 

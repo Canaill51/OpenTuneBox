@@ -27,8 +27,8 @@ pub const CATEGORY_ORDER: [&str; 8] = [
     "Réglage",
 ];
 
-pub const HELP: &str = "Les conseils portent sur la période d'analyse choisie dans le visualiseur. Changez une seule chose à la fois, \
-     revolez, et comparez les logs.";
+pub const HELP: &str = "Les conseils portent sur la période d'analyse : les limites du fragment de chaque log (crayon d'un \
+     fragment au tableau de bord). Changez une seule chose à la fois, revolez, et comparez les logs.";
 pub const FOOTER: &str = "Diagnostic automatique à partir des mesures du log : à confirmer par le ressenti en vol et la température des moteurs.";
 /// Largeur des courbes à l'ouverture.
 const PLOTS_WIDTH: f32 = 420.0;

@@ -448,9 +448,9 @@ impl Tool for SetupTool {
     type Output = SetupOutput;
     const TITLE: &'static str = "Configuration";
     const RUN_BUTTON: bool = false;
-    const HIDDEN: bool = true;
-    /// S'ouvre depuis le visualiseur : son bouton, « Courbes », reste mis en valeur (`OTHER_TOOLS["setup"]`).
-    const TAB: Option<&'static str> = Some("Courbes");
+    /// Une entrée du rail à elle, comme dans le prototype (D-060) : elle était cachée sous « Courbes », qui n'a plus
+    /// d'entrée depuis que le visualiseur est devenu l'écran d'extraction (lot 29b).
+    const HIDDEN: bool = false;
 
     fn options(&self) {}
 

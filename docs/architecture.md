@@ -73,8 +73,9 @@ Dans `rust/otb-analysis/src/` (noyaux de calcul dans `rust/otb-dsp/src/`).
 
 Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 
-- `state.rs` : logs ouverts (10 maximum, une couleur chacun), log courant, période d'analyse ; `Cache` des résultats par log,
-  clé = réglages + période (D-037). Un changement relance les outils ouverts.
+- `state.rs` : logs ouverts (10 maximum, une couleur chacun), log courant, période d'analyse et fragment de la bibliothèque
+  correspondant (`LoadedLog::fragment`, D-065) ; `Cache` des résultats par log, clé = réglages + période (D-037). Un
+  changement relance les outils ouverts. `period_of_range` passe des bornes d'un fragment (échantillons) à la période (secondes).
 - `worker.rs` : file d'attente d'un calcul par outil, en arrière-plan ; le résultat revient au thread de l'interface.
 - `tool.rs` : trait `Page` (une page de la fenêtre principale) et trait `Tool` ; `Tool::compute` est une fonction associée
   sans `self` : elle ne peut pas lire les réglages de l'interface, elle ne reçoit que `Options` (copie des réglages au moment de la
@@ -101,9 +102,13 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   nombre de fragments et date du dernier vol côte à côte, étape du parcours et barre d'avancement ; la carte choisie prend un
   trait bleu de 2 points et une ombre portée. Les mesures relevées dans la maquette sont des constantes nommées en tête du
   fichier. Le panneau de droite montre les **fragments** du drone choisi, du plus récent en haut, chacun derrière un rond
-  « + » (ou une coche quand son vol est déjà ouvert). Un drone est reconnu par le **nom de machine** de
+  « + » (ou une coche quand son vol est déjà ouvert) et suivi d'un crayon qui ouvre l'écran d'extraction sur lui
+  (`DashAction::Edit`). Un drone est reconnu par le **nom de machine** de
   l'en-tête (`Craft name`) tant que la récupération par USB n'apporte pas l'identifiant de la carte (lot 32).
-- `app.rs` : fenêtre principale, écrans Tableau de bord / Guide / Courbes / outil. L'application tient la bibliothèque
+- `app.rs` : fenêtre principale, écrans Tableau de bord / Guide / outil, et l'écran d'extraction (`Screen::Viewer`), hors
+  rail (D-065) : il a sa propre barre du haut, retient l'écran d'où l'on vient (`App::return_to`) et y revient. Ouvrir un
+  fichier range ses sessions comme fragments (`remember`) : bornes **choisies** gardées, sinon limites automatiques ; des
+  bornes choisies deviennent la période d'analyse du log ouvert (`accepte`), et `save_fragment` les enregistre. L'application tient la bibliothèque
   (`App::library`) : **en mémoire** partout sauf au lancement réel, pour qu'aucun banc de test n'écrive celle de l'utilisateur ;
   chaque fichier ouvert y est rangé (`remember`), et elle est écrite quand eframe enregistre. La navigation est un **rail à gauche** (`rail`, largeur
   `RAIL_WIDTH`, D-060) : une entrée par outil ou par **espace**, les vues d'un espace (`HIDDEN`) n'en ayant pas à elles —
@@ -112,8 +117,11 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   recalcule qu'à son affichage. `main.rs` : démarrage (pas de console sous Windows, icône de fenêtre, ouvre les logs passés en
   argument) ; le titre de la fenêtre vient d'`app.rs:window_title` (nom + numéro de version du paquet), tandis que
   l'`app_id` garde le nom seul, qui est celui du fichier `.desktop` (L-076).
-- `viewer.rs` (traces, lissage) et `viewer_page.rs` (page du visualiseur : traces groupées, traces absentes du log masquées,
-  section repliable Affichage, étiquette Lecteur). Chaque courbe affichée est gardée en cache avec son index multi-résolution
+- `viewer.rs` (traces, lissage) et `viewer_page.rs` : l'**écran d'extraction d'un fragment** (lot 29b, D-065), au dessin du
+  prototype — barre du haut (retour, « Modifier le fragment … », Annuler, Enregistrer), graphiques avec les bornes, leurs
+  onglets et leurs poignées, barre de navigation sur le log entier (fenêtre visible déplaçable, fragment en bleu), panneau de
+  droite à sections repliables (Fragment, Traces, Affichage, Lecteur, Au curseur). Les bornes vivent dans un brouillon
+  (`Draft`) toujours posé sur un échantillon (`snap_bounds`) ; l'écran rend des `ExtAction` que `App` exécute. Chaque courbe affichée est gardée en cache avec son index multi-résolution
   (`Series`, clé : trace, axe, lissage) ; le tracé n'appelle plus que `otb_dsp::minmax::window_points` (D-048).
 - `guide.rs` : le Guide sans egui (fichier des fiches `drones.json` dans le dossier de données de l'utilisateur, fichier illisible
   mis de côté : D-039 ; liens `otb:`, avancement, outils cités). `guide_page.rs` : la page **Guide** (accueil
@@ -173,7 +181,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   `<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` : drones (clé = identifiant de la carte), logs connus (copiés ou laissés
   en place), fragments de vol, configurations (`diff all` datés, gardés seulement quand ils changent), mesures (une par
   fragment, axe et grandeur, avec l'empreinte des réglages et la **version de calcul** qui les périme) et liste d'analyse.
-  `model.rs` : les tables et leur écriture JSON, conversion à la main et lecture tolérante. `link.rs` : la période d'un
+  `model.rs` : les tables et leur écriture JSON, conversion à la main et lecture tolérante ; un fragment porte `chosen`
+  (bornes choisies dans l'écran d'extraction, sinon elles suivent les limites automatiques, D-065). `link.rs` : la période d'un
   fragment dans un log ouvert (`range_of`, en **numéros d'échantillon**), avec un message clair quand le fichier a changé
   depuis — sans dépendre du décodeur, l'appelant passant `FlightLog::n()`. La liste d'analyse est tenue par la
   bibliothèque : ordre, **indice** de couleur attribué à l'entrée et jamais changé ensuite (les couleurs restent dans

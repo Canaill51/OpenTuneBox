@@ -354,6 +354,16 @@ longue du log, 3 cadres de chauffe puis 60 cadres chronométrés un par un). Pos
   4 ms d'un essai à l'autre sur `FINAL.bbl` : c'est un majorant bruité. Les 0,34 ms de W-049 ne se retrouvent pas, et la façon
   dont ils avaient été obtenus est perdue avec le banc. Le cadre se juge donc sur le temps du processeur.
 
+**Écran d'extraction** (lot 29b, 2026-11-23, D-065) : le visualiseur devenu hors rail, avec sa barre de navigation et
+son panneau de 300 points, un seul essai, même poste, `--glissement`, 1920 × 1080 :
+
+| Log | Échantillons | Viewer, vue entière | Pendant un glissement | Par échantillon | Tessellation |
+|---|---|---|---|---|---|
+| `Cedric/JeNo 5/FINAL.bbl` | 321 729 | **2,2 ms** | 3,0 ms | 6,9 ns | 0,55 ms |
+
+Pas plus lent qu'avant (3,1 et 3,7 ms) : les graphiques sont moins larges (le panneau de droite prend 300 points), et la
+silhouette du gaz de la barre de navigation est calculée une fois par log et par largeur.
+
 ### Mémoire du cache des outils (2026-11-10, lot 15, W-035 point 9, L-094)
 
 Banc : `cargo run --release -p otb-gui --example banc_cache -- SORTIE.json [--limit N] [--part i/K]`. Il mesure ce que

@@ -110,12 +110,14 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - Mesure de la carte graphique par `egui_kittest` : il prend par défaut le rendu logiciel (llvmpipe) et `render` relit l'image (≈ 10 ms fixes) ; choisir une vraie carte (`native_adapter_selector`), l'afficher, soustraire un écran sans courbe, décider sur le temps du processeur. L-084
 - Test egui qui attend un calcul en arrière-plan : `step()` dans la boucle d'attente puis `run_steps(n)`, jamais `run()` (il panique si le fil redemande une repeinte, CI Windows). L-077
 - Panneau egui redimensionnable : son contenu est toujours dans un `ScrollArea` qui remplit (`auto_shrink([false, false])`), même dans la branche « rien à montrer » ; sinon il garde la taille de son premier cadre. Un test part de l'état vide, et on regarde une capture. L-073
+- Panneau egui de **largeur fixe** : borner chaque élément à sa largeur (colonnes `min_col_width` = `max_col_width`, texte abrégé par `truncate_at_width`), sinon le panneau s'élargit et rogne le début des lignes, sans erreur ; seule la capture le montre. L-111
 - Tout ce qui ouvre une fenêtre du système (boîte de fichiers…) passe par un champ remplaçable, inerte dans `App::new` ; scripts de mutations lancés sans écran ni bus de session, avec délai. L-075
 - Identité d'un log : `LoadedLog::uid` (ou `LogInput::uid`), jamais l'adresse de son `Arc` (elle peut resservir à un autre log). L-072
 - Calcul lancé dans un fil : chaque demande porte un numéro (`ToolPage`), un résultat qui n'a plus le dernier numéro se jette, et vider l'état compte comme une demande neuve ; le test change l'état **pendant** le calcul (barrière, une seule image), sinon il ne prouve rien. L-088
 
 ## Outillage, vérification et crochets
 
+- Sur `tests/data/jeno5_5s.bbl` (coupé en plein vol), les limites automatiques couvrent tout le log : un test qui oppose une période à « limites auto » ou à « vol entier » part de bornes qui diffèrent des deux, et ne compte qu'après sa contre-preuve. L-110
 - CodeQL classe tout nom en « uid » comme identifiant de compte et rougit dès qu'il est affiché ou écrit, empreinte comprise :
   l'identifiant de la carte s'appelle `chip_id` (`ChipId`) ; ne jamais recopier l'identifiant complet d'une carte dans le dépôt. L-109
 - Un crochet ou un script de vérification ne dépend que de ce qui est sûr d'être présent sur les deux postes (pas de `jq`) :

@@ -39,6 +39,7 @@ fn fragment(id: &str, log_id: &str, bornes: (u64, u64), date: &str) -> Fragment 
         name: id.to_string(),
         role: "filters".to_string(),
         date: date.to_string(),
+        chosen: true,
     }
 }
 

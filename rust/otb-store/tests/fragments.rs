@@ -25,6 +25,7 @@ fn fragment(id: &str, bornes: (u64, u64)) -> Fragment {
         name: id.to_string(),
         role: "filters".to_string(),
         date: "2026-11-13".to_string(),
+        chosen: true,
     }
 }
 
@@ -238,4 +239,23 @@ fn un_fragment_dun_vrai_log_rend_les_memes_echantillons_apres_redemarrage() {
     assert_eq!(lg.gyro.row(0)[periode.clone()].to_vec(), attendu, "mêmes échantillons");
     // contre-preuve, dans le test : un échantillon de décalage se verrait
     assert_ne!(lg.gyro.row(0)[a..b - 1].to_vec(), attendu);
+}
+
+/// ⚠️ Un fragment écrit avant le lot 29b n'a pas de champ « bornes_choisies » : il se lit comme **non choisi**, et ses
+/// bornes suivront donc les limites automatiques à la prochaine ouverture. Un fragment choisi le reste après relecture.
+///
+/// **Contre-preuve** : lire le champ manquant comme `true` (`flag(v, "bornes_choisies", true)`) rougit la première
+/// assertion.
+#[test]
+fn des_bornes_choisies_se_relisent_et_un_ancien_fragment_ne_lest_pas() {
+    let ancien = serde_json::json!({
+        "id": "emp-aaa-1", "log": "emp-aaa", "session": 1, "debut": 0, "fin": 5000,
+        "nom": "FINAL", "role": "", "date": "2026-11-19"
+    });
+    let lu = Fragment::from_value(&ancien).expect("fragment lisible");
+    assert!(!lu.chosen, "un fragment d'avant le lot 29b n'a pas de bornes choisies");
+
+    let choisi = fragment("FINAL.02", (120, 4_000));
+    assert!(choisi.chosen);
+    assert_eq!(Fragment::from_value(&choisi.to_value()).expect("relu"), choisi);
 }
