@@ -69,6 +69,73 @@ pub struct Drone {
     /// Première et dernière fois que ce drone a été vu (dates ISO fournies par l'appelant).
     pub first_seen: String,
     pub last_seen: String,
+    /// Carte de vol (`STM32F405`…), lue au branchement USB ; vide sinon.
+    pub board: String,
+    /// La fiche du drone (D-068). `None` : jamais remplie — le drone n'est connu que par ses logs, et le Guide
+    /// n'a pas de fiche pour lui. ⚠️ Ne pas la remplacer par des valeurs par défaut : une fiche inventée
+    /// donnerait des conseils faux (taille, version) sans que personne ne l'ait choisie.
+    pub sheet: Option<DroneSheet>,
+}
+
+/// Ce que le pilote dit de son drone : la partie « Machine » de l'écran de la fiche, et les cases du Guide
+/// cochées à la main. Les valeurs sont gardées **telles qu'affichées** (`5″`, `6S`, `3.2`) ; c'est l'interface
+/// qui les traduit pour l'assistant, la bibliothèque ne les interprète pas.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DroneSheet {
+    /// Taille (`65 mm`, `5″`…) : elle choisit le profil des seuils de l'assistant.
+    pub size: String,
+    pub cells: String,
+    /// Poids en grammes, moteurs en KV, pôles, hélices : saisis librement, aucun calcul ne s'en sert encore.
+    pub weight: String,
+    pub kv: String,
+    pub poles: String,
+    pub props: String,
+    pub esc: String,
+    /// Version de Betaflight choisie (`4.5`, `2026.6`…).
+    pub betaflight: String,
+    /// Fréquence de la boucle PID en kHz, écrite avec un point (`3.2`).
+    pub pid_khz: String,
+    /// Clés des cases du Guide cochées à la main, dans l'ordre où elles l'ont été.
+    pub done: Vec<String>,
+}
+
+impl DroneSheet {
+    pub fn to_value(&self) -> Value {
+        object(vec![
+            ("taille", self.size.clone().into()),
+            ("batterie", self.cells.clone().into()),
+            ("poids", self.weight.clone().into()),
+            ("kv", self.kv.clone().into()),
+            ("poles", self.poles.clone().into()),
+            ("helices", self.props.clone().into()),
+            ("esc", self.esc.clone().into()),
+            ("betaflight", self.betaflight.clone().into()),
+            ("boucle_pid_khz", self.pid_khz.clone().into()),
+            (
+                "cases",
+                Value::Array(self.done.iter().map(|k| Value::from(k.as_str())).collect()),
+            ),
+        ])
+    }
+
+    pub fn from_value(v: &Value) -> Self {
+        DroneSheet {
+            size: text(v, "taille"),
+            cells: text(v, "batterie"),
+            weight: text(v, "poids"),
+            kv: text(v, "kv"),
+            poles: text(v, "poles"),
+            props: text(v, "helices"),
+            esc: text(v, "esc"),
+            betaflight: text(v, "betaflight"),
+            pid_khz: text(v, "boucle_pid_khz"),
+            done: v
+                .get("cases")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|k| k.as_str().map(str::to_string)).collect())
+                .unwrap_or_default(),
+        }
+    }
 }
 
 impl Drone {
@@ -79,17 +146,27 @@ impl Drone {
             firmware: String::new(),
             first_seen: String::new(),
             last_seen: String::new(),
+            board: String::new(),
+            sheet: None,
         }
     }
 
     pub fn to_value(&self) -> Value {
-        object(vec![
+        let mut pairs = vec![
             ("id", self.id.clone().into()),
             ("nom", self.name.clone().into()),
             ("firmware", self.firmware.clone().into()),
             ("vu_le", self.first_seen.clone().into()),
             ("revu_le", self.last_seen.clone().into()),
-        ])
+        ];
+        // champs écrits seulement s'ils existent : un drone connu par ses seuls logs garde le texte d'avant
+        if !self.board.is_empty() {
+            pairs.push(("carte", self.board.clone().into()));
+        }
+        if let Some(sheet) = &self.sheet {
+            pairs.push(("fiche", sheet.to_value()));
+        }
+        object(pairs)
     }
 
     pub fn from_value(v: &Value) -> Result<Self, String> {
@@ -99,6 +176,8 @@ impl Drone {
             firmware: text(v, "firmware"),
             first_seen: text(v, "vu_le"),
             last_seen: text(v, "revu_le"),
+            board: text(v, "carte"),
+            sheet: v.get("fiche").filter(|f| f.is_object()).map(DroneSheet::from_value),
         })
     }
 }
@@ -230,6 +309,60 @@ impl Config {
             text: text(v, "texte"),
         })
     }
+}
+
+/// Un réglage qui change d'un `diff all` au suivant : (nom, avant, après). Le nom porte la section où il se
+/// trouve (`profile 1 · p_roll`) quand ce n'est pas la première : chaque profil a ses propres PID.
+pub type ConfigChange = (String, String, String);
+
+/// Les réglages qui changent entre deux `diff all`, dans l'ordre du plus récent. Un réglage absent d'un des deux
+/// vaut sa valeur par défaut (c'est ce que dit un `diff all`), écrite ici comme une chaîne vide. Seules les lignes
+/// `set nom = valeur` comptent : les autres (ressources, modes, `feature`) ne sont pas lues.
+pub fn config_changes(before: &str, after: &str) -> Vec<ConfigChange> {
+    let b = config_values(before);
+    let a = config_values(after);
+    let mut out: Vec<ConfigChange> = Vec::new();
+    for (k, v) in &a {
+        let old = b.iter().find(|(kb, _)| kb == k).map_or("", |(_, vb)| vb.as_str());
+        if old != v {
+            out.push((k.clone(), old.to_string(), v.clone()));
+        }
+    }
+    for (k, v) in &b {
+        if !a.iter().any(|(ka, _)| ka == k) {
+            out.push((k.clone(), v.clone(), String::new()));
+        }
+    }
+    out
+}
+
+/// Les lignes `set` d'un `diff all`, nommées par leur section (`profile N`, `rateprofile N`, `battery_profile N` :
+/// `cli/cli.c`, `cliDumpPidProfile` et suivantes).
+fn config_values(text: &str) -> Vec<(String, String)> {
+    let mut section = String::new();
+    let mut out = Vec::new();
+    for line in text.lines().map(str::trim) {
+        let mut words = line.split_whitespace();
+        match words.next() {
+            Some(w @ ("profile" | "rateprofile" | "battery_profile")) => {
+                section = format!("{w} {}", words.next().unwrap_or(""));
+            }
+            Some("set") => {
+                let rest = line["set".len()..].trim();
+                if let Some((name, value)) = rest.split_once('=') {
+                    let name = name.trim();
+                    let key = if section.is_empty() {
+                        name.to_string()
+                    } else {
+                        format!("{section} · {name}")
+                    };
+                    out.push((key, value.trim().to_string()));
+                }
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------- mesures

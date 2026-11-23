@@ -32,11 +32,11 @@ du drone le prouve ; « ▲ À revoir » signale ce qu'un log contredit.
 
 ## La fiche du drone
 
-Bouton **Nouveau drone** en haut : nom (le même que dans Betaflight, onglet Configuration : les logs sont
-reconnus grâce à lui), version de Betaflight, taille, boucle PID, ESC. Si un log est ouvert, la fiche se
-remplit d'après lui. Les valeurs du guide (fréquence d'enregistrement, listes des séries, plages des
-finitions) s'adaptent à la fiche, et chaque drone garde son avancement (bouton **Recommencer** pour tout
-décocher, **Supprimer** pour retirer la fiche).
+Bouton **Nouveau drone** en haut : il ouvre la fiche du drone — nom (le même que dans Betaflight, onglet
+Configuration : les logs sont reconnus grâce à lui), taille, version de Betaflight, boucle PID, ESC. Si un log
+est ouvert, la fiche se remplit d'après lui. Les valeurs du guide (fréquence d'enregistrement, listes des
+séries, plages des finitions) s'adaptent à la fiche, et chaque drone garde son avancement (bouton
+**Recommencer** pour tout décocher ; **Modifier** rouvre la fiche, d'où l'on peut aussi supprimer le drone).
 
 Les logs des **filtres** et ceux des **séries PID** sont demandés à part : ouvrez-les avec le bouton de la
 case de leur phase. Ils ne s'enregistrent pas à la même fréquence et ne servent pas aux mêmes cases.

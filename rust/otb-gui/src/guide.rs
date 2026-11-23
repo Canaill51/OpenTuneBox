@@ -1,13 +1,11 @@
-//! Guide intégré, partie sans fenêtre (`gui/guide.py`) : fichier des fiches drone, liens internes, avancement, outils cités.
+//! Guide intégré, partie sans fenêtre (`gui/guide.py`) : fiches drone vues par le Guide et reprise de l'ancien fichier, liens internes, avancement, outils cités.
 //!
 //! Rien ici ne dépend d'egui : tout se teste sans interface (`tests/guide.rs`). La page est dans `guide_page.rs`.
 
 use otb_advisor::drone_card::DroneCard;
 use otb_advisor::log_check::{FILTERS, FilterTargets, LogCheck, PID, ROLE_NAMES};
 use otb_advisor::tuning_path::{AUTO_OK, auto_status, phases};
-use serde::Serialize;
 use serde_json::Value;
-use serde_json::ser::{PrettyFormatter, Serializer};
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -147,8 +145,8 @@ pub fn progress(card: &DroneCard, checks: &[LogCheck], targets: Option<&FilterTa
         .collect()
 }
 
-// ------------------------------------------------------------------ fichier des fiches
-/// Dossier de données de Qt (`QStandardPaths.AppDataLocation`, avec le nom de l'organisation puis celui de l'application, tous deux
+// ------------------------------------------------------------------ ancien fichier des fiches
+/// Chemin de l'**ancien** fichier des fiches (repris dans la bibliothèque au lancement, D-068). Dossier de données de Qt (`QStandardPaths.AppDataLocation`, avec le nom de l'organisation puis celui de l'application, tous deux
 /// « OpenTuneBox » dans `gui/app.py`) : le même fichier que la version Python.
 /// Linux : mesuré sur le poste (`~/.local/share/OpenTuneBox/OpenTuneBox/drones.json`). Windows : d'après la documentation
 /// de Qt (`%APPDATA%` = AppData/Roaming), non essayé séparément.
@@ -180,16 +178,7 @@ pub fn cards_path() -> PathBuf {
     cards_path_in(std::env::consts::OS, &|k| std::env::var_os(k))
 }
 
-/// Le texte du fichier des fiches, au format de Python (`json.dumps(ensure_ascii=False, indent=1)`, sans saut de ligne final).
-pub fn cards_to_json(cards: &[DroneCard]) -> String {
-    let v = Value::Array(cards.iter().map(DroneCard::to_value).collect());
-    let mut out = Vec::new();
-    let mut ser = Serializer::with_formatter(&mut out, PrettyFormatter::with_indent(b" "));
-    v.serialize(&mut ser).expect("écriture en mémoire");
-    String::from_utf8(out).expect("JSON en UTF-8")
-}
-
-/// Les fiches lues dans le texte du fichier. `Err` : le texte n'est pas une liste de fiches lisibles.
+/// Les fiches lues dans le texte de l'ancien fichier. `Err` : le texte n'est pas une liste de fiches lisibles.
 pub fn cards_from_json(text: &str) -> Result<Vec<DroneCard>, String> {
     let v: Value = serde_json::from_str(text).map_err(|e| format!("JSON invalide : {e}"))?;
     let list = v.as_array().ok_or("le fichier n'est pas une liste de fiches")?;
@@ -199,94 +188,40 @@ pub fn cards_from_json(text: &str) -> Result<Vec<DroneCard>, String> {
         .collect()
 }
 
-/// Les fiches drone et leur fichier. Un fichier illisible n'est jamais écrasé en silence (D-039) : il est mis de côté sous le nom
-/// `drones.json.illisible` avant la première écriture, et `problem` dit pourquoi les fiches sont vides.
+/// Les fiches de l'**ancien** fichier du Guide (`cards_path`), d'avant leur entrée dans la bibliothèque (D-068) :
+/// on ne les lit plus que pour les y reprendre. Un fichier absent n'en a aucune ; un fichier illisible le dit, et
+/// n'est pas touché.
+pub fn read_old_cards(path: &Path) -> Result<Vec<DroneCard>, String> {
+    match std::fs::read(path) {
+        Ok(bytes) => String::from_utf8(bytes)
+            .map_err(|e| e.to_string())
+            .and_then(|t| cards_from_json(&t)),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(format!("lecture impossible : {e}")),
+    }
+}
+
+/// L'ancien fichier, une fois ses fiches reprises **et la bibliothèque écrite** : renommé `drones.json.repris`
+/// (`.repris.1`… si le nom est pris), jamais effacé. Sans ce renommage, un drone supprimé dans sa fiche
+/// reviendrait au lancement suivant.
+pub fn set_aside_old_cards(path: &Path) -> io::Result<PathBuf> {
+    let to = free_name(path, "repris");
+    std::fs::rename(path, &to)?;
+    Ok(to)
+}
+
+/// Les fiches drone vues par le Guide : une **copie** de celles de la bibliothèque (D-068), que `App` relit quand
+/// la table des drones change. Le Guide n'y change que ses cases ; `App` reporte ces changements dans la
+/// bibliothèque (`GuideAction::Done`, `GuideAction::Reset`).
+#[derive(Default)]
 pub struct Cards {
-    /// `None` : fiches seulement en mémoire (bancs de test : jamais le vrai fichier de l'utilisateur).
-    pub path: Option<PathBuf>,
     pub list: Vec<DroneCard>,
-    problem: Option<String>,
 }
 
 impl Cards {
-    /// Un fichier absent donne une liste vide sans problème.
-    pub fn load(path: PathBuf) -> Cards {
-        let (list, problem) = match std::fs::read(&path) {
-            Ok(bytes) => match String::from_utf8(bytes)
-                .map_err(|e| e.to_string())
-                .and_then(|t| cards_from_json(&t))
-            {
-                Ok(list) => (list, None),
-                Err(e) => (Vec::new(), Some(e)),
-            },
-            Err(e) if e.kind() == io::ErrorKind::NotFound => (Vec::new(), None),
-            Err(e) => (Vec::new(), Some(format!("lecture impossible : {e}"))),
-        };
-        Cards {
-            path: Some(path),
-            list,
-            problem,
-        }
-    }
-
-    /// Fiches sans fichier : rien n'est lu ni écrit.
-    pub fn memory() -> Cards {
-        Cards {
-            path: None,
-            list: Vec::new(),
-            problem: None,
-        }
-    }
-
-    /// Pourquoi le fichier n'a pas pu être lu (tant qu'il n'a pas été mis de côté).
-    pub fn problem(&self) -> Option<&str> {
-        self.problem.as_deref()
-    }
-
-    /// Écrit le fichier, par un fichier temporaire puis un renommage : une coupure ne laisse jamais un fichier à moitié écrit.
-    pub fn save(&mut self) -> io::Result<()> {
-        let Some(path) = self.path.clone() else { return Ok(()) };
-        if self.problem.is_some() && path.exists() {
-            std::fs::rename(&path, free_name(&path, "illisible"))?;
-        }
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, cards_to_json(&self.list))?;
-        std::fs::rename(&tmp, &path)?;
-        self.problem = None;
-        Ok(())
-    }
-
-    /// Ajoute une fiche (elle remplace celle qui porte exactement le même nom, comme Python) ; rend son numéro.
-    pub fn add(&mut self, card: DroneCard) -> io::Result<usize> {
-        self.list.retain(|c| c.name != card.name);
-        self.list.push(card);
-        self.save()?;
-        Ok(self.list.len() - 1)
-    }
-
-    /// Remplace la fiche `i` (modification : l'avancement est repris par l'appelant).
-    pub fn replace(&mut self, i: usize, card: DroneCard) -> io::Result<()> {
-        if let Some(slot) = self.list.get_mut(i) {
-            *slot = card;
-        }
-        self.save()
-    }
-
-    pub fn delete(&mut self, i: usize) -> io::Result<()> {
-        if i < self.list.len() {
-            self.list.remove(i);
-        }
-        self.save()
-    }
-
-    /// Coche ou décoche une case : une case décochée est retirée de `done`, jamais écrite à `false` (comme Python).
-    pub fn set_done(&mut self, i: usize, key: &str, on: bool) -> io::Result<()> {
-        let Some(card) = self.list.get_mut(i) else {
-            return Ok(());
-        };
+    /// Coche ou décoche une case : une case décochée est retirée de `done`, jamais gardée à `false`.
+    pub fn set_done(&mut self, i: usize, key: &str, on: bool) {
+        let Some(card) = self.list.get_mut(i) else { return };
         if on {
             match card.done.iter_mut().find(|(k, _)| k == key) {
                 Some(slot) => slot.1 = true,
@@ -295,19 +230,17 @@ impl Cards {
         } else {
             card.done.retain(|(k, _)| k != key);
         }
-        self.save()
     }
 
     /// Décoche toutes les cases de la fiche `i`.
-    pub fn reset(&mut self, i: usize) -> io::Result<()> {
+    pub fn reset(&mut self, i: usize) {
         if let Some(card) = self.list.get_mut(i) {
             card.done.clear();
         }
-        self.save()
     }
 }
 
-/// `drones.json.illisible`, puis `.illisible.1`… : un fichier déjà mis de côté n'est jamais écrasé.
+/// `drones.json.repris`, puis `.repris.1`… : un fichier déjà mis de côté n'est jamais écrasé.
 fn free_name(path: &Path, suffix: &str) -> PathBuf {
     let base = path.as_os_str().to_owned();
     let with = |n: Option<u32>| {

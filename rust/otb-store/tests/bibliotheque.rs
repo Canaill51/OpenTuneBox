@@ -4,7 +4,9 @@
 //! **Contre-preuves** (L-071) : chaque protection a été cassée à la main et le test visé a rougi — c'est noté
 //! sous le test concerné, avec ce qui échoue.
 
-use otb_store::model::{Analysis, AnalysisItem, Drone, FORMAT_VERSION, Fragment, LogEntry, Measure};
+use otb_store::model::{
+    Analysis, AnalysisItem, Drone, DroneSheet, FORMAT_VERSION, Fragment, LogEntry, Measure, config_changes,
+};
 use otb_store::{Library, dir_in, fingerprint};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -428,4 +430,117 @@ fn a_volume_reel_les_fichiers_restent_petits_et_louverture_rapide() {
         ouverture.as_secs_f64() < 5.0,
         "ouverture en {ouverture:?} : le déclencheur du plan est atteint"
     );
+}
+
+// ---------------------------------------------------------------- fiche du drone (lot 30d, D-068)
+
+fn fiche() -> DroneSheet {
+    DroneSheet {
+        size: "5″".into(),
+        cells: "6S".into(),
+        weight: "680".into(),
+        kv: "1950".into(),
+        poles: "14".into(),
+        props: "HQ 5.1×3.5×3".into(),
+        esc: "BLHeli_32".into(),
+        betaflight: "2026.6".into(),
+        pid_khz: "8".into(),
+        done: vec!["recording".into(), "rpm".into()],
+    }
+}
+
+/// La fiche et la carte de vol font l'aller-retour ; un drone sans fiche reste **sans** fiche (pas de valeurs
+/// inventées à la relecture).
+#[test]
+fn la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste() {
+    let dir = dossier("fiche");
+    let mut lib = Library::open(dir.clone());
+    let mut d = Drone::new("uid-1", "JeNo Ced");
+    d.board = "STM32F405".into();
+    d.sheet = Some(fiche());
+    lib.put_drone(d);
+    lib.put_drone(Drone::new("Whoop", "Whoop"));
+    lib.save().expect("écriture");
+
+    let relue = Library::open(dir);
+    assert!(relue.problems().is_empty(), "{:?}", relue.problems());
+    assert_eq!(relue.drone("uid-1").unwrap().board, "STM32F405");
+    assert_eq!(relue.drone("uid-1").unwrap().sheet, Some(fiche()));
+    assert_eq!(relue.drone("Whoop").unwrap().sheet, None);
+}
+
+/// Un fichier de drones écrit avant la fiche (lot 28) se lit sans problème, et sans fiche.
+#[test]
+fn un_fichier_de_drones_d_avant_la_fiche_se_lit() {
+    let dir = dossier("fiche-avant");
+    std::fs::write(
+        dir.join("drones.json"),
+        r#"{"version":1,"items":[{"id":"JeNo Ced","nom":"JeNo Ced","firmware":"Betaflight 2026.6.0","vu_le":"2026-11-17","revu_le":"2026-11-17"}]}"#,
+    )
+    .unwrap();
+    let lib = Library::open(dir);
+    assert!(lib.problems().is_empty(), "{:?}", lib.problems());
+    let d = lib.drone("JeNo Ced").unwrap();
+    assert_eq!((d.board.as_str(), d.sheet.as_ref()), ("", None));
+}
+
+/// Supprimer un drone retire tout ce qui le désigne, et **rien d'un autre drone**.
+///
+/// Contre-preuve vue en échec (2026-11-23) : sans la boucle sur `remove_fragment`, le fragment restait dans la
+/// liste d'analyse et la troisième assertion rougissait.
+#[test]
+fn supprimer_un_drone_retire_ses_logs_fragments_mesures_et_configurations() {
+    let mut lib = remplie(dossier("suppr-drone"));
+    lib.put_drone(Drone::new("uid-0002", "Autre"));
+    assert!(lib.add_log(log("emp-bbb", "uid-0002", "AUTRE")));
+    lib.put_fragment(fragment("fr-2", "emp-bbb", (0, 10), "2026-11-14"));
+    lib.add_to_analysis("fr-2");
+    lib.record_config("uid-0002", "2026-11-14T10:00:00", "set p_roll = 50");
+    let avant = lib.drones_revision();
+
+    let retires = lib.remove_drone("uid-0001");
+    assert_eq!(retires, vec!["fr-1".to_string()]);
+    assert!(lib.drone("uid-0001").is_none() && lib.log("emp-aaa").is_none());
+    assert!(lib.analysis().items.iter().all(|i| i.fragment_id != "fr-1"));
+    assert_eq!(lib.analysis().working, None, "le fragment de travail était fr-1");
+    assert!(lib.measure("fr-1", 0, "latence_ms").is_none());
+    assert!(lib.configs_of_drone("uid-0001").is_empty());
+    assert!(lib.drones_revision() > avant);
+    // l'autre drone est intact
+    assert!(lib.drone("uid-0002").is_some() && lib.fragment("fr-2").is_some());
+    assert_eq!(lib.configs_of_drone("uid-0002").len(), 1);
+    assert!(lib.analysis().items.iter().any(|i| i.fragment_id == "fr-2"));
+}
+
+/// C'est le nom qui relie un log à sa fiche : un drone renommé se retrouve par son nouveau nom.
+#[test]
+fn un_drone_se_retrouve_par_son_nom() {
+    let mut lib = Library::in_memory();
+    let mut d = Drone::new("JeNo", "JeNo");
+    d.name = "JeNo Ced".into();
+    lib.put_drone(d);
+    assert_eq!(lib.drone_by_name("JeNo Ced").unwrap().id, "JeNo");
+    assert!(lib.drone_by_name("JeNo").is_none());
+}
+
+/// Les changements entre deux `diff all` : réglages modifiés, ajoutés (défaut → valeur) et revenus au défaut,
+/// chacun dans sa section — le même nom dans deux profils fait deux réglages.
+#[test]
+fn deux_configurations_se_comparent_reglage_par_reglage() {
+    let avant = "# diff all\nset gyro_lpf1_static_hz = 150\nset dshot_idle_value = 550\nprofile 0\nset p_roll = 31\n\
+                 profile 1\nset p_roll = 40\nrateprofile 0\nset roll_rc_rate = 7\n";
+    let apres = "# diff all\nset gyro_lpf1_static_hz = 165\nprofile 0\nset p_roll = 72\nset d_roll = 48\n\
+                 profile 1\nset p_roll = 40\nrateprofile 0\nset roll_rc_rate = 7\n";
+    let c = config_changes(avant, apres);
+    let attendu: Vec<(String, String, String)> = [
+        ("gyro_lpf1_static_hz", "150", "165"),
+        ("profile 0 · p_roll", "31", "72"),
+        ("profile 0 · d_roll", "", "48"),
+        ("dshot_idle_value", "550", ""),
+    ]
+    .iter()
+    .map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string()))
+    .collect();
+    assert_eq!(c, attendu);
+    assert!(config_changes(apres, apres).is_empty());
 }

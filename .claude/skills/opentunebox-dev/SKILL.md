@@ -103,8 +103,8 @@ les 95 % de la toute première mesure du 2026-10-01, d'avant la distinction `gap
 
 `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]` (rendu wgpu sans fenêtre, jamais dans la
 CI) écrit `courbes-clair.png`, `courbes-sombre.png`, puis une capture par outil et par thème. Toujours regarder l'image produite.
-Pour une capture du Guide, partir d'un test de `rust/otb-gui/tests/guide.rs` : `App::new` prend un guide sans fichier, jamais le vrai
-`drones.json` de Cédric.
+Pour une capture du Guide, partir d'un test de `rust/otb-gui/tests/guide.rs` : `App::new` prend une bibliothèque en mémoire, jamais
+la vraie bibliothèque de Cédric (ses fiches drone y sont, D-068).
 Captures du README : `Cedric/JeNo 5/FINAL.bbl` (visualiseur, 1500 × 950, session FINAL.02) ; `LAST.bbl` +
 `FINAL.bbl` (réponse indicielle avec les trois sessions, Assistant sur FINAL.02, 1600 × 1000).
 

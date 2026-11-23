@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
-//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `fiche-drone-<thème>.png`, `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
@@ -78,6 +78,49 @@ fn main() {
             .expect("rendu")
             .save(out.join(format!("tableau-de-bord-{}.png", th.name)))
             .unwrap();
+        // la fiche du drone (lot 30d, D-068) : deux « diff all » d'exemple, en mémoire, pour voir la liste des
+        // configurations ; la seconde dépliée par « Comparer »
+        if let Some(id) = h.state().library.drones().first().map(|d| d.id.clone()) {
+            let avant = "profile 0\nset p_roll = 45\nset i_roll = 31\nset d_roll = 39\n";
+            let apres = "profile 0\nset p_roll = 45\nset i_roll = 72\nset d_roll = 48\n";
+            h.state_mut().library.record_config(&id, "2026-11-02T11:15:00", avant);
+            h.state_mut().library.record_config(&id, "2026-11-13T18:15:00", apres);
+            let drone = h.state().library.drone(&id).cloned().unwrap();
+            let mut form = otb_gui::drone_sheet::SheetForm::edit(&drone);
+            let derniere = h
+                .state()
+                .library
+                .configs_of_drone(&id)
+                .last()
+                .map(|c| c.id.clone())
+                .unwrap();
+            form.shown = Some((derniere, true));
+            h.state_mut().open_sheet(form);
+            h.run_steps(4);
+            // temps CPU moyen d'un cadre de la fiche (le budget de 60 images par seconde : 16,7 ms)
+            let t0 = std::time::Instant::now();
+            h.run_steps(8);
+            eprintln!(
+                "fiche du drone ({}) : {:.1} ms par cadre",
+                th.name,
+                t0.elapsed().as_secs_f64() * 1000.0 / 8.0
+            );
+            h.render()
+                .expect("rendu")
+                .save(out.join(format!("fiche-drone-{}.png", th.name)))
+                .unwrap();
+            // le bas de l'écran : la configuration comparée, et la suppression qui attend sa confirmation
+            h.get_by_label("Supprimer…").scroll_to_me();
+            h.run_steps(4);
+            h.get_by_label("Supprimer…").click();
+            h.run_steps(4);
+            h.render()
+                .expect("rendu")
+                .save(out.join(format!("fiche-drone-bas-{}.png", th.name)))
+                .unwrap();
+            h.state_mut().apply_sheet(otb_gui::drone_sheet::SheetAction::Leave);
+            h.run_steps(2);
+        }
         // la barre de fragments avec une pastille désactivée (pointillés, barrée), puis réactivée (lot 29c)
         h.state_mut().state.set_active(0, false);
         h.run_steps(4);
@@ -90,7 +133,7 @@ fn main() {
         let nom = h.state().state.logs[0].log.settings.craft_name.clone();
         let mut fiche = otb_advisor::drone_card::DroneCard::new(&nom);
         fiche.pid_khz = 3.2;
-        h.state_mut().guide.cards.list.push(fiche);
+        h.state_mut().put_card(fiche);
         h.state_mut().guide.select_by_name(&nom);
         h.state_mut().screen = Screen::Guide;
         for phase in [otb_gui::guide::HOME, "prep", "filters", "pid"] {

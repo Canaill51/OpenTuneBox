@@ -18,6 +18,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::analysis_bar::{AnalysisBar, BarAction, ChipInfo};
 use crate::dashboard::{DashAction, DashboardPage};
+use crate::drone_sheet::{DroneSheetPage, SheetAction, SheetForm};
 use crate::export::{crop, default_export_path, today_utc, with_png_extension, write_png};
 use crate::guide::ToolTarget;
 use crate::guide_page::{GuideAction, GuidePage};
@@ -71,6 +72,9 @@ pub enum Screen {
     /// en ouvrant un log, par le crayon d'un fragment du tableau de bord ou par le Guide, et se referme vers
     /// l'écran d'où l'on venait (`App::return_to`).
     Viewer,
+    /// La fiche d'un drone (D-068) : ouverte par le crayon d'une carte, « Nouveau drone » ou le Guide, elle se
+    /// referme vers l'écran d'où l'on venait (`App::sheet_return`). Le rail reste, « Tableau de bord » choisi.
+    DroneSheet,
     /// Index dans `App::pages`.
     Tool(usize),
 }
@@ -164,6 +168,11 @@ pub struct App {
     pub viewer: ViewerPage,
     pub guide: GuidePage,
     pub dash: DashboardPage,
+    /// L'écran de la fiche d'un drone, et l'écran où revenir en le quittant.
+    pub sheet: DroneSheetPage,
+    pub sheet_return: Screen,
+    /// Version de la table des drones déjà donnée au Guide (`Library::drones_revision`) ; `None` : jamais.
+    cards_seen: Option<u64>,
     /// La barre de fragments du haut (liste d'analyse, D-066).
     pub bar: AnalysisBar,
     /// Fichiers dont on n'ouvre que certaines sessions (le « + » d'un fragment, la liste relue au lancement) :
@@ -289,7 +298,7 @@ impl App {
     /// ouvrir une vraie fenêtre du système (elle bloque le test et se ferme mal). Seul `with_guide` (le lancement réel)
     /// garde la boîte du système.
     pub fn new(pages: Vec<Box<dyn Page>>) -> Self {
-        let mut app = Self::with_guide(pages, GuidePage::in_memory());
+        let mut app = Self::with_guide(pages, GuidePage::new());
         app.save_dialog = Box::new(|_| None);
         app
     }
@@ -303,6 +312,9 @@ impl App {
             viewer: ViewerPage::new(),
             guide,
             dash: DashboardPage::new(),
+            sheet: DroneSheetPage::default(),
+            sheet_return: Screen::Dashboard,
+            cards_seen: None,
             bar: AnalysisBar::new(),
             wanted: HashMap::new(),
             restoring: None,
@@ -737,6 +749,90 @@ impl App {
         }
     }
 
+    /// Le Guide reçoit les fiches de la bibliothèque **quand la table des drones a changé** (D-068) : c'est elle qui
+    /// les tient, le Guide n'en a qu'une copie. Une comparaison de compteur par image, rien de plus.
+    pub fn sync_cards(&mut self) {
+        let rev = self.library.drones_revision();
+        if self.cards_seen != Some(rev) {
+            self.guide.refresh(crate::drone_sheet::cards_of(&self.library));
+            self.cards_seen = Some(rev);
+        }
+    }
+
+    /// Range une fiche du Guide dans la bibliothèque (drone créé s'il n'existe pas) et la donne au Guide : pour
+    /// les bancs de test, qui partent d'une fiche toute faite.
+    pub fn put_card(&mut self, card: otb_advisor::drone_card::DroneCard) {
+        let mut d = self
+            .library
+            .drone_by_name(&card.name)
+            .cloned()
+            .unwrap_or_else(|| otb_store::model::Drone::new(&card.name, &card.name));
+        d.sheet = Some(crate::drone_sheet::sheet_of_card(&card));
+        self.library.put_drone(d);
+        self.sync_cards();
+    }
+
+    /// Ouvre l'écran de la fiche ; on reviendra à l'écran d'où l'on vient.
+    pub fn open_sheet(&mut self, form: SheetForm) {
+        if self.screen != Screen::DroneSheet {
+            self.sheet_return = self.screen;
+        }
+        self.sheet.form = Some(form);
+        self.screen = Screen::DroneSheet;
+    }
+
+    fn close_sheet(&mut self) {
+        self.sheet.form = None;
+        self.screen = match self.sheet_return {
+            Screen::DroneSheet => Screen::Dashboard,
+            s => s,
+        };
+    }
+
+    /// Les cases cochées de la fiche de ce nom, changées par `f` dans la bibliothèque.
+    fn edit_cases(&mut self, name: &str, f: impl FnOnce(&mut Vec<String>)) {
+        let Some(mut d) = self.library.drone_by_name(name).cloned() else {
+            return;
+        };
+        let Some(sheet) = d.sheet.as_mut() else { return };
+        f(&mut sheet.done);
+        self.library.put_drone(d);
+    }
+
+    pub fn apply_sheet(&mut self, action: SheetAction) {
+        match action {
+            SheetAction::Leave => self.close_sheet(),
+            SheetAction::Save => {
+                let Some(form) = self.sheet.form.as_mut() else { return };
+                match crate::drone_sheet::save_form(&mut self.library, form) {
+                    Ok(id) => {
+                        let name = self.library.drone(&id).map(|d| d.name.clone()).unwrap_or_default();
+                        self.dash.selected = Some(id);
+                        self.sync_cards();
+                        self.guide.select_by_name(&name);
+                        self.close_sheet();
+                    }
+                    Err(e) => form.error = e,
+                }
+            }
+            SheetAction::Delete(id) => {
+                let name = self.library.drone(&id).map(|d| d.name.clone()).unwrap_or_default();
+                // ses fragments quittent aussi l'écran : rien ne doit montrer un fragment absent de la bibliothèque
+                for f in self.library.remove_drone(&id) {
+                    while let Some(i) = self.state.logs.iter().position(|l| l.fragment.as_ref() == Some(&f)) {
+                        self.state.remove(i);
+                    }
+                }
+                if self.dash.selected.as_deref() == Some(id.as_str()) {
+                    self.dash.selected = None;
+                }
+                self.errors.push(format!("Drone « {name} » supprimé."));
+                self.sheet.form = None;
+                self.screen = Screen::Dashboard;
+            }
+        }
+    }
+
     /// « Supprimer définitivement » (D-067) : le fragment **ajouté** du log `index` quitte la bibliothèque (avec ses
     /// mesures) et toutes ses pastilles. ⚠️ Jamais le fragment d'une session : il reviendrait à la prochaine
     /// ouverture du fichier, l'écran ne le propose pas et ce garde-fou le refuse.
@@ -787,11 +883,14 @@ impl App {
         }
         let bytes = std::fs::read(path).ok()?;
         let date = crate::dashboard::file_date(path);
+        // le nom relie un log à son drone (D-068) : un drone créé à la main garde l'identifiant de sa création
         let mut drone = self
             .library
-            .drone(&nom)
+            .drone_by_name(&nom)
+            .or_else(|| self.library.drone(&nom))
             .cloned()
             .unwrap_or_else(|| otb_store::model::Drone::new(&nom, &nom));
+        let drone_id = drone.id.clone();
         drone.firmware = first.settings.firmware.clone();
         if drone.first_seen.is_empty() {
             drone.first_seen = date.clone();
@@ -801,7 +900,7 @@ impl App {
         let id = otb_store::fingerprint(&bytes);
         self.library.add_log(otb_store::model::LogEntry {
             id: id.clone(),
-            drone_id: nom,
+            drone_id,
             name: nom_court(path),
             path: path.display().to_string(),
             copied: false,
@@ -887,7 +986,11 @@ impl App {
                 // chaque entrée prend toute la largeur, son texte aligné à gauche comme dans le prototype
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                     if ui
-                        .add(rail_entry("Tableau de bord", self.screen == Screen::Dashboard, theme))
+                        .add(rail_entry(
+                            "Tableau de bord",
+                            matches!(self.screen, Screen::Dashboard | Screen::DroneSheet),
+                            theme,
+                        ))
                         .clicked()
                     {
                         self.screen = Screen::Dashboard;
@@ -939,6 +1042,7 @@ impl App {
         }
         self.poll_opening(&ctx);
         self.sync_analysis();
+        self.sync_cards();
         // ⚠️ Relever la capture **avant** d'examiner l'échéance : l'inverse jetait `shot_rect` au cadre où le délai
         // expirait, et `finish_export` ressortait alors sans rien écrire bien que l'image fût là — l'export échouait
         // avec « la capture d'écran n'est pas arrivée » alors qu'elle venait d'arriver (L-095).
@@ -1100,12 +1204,14 @@ impl App {
             egui::Rect::from_min_max(egui::pos2(free.min.x, free.min.y), egui::pos2(window.max.x, free.max.y))
         };
         let mut dash_actions = Vec::new();
+        let mut sheet_actions = Vec::new();
         egui::CentralPanel::default().show(root, |ui| match self.screen {
             Screen::Dashboard => {
                 dash_actions = self
                     .dash
                     .ui(ui, &self.library, &self.guide.cards.list, &self.state, &theme);
             }
+            Screen::DroneSheet => sheet_actions = self.sheet.ui(ui, &self.library, &theme),
             Screen::Viewer => {} // dessiné plus haut, hors rail
             Screen::Tool(i) if i < self.pages.len() => {
                 self.pages[i].ui(ui, &mut self.state, &theme);
@@ -1123,11 +1229,11 @@ impl App {
         }
         for a in dash_actions {
             match a {
-                DashAction::Guide(nom) => {
-                    if let Some(n) = nom {
-                        self.guide.select_by_name(&n);
+                DashAction::NewDrone => self.open_sheet(SheetForm::new("", crate::drone_sheet::new_sheet())),
+                DashAction::EditDrone(id) => {
+                    if let Some(d) = self.library.drone(&id) {
+                        self.open_sheet(SheetForm::edit(d));
                     }
-                    self.screen = Screen::Guide;
                 }
                 DashAction::OpenDialog => {
                     // la maquette passe à l'écran d'extraction du log qu'on vient d'ouvrir
@@ -1153,7 +1259,50 @@ impl App {
                 GuideAction::Tool(ToolTarget::Viewer) => self.enter_extraction(),
                 GuideAction::Tool(ToolTarget::Page(title)) => self.open_tool(title),
                 GuideAction::Open(paths) => self.open(paths),
+                GuideAction::NewDrone(card) => {
+                    let form = match card {
+                        Some(c) => {
+                            let mut sheet = crate::drone_sheet::sheet_of_card(&c);
+                            if let Some(v) = self
+                                .state
+                                .current_log()
+                                .and_then(|l| crate::drone_sheet::version_of_firmware(&l.log.settings.firmware))
+                            {
+                                sheet.betaflight = v.to_string();
+                            }
+                            sheet.cells = "6S".into();
+                            sheet.poles = "14".into();
+                            // un drone que la bibliothèque connaît déjà par ses logs : c'est sa fiche qu'on remplit
+                            match self.library.drone_by_name(&c.name) {
+                                Some(d) if d.sheet.is_none() => {
+                                    let mut f = SheetForm::edit(d);
+                                    f.sheet = sheet;
+                                    f
+                                }
+                                _ => SheetForm::new(&c.name, sheet),
+                            }
+                        }
+                        None => SheetForm::new("", crate::drone_sheet::new_sheet()),
+                    };
+                    self.open_sheet(form);
+                }
+                GuideAction::EditDrone(name) => {
+                    if let Some(d) = self.library.drone_by_name(&name) {
+                        self.open_sheet(SheetForm::edit(d));
+                    }
+                }
+                GuideAction::Done { name, key, on } => self.edit_cases(&name, |done| {
+                    if !on {
+                        done.retain(|k| k != &key);
+                    } else if !done.contains(&key) {
+                        done.push(key.clone());
+                    }
+                }),
+                GuideAction::Reset(name) => self.edit_cases(&name, Vec::clear),
             }
+        }
+        for a in sheet_actions {
+            self.apply_sheet(a);
         }
     }
 

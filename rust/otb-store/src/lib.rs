@@ -125,6 +125,8 @@ pub struct Library {
     measures: BTreeMap<MeasureKey, Measure>,
     analysis: Analysis,
     problems: Vec<String>,
+    /// Changements de la table des drones depuis l'ouverture (`drones_revision`).
+    drones_rev: u64,
     /// Fichiers à mettre de côté avant la première écriture, avec le suffixe qui dit pourquoi.
     aside: Vec<(PathBuf, &'static str)>,
 }
@@ -316,6 +318,7 @@ impl Library {
 
     /// Ajoute ou remplace un drone, reconnu par l'identifiant de sa carte.
     pub fn put_drone(&mut self, drone: Drone) {
+        self.drones_rev += 1;
         match self.drones.iter_mut().find(|d| d.id == drone.id) {
             Some(slot) => *slot = drone,
             None => self.drones.push(drone),
@@ -324,6 +327,48 @@ impl Library {
 
     pub fn drone(&self, id: &str) -> Option<&Drone> {
         self.drones.iter().find(|d| d.id == id)
+    }
+
+    /// Le drone qui porte ce nom (le `craft_name` des logs) : c'est le nom, et non l'identifiant, qui relie un
+    /// log à sa fiche (écran de la fiche, D-068). Un drone créé à la main garde l'identifiant de sa création
+    /// même renommé ; le chercher par identifiant raterait ses logs suivants. Le premier, si deux le portent.
+    pub fn drone_by_name(&self, name: &str) -> Option<&Drone> {
+        self.drones.iter().find(|d| d.name == name)
+    }
+
+    /// Compteur des changements de la table des drones : l'interface s'en sert pour savoir quand relire les
+    /// fiches, sans les comparer à chaque image.
+    pub fn drones_revision(&self) -> u64 {
+        self.drones_rev
+    }
+
+    /// Supprime un drone et **tout ce qui le désigne** : ses logs connus, leurs fragments (avec leurs mesures et
+    /// leur place dans la liste d'analyse) et ses configurations. Rend les identifiants des fragments retirés,
+    /// pour que l'appelant ferme ce qui les affiche.
+    ///
+    /// ⚠️ Les fichiers de logs **copiés** dans la bibliothèque restent sur le disque : on n'efface jamais un vol
+    /// sans un geste qui le dise (W-075).
+    pub fn remove_drone(&mut self, id: &str) -> Vec<String> {
+        let logs: Vec<String> = self
+            .logs
+            .iter()
+            .filter(|l| l.drone_id == id)
+            .map(|l| l.id.clone())
+            .collect();
+        let fragments: Vec<String> = self
+            .fragments
+            .iter()
+            .filter(|f| logs.contains(&f.log_id))
+            .map(|f| f.id.clone())
+            .collect();
+        for f in &fragments {
+            self.remove_fragment(f);
+        }
+        self.logs.retain(|l| l.drone_id != id);
+        self.configs.retain(|c| c.drone_id != id);
+        self.drones.retain(|d| d.id != id);
+        self.drones_rev += 1;
+        fragments
     }
 
     // ------------------------------------------------------------ logs
