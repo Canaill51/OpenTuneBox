@@ -9,8 +9,9 @@ use std::sync::Arc;
 use egui::{Color32, RichText, Ui};
 use otb_log::flightlog::FlightLog;
 
-use crate::state::{AppState, Cache};
+use crate::state::{AppState, Cache, NoiseSignal};
 use crate::theme::Theme;
+use crate::tools::common::AxisToggles;
 use crate::worker::Runner;
 
 /// Copie d'un log chargé, envoyée au thread de calcul.
@@ -95,6 +96,21 @@ pub trait Tool {
     }
     /// Oublie la vue des graphiques (bouton « Tout voir »).
     fn reset_view(&mut self) {}
+
+    /// Signal que montrent les réglages de la vue, pour le choix « Gyro | Terme D » de son espace (D-069) ; `None` :
+    /// un autre (erreur PID, gyro et terme D mêlés…).
+    fn signal(&self) -> Option<NoiseSignal> {
+        None
+    }
+
+    /// Met la vue sur ce signal, choisi dans une vue de son espace. ⚠️ Ne touche à rien si elle le montre déjà : un
+    /// choix plus fin fait dans ses cases (le gyro filtré seul…) doit survivre au passage d'une vue à l'autre.
+    fn show_signal(&mut self, _signal: NoiseSignal, _state: &AppState) {}
+
+    /// Cases des axes, partagées par les vues de son espace (D-069).
+    fn axes_mut(&mut self) -> Option<&mut AxisToggles> {
+        None
+    }
 }
 
 /// Une page d'outil, vue par la fenêtre principale.
@@ -152,6 +168,8 @@ pub struct ToolPage<T: Tool> {
     export: bool,
     /// Vue d'espace demandée par ses onglets au dernier affichage (D-060).
     space_goto: Option<&'static str>,
+    /// Dernier choix de l'espace (`SpaceChoice::revision`) appliqué à cette vue ; `None` : jamais affichée.
+    seen_space: Option<u64>,
 }
 
 impl<T: Tool> ToolPage<T> {
@@ -167,6 +185,7 @@ impl<T: Tool> ToolPage<T> {
             queued: None,
             export: false,
             space_goto: None,
+            seen_space: None,
         }
     }
 
@@ -198,6 +217,40 @@ impl<T: Tool> ToolPage<T> {
     fn run_now(&mut self, ctx: &egui::Context, state: &AppState) {
         if !self.tool.selected(state).is_empty() {
             self.run(ctx, state);
+        }
+    }
+
+    /// Met la vue au choix de son espace (D-069) si elle ne l'a pas encore vu : au premier affichage, puis à chaque
+    /// choix fait dans une autre vue. Appelé **avant** `update`, pour que le calcul parte avec le bon signal.
+    pub fn follow_space(&mut self, state: &AppState) {
+        if T::SPACE.is_none() || self.seen_space == Some(state.space.revision) {
+            return;
+        }
+        self.seen_space = Some(state.space.revision);
+        self.tool.show_signal(state.space.signal, state);
+        if let Some(axes) = self.tool.axes_mut() {
+            axes.0 = state.space.axes;
+        }
+    }
+
+    /// Fait d'un changement fait dans cette vue le choix de tout l'espace : un clic sur « Gyro | Terme D », un axe
+    /// coché, ou un signal choisi dans ses cases (`before` : le signal de la vue avant ses réglages). Un passage à
+    /// « autre chose » (`None`) ne change pas l'espace.
+    fn publish_space(&mut self, state: &mut AppState, before: Option<NoiseSignal>) {
+        let mut next = state.space;
+        let now = self.tool.signal();
+        if let Some(s) = now
+            && now != before
+        {
+            next.signal = s;
+        }
+        if let Some(axes) = self.tool.axes_mut() {
+            next.axes = axes.0;
+        }
+        if (next.signal, next.axes) != (state.space.signal, state.space.axes) {
+            next.revision += 1;
+            state.space = next;
+            self.seen_space = Some(next.revision);
         }
     }
 
@@ -270,6 +323,7 @@ impl<T: Tool> Page for ToolPage<T> {
     }
 
     fn ui(&mut self, ui: &mut Ui, state: &mut AppState, theme: &Theme) {
+        self.follow_space(state);
         self.update(ui.ctx(), state);
         // une vue d'espace porte en haut les onglets de son espace (D-060) : les quatre vues du bruit et des
         // filtres s'atteignent les unes depuis les autres, sans repasser par le rail
@@ -279,6 +333,14 @@ impl<T: Tool> Page for ToolPage<T> {
             });
         }
         egui::Panel::right(T::TITLE).show(ui, |ui| {
+            // le choix du signal, en tête du panneau comme dans le prototype : il vaut pour les quatre vues (D-069)
+            let before = self.tool.signal();
+            if T::SPACE.is_some() {
+                if let Some(s) = crate::tools::common::signal_tabs(ui, theme, before) {
+                    self.tool.show_signal(s, state);
+                }
+                ui.add_space(6.0);
+            }
             ui.horizontal_wrapped(|ui| {
                 if T::RUN_BUTTON {
                     let calculer = egui::Button::new(RichText::new("Calculer").strong().color(theme.accent("green")));
@@ -295,6 +357,9 @@ impl<T: Tool> Page for ToolPage<T> {
             });
             ui.separator();
             self.tool.controls(ui, state, theme);
+            if T::SPACE.is_some() {
+                self.publish_space(state, before);
+            }
         });
         egui::Panel::bottom(format!("{}-statut", T::TITLE)).show(ui, |ui| {
             if self.runner.busy() {

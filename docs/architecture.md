@@ -98,7 +98,10 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 
   `rust/otb-gui/src/tools/common.rs` : briques partagées (dont `ViewMemo`, la vue retenue d'un graphique : « Tout voir » l'oublie,
   et `space_tabs` : les onglets d'un espace, avec `ESPACE_BRUIT` et `VUES_BRUIT` — le nom de l'espace « Bruit et filtres » et ses
-  quatre vues, D-060).
+  quatre vues, D-060 ; `signal_tabs` : le choix « Gyro | Terme D » de l'espace, dessiné par `segmented`, commande segmentée
+  du prototype partagée avec l'écran d'extraction). Le choix et les axes de l'espace vivent dans `AppState::space`
+  (`SpaceChoice`, D-069) ; `ToolPage::follow_space` y met une vue avant son calcul, et le trait `Tool` dit le signal d'une
+  vue (`signal`), l'y met (`show_signal`) et prête ses axes (`axes_mut`).
 - `dashboard.rs` : le **tableau de bord** (lot 30c), premier écran du rail. Une carte par drone connu de la bibliothèque
   (`otb-store`), **au dessin du prototype** (D-061) : badge teinté de la couleur du drone, nom et sous-titre, pastille d'état,
   nombre de fragments et date du dernier vol côte à côte, étape du parcours et barre d'avancement ; la carte choisie prend un

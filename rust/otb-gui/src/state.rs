@@ -193,12 +193,88 @@ impl LoadedLog {
     }
 }
 
+/// Signal que montre l'espace « Bruit et filtres » (D-069) : le gyro ou le terme D, chacun avant et après ses filtres.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum NoiseSignal {
+    #[default]
+    Gyro,
+    DTerm,
+}
+
+impl NoiseSignal {
+    pub const ALL: [Self; 2] = [Self::Gyro, Self::DTerm];
+
+    /// Libellé du bouton (celui du prototype).
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Gyro => "Gyro",
+            Self::DTerm => "Terme D",
+        }
+    }
+
+    /// Jeux de données du signal : avant ses filtres, puis après.
+    pub fn keys(self) -> [&'static str; 2] {
+        match self {
+            Self::Gyro => ["gyro_prefilt", "gyro"],
+            Self::DTerm => ["dterm_prefilt", "dterm"],
+        }
+    }
+
+    /// Signal d'un jeu de données (`None` : ni gyro ni terme D, par exemple l'erreur PID).
+    pub fn of_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.keys().contains(&key))
+    }
+
+    /// Signal commun à tous ces jeux de données : `None` s'il n'y en a aucun, ou s'ils ne sont pas tous du même
+    /// signal (la vue montre alors « autre chose » et aucun bouton n'est allumé).
+    pub fn of_keys<'a>(keys: impl IntoIterator<Item = &'a str>) -> Option<Self> {
+        let mut seen = None;
+        for k in keys {
+            let s = Self::of_key(k)?;
+            if seen.is_some_and(|t| t != s) {
+                return None;
+            }
+            seen = Some(s);
+        }
+        seen
+    }
+
+    /// Le même étage (avant ou après filtres) de ce signal : `dterm` → `gyro`, `gyro_prefilt` → `dterm_prefilt`.
+    /// Un jeu qui n'est d'aucun des deux signaux devient celui d'avant les filtres.
+    pub fn counterpart(self, key: &str) -> &'static str {
+        let stage = Self::of_key(key).map_or(0, |s| s.keys().iter().position(|k| *k == key).unwrap_or(0));
+        self.keys()[stage]
+    }
+}
+
+/// Choix communs aux quatre vues de l'espace « Bruit et filtres » (D-069) : changé dans l'une, il vaut pour les
+/// autres. ⚠️ `revision` change à chaque choix : une vue se met au choix quand elle ne l'a pas encore vu, y compris à
+/// son premier affichage — une vue cachée ne calcule pas (D-060), elle se met donc à jour quand on l'affiche.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct SpaceChoice {
+    pub signal: NoiseSignal,
+    pub axes: [bool; 3],
+    pub revision: u64,
+}
+
+impl Default for SpaceChoice {
+    fn default() -> Self {
+        Self {
+            signal: NoiseSignal::Gyro,
+            axes: [true; 3],
+            revision: 0,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct AppState {
     pub logs: Vec<LoadedLog>,
     /// Index du log courant (`None` : aucun).
     pub current: Option<usize>,
     pub cursor: f64,
+    /// Signal et axes de l'espace « Bruit et filtres » (D-069).
+    pub space: SpaceChoice,
     revision: u64,
     next_uid: u64,
 }

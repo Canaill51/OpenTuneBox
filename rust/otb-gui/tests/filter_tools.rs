@@ -1287,9 +1287,16 @@ fn le_simulateur_se_calcule_et_s_affiche_dans_les_deux_themes() {
 #[test]
 fn les_trois_onglets_ont_tous_leurs_champs_nommes() {
     let mut h = banc_page(CLAIR, SIM);
-    for nom in ["D", "Notch dyn / RPM"] {
-        h.get_by_label(nom).click();
-        h.run();
+    // le terme D s'atteint par le choix « Gyro | Terme D » de l'espace (D-069), les notchs dynamiques par la page de
+    // la chaîne du gyro : on revient au gyro avant de l'ouvrir
+    for (nom, clics) in [
+        ("D", &["Terme D"][..]),
+        ("Notch dyn / RPM", &["Gyro", "Notch dyn / RPM"][..]),
+    ] {
+        for c in clics {
+            h.get_by_role_and_label(egui::accesskit::Role::Button, c).click();
+            h.run();
+        }
         let champs: &[&str] = if nom == "D" {
             &[
                 "D LPF1 type",

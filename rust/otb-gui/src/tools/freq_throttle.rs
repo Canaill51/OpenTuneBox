@@ -16,7 +16,7 @@ use otb_log::flightlog::FlightLog;
 
 use super::common::{AxisToggles, FileSelection, ViewMemo, fmt3, motor_freqs, nice_ceil, percentile_linear, wide};
 use crate::plots::{colorbar, corner_text, heatmap_texture, nice_axes};
-use crate::state::AppState;
+use crate::state::{AppState, NoiseSignal};
 use crate::theme::{AXIS_NAMES, Palette, Theme, plot};
 use crate::tool::{LogInput, Tool};
 
@@ -86,6 +86,11 @@ pub const PRESETS: [(&str, [&str; 4], [usize; 4]); 9] = [
     ("8 : A|B|C|D D", ["dterm"; 4], [0, 1, 2, 3]),
     ("9 : A|B|C|D Erreur PID", ["pid_error"; 4], [0, 1, 2, 3]),
 ];
+
+/// Préréglages « A|A|B|B » du gyro et du terme D (`PRESETS`), pris quand on choisit un signal alors que les
+/// colonnes en mêlent plusieurs (D-069).
+pub const PRESET_GYRO: usize = 3;
+pub const PRESET_DTERM: usize = 4;
 
 fn static_key(key: &str) -> Option<&'static str> {
     DATASETS.iter().find(|(k, _)| *k == key).map(|(k, _)| *k)
@@ -453,6 +458,36 @@ impl Tool for FreqThrottleTool {
 
     fn reset_view(&mut self) {
         self.view.reset();
+    }
+
+    fn signal(&self) -> Option<NoiseSignal> {
+        NoiseSignal::of_keys(self.columns.iter().filter_map(|c| c.0))
+    }
+
+    /// Chaque colonne passe à l'autre signal, au même étage et sur le même fragment ; des colonnes mêlées (le
+    /// préréglage 1 de PIDtoolbox, l'erreur PID…) laissent place au préréglage « A|A|B|B » du signal : avant et
+    /// après ses filtres, une paire de colonnes par fragment.
+    fn show_signal(&mut self, signal: NoiseSignal, state: &AppState) {
+        match self.signal() {
+            Some(s) if s == signal => {}
+            Some(_) => {
+                for c in &mut self.columns {
+                    c.0 = c.0.map(|k| signal.counterpart(k));
+                }
+            }
+            None => {
+                let preset = match signal {
+                    NoiseSignal::Gyro => PRESET_GYRO,
+                    NoiseSignal::DTerm => PRESET_DTERM,
+                };
+                let current = state.current.unwrap_or(0);
+                self.apply_preset(preset, &self.files.indices(state), current);
+            }
+        }
+    }
+
+    fn axes_mut(&mut self) -> Option<&mut AxisToggles> {
+        Some(&mut self.axes)
     }
 
     fn options(&self) -> Options {

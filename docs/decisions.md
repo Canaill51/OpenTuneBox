@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) | 2026-11-23 |
 | D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) | 2026-11-23 |
 | D-067 | **Plusieurs fragments par session** : « Enregistrer comme nouveau fragment » dans l'écran d'extraction en range un autre, posé aussitôt en pastille sur les mêmes échantillons ; seul un fragment ajouté se supprime ; « Ouvrir… » ne met en analyse que le fragment de la session (amende D-061) | 2026-11-23 |
 | D-066 | La **barre de fragments** (liste d'analyse à l'écran) décide de ce que montrent toutes les pages : fragments actifs dans l'ordre de la barre, maître pour les pages à un seul vol, couleur fixe par fragment ; plus de liste « Fichiers » par page ; liste retrouvée au lancement (remplace D-049) | 2026-11-23 |
@@ -142,6 +143,46 @@ ici, jamais dans le code.
 ---
 
 ## 2026-11-23 — Fiche d'un drone
+
+### D-069 : un seul choix « Gyro | Terme D » et des axes partagés pour l'espace « Bruit et filtres »
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 30e : les cases détaillées de chaque vue sont **gardées dessous**
+(plutôt que repliées ou supprimées), et le partage des **axes** entre dans le même lot. Précise D-060 (ce qu'un espace
+partage entre ses vues).
+
+**Contexte.** Le prototype porte en tête du panneau de droite de l'espace un seul choix « Gyro | Terme D », qui change
+à la fois le Spectre, Fréq. × gaz, Fréq. × temps et la chaîne de filtres du « Et si ». Chez nous, chaque vue avait ses
+propres cases : jeux de données du Spectre, préréglages de PIDtoolbox pour × gaz, liste « Données » pour × temps, onglets
+« Gyro | D | Notch dyn / RPM » du « Et si ». Couvrir PIDtoolbox reste l'objectif : l'erreur PID, la consigne ou les
+comparaisons A|B ne doivent pas disparaître.
+
+**Décision.**
+- **Le choix appartient à l'espace** (`rust/otb-gui/src/state.rs:SpaceChoice`, dans `AppState`) : un signal
+  (`NoiseSignal`) et trois axes, avec un numéro qui change à chaque choix. Il est dessiné en tête du panneau de droite
+  de chacune des quatre vues (`rust/otb-gui/src/tools/common.rs:signal_tabs`, commande segmentée du prototype).
+- **Une vue se met au choix quand elle ne l'a pas encore vu** (`ToolPage::follow_space`), à son premier affichage puis
+  après chaque choix fait ailleurs — avant de lancer son calcul. Une vue cachée ne calcule toujours pas (D-060).
+- **Un changement fait dans une vue devient le choix de l'espace** (`publish_space`) : un clic sur « Gyro » ou
+  « Terme D », un axe coché, ou un signal choisi dans ses cases. Un choix qui n'est ni le gyro ni le D seul (l'erreur
+  PID, le gyro et le D mêlés) **n'allume aucun bouton** et ne change pas les autres vues.
+- **Changer de signal garde l'étage choisi** (`NoiseSignal::counterpart`) : le gyro filtré seul devient le D filtré
+  seul, et chaque colonne de × gaz reste sur son fragment. Un choix mêlé laisse place au signal avant et après ses
+  filtres : les deux courbes du Spectre ; pour × gaz, le préréglage « A|A|B|B » du signal (`PRESET_GYRO`,
+  `PRESET_DTERM`). × gaz s'ouvre donc sur « Gyro pf | Gyro » par fragment, et non plus sur le préréglage 1 de PIDtoolbox
+  (gyro et D mêlés), toujours dans la liste.
+- **Le « Et si » perd ses onglets « Gyro » et « D »**, doublons du choix de l'espace : la chaîne du gyro garde deux pages,
+  « Passe-bas et notchs » et « Notch dyn / RPM ». Ses deux lignes de graphiques (gyro et D) restent affichées.
+
+**Écartés.** Supprimer les cases détaillées (on perdait des vues de PIDtoolbox) ; les replier sous « Avancé » (un geste
+de plus pour un pilote qui s'en sert) ; un choix par vue (le prototype le partage) ; ne mettre au choix que les vues qui
+le montrent déjà, sans toucher aux réglages des autres (deux vues voisines montreraient deux signaux).
+
+**Témoins.** `rust/otb-gui/tests/noise_space.rs` (5 tests), avec 5 contre-preuves vues en échec (L-071) : sans
+`follow_space`, sans la recopie des axes, `of_keys` qui saute un autre signal, sans `counterpart`, `PRESET_GYRO` sur le
+préréglage 1. Captures des quatre vues dans les deux thèmes. Temps d'un cadre (`--example capture`, `FINAL.bbl`, deux
+fragments) : Spectre 7,8 ms (7,8 avant), Fréq. × gaz 12 ms contre 9,3 avant, **à cause de son contenu** (deux fragments,
+avant et après filtres, au lieu d'un log en quatre colonnes : 9,0 ms avec l'ancien préréglage sur la même branche), sous
+les 16,7 ms d'un écran à 60 images par seconde.
 
 ### D-068 : une seule fiche par drone, rangée dans la bibliothèque ; le Guide la lit
 

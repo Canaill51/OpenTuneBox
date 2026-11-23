@@ -167,6 +167,14 @@ fn main() {
                 .chars()
                 .map(|c| if c.is_alphanumeric() { c } else { '-' })
                 .collect();
+            // temps CPU moyen d'un cadre de la page, calcul terminé (budget de 60 images par seconde : 16,7 ms)
+            let t0 = std::time::Instant::now();
+            h.run_steps(8);
+            eprintln!(
+                "{name} ({}) : {:.1} ms par cadre",
+                th.name,
+                t0.elapsed().as_secs_f64() * 1000.0 / 8.0
+            );
             let img = h.render().expect("rendu");
             img.save(out.join(format!("{name}-{}.png", th.name))).unwrap();
             if title == "Réponse indicielle" {
