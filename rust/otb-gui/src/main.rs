@@ -53,6 +53,8 @@ fn main() -> eframe::Result {
             for p in app.library.problems() {
                 eprintln!("bibliothèque : {p}");
             }
+            // les pastilles de la dernière fois, rouvertes en arrière-plan (D-066)
+            app.restore_analysis();
             Ok(Box::new(app))
         }),
     )

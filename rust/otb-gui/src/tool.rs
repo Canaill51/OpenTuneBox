@@ -45,7 +45,7 @@ impl AppState {
 }
 
 /// Message d'état quand aucun log n'est sélectionné.
-const NO_LOG: &str = "Sélectionnez au moins un log.";
+const NO_LOG: &str = "Activez au moins un fragment dans la barre du haut.";
 
 /// Longueur gardée d'un message d'erreur de calcul (`err[-600:]` de `ToolWindow`).
 pub const ERROR_CHARS: usize = 600;
@@ -194,7 +194,7 @@ impl<T: Tool> ToolPage<T> {
     }
 
     /// Bouton « Calculer » : relance même si rien n'a changé. Sans log sélectionné, rien à calculer : `update` a déjà
-    /// effacé le résultat et affiché « Sélectionnez au moins un log. ».
+    /// effacé le résultat et affiché « Activez au moins un fragment dans la barre du haut. ».
     fn run_now(&mut self, ctx: &egui::Context, state: &AppState) {
         if !self.tool.selected(state).is_empty() {
             self.run(ctx, state);

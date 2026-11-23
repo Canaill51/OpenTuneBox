@@ -174,8 +174,10 @@ fn le_cache_sert_au_second_calcul_mais_ni_apres_un_changement_de_periode_ni_de_r
     assert!(!Arc::ptr_eq(&data(&e), &data(&f)));
 }
 
+/// D-066 (remplace D-049) : la couleur d'une courbe est celle de sa pastille, la même sur toutes les pages ; l'ordre
+/// des courbes est celui de la barre.
 #[test]
-fn le_libelle_est_celui_du_fichier_et_la_couleur_le_rang_dans_la_selection() {
+fn le_libelle_est_celui_du_fichier_et_la_couleur_celle_de_la_pastille() {
     let mut st = etat();
     let a = calcule(StepOpts::default(), &st);
     st.add(log5s());
@@ -183,22 +185,25 @@ fn le_libelle_est_celui_du_fichier_et_la_couleur_le_rang_dans_la_selection() {
     let b = calcule(StepOpts::default(), &st);
     assert_eq!(a.files[0].data.axes[1].res.n, b.files[0].data.axes[1].res.n);
     assert_eq!(b.files[0].label, st.logs[0].label);
-    // la couleur d'une courbe est sa place dans la sélection, pas la couleur du log (2026-11-06)
-    assert_eq!(b.files[0].color, file_color(0));
+    assert_eq!(b.files[0].color, st.logs[0].color);
+    assert_eq!(
+        b.files[0].color,
+        file_color(1),
+        "la couleur reçue à l'ouverture, pas le rang"
+    );
     st.add(log5s());
+    st.move_log(1, 0);
     let deux = StepTool::compute(
         Options {
             calc: StepOpts::default(),
         },
-        st.inputs(&[1, 0]),
+        st.inputs(&StepTool::new().selected(&st)),
     )
     .unwrap();
-    assert_eq!(
-        deux.files[0].label, st.logs[1].label,
-        "le log coché en premier est tracé en premier"
-    );
-    assert_eq!(deux.files[0].color, file_color(0));
-    assert_eq!(deux.files[1].color, file_color(1));
+    assert_eq!(deux.files[0].label, st.logs[0].label, "l'ordre de la barre");
+    assert_eq!(deux.files[0].color, st.logs[0].color);
+    assert_eq!(deux.files[1].color, st.logs[1].color);
+    assert_ne!(deux.files[0].color, deux.files[1].color);
 }
 
 // ------------------------------------------------------------------ fonctions pures

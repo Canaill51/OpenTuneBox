@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-112 : un clic par libellé (tests, exemple de capture) touche un autre widget quand un libellé change de propriétaire
+
+- **Symptôme** — 2026-11-23 (lot 29c) : les captures de l'Assistant montraient deux pastilles sur trois **désactivées**,
+  alors que tous les tests étaient verts et que rien dans l'application ne les désactivait.
+- **Cause** — mesurée en retirant le code : l'exemple `capture` cochait « les autres fichiers » de chaque page en cliquant
+  le **nom du log** (`query_all_by_label(nom)`). Depuis la barre de fragments, ce nom est celui d'une pastille, et la cliquer
+  la désactive. Même effet en test : le « × » d'une pastille et le rond du tableau de bord portent le même libellé
+  « Retirer … de l'analyse », et `get_by_label` refuse alors de choisir.
+- **Règle** — quand un widget prend un libellé qui existait déjà ailleurs, chercher tous les clics par ce libellé
+  (`grep -rn "by_label" rust/otb-gui/tests rust/otb-gui/examples`) ; viser par rôle (`get_by_role_and_label`) ou compter les
+  nœuds et dire lequel on prend. Et regarder les captures : aucun test ne relit l'exemple `capture`.
+- **Preuve** — `rust/otb-gui/examples/capture.rs` (passage retiré), `rust/otb-gui/tests/analysis_list.rs`
+  (`le_rond_plus_d_un_fragment_n_ouvre_que_sa_session_puis_la_retire`).
+
 ### L-111 : un panneau egui de largeur fixe dont le contenu est plus large s'élargit et rogne son contenu à gauche, sans erreur
 
 - **Symptôme** — 2026-11-23 (lot 29b, capture hors écran de l'écran d'extraction) : le panneau de droite de 300 points
@@ -1399,6 +1413,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-112 | Clic par libellé (tests, exemple `capture`) : un libellé repris par un autre widget (nom de log devenu pastille) fait cliquer ailleurs sans erreur ; chercher les clics par ce libellé, viser par rôle, regarder les captures | Interface |
 | L-111 | Panneau egui de largeur fixe au contenu plus large (grille, noms longs) : il s'élargit et rogne le début des lignes, sans erreur ; borner colonnes et textes à la largeur, regarder la capture | Interface |
 | L-110 | Sur `jeno5_5s.bbl`, limites auto = log entier (log coupé en plein vol) : un test qui les oppose au vol entier passe quoi qu'il arrive ; partir de bornes qui diffèrent des deux, et faire la contre-preuve | Tests |
 | L-109 | CodeQL prend tout nom en « uid » pour un identifiant de compte et refuse qu'on l'affiche, même en empreinte : nommer l'identifiant de la carte `chip_id`, l'afficher en empreinte, jamais en entier dans le dépôt | Outillage |

@@ -500,19 +500,17 @@ fn la_page_configuration_s_affiche_dans_les_deux_themes() {
         h.get_by_label("Seulement les différences");
         h.get_by_label("Tous les paramètres bruts");
         h.get_by_label("Rechercher un paramètre");
-        // seul le 1er log est coché au départ : une colonne
+        // les deux fragments de la barre sont actifs : deux colonnes (D-066)
         assert!(h.query_by_label("Firmware").is_some());
         assert!(h.query_by_label("Nom du drone").is_some());
         h.get_by_label("Général");
-        assert!(h.query_by_label("jeno5_5s (2)").is_some(), "choix du second fichier");
+        assert!(h.query_by_label("Autre drone").is_some(), "colonne du second fragment");
     }
 }
 
 #[test]
 fn deux_logs_cote_a_cote_alignes_par_nom_avec_differences_et_recherche() {
     let mut h = banc_config(CLAIR, true);
-    h.get_by_label("jeno5_5s (2)").click();
-    attendre(&mut h);
     h.run();
     h.get_by_label("Autre drone");
     h.get_by_label("JeNo Ced");
@@ -597,7 +595,13 @@ fn la_selection_de_la_configuration_est_multiple_et_limitee_a_dix() {
         st.add(log5s());
     }
     let t = SetupTool::new();
-    assert_eq!(t.selected(&st).len(), 1, "par défaut le log courant");
+    assert_eq!(
+        t.selected(&st),
+        vec![0, 1, 2],
+        "les fragments actifs de la barre (D-066)"
+    );
+    st.set_active(1, false);
+    assert_eq!(t.selected(&st), vec![0, 2], "une pastille désactivée perd sa colonne");
     let out = SetupTool::compute((), st.inputs(&[0, 1, 2])).unwrap();
     assert_eq!(out.logs.len(), 3);
     assert_eq!(out.logs[1].label, "jeno5_5s (2)");

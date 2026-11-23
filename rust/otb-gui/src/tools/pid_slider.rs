@@ -538,10 +538,8 @@ impl Tool for PidSliderTool {
         Ok(PidOutput { files })
     }
 
-    fn controls(&mut self, ui: &mut Ui, state: &AppState, theme: &Theme) {
+    fn controls(&mut self, ui: &mut Ui, _state: &AppState, theme: &Theme) {
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.files.ui(ui, state);
-            ui.separator();
             ui.label(RichText::new("Les curseurs Betaflight").strong());
             for l in [
                 "Damping = D",

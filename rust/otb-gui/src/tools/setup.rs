@@ -462,7 +462,7 @@ impl Tool for SetupTool {
 
     fn compute(_: (), logs: Vec<LogInput>) -> Result<SetupOutput, String> {
         if logs.is_empty() {
-            return Err("Sélectionnez au moins un log.".into());
+            return Err("Activez au moins un fragment dans la barre du haut.".into());
         }
         Ok(SetupOutput {
             logs: logs
@@ -479,10 +479,8 @@ impl Tool for SetupTool {
         })
     }
 
-    fn controls(&mut self, ui: &mut Ui, state: &AppState, _theme: &Theme) {
+    fn controls(&mut self, ui: &mut Ui, _state: &AppState, _theme: &Theme) {
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.files.ui(ui, state);
-            ui.separator();
             ui.checkbox(&mut self.only_diff, "Seulement les différences");
             ui.checkbox(&mut self.show_raw, "Tous les paramètres bruts");
             ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Rechercher un paramètre…"))

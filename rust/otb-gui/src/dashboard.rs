@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use crate::icons::icon;
 use crate::state::AppState;
-use crate::theme::{Theme, file_color, with_alpha};
+use crate::theme::{Theme, file_color, plot, with_alpha};
 
 /// Ce que l'utilisateur demande depuis le tableau de bord.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,8 +27,8 @@ pub enum DashAction {
     Guide(Option<String>),
     /// Ouvrir la boîte « Ouvrir des logs… ».
     OpenDialog,
-    /// Ouvrir ce fichier de log (connu de la bibliothèque, pas forcément ouvert).
-    Open(PathBuf),
+    /// Rond « + » d'un fragment : l'ajouter à la liste d'analyse (en n'ouvrant que sa session) ou l'en retirer.
+    Toggle { fragment: String, path: PathBuf },
     /// Crayon d'un fragment : l'écran d'extraction sur ce fragment (son log est ouvert d'abord s'il le faut).
     Edit { fragment: String, path: PathBuf },
 }
@@ -54,6 +54,10 @@ const BAR_H: f32 = 6.0;
 const TINT: u8 = 0x1f;
 const PANEL_W: f32 = 400.0;
 const DOT: f32 = 28.0;
+/// Fond d'un fragment en analyse : sa couleur à 8 % (maquette : `couleur + '14'`).
+const ADDED_TINT: u8 = 0x14;
+/// Indice du jaune dans la palette des fichiers : la coche y est sombre.
+const YELLOW: usize = 2;
 
 /// Date `AAAA-MM-JJ` d'un instant donné en secondes depuis 1970 (UTC).
 ///
@@ -458,52 +462,70 @@ impl DashboardPage {
                     ui.spacing_mut().item_spacing.y = 18.0;
                     for (f, l) in frags {
                         let chemin = PathBuf::from(&l.path);
-                        let ouvert = state.logs.iter().any(|o| o.log.path == chemin);
-                        self.timeline_item(ui, th, f, &chemin, ouvert, actions);
+                        // en analyse : la couleur de sa pastille (D-066)
+                        let couleur = state
+                            .logs
+                            .iter()
+                            .find(|o| o.fragment.as_deref() == Some(f.id.as_str()))
+                            .map(|o| o.color);
+                        self.timeline_item(ui, th, f, &chemin, couleur, actions);
                     }
                 });
         });
     }
 
-    /// Un fragment dans la timeline : le rond « + » (ou la coche s'il est déjà ouvert), son nom et sa date.
+    /// Un fragment dans la timeline : le rond « + » (ou la coche, à la couleur de sa pastille, s'il est dans la
+    /// liste d'analyse), son nom et sa date.
     fn timeline_item(
         &mut self,
         ui: &mut Ui,
         th: &Theme,
         f: &otb_store::model::Fragment,
         chemin: &std::path::Path,
-        ouvert: bool,
+        couleur: Option<egui::Color32>,
         actions: &mut Vec<DashAction>,
     ) {
         ui.horizontal_top(|ui| {
             let (rond, _) = ui.allocate_exact_size(Vec2::splat(DOT), egui::Sense::hover());
-            let (anneau, fond, trait_) = if ouvert {
-                (
-                    th.accent("green"),
-                    with_alpha(th.accent("green"), TINT),
-                    th.accent("green"),
-                )
-            } else {
-                (th.ui.border, th.ui.base, th.ui.muted)
+            // maquette : anneau et « + » bleus sur fond blanc ; ajouté, rond plein à sa couleur, coche blanche
+            // (sombre sur le jaune, trop clair pour du blanc)
+            let (anneau, fond, trait_) = match couleur {
+                Some(c) => (
+                    c,
+                    c,
+                    if c == file_color(YELLOW) {
+                        th.ui.text
+                    } else {
+                        plot::ON_ACCENT
+                    },
+                ),
+                None => (th.ui.highlight, th.ui.base, th.ui.highlight),
             };
             ui.painter()
                 .circle(rond.center(), DOT / 2.0 - 1.0, fond, egui::Stroke::new(2.0, anneau));
             // ⚠️ « ✓ » et « + » n'existent dans aucune police embarquée : ce sont des icônes (L-068)
-            let signe = if ouvert { "check" } else { "plus" };
+            let signe = if couleur.is_some() { "check" } else { "plus" };
             icon(signe, 15.0)
                 .tint(trait_)
                 .paint_at(ui, egui::Rect::from_center_size(rond.center(), Vec2::splat(15.0)));
-            if !ouvert
-                && ui
-                    .interact(rond, ui.scope_id().with(("frag", &f.id)), egui::Sense::click())
-                    .on_hover_text("Ouvrir ce vol")
-                    .clicked()
-            {
-                actions.push(DashAction::Open(chemin.to_path_buf()));
+            let label = if couleur.is_some() {
+                format!("Retirer {} de l'analyse", f.name)
+            } else {
+                format!("Ajouter {} à l'analyse", f.name)
+            };
+            let r = ui
+                .interact(rond, ui.scope_id().with(("frag", &f.id)), egui::Sense::click())
+                .on_hover_text(&label);
+            r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+            if r.clicked() {
+                actions.push(DashAction::Toggle {
+                    fragment: f.id.clone(),
+                    path: chemin.to_path_buf(),
+                });
             }
             ui.add_space(14.0);
             egui::Frame::new()
-                .fill(th.ui.base)
+                .fill(couleur.map_or(th.ui.base, |c| with_alpha(c, ADDED_TINT)))
                 .stroke(egui::Stroke::new(1.0, th.ui.border))
                 .corner_radius(8)
                 .inner_margin(egui::Margin {

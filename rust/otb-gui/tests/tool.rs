@@ -134,7 +134,7 @@ fn recalcul_file_d_attente_et_erreur() {
     assert!(!page.busy());
     assert_eq!(APPELS.load(Ordering::SeqCst), avant);
     assert_eq!(page.result(), None);
-    assert_eq!(page.status, "Sélectionnez au moins un log.");
+    assert_eq!(page.status, "Activez au moins un fragment dans la barre du haut.");
 }
 
 /// Tant que le test tient ce verrou, `compute` de `Perime` reste bloqué (verrou à part : `Essai` compte ses appels).
@@ -185,12 +185,12 @@ fn un_calcul_termine_apres_le_vidage_n_affiche_rien() {
         assert!(page.busy());
         state.clear();
         page.update(&ctx, &state); // plus de log : résultat effacé, message
-        assert_eq!(page.status, "Sélectionnez au moins un log.");
+        assert_eq!(page.status, "Activez au moins un fragment dans la barre du haut.");
     }
     finir(&mut page, &ctx, &state);
     page.update(&ctx, &state);
     assert_eq!(page.result(), None, "le résultat de l'ancien état ne doit pas revenir");
-    assert_eq!(page.status, "Sélectionnez au moins un log.");
+    assert_eq!(page.status, "Activez au moins un fragment dans la barre du haut.");
 }
 
 /// Changer la sélection pendant un calcul : seul le résultat de la dernière sélection est affiché.
@@ -456,7 +456,10 @@ mod boutons {
         h.step();
         h.get_by_label("Calculer").click();
         h.step();
-        assert_eq!(h.state().0.status, "Sélectionnez au moins un log.");
+        assert_eq!(
+            h.state().0.status,
+            "Activez au moins un fragment dans la barre du haut."
+        );
         assert_eq!(h.state().0.result(), None);
         assert_eq!(COMPTE.load(Ordering::SeqCst), 3, "aucun calcul sans log");
     }
