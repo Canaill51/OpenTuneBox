@@ -460,3 +460,30 @@ fn le_fichier_desktop_porte_le_nom_de_l_app_id() {
         );
     }
 }
+
+/// ⚠️ CodeQL prend tout nom en « salt » pour un sel cryptographique et classe sa valeur écrite en dur comme une faille
+/// critique (PR #186 : le paramètre `salt` d'une liste déroulante egui). Il juge le nom, pas l'usage : aucun nom
+/// `salt` dans le code de l'interface ; seules les méthodes d'egui (`from_id_salt`, `id_salt`) passent (L-117).
+#[test]
+fn aucun_nom_pris_pour_un_sel_cryptographique() {
+    let mut trouves = Vec::new();
+    for f in fichiers_src() {
+        let src = std::fs::read_to_string(&f).unwrap();
+        for (i, ligne) in src.lines().enumerate() {
+            if ligne.trim_start().starts_with("//") {
+                continue;
+            }
+            for nom in ligne.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
+                let n = nom.to_ascii_lowercase();
+                let sel = n == "salt" || n.starts_with("salt_") || (n.ends_with("_salt") && !n.ends_with("id_salt"));
+                if sel {
+                    trouves.push(format!("{}:{} {nom}", f.display(), i + 1));
+                }
+            }
+        }
+    }
+    assert!(
+        trouves.is_empty(),
+        "noms pris pour un sel cryptographique par CodeQL : {trouves:?}"
+    );
+}
