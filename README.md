@@ -16,11 +16,13 @@ part (fréquence d'enregistrement, protocole), et chaque série d'un drone est r
 
 ![Guide intégré](docs/images/guide.png)
 
-La fenêtre principale est le **visualiseur de log** : gyro, consigne, termes P/I/D/F, moteurs, gaz, debug ;
-période d'analyse (crash exclu automatiquement), mesure de temps et de fréquence entre deux points, lecteur,
-manches, modes de vol. Chaque outil s'affiche par son entrée du **rail de navigation**, à gauche, dans la même fenêtre. Une entrée peut réunir
-plusieurs vues : **Bruit et filtres** porte le Spectre, Fréq. × gaz, Fréq. × temps et le « Et si » des filtres, qui s'atteignent par ses onglets ;
-Configuration s'ouvre depuis le panneau de droite du visualiseur.
+Ouvrir un log mène aux **courbes du vol**, sur l'écran où l'on règle son **fragment** : gyro, consigne, termes
+P/I/D/F, moteurs, gaz, debug ; début et fin du morceau de vol à analyser (décollage, atterrissage et crash retirés
+automatiquement, réglables à l'échantillon près), barre de navigation sur tout le log, mesure de temps et de
+fréquence entre deux points, lecteur, manches, modes de vol. Le fragment enregistré est retenu d'un lancement à
+l'autre, et tous les outils l'analysent. Chaque outil s'affiche par son entrée du **rail de navigation**, à gauche,
+dans la même fenêtre. Une entrée peut réunir plusieurs vues : **Bruit et filtres** porte le Spectre, Fréq. × gaz,
+Fréq. × temps et le « Et si » des filtres, qui s'atteignent par ses onglets.
 
 Quatre d'entre eux — **Analyse spectrale**, **Fréquence × gaz**, **Fréquence × temps** et **Simulateur de
 filtres** — partagent une seule entrée du rail, **Bruit et filtres**, et s'atteignent par ses onglets.
@@ -28,7 +30,7 @@ filtres** — partagent une seule entrée du rail, **Bruit et filtres**, et s'at
 | Outil | Ce qu'il montre |
 |---|---|
 | Guide | Parcours de réglage à cocher par drone (préparer, filtres, séries PID, finitions), adapté à la fiche du drone ; logs des filtres et des séries PID vérifiés à part (protocole, usages, séries, corrections dans le configurateur) |
-| Courbes | Toutes les courbes du vol, lecteur temporel, mesures au curseur |
+| Courbes (crayon d'un fragment) | Toutes les courbes du vol, limites du fragment, lecteur temporel, mesures au curseur |
 | Analyse spectrale | Spectres avant/après filtres, retards des filtres, bruit moteur par harmonique ; diagnostic du bruit gyro et D avec stratégie de filtrage (case à cocher) |
 | Fréquence × gaz | Cartes de bruit en fonction des gaz (4 colonnes, préréglages type PIDtoolbox) |
 | Fréquence × temps | Spectrogrammes avec harmoniques moteur et notchs dynamiques |

@@ -76,7 +76,7 @@ Règles d'écriture :
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
 | W-070 | ~~Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle~~ | ✅ CLOS (2026-11-22) — retrouvée dans le canevas claude.ai de Cédric |
-| W-069 | Place des traces (« Courbes ») dans le rail du prototype | ouvert (à trancher par Cédric au lot 30) |
+| W-069 | ~~Place des traces (« Courbes ») dans le rail du prototype~~ | ✅ CLOS (2026-11-23) — le visualiseur devient l'écran d'extraction, hors rail (D-065) |
 | W-068 | Assistant (`rules.rs:predict_filter_change`) : effet d'un changement de filtres encore estimé par le rapport des réponses \|H\|² (D-008), alors que la page Filtres rejoue la chaîne (D-058) ; les deux peuvent se contredire (notch dynamique ajouté, RPM coupé) | TRAITÉ le 2026-11-22 (D-059 : l'assistant rejoue, le rapport ne sert plus que sans gyro non filtré) |
 | W-067 | Contrôle par étage, logs enregistrés une boucle sur 2 ou moins : 24 bandes du notch dynamique et du bloc gyro où le modèle filtre plus que le firmware (jusqu'à +4,5 dB), sur des drones qui vibrent fort ; repliement supposé | ouvert (vols de calibration à faire sur le premier drone moyen logué à 2 kHz) |
 | W-066 | Avant la 4.2, **tous** les filtres gyro tournaient à la cadence gyro ; le modèle ne rejoue ainsi que le LPF2 (L-104) | ouvert (aucun log d'avant la 4.2 à chaque boucle PID en `GYRO_SAMPLE` ou `FFT_FREQ`) |
@@ -1089,7 +1089,9 @@ et le tableau des retards, et pour la branche « signal avant filtres » de `wha
 
 ## Origine : refonte de la navigation, lot 30 (2026-11-19)
 
-- **W-069** — **Le prototype complet de l'application n'a pas d'entrée « Courbes » dans son rail.** Ses sept entrées
+- ~~**W-069** — **Le prototype complet de l'application n'a pas d'entrée « Courbes » dans son rail.**~~
+  ✅ **CLOS (2026-11-23)** — D-065, lot 29b : Cédric a choisi que le visualiseur devienne l'écran d'extraction d'un
+  fragment, hors rail, comme dans le prototype ; le rail a ses sept entrées. Texte d'origine : ses sept entrées
   sont Tableau de bord, Guide, Assistant, Bruit et filtres, Réponse indicielle, Curseurs PID et Configuration ; les
   traces apparaissent par un bouton « Traces » **dans** un espace. Or le visualiseur
   (`rust/otb-gui/src/viewer_page.rs`) est aujourd'hui une entrée à part entière, et c'est la page qu'on ouvre en

@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
 | D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels), prouvé par le banc **et** les vrais vols | 2026-11-18 |
@@ -136,6 +137,42 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-23 — Écran d'extraction d'un fragment
+
+### D-065 : le visualiseur devient l'écran d'extraction ; les bornes du fragment sont la période d'analyse
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 29b, entre deux propositions pour chaque question.
+
+**Contexte.** Le prototype qui fait foi (D-061) n'a pas d'entrée « Courbes » dans son rail (W-069), et son écran
+d'extraction d'un fragment reprend tout le visualiseur : mêmes graphiques, traces, lecteur, mesure, choix d'axe, avec
+les deux bornes du fragment et une barre de navigation en plus. Par ailleurs, chaque log ouvert avait une **période
+d'analyse** (bords bleus des courbes, lue par tous les outils) et la bibliothèque rangeait à part un fragment par
+session, couvrant le vol entier : deux notions pour la même chose.
+
+**Décision.**
+- **Le visualiseur est l'écran d'extraction**, hors rail (D-060) : sa propre barre du haut (retour, « Modifier le
+  fragment … », Annuler, Enregistrer le fragment), pas de rail ni de barre des logs. Il s'ouvre en ouvrant un log, par
+  le crayon d'un fragment au tableau de bord et par le Guide, et revient à l'écran d'où l'on venait. « Courbes » quitte
+  le rail, qui a les sept entrées du prototype dans son ordre ; « Configuration » y gagne son entrée.
+- **Les bornes du fragment sont la période d'analyse.** Elles vivent dans un brouillon tant qu'on les règle (rien
+  n'atteint les outils) ; « Enregistrer le fragment » en fait la période du log et les écrit dans la bibliothèque comme
+  **choisies** ; rouvrir le fichier les retrouve. « Annuler » ne change rien.
+- **Un fragment non choisi suit les limites automatiques** (décollage → atterrissage, crash exclu) à chaque ouverture —
+  y compris ceux rangés avant ce lot, sur le vol entier : personne n'avait pu les choisir. Le champ `bornes_choisies`
+  s'ajoute au fichier sans changer son format (absent = faux).
+- Le Guide peut encore resserrer la période le temps d'une analyse (partie d'un vol) sans toucher au fragment.
+
+**Écartés.** Deux écrans de courbes presque identiques (un dans le rail, un hors rail) : deux écrans à entretenir.
+Garder « Courbes » dans le rail avec les poignées : écart au prototype. Fragment et période séparés : deux bornes à
+tenir pour le même morceau de vol.
+
+**Témoins.** `rust/otb-gui/tests/viewer_page.rs` (`les_bornes_se_tirent_depuis_n_importe_quel_graphique_sans_rien_appliquer`,
+`enregistrer_applique_les_bornes_et_annuler_ne_change_rien`, `la_barre_de_navigation_deplace_la_fenetre_visible`,
+`les_bornes_se_posent_sur_un_echantillon_et_gardent_leur_ecart`), `rust/otb-gui/tests/app.rs`
+(`un_fragment_range_d_office_suit_les_limites_automatiques`, `des_bornes_choisies_survivent_a_la_reouverture_et_donnent_la_periode`,
+`le_crayon_d_un_fragment_ouvre_l_ecran_d_extraction`, `le_rail_porte_les_entrees_de_navigation`), `rust/otb-store/tests/fragments.rs`
+(`des_bornes_choisies_se_relisent_et_un_ancien_fragment_ne_lest_pas`) ; chacun vu en échec, protection retirée (L-071).
 
 ## 2026-11-22 — Bibliothèque et récupération par USB
 
@@ -285,7 +322,8 @@ pâle de la maquette.
 - **Un écart au dessin se justifie par écrit**, dans le code et dans le plan, sinon il se corrige.
 - Trois écarts sont ainsi assumés, tranchés par Cédric le même jour : le **thème sombre** est dérivé ; chaque
   **session ouverte devient un fragment** couvrant le vol entier (sinon le compteur « Fragments » de la carte
-  afficherait 0 partout jusqu'au lot 29b) ; et l'**avancement** d'une carte ne compte que les cases cochées à la
+  afficherait 0 partout jusqu'au lot 29b — depuis D-065, il couvre les limites automatiques tant qu'on n'a pas choisi
+  ses bornes) ; et l'**avancement** d'une carte ne compte que les cases cochées à la
   main, les cases vérifiées par un log demandant une analyse par log.
 - Option écartée : « assez proche ». Une maquette qui fait foi ne se respecte pas à moitié — c'est elle qui tient
   l'unité de l'interface quand les écrans s'ajoutent un par un.
@@ -342,7 +380,8 @@ hors écran dans les deux thèmes, regardées avant et après. Le regroupement d
 constantes `HIDDEN` et `TAB` des trois pages citées plus haut.
 
 **Ouvert.** W-069 : le prototype n'a **pas** d'entrée « Courbes » dans son rail, alors que le visualiseur est la page
-la plus utilisée aujourd'hui ; où vont les traces reste à trancher.
+la plus utilisée aujourd'hui ; où vont les traces reste à trancher. **Tranché le 2026-11-23 par D-065** : le
+visualiseur devient l'écran d'extraction, hors rail.
 
 ## 2026-11-22 — Simulateur de filtres rejoué
 

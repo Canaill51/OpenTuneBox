@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
-//! Écrit `courbes-clair.png`, `courbes-sombre.png` et `tableau-de-bord-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b) et `tableau-de-bord-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
@@ -38,9 +38,10 @@ fn main() {
             h.run();
         }
         assert_eq!(h.state().screen, Screen::Viewer);
-        // une mesure et un curseur au milieu du vol, pour voir le lecteur et les repères
+        // une mesure et un curseur au milieu du vol, pour voir le lecteur et les repères — sur le log **affiché**
+        // (le dernier ouvert), pas sur la première session du fichier
         let (lo, hi) = {
-            let l = &h.state().state.logs[0].log;
+            let l = &h.state().state.current_log().expect("un log affiché").log;
             (l.t[0], *l.t.last().unwrap())
         };
         h.state_mut().state.set_cursor(lo + (hi - lo) * 0.45);

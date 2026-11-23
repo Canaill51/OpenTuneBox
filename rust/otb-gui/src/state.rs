@@ -26,6 +26,16 @@ pub fn default_period(log: &FlightLog) -> (f64, f64) {
     })
 }
 
+/// La période (en secondes) qui couvre les échantillons `range` d'un log : premier et dernier instant de la plage.
+/// C'est la réciproque de `FlightLog::slice_time` : `log.slice_time(a, b)` rend `range` (temps strictement
+/// croissant). `None` pour une plage vide ou qui sort du log.
+pub fn period_of_range(log: &FlightLog, range: Range<usize>) -> Option<(f64, f64)> {
+    if range.is_empty() || range.end > log.t.len() {
+        return None;
+    }
+    Some((log.t[range.start], log.t[range.end - 1]))
+}
+
 /// Outil propriétaire d'une entrée du cache : c'est lui qui porte le **plafond**.
 ///
 /// Un plafond par outil, et non un plafond global : sans cela, vingt coups de curseur du simulateur de filtres (90 ko
@@ -160,7 +170,13 @@ pub struct LoadedLog {
     pub log: Arc<FlightLog>,
     /// Identifiant propre à ce chargement, jamais réutilisé : une adresse mémoire, elle, peut resservir à un autre log (L-072).
     pub uid: u64,
+    /// Période d'analyse, que lisent tous les outils. À l'ouverture, ce sont les bornes du fragment de la
+    /// bibliothèque quand elles ont été choisies, les limites automatiques sinon ; seul l'écran d'extraction
+    /// l'enregistre comme fragment (lot 29b). Le Guide peut la resserrer le temps d'une analyse.
     pub period: (f64, f64),
+    /// Fragment de la bibliothèque qui correspond à cette session (`None` : log rangé sous aucun drone, faute de
+    /// nom de machine — la période vaut alors pour la séance seulement).
+    pub fragment: Option<String>,
     pub color: Color32,
     pub label: String,
     /// Résultats de calculs par outil, vidés quand la période change.
@@ -222,6 +238,7 @@ impl AppState {
             log: Arc::new(log),
             uid,
             period,
+            fragment: None,
             color,
             label,
             extras: Cache::default(),

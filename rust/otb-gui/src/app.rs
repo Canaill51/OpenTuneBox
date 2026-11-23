@@ -1,7 +1,9 @@
 //! Fenêtre principale : barre d'outils dont les boutons servent d'onglets (jamais de fenêtre séparée),
 //! pages des outils, ouverture des logs (port de `gui/main_window.py`, socle seulement).
 //!
-//! Le Guide (`guide_page.rs`) s'affiche au démarrage ; ouvrir un premier log depuis son accueil passe aux courbes, comme en Python.
+//! Le Guide (`guide_page.rs`) s'affiche au démarrage ; ouvrir un premier log depuis son accueil passe à l'écran
+//! d'extraction (les courbes), comme en Python. Cet écran est **hors rail** (D-060) : il a sa propre barre du haut et
+//! se referme par « Annuler » ou « Enregistrer le fragment » (lot 29b).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -20,7 +22,7 @@ use crate::icons::icon;
 use crate::state::AppState;
 use crate::theme::{self, Theme};
 use crate::tool::Page;
-use crate::viewer_page::ViewerPage;
+use crate::viewer_page::{ExtAction, FragmentInfo, ViewerPage};
 use crate::worker::Runner;
 
 /// Titre de la fenêtre : le nom du programme **suivi de son numéro de version**, pour qu'on sache toujours quelle version on utilise,
@@ -62,6 +64,9 @@ pub enum Screen {
     /// Le tableau de bord : les drones et les logs que la bibliothèque connaît (lot 30c).
     Dashboard,
     Guide,
+    /// L'écran d'extraction d'un fragment : le visualiseur de courbes, **hors rail** (lot 29b, W-069). Il s'ouvre
+    /// en ouvrant un log, par le crayon d'un fragment du tableau de bord ou par le Guide, et se referme vers
+    /// l'écran d'où l'on venait (`App::return_to`).
     Viewer,
     /// Index dans `App::pages`.
     Tool(usize),
@@ -73,7 +78,7 @@ pub fn tab_icon(title: &str) -> Option<(&'static str, Option<&'static str>)> {
     match title {
         "Tableau de bord" => Some(("layout-dashboard", None)),
         "Guide" => Some(("book-open", None)),
-        "Courbes" => Some(("activity", None)),
+        "Configuration" => Some(("cpu", None)),
         // l'espace du bruit et des filtres garde l'icône et la couleur de sa première vue (D-060)
         "Bruit et filtres" | "Analyse spectrale" => Some(("audio-waveform", Some("blue"))),
         "Réponse indicielle" => Some(("chart-line", Some("green"))),
@@ -122,6 +127,24 @@ fn rail_entry<'a>(title: &'a str, on: bool, theme: &Theme) -> egui::Button<'a> {
         .corner_radius(ENTRY_RADIUS)
 }
 
+/// Ce que l'écran d'extraction attend d'une ouverture en cours (`App::edit_after_open`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EditTarget {
+    /// Le premier log ouvert, quel qu'il soit (« Ouvrir des logs… » du tableau de bord).
+    Any,
+    /// Le log de ce fragment (crayon d'un fragment dont le log n'est pas ouvert).
+    Fragment(String),
+}
+
+/// Ordre des entrées du rail après le Guide, celui du prototype (D-060) ; une page absente de la liste vient à la fin.
+const RAIL_ORDER: [&str; 5] = [
+    "Assistant",
+    "Bruit et filtres",
+    "Réponse indicielle",
+    "Curseurs PID",
+    "Configuration",
+];
+
 pub struct App {
     pub state: AppState,
     pub pages: Vec<Box<dyn Page>>,
@@ -133,6 +156,10 @@ pub struct App {
     /// La bibliothèque de données (lot 28). ⚠️ `in_memory` par défaut : comme pour les fiches drone, **aucun banc
     /// de test n'écrit la vraie bibliothèque de l'utilisateur**. Seul `main.rs` ouvre celle du poste.
     pub library: Library,
+    /// Écran où revenir en quittant l'écran d'extraction.
+    pub return_to: Screen,
+    /// Passer à l'écran d'extraction quand ce log aura fini de s'ouvrir.
+    pub edit_after_open: Option<EditTarget>,
     had_logs: bool,
     pub theme: Theme,
     applied: Option<&'static str>,
@@ -209,6 +236,11 @@ pub fn taille_du_paquet(en_attente: usize, deja_ouverts: usize) -> usize {
 }
 
 /// Nom du fichier seul, pour un message d'état court (le chemin complet reste dans les erreurs de lecture).
+/// Identifiant du fragment d'une session dans la bibliothèque : l'empreinte du fichier et le numéro de session.
+pub fn fragment_id(log_id: &str, log: &FlightLog) -> String {
+    format!("{log_id}-{}", log.session)
+}
+
 fn nom_court(path: &Path) -> String {
     path.file_name()
         .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned())
@@ -235,6 +267,8 @@ impl App {
             guide,
             dash: DashboardPage::new(),
             library: Library::in_memory(),
+            return_to: Screen::Dashboard,
+            edit_after_open: None,
             had_logs: false,
             theme: theme::CLAIR,
             applied: None,
@@ -337,7 +371,7 @@ impl App {
     /// même si le Guide était sur une autre page que l'accueil (`poll_opening` ne bascule que depuis l'accueil).
     pub fn open_at_launch(&mut self, paths: Vec<PathBuf>) {
         if !paths.is_empty() {
-            self.screen = Screen::Viewer;
+            self.enter_extraction();
         }
         self.open(paths);
     }
@@ -373,6 +407,97 @@ impl App {
         self.status = self.errors.join(" · ");
     }
 
+    /// Passe à l'écran d'extraction en retenant l'écran d'où l'on vient ; le brouillon repart du log affiché.
+    pub fn enter_extraction(&mut self) {
+        if self.screen != Screen::Viewer {
+            self.return_to = self.screen;
+        }
+        self.screen = Screen::Viewer;
+        self.viewer.draft = None;
+    }
+
+    /// Quitte l'écran d'extraction vers l'écran d'où l'on venait (le tableau de bord à défaut).
+    fn leave_extraction(&mut self) {
+        self.viewer.draft = None;
+        self.screen = if self.return_to == Screen::Viewer {
+            Screen::Dashboard
+        } else {
+            self.return_to
+        };
+    }
+
+    /// Ce que l'écran d'extraction doit savoir du fragment du log affiché : drone, fichier, session, nom et rôle.
+    pub fn fragment_info(&self) -> FragmentInfo {
+        let Some(ll) = self.state.current_log() else {
+            return FragmentInfo::default();
+        };
+        let chemin = ll.log.path.to_string_lossy().into_owned();
+        let role_guide = self.guide.roles.get(&chemin).cloned().unwrap_or_default();
+        let file = nom_court(&ll.log.path);
+        let stored = ll.fragment.as_ref().and_then(|id| self.library.fragment(id));
+        match stored {
+            Some(f) => {
+                let entry = self.library.log(&f.log_id);
+                let drone = entry
+                    .and_then(|e| self.library.drone(&e.drone_id))
+                    .map_or_else(|| ll.log.settings.craft_name.clone(), |d| d.name.clone());
+                let sessions = self.library.fragments().iter().filter(|g| g.log_id == f.log_id).count();
+                FragmentInfo {
+                    drone,
+                    file,
+                    session: f.session as usize,
+                    sessions,
+                    name: f.name.clone(),
+                    role: if f.role.is_empty() { role_guide } else { f.role.clone() },
+                    stored: true,
+                }
+            }
+            None => FragmentInfo {
+                drone: ll.log.settings.craft_name.trim().to_string(),
+                file,
+                session: ll.log.session,
+                sessions: 0,
+                name: ll.log.name(),
+                role: role_guide,
+                stored: false,
+            },
+        }
+    }
+
+    /// « Enregistrer le fragment » : les bornes deviennent la période d'analyse du log (tous les outils la lisent),
+    /// et la bibliothèque les garde comme **choisies** ; le rôle est aussi donné au Guide, qui le retient par fichier.
+    fn save_fragment(&mut self, index: usize, draft: crate::viewer_page::Draft) {
+        let Some(ll) = self.state.logs.get(index) else { return };
+        if ll.uid != draft.uid {
+            return; // brouillon d'un autre log : jamais appliqué ailleurs (L-072)
+        }
+        let (log, fragment) = (ll.log.clone(), ll.fragment.clone());
+        let chemin = log.path.to_string_lossy().into_owned();
+        self.state.set_period(index, draft.period.0, draft.period.1);
+        if !draft.role.is_empty() {
+            self.guide.roles.insert(chemin, draft.role.clone());
+        }
+        let nom = if draft.name.trim().is_empty() {
+            log.name()
+        } else {
+            draft.name.trim().to_string()
+        };
+        let range = log.slice_time(draft.period.0, draft.period.1);
+        if let Some(mut f) = fragment.and_then(|id| self.library.fragment(&id).cloned()) {
+            f.start = range.start as u64;
+            f.end = range.end as u64;
+            f.name = nom.clone();
+            f.role = draft.role;
+            f.chosen = true;
+            self.library.put_fragment(f);
+            self.errors.push(format!("Fragment « {nom} » enregistré."));
+        } else {
+            self.errors.push(format!(
+                "Limites de « {nom} » appliquées pour cette séance (log rangé sous aucun drone)."
+            ));
+        }
+    }
+
     /// Range les sessions d'un fichier ouvert (ou son erreur) ; `false` quand il n'y a plus de place pour un log.
     fn accepte(&mut self, path: &Path, r: std::io::Result<Vec<FlightLog>>) -> bool {
         let logs = match r {
@@ -387,11 +512,18 @@ impl App {
                 return true;
             }
         };
-        self.remember(path, &logs);
+        let log_id = self.remember(path, &logs);
         for log in logs {
             if let Some(m) = log.settings.implausible() {
                 self.errors.push(format!("{} : {m}", log.name()));
             }
+            let fid = log_id.as_ref().map(|id| fragment_id(id, &log));
+            // bornes choisies dans l'écran d'extraction : elles deviennent la période d'analyse
+            let choisi = fid
+                .as_ref()
+                .and_then(|id| self.library.fragment(id))
+                .filter(|f| f.chosen)
+                .map(|f| otb_store::link::range_of(f, log.n()));
             if !self.state.add(log) {
                 self.errors.push(format!(
                     "{} logs au plus : les suivants sont ignorés.",
@@ -400,19 +532,42 @@ impl App {
                 self.queue.clear();
                 return false;
             }
+            let index = self.state.logs.len() - 1;
+            self.state.logs[index].fragment = fid.clone();
+            match choisi {
+                Some(Ok(range)) => {
+                    if let Some((a, b)) = crate::state::period_of_range(&self.state.logs[index].log, range) {
+                        self.state.set_period(index, a, b);
+                    }
+                }
+                Some(Err(m)) => self.errors.push(m),
+                None => {}
+            }
+            let attendu = match &self.edit_after_open {
+                Some(EditTarget::Any) => true,
+                Some(EditTarget::Fragment(id)) => fid.as_ref() == Some(id),
+                None => false,
+            };
+            if attendu {
+                self.edit_after_open = None;
+                self.state.set_current(Some(index));
+                self.enter_extraction();
+            }
         }
         true
     }
 
     /// Demande des fichiers au système, puis les ouvre. La barre du haut et le tableau de bord passent tous
     /// deux par ici : une seule porte vers la boîte de dialogue.
-    fn ask_files(&mut self) {
+    fn ask_files(&mut self) -> bool {
         if let Some(paths) = rfd::FileDialog::new()
             .add_filter("Blackbox", &["bbl", "bfl", "BBL", "BFL", "txt", "TXT"])
             .pick_files()
         {
             self.open(paths);
+            return true;
         }
+        false
     }
 
     /// Range un fichier ouvert dans la bibliothèque : **un enregistrement par fichier** (ses sessions deviendront
@@ -422,13 +577,15 @@ impl App {
     ///
     /// Le fichier est relu pour son empreinte (quelques millisecondes : il vient d'être décodé, donc il est dans
     /// le cache du système). C'est le prix du refus des doublons quand un même vol est ouvert depuis deux dossiers.
-    fn remember(&mut self, path: &Path, logs: &[FlightLog]) {
-        let Some(first) = logs.first() else { return };
+    ///
+    /// Rend l'empreinte du fichier (identifiant du log dans la bibliothèque), `None` s'il n'est pas rangé.
+    fn remember(&mut self, path: &Path, logs: &[FlightLog]) -> Option<String> {
+        let first = logs.first()?;
         let nom = first.settings.craft_name.trim().to_string();
         if nom.is_empty() {
-            return;
+            return None;
         }
-        let Ok(bytes) = std::fs::read(path) else { return };
+        let bytes = std::fs::read(path).ok()?;
         let date = crate::dashboard::file_date(path);
         let mut drone = self
             .library
@@ -451,21 +608,47 @@ impl App {
             bytes: bytes.len() as u64,
             added: date.clone(),
         });
-        // ⚠️ Chaque session devient un **fragment** couvrant le vol entier, nommé comme le prototype le montre
-        // (« FINAL », « FINAL.02 »). L'écran d'extraction (lot 29b) ne fera que resserrer ses bornes : sans cela
-        // le tableau de bord afficherait « 0 fragment » sur tous les drones.
+        // ⚠️ Chaque session devient un **fragment**, nommé comme le prototype le montre (« FINAL », « FINAL.02 ») :
+        // sans cela le tableau de bord afficherait « 0 fragment » sur tous les drones. Ses bornes sont les limites
+        // automatiques du vol tant qu'on ne les a pas choisies dans l'écran d'extraction (lot 29b) ; un fragment
+        // **déjà rangé garde son nom, son rôle et ses bornes choisies** — rouvrir le fichier les remettait à zéro.
         for log in logs {
-            self.library.put_fragment(otb_store::model::Fragment {
-                id: format!("{id}-{}", log.session),
-                log_id: id.clone(),
-                session: log.session as u64,
-                start: 0,
-                end: log.n() as u64,
-                name: log.name(),
-                role: String::new(),
-                date: date.clone(),
-            });
+            let fid = fragment_id(&id, log);
+            let p = crate::state::default_period(log);
+            let auto = log.slice_time(p.0, p.1);
+            match self.library.fragment(&fid).cloned() {
+                Some(f) if f.chosen => {}
+                Some(mut f) => {
+                    f.start = auto.start as u64;
+                    f.end = auto.end as u64;
+                    self.library.put_fragment(f);
+                }
+                None => self.library.put_fragment(otb_store::model::Fragment {
+                    id: fid,
+                    log_id: id.clone(),
+                    session: log.session as u64,
+                    start: auto.start as u64,
+                    end: auto.end as u64,
+                    name: log.name(),
+                    role: String::new(),
+                    date: date.clone(),
+                    chosen: false,
+                }),
+            }
         }
+        Some(id)
+    }
+
+    /// La barre d'état, en bas : messages d'ouverture, d'export, d'enregistrement.
+    fn status_bar(&self, root: &mut egui::Ui) {
+        egui::Panel::bottom("etat").show(root, |ui| {
+            let busy = if self.opening.busy() || !self.queue.is_empty() {
+                "Ouverture en cours…"
+            } else {
+                ""
+            };
+            ui.label(status_line(&self.status, &self.export_status, busy));
+        });
     }
 
     /// Le rail de navigation, à gauche (D-060) : une entrée par outil ou par **espace**. Les vues d'un espace
@@ -515,14 +698,18 @@ impl App {
                     {
                         self.screen = Screen::Guide;
                     }
-                    let courbes = self.screen == Screen::Viewer || shown == Some("Courbes");
-                    if ui.add(rail_entry("Courbes", courbes, theme)).clicked() {
-                        self.screen = Screen::Viewer;
-                    }
-                    for (i, p) in self.pages.iter().enumerate().filter(|(_, p)| !p.hidden()) {
-                        // l'entrée porte le nom de l'espace quand la page en fait partie (D-060)
-                        let on = self.screen == Screen::Tool(i) || shown == Some(p.title());
-                        if ui.add(rail_entry(p.entry(), on, theme)).clicked() {
+                    // « Courbes » n'a plus d'entrée : c'est l'écran d'extraction, hors rail (W-069, lot 29b)
+                    // l'entrée porte le nom de l'espace quand la page en fait partie (D-060)
+                    let mut entries: Vec<(usize, &'static str, bool)> = self
+                        .pages
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, p)| !p.hidden())
+                        .map(|(i, p)| (i, p.entry(), self.screen == Screen::Tool(i) || shown == Some(p.title())))
+                        .collect();
+                    entries.sort_by_key(|(_, e, _)| RAIL_ORDER.iter().position(|r| r == e).unwrap_or(usize::MAX));
+                    for (i, entry, on) in entries {
+                        if ui.add(rail_entry(entry, on, theme)).clicked() {
                             self.screen = Screen::Tool(i);
                         }
                     }
@@ -568,10 +755,28 @@ impl App {
         }
         // premier log ouvert depuis l'accueil du guide : on passe aux courbes
         if !self.state.logs.is_empty() && !self.had_logs && self.screen == Screen::Guide && self.guide.at_home() {
-            self.screen = Screen::Viewer;
+            self.enter_extraction();
         }
         self.had_logs = !self.state.logs.is_empty();
         let theme = self.theme;
+        if self.screen == Screen::Viewer {
+            // écran hors rail (D-060) : sa propre barre du haut, ni rail ni barre des logs
+            self.status_bar(root);
+            let info = self.fragment_info();
+            for a in self.viewer.ui(root, &mut self.state, &info, &theme) {
+                match a {
+                    ExtAction::Leave => self.leave_extraction(),
+                    ExtAction::Save { index, draft } => {
+                        self.save_fragment(index, draft);
+                        self.leave_extraction();
+                    }
+                    ExtAction::ToggleTheme => {
+                        self.theme = if theme.dark { theme::CLAIR } else { theme::SOMBRE };
+                    }
+                }
+            }
+            return;
+        }
         let mut export_all = false;
         egui::Panel::top("barre").show(root, |ui| {
             ui.horizontal_wrapped(|ui| {
@@ -629,14 +834,7 @@ impl App {
             });
         });
         self.rail(root, &theme);
-        egui::Panel::bottom("etat").show(root, |ui| {
-            let busy = if self.opening.busy() || !self.queue.is_empty() {
-                "Ouverture en cours…"
-            } else {
-                ""
-            };
-            ui.label(status_line(&self.status, &self.export_status, busy));
-        });
+        self.status_bar(root);
         let mut goto = None;
         let mut space_goto = None;
         let mut export_page = false;
@@ -655,10 +853,7 @@ impl App {
                     .dash
                     .ui(ui, &self.library, &self.guide.cards.list, &self.state, &theme);
             }
-            Screen::Viewer => {
-                self.viewer.ui(ui, &mut self.state, &theme);
-                goto = self.viewer.take_goto();
-            }
+            Screen::Viewer => {} // dessiné plus haut, hors rail
             Screen::Tool(i) if i < self.pages.len() => {
                 self.pages[i].ui(ui, &mut self.state, &theme);
                 goto = self.pages[i].take_goto();
@@ -682,9 +877,13 @@ impl App {
                     self.screen = Screen::Guide;
                 }
                 DashAction::OpenDialog => {
-                    self.ask_files();
+                    // la maquette passe à l'écran d'extraction du log qu'on vient d'ouvrir
+                    if self.ask_files() {
+                        self.edit_after_open = Some(EditTarget::Any);
+                    }
                 }
                 DashAction::Open(path) => self.open(vec![path]),
+                DashAction::Edit { fragment, path } => self.edit_fragment(&fragment, path),
             }
         }
         if let Some(title) = goto {
@@ -698,10 +897,26 @@ impl App {
         }
         for a in guide_actions {
             match a {
-                GuideAction::Tool(ToolTarget::Viewer) => self.screen = Screen::Viewer,
+                GuideAction::Tool(ToolTarget::Viewer) => self.enter_extraction(),
                 GuideAction::Tool(ToolTarget::Page(title)) => self.open_tool(title),
                 GuideAction::Open(paths) => self.open(paths),
             }
+        }
+    }
+
+    /// Le crayon d'un fragment : l'écran d'extraction sur son log, ouvert d'abord s'il ne l'est pas encore.
+    pub fn edit_fragment(&mut self, fragment: &str, path: PathBuf) {
+        if let Some(i) = self
+            .state
+            .logs
+            .iter()
+            .position(|l| l.fragment.as_deref() == Some(fragment))
+        {
+            self.state.set_current(Some(i));
+            self.enter_extraction();
+        } else {
+            self.edit_after_open = Some(EditTarget::Fragment(fragment.to_string()));
+            self.open(vec![path]);
         }
     }
 
