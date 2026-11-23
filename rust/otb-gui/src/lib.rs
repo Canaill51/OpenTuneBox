@@ -18,6 +18,7 @@ pub mod tool;
 pub mod tools;
 pub mod tracking;
 pub mod usb;
+pub mod usb_disk;
 pub mod usb_page;
 pub mod viewer;
 pub mod viewer_page;

@@ -372,3 +372,19 @@ fn carte_sd_copie_arretee_ou_fichier_existant() {
     assert!(matches!(e.reason, CheckFailure::AlreadyExists), "{e:?}");
     assert_eq!(std::fs::read(&dest).unwrap(), b"autre", "jamais écrasé");
 }
+
+/// ⚠️ La « copie rangée » proposée est le fichier de la carte lui-même (log ouvert depuis la carte) : une vraie copie
+/// est écrite, sinon la suppression viserait le seul exemplaire.
+#[test]
+fn carte_sd_copie_rangee_qui_est_le_fichier_de_la_carte() {
+    let root = carte_sd("sd-meme", &[jeno()]);
+    let logs = logs_de(&root);
+    let source = logs[0].path.clone();
+    let neuf = dossier("sd-meme-copies").join("0.bfl");
+    let c = copy_sd_log(&logs[0], &neuf, |_| Some(source.clone()), |_, _| true).unwrap();
+    assert_eq!(c.report().path, neuf);
+    assert!(neuf.exists());
+    let erased = delete_sd_logs(confirm_sd(vec![c]));
+    assert_eq!(erased.deleted, vec![source]);
+    assert_eq!(std::fs::read(&neuf).unwrap(), jeno(), "le vol reste dans la copie");
+}

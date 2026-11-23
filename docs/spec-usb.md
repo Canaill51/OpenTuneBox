@@ -169,6 +169,10 @@ cargo run --release -p otb-dev -- usb sd /media/$USER/CARTE ~/Documents/Drones/u
       relue vaut 0.
 - [ ] Carte SD (dans un drone, `usb msc`, et dans un lecteur, `usb sd`) : logs `LOGS/*.BFL` trouvés, copiés et vérifiés ;
       `--erase` ne supprime qu'eux ; la carte se relit ensuite dans le drone (nouveau log enregistré).
+- [ ] **L'écran, mode disque** (lot 32c-2) : **Copier en mode disque** ; le disque est trouvé seul (sinon **Choisir le
+      dossier…**) ; les vols sont rangés sous le drone ; débrancher, rebrancher : OpenTuneBox se reconnecte seul et
+      propose **Effacer la mémoire du drone…** ; après l'effacement, place relue à 0. Carte SD (drone ou lecteur) :
+      **Supprimer N logs de la carte SD…**, puis la carte se relit dans le drone.
 - [ ] Copie relue dans OpenTuneBox : mêmes vols que le fichier téléchargé par le configurateur.
 - [ ] `usb diff` : même texte que `diff all` tapé dans le CLI du configurateur (forme déjà vérifiée, voir les résultats).
 - [ ] Port déjà ouvert : configurateur Betaflight connecté, `usb info` doit dire le port occupé (Linux : le verrou

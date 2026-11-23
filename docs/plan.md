@@ -70,7 +70,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) **fait le 2026-11-23** (D-075) ; puis 32c-2 (leur écran) |
+| 3 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075) ; reste l'essai de l'écran sur une vraie carte |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
 | — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
@@ -541,11 +541,18 @@ voie, attente du disque et « Choisir le dossier… », copie rangée sous le dr
 suppression SD en deux clics, carte SD dans un lecteur sans drone branché), et l'essai sur une vraie carte
 ([spec-usb.md](spec-usb.md), procédure).
 
+**32c-2 fait le 2026-11-23** (branche `feat/usb-mass-storage-screen`, D-075 complétée, D-074 amendée) : « Copier en mode
+disque » à côté de « Copier les vols » (USB série, bouton principal), « Copier la carte SD (mode disque) » pour une carte
+sans mémoire, attente du disque et « Choisir le dossier… », copie de la mémoire gardée jusqu'au rebranchement
+(`rust/otb-gui/src/usb.rs:Held`) et reconnexion seule, suppression des logs SD en deux clics, section « Carte SD dans un
+lecteur ». **Reste** : l'essai de cet écran sur une vraie carte (mode disque et effacement après rebranchement ; carte SD
+quand Cédric en aura une), drone armé, port occupé, Windows ([spec-usb.md](spec-usb.md)).
+
 - [x] **Identité de la machine** par MSP (32a ; le rangement par identifiant : 32b) : nom, identifiant de la carte, version du firmware, état armé,
       occupation de la mémoire. L'identifiant de la carte est la clé ; le nom seul ne suffit pas (deux drones
       peuvent le porter, et il se change en une commande).
 - [ ] **Deux voies de copie** : mode stockage de masse quand la carte le permet (rapide, seule voie pour une carte
-      SD ; protocole **fait en 32c-1**, écran **32c-2**), repli sur la lecture bloc par bloc en MSP (lent : plusieurs minutes pour 16 Mo ; **fait en 32b**,
+      SD ; protocole **fait en 32c-1**, écran **fait en 32c-2**), repli sur la lecture bloc par bloc en MSP (lent : plusieurs minutes pour 16 Mo ; **fait en 32b**,
       barre de progression et temps restant, « Arrêter » ne garde rien et la copie suivante reprend au début).
 - [x] ⚠️ **Jamais d'effacement sans vérification** (32a : `rust/otb-usb/src/erase.rs`, l'écran de confirmation : 32b), dans cet ordre : taille copiée = place annoncée, le décodeur
       ouvre chaque log et en extrait au moins un fragment, les fichiers sont écrits sur le disque, **puis**
@@ -572,7 +579,9 @@ suppression SD en deux clics, carte SD dans un lecteur sans drone branché), et 
       d'effacement en fait un permis, et l'écran ne la propose qu'après rangement et écriture de la bibliothèque
       (`rust/otb-gui/tests/usb.rs`). À revoir en 32c (l'effacement d'une carte SD passera par le système). **Non atteint
       en 32c-1** : une seule suppression de fichier dans `otb-usb`, sous permis, après relecture comparée
-      (`rust/otb-usb/tests/contrats.rs:un_seul_chemin_supprime_un_fichier`) ; à revoir en 32c-2 pour l'écran.
+      (`rust/otb-usb/tests/contrats.rs:un_seul_chemin_supprime_un_fichier`) ; à revoir en 32c-2 pour l'écran. **Non
+      atteint en 32c-2** : les copies SD vérifiées ne quittent pas le fil du disque, et la copie de la mémoire ne sort de
+      `Held` que pour une connexion à la même carte (`rust/otb-gui/tests/usb_disque.rs`).
 
 ---
 
@@ -762,3 +771,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 31d | 2026-11-23 | **L'assistant d'un vol à l'autre** (branche `feat/advice-history`, D-073, W-076 traité) : en tête le badge du drone et le vol comparé (le précédent du drone par défaut, ouvert ou non, ou choisi), un repère creux du même constat sur chaque jauge, « NOUVEAU » et « Plus signalé depuis » ; un pouce levé (appliqué) ou baissé (écarté, avec sa raison) par conseil, inscrit au clic dans la septième table de la bibliothèque (`conseils.json`) ; bandeau « Fragment déjà traité » et historique des choix. La page lit la bibliothèque et rend ses changements à la fenêtre (`Tool::read_library`, `take_library_edits`). Preuve : 13 tests nouveaux (4 de la bibliothèque, 4 purs, 5 de la page), 5 contre-preuves vues en échec, captures des deux thèmes sur `FINAL.bbl` et `LAST.bbl` du JeNo 5 | lignes CLI (W-078) ; lot 32b |
 | 32b | 2026-11-23 | **Récupération par USB, l'écran** (branche `feat/usb-retrieve`, D-074, W-075 traité) : « Récupérer par USB » au tableau de bord ouvre un écran hors rail ; la connexion vit dans un fil de travail qui garde la copie vérifiée (seule la demande d'effacement en fait un permis) ; drone reconnu par l'identifiant gravé de sa carte (`Drone::uid`), demandé à la première connexion ; copie rangée sous le drone, bibliothèque écrite, puis effacement en deux clics ; `diff all` par un bouton ; « Ouvrir les vols » ; un log déjà rangé garde son drone à la réouverture ; case « Supprimer aussi les fichiers copiés » à la suppression d'un drone. Preuve : 18 tests nouveaux (15 de l'écran et du fil sur la carte simulée, 3 de la bibliothèque), 5 contre-preuves vues en échec, captures des deux thèmes ; parcours complet essayé à l'écran sur la carte G474 sous Linux | 32c (stockage de masse, cartes SD) ; drone armé, port occupé et Windows à essayer |
 | 32c-1 | 2026-11-23 | **Mode stockage de masse et cartes SD, le protocole** (branche `feat/usb-mass-storage`, D-075, W-079 noté) : `otb-usb` fait redémarrer la carte en disque (seul mode 2, refus armé), repère le disque monté (Linux, Windows), copie `BTFL_ALL.BBL` par les mêmes contrôles qu'en MSP (effacement après rebranchement, identifiant connu seulement), copie et vérifie un par un les logs d'une carte SD (drone ou lecteur), et ne les supprime que par un seul chemin, sous permis, chacun relu et comparé à sa copie ; `otb-dev usb msc` et `usb sd` pour l'essai à la main. Preuve : 14 tests nouveaux et 2 contrats, 4 contre-preuves vues en échec | 32c-2 (l'écran) ; essai sur une vraie carte |
+| 32c-2 | 2026-11-23 | **Mode stockage de masse et cartes SD, l'écran** (branche `feat/usb-mass-storage-screen`, D-075 complétée, D-074 amendée) : « Copier en mode disque » à côté de « Copier les vols », attente du disque et « Choisir le dossier… », copie de la mémoire gardée jusqu'au rebranchement puis reconnexion seule et effacement si c'est la même carte, logs d'une carte SD copiés un par un (refusés gardés sur la carte) et supprimés en deux clics, section « Carte SD dans un lecteur » (drone choisi à la main, nom lu dans le log) ; `otb-usb` refuse de prendre le fichier de la carte pour sa propre copie. Preuve : 9 tests nouveaux (8 de l'écran, 1 d'`otb-usb`), 4 contre-preuves vues en échec, captures des deux thèmes sur la carte simulée | essai de l'écran sur une vraie carte |

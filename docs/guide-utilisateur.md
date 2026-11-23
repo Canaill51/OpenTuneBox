@@ -43,8 +43,8 @@ séparé ; 10 logs au maximum, chacun avec sa couleur, que l'on retrouve dans to
 
 ### Récupérer les logs par USB
 
-**Récupérer par USB**, en haut du tableau de bord, copie les vols de la **mémoire interne** du drone sans passer par
-le configurateur Betaflight (fermez-le : un seul programme à la fois peut tenir le port). **Retirez les hélices** avant
+**Récupérer par USB**, en haut du tableau de bord, copie les vols du drone — **mémoire interne** ou **carte SD** —
+sans passer par le configurateur Betaflight (fermez-le : un seul programme à la fois peut tenir le port). **Retirez les hélices** avant
 de brancher une batterie.
 
 1. Branchez le drone en USB, puis **Se connecter** (**Chercher** si la carte n'est pas trouvée). L'écran montre son nom,
@@ -54,7 +54,7 @@ de brancher une batterie.
 2. **Première connexion de cette carte** : choisissez le drone auquel la ranger (celui du même nom est proposé) ou
    **Nouveau drone**. La carte porte un identifiant gravé : la fois suivante, le drone est **reconnu tout seul**, même
    renommé.
-3. **Copier les vols** : environ 3 minutes pour 8 Mo, une barre montre l'avancement ; **Arrêter** abandonne (rien n'est
+3. **Copier les vols** (par l'USB série) : environ 3 minutes pour 8 Mo, une barre montre l'avancement ; **Arrêter** abandonne (rien n'est
    gardé, la copie suivante reprend au début). La copie est ensuite **vérifiée** — taille, lecture par le décodeur,
    fichier relu sur le disque — puis rangée sous le drone : ses vols apparaissent sur sa carte au tableau de bord, et
    **Ouvrir les vols** les met dans la barre d'analyse.
@@ -64,8 +64,23 @@ de brancher une batterie.
 5. **Sauvegarder la configuration** lit le `diff all` de la carte et le garde s'il a changé depuis la dernière fois
    (la fiche du drone peut alors comparer deux versions de ses réglages) ; la carte redémarre ensuite.
 
-OpenTuneBox **n'écrit jamais de réglage** sur la carte. Les logs d'une **carte SD** ne passent pas encore par cet
-écran : ils se récupèrent avec le mode « stockage de masse » du configurateur.
+**Copier en mode disque**, à côté de **Copier les vols**, fait redémarrer le drone en **disque USB** (mode « stockage de
+masse ») : la copie est bien plus rapide, et passe par les mêmes vérifications. L'écran attend que le système monte le
+disque ; s'il n'apparaît pas, ouvrez-le dans le gestionnaire de fichiers (disque « BETAFLT »), ou **Choisir le
+dossier…**. Ce disque est en lecture seule : pour **effacer** ensuite la mémoire, **débranchez le drone** (USB et
+batterie) **puis rebranchez-le** en USB. OpenTuneBox s'y reconnecte tout seul et propose l'effacement si c'est **la même
+carte**, sans vol enregistré depuis.
+
+**Carte SD dans le drone** : l'écran propose **Copier la carte SD (mode disque)**. Chaque log est copié et vérifié ; un
+log illisible (vol coupé avant sa première trame) est **refusé** et reste sur la carte. **Supprimer N logs de la carte
+SD…** puis **Supprimer définitivement** ne retire que les logs copiés et vérifiés, chacun relu juste avant ; les
+autres fichiers de la carte ne sont pas touchés. **Éjectez la carte** depuis le système avant de débrancher.
+
+**Carte SD dans un lecteur de cartes** : sans drone branché, la section **Carte SD dans un lecteur** trouve la carte
+(sinon **Choisir le dossier…**, la racine de la carte, celle qui contient `LOGS`). Choisissez le drone auquel ranger
+ses vols (le nom lu dans le log est proposé), puis **Copier la carte SD** ; la suite est la même.
+
+OpenTuneBox **n'écrit jamais de réglage** sur la carte.
 
 ## 3. Bien enregistrer
 
