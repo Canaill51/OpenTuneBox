@@ -7,11 +7,15 @@ use std::time::{Duration, Instant};
 
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
+use otb_advisor::rules::{self as regles, Finding};
 use otb_gui::app::{App, Screen};
 use otb_gui::state::AppState;
 use otb_gui::theme::{CLAIR, SOMBRE, Theme};
 use otb_gui::tool::Tool;
-use otb_gui::tools::advisor::{AdvisorOutput, AdvisorTool, FOOTER, HELP, Options, categories, step_text};
+use otb_gui::tools::advisor::{
+    AdvisorOutput, AdvisorTool, FOOTER, HELP, ONE_CHANGE, Options, STEP_TITLE, card_id, oks_line, open_by_default,
+    pills, split_cards, step_text,
+};
 use otb_gui::tools::common::safe_text;
 use otb_gui::tools::filter_sim::{
     Applied, COPIED_STATUS, FilterSimTool, NO_UNFILT_TITLE, Options as SimOptions, STALE_STATUS,
@@ -62,24 +66,80 @@ fn l_assistant_rend_un_rapport_avec_profil_periode_et_trois_axes() {
     // roll : aucune fenêtre exploitable sur ces 5 s ; le texte dit pourquoi (et non « n=0 »)
     assert_eq!(r.steps[0].result.n, 0);
     assert_eq!(step_text(&r.steps[0].result), "données insuffisantes");
-    assert!(
-        step_text(&r.steps[1].result).contains("n=9"),
-        "{}",
-        step_text(&r.steps[1].result)
-    );
+    // pitch : 9 fenêtres ; le texte du prototype, « pic 1,04 · 13,8 ms », virgule française
+    assert_eq!(r.steps[1].result.n, 9);
+    let t = step_text(&r.steps[1].result);
+    assert!(t.starts_with("pic ") && t.ends_with(" ms") && t.contains(','), "{t}");
+}
+
+fn constat(key: &str, severite: &str, titre: &str) -> Finding {
+    Finding::new(key, "Réponse", severite, titre, "d", Vec::new(), None)
 }
 
 #[test]
-fn les_categories_suivent_l_ordre_fixe_puis_les_autres_triees() {
+fn les_cartes_suivent_la_gravite_et_les_ok_sont_a_part() {
     let st = etat();
     let mut rep = (*calcule(None, &st).report).clone();
-    let cats = categories(&rep);
-    assert_eq!(&cats[..3], ["Enregistrement", "Vol", "Réponse"]);
-    rep.findings[0].category = "Zèbre".into();
-    rep.findings.push(rep.findings[0].clone());
-    rep.findings[1].category = "Autre".into();
-    let cats = categories(&rep);
-    assert_eq!(&cats[8..], ["Autre", "Zèbre"]);
+    // dans le désordre : une info, un OK, une attention, un conseil, une seconde info
+    rep.findings = vec![
+        constat("i1", regles::INFO, "Info 1"),
+        constat("ok1", regles::OK, "Ok 1"),
+        constat("a1", regles::ATTENTION, "Attention 1"),
+        constat("c1", regles::CONSEIL, "Conseil 1"),
+        constat("i2", regles::INFO, "Info 2"),
+    ];
+    let (cartes, oks) = split_cards(&rep);
+    let cles: Vec<&str> = cartes.iter().map(|f| f.key.as_str()).collect();
+    // par gravité, et à gravité égale l'ordre des règles (i1 avant i2)
+    assert_eq!(cles, ["a1", "c1", "i1", "i2"]);
+    assert_eq!(oks.len(), 1);
+    assert_eq!(oks[0].key, "ok1");
+}
+
+#[test]
+fn les_pastilles_comptent_chaque_gravite() {
+    let mut v = vec![
+        constat("a", regles::ATTENTION, "A"),
+        constat("c1", regles::CONSEIL, "C"),
+        constat("c2", regles::CONSEIL, "C"),
+        constat("i", regles::INFO, "I"),
+        constat("o1", regles::OK, "O"),
+        constat("o2", regles::OK, "O"),
+    ];
+    let textes = |v: &[Finding]| pills(v).into_iter().map(|(_, t)| t).collect::<Vec<_>>();
+    // pas d'alerte : pas de pastille d'alerte ; un seul conseil s'écrit au singulier
+    assert_eq!(textes(&v), ["1 attention", "2 conseils", "1 info", "2 OK"]);
+    v.remove(2);
+    v.push(constat("x", regles::ALERTE, "X"));
+    assert_eq!(textes(&v), ["1 alerte", "1 attention", "1 conseil", "1 info", "2 OK"]);
+    assert_eq!(textes(&[]), ["0 attention", "0 conseil", "0 info", "0 OK"]);
+}
+
+#[test]
+fn la_ligne_des_ok_compte_et_liste_les_titres_en_minuscules() {
+    let oks = [
+        constat("a", regles::OK, "Retard des filtres gyro"),
+        constat("b", regles::OK, "RPM bien filtré"),
+    ];
+    let (tete, liste) = oks_line(&oks);
+    assert_eq!(tete, "2 vérifications OK");
+    // un sigle garde ses capitales
+    assert_eq!(liste, "retard des filtres gyro, RPM bien filtré");
+    assert_eq!(oks_line(&oks[..1]).0, "1 vérification OK");
+}
+
+#[test]
+fn une_info_est_repliee_au_depart_et_une_carte_se_reconnait_par_sa_cle() {
+    assert!(!open_by_default(&constat("i", regles::INFO, "I")));
+    for s in [regles::ALERTE, regles::ATTENTION, regles::CONSEIL] {
+        assert!(open_by_default(&constat("x", s, "X")), "{s}");
+    }
+    // même clé, autre titre : même carte (D-028) ; même clé, autre axe : autre carte
+    let mut a = constat("step_slow", regles::ATTENTION, "Réponse lente");
+    let b = constat("step_slow", regles::ATTENTION, "Réponse très lente");
+    assert_eq!(card_id(&a), card_id(&b));
+    a.axis = Some("Roll".into());
+    assert_ne!(card_id(&a), card_id(&b));
 }
 
 #[test]
@@ -172,16 +232,67 @@ fn la_page_de_l_assistant_s_affiche_dans_les_deux_themes() {
             h.query_all_by_label("jeno5_5s").count() >= 2,
             "choix du fichier et titre du rapport"
         );
-        h.get_by_label("Drone :");
-        h.get_by_label("Période analysée :");
-        h.get_by_label("Firmware :");
+        h.get_by_label_contains("période 0,0 – 5,1 s");
         h.get_by_label("Taille du drone");
         h.get_by_label(FOOTER);
         h.get_by_label(HELP);
-        for ax in ["Roll", "Pitch", "Yaw"] {
-            h.get_by_label(&format!("{ax} — réponse indicielle"));
+        h.get_by_label(ONE_CHANGE);
+        h.get_by_label(STEP_TITLE);
+        let out = calcule(None, &h.state().state);
+        for (_, t) in pills(&out.report.findings) {
+            h.get_by_label(&t);
         }
+        for ax in ["Roll", "Pitch", "Yaw"] {
+            h.get_by_label(ax);
+        }
+        assert!(
+            h.query_all_by_label("données insuffisantes").count() >= 1,
+            "roll sans fenêtre"
+        );
+        // une carte par constat qui n'est pas OK, avec son bouton pour la replier ou la déplier
+        let (cartes, oks) = split_cards(&out.report);
+        assert!(!cartes.is_empty() && !oks.is_empty(), "le log de 5 s a des deux");
+        for f in &cartes {
+            let verbe = if open_by_default(f) { "Replier" } else { "Déplier" };
+            h.get_by_label(&format!("{verbe} « {} »", safe_text(&f.title)));
+        }
+        h.get_by_label(&oks_line(&oks).0);
     }
+}
+
+#[test]
+fn une_info_se_deplie_et_les_ok_s_affichent_au_clic() {
+    let mut h = banc(CLAIR);
+    let out = calcule(None, &h.state().state);
+    let (cartes, oks) = split_cards(&out.report);
+    // une info : titre seul, son détail n'apparaît qu'une fois dépliée
+    let info = cartes
+        .iter()
+        .find(|f| f.severity == regles::INFO)
+        .expect("une info sur ce log");
+    let detail = safe_text(&info.detail);
+    assert!(h.query_by_label(&detail).is_none(), "info repliée au départ");
+    // ⚠️ la carte peut être sous le bas de la zone qui défile : un clic n'y touche rien (L-114)
+    h.get_by_label(&format!("Déplier « {} »", safe_text(&info.title)))
+        .scroll_to_me();
+    h.run_steps(3);
+    h.get_by_label(&format!("Déplier « {} »", safe_text(&info.title)))
+        .click();
+    h.run_steps(3);
+    h.get_by_label(&detail);
+    h.get_by_label(&format!("Replier « {} »", safe_text(&info.title)));
+    // les vérifications OK : leur ligne seulement, puis leurs cartes une fois dépliées
+    let ok = &oks[0];
+    assert!(
+        h.query_by_label(&format!("Replier « {} »", safe_text(&ok.title)))
+            .is_none()
+    );
+    h.get_by_label("Afficher les vérifications OK").scroll_to_me();
+    h.run_steps(3);
+    h.get_by_label("Afficher les vérifications OK").click();
+    h.run_steps(3);
+    h.get_by_label(&format!("Replier « {} »", safe_text(&ok.title)));
+    h.get_by_label("Masquer les vérifications OK");
 }
 
 #[test]
@@ -197,15 +308,12 @@ fn choisir_un_profil_change_le_drone_affiche() {
     h.get_by_label(&whoop).click();
     attendre(&mut h);
     h.get_by_label_contains("choisi par l'utilisateur");
-    // la valeur affichée a changé : le titre « Drone : » porte le profil choisi
+    // la valeur affichée a changé : l'en-tête du fragment porte le profil choisi
     let Screen::Tool(i) = h.state().screen else {
         panic!("page d'outil")
     };
     assert!(!h.state().pages[i].busy());
-    assert!(
-        h.query_all_by_label(&whoop).count() >= 1,
-        "la ligne « Drone : » porte le profil choisi"
-    );
+    h.get_by_label_contains(&format!("{whoop} (choisi par l'utilisateur)"));
 }
 
 // ------------------------------------------------------------------ Configuration : calcul pur

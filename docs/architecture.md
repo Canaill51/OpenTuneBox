@@ -94,7 +94,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   | Curseurs PID | `rust/otb-gui/src/tools/pid_slider.rs` | curseurs du réglage simplifié et simulation |
   | Filtres | `rust/otb-gui/src/tools/filter_sim.rs` | simulateur de filtres (interface) ; `rust/otb-gui/src/tools/filter_sim_calc.rs` : calculs purs, sans egui |
   | Configuration (panneau de droite) | `rust/otb-gui/src/tools/setup.rs` | réglages des logs côte à côte (lignes alignées par nom : D-038) |
-  | Assistant | `rust/otb-gui/src/tools/advisor.rs` | rapport de l'assistant de réglage ; `rust/otb-gui/src/tools/report_ui.rs` : constats et diagnostic |
+  | Assistant | `rust/otb-gui/src/tools/advisor.rs` | rapport de l'assistant de réglage en cartes, jauge « mesure contre seuil » (D-070) ; `rust/otb-gui/src/tools/report_ui.rs` : constats et diagnostic du bruit |
 
   `rust/otb-gui/src/tools/common.rs` : briques partagées (dont `ViewMemo`, la vue retenue d'un graphique : « Tout voir » l'oublie,
   et `space_tabs` : les onglets d'un espace, avec `ESPACE_BRUIT` et `VUES_BRUIT` — le nom de l'espace « Bruit et filtres » et ses

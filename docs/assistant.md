@@ -560,7 +560,9 @@ Chaque constat porte une clé stable (`Finding.key`, par exemple `dterm_noisy`, 
 règles qui dépendent d'un constat précédent, les étapes de la stratégie (`rules.FILTER_STAGES`), le
 diagnostic du bruit et les tests lisent cette clé, jamais le titre (D-028) ; un constat qui conseille
 `rpm_filter_q` ou `dyn_notch_count` le déclare dans `Finding.settings`, ce qui fait taire les règles qui
-proposeraient le même réglage.
+proposeraient le même réglage. Un constat qui compare **une** mesure à **un** seul seuil porte aussi sa jauge
+(`Finding.gauge`, D-070) : la mesure et le seuil de la règle, pris dans les mêmes variables que son texte, que la page
+Assistant dessine sous la carte ; sans seuil unique (série de vols, plage, liste de raies), pas de jauge.
 
 Le diagnostic du bruit de la fenêtre Spectre (`rust/otb-advisor/src/noise.rs`) reprend ces mêmes constats, rangés par
 clé en quatre parties (conditions du log, gyro, terme D, stratégie) ; il n'a aucun seuil à lui.

@@ -75,6 +75,7 @@ Règles d'écriture :
 | W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
+| W-076 | Assistant en cartes : sans comparaison avec un autre vol, sans votes ni historique des conseils, sans lignes CLI à copier (prototype) | ouvert (lot 31, mesures suivies dans le temps) |
 | W-075 | Supprimer un drone laisse sur le disque les logs **copiés** dans la bibliothèque (récupérés par USB) : plus rien ne les désigne | ouvert (au lot 32b, quand la copie par USB existera à l'écran) |
 | W-074 | Le Guide lit le rôle d'un log par fichier, pas par fragment : deux fragments d'une session aux rôles différents n'en montrent qu'un au Guide | ouvert (quand le Guide passera à la liste d'analyse, lot 30) |
 | W-070 | ~~Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle~~ | ✅ CLOS (2026-11-22) — retrouvée dans le canevas claude.ai de Cédric |
@@ -1203,3 +1204,18 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Risque si on n'y touche pas** : des fichiers orphelins s'accumulent dans `bibliotheque/logs/`, sans que l'écran
   le dise (`Library::copied_bytes` ne les compte plus).
   **Reprise** : au lot 32b ; demander le geste à Cédric. [`rust/otb-store/src/lib.rs:Library`]
+
+## Origine : assistant en cartes (lot 30f, 2026-11-23)
+
+- **W-076** — **Ce que le prototype ajoute aux cartes de l'assistant, non repris** (D-070, choix de Cédric) : le menu
+  « comparé à » (vol précédent du drone, ou drones de même taille), le badge du drone dans l'en-tête, un pouce levé ou
+  baissé par conseil avec la raison d'un conseil écarté, l'historique « appliqué / écarté » et le bandeau « Fragment déjà
+  traité », les lignes CLI (`set …`) de chaque conseil. Le bouton « Appliquer », qui les enverrait au drone, est **refusé**
+  par D-063, pas reporté.
+  **Pourquoi reporté** : comparer à un autre vol et retenir des choix d'un lancement à l'autre demandent les mesures
+  suivies dans le temps et leur rangement dans la bibliothèque (lot 31) ; les lignes CLI demandent d'écrire la commande
+  exacte de chaque conseil, un champ nouveau à relire constat par constat.
+  **Risque si on n'y touche pas** : le pilote compare ses vols à la main, d'une page à l'autre, et recopie les valeurs
+  conseillées dans le configurateur.
+  **Reprise** : au lot 31 ; lignes CLI à copier si Cédric les demande (jamais envoyées au drone, D-063).
+  [`rust/otb-gui/src/tools/advisor.rs:AdvisorTool`]

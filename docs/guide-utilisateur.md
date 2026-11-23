@@ -275,9 +275,14 @@ se lisent l'une contre l'autre.
 Entrée **Configuration** du rail. Tous les réglages des logs côte à côte ; les différences sont surlignées (« Seulement les différences »).
 
 ### Assistant de réglage (Assistant)
-Diagnostic complet d'un log : qualité de l'enregistrement, réponse, bruit, filtres, moteurs,
-mécanique. Chaque constat donne la mesure et le seuil (calibré sur ~700 vols réels, en comparant votre
-drone à ceux de la même taille) et propose une action. Le bruit et le retard des filtres sont aussi comparés
+Diagnostic complet du fragment maître : qualité de l'enregistrement, réponse, bruit, filtres, moteurs,
+mécanique. Chaque constat est une **carte**, de la plus grave à la moins grave (attention, conseil, info), avec sa
+mesure, son seuil (calibré sur ~700 vols réels, en comparant votre drone à ceux de la même taille) et les actions
+proposées. Quand le constat compare une mesure à un seul seuil, une **jauge** les place côte à côte : le rond est la
+mesure, le trait en tirets le seuil. Les cartes « info » sont repliées (le chevron les ouvre), et les vérifications
+réussies tiennent sur une ligne « N vérifications OK » qu'un clic déplie. En tête, une pastille compte les constats de
+chaque gravité ; à droite, la réponse indicielle de chaque axe (pic et temps de réponse). La taille du drone se choisit
+dans le panneau de droite si la détection se trompe. Le bruit et le retard des filtres sont aussi comparés
 aux repères usuels de PIDtoolbox (gyro filtré sous −30 dB, terme D au plus −10 dB sur
 l'échelle de ses spectres, objectif de retard selon la taille). Quand plusieurs filtres sont à revoir, la **stratégie de filtrage**, en tête, ordonne les réglages à faire :
 enregistrement, bruit à corriger, mécanique, filtre RPM, notch dynamique, passe-bas du gyro puis du D, un

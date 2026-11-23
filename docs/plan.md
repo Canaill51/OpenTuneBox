@@ -70,7 +70,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **22** | Calibration des filtres étage par étage : un seul mode debug (`FFT_FREQ`) et un simulateur vérifié contre le firmware (W-057, W-059, W-060, L-100) | 22a, 22a bis (24 alertes → 2, acceptées le 2026-11-22) et 22c (suivi rejoué, pas encore branché) faits ; 22b fait (étages séparés ; arrondi de l'entrée et LPF2 corrigés dans le contrôle, 0 alerte) ; 22d et 22e faits (retard gyro sans décalage d'horloge ; page Filtres rejouée, D-058, W-057, W-059 et W-064 traités) ; 22f fait (le rejeu prédit mieux que le rapport ; l'assistant passe au rejeu, D-059) |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 (fait) ; 30a à 30e faits (rail, espace « Bruit et filtres », tableau de bord, fiche drone, choix du signal) ; rail aux sept entrées du prototype depuis le 29b ; 30e fait (choix « Gyro | Terme D » et axes partagés) ; reste : assistant en cartes (30f), avancement du parcours (30g, avec W-074) |
+| 3 | **30** | Refonte de la navigation et de la mise en page (les neuf maquettes) | lot 29 (fait) ; 30a à 30e faits (rail, espace « Bruit et filtres », tableau de bord, fiche drone, choix du signal) ; rail aux sept entrées du prototype depuis le 29b ; 30e fait (choix « Gyro | Terme D » et axes partagés) ; 30f fait (assistant en cartes, D-070) ; reste : avancement du parcours (30g, avec W-074) |
 | 4 | **31** | Mesures suivies dans le temps et fiche cible par drone | lot 29 (fait) |
 | 5 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, stockage de masse, bibliothèque) : lot 30 |
 | — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
@@ -434,11 +434,14 @@ correspondre à 100 % à la maquette ». Les trois lots précédents en avaient 
       choix en tête du panneau de droite des quatre vues, et des axes partagés (choix de Cédric) ; les cases détaillées
       restent dessous (choix de Cédric), un autre signal choisi là n'allume aucun bouton ; le « Et si » perd ses
       onglets « Gyro » et « D », doublons du choix.
-- [ ] **Assistant en cartes** triées par gravité, mesure contre seuil en jauge, constats « OK » repliés. ⚠️ Un
-      constat se reconnaît par sa clé, jamais par son titre (D-028).
-- [ ] **Preuve** : captures hors écran avant / après sur les deux thèmes, et le temps de cadre mesuré
-      (le budget de 60 images par seconde est tenu avec une marge de 3 aujourd'hui : il ne doit pas tomber sous 1).
-- [ ] **Critère d'arrêt** : une page qui perd son test, ou le budget d'images par seconde dépassé.
+- [x] **Assistant en cartes** — **fait le 2026-11-23, 30f** (branche `feat/advisor-cards`, D-070) : une carte par constat
+      triée par gravité, les « info » et les vérifications OK repliées, pastilles par gravité ; un constat qui compare
+      une mesure à un seul seuil porte une **jauge** (`Gauge`, hors des références Python, `otb-parity` 0 échec). Cartes
+      seules (choix de Cédric) : comparaison, votes, historique et lignes CLI → W-076 ; « Appliquer » refusé (D-063).
+- [x] **Preuve** : captures avant / après sur les deux thèmes (`docs/images/assistant.png` refaite), 0,4 ms par cadre.
+- [x] **Critère d'arrêt** : aucune page n'a perdu son test (les tests de l'ancienne mise en page sont récrits sur les
+      cartes), budget tenu.
+- [ ] **Avancement du parcours** (30g) : la carte du tableau de bord et le Guide sur la liste d'analyse (W-074).
 
 ---
 
@@ -695,3 +698,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 29d | 2026-11-23 | **Second fragment d'une session** (branche `feat/second-fragment`, D-067, D-061 amendée) : « Enregistrer comme nouveau fragment » dans l'écran d'extraction (pastille posée sur les mêmes échantillons, juste après l'origine), suppression d'un fragment ajouté en deux temps, réouverture par « + », crayon ou liste du lancement. Preuve : 5 tests, 8 contre-preuves vues en échec, captures des deux thèmes. **Lot 29 terminé** | W-074 (rôle vu par le Guide) ; fiche drone (lot 30) |
 | 30d | 2026-11-23 | **Fiche d'un drone** (branche `feat/drone-sheet`, D-068, D-036, D-039 et D-061 amendées) : écran hors rail au dessin du prototype (Identité, Machine, Configurations Betaflight avec « Voir » et « Comparer », suppression en deux temps) ; la fiche vit dans la bibliothèque et le Guide en lit une copie ; ancien `drones.json` repris puis renommé ; un log rejoint le drone qui porte son nom ; bouton rouge plein lisible en thème sombre. Preuve : 17 tests nouveaux (5 de la bibliothèque, 8 de la fiche, 4 du Guide), les tests du Guide récrits sur la bibliothèque, 6 contre-preuves vues en échec, captures des deux thèmes, 0,2 ms par cadre | « Fiche cible » (lot 31) ; identifiant et carte au branchement (lot 32b) ; W-075 |
 | 30e | 2026-11-23 | **Choix « Gyro \| Terme D » de l'espace** (branche `feat/signal-choice`, D-069) : un seul choix du signal et des axes partagés par le Spectre, Fréq. × gaz, Fréq. × temps et le « Et si », en tête de leur panneau ; un changement d'une vue vaut pour les autres, l'étage choisi (avant ou après filtres) est gardé ; cases détaillées gardées dessous ; × gaz s'ouvre sur « Gyro pf \| Gyro » par fragment ; doublons « Gyro » et « D » du « Et si » retirés. Preuve : 5 tests, 5 contre-preuves vues en échec, captures des deux thèmes ; temps d'un cadre mesuré pour chaque page par l'exemple `capture` | assistant en cartes (30f) ; avancement du parcours (30g, W-074) |
+| 30f | 2026-11-23 | **Assistant en cartes** (branche `feat/advisor-cards`, D-070) : une carte par constat triée par gravité, « info » et vérifications OK repliées, pastilles par gravité, réponse indicielle de chaque axe en petit à droite ; jauge « mesure contre seuil » sur chaque constat à un seul seuil (`Gauge`, mêmes variables que le texte), hors des références Python (`otb-parity` 0 échec sur 1 732 appels). Preuve : 12 tests nouveaux ou récrits (7 de la page, 5 de la jauge), 9 contre-preuves vues en échec, captures des deux thèmes, 0,4 ms par cadre | W-076 (comparaison, votes, historique, lignes CLI) ; avancement du parcours (30g, W-074) |

@@ -173,6 +173,18 @@ impl Theme {
         if self.dark { *dark } else { *light }
     }
 
+    /// Couleur d'une gravité de l'assistant en cartes (prototype : attention `#9a5300`, conseil `#1f57c3`, info
+    /// `#5c5c5c`, OK `#137a2c` — les accents du thème et le texte atténué) ; l'alerte, absente du prototype, prend le rouge.
+    pub fn severity(&self, severity: &str) -> Color32 {
+        match severity {
+            "alerte" => self.accent("red"),
+            "attention" => self.accent("orange"),
+            "conseil" => self.accent("blue"),
+            "ok" => self.accent("green"),
+            _ => self.ui.muted,
+        }
+    }
+
     /// Texte posé **sur** un fond plein de la couleur d'accent `name` (bouton « Supprimer définitivement »). Le
     /// blanc du thème clair ne se lit pas sur les accents du thème sombre, plus clairs (rouge : 2,3:1) : on y
     /// écrit avec le fond des panneaux, sombre.

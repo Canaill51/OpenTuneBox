@@ -9,7 +9,7 @@
 //! et `min` qui gardent le **premier** ex æquo, `max` d'une liste à NaN qui dépend de l'ordre, comparaisons avec NaN toujours fausses.
 //! Hors du domaine de `find_series` (une valeur de curseur NaN), `sorted` de Python n'est pas reproduit : `Err`.
 
-use crate::rules::{ATTENTION, CONSEIL, Finding, INFO, OK, STEP_MIN_WINDOWS, STEP_SURE_WINDOWS};
+use crate::rules::{ATTENTION, CONSEIL, Finding, Gauge, INFO, OK, STEP_MIN_WINDOWS, STEP_SURE_WINDOWS};
 use otb_analysis::step::StepMetrics;
 use otb_analysis::step_series::{FF_KEY, FlightStep, Series, find_series};
 use otb_format::{fixed, round_digits};
@@ -366,36 +366,42 @@ pub fn damping_block(flights: &[FlightStep], s: &Series) -> Result<TuningBlock, 
     let note = step_note(s);
     let Some(chosen) = chosen else {
         let last = vals[ok[ok.len() - 1]];
-        b.finding = Some(Finding::new(
-            "series_more_overshoot",
-            "Réponse",
-            CONSEIL,
-            &format!("Encore du dépassement en {axis}"),
-            &format!(
-                "Le pic {axis} reste au-dessus de {} jusqu'à {name} {}.{note}",
-                fmt(PEAK_FLAT_MAX),
-                fmt(last)
-            ),
-            vec![format!("Volez avec {name} {}, puis comparez.", fmt(last + SERIES_STEP))],
-            None,
-        ));
+        b.finding = Some(
+            Finding::new(
+                "series_more_overshoot",
+                "Réponse",
+                CONSEIL,
+                &format!("Encore du dépassement en {axis}"),
+                &format!(
+                    "Le pic {axis} reste au-dessus de {} jusqu'à {name} {}.{note}",
+                    fmt(PEAK_FLAT_MAX),
+                    fmt(last)
+                ),
+                vec![format!("Volez avec {name} {}, puis comparez.", fmt(last + SERIES_STEP))],
+                None,
+            )
+            .with_gauge(Gauge::new(peaks[ok[ok.len() - 1]], PEAK_FLAT_MAX, "", 2)),
+        );
         return Ok(b);
     };
     b.best = Some(idx[chosen]);
     if chosen == ok[0] && flat {
         let prv = vals[chosen] - SERIES_STEP;
-        b.finding = Some(Finding::new(
-            "series_already_flat",
-            "Réponse",
-            CONSEIL,
-            &format!("{name} {} : déjà sans dépassement", fmt(vals[chosen])),
-            &format!(
-                "Pic {axis} {} dès la plus petite valeur testée : une valeur plus basse suffit peut-être.{note}",
-                n2(peaks[chosen])
-            ),
-            vec![format!("Volez avec {name} {} pour trouver la limite.", fmt(prv))],
-            None,
-        ));
+        b.finding = Some(
+            Finding::new(
+                "series_already_flat",
+                "Réponse",
+                CONSEIL,
+                &format!("{name} {} : déjà sans dépassement", fmt(vals[chosen])),
+                &format!(
+                    "Pic {axis} {} dès la plus petite valeur testée : une valeur plus basse suffit peut-être.{note}",
+                    n2(peaks[chosen])
+                ),
+                vec![format!("Volez avec {name} {} pour trouver la limite.", fmt(prv))],
+                None,
+            )
+            .with_gauge(Gauge::new(peaks[chosen], PEAK_FLAT_MAX, "", 2)),
+        );
         return Ok(b);
     }
     let mut detail = format!("Pic {axis} {} : {why}.{note}", n2(peaks[chosen]));
@@ -417,7 +423,7 @@ pub fn damping_block(flights: &[FlightStep], s: &Series) -> Result<TuningBlock, 
             fmt(SERIES_STEP)
         ));
     }
-    b.finding = Some(Finding::new(
+    let mut f = Finding::new(
         "series_choice",
         "Réponse",
         sev,
@@ -425,7 +431,12 @@ pub fn damping_block(flights: &[FlightStep], s: &Series) -> Result<TuningBlock, 
         &detail,
         actions,
         None,
-    ));
+    );
+    if flat {
+        // le choix repose sur « sans dépassement visible » : un seul repère ; le plateau a deux conditions, pas de jauge
+        f.gauge = Some(Gauge::new(peaks[chosen], PEAK_FLAT_MAX, "", 2));
+    }
+    b.finding = Some(f);
     Ok(b)
 }
 
@@ -741,6 +752,7 @@ pub fn roll_pitch_block(
             Vec::new(),
             None,
         )
+        .with_gauge(Gauge::new(g.abs(), LATENCY_GAP_OK_MS, "ms", 1).labels("mesuré", "repère"))
     } else if g.abs() <= LATENCY_GAP_MAX_MS {
         Finding::new(
             "pitch_balance_near",
@@ -764,6 +776,7 @@ pub fn roll_pitch_block(
             vec![gap_action(g)],
             None,
         )
+        .with_gauge(Gauge::new(g.abs(), LATENCY_GAP_MAX_MS, "ms", 1))
     });
     Ok(Some(b))
 }
