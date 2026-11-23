@@ -140,12 +140,6 @@ fn enregistrer_applique_les_bornes_et_annuler_ne_change_rien() {
     assert_eq!((f.start, f.end), (400, 6001), "bornes en échantillons, fin exclue");
     assert_eq!(f.name, "Vol de réglage");
     assert_eq!(f.role, otb_advisor::log_check::FILTERS);
-    let chemin = log.path.to_string_lossy().into_owned();
-    assert_eq!(
-        h.state().guide.roles.get(&chemin).map(String::as_str),
-        Some(otb_advisor::log_check::FILTERS),
-        "le Guide connaît le rôle du fichier"
-    );
 }
 
 #[test]

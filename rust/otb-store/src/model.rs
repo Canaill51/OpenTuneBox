@@ -97,6 +97,18 @@ pub struct DroneSheet {
     pub pid_khz: String,
     /// Clés des cases du Guide cochées à la main, dans l'ordre où elles l'ont été.
     pub done: Vec<String>,
+    /// Clés des cases que le Guide a vues **vérifiées par un log** à son dernier relevé (D-071) : la carte du
+    /// tableau de bord les compte sans refaire une analyse par log. Le Guide, lui, les recalcule toujours.
+    /// Absent des fichiers écrits avant le lot 30g : lu vide.
+    pub verified: Vec<String>,
+}
+
+/// Une liste de clés de cases ; vide si le champ manque ou n'est pas une liste.
+fn keys(v: &Value, field: &str) -> Vec<String> {
+    v.get(field)
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(|k| k.as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
 }
 
 impl DroneSheet {
@@ -115,6 +127,10 @@ impl DroneSheet {
                 "cases",
                 Value::Array(self.done.iter().map(|k| Value::from(k.as_str())).collect()),
             ),
+            (
+                "cases_verifiees",
+                Value::Array(self.verified.iter().map(|k| Value::from(k.as_str())).collect()),
+            ),
         ])
     }
 
@@ -129,11 +145,8 @@ impl DroneSheet {
             esc: text(v, "esc"),
             betaflight: text(v, "betaflight"),
             pid_khz: text(v, "boucle_pid_khz"),
-            done: v
-                .get("cases")
-                .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|k| k.as_str().map(str::to_string)).collect())
-                .unwrap_or_default(),
+            done: keys(v, "cases"),
+            verified: keys(v, "cases_verifiees"),
         }
     }
 }

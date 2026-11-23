@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
 | D-070 | **L'assistant en cartes, et la mesure contre son seuil en jauge** : une carte par constat triée par gravité, les « info » et les vérifications OK repliées ; un constat qui compare **une** mesure à **un** seul seuil porte une jauge (`Gauge`), hors des références Python ; le bouton « Appliquer » du prototype n'est pas repris (D-063 gardée) | 2026-11-23 |
 | D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) | 2026-11-23 |
 | D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) | 2026-11-23 |
@@ -142,6 +143,58 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-23 — Avancement du parcours (lot 30g)
+
+### D-071 : le Guide lit le rôle sur le fragment ; la carte du drone compte le dernier relevé du Guide
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 30g, entre trois propositions pour la carte (dernier relevé du
+Guide, retenu ; seulement les logs ouverts ; rien de changé) et deux pour les logs du Guide (fragments actifs, retenu ;
+tous les fragments ouverts). Amende D-039 (mémoire des rôles), D-061 (troisième écart au prototype, l'avancement) et
+précise D-066 pour le Guide.
+
+**Contexte.** Le Guide rangeait le rôle d'un log (« filtres », « série PID ») par **chemin de fichier** (D-039), alors
+que depuis D-067 une session peut porter plusieurs fragments, chacun avec son rôle dans la bibliothèque : un fragment
+« Série PID » taillé dans un log de filtres était vérifié comme un log de filtres (W-074). Et la carte d'un drone au
+tableau de bord ne comptait que les cases cochées à la main (D-061) : les cases que le Guide vérifie seul demandent
+une analyse par log, trop chère en ouvrant le tableau de bord.
+
+**Décision.**
+- **Le rôle est celui du fragment** (`otb_store::model::Fragment::role`), seule source : « → classer dans les … » du
+  Guide l'écrit dans la bibliothèque (`GuideAction::Role`), comme l'écran d'extraction. Un fragment sans rôle garde le
+  rôle **deviné** par la vérification du log.
+- **Anciens rôles par fichier** (clé `guide.roles` de la persistance d'eframe, `GuidePage::old_roles`) : relus et
+  réécrits tels quels, plus jamais changés ; à l'ouverture d'un fichier, un fragment de ses sessions **sans rôle** prend
+  le sien (`App::give_role`). Un ancien rôle ne remplace jamais celui d'un fragment.
+- **« Ouvrir les logs des filtres… »** (ou de la série) donne ce rôle aux fragments des sessions ouvertes, à la place
+  de celui qu'ils avaient : le pilote vient de le dire (`App::open_as`).
+- **Le Guide ne vérifie que les fragments actifs** du drone, comme toutes les pages (D-066) ; les désactivés sont
+  nommés sous le panneau (« Désactivés dans la barre, non vérifiés »), jamais rangés « autre drone ».
+- **Relevé pour la carte** : quand chaque fragment actif du drone a sa vérification, le Guide rend les clés des cases
+  que ces logs vérifient (`GuideAction::Verified`, `guide::verified_keys`) ; `App` les range sur la fiche
+  (`DroneSheet::verified`, clé `cases_verifiees`) seulement s'il a changé. La carte compte cases cochées et relevé
+  (`dashboard::stage`, même compte que le Guide par `guide::progress_with`), sans aucune analyse. Sans fragment actif
+  du drone, le relevé n'est pas touché : la carte garde le dernier. « Recommencer » l'efface avec les cases, et le
+  Guide le refait aussitôt pour les logs encore ouverts.
+- La barre d'avancement d'une carte porte un nom accessible (« Avancement de JeNo Ced : 19 % »).
+
+**Écartés.** Pour la carte : compter seulement les logs ouverts et déjà vérifiés (la carte changerait selon ce qui est
+ouvert et retomberait aux cases cochées à chaque lancement) ; vérifier tous les fragments d'un drone en ouvrant le
+tableau de bord (une ouverture de fichier par log, ≈ 0,3 s chacune). Pour les rôles : garder la mémoire par fichier à
+côté de celle des fragments (deux sources qui se contredisent dès qu'une session porte deux fragments). Pour le Guide :
+vérifier aussi les fragments désactivés (la barre ne déciderait plus pour toutes les pages).
+
+**Limite assumée.** La carte dit ce que le Guide a vu **à son dernier passage** : un log ajouté depuis ne compte qu'une
+fois le Guide affiché de nouveau.
+
+**Témoins.** `rust/otb-gui/tests/guide.rs` (`le_guide_lit_le_role_de_chaque_fragment_et_laisse_les_desactives`,
+`le_releve_du_guide_va_sur_la_fiche_et_la_carte_le_compte`,
+`un_ancien_role_va_au_fragment_qui_n_en_a_pas_et_le_role_choisi_le_remplace`, et
+`les_logs_du_drone_sont_verifies_classes_et_les_commandes_copiables` récrit sur le rôle du fragment),
+`rust/otb-gui/src/dashboard.rs` (`l_etape_compte_les_cases_cochees_et_le_releve_du_guide`),
+`rust/otb-store/tests/bibliotheque.rs` (`la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste`, relevé
+compris) ; 8 contre-preuves vues en échec (L-071). Captures `tableau-de-bord-releve-clair.png` et `-sombre.png` de
+l'exemple `capture`.
 
 ## 2026-11-23 — Fiche d'un drone
 
@@ -281,8 +334,8 @@ fichier après reprise (on n'efface rien de l'utilisateur).
 6 contre-preuves vues en échec (L-071). Captures `fiche-drone-*.png` et `fiche-drone-bas-*.png` de l'exemple `capture` ;
 0,2 ms par cadre.
 
-**Ouvert.** La « Fiche cible » (lot 31) ; l'identifiant et la carte lus au branchement (lot 32b) ; l'avancement du parcours
-sur la carte du tableau de bord (lot 30, W-074).
+**Ouvert.** La « Fiche cible » (lot 31) ; l'identifiant et la carte lus au branchement (lot 32b). L'avancement du parcours
+sur la carte du tableau de bord : fait, D-071.
 
 ## 2026-11-23 — Second fragment d'une session
 
@@ -323,8 +376,8 @@ fichier à son ouverture (la barre se remplirait d'un coup, 10 pastilles au plus
 `seul_un_fragment_ajoute_se_supprime_apres_confirmation`) ; 8 contre-preuves vues en échec (L-071). Captures
 `fragment-ajoute-clair.png` et `-sombre.png` de l'exemple `capture`.
 
-**Ouvert.** Le Guide retient le rôle d'un log **par fichier** (D-039) : deux fragments d'une même session aux rôles
-différents n'en font voir qu'un au Guide (W-074).
+**Ouvert.** Le Guide retenait le rôle d'un log **par fichier** (D-039) : deux fragments d'une même session aux rôles
+différents n'en faisaient voir qu'un au Guide (W-074). Fait : le rôle est lu sur le fragment, D-071.
 
 ## 2026-11-23 — Liste d'analyse à l'écran
 
@@ -557,7 +610,8 @@ pâle de la maquette.
   **session ouverte devient un fragment** couvrant le vol entier (sinon le compteur « Fragments » de la carte
   afficherait 0 partout jusqu'au lot 29b — depuis D-065, il couvre les limites automatiques tant qu'on n'a pas choisi
   ses bornes) ; et l'**avancement** d'une carte ne compte que les cases cochées à la
-  main, les cases vérifiées par un log demandant une analyse par log.
+  main, les cases vérifiées par un log demandant une analyse par log. **AMENDÉ par D-071** (2026-11-23) : elle compte
+  aussi les cases que le Guide a vues vérifiées à son dernier passage, rangées sur la fiche.
 - Option écartée : « assez proche ». Une maquette qui fait foi ne se respecte pas à moitié — c'est elle qui tient
   l'unité de l'interface quand les écrans s'ajoutent un par un.
 
@@ -1328,6 +1382,9 @@ de test d'interface (règle d'affichage en fonction pure, L-071).
 ## 2026-11-02 — Contrats de la phase 6-5
 
 ### D-039 : Guide egui : mémoire dans la persistance d'eframe, fiches tolérantes et protégées, Hack en police de secours
+
+**AMENDÉE par D-071** (2026-11-23) : le rôle d'un log est celui de son fragment dans la bibliothèque ; la clé
+`guide.roles` n'est plus que relue, pour les fragments qui n'ont pas encore de rôle.
 
 **AMENDÉE par D-068** (2026-11-23) : les fiches ne vivent plus dans `drones.json` mais dans la bibliothèque ; l'ancien
 fichier n'est plus écrit, seulement lu une fois pour être repris, puis renommé `.repris`. Les points « mêmes octets » et

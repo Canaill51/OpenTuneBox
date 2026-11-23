@@ -607,7 +607,8 @@ fn la_phase_la_fiche_et_les_roles_sont_retrouves_au_lancement_suivant() {
     a.cards.list.push(DroneCard::new("B"));
     a.select_by_name("B");
     a.phase = "filters";
-    a.roles.insert("/x/vol1.bbl".into(), PID.into());
+    // les anciens rôles par fichier sont gardés tels quels, pour les fragments ouverts plus tard (W-074)
+    a.old_roles.insert("/x/vol1.bbl".into(), PID.into());
     let mut m = Memoire(Default::default());
     a.save(&mut m);
     let mut b = GuidePage::new();
@@ -615,14 +616,14 @@ fn la_phase_la_fiche_et_les_roles_sont_retrouves_au_lancement_suivant() {
     b.cards.list.push(DroneCard::new("B"));
     b.restore(&m);
     assert_eq!((b.phase, b.card().unwrap().name.as_str()), ("filters", "B"));
-    assert_eq!(b.roles.get("/x/vol1.bbl").map(String::as_str), Some(PID));
+    assert_eq!(b.old_roles.get("/x/vol1.bbl").map(String::as_str), Some(PID));
     // une phase ou un rôle inconnus (fichier d'une autre version) sont ignorés
     let mut m2 = Memoire(Default::default());
     m2.set_string("guide.phase", "\"inconnue\"".into());
     m2.set_string("guide.roles", "{\"/y.bbl\": \"nimporte\"}".into());
     let mut c = GuidePage::new();
     c.restore(&m2);
-    assert!(c.at_home() && c.roles.is_empty());
+    assert!(c.at_home() && c.old_roles.is_empty());
     // une fiche disparue : on retombe sur la première
     let mut d = GuidePage::new();
     d.cards.list.push(DroneCard::new("A"));
@@ -710,11 +711,18 @@ fn les_logs_du_drone_sont_verifies_classes_et_les_commandes_copiables() {
     // la vérification complète finit en arrière-plan
     attendre(&mut h, |a| !a.guide.busy());
     h.get_by_label_contains("Logs de «");
-    let role_initial = h.state().state.logs[0].log.path.to_string_lossy().into_owned();
-    assert!(
-        !h.state().guide.roles.contains_key(&role_initial),
-        "aucun rôle choisi : le rôle est deviné"
-    );
+    let fragment = h.state().state.logs[0]
+        .fragment
+        .clone()
+        .expect("log rangé sous son drone");
+    let role_du_fragment = |h: &Harness<App>| {
+        h.state()
+            .library
+            .fragment(&fragment)
+            .map(|f| f.role.clone())
+            .unwrap_or_default()
+    };
+    assert_eq!(role_du_fragment(&h), "", "aucun rôle choisi : le rôle est deviné");
     // « classer dans les … » : le rôle choisi remplace le rôle deviné
     let lien = h
         .query_all_by_label_contains("→ classer dans les")
@@ -729,19 +737,16 @@ fn les_logs_du_drone_sont_verifies_classes_et_les_commandes_copiables() {
     lien.click();
     h.run_steps(4);
     assert_eq!(
-        h.state().guide.roles.get(&role_initial).map(String::as_str),
-        Some(premier),
-        "clé = chemin du log"
+        role_du_fragment(&h),
+        premier,
+        "le rôle est rangé sur le fragment (W-074)"
     );
     // le lien propose maintenant le rôle d'origine : le cliquer fait revenir
     let retour = other_role(premier);
     h.get_by_label_contains(&format!("→ classer dans les {}", role_name(retour)))
         .click();
     h.run_steps(4);
-    assert_eq!(
-        h.state().guide.roles.get(&role_initial).map(String::as_str),
-        Some(retour)
-    );
+    assert_eq!(role_du_fragment(&h), retour);
     // les commandes CLI : le bouton copie les commandes du log suivies de « save »
     let cli = h.state().guide.cli_lines().to_vec();
     assert!(!cli.is_empty(), "ce log a des corrections à proposer (rôle {retour})");
@@ -1057,4 +1062,174 @@ fn le_bouton_modifier_garde_l_avancement_et_la_place_de_la_fiche() {
         "la fiche modifiée reste la fiche choisie"
     );
     assert_eq!(h.state().screen, Screen::Guide);
+}
+
+// ------------------------------------------------------------------ rôle par fragment, relevé pour la carte (lot 30g)
+
+/// Le Guide sur la phase des filtres, avec la fiche du drone du log de test ; le log ouvert et vérifié.
+fn guide_avec_le_log() -> (Harness<'static, App>, String) {
+    let nom = otb_log::flightlog::load(&donnees()).unwrap()[0]
+        .settings
+        .craft_name
+        .clone();
+    let mut app = appli();
+    let mut fiche = DroneCard::new(&nom);
+    fiche.pid_khz = 3.2;
+    app.put_card(fiche);
+    app.guide.select_by_name(&nom);
+    app.guide.phase = "filters";
+    let mut h = banc(app);
+    h.run();
+    h.state_mut().open(vec![donnees()]);
+    attendre(&mut h, |a| !a.state.logs.is_empty());
+    attendre(&mut h, |a| !a.guide.busy() && !a.guide.seen().is_empty());
+    h.run_steps(2);
+    (h, nom)
+}
+
+/// Le rôle que le Guide donne à chaque log, rangé par fragment : (fragment, rôle).
+fn roles_vus(h: &Harness<'static, App>) -> Vec<(String, &'static str)> {
+    let app = h.state();
+    app.guide
+        .seen()
+        .iter()
+        .map(|(uid, role)| {
+            let ll = app.state.logs.iter().find(|l| l.uid == *uid).unwrap();
+            (ll.fragment.clone().unwrap_or_default(), *role)
+        })
+        .collect()
+}
+
+/// W-074 : deux fragments d'une même session, deux rôles ; le Guide voit chacun avec le sien. Un fragment désactivé
+/// dans la barre n'est plus vérifié, et il est nommé comme tel, pas rangé « autre drone » (D-066).
+///
+/// **Contre-preuves vues en échec** : `views` qui ne lit plus le rôle du fragment (les deux prennent le rôle deviné) ;
+/// `views` sans le filtre `active` (le fragment désactivé reste vérifié).
+#[test]
+fn le_guide_lit_le_role_de_chaque_fragment_et_laisse_les_desactives() {
+    let (mut h, _) = guide_avec_le_log();
+    let origine = h.state().state.logs[0].fragment.clone().expect("rangé sous son drone");
+    let mut f = h.state().library.fragment(&origine).unwrap().clone();
+    f.role = FILTERS.into();
+    h.state_mut().library.put_fragment(f.clone());
+    let second = format!("{origine}-2");
+    h.state_mut().library.put_fragment(otb_store::model::Fragment {
+        id: second.clone(),
+        name: "Série".into(),
+        role: PID.into(),
+        chosen: true,
+        ..f
+    });
+    h.state_mut().toggle_fragment(&second, donnees());
+    attendre(&mut h, |a| a.state.logs.len() == 2);
+    attendre(&mut h, |a| a.guide.seen().len() == 2 && !a.guide.busy());
+    h.run_steps(2);
+    let mut vus = roles_vus(&h);
+    vus.sort();
+    assert_eq!(vus, [(origine.clone(), FILTERS), (second.clone(), PID)]);
+
+    // désactivé dans la barre : plus vérifié, et dit
+    let i = h
+        .state()
+        .state
+        .logs
+        .iter()
+        .position(|l| l.fragment.as_ref() == Some(&second))
+        .unwrap();
+    h.state_mut().state.set_active(i, false);
+    h.run_steps(3);
+    assert_eq!(roles_vus(&h), [(origine, FILTERS)]);
+    h.get_by_label("Désactivés dans la barre, non vérifiés : Série.");
+    assert!(h.query_by_label_contains("Autres logs ouverts").is_none());
+}
+
+/// D-071 : le Guide range les cases que les logs vérifient sur la fiche, la carte du tableau de bord les compte ;
+/// « Recommencer » efface le relevé avec les cases, et le Guide le refait aussitôt pour les logs encore ouverts.
+///
+/// **Contre-preuves vues en échec** : `App::set_verified` qui n'écrit rien (relevé vide) ; la carte qui appelle `stage`
+/// sans le relevé (barre à 0 %) ; `reported` gardé après « Recommencer » (relevé jamais refait).
+#[test]
+fn le_releve_du_guide_va_sur_la_fiche_et_la_carte_le_compte() {
+    let (mut h, nom) = guide_avec_le_log();
+    let releve = |h: &Harness<'static, App>| {
+        h.state()
+            .library
+            .drone_by_name(&nom)
+            .and_then(|d| d.sheet.clone())
+            .unwrap()
+            .verified
+    };
+    let vu = releve(&h);
+    assert!(!vu.is_empty(), "le log de test vérifie au moins une case");
+    let card = h.state().guide.card().cloned().unwrap();
+    assert!(card.done.is_empty(), "aucune case cochée à la main");
+    // le Guide et la carte disent le même chiffre
+    let (_, part) = otb_gui::dashboard::stage(&card, &vu);
+    let faites: usize = progress_with(&card, &vu).iter().map(|p| p.1).sum();
+    assert!(faites > 0 && part > 0.0);
+    h.state_mut().screen = Screen::Dashboard;
+    h.run_steps(3);
+    h.get_by_label(&otb_gui::dashboard::progress_label(&nom, part));
+
+    // « Recommencer » : cases et relevé repartent de zéro (le Guide le refait à son prochain passage)
+    h.state_mut().screen = Screen::Guide;
+    h.run_steps(2);
+    h.get_by_label("Recommencer").click();
+    h.run_steps(2);
+    h.get_by_label("Oui").click();
+    h.run_steps(1);
+    assert!(
+        h.state()
+            .library
+            .drone_by_name(&nom)
+            .unwrap()
+            .sheet
+            .as_ref()
+            .unwrap()
+            .done
+            .is_empty()
+    );
+    // le log du drone est encore ouvert : ses cases restent vérifiées, le relevé revient au cadre suivant
+    h.run_steps(2);
+    assert_eq!(releve(&h), vu);
+    // sans log du drone ouvert, « Recommencer » laisse un relevé vide (la carte repart de zéro)
+    h.state_mut().apply_bar(otb_gui::analysis_bar::BarAction::Remove(0));
+    h.run_steps(2);
+    h.get_by_label("Recommencer").click();
+    h.run_steps(2);
+    h.get_by_label("Oui").click();
+    h.run_steps(2);
+    assert!(releve(&h).is_empty());
+}
+
+/// Le rôle d'un fragment à l'ouverture : l'ancien rôle de son fichier s'il n'en a pas (W-074 : le Guide les rangeait
+/// par chemin), jamais à la place du sien ; le rôle choisi par « Ouvrir les logs des filtres… » le remplace.
+///
+/// **Contre-preuves vues en échec** : `give_role` sans le filtre « pas encore de rôle » (l'ancien écrase) ; `open_as`
+/// qui ne retient pas le rôle.
+#[test]
+fn un_ancien_role_va_au_fragment_qui_n_en_a_pas_et_le_role_choisi_le_remplace() {
+    let mut app = appli();
+    let chemin = donnees().to_string_lossy().into_owned();
+    app.guide.old_roles.insert(chemin.clone(), PID.into());
+    let mut h = banc(app);
+    h.run();
+    h.state_mut().open(vec![donnees()]);
+    attendre(&mut h, |a| !a.state.logs.is_empty());
+    let id = h.state().state.logs[0].fragment.clone().unwrap();
+    let role = |h: &Harness<'static, App>| h.state().library.fragment(&id).unwrap().role.clone();
+    assert_eq!(role(&h), PID, "ancien rôle repris");
+
+    // refermé puis rouvert avec un autre ancien rôle : le fragment garde le sien
+    h.state_mut().apply_bar(otb_gui::analysis_bar::BarAction::Remove(0));
+    h.state_mut().guide.old_roles.insert(chemin, FILTERS.into());
+    h.state_mut().open(vec![donnees()]);
+    attendre(&mut h, |a| !a.state.logs.is_empty());
+    assert_eq!(role(&h), PID, "un ancien rôle ne remplace jamais celui du fragment");
+
+    // rouvert par « Ouvrir les logs des filtres… » : le choix du pilote gagne
+    h.state_mut().apply_bar(otb_gui::analysis_bar::BarAction::Remove(0));
+    h.state_mut().open_as(vec![donnees()], Some(FILTERS));
+    attendre(&mut h, |a| !a.state.logs.is_empty());
+    assert_eq!(role(&h), FILTERS);
 }
