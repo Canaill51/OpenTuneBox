@@ -18,7 +18,7 @@ use otb_analysis::motors::hover_motor_hz;
 use otb_log::settings::Settings;
 
 use crate::plots::{format_hz, log_grid, nice_axes, nice_grid};
-use crate::state::{AppState, Famille};
+use crate::state::{AppState, Famille, NoiseSignal};
 use crate::theme::{AXIS_NAMES, Theme, plot};
 use crate::tool::{LogInput, Tool};
 use crate::tools::common::{AxisToggles, FileSelection, PTB_DB_RANGE, safe_text};
@@ -42,6 +42,11 @@ pub const DELAY_NOTE: &str = "Spectres simulés : filtres rejoués sur le gyro n
 pub const NO_UNFILT_TITLE: &str = "Spectre gyro — pas de gyro non filtré dans ce log : pas de simulation";
 /// Écart (ms) au-delà duquel un retard est vert (plus court) ou rouge (plus long).
 const DELAY_TOL_MS: f64 = 0.005;
+
+/// Pages des réglages : la chaîne du gyro (0), le terme D, et les notchs dynamiques et le filtre RPM du gyro. Le
+/// choix « Gyro | Terme D » de l'espace passe de la chaîne du gyro au terme D (D-069).
+const TAB_DTERM: usize = 1;
+const TAB_DYN: usize = 2;
 /// Largeurs relatives des colonnes de graphiques : gain, phase, spectre.
 const COL_WEIGHTS: [f32; 3] = [2.0, 2.0, 3.0];
 /// Graduations de fréquence des diagrammes de Bode.
@@ -736,6 +741,28 @@ impl Tool for FilterSimTool {
         self.bode_view = None;
     }
 
+    /// L'onglet des réglages : le terme D, ou la chaîne du gyro (ses notchs dynamiques et RPM compris).
+    fn signal(&self) -> Option<NoiseSignal> {
+        Some(if self.tab == TAB_DTERM {
+            NoiseSignal::DTerm
+        } else {
+            NoiseSignal::Gyro
+        })
+    }
+
+    fn show_signal(&mut self, signal: NoiseSignal, _state: &AppState) {
+        if self.signal() != Some(signal) {
+            self.tab = match signal {
+                NoiseSignal::Gyro => 0,
+                NoiseSignal::DTerm => TAB_DTERM,
+            };
+        }
+    }
+
+    fn axes_mut(&mut self) -> Option<&mut AxisToggles> {
+        Some(&mut self.axes)
+    }
+
     fn options(&self) -> Options {
         Options {
             applied: self.applied.clone(),
@@ -775,11 +802,14 @@ impl Tool for FilterSimTool {
         self.sync(state);
         egui::ScrollArea::vertical().show(ui, |ui| {
             self.axes.ui(ui);
-            ui.horizontal(|ui| {
-                for (i, t) in ["Gyro", "D", "Notch dyn / RPM"].into_iter().enumerate() {
-                    ui.selectable_value(&mut self.tab, i, t);
-                }
-            });
+            // gyro ou terme D : le choix de l'espace, en tête du panneau (D-069) ; la chaîne du gyro garde ici ses
+            // deux pages de réglages
+            if self.tab != TAB_DTERM {
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.tab, 0, "Passe-bas et notchs");
+                    ui.selectable_value(&mut self.tab, TAB_DYN, "Notch dyn / RPM");
+                });
+            }
             if self.tab_fields(ui) {
                 let family = self.family();
                 self.editor.clamp(family);

@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use egui::accesskit::Role;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 use otb_analysis::motors::dyn_notch_rows;
@@ -357,10 +358,11 @@ fn le_bruit_moteur_compte_les_harmoniques_des_20_hz() {
 #[test]
 fn tous_les_jeux_de_donnees_sont_visibles_sans_ascenseur() {
     let h = banc();
-    // la liste est suivie de la case « PSD (dB) » : le dernier jeu doit être au-dessus d'elle, pas replié dans un ascenseur
+    // la liste est suivie de la case « PSD (dB) » : le dernier jeu doit être au-dessus d'elle, pas replié dans un ascenseur.
+    // ⚠️ Par rôle : « Gyro » et « Terme D » sont aussi les boutons du choix du signal, en tête du panneau (L-112)
     let suite = h.get_by_label("PSD (dB)").rect().min.y;
     for (_, label) in otb_analysis::datasets::DATASETS {
-        let r = h.get_by_label(label).rect();
+        let r = h.get_by_role_and_label(Role::CheckBox, label).rect();
         assert!(
             r.max.y <= suite,
             "« {label} » (y = {}) déborde sous la liste (y = {suite})",

@@ -94,7 +94,10 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   `drones.json` est gardé sous le nom `drones.json.repris`.
 - **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
   **Fréq. × temps** et le **Et si** des filtres. Ses onglets, en haut de la page, passent de l'une à l'autre sans
-  repasser par le rail.
+  repasser par le rail. En tête du panneau de droite, **Gyro | Terme D** choisit le signal des quatre vues à la fois,
+  et les cases **R P Y** leurs axes : ce qui est choisi dans l'une se retrouve dans les autres. Les cases détaillées de
+  chaque vue restent dessous (erreur PID, consigne, préréglages de Fréq. × gaz…) ; si vous y choisissez autre chose que
+  le gyro ou le terme D seul, aucun des deux boutons n'est allumé, et seule cette vue change.
 
 ### Les courbes du vol et les limites du fragment
 
@@ -195,12 +198,13 @@ cochée (quelques secondes) et compte quatre parties :
 Les constats et les seuils sont ceux de l'assistant : les deux outils donnent les mêmes conseils.
 
 ### Fréquence × gaz (Fréq. × gaz)
-Bouton de l'outil Spectre. Carte du bruit selon le gaz. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
+Onglet de l'entrée **Bruit et filtres**. Carte du bruit selon le gaz. Elle s'ouvre sur le signal choisi, **avant et
+après ses filtres**, deux colonnes par fragment ; les **Préréglages** de PIDtoolbox restent dans la liste. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
 retiré par le filtre RPM). Une **ligne horizontale** = résonance de châssis ou pièce qui vibre. Une
 tache basse fréquence à mi-gaz = oscillation de réglage ou propwash.
 
 ### Fréquence × temps (Fréq. × temps)
-Bouton de l'outil Spectre. Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
+Onglet de l'entrée **Bruit et filtres**. Le même bruit dans le temps : utile pour relier un bruit à un moment du vol (le curseur est lié au
 lecteur ; un clic sur un spectrogramme le déplace). Les harmoniques moteur et les notchs dynamiques se choisissent un par un,
 comme dans le Spectre.
 
@@ -253,7 +257,8 @@ simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, co
 
 ### Simulateur de filtres (Filtres)
 S'ouvre par l'onglet **Et si** de l'entrée **Bruit et filtres** du rail.
-Reconstitue la chaîne de filtres de Betaflight à partir du log. Modifiez un filtre, puis cliquez sur
+Reconstitue la chaîne de filtres de Betaflight à partir du log. **Gyro | Terme D**, en tête du panneau, choisit les
+filtres à régler ; ceux du gyro ont deux pages, **Passe-bas et notchs** et **Notch dyn / RPM**. Modifiez un filtre, puis cliquez sur
 **Appliquer** : le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
 les filtres sur le gyro non filtré du vol, comme le firmware (notch dynamique compris : il suit les pics avec vos
 nouveaux réglages ; une à quelques secondes de calcul). Les spectres ne bougent **pas** tant que vous n'avez pas

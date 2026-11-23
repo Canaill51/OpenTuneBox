@@ -16,7 +16,7 @@ use super::common::{
     harmonics_and_notches_ui, motor_freqs, nan_unless_positive, ranks, sel_rows, wide,
 };
 use crate::plots::{VDrag, colorbar, heatmap_texture, nice_axes};
-use crate::state::AppState;
+use crate::state::{AppState, NoiseSignal};
 use crate::theme::{AXIS_NAMES, Palette, Theme, motor_color, plot};
 use crate::tool::{LogInput, Tool};
 
@@ -221,6 +221,22 @@ impl Tool for FreqTimeTool {
 
     fn reset_view(&mut self) {
         self.view.reset();
+    }
+
+    fn signal(&self) -> Option<NoiseSignal> {
+        NoiseSignal::of_key(self.key)
+    }
+
+    /// Le même étage de l'autre signal (`gyro` → `dterm`) ; un autre jeu (erreur PID…) laisse place au signal
+    /// avant ses filtres.
+    fn show_signal(&mut self, signal: NoiseSignal, _state: &AppState) {
+        if self.signal() != Some(signal) {
+            self.key = signal.counterpart(self.key);
+        }
+    }
+
+    fn axes_mut(&mut self) -> Option<&mut AxisToggles> {
+        Some(&mut self.axes)
     }
 
     fn options(&self) -> Options {

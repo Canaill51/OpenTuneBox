@@ -7,7 +7,7 @@ use egui::{RichText, Ui};
 use otb_analysis::motors;
 use otb_log::flightlog::{FlightLog, Rows};
 
-use crate::state::AppState;
+use crate::state::{AppState, NoiseSignal};
 use crate::theme::{AXIS_NAMES, Theme, motor_color};
 use crate::tools::filter_sim_calc::DYN_COUNT_MAX;
 
@@ -40,6 +40,60 @@ pub fn space_tabs(ui: &mut Ui, courante: &'static str, th: &Theme) -> Option<&'s
     });
     ui.separator();
     aller
+}
+
+/// Commande segmentée de la maquette (« Tous | Roll | Pitch | Yaw », « Filtres | Série PID ») : fond gris, la
+/// valeur choisie en blanc. Rend l'indice cliqué.
+pub fn segmented(ui: &mut Ui, th: &Theme, labels: &[&str], selected: Option<usize>) -> Option<usize> {
+    segmented_in(ui, th, labels, selected, false)
+}
+
+/// [`segmented`] ; `stretch` : les boutons se partagent toute la largeur disponible (`flex: 1` du prototype, en tête
+/// d'un panneau).
+pub fn segmented_in(ui: &mut Ui, th: &Theme, labels: &[&str], selected: Option<usize>, stretch: bool) -> Option<usize> {
+    let mut clicked = None;
+    // marge intérieure (3 de chaque côté) et écart entre boutons (2) retirés de la largeur à partager
+    let n = labels.len().max(1) as f32;
+    let width = (ui.available_width() - 6.0 - 2.0 * (n - 1.0)) / n;
+    egui::Frame::new()
+        .fill(th.ui.hover)
+        .corner_radius(7)
+        .inner_margin(3)
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                ui.spacing_mut().button_padding = egui::vec2(12.0, 5.0);
+                for (i, l) in labels.iter().enumerate() {
+                    let on = selected == Some(i);
+                    let mut texte = RichText::new(*l).size(13.0);
+                    texte = if on {
+                        texte.strong().color(th.ui.text)
+                    } else {
+                        texte.color(th.ui.muted)
+                    };
+                    // ⚠️ `selected` met le bouton à l'état « coché » pour un lecteur d'écran (et pour les tests)
+                    let b = egui::Button::new(texte)
+                        .selected(on)
+                        .fill(if on { th.ui.base } else { egui::Color32::TRANSPARENT })
+                        .stroke(egui::Stroke::NONE)
+                        .corner_radius(5);
+                    let b = if stretch { b.min_size(egui::vec2(width, 0.0)) } else { b };
+                    if ui.add(b).clicked() {
+                        clicked = Some(i);
+                    }
+                }
+            });
+        });
+    clicked
+}
+
+/// Choix « Gyro | Terme D » en tête du panneau des vues de l'espace « Bruit et filtres » (D-069). `shown` : le
+/// signal que montre la vue (`None` : un autre, choisi dans ses cases ; aucun bouton n'est alors allumé). Rend le
+/// signal cliqué.
+pub fn signal_tabs(ui: &mut Ui, th: &Theme, shown: Option<NoiseSignal>) -> Option<NoiseSignal> {
+    let labels = NoiseSignal::ALL.map(NoiseSignal::label);
+    let selected = shown.and_then(|s| NoiseSignal::ALL.iter().position(|t| *t == s));
+    segmented_in(ui, th, &labels, selected, true).map(|i| NoiseSignal::ALL[i])
 }
 
 /// Mémoire de la vue d'un graphique : les bornes ne sont remises aux valeurs des réglages que quand la clé de ces

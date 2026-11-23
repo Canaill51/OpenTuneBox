@@ -23,7 +23,7 @@ use super::common::{
 };
 use super::report_ui::{REPORT_FOOTER, diagnosis_ui};
 use crate::plots::{corner_text, error_bars, nice_axes};
-use crate::state::AppState;
+use crate::state::{AppState, NoiseSignal};
 use crate::theme::{AXIS_NAMES, Theme, motor_color, plot, with_alpha};
 use crate::tool::{LogInput, Tool};
 
@@ -497,6 +497,38 @@ impl Tool for SpectralTool {
 
     fn reset_view(&mut self) {
         self.view.reset();
+    }
+
+    fn signal(&self) -> Option<NoiseSignal> {
+        NoiseSignal::of_keys(
+            DATASETS
+                .iter()
+                .zip(self.datasets)
+                .filter(|(_, on)| *on)
+                .map(|((k, _), _)| *k),
+        )
+    }
+
+    /// Les cases cochées passent à l'autre signal, au même étage (le gyro filtré seul devient le terme D filtré
+    /// seul) ; d'autres jeux cochés (erreur PID…) laissent place au signal avant et après ses filtres.
+    fn show_signal(&mut self, signal: NoiseSignal, _state: &AppState) {
+        let keep: Vec<&str> = match self.signal() {
+            Some(s) if s == signal => return,
+            Some(_) => DATASETS
+                .iter()
+                .zip(self.datasets)
+                .filter(|(_, on)| *on)
+                .map(|((k, _), _)| signal.counterpart(k))
+                .collect(),
+            None => signal.keys().to_vec(),
+        };
+        for (i, (k, _)) in DATASETS.iter().enumerate() {
+            self.datasets[i] = keep.contains(k);
+        }
+    }
+
+    fn axes_mut(&mut self) -> Option<&mut AxisToggles> {
+        Some(&mut self.axes)
     }
 
     fn options(&self) -> Options {

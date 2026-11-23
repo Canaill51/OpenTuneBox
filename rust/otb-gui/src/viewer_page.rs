@@ -24,6 +24,7 @@ use crate::icons::icon;
 use crate::plots::{VDrag, right_axis_scale};
 use crate::state::{AppState, default_period};
 use crate::theme::{self, AXIS_NAMES, Theme, with_alpha};
+use crate::tools::common::segmented;
 use crate::viewer::{
     DEFAULT_TRACES, SMOOTHING, has_trace, measure_text, readout_lines, smooth, stick_positions, trace_data, trace_label,
 };
@@ -1512,41 +1513,6 @@ fn section(ui: &mut Ui, th: &Theme, titre: &str, open: &mut bool, body: impl FnO
     let r = ui.min_rect();
     ui.painter()
         .hline(r.x_range(), ui.cursor().top(), egui::Stroke::new(1.0, th.ui.border));
-}
-
-/// Commande segmentée de la maquette (« Tous | Roll | Pitch | Yaw », « Filtres | Série PID ») : fond gris, la
-/// valeur choisie en blanc. Rend l'indice cliqué.
-fn segmented(ui: &mut Ui, th: &Theme, labels: &[&str], selected: Option<usize>) -> Option<usize> {
-    let mut clicked = None;
-    egui::Frame::new()
-        .fill(th.ui.hover)
-        .corner_radius(7)
-        .inner_margin(3)
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                ui.spacing_mut().button_padding = Vec2::new(12.0, 5.0);
-                for (i, l) in labels.iter().enumerate() {
-                    let on = selected == Some(i);
-                    let mut texte = RichText::new(*l).size(13.0);
-                    texte = if on {
-                        texte.strong().color(th.ui.text)
-                    } else {
-                        texte.color(th.ui.muted)
-                    };
-                    // ⚠️ `selected` met le bouton à l'état « coché » pour un lecteur d'écran (et pour les tests)
-                    let b = egui::Button::new(texte)
-                        .selected(on)
-                        .fill(if on { th.ui.base } else { Color32::TRANSPARENT })
-                        .stroke(egui::Stroke::NONE)
-                        .corner_radius(5);
-                    if ui.add(b).clicked() {
-                        clicked = Some(i);
-                    }
-                }
-            });
-        });
-    clicked
 }
 
 /// Bouton à bordure de la maquette (13 points, coins de 6), avec une icône facultative ; `on` : mis en valeur.
