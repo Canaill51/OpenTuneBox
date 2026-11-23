@@ -6,6 +6,7 @@
 //! Python au bit près sur toute plate-forme. La réponse, les coefficients et le retard passent par `sin`, `cos`, `atan2`
 //! (bibliothèque mathématique du système) et par `np.convolve` (BLAS) : tolérance mesurée (L-048).
 
+use crate::chain::{self, Brick, Signal, Step};
 use crate::spectral::{Mode, py_round, row_mean, seg_spectra, segments, to_db};
 use otb_dsp::{K_LPF, K_NOTCH, K_PT1, Sections, biquad, notch_q, pt1_gain, pt1_track, run_section, sections_response};
 use otb_log::flightlog::{FlightLog, Rows};
@@ -429,84 +430,86 @@ pub fn complete_dyn_centres(known: &[f64], s: &Settings, peaks: &[f64]) -> Vec<f
     c
 }
 
-/// `1e6 / 2 / looptime_us / pid_denom * 0.95` : Nyquist du log, avec la division par zéro de Python en erreur.
-fn nyquist(s: &Settings) -> Result<f64, String> {
-    if s.looptime_us == 0 || s.pid_denom == 0 {
-        return Err("float division by zero".into());
-    }
-    Ok(1e6 / 2.0 / s.looptime_us as f64 / s.pid_denom as f64 * 0.95)
-}
-
-/// `gyro_chain` : chaîne gyro complète dans l'ordre du firmware (LPF2 à la cadence gyro ; à la cadence PID : notchs RPM, notchs
-/// statiques 1 et 2, LPF1, notchs dynamiques). `motor_hz` : une fréquence par moteur ; `dyn_notch_hz` : `None` = centres
-/// initiaux, liste vide = pas de notch dynamique.
-pub fn gyro_chain(
+/// Filtres d'une chaîne (`steps`, lus dans la description, `chain::betaflight`), dans son ordre, avec leur cadence : un
+/// passe-bas, un notch statique, un notch par moteur et par harmonique RPM, un notch par centre dynamique.
+fn chain_specs(
+    steps: &[Step],
     s: &Settings,
     throttle_frac: f64,
     motor_hz: Option<&[f64]>,
     dyn_notch_hz: Option<&[f64]>,
 ) -> Result<Chain, String> {
-    let (gyro_rate, pid_rate) = (s.gyro_rate_hz(), s.pid_rate_hz());
     let mut chain: Chain = Vec::new();
-    if let Some(sp) = lowpass_spec(&s.gyro_lpf2, throttle_frac) {
-        chain.push((sp, gyro_rate));
-    }
-    if let Some(mhz) = motor_hz.filter(|_| s.rpm_harmonics > 0) {
-        let q = s.rpm_q as f64 / 100.0;
-        let mut fw = Vec::new();
-        for h in 0..s.rpm_harmonics {
-            fw.push(rpm_notch_freq_weight(mhz, h, s, pid_rate)?);
-        }
-        for m in 0..mhz.len() {
-            for (f, w) in &fw {
-                if w[m] > 0.0 {
-                    chain.push((FilterSpec::with(Kind::Notch, f[m], q, w[m]), pid_rate));
+    for step in steps {
+        let rate = step.rate.hz(s);
+        match step.brick {
+            Brick::Lowpass(lp) => {
+                if let Some(sp) = lowpass_spec(lp.get(s), throttle_frac) {
+                    chain.push((sp, rate));
                 }
             }
-        }
-    }
-    let nyq = nyquist(s)?;
-    for &(center, cutoff) in s.gyro_notches.iter().take(2) {
-        if let Some(sp) = static_notch(center, cutoff, nyq) {
-            chain.push((sp, pid_rate));
-        }
-    }
-    if let Some(sp) = lowpass_spec(&s.gyro_lpf1, throttle_frac) {
-        chain.push((sp, pid_rate));
-    }
-    if dyn_notch_enabled(s) {
-        let initial;
-        let centres: &[f64] = match dyn_notch_hz {
-            Some(c) => c,
-            None => {
-                initial = dyn_notch_initial_centres(s);
-                &initial
+            Brick::StaticNotch(notch, limit) => {
+                let nyq = limit.hz(s)?;
+                if let Some((center, cutoff)) = notch.get(s)
+                    && let Some(sp) = static_notch(center, cutoff, nyq)
+                {
+                    chain.push((sp, rate));
+                }
             }
-        };
-        let q = s.dyn_notch_q as f64 / 100.0;
-        for &c in centres.iter().take(s.dyn_notch_count as usize) {
-            if c > 0.0 && q > 0.0 {
-                chain.push((FilterSpec::new_q(Kind::Notch, c, q), pid_rate));
+            Brick::RpmNotch => {
+                if let Some(mhz) = motor_hz.filter(|_| s.rpm_harmonics > 0) {
+                    let q = s.rpm_q as f64 / 100.0;
+                    let mut fw = Vec::new();
+                    for h in 0..s.rpm_harmonics {
+                        fw.push(rpm_notch_freq_weight(mhz, h, s, rate)?);
+                    }
+                    for m in 0..mhz.len() {
+                        for (f, w) in &fw {
+                            if w[m] > 0.0 {
+                                chain.push((FilterSpec::with(Kind::Notch, f[m], q, w[m]), rate));
+                            }
+                        }
+                    }
+                }
+            }
+            Brick::DynNotch => {
+                if dyn_notch_enabled(s) {
+                    let initial;
+                    let centres: &[f64] = match dyn_notch_hz {
+                        Some(c) => c,
+                        None => {
+                            initial = dyn_notch_initial_centres(s);
+                            &initial
+                        }
+                    };
+                    let q = s.dyn_notch_q as f64 / 100.0;
+                    for &c in centres.iter().take(s.dyn_notch_count as usize) {
+                        if c > 0.0 && q > 0.0 {
+                            chain.push((FilterSpec::new_q(Kind::Notch, c, q), rate));
+                        }
+                    }
+                }
             }
         }
     }
     Ok(chain)
 }
 
-/// `dterm_chain` : chaîne du terme D (cadence PID) : notch D, LPF1 D, LPF2 D.
-pub fn dterm_chain(s: &Settings, throttle_frac: f64) -> Chain {
-    let pid_rate = s.pid_rate_hz();
-    let mut chain: Chain = Vec::new();
-    let (center, cutoff) = s.dterm_notch;
-    if let Some(sp) = static_notch(center, cutoff, pid_rate / 2.0) {
-        chain.push((sp, pid_rate));
-    }
-    for lp in [&s.dterm_lpf1, &s.dterm_lpf2] {
-        if let Some(sp) = lowpass_spec(lp, throttle_frac) {
-            chain.push((sp, pid_rate));
-        }
-    }
-    chain
+/// `gyro_chain` : chaîne gyro complète dans l'ordre du firmware, lu dans sa description (`chain::betaflight` : LPF2 à la
+/// cadence gyro ; à la cadence PID : notchs RPM, notchs statiques 1 et 2, LPF1, notchs dynamiques). `motor_hz` : une
+/// fréquence par moteur ; `dyn_notch_hz` : `None` = centres initiaux, liste vide = pas de notch dynamique.
+pub fn gyro_chain(
+    s: &Settings,
+    throttle_frac: f64,
+    motor_hz: Option<&[f64]>,
+    dyn_notch_hz: Option<&[f64]>,
+) -> Result<Chain, String> {
+    chain_specs(&chain::betaflight().gyro, s, throttle_frac, motor_hz, dyn_notch_hz)
+}
+
+/// `dterm_chain` : chaîne du terme D (cadence PID), lue dans sa description : notch D, LPF1 D, LPF2 D.
+pub fn dterm_chain(s: &Settings, throttle_frac: f64) -> Result<Chain, String> {
+    chain_specs(&chain::betaflight().dterm, s, throttle_frac, None, None)
 }
 
 // ---------------------------------------------------------------- simulation temporelle et « et si » (phase 4b-4)
@@ -670,8 +673,9 @@ pub fn fft_freq_centres(log: &FlightLog, settings: Option<&Settings>) -> Option<
     Some(Matrix64 { k: count, n, data })
 }
 
-/// Étages de la chaîne gyro du firmware, dans son ordre (`sensors/gyro.c`, `sensors/gyro_filter_impl.c`). Chacun correspond à
-/// un intervalle entre deux points de mesure du debug `GYRO_SAMPLE` ou `FFT_FREQ` (contrôle par étage, lot 22 du plan).
+/// Étages de la chaîne gyro du firmware, dans son ordre (`sensors/gyro.c`, `sensors/gyro_filter_impl.c`). Un étage est
+/// l'intervalle entre deux **prises** du debug `GYRO_SAMPLE` ou `FFT_FREQ` (contrôle par étage, lot 22 du plan) ; ses
+/// étapes sont lues dans la description de la chaîne (`chain::betaflight`, lot 23), jamais écrites ici.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GyroStage {
     /// LPF2 (filtre de sous-échantillonnage, cadence gyro dans le firmware).
@@ -685,13 +689,50 @@ pub enum GyroStage {
 }
 
 impl GyroStage {
-    /// Les quatre étages, dans l'ordre du firmware.
+    /// Les quatre étages, dans l'ordre du firmware : bout à bout, ils couvrent la chaîne gyro de la description (test
+    /// `les_etages_couvrent_la_chaine_gyro`).
     pub const ALL: [GyroStage; 4] = [
         GyroStage::Lpf2,
         GyroStage::Rpm,
         GyroStage::StaticLpf1,
         GyroStage::DynNotch,
     ];
+
+    /// Prises qui bornent l'étage : entrée, sortie.
+    pub fn taps(self) -> (Signal, Signal) {
+        match self {
+            GyroStage::Lpf2 => (Signal::GyroSample(0), Signal::GyroSample(1)),
+            GyroStage::Rpm => (Signal::GyroSample(1), Signal::GyroSample(2)),
+            GyroStage::StaticLpf1 => (Signal::GyroSample(2), Signal::GyroSample(3)),
+            GyroStage::DynNotch => (Signal::FftFreqBeforeDynNotch, Signal::Gyro),
+        }
+    }
+
+    /// Rangs, dans la chaîne gyro de la description, des étapes de l'étage.
+    pub fn steps(self) -> Result<Range<usize>, String> {
+        let (from, to) = self.taps();
+        chain::betaflight().gyro_between(from, to)
+    }
+
+    /// Nombre de pas de filtre par échantillon d'un signal à la cadence `fs` : cadence des étapes de l'étage / `fs`,
+    /// arrondi, au moins 1 (L-104). Étage vide : 1.
+    pub fn loops_per_sample(self, s: &Settings, fs: f64) -> Result<usize, String> {
+        let rate = chain::betaflight().gyro_rate(&self.steps()?)?;
+        Ok(rate.map_or(1, |r| (r.hz(s) / fs).round().max(1.0) as usize))
+    }
+}
+
+/// `stages_before` : étages qui mènent de l'entrée de la chaîne gyro à la prise `to`, dans l'ordre (le bloc d'avant le
+/// notch dynamique pour `Signal::FftFreqBeforeDynNotch`).
+pub fn stages_before(to: Signal) -> Result<Vec<GyroStage>, String> {
+    let end = chain::betaflight().gyro_between(Signal::GyroUnfilt, to)?.end;
+    let mut out = Vec::new();
+    for st in GyroStage::ALL {
+        if st.steps()?.end <= end {
+            out.push(st);
+        }
+    }
+    Ok(out)
 }
 
 /// `gyro_stage` : un étage du modèle appliqué à `x` (`k` lignes de même longueur, à la cadence du log). Mêmes
@@ -738,10 +779,37 @@ fn gyro_stage_held(
             "filtre rejoué {r} fois plus vite que le log : une seule ligne à la fois ({k} reçues)"
         ));
     }
+    for step in &chain::betaflight().gyro[stage.steps()?] {
+        x = step_sim(step, log, s, x, k, fs, r)?;
+    }
+    Ok(x)
+}
+
+/// Une étape de la description appliquée à `x` (`k` lignes de même longueur, cadence `fs`, `r` fois celle du log : les
+/// valeurs lues dans le log sont tenues `r` pas). Notchs dynamiques : aux centres du debug `FFT_FREQ` (sans eux, rien).
+fn step_sim(
+    step: &Step,
+    log: &FlightLog,
+    s: &Settings,
+    mut x: Vec<f64>,
+    k: usize,
+    fs: f64,
+    r: usize,
+) -> Result<Vec<f64>, String> {
     let n = x.len().checked_div(k).unwrap_or(0);
-    match stage {
-        GyroStage::Lpf2 => lowpass_sim(x, k, n, &s.gyro_lpf2, &held(throttle_frac(log), r), fs),
-        GyroStage::Rpm => {
+    match step.brick {
+        Brick::Lowpass(lp) => lowpass_sim(x, k, n, lp.get(s), &held(throttle_frac(log), r), fs),
+        Brick::StaticNotch(notch, limit) => {
+            let nyq = limit.hz(s)?;
+            match notch
+                .get(s)
+                .and_then(|(center, cutoff)| static_notch(center, cutoff, nyq))
+            {
+                Some(sp) => apply(&x, k, n, Kind::Notch, &[sp.f_hz], fs, sp.q, &[1.0]),
+                None => Ok(x),
+            }
+        }
+        Brick::RpmNotch => {
             if let Some(mhz) = log.motor_hz.as_ref().filter(|_| s.rpm_harmonics > 0) {
                 let q = s.rpm_q as f64 / 100.0;
                 let kk = if s.rpm_lpf_hz > 0 {
@@ -753,7 +821,7 @@ fn gyro_stage_held(
                     let row: Vec<f64> = mhz.row(m).iter().map(|&v| v as f64).collect();
                     let tracked = pt1_track(&held(row, r), kk);
                     for h in 0..s.rpm_harmonics {
-                        let (f, w) = rpm_notch_freq_weight(&tracked, h, s, s.pid_rate_hz())?;
+                        let (f, w) = rpm_notch_freq_weight(&tracked, h, s, step.rate.hz(s))?;
                         if !w.iter().any(|&v| v > 0.0) {
                             continue;
                         }
@@ -763,16 +831,7 @@ fn gyro_stage_held(
             }
             Ok(x)
         }
-        GyroStage::StaticLpf1 => {
-            let nyq = nyquist(s)?;
-            for &(center, cutoff) in s.gyro_notches.iter().take(2) {
-                if let Some(sp) = static_notch(center, cutoff, nyq) {
-                    x = apply(&x, k, n, Kind::Notch, &[sp.f_hz], fs, sp.q, &[1.0])?;
-                }
-            }
-            lowpass_sim(x, k, n, &s.gyro_lpf1, &held(throttle_frac(log), r), fs)
-        }
-        GyroStage::DynNotch => {
+        Brick::DynNotch => {
             if dyn_notch_enabled(s)
                 && let Some(centres) = fft_freq_centres(log, Some(s))
             {
@@ -887,17 +946,26 @@ fn upsample(x: &[f64], r: usize) -> Vec<f64> {
     up
 }
 
-/// `lpf2_at_gyro_rate` : LPF2 gyro rejoué à la cadence gyro ([`gyro_stage_upsampled`], L-104).
-pub fn lpf2_at_gyro_rate(log: &FlightLog, s: &Settings, x: Vec<f64>, fs: f64) -> Result<Vec<f64>, String> {
-    let r = (s.gyro_rate_hz() / fs).round() as usize;
-    gyro_stage_upsampled(GyroStage::Lpf2, log, s, x, fs, r)
+/// `gyro_stage_own_rate` : un étage d'une ligne `x` (cadence `fs`) rejoué à la cadence de ses étapes dans la description,
+/// la cadence gyro pour le LPF2, la cadence PID pour les autres ([`gyro_stage_upsampled`], L-104).
+pub fn gyro_stage_own_rate(
+    stage: GyroStage,
+    log: &FlightLog,
+    s: &Settings,
+    x: Vec<f64>,
+    fs: f64,
+) -> Result<Vec<f64>, String> {
+    let r = stage.loops_per_sample(s, fs)?;
+    gyro_stage_upsampled(stage, log, s, x, fs, r)
 }
 
 /// `simulate_gyro` : rejoue la chaîne de filtres gyro sur `gyro_unfilt` (`3 × n`) → gyro filtré simulé. Mêmes approximations
 /// que Python : filtres calculés à la cadence du log, ceux au-delà de 0,48·fs ignorés ; notchs RPM variables (fréquences
 /// moteur lissées par le PT1 du firmware) ; LPF dynamique selon les gaz ; notchs dynamiques d'après le debug FFT_FREQ.
 pub fn simulate_gyro(log: &FlightLog, settings: Option<&Settings>) -> Result<Matrix64, String> {
-    let gu = log.gyro_unfilt.as_ref().ok_or("pas de gyro non filtré dans ce log")?;
+    let gu = chain::betaflight()
+        .recorded_input(log)
+        .ok_or("pas de gyro non filtré dans ce log")?;
     let s = settings.unwrap_or(&log.settings);
     let (k, n) = (gu.k, gu.n);
     let mut x = Matrix64::from_rows(gu).data;
@@ -909,21 +977,25 @@ pub fn simulate_gyro(log: &FlightLog, settings: Option<&Settings>) -> Result<Mat
 
 /// `simulate_dterm` : terme D simulé à la manière de l'étalon Python, `−dg/dt` **puis** la chaîne D (°/s²), à la cadence du
 /// log. `gyro` : gyro filtré à utiliser (par défaut celui du journal, ou par exemple `simulate_gyro` avec d'autres réglages).
-/// ⚠️ Ordre inverse du firmware (W-072) : gardé pour les références Python figées (`tests/bf_sim.rs`, `otb-parity`, 1e-12) ;
-/// l'écran et l'assistant passent par [`simulate_dterm_at`], qui suit le firmware.
+/// ⚠️ Ordre inverse du firmware (W-072) : la position de la dérivée dans la description est ignorée ici, gardée pour les
+/// références Python figées (`tests/bf_sim.rs`, `otb-parity`, 1e-12) ; l'écran et l'assistant passent par
+/// [`simulate_dterm_at`], qui suit la description.
 pub fn simulate_dterm(
     log: &FlightLog,
     settings: Option<&Settings>,
     gyro: Option<&Matrix64>,
 ) -> Result<Matrix64, String> {
     let s = settings.unwrap_or(&log.settings);
+    let d = chain::betaflight();
     let (k, n, g) = dterm_input(log, gyro)?;
-    let delta = neg_derivative(&g, k, n, log.fs);
-    dterm_filters(log, s, delta.data, k, n, log.fs)
+    let delta = derivative(&g, k, n, log.fs, d.derivative.sign);
+    let data = dterm_steps(log, s, delta.data, k, &d.dterm, log.fs)?;
+    Ok(Matrix64 { k, n, data })
 }
 
-/// `simulate_dterm_at` : terme D comme le firmware (`flight/pid.c`, `pidController`) : la chaîne D (notch D, LPF1 D, LPF2 D)
-/// filtre le gyro, **puis** `−dg/dt` (°/s²) ; dérivée et coefficients des filtres calculés pour la cadence `fs` (L-101).
+/// `simulate_dterm_at` : terme D comme le firmware (`flight/pid.c`, `pidController`) : les étapes de la chaîne D d'avant la
+/// dérivée (notch D, LPF1 D, LPF2 D pour Betaflight) filtrent le gyro, **puis** la dérivée (`−dg/dt`, °/s²), puis les
+/// étapes d'après, lues dans la description ; dérivée et coefficients des filtres calculés pour la cadence `fs` (L-101).
 /// L'ordre compte quand la coupure du LPF1 D suit les gaz (W-072, lot 33).
 pub fn simulate_dterm_at(
     log: &FlightLog,
@@ -932,9 +1004,17 @@ pub fn simulate_dterm_at(
     fs: f64,
 ) -> Result<Matrix64, String> {
     let s = settings.unwrap_or(&log.settings);
+    let d = chain::betaflight();
+    let (before, after) = d.dterm.split_at(d.derivative.at);
     let (k, n, g) = dterm_input(log, gyro)?;
-    let filtered = dterm_filters(log, s, g.data.clone(), k, n, fs)?;
-    Ok(neg_derivative(&filtered, k, n, fs))
+    let filtered = Matrix64 {
+        k,
+        n,
+        data: dterm_steps(log, s, g.data.clone(), k, before, fs)?,
+    };
+    let delta = derivative(&filtered, k, n, fs, d.derivative.sign);
+    let data = dterm_steps(log, s, delta.data, k, after, fs)?;
+    Ok(Matrix64 { k, n, data })
 }
 
 /// Gyro filtré vu par le terme D : `gyro`, ou celui du journal ; refusé s'il est vide.
@@ -952,30 +1032,32 @@ fn dterm_input<'a>(
     Ok((g.k, g.n, g))
 }
 
-/// `−dx/dt` ligne par ligne (`k` lignes de `n` valeurs) ; le premier échantillon reprend le deuxième.
-fn neg_derivative(x: &Matrix64, k: usize, n: usize, fs: f64) -> Matrix64 {
+/// `sign × dx/dt` ligne par ligne (`k` lignes de `n` valeurs) ; le premier échantillon reprend le deuxième.
+fn derivative(x: &Matrix64, k: usize, n: usize, fs: f64, sign: f64) -> Matrix64 {
     let mut delta = vec![0.0; k * n];
     for r in 0..k {
         let row = x.row(r);
         for i in 1..n {
-            delta[r * n + i] = -(row[i] - row[i - 1]) * fs;
+            delta[r * n + i] = sign * (row[i] - row[i - 1]) * fs;
         }
         delta[r * n] = if n > 1 { delta[r * n + 1] } else { 0.0 };
     }
     Matrix64 { k, n, data: delta }
 }
 
-/// Chaîne D (notch D, LPF1 D, LPF2 D) appliquée à `x` (`k` lignes de `n` valeurs), coefficients pour la cadence `fs`.
-fn dterm_filters(log: &FlightLog, s: &Settings, x: Vec<f64>, k: usize, n: usize, fs: f64) -> Result<Matrix64, String> {
-    let thr = throttle_frac(log);
-    let (center, cutoff) = s.dterm_notch;
-    let mut x = x;
-    if let Some(sp) = static_notch(center, cutoff, s.pid_rate_hz() / 2.0) {
-        x = apply(&x, k, n, Kind::Notch, &[sp.f_hz], fs, sp.q, &[1.0])?;
+/// Étapes `steps` de la chaîne D appliquées à `x` (`k` lignes), coefficients pour la cadence `fs`.
+fn dterm_steps(
+    log: &FlightLog,
+    s: &Settings,
+    mut x: Vec<f64>,
+    k: usize,
+    steps: &[Step],
+    fs: f64,
+) -> Result<Vec<f64>, String> {
+    for step in steps {
+        x = step_sim(step, log, s, x, k, fs, 1)?;
     }
-    x = lowpass_sim(x, k, n, &s.dterm_lpf1, &thr, fs)?;
-    x = lowpass_sim(x, k, n, &s.dterm_lpf2, &thr, fs)?;
-    Ok(Matrix64 { k, n, data: x })
+    Ok(x)
 }
 
 /// Cible du spectre « et si » : la chaîne gyro seule, ou la chaîne gyro puis la chaîne D (`target == "dterm"`).
@@ -1221,7 +1303,7 @@ pub fn whatif_spectrum(
             let dkey = (nf, t.to_bits());
             if let Entry::Vacant(slot) = cache.dterm.entry(dkey) {
                 let d2 = |s: &Settings| -> Result<Vec<f64>, String> {
-                    let (re, im) = chain_response(&dterm_chain(s, t), &f)?;
+                    let (re, im) = chain_response(&dterm_chain(s, t)?, &f)?;
                     Ok(re
                         .iter()
                         .zip(&im)

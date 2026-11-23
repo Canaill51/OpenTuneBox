@@ -864,7 +864,7 @@ fn bf_dterm_chain(c: &Case) -> Result<Value, String> {
     Ok(chain_value(&bf_filters::dterm_chain(
         &s,
         float_or(c, 1, "throttle_frac", 0.5)?,
-    )))
+    )?))
 }
 
 // ---------------------------------------------------------------- bf_filters : simulation (phase 4b-4)

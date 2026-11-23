@@ -744,6 +744,24 @@ Mesures avant / après sur le corpus entier (676 sessions), même binaire hormis
   conseil « Le LPF1 du gyro peut être coupé » bouger (terme D prévu −0,1 dB, sommet du D −1 dB PIDtoolbox à l'arrondi).
 - Durées inchangées : rejeu 66 s, contrôle par étage 21 s, assistant 61 s pour le corpus entier.
 
+### Chaîne décrite en données (2026-11-23, lot 23)
+
+L'ordre et la cadence des filtres ne sont plus écrits en dur : la réponse en fréquence (`gyro_chain`, `dterm_chain`), les
+étages de la simulation, le rejeu, le suivi du notch dynamique, le contrôle par étage et la dérivée du D les lisent dans
+`rust/otb-analysis/chains/betaflight.json` (`chain.rs`, D-062). Le changement ne devait **rien** changer ; mesuré avant / après
+sur le corpus entier (676 sessions), binaires de `main` mis de côté avant de toucher au code :
+
+- `otb-parity check` : 1 732 appels rejoués, **0 échec à rtol = 0** (au bit près) ;
+- `otb-dev corpus replay`, `corpus stages`, `corpus dyntrack` : fichiers de résultats **identiques**, hormis la durée de chaque
+  session pour le rejeu ; `corpus rates --compare` : **0 session** aux constats différents ;
+- captures de l'exemple `capture` sur `Cedric/JeNo 5/FINAL.bbl` (42 images, page Filtres comprise, deux thèmes) : **identiques
+  octet pour octet** (deux passages de l'ancien binaire donnent déjà les mêmes octets) ;
+- contre-preuve : LPF1 placé avant les notchs statiques dans le fichier → 6 tests rouges, dont `gyro_chain_identique` et
+  `simulate_gyro_dans_la_tolerance` (références Python) ; LPF2 passé à la cadence PID → 14 tests rouges, dont
+  `lpf2_calcule_a_la_cadence_gyro` (L-104) et le rejeu de la page Filtres ;
+- durées sans changement notable : rejeu médian par session 1,19 → 1,15 s ; durée cumulée de l'assistant 1 018 → 945 s, tous
+  les cœurs occupés (avant : rejeu 67 s, contrôle par étage 21 s, suivi du notch 19 s, assistant 62 s pour le corpus entier).
+
 Critère d'arrêt du lot (plus de 0,5 dB sous 250 Hz, ou un constat qui bascule) : non atteint. L'effet attendu « faible » est
 confirmé : quelques centièmes de dB au plus ; pas de capture, la courbe D ne bouge pas à l'œil.
 

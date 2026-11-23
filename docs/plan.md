@@ -41,7 +41,9 @@ contrat d'un script en [spec-betaflight.md](spec-betaflight.md) §8. Cédric a c
 et en a ajouté trois : le chantier est **conditionnel** (lots 23 à 25, en attente de vrais logs INAV ou ArduCopter :
 pour Betaflight seul, le lot 22 a déjà vérifié le simulateur sur de vrais vols) ; le lot 24 se prouvera par le banc
 **et** par le contrôle par étage du lot 22 ; et le seul écart qui touche déjà l'écran, l'**ordre du terme D**, est
-corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis du plan.
+corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis du plan. Le 2026-11-23, Cédric a levé la
+condition pour le **lot 23 seul** (D-062 amendée) : fait le même jour, sans changer un seul résultat ; les 24 et 25 attendent
+toujours.
 
 ## Comment s'en servir
 
@@ -60,9 +62,9 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
   vers Cédric ; ne pas improviser un autre découpage.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
-- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14, 16 à 22, 28 à 31
+- La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14, 16 à 23, 28 à 31
   et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15 et le 32 sont ouverts (les parties
-  faites du 32 y sont déjà) ; les **23 à 25** sont le chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
+  faites du 32 y sont déjà) ; les **24 et 25** restent du chantier des scripts firmware, **conditionnel** (D-062), et les **26 et 27** en sont
   sortis le 2026-11-18 ; le prochain numéro libre est **34**.
 
 ## Ordre des étapes
@@ -71,8 +73,7 @@ corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis 
 |---|---|---|---|
 | 1 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075), mode disque essayé sur la G474 ; reste une carte SD réelle et Windows |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| — | **23** | Chaîne Betaflight décrite en données, à résultat identique — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric |
-| — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | lot 23 |
+| — | **24** | Briques à l'arithmétique du firmware, vecteurs de référence **et bascule** — **conditionnel** | D-062 : de vrais logs INAV ou ArduCopter, et la demande de Cédric (le lot 23 est fait) |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -222,7 +223,7 @@ lecteur ». Essayé à l'écran sur la carte G474 sous Linux (mode disque, puis 
 
 ---
 
-## Lots 23 à 25 : scripts firmware — **conditionnels**
+## Lots 23 à 25 : scripts firmware — **conditionnels** (le 23 est fait)
 
 Repris du fork `GerryNatif/OpenTuneBox` (sa demande de fusion n° 2, écrite le 2026-11-18 avant le lot 22), relus le
 2026-11-22 (D-062). **Déclencheur** : de vrais logs INAV ou ArduCopter, et la demande de Cédric. Pour un pilote Betaflight
@@ -230,36 +231,10 @@ seul, ces lots ne corrigent rien : le lot 22 a déjà vérifié le simulateur su
 réduirait pas l'écart qui reste (il vient de ce que le log n'enregistre pas). L'ordre du terme D, seul écart visible,
 est sorti dans le lot 33.
 
-### Lot 23 : la chaîne Betaflight décrite en données (Opus)
+### Lot 23 : la chaîne Betaflight décrite en données — **fait le 2026-11-23**
 
-**But** : **une seule description** de la chaîne de filtres, au lieu de deux, **sans changer un seul résultat**. C'est
-ce qui rend un script de firmware possible : D-062 veut une chaîne décrite une fois.
-
-**Branche** : `refactor/chain-as-data`.
-
-**À lire** : `rust/otb-analysis/src/bf_filters.rs:gyro_chain`, `rust/otb-analysis/src/bf_filters.rs:GyroStage`,
-`rust/otb-analysis/src/filter_replay.rs`, [spec-betaflight.md](spec-betaflight.md) §3 et §8, [lecons.md](lecons.md) L-048,
-L-071, L-104.
-
-**Constats du dépôt, relus le 2026-11-22** (le fork les avait écrits avant le rejeu de D-058) :
-
-- **La chaîne est écrite deux fois** : en **réponse en fréquence** (`gyro_chain`, `dterm_chain` : repli de la page
-  Filtres et de l'assistant pour un log sans gyro non filtré, retard gagné par un conseil, boucle ouverte), et **dans le
-  temps** (étages `GyroStage`, communs à `simulate_gyro`, au contrôle par étage et au rejeu). Le temps a donc déjà une
-  seule description ; la seconde est la réponse en fréquence.
-- La cadence propre à chaque filtre est déjà dans le rejeu (L-104) ; seul `simulate_gyro` garde celle du log (W-072,
-  point 2), pour les tests et `otb-parity`.
-
-- [ ] **Description de la chaîne en données** : étapes ordonnées (brique, cadence, paramètres, en service ou non),
-      **prises** (où le log a enregistré chaque signal — c'est ce qui décide du badge « simulé » de
-      `rust/otb-gui/src/tools/filter_sim.rs`) et **position de la dérivation**. La réponse en fréquence et le rejeu la
-      lisent au lieu de porter l'ordre en dur.
-- [ ] **Preuve d'iso-résultat** : `cargo run --release -p otb-parity -- check` 0 écart, `verify --strict` 0 saut,
-      `otb-dev corpus replay` et `corpus stages` inchangés, captures de la page Filtres **identiques au bit près** sur les
-      deux thèmes.
-- [ ] **Contre-preuve** (L-071) : une étape déplacée ou une cadence changée dans la description fait **rougir** un
-      test, vu en échec.
-- [ ] **Critère d'arrêt** : un seul résultat qui change sans explication chiffrée → s'arrêter et revenir vers Cédric.
+Voir l'historique en bas : la chaîne est décrite une seule fois, dans `rust/otb-analysis/chains/betaflight.json`
+(`rust/otb-analysis/src/chain.rs`), forme en [spec-betaflight.md](spec-betaflight.md) §8.
 
 ### Lot 24 : briques à l'arithmétique du firmware (Opus)
 
@@ -267,7 +242,7 @@ L-071, L-104.
 chaîne dans le même lot** (D-062). C'est le plus gros lot du plan : il déplace un chiffre dans presque tous les écrans,
 y compris le rejeu de la page Filtres (D-058) et le bruit prévu par l'assistant (D-059).
 
-**Branche** : `feat/firmware-exact-bricks`. **Dépend du lot 23.**
+**Branche** : `feat/firmware-exact-bricks`. **Dépend du lot 23** (fait le 2026-11-23).
 
 **À lire** : `rust/otb-dsp/src/lib.rs` (les noyaux actuels, D-033), [decisions.md](decisions.md) D-029 (float32),
 D-047 et D-011, [travaux-reportes.md](travaux-reportes.md) W-028, [lecons.md](lecons.md) L-048 et L-051
@@ -420,3 +395,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 32b | 2026-11-23 | **Récupération par USB, l'écran** (branche `feat/usb-retrieve`, D-074, W-075 traité) : « Récupérer par USB » au tableau de bord ouvre un écran hors rail ; la connexion vit dans un fil de travail qui garde la copie vérifiée (seule la demande d'effacement en fait un permis) ; drone reconnu par l'identifiant gravé de sa carte (`Drone::uid`), demandé à la première connexion ; copie rangée sous le drone, bibliothèque écrite, puis effacement en deux clics ; `diff all` par un bouton ; « Ouvrir les vols » ; un log déjà rangé garde son drone à la réouverture ; case « Supprimer aussi les fichiers copiés » à la suppression d'un drone. Preuve : 18 tests nouveaux (15 de l'écran et du fil sur la carte simulée, 3 de la bibliothèque), 5 contre-preuves vues en échec, captures des deux thèmes ; parcours complet essayé à l'écran sur la carte G474 sous Linux | 32c (stockage de masse, cartes SD) ; drone armé, port occupé et Windows à essayer |
 | 32c-1 | 2026-11-23 | **Mode stockage de masse et cartes SD, le protocole** (branche `feat/usb-mass-storage`, D-075, W-079 noté) : `otb-usb` fait redémarrer la carte en disque (seul mode 2, refus armé), repère le disque monté (Linux, Windows), copie `BTFL_ALL.BBL` par les mêmes contrôles qu'en MSP (effacement après rebranchement, identifiant connu seulement), copie et vérifie un par un les logs d'une carte SD (drone ou lecteur), et ne les supprime que par un seul chemin, sous permis, chacun relu et comparé à sa copie ; `otb-dev usb msc` et `usb sd` pour l'essai à la main. Preuve : 14 tests nouveaux et 2 contrats, 4 contre-preuves vues en échec | 32c-2 (l'écran) ; essai sur une vraie carte |
 | 32c-2 | 2026-11-23 | **Mode stockage de masse et cartes SD, l'écran** (branche `feat/usb-mass-storage-screen`, D-075 complétée, D-074 amendée) : « Copier en mode disque » à côté de « Copier les vols », attente du disque et « Choisir le dossier… », copie de la mémoire gardée jusqu'au rebranchement puis reconnexion seule et effacement si c'est la même carte, logs d'une carte SD copiés un par un (refusés gardés sur la carte) et supprimés en deux clics, section « Carte SD dans un lecteur » (drone choisi à la main, nom lu dans le log) ; `otb-usb` refuse de prendre le fichier de la carte pour sa propre copie. Preuve : 9 tests nouveaux (8 de l'écran, 1 d'`otb-usb`), 4 contre-preuves vues en échec, captures des deux thèmes sur la carte simulée ; parcours du mode disque essayé à l'écran sur la carte G474 sous Linux | carte SD réelle, Windows |
+| 23 | 2026-11-23 | **La chaîne Betaflight décrite en données** (branche `refactor/chain-as-data`, D-062 amendée : condition des vrais logs levée pour ce lot seul) : `rust/otb-analysis/chains/betaflight.json`, intégré à la compilation et lu par `chain.rs`, donne les étapes des chaînes gyro et D (brique, cadence, réglage lu), les prises du log et la position de la dérivée du D ; la réponse en fréquence, les étages `GyroStage` (intervalle entre deux prises), le rejeu, le suivi du notch dynamique, le contrôle par étage et le terme D la lisent au lieu de porter l'ordre en dur ; `dterm_chain` rend un `Result`. Preuve d'iso-résultat ([validation.md](validation.md#chaîne-décrite-en-données-2026-11-23-lot-23)) : `otb-parity` 0 échec au bit près sur 1 732 appels, `corpus replay`, `stages`, `dyntrack` identiques, 0 constat changé sur 676 sessions, 42 captures identiques octet pour octet ; 6 tests nouveaux ; contre-preuves : LPF1 déplacé (6 tests rouges), LPF2 à la cadence PID (14 rouges) | lots 24 et 25, toujours conditionnels |

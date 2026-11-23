@@ -52,6 +52,9 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 
 ## Filtres Betaflight et notch dynamique
 
+- Ordre et cadence des filtres : dans `rust/otb-analysis/chains/betaflight.json` seulement (`chain.rs`, lot 23, D-062) ; une
+  liste d'étages ou une cadence écrite en dur ailleurs refait une seconde description qui diverge sans test rouge. Un
+  étage `GyroStage` est l'intervalle entre deux prises du log, pas une liste de filtres.
 - Notch dynamique : prévoir ses pics avec la **réponse** des notchs RPM du firmware (poids, Q), jamais en
   retirant les bandes des harmoniques : une harmonique à poids réduit laisse un reste qu'il suit. Le debug
   FFT_FREQ (`bf_filters.fft_freq_centres`) donne ce qu'il a vraiment suivi : y vérifier tout modèle. D-022, L-028
