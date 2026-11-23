@@ -188,8 +188,8 @@ chaque récupération ; garder ou supprimer d'office les fichiers copiés d'un d
 **Témoins.** `rust/otb-gui/tests/usb.rs` (15 tests sur la carte simulée d'`otb-usb`, dont le parcours complet à l'écran)
 et `rust/otb-store/tests/bibliotheque.rs` (3 tests), avec **5 contre-preuves vues en échec** (L-071) : log copié rouvert
 rangé par son nom, copie d'un drone armé, effacement proposé sans rangement, fichiers copiés effacés sans la case, fichier
-hors du dossier des copies effacé. Captures des deux thèmes sur la carte simulée. **Pas encore essayé à l'écran sur une
-vraie carte** : procédure dans [spec-usb.md](spec-usb.md).
+hors du dossier des copies effacé. Captures des deux thèmes sur la carte simulée. **Essayé à l'écran sur une vraie carte** (G474, Linux, 2026-11-23) :
+tout le parcours passe ([spec-usb.md](spec-usb.md), résultats).
 
 ---
 
