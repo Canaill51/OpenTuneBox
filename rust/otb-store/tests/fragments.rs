@@ -292,6 +292,7 @@ fn un_fragment_ajoute_prend_un_numero_libre_et_se_distingue_de_celui_de_la_sessi
 fn supprimer_un_fragment_emporte_ses_mesures_et_sa_place_dans_la_liste() {
     let dir = dossier("suppression");
     let mut lib = Library::open(dir.clone());
+    lib.load_measures();
     lib.add_log(log("emp-aaa"));
     lib.put_fragment(fragment("f-1", (0, 10)));
     lib.put_fragment(fragment("f-2", (2, 8)));
@@ -302,6 +303,8 @@ fn supprimer_un_fragment_emporte_ses_mesures_et_sa_place_dans_la_liste() {
             axis: 0,
             key: "latence_ms".to_string(),
             value: 4.0,
+            start: lib.fragment(f).unwrap().start,
+            end: lib.fragment(f).unwrap().end,
             settings: "r".to_string(),
             calc_version: 1,
         });
@@ -311,7 +314,8 @@ fn supprimer_un_fragment_emporte_ses_mesures_et_sa_place_dans_la_liste() {
     assert!(!lib.remove_fragment("f-2"), "déjà parti");
     lib.save().expect("écriture");
 
-    let relue = Library::open(dir);
+    let mut relue = Library::open(dir);
+    relue.load_measures();
     assert!(relue.problems().is_empty(), "{:?}", relue.problems());
     assert!(relue.fragment("f-2").is_none());
     assert!(relue.fragment("f-1").is_some());

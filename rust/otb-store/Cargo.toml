@@ -7,7 +7,10 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
-serde_json = { version = "1", features = ["preserve_order"] }
+# ⚠️ `float_roundtrip` : relire un nombre **exactement** comme il a été écrit. Sans elle, l'analyseur par défaut se
+# trompe parfois d'un bit (55.732080660999316 relu 55.73208066099931), et une mesure rangée ne se recalcule plus à
+# l'identique (L-116, critère d'arrêt du lot 31).
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 
 # Le test « un vrai fragment rend les mêmes échantillons » ouvre `tests/data/jeno5_5s.bbl` : la bibliothèque elle-même
 # ne dépend ni du décodeur ni de l'analyse, et l'appelant lui passe le nombre d'échantillons du log.

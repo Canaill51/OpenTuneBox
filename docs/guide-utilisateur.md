@@ -91,7 +91,10 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   carte de vol et son identifiant s'y liront au branchement USB, comme l'historique des **configurations** (`diff all`) :
   **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis **Supprimer
   définitivement** retire le drone, ses fragments et ses configurations du logiciel (vos fichiers de logs ne sont pas
-  effacés). Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier
+  effacés). La section **Suivi des mesures** dit où en sont les mesures du drone : à l'ouverture de la fiche, le
+  logiciel mesure en arrière-plan chaque fragment qui ne l'est pas encore (latence, pic, temps de montée, marges, bruit
+  du gyro et du terme D, retard des filtres — les chiffres de l'Assistant) et les garde pour suivre le drone d'un vol à
+  l'autre. Un fragment dont le log a été déplacé ou supprimé est signalé avec la raison. Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier
   `drones.json` est gardé sous le nom `drones.json.repris`.
 - **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
   **Fréq. × temps** et le **Et si** des filtres. Ses onglets, en haut de la page, passent de l'une à l'autre sans

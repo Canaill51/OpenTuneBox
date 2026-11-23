@@ -2708,6 +2708,7 @@ dependencies = [
  "otb-dsp",
  "otb-format",
  "otb-log",
+ "otb-store",
  "serde_json",
 ]
 

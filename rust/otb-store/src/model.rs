@@ -383,16 +383,24 @@ fn config_values(text: &str) -> Vec<(String, String)> {
 /// Une mesure calculée sur un fragment : une ligne par fragment, axe et grandeur (latence, pic, temps de montée,
 /// marges, bruit du gyro et du terme D, retard des filtres…).
 ///
-/// ⚠️ Deux champs décident de sa validité, et **sans eux la bibliothèque garderait des chiffres périmés sans le
-/// savoir** : `settings` (empreinte des réglages de calcul qui l'ont produite) et `calc_version` (version du
-/// calcul). Changer les bornes du fragment ou la version jette la mesure (`Library::drop_measures_of_fragment`,
-/// `Library::drop_measures_before_version`).
+/// ⚠️ Trois champs décident de sa validité, et **sans eux la bibliothèque garderait des chiffres périmés sans le
+/// savoir** : `start` et `end` (les bornes du fragment au moment du calcul), `settings` (les réglages de calcul qui
+/// l'ont produite) et `calc_version` (version du calcul). Changer les bornes du fragment ou la version jette la
+/// mesure (`Library::put_fragment`, `Library::drop_measures_before_version`). Les bornes sont **dans la mesure**
+/// et pas seulement vérifiées au moment où le fragment change : la table des mesures se lit à la demande (D-064),
+/// et un fragment déplacé avant cette lecture doit quand même perdre ses mesures (`Library::attach_measures`).
+///
+/// `value` peut être NaN : la grandeur n'a pas pu se mesurer sur ce fragment (pas de réponse indicielle, pas de
+/// terme D…). La ligne est gardée quand même, pour que le fragment compte comme mesuré et ne se recalcule pas à
+/// chaque ouverture ; elle s'écrit `null` dans le fichier.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Measure {
     pub fragment_id: String,
     pub axis: u64,
     pub key: String,
     pub value: f64,
+    pub start: u64,
+    pub end: u64,
     pub settings: String,
     pub calc_version: u64,
 }
@@ -404,6 +412,8 @@ impl Measure {
             ("axe", self.axis.into()),
             ("grandeur", self.key.clone().into()),
             ("valeur", self.value.into()),
+            ("debut", self.start.into()),
+            ("fin", self.end.into()),
             ("reglages", self.settings.clone().into()),
             ("version_calcul", self.calc_version.into()),
         ])
@@ -415,6 +425,8 @@ impl Measure {
             axis: number(v, "axe"),
             key: required(v, "grandeur")?,
             value: float(v, "valeur"),
+            start: number(v, "debut"),
+            end: number(v, "fin"),
             settings: text(v, "reglages"),
             calc_version: number(v, "version_calcul"),
         })

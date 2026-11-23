@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-072 | **Mesures suivies dans le temps** : dix grandeurs par fragment lues dans le rapport de l'assistant (jamais un second calcul), gardées avec les bornes du fragment et la version du calcul, mesurées en arrière-plan à l'ouverture de la fiche du drone ; la cible du drone part des seuils de l'assistant, une case sans seuil reste vide, l'assistant garde ses seuils ; le suivi est dans la fiche du drone | 2026-11-23 |
 | D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
 | D-070 | **L'assistant en cartes, et la mesure contre son seuil en jauge** : une carte par constat triée par gravité, les « info » et les vérifications OK repliées ; un constat qui compare **une** mesure à **un** seul seuil porte une jauge (`Gauge`), hors des références Python ; le bouton « Appliquer » du prototype n'est pas repris (D-063 gardée) | 2026-11-23 |
 | D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) | 2026-11-23 |
@@ -143,6 +144,45 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-23 — Mesures suivies dans le temps (lot 31a)
+
+### D-072 : les mesures suivies viennent du rapport de l'assistant, et sa cible part de ses seuils
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 31 : les quatre questions de la phase « planifier ».
+
+**Contexte.** Le lot 31 doit répondre à « est-ce que ce drone s'améliore ? ». Le prototype dessine une « Fiche cible » dans
+la fiche du drone (dix valeurs, et un bouton « Valeurs proposées » par taille), mais **aucun graphique de suivi**, et ses
+valeurs proposées (8, 10, 14 ms de latence, 45° de marge…) n'ont pas de source. Le plan demandait de « dire lequel
+prime » entre la cible du drone et le seuil de l'assistant (D-011), deux chiffres qui pourraient se contredire.
+
+**Décision.**
+- **Les grandeurs suivies sont lues dans le rapport de l'assistant** (`rust/otb-advisor/src/tracked.rs:from_report`), là où
+  ses règles les lisent : latence, pic, temps de montée, marges de phase et de gain, nombre de fenêtres (par axe) ; bruit du
+  gyro et du terme D (le plus haut de roll et pitch, comme la règle), retard des filtres gyro et D (seulement si le vol a
+  assez de mouvements, comme la règle). Toujours les mêmes 22 lignes par fragment ; une grandeur non mesurée vaut NaN
+  (`null` dans le fichier) et sa ligne est gardée, pour que le fragment ne se recalcule pas à chaque ouverture.
+- **Une mesure porte les bornes de son fragment**, ses réglages de calcul et `CALC_VERSION` : elle est jetée quand les bornes
+  changent (même avant la lecture de la table, D-064) ou quand la version monte. Elle doit se recalculer **au bit près** à
+  l'identique (critère d'arrêt du lot).
+- **Calcul en arrière-plan à l'ouverture de la fiche d'un drone**, fragment par fragment, profil de taille détecté comme
+  l'assistant le fait par défaut ; un résultat n'est rangé que si le fragment a encore les bornes mesurées.
+- **Lequel prime** (pour 31b et 31c) : les « Valeurs proposées » de la fiche cible sont **les seuils de l'assistant** pour la
+  taille du drone ; par défaut les deux chiffres sont donc les mêmes. L'assistant garde ses seuils dans ses constats et ses
+  jauges (« seuil ») ; la cible du pilote, s'il la change, ne sert que la fiche et le suivi.
+- **Une grandeur sans seuil dans l'assistant** (temps de montée, marge de gain, bas de la zone du pic) n'a **pas de valeur
+  proposée** : la case reste vide jusqu'à ce que le pilote la remplisse, et le suivi trace la mesure sans bande.
+- **Le suivi est dans la fiche du drone**, sous la fiche cible ; pas de nouvelle entrée du rail.
+- **W-076** (comparaison avec le vol précédent, votes et historique des conseils) vient **après** : lot 31d.
+
+**Options écartées.** La cible du drone à la place du seuil dans les jauges des cartes, comme le prototype : une carte
+pourrait alerter alors que sa jauge est dans la cible. Les valeurs du prototype : sans source (D-005, D-011). Calibrer sur le
+corpus les trois grandeurs sans seuil : un passage de calibration de plus pour des valeurs que le pilote fixe lui-même. Un
+écran « Suivi » dans le rail : un écart de plus avec le prototype (D-061).
+
+**Témoins.** `rust/otb-advisor/tests/tracked.rs` (grandeurs identiques à celles du rapport, recalcul au bit près après
+fermeture de la bibliothèque) ; `rust/otb-gui/tests/tracking.rs` (calcul en arrière-plan, échec dit et pas relancé,
+fragment déplacé pendant le calcul) ; 11 sessions réelles identiques au bit près ([validation.md](validation.md#mesures-suivies-dans-le-temps-2026-11-23-lot-31a)).
 
 ## 2026-11-23 — Avancement du parcours (lot 30g)
 
@@ -473,8 +513,10 @@ Question posée à Cédric le 2026-11-22.
 - Pas SQLite : une dépendance de plus et un format qu'on ne relit plus d'un coup d'œil, pour un volume qu'un
   chargement à la demande suffit à absorber.
 
-**Témoins.** Mesure du lot 28 (8 Mo, 959 ms, 535 logs, 77 040 mesures) ; le test du chargement à la demande viendra
-avec le lot 31.
+**Témoins.** Mesure du lot 28 (8 Mo, 959 ms, 535 logs, 77 040 mesures) ; chargement à la demande depuis le lot 31a
+(`Library::measures_source`, `Library::attach_measures`), prouvé par
+`rust/otb-store/tests/bibliotheque.rs:la_table_des_mesures_se_lit_a_la_demande_et_nest_jamais_videe_avant` : lecture de 308 ms
+(`--release`) au volume plein, hors du fil de l'écran ([validation.md](validation.md#mesures-suivies-dans-le-temps-2026-11-23-lot-31a)).
 
 **Ouvert.** À reprendre seulement si une mesure du lot 31 montre un temps de lecture qui gêne malgré le chargement en
 arrière-plan.

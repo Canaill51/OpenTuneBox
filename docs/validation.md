@@ -769,6 +769,26 @@ pas se charger au lancement mais à la première question posée (lot 31), et le
 et le test mettait **47 s** ; rangées par clé (fragment, axe, grandeur), **2,1 s**. Le commentaire de `measures` dans
 `rust/otb-store/src/lib.rs` porte le chiffre.
 
+### Mesures suivies dans le temps (2026-11-23, lot 31a)
+
+**Table des mesures lue à la demande** (D-064), même test et même volume que ci-dessus, poste Linux, 10 Mo de mesures
+(chaque mesure porte maintenant les bornes de son fragment) :
+
+| Grandeur | Profil de test | `--release` |
+|---|---|---|
+| Ouverture de la bibliothèque, sans les mesures | 34 ms | 5 ms |
+| Lecture de la table des mesures (sur un autre fil) | 1 195 ms | 308 ms |
+| Écriture complète | 884 ms | 204 ms |
+
+L'ouverture ne paie plus la table des mesures ; sa lecture se fait hors du fil de l'écran, et une table inchangée n'est
+plus réécrite à chaque enregistrement automatique. Le passage à SQLite (D-064, « Ouvert ») n'est pas déclenché.
+
+**Calcul sur de vrais logs** (`otb_advisor::tracked::measure`, `--release`, limites automatiques du vol, chaque session
+mesurée deux fois) : 11 sessions de `Cedric/JeNo 5` (FINAL, LAST), `Air65`, `Apex 5` et `BF Chirp`, de 1 à 194 s de vol.
+**Les deux calculs sont identiques au bit près** sur les 11 (le critère d'arrêt du lot 31). Durée : 0,06 à 3,5 s par
+fragment (3,5 s pour 99 s de vol à 8 kHz), en arrière-plan. Grandeurs non mesurées (NaN) : 1 à 5 sur 22 pour un vrai vol,
+le plus souvent la marge de gain ou un axe sans assez de mouvements ; 17 sur 22 pour une session d'une seconde.
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui
