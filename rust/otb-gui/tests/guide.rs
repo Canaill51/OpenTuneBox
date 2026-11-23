@@ -3,6 +3,7 @@
 
 use eframe::Storage as _;
 mod support;
+use support::Cliquer;
 
 use egui::accesskit::Role;
 use egui_kittest::Harness;
@@ -414,7 +415,7 @@ fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
     );
     // cocher la case « recording » : enregistrée dans la bibliothèque, comptée dans la phase
     let titre = prep.steps.iter().find(|s| s.key == "recording").unwrap().title.clone();
-    h.get_by_label(&titre).click();
+    h.cliquer_label(&titre);
     h.run_steps(3);
     assert_eq!(
         h.query_all_by_label("1. Préparer le drone (1/11)").count(),
@@ -423,7 +424,7 @@ fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
     );
     assert_eq!(fiches(h.state())[0].done, [("recording".to_string(), true)]);
     // décocher : la clé disparaît de la bibliothèque
-    h.get_by_label(&titre).click();
+    h.cliquer_label(&titre);
     h.run_steps(3);
     assert_eq!(
         h.query_all_by_label("1. Préparer le drone (0/11)").count(),
@@ -431,7 +432,7 @@ fn les_cases_se_cochent_s_enregistrent_et_survivent_a_un_rechargement() {
         "frise et liste"
     );
     assert!(fiches(h.state())[0].done.is_empty());
-    h.get_by_label(&titre).click();
+    h.cliquer_label(&titre);
     h.run_steps(3);
     // un nouveau lancement retrouve l'avancement : la bibliothèque écrite puis relue
     h.state_mut().library.save().unwrap();
@@ -469,10 +470,13 @@ fn le_texte_de_la_case_suit_la_fiche_et_le_bouton_point_d_interrogation_affiche_
     );
     // l'aide d'une case est repliée au départ, puis affichée par son « ? » (plus de textes à l'écran)
     let avant = h.query_all_by_role(Role::Label).count();
-    h.get_all_by_role_and_label(Role::Button, AIDE_ETAPE)
-        .next()
-        .unwrap()
-        .click();
+    h.cliquer(|h| {
+        h.get_all_by_role_and_label(Role::Button, AIDE_ETAPE)
+            .next()
+            .unwrap()
+            .accesskit_node()
+            .locate()
+    });
     h.run_steps(3);
     let apres = h.query_all_by_role(Role::Label).count();
     assert!(
@@ -480,10 +484,13 @@ fn le_texte_de_la_case_suit_la_fiche_et_le_bouton_point_d_interrogation_affiche_
         "l'aide de « {} » n'apparaît pas ({avant} → {apres} textes)",
         prep.steps[0].key
     );
-    h.get_all_by_role_and_label(Role::Button, AIDE_ETAPE)
-        .next()
-        .unwrap()
-        .click();
+    h.cliquer(|h| {
+        h.get_all_by_role_and_label(Role::Button, AIDE_ETAPE)
+            .next()
+            .unwrap()
+            .accesskit_node()
+            .locate()
+    });
     h.run_steps(3);
     assert_eq!(
         h.query_all_by_role(Role::Label).count(),
@@ -501,12 +508,13 @@ fn un_lien_de_l_accueil_mene_a_la_phase() {
     h.run_steps(3);
     assert!(h.state().guide.at_home());
     // le lien du tableau de l'accueil, pas le bouton de la liste de gauche
-    let liens: Vec<_> = h.query_all_by_role(Role::Link).collect();
-    let pid = liens
-        .iter()
-        .find(|n| n.accesskit_node().label().is_some_and(|l| l.contains("PID par séries")))
-        .expect("lien « PID par séries »");
-    pid.click();
+    h.cliquer(|h| {
+        h.query_all_by_role(Role::Link)
+            .find(|n| n.accesskit_node().label().is_some_and(|l| l.contains("PID par séries")))
+            .expect("lien « PID par séries »")
+            .accesskit_node()
+            .locate()
+    });
     h.run_steps(3);
     assert_eq!(h.state().guide.phase, "pid");
     // la phase PID : Damping 1.0 en 3e position et le bouton d'ouverture des logs de série
@@ -520,12 +528,12 @@ fn creer_modifier_recommencer_et_supprimer_une_fiche() {
     let mut h = banc(appli());
     h.run_steps(3);
     // « Nouveau drone » ouvre l'écran de la fiche (D-068) ; on y revient au Guide
-    h.get_by_role_and_label(Role::Button, "Nouveau drone").click();
+    h.cliquer_role(Role::Button, "Nouveau drone");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::DroneSheet);
     h.get_by_label("Nom du drone").set_text_value_accesskit("Mon Cinq");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Créer le drone").click();
+    h.cliquer_role(Role::Button, "Créer le drone");
     h.run_steps(4);
     assert_eq!(h.state().screen, Screen::Guide);
     let relu = fiches(h.state());
@@ -543,43 +551,40 @@ fn creer_modifier_recommencer_et_supprimer_une_fiche() {
     );
     assert_eq!(h.state().guide.card().unwrap().name, "Mon Cinq");
     // « Annuler » n'enregistre rien
-    h.get_by_role_and_label(Role::Button, "Nouveau drone").click();
+    h.cliquer_role(Role::Button, "Nouveau drone");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Annuler").click();
+    h.cliquer_role(Role::Button, "Annuler");
     h.run_steps(3);
     assert_eq!(fiches(h.state()).len(), 1, "annuler n'enregistre rien");
     // cocher une case, puis Recommencer (confirmation « Non » puis « Oui »)
     h.state_mut().guide.phase = "prep";
     h.run_steps(3);
     let titre = phases(&relu[0])[0].steps[0].title.clone();
-    h.get_by_label(&titre).click();
+    h.cliquer_label(&titre);
     h.run_steps(3);
     assert_eq!(fiches(h.state())[0].done.len(), 1);
-    h.get_by_role_and_label(Role::Button, "Recommencer").click();
+    h.cliquer_role(Role::Button, "Recommencer");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Non").click();
+    h.cliquer_role(Role::Button, "Non");
     h.run_steps(3);
     assert_eq!(fiches(h.state())[0].done.len(), 1, "« Non » ne change rien");
-    h.get_by_role_and_label(Role::Button, "Recommencer").click();
+    h.cliquer_role(Role::Button, "Recommencer");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Oui").click();
+    h.cliquer_role(Role::Button, "Oui");
     h.run_steps(3);
     assert!(fiches(h.state())[0].done.is_empty());
     // Supprimer : depuis la fiche, en deux temps
-    h.get_by_role_and_label(Role::Button, "Modifier").click();
+    h.cliquer_role(Role::Button, "Modifier");
     h.run_steps(3);
     // la section « Supprimer » est sous le bas d'une fenêtre de 800 points : on la fait venir, comme on défilerait
-    h.get_by_role_and_label(Role::Button, "Supprimer…").scroll_to_me();
+    h.cliquer_role(Role::Button, "Supprimer…");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Supprimer…").click();
-    h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Garder").click();
+    h.cliquer_role(Role::Button, "Garder");
     h.run_steps(3);
     assert_eq!(fiches(h.state()).len(), 1, "« Garder » ne supprime rien");
-    h.get_by_role_and_label(Role::Button, "Supprimer…").click();
+    h.cliquer_role(Role::Button, "Supprimer…");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Supprimer définitivement")
-        .click();
+    h.cliquer_role(Role::Button, "Supprimer définitivement");
     h.run_steps(3);
     assert!(h.state().library.drones().is_empty());
     assert!(h.state().guide.card().is_none());
@@ -724,17 +729,25 @@ fn les_logs_du_drone_sont_verifies_classes_et_les_commandes_copiables() {
     };
     assert_eq!(role_du_fragment(&h), "", "aucun rôle choisi : le rôle est deviné");
     // « classer dans les … » : le rôle choisi remplace le rôle deviné
-    let lien = h
+    let texte = h
         .query_all_by_label_contains("→ classer dans les")
         .next()
-        .expect("lien de reclassement");
-    let texte = lien.accesskit_node().label().unwrap();
+        .expect("lien de reclassement")
+        .accesskit_node()
+        .label()
+        .unwrap();
     let premier = if texte.contains(role_name(FILTERS)) {
         FILTERS
     } else {
         PID
     };
-    lien.click();
+    h.cliquer(|h| {
+        h.query_all_by_label_contains("→ classer dans les")
+            .next()
+            .expect("lien de reclassement")
+            .accesskit_node()
+            .locate()
+    });
     h.run_steps(4);
     assert_eq!(
         role_du_fragment(&h),
@@ -743,8 +756,11 @@ fn les_logs_du_drone_sont_verifies_classes_et_les_commandes_copiables() {
     );
     // le lien propose maintenant le rôle d'origine : le cliquer fait revenir
     let retour = other_role(premier);
-    h.get_by_label_contains(&format!("→ classer dans les {}", role_name(retour)))
-        .click();
+    h.cliquer(|h| {
+        h.get_by_label_contains(&format!("→ classer dans les {}", role_name(retour)))
+            .accesskit_node()
+            .locate()
+    });
     h.run_steps(4);
     assert_eq!(role_du_fragment(&h), retour);
     // les commandes CLI : le bouton copie les commandes du log suivies de « save »
@@ -800,7 +816,7 @@ fn ouvrir_un_outil_depuis_une_case_regle_la_periode_sur_la_partie_du_vol() {
         let c = otb_advisor::log_check::check_log(&ll.log, Some(ll.sel()), &ll.label, false).unwrap();
         (if partie == "hover" { c.hover } else { c.moving_part }, ll.period)
     };
-    h.get_by_role_and_label(Role::Button, &bouton).click();
+    h.cliquer_role(Role::Button, &bouton);
     h.run_steps(4);
     // le bouton mène à la page de l'outil
     let ToolTarget::Page(titre) = tool_target(outil).unwrap() else {
@@ -956,11 +972,11 @@ fn la_partie_du_vol_vient_du_dernier_log_des_filtres() {
 fn un_nom_vide_devient_nouveau_drone() {
     let mut h = banc(appli());
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Nouveau drone").click();
+    h.cliquer_role(Role::Button, "Nouveau drone");
     h.run_steps(3);
     h.get_by_label("Nom du drone").set_text_value_accesskit("   ");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Créer le drone").click();
+    h.cliquer_role(Role::Button, "Créer le drone");
     h.run_steps(4);
     assert_eq!(
         fiches(h.state()).iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
@@ -990,11 +1006,11 @@ fn sans_case(app: &App, nom: &str) -> bool {
 fn la_confirmation_vise_la_fiche_du_clic_meme_si_la_fiche_choisie_change_ensuite() {
     // Recommencer : B est la fiche du clic, la fiche choisie passe ensuite sur C (un log de ce drone vient d'arriver)
     let mut h = trois_fiches();
-    h.get_by_role_and_label(Role::Button, "Recommencer").click();
+    h.cliquer_role(Role::Button, "Recommencer");
     h.run_steps(3);
     h.state_mut().guide.select_by_name("C");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Oui").click();
+    h.cliquer_role(Role::Button, "Oui");
     h.run_steps(4);
     let a = h.state();
     assert!(
@@ -1007,12 +1023,12 @@ fn la_confirmation_vise_la_fiche_du_clic_meme_si_la_fiche_choisie_change_ensuite
 #[test]
 fn la_confirmation_ne_touche_a_rien_si_la_liste_des_fiches_a_change() {
     let mut h = trois_fiches();
-    h.get_by_role_and_label(Role::Button, "Recommencer").click();
+    h.cliquer_role(Role::Button, "Recommencer");
     h.run_steps(3);
     // pendant la confirmation, B quitte la bibliothèque : le numéro 1 désigne maintenant C
     h.state_mut().library.remove_drone("B");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Oui").click();
+    h.cliquer_role(Role::Button, "Oui");
     h.run_steps(4);
     assert!(!sans_case(h.state(), "C"), "C n'est pas remise à zéro");
 }
@@ -1037,12 +1053,12 @@ fn le_bouton_modifier_garde_l_avancement_et_la_place_de_la_fiche() {
     app.guide.select_by_name("B");
     let mut h = banc(app);
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Modifier").click();
+    h.cliquer_role(Role::Button, "Modifier");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::DroneSheet);
     h.get_by_label("Nom du drone").set_text_value_accesskit("B2");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.cliquer_role(Role::Button, "Enregistrer");
     h.run_steps(4);
     let relu = fiches(h.state());
     assert_eq!(
@@ -1174,9 +1190,9 @@ fn le_releve_du_guide_va_sur_la_fiche_et_la_carte_le_compte() {
     // « Recommencer » : cases et relevé repartent de zéro (le Guide le refait à son prochain passage)
     h.state_mut().screen = Screen::Guide;
     h.run_steps(2);
-    h.get_by_label("Recommencer").click();
+    h.cliquer_label("Recommencer");
     h.run_steps(2);
-    h.get_by_label("Oui").click();
+    h.cliquer_label("Oui");
     h.run_steps(1);
     assert!(
         h.state()
@@ -1195,9 +1211,9 @@ fn le_releve_du_guide_va_sur_la_fiche_et_la_carte_le_compte() {
     // sans log du drone ouvert, « Recommencer » laisse un relevé vide (la carte repart de zéro)
     h.state_mut().apply_bar(otb_gui::analysis_bar::BarAction::Remove(0));
     h.run_steps(2);
-    h.get_by_label("Recommencer").click();
+    h.cliquer_label("Recommencer");
     h.run_steps(2);
-    h.get_by_label("Oui").click();
+    h.cliquer_label("Oui");
     h.run_steps(2);
     assert!(releve(&h).is_empty());
 }

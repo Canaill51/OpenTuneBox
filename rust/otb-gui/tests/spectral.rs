@@ -1,6 +1,9 @@
 //! Outil « Analyse spectrale » (port de `test_gui_spectral.py::test_spectral_window` et `…_noise_diagnosis`), sur un vrai
 //! log de 5 s (`tests/data/jeno5_5s.bbl` : eRPM, notchs FFT_FREQ, gyro non filtré, filtre RPM Q700).
 
+mod support;
+use support::Cliquer;
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -213,9 +216,9 @@ fn la_page_affiche_les_deux_colonnes_et_bascule_vers_le_bruit_moteur() {
     h.get_by_label("Bruit et filtres");
     h.get_by_label("Spectre");
     // « Bruit moteur » : choix dans la liste déroulante
-    h.get_by_value("< 100 Hz").click();
+    h.cliquer_value("< 100 Hz");
     h.run_steps(2);
-    h.get_by_label("Bruit moteur").click();
+    h.cliquer_label("Bruit moteur");
     h.run_steps(4);
     h.get_by_label("Bruit moteur");
     assert!(h.query_by_label("Sous 100 Hz").is_none());
@@ -225,13 +228,13 @@ fn la_page_affiche_les_deux_colonnes_et_bascule_vers_le_bruit_moteur() {
 fn le_diagnostic_apparait_a_cote_des_courbes_et_disparait_quand_on_decoche() {
     let mut h = banc();
     assert!(h.query_by_label("1. Conditions du log").is_none());
-    h.get_by_label("Diagnostic du bruit").click();
+    h.cliquer_label("Diagnostic du bruit");
     attendre(&mut h);
     for t in ["1. Conditions du log", "2. Gyro : bruit avant et après filtrage"] {
         h.get_by_label(t);
     }
     assert!(h.query_all_by_label_contains("Stratégie de filtrage").count() >= 1);
-    h.get_by_label("Diagnostic du bruit").click();
+    h.cliquer_label("Diagnostic du bruit");
     attendre(&mut h);
     assert!(h.query_by_label("1. Conditions du log").is_none());
 }
@@ -241,19 +244,19 @@ fn tous_les_choix_d_affichage_se_dessinent_sans_panique() {
     let mut h = banc();
     // chaque harmonique a sa case : on les décoche une à une, puis la plage du filtre RPM, puis on recoche
     for choix in ["1re", "2e", "3e", "Plage du filtre RPM", "1re", "2e", "3e"] {
-        h.get_by_label(choix).click();
+        h.cliquer_label(choix);
         h.run_steps(4);
     }
     // les notchs sont dans un menu : l'ouvrir, puis décocher un notch à la fois
-    h.get_by_label("Notchs dynamiques").click();
+    h.cliquer_label("Notchs dynamiques");
     h.run_steps(2);
-    h.get_by_label("N1").click();
+    h.cliquer_label("N1");
     h.run_steps(2);
-    h.get_by_label("Aucun").click();
+    h.cliquer_label("Aucun");
     h.run_steps(2);
-    h.get_by_label("Tous").click();
+    h.cliquer_label("Tous");
     h.run_steps(2);
-    h.get_by_label("M1/5").click();
+    h.cliquer_label("M1/5");
     h.run_steps(4);
 }
 
@@ -273,7 +276,7 @@ fn une_harmonique_et_un_notch_se_choisissent_seuls() {
     let notchs = dyn_notch_rows(&log5s()).len();
     assert!(notchs >= 2, "le log d'essai doit avoir plusieurs notchs ({notchs})");
     assert!(h.query_by_label("N1").is_none(), "le menu est fermé au départ");
-    h.get_by_label("Notchs dynamiques").click();
+    h.cliquer_label("Notchs dynamiques");
     h.run_steps(2);
     for n in 1..=notchs {
         h.get_by_label(format!("N{n}").as_str());

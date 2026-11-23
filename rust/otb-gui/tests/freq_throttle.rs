@@ -1,5 +1,8 @@
 //! Outil « Fréquence × gaz » (port de `test_gui_spectral.py::test_freq_throttle_window`) sur le vrai log de 5 s.
 
+mod support;
+use support::Cliquer;
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -275,7 +278,7 @@ fn le_bouton_du_spectre_ouvre_l_outil_sans_bouton_propre_dans_la_barre() {
         h.query_by_label("Fréquence × gaz").is_none(),
         "pas de bouton dans la barre"
     );
-    h.get_by_label("Fréq. × gaz").click();
+    h.cliquer_label("Fréq. × gaz");
     attendre(&mut h);
     assert_eq!(h.state().screen, Screen::Tool(1));
     // les cartes sont là, et le rail garde l'espace « Bruit et filtres » en valeur (D-060)
@@ -283,7 +286,7 @@ fn le_bouton_du_spectre_ouvre_l_outil_sans_bouton_propre_dans_la_barre() {
     h.run();
     h.get_by_label_contains("Gyro préfiltre | jeno5_5s");
     h.get_by_label("Bruit et filtres");
-    h.get_by_label("Échelle auto").click();
+    h.cliquer_label("Échelle auto");
     attendre(&mut h);
 }
 

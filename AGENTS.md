@@ -52,7 +52,8 @@ ligne par lot fait. Ne jamais ouvrir un second document de plan : un plan qui ti
   `otb-usb` (récupération par USB, protocole : trames MSP, copie, contrôles avant effacement, port simulé ; **jamais d'écriture de réglage**, D-063),
   `otb-parity` (comparateur avec les références Python), `otb-dev` (outils de développement, jamais livrés).
 - `tests/data/jeno5_5s.bbl` : 5 s d'un vrai log, lu par une quinzaine de fichiers de tests ; les autres tests sont dans `rust/<crate>/tests/` ;
-  `rust/otb-gui/tests/support/mod.rs:synthetic_log` fabrique un vol sans corpus. `packaging/` : installateurs. `docs/` : index dans `docs/README.md`.
+  `rust/otb-gui/tests/support/mod.rs:synthetic_log` fabrique un vol sans corpus ; tout clic de test passe par
+  `rust/otb-gui/tests/support/clic.rs:Cliquer` (L-114). `packaging/` : installateurs. `docs/` : index dans `docs/README.md`.
 
 Règles :
 - `otb-analysis` et `otb-advisor` ne dépendent **jamais** d'`otb-gui` : tout calcul reste utilisable en ligne de commande et testable.

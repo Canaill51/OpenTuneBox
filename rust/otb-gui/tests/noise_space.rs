@@ -1,6 +1,9 @@
 //! Choix communs de l'espace « Bruit et filtres » (D-069) : le signal (« Gyro | Terme D ») et les axes, choisis
 //! dans une vue, valent pour les quatre.
 
+mod support;
+use support::Cliquer;
+
 use egui::accesskit::{Role, Toggled};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
@@ -17,7 +20,7 @@ fn banc() -> Harness<'static, App> {
         .with_context_setup(otb_gui::app::setup)
         .build_ui_state(|ui, a: &mut App| a.ui(ui), App::new(otb_gui::tools::all_pages()));
     h.run();
-    h.get_by_label("Bruit et filtres").click();
+    h.cliquer_label("Bruit et filtres");
     h.run();
     h
 }
@@ -61,11 +64,11 @@ fn le_choix_du_signal_vaut_pour_les_quatre_vues() {
     let mut h = banc();
     assert_eq!(vue(&h), "Analyse spectrale");
     assert!(allume(&h, NoiseSignal::Gyro), "l'espace s'ouvre sur le gyro");
-    h.get_by_role_and_label(Role::Button, "Terme D").click();
+    h.cliquer_role(Role::Button, "Terme D");
     h.run();
     assert_eq!(h.state().state.space.signal, NoiseSignal::DTerm);
     for (onglet, titre) in ONGLETS {
-        h.get_by_label(onglet).click();
+        h.cliquer_label(onglet);
         h.run();
         assert_eq!(vue(&h), titre);
         assert!(
@@ -73,12 +76,12 @@ fn le_choix_du_signal_vaut_pour_les_quatre_vues() {
             "« {onglet} » montre le terme D"
         );
     }
-    h.get_by_label("Fréq. × temps").click();
+    h.cliquer_label("Fréq. × temps");
     h.run();
-    h.get_by_role_and_label(Role::Button, "Gyro").click();
+    h.cliquer_role(Role::Button, "Gyro");
     h.run();
     for (onglet, _) in ONGLETS {
-        h.get_by_label(onglet).click();
+        h.cliquer_label(onglet);
         h.run();
         assert!(allume(&h, NoiseSignal::Gyro), "« {onglet} » revient au gyro");
     }
@@ -92,11 +95,11 @@ fn le_choix_du_signal_vaut_pour_les_quatre_vues() {
 fn les_axes_sont_partages_par_les_vues() {
     let mut h = banc();
     assert!(case(&h, "Y"), "les trois axes au départ");
-    h.get_by_role_and_label(Role::CheckBox, "Y").click();
+    h.cliquer_role(Role::CheckBox, "Y");
     h.run();
     assert_eq!(h.state().state.space.axes, [true, true, false]);
     for (onglet, _) in ONGLETS {
-        h.get_by_label(onglet).click();
+        h.cliquer_label(onglet);
         h.run();
         assert!(
             case(&h, "R") && case(&h, "P") && !case(&h, "Y"),
@@ -113,7 +116,7 @@ fn les_axes_sont_partages_par_les_vues() {
 #[test]
 fn un_autre_signal_naffecte_que_sa_vue() {
     let mut h = banc();
-    h.get_by_role_and_label(Role::CheckBox, "Erreur PID").click();
+    h.cliquer_role(Role::CheckBox, "Erreur PID");
     h.run();
     assert!(
         !allume(&h, NoiseSignal::Gyro) && !allume(&h, NoiseSignal::DTerm),
@@ -121,12 +124,12 @@ fn un_autre_signal_naffecte_que_sa_vue() {
     );
     let avant = h.state().state.space;
     assert_eq!(avant.signal, NoiseSignal::Gyro);
-    h.get_by_label("Fréq. × temps").click();
+    h.cliquer_label("Fréq. × temps");
     h.run();
     assert!(allume(&h, NoiseSignal::Gyro), "Fréq. × temps n'a pas bougé");
-    h.get_by_label("Spectre").click();
+    h.cliquer_label("Spectre");
     h.run();
-    h.get_by_role_and_label(Role::Button, "Gyro").click();
+    h.cliquer_role(Role::Button, "Gyro");
     h.run();
     assert!(
         allume(&h, NoiseSignal::Gyro) && !case(&h, "Erreur PID"),

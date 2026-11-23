@@ -2,6 +2,7 @@
 //! (port de `test_tool_rerun_when_busy_and_compute_error`).
 
 mod support;
+use support::Cliquer;
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -432,7 +433,7 @@ mod boutons {
         assert_eq!(COMPTE.load(Ordering::SeqCst), 1, "rien n'a changé : pas de recalcul");
 
         // le clic relance avec les mêmes réglages
-        h.get_by_label("Calculer").click();
+        h.cliquer_label("Calculer");
         h.step();
         attendre(&mut h);
         assert_eq!(COMPTE.load(Ordering::SeqCst), 2);
@@ -441,7 +442,7 @@ mod boutons {
         // pendant un calcul, le bouton est grisé
         {
             let _barre = BARRE.lock().unwrap();
-            h.get_by_label("Calculer").click();
+            h.cliquer_label("Calculer");
             h.step();
             assert!(h.state().0.busy());
             h.step();
@@ -454,7 +455,7 @@ mod boutons {
         // sans log sélectionné : le message de l'état, comme au recalcul automatique
         h.state_mut().1.clear();
         h.step();
-        h.get_by_label("Calculer").click();
+        h.cliquer_label("Calculer");
         h.step();
         assert_eq!(
             h.state().0.status,
@@ -498,9 +499,9 @@ mod boutons {
         };
         let mut h = nouveau(AvecVue { resets: 0 });
         h.step();
-        h.get_by_label("Tout voir").click();
+        h.cliquer_label("Tout voir");
         h.step();
-        h.get_by_label("Tout voir").click();
+        h.cliquer_label("Tout voir");
         h.step();
         assert_eq!(h.state().0.tool.resets, 2, "un appel par clic");
         // la Configuration, l'Assistant… (HAS_VIEW par défaut = faux) n'ont pas le bouton
@@ -520,7 +521,7 @@ mod boutons {
         );
         h.step();
         assert!(!h.state_mut().0.take_export());
-        h.get_by_label("Exporter image").click();
+        h.cliquer_label("Exporter image");
         h.step();
         assert!(h.state_mut().0.take_export(), "demande notée");
         assert!(!h.state_mut().0.take_export(), "lue une seule fois");
