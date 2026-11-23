@@ -8,6 +8,10 @@ use otb_decoder::file::{Matrix, Stats};
 use otb_log::flightlog::{FlightLog, Rows};
 use otb_log::settings::Settings;
 
+mod clic;
+#[allow(unused_imports)] // seuls les fichiers qui cliquent s'en servent
+pub use clic::Cliquer;
+
 fn rows(k: usize, n: usize) -> Rows {
     Rows {
         k,

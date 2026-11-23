@@ -4,6 +4,9 @@
 //! **Contre-preuves** (L-071) : chaque protection a été cassée à la main et le test visé a rougi — c'est noté sous
 //! le test concerné.
 
+mod support;
+use support::Cliquer;
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -179,13 +182,13 @@ fn le_crayon_d_une_carte_ouvre_la_fiche_du_drone() {
     app.screen = Screen::Dashboard;
     let mut h = banc(app);
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Modifier le drone").click();
+    h.cliquer_role(Role::Button, "Modifier le drone");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::DroneSheet);
     h.get_by_label("Tableau de bord · fiche du drone");
     h.get_by_label("Nom du drone").set_text_value_accesskit("Autre nom");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Annuler").click();
+    h.cliquer_role(Role::Button, "Annuler");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::Dashboard);
     let d = h.state().library.drone("uid-1").unwrap().clone();
@@ -195,9 +198,9 @@ fn le_crayon_d_une_carte_ouvre_la_fiche_du_drone() {
         "« Annuler » ne change rien"
     );
 
-    h.get_by_role_and_label(Role::Button, "Modifier le drone").click();
+    h.cliquer_role(Role::Button, "Modifier le drone");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.cliquer_role(Role::Button, "Enregistrer");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::Dashboard);
     assert_eq!(h.state().library.drone("uid-1").unwrap().sheet, Some(new_sheet()));
@@ -212,7 +215,7 @@ fn nouveau_drone_cree_un_drone_et_sa_carte() {
     app.screen = Screen::Dashboard;
     let mut h = banc(app);
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Nouveau drone").click();
+    h.cliquer_role(Role::Button, "Nouveau drone");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::DroneSheet);
     h.get_by_label("Aucune configuration : elle sera enregistrée au premier branchement.");
@@ -223,7 +226,7 @@ fn nouveau_drone_cree_un_drone_et_sa_carte() {
     h.get_by_label("Nom du drone").set_text_value_accesskit("Cine 3");
     h.run_steps(2);
     h.get_by_label("Nouveau drone : Cine 3");
-    h.get_by_role_and_label(Role::Button, "Créer le drone").click();
+    h.cliquer_role(Role::Button, "Créer le drone");
     h.run_steps(3);
     let lib = &h.state().library;
     assert_eq!(lib.drones().len(), 1);
@@ -249,12 +252,9 @@ fn supprimer_un_drone_ferme_ses_logs_ouverts() {
     let form = SheetForm::edit(h.state().library.drone(&id).unwrap());
     h.state_mut().open_sheet(form);
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Supprimer…").scroll_to_me();
+    h.cliquer_role(Role::Button, "Supprimer…");
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Supprimer…").click();
-    h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Supprimer définitivement")
-        .click();
+    h.cliquer_role(Role::Button, "Supprimer définitivement");
     h.run_steps(3);
     assert!(h.state().library.drones().is_empty() && h.state().library.fragments().is_empty());
     assert_eq!(h.state().screen, Screen::Dashboard);
@@ -335,13 +335,13 @@ fn la_fiche_cible_se_change_a_l_ecran() {
     app.screen = Screen::Dashboard;
     let mut h = banc(app);
     h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Modifier le drone").click();
+    h.cliquer_role(Role::Button, "Modifier le drone");
     h.run_steps(3);
     h.get_by_label("Fiche cible");
     h.get_by_label("Valeurs proposées pour la taille 5″, modifiables.");
     h.get_by_label("Latence (50 %)").set_text_value_accesskit("18");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.cliquer_role(Role::Button, "Enregistrer");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::Dashboard);
     let cible = h
@@ -364,22 +364,18 @@ fn la_fiche_cible_se_change_a_l_ecran() {
         "une case changée, les neuf autres gardées telles qu'affichées"
     );
 
-    h.get_by_role_and_label(Role::Button, "Modifier le drone").click();
+    h.cliquer_role(Role::Button, "Modifier le drone");
     h.run_steps(3);
     h.get_by_label("Pic, haut de la zone").set_text_value_accesskit("abc");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.cliquer_role(Role::Button, "Enregistrer");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::DroneSheet, "refusé : la fiche reste ouverte");
     h.get_by_label("Fiche cible : « Pic, haut de la zone » n'est pas un nombre (abc).");
 
-    // sous le bas du banc de 800 points : le faire défiler d'abord (L-114)
-    h.get_by_role_and_label(Role::Button, "Valeurs proposées")
-        .scroll_to_me();
-    h.run_steps(3);
-    h.get_by_role_and_label(Role::Button, "Valeurs proposées").click();
+    h.cliquer_role(Role::Button, "Valeurs proposées");
     h.run_steps(2);
-    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.cliquer_role(Role::Button, "Enregistrer");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::Dashboard);
     assert_eq!(h.state().library.drone("uid-1").unwrap().sheet, Some(new_sheet()));

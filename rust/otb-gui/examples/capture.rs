@@ -5,6 +5,10 @@
 //! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `tableau-de-bord-releve-<thème>.png` (la carte après le passage du Guide, D-071), `fiche-drone-<thème>.png`, `fiche-drone-suivi-<thème>.png` (les graphiques du suivi, lot 31c), `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
+#[path = "../tests/support/clic.rs"]
+mod clic;
+
+use clic::Cliquer;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 use otb_gui::app::{App, Screen};
@@ -54,7 +58,7 @@ fn main() {
         // puis supprimé, pour que la suite des captures reste celle d'avant
         let deja = h.state().state.logs.len();
         h.state_mut().viewer.draft.as_mut().expect("brouillon").name = "Rafale".into();
-        h.get_by_label("Enregistrer comme nouveau fragment").click();
+        h.cliquer_label("Enregistrer comme nouveau fragment");
         h.run_steps(4);
         assert_eq!(h.state().state.logs.len(), deja + 1, "second fragment posé");
         h.state_mut().enter_extraction();
@@ -63,9 +67,9 @@ fn main() {
             .expect("rendu")
             .save(out.join(format!("fragment-ajoute-{}.png", th.name)))
             .unwrap();
-        h.get_by_label("Supprimer ce fragment…").click();
+        h.cliquer_label("Supprimer ce fragment…");
         h.run_steps(2);
-        h.get_by_label("Supprimer définitivement").click();
+        h.cliquer_label("Supprimer définitivement");
         h.run_steps(4);
         assert_eq!(h.state().state.logs.len(), deja, "second fragment supprimé");
         // le tableau de bord : les drones que la bibliothèque a retenus en ouvrant ces logs (lot 30c)
@@ -125,9 +129,7 @@ fn main() {
                     .save(out.join(format!("fiche-drone-suivi-{}.png", th.name)))
                     .unwrap();
             }
-            h.get_by_label("Supprimer…").scroll_to_me();
-            h.run_steps(4);
-            h.get_by_label("Supprimer…").click();
+            h.cliquer_label("Supprimer…");
             h.run_steps(4);
             h.render()
                 .expect("rendu")
@@ -206,7 +208,7 @@ fn main() {
             if title == "Réponse indicielle" {
                 // aussi avec les réponses brutes et la bande ± écart-type
                 for l in ["Brutes (toutes les fenêtres)", "± écart-type"] {
-                    h.get_by_label(l).click();
+                    h.cliquer_label(l);
                 }
                 let t0 = std::time::Instant::now();
                 h.run_steps(8);

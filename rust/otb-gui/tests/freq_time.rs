@@ -1,5 +1,8 @@
 //! Outil « Fréquence × temps » (port de `test_gui_spectral.py::test_freq_time_window`) sur le vrai log de 5 s.
 
+mod support;
+use support::Cliquer;
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -233,7 +236,7 @@ fn les_harmoniques_et_les_notchs_se_cochent_un_a_un() {
     let mut h = banc(FreqTimeTool::new());
     h.run();
     for case in ["1re", "2e", "3e"] {
-        h.get_by_label(case).click();
+        h.cliquer_label(case);
         h.run_steps(3);
     }
     // les notchs sont dans un menu : fermé, aucune case n'est à l'écran
@@ -243,10 +246,10 @@ fn les_harmoniques_et_les_notchs_se_cochent_un_a_un() {
         h.query_by_label("N1").is_none(),
         "le menu des notchs est fermé au départ"
     );
-    h.get_by_label("Notchs dynamiques").click(); // ouvrir le menu
+    h.cliquer_label("Notchs dynamiques"); // ouvrir le menu
     h.run_steps(3);
     for n in 1..=notchs {
-        h.get_by_label(format!("N{n}").as_str()).click();
+        h.cliquer_label(format!("N{n}").as_str());
         h.run_steps(3);
     }
     assert!(
@@ -259,7 +262,6 @@ fn les_harmoniques_et_les_notchs_se_cochent_un_a_un() {
 
 #[test]
 fn tout_voir_remet_les_bornes_des_reglages_apres_un_zoom() {
-    use egui_kittest::kittest::Queryable;
     /// Bornes (x min, y min, x max, y max) du premier graphique, en bits (comparaison exacte).
     fn bornes(h: &Banc) -> [u64; 4] {
         let b = *h.state().0.tool.transforms[0].unwrap().bounds();
@@ -283,7 +285,7 @@ fn tout_voir_remet_les_bornes_des_reglages_apres_un_zoom() {
     h.run_steps(3);
     assert_eq!(bornes(&h), zoome, "le zoom de l'utilisateur reste");
     // « Tout voir » ramène les bornes des réglages
-    h.get_by_label("Tout voir").click();
+    h.cliquer_label("Tout voir");
     h.run_steps(3);
     assert_eq!(bornes(&h), depart);
 }

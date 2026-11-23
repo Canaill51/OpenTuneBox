@@ -2,12 +2,14 @@
 //! fragment déplaçables depuis n'importe quel graphique et appliquées seulement à l'enregistrement, curseur, barre de
 //! navigation, bascule vers l'écran à l'ouverture (port de `test_gui_viewer.py`).
 
+mod support;
+use support::Cliquer;
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use egui::Pos2;
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
 use otb_gui::app::{App, Screen};
 
 fn banc() -> Harness<'static, App> {
@@ -110,7 +112,7 @@ fn enregistrer_applique_les_bornes_et_annuler_ne_change_rien() {
     let cible = (log.t[400], log.t[6000]);
     // Annuler : le brouillon est jeté
     h.state_mut().viewer.draft.as_mut().unwrap().period = cible;
-    h.get_by_label("Annuler").click();
+    h.cliquer_label("Annuler");
     h.run_steps(2);
     assert_eq!(h.state().screen, Screen::Dashboard, "retour à l'écran d'où l'on venait");
     assert_eq!(h.state().state.logs[0].period, periode);
@@ -122,7 +124,7 @@ fn enregistrer_applique_les_bornes_et_annuler_ne_change_rien() {
     brouillon.period = cible;
     brouillon.name = "Vol de réglage".into();
     brouillon.role = otb_advisor::log_check::FILTERS.into();
-    h.get_by_label("Enregistrer le fragment").click();
+    h.cliquer_label("Enregistrer le fragment");
     h.run_steps(2);
     assert_eq!(h.state().screen, Screen::Dashboard);
     assert_eq!(
@@ -283,7 +285,7 @@ fn la_mesure_entre_deux_points() {
         h.state().viewer.measure.is_empty(),
         "sans le mode mesure, un clic ne fait rien"
     );
-    h.get_by_label("Mesurer").click();
+    h.cliquer_label("Mesurer");
     h.run_steps(4); // la mise en page se stabilise avant de viser un pixel
     clic(&mut h, 0, t0 + 1.0);
     clic(&mut h, 2, t0 + 1.5); // 2e point sur un autre axe
@@ -307,7 +309,7 @@ fn la_mesure_entre_deux_points() {
     clic(&mut h, 0, t0 + 3.0);
     assert_eq!(h.state().viewer.measure.len(), 1);
     // couper le mode efface la mesure
-    h.get_by_label("Mesurer").click();
+    h.cliquer_label("Mesurer");
     h.run_steps(3);
     assert!(!h.state().viewer.measure_on);
     assert!(h.state().viewer.measure.is_empty(), "la mesure survit à la fin du mode");

@@ -1,6 +1,9 @@
 //! Outil « Réponse indicielle » (port de `test_gui_step.py::test_step_window` et `…test_segment_metrics_matches_definition`), sur un vrai
 //! log de 5 s (`tests/data/jeno5_5s.bbl`) : le roll n'a aucune fenêtre exploitable (0 réponse), le pitch en a 9, la boucle y est approchée.
 
+mod support;
+use support::Cliquer;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -407,7 +410,7 @@ fn chaque_colonne_et_chaque_option_d_affichage_se_dessine() {
         let titre = otb_gui::tools::step::metric_title(i);
         let titre = titre.as_str();
         let col = if i % 2 == 0 { "Colonne 1" } else { "Colonne 2" };
-        h.get_by_label(col).click();
+        h.cliquer_label(col);
         h.run_steps(2);
         if h.query_by_label(titre).is_none() {
             let n_sel = h.query_all_by_label_contains("Pic").count();
@@ -415,7 +418,7 @@ fn chaque_colonne_et_chaque_option_d_affichage_se_dessine() {
             let n_mar = h.query_all_by_label_contains("Marge").count();
             panic!("{titre} absent (i={i}) ; Pic {n_sel} Latence {n_lat} Marge {n_mar}");
         }
-        h.get_by_label(titre).click();
+        h.cliquer_label(titre);
         attendre(&mut h);
         if h.query_by_label(titre).is_none() {
             let v1 = h.get_by_label("Colonne 1").value();
@@ -423,16 +426,16 @@ fn chaque_colonne_et_chaque_option_d_affichage_se_dessine() {
             panic!("après le clic : {titre} introuvable (i={i}) ; colonne 1 = {v1:?}, colonne 2 = {v2:?}");
         }
     }
-    h.get_by_label("Brutes (toutes les fenêtres)").click();
-    h.get_by_label("± écart-type").click();
+    h.cliquer_label("Brutes (toutes les fenêtres)");
+    h.cliquer_label("± écart-type");
     attendre(&mut h);
-    h.get_by_value("non").click();
+    h.cliquer_value("non");
     h.run_steps(2);
-    h.get_by_label("Pitch").click();
+    h.cliquer_label("Pitch");
     attendre(&mut h);
-    h.get_by_value("250 ms").click();
+    h.cliquer_value("250 ms");
     h.run_steps(2);
-    h.get_by_label("150 ms").click();
+    h.cliquer_label("150 ms");
     attendre(&mut h);
     h.run();
 }
@@ -734,7 +737,7 @@ fn bouger_un_curseur_change_le_tableau_et_les_commandes() {
     h.get_by_label("25  (-42)");
     assert_eq!(h.query_all_by_label("28  (-44)").count(), 2);
     // « Repartir du fichier » remet la simulation à l'état du log
-    h.get_by_label("Repartir du fichier").click();
+    h.cliquer_label("Repartir du fichier");
     h.run_steps(3);
     assert_eq!(h.state().page.tool.sim().unwrap().values[7], 130);
     assert!(h.query_by_label("22  (-36)").is_none());

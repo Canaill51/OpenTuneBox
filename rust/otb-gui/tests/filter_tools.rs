@@ -1,6 +1,9 @@
 //! Outils de la phase 6-4 (un seul fichier d'intégration pour toute la phase : L-069) : l'Assistant et la Configuration, sur un
 //! vrai log de 5 s (`tests/data/jeno5_5s.bbl`).
 
+mod support;
+use support::Cliquer;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -285,12 +288,7 @@ fn une_info_se_deplie_et_les_ok_s_affichent_au_clic() {
         .expect("une info sur ce log");
     let detail = safe_text(&info.detail);
     assert!(h.query_by_label(&detail).is_none(), "info repliée au départ");
-    // ⚠️ la carte peut être sous le bas de la zone qui défile : un clic n'y touche rien (L-114)
-    h.get_by_label(&format!("Déplier « {} »", safe_text(&info.title)))
-        .scroll_to_me();
-    h.run_steps(3);
-    h.get_by_label(&format!("Déplier « {} »", safe_text(&info.title)))
-        .click();
+    h.cliquer_label(&format!("Déplier « {} »", safe_text(&info.title)));
     h.run_steps(3);
     h.get_by_label(&detail);
     h.get_by_label(&format!("Replier « {} »", safe_text(&info.title)));
@@ -300,9 +298,7 @@ fn une_info_se_deplie_et_les_ok_s_affichent_au_clic() {
         h.query_by_label(&format!("Replier « {} »", safe_text(&ok.title)))
             .is_none()
     );
-    h.get_by_label("Afficher les vérifications OK").scroll_to_me();
-    h.run_steps(3);
-    h.get_by_label("Afficher les vérifications OK").click();
+    h.cliquer_label("Afficher les vérifications OK");
     h.run_steps(3);
     h.get_by_label(&format!("Replier « {} »", safe_text(&ok.title)));
     h.get_by_label("Masquer les vérifications OK");
@@ -315,10 +311,10 @@ fn choisir_un_profil_change_le_drone_affiche() {
         h.query_by_label_contains("choisi par l'utilisateur").is_none(),
         "détection automatique au départ"
     );
-    h.get_by_label("Taille du drone").click();
+    h.cliquer_label("Taille du drone");
     h.run_steps(3);
     let whoop = safe_text(otb_advisor::profiles::profile("whoop").unwrap().label);
-    h.get_by_label(&whoop).click();
+    h.cliquer_label(&whoop);
     attendre(&mut h);
     h.get_by_label_contains("choisi par l'utilisateur");
     // la valeur affichée a changé : l'en-tête du fragment porte le profil choisi
@@ -577,9 +573,7 @@ fn un_pouce_leve_s_inscrit_tout_de_suite_et_un_second_clic_l_annule() {
     let mut h = banc(CLAIR);
     let frag = fragment_ouvert(&h).id;
     let conseil = premier_conseil(&h);
-    h.get_all_by_label(UP).next().unwrap().scroll_to_me();
-    h.run_steps(3);
-    h.get_all_by_label(UP).next().unwrap().click();
+    h.cliquer(|h| h.get_all_by_label(UP).next().unwrap().accesskit_node().locate());
     h.run_steps(3);
     let lib = &h.state().library;
     let a = lib.advice(&frag, &card_id(&conseil)).expect("choix inscrit au clic");
@@ -588,7 +582,7 @@ fn un_pouce_leve_s_inscrit_tout_de_suite_et_un_second_clic_l_annule() {
     let jour = advice::day_text(&a.when);
     h.get_by_label(&format!("Appliqué le {jour}"));
     h.get_by_label("· en attente du prochain vol");
-    h.get_all_by_label(UP).next().unwrap().click();
+    h.cliquer(|h| h.get_all_by_label(UP).next().unwrap().accesskit_node().locate());
     h.run_steps(3);
     assert!(
         h.state().library.advice_of(&frag).is_empty(),
@@ -601,9 +595,7 @@ fn un_pouce_baisse_n_inscrit_rien_sans_raison() {
     let mut h = banc(CLAIR);
     let frag = fragment_ouvert(&h).id;
     let conseil = premier_conseil(&h);
-    h.get_all_by_label(DOWN).next().unwrap().scroll_to_me();
-    h.run_steps(3);
-    h.get_all_by_label(DOWN).next().unwrap().click();
+    h.cliquer(|h| h.get_all_by_label(DOWN).next().unwrap().accesskit_node().locate());
     h.run_steps(3);
     assert!(
         h.state().library.advice_of(&frag).is_empty(),
@@ -615,12 +607,12 @@ fn un_pouce_baisse_n_inscrit_rien_sans_raison() {
     );
     // un clic passe le champ en saisie, puis le texte
     let champ = || egui::accesskit::Role::MultilineTextInput;
-    h.get_by_role_and_label(champ(), REASON_QUESTION).click();
+    h.cliquer_role(champ(), REASON_QUESTION);
     h.run_steps(2);
     h.get_by_role_and_label(champ(), REASON_QUESTION)
         .type_text("hélice abîmée");
     h.run_steps(3);
-    h.get_by_label("Enregistrer").click();
+    h.cliquer_label("Enregistrer");
     h.run_steps(3);
     let a = h
         .state()
@@ -641,9 +633,7 @@ fn un_fragment_deja_traite_montre_l_historique_de_ses_choix() {
     h.get_by_label("Fragment déjà traité");
     h.get_by_label("· 1 vol plus récent : APRES");
     h.get_by_label(NO_HISTORY);
-    h.get_all_by_label(UP).next().unwrap().scroll_to_me();
-    h.run_steps(3);
-    h.get_all_by_label(UP).next().unwrap().click();
+    h.cliquer(|h| h.get_all_by_label(UP).next().unwrap().accesskit_node().locate());
     h.run_steps(3);
     assert!(h.query_by_label(NO_HISTORY).is_none());
     // le vol daté après le jour du choix l'a pris en compte
@@ -962,23 +952,23 @@ fn deux_logs_cote_a_cote_alignes_par_nom_avec_differences_et_recherche() {
     let Screen::Tool(i) = h.state().screen else { panic!() };
     assert!(!h.state().pages[i].busy());
     // seulement les différences : le nom du drone et le curseur restent, la carte (identique) disparaît
-    h.get_by_label("Seulement les différences").click();
+    h.cliquer_label("Seulement les différences");
     h.run_steps(3);
     assert!(h.query_by_label("Nom du drone").is_some());
     assert!(h.query_by_label("pi_gain").is_some());
     assert!(h.query_by_label("Carte").is_none(), "ligne identique masquée");
     assert!(h.query_by_label("Rates").is_none(), "groupe sans ligne visible masqué");
-    h.get_by_label("Seulement les différences").click();
+    h.cliquer_label("Seulement les différences");
     h.run_steps(3);
     assert!(h.query_by_label("Carte").is_some());
     // paramètres bruts : la clé propre au second log apparaît
     assert!(h.query_by_label("zz_propre_au_second").is_none());
-    h.get_by_label("Tous les paramètres bruts").click();
+    h.cliquer_label("Tous les paramètres bruts");
     h.run_steps(3);
     h.get_by_label("zz_propre_au_second");
     h.get_by_label(setup::RAW_TITLE);
     // recherche insensible à la casse, dans les valeurs aussi
-    h.get_by_label("Rechercher un paramètre").click();
+    h.cliquer_label("Rechercher un paramètre");
     h.get_by_label("Rechercher un paramètre").type_text("AUTRE DRONE");
     h.run_steps(3);
     h.get_by_label("Nom du drone");
@@ -998,7 +988,7 @@ fn l_entree_configuration_du_rail_ouvre_la_page_et_s_allume() {
     h.state_mut().screen = Screen::Dashboard;
     h.run_steps(4);
     assert!(!configuration_en_valeur(&h));
-    h.get_by_label("Configuration").click();
+    h.cliquer_label("Configuration");
     attendre(&mut h);
     h.run_steps(2);
     let Screen::Tool(i) = h.state().screen else {
@@ -1025,7 +1015,7 @@ fn l_entree_configuration_sans_log_invite_a_ouvrir_un_log() {
         .with_context_setup(otb_gui::app::setup)
         .build_ui_state(|ui, a: &mut App| a.ui(ui), app);
     h.run_steps(4);
-    h.get_by_label("Configuration").click();
+    h.cliquer_label("Configuration");
     h.run_steps(4);
     assert!(matches!(h.state().screen, Screen::Tool(_)));
     h.get_by_label("Ouvrez un log pour commencer.");
@@ -1685,7 +1675,7 @@ fn cli_text(h: &Harness<'static, App>) -> String {
 
 /// Met `valeur` dans le champ nommé `nom` : un clic le passe en saisie, puis le texte et Entrée.
 fn saisir(h: &mut Harness<'static, App>, nom: &str, valeur: &str) {
-    h.get_by_label(nom).click();
+    h.cliquer_label(nom);
     h.run_steps(2);
     h.get_by_label(nom).type_text(valeur);
     h.key_press(egui::Key::Enter);
@@ -1737,7 +1727,7 @@ fn les_trois_onglets_ont_tous_leurs_champs_nommes() {
         ("Notch dyn / RPM", &["Gyro", "Notch dyn / RPM"][..]),
     ] {
         for c in clics {
-            h.get_by_role_and_label(egui::accesskit::Role::Button, c).click();
+            h.cliquer_role(egui::accesskit::Role::Button, c);
             h.run();
         }
         let champs: &[&str] = if nom == "D" {
@@ -1772,7 +1762,7 @@ fn modifier_un_champ_ne_lance_aucun_calcul_et_appliquer_simule() {
     let cli = cli_text(&h);
     assert!(cli.contains("set gyro_lpf2_static_hz = 250"), "{cli}");
     assert!(!cli.contains("aucun changement"));
-    h.get_by_label("Appliquer").click();
+    h.cliquer_label("Appliquer");
     h.run_steps(2);
     assert!(sim_busy(&h), "« Appliquer » lance le calcul");
     attendre(&mut h);
@@ -1782,7 +1772,7 @@ fn modifier_un_champ_ne_lance_aucun_calcul_et_appliquer_simule() {
     );
     assert!(cli_text(&h).contains("set gyro_lpf2_static_hz = 250"));
     // « Réinitialiser » recharge l'éditeur : plus de changement, mais le dernier calcul n'est plus celui de l'éditeur
-    h.get_by_label("Réinitialiser").click();
+    h.cliquer_label("Réinitialiser");
     h.run_steps(3);
     assert!(cli_text(&h).contains("aucun changement"));
     h.get_by_label(STALE_STATUS);
@@ -1793,7 +1783,7 @@ fn modifier_un_champ_ne_lance_aucun_calcul_et_appliquer_simule() {
 fn le_bouton_copier_affiche_le_statut_de_copie() {
     let mut h = banc_page(SOMBRE, SIM);
     assert!(h.query_by_label(COPIED_STATUS).is_none());
-    h.get_by_label("Copier").click();
+    h.cliquer_label("Copier");
     h.run_steps(3);
     h.get_by_label(COPIED_STATUS);
 }
@@ -1920,7 +1910,7 @@ fn un_identifiant_de_chargement_n_est_jamais_reutilise() {
 fn changer_de_log_recharge_l_editeur_et_oublie_les_reglages_appliques() {
     let mut h = banc_page(CLAIR, SIM);
     saisir(&mut h, "Gyro LPF2 coupure", "250");
-    h.get_by_label("Appliquer").click();
+    h.cliquer_label("Appliquer");
     h.run_steps(2);
     attendre(&mut h);
     assert!(cli_text(&h).contains("set gyro_lpf2_static_hz = 250"));
@@ -1971,7 +1961,7 @@ fn un_groupe_se_replie_et_se_deplie_d_un_clic_sur_son_titre() {
     let mut h = banc_config(CLAIR, true);
     h.run();
     assert!(h.query_by_label("Firmware").is_some() && h.query_by_label("Carte").is_some());
-    h.get_by_label("Général").click();
+    h.cliquer_label("Général");
     h.run_steps(3);
     assert!(
         h.query_by_label("Firmware").is_none(),
@@ -1987,7 +1977,7 @@ fn un_groupe_se_replie_et_se_deplie_d_un_clic_sur_son_titre() {
         h.query_by_label("Roll P, I, D, Dmax, F").is_some(),
         "les autres groupes restent dépliés"
     );
-    h.get_by_label("Général").click();
+    h.cliquer_label("Général");
     h.run_steps(3);
     assert!(h.query_by_label("Firmware").is_some(), "dépliable de nouveau");
 }

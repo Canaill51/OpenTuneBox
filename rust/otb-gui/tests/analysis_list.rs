@@ -1,6 +1,9 @@
 //! La liste d'analyse à l'écran (lot 29c, D-066) : la barre de pastilles du haut, le « + » d'un fragment au
 //! tableau de bord, et la liste retrouvée au lancement suivant.
 
+mod support;
+use support::Cliquer;
+
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -85,22 +88,22 @@ fn la_barre_montre_une_pastille_par_fragment_et_ses_gestes() {
     assert_eq!(h.state().chip_infos()[0].drone, "JeNo Ced");
     assert!(toggled(&h, &n[0]) && toggled(&h, &n[1]), "toutes actives à l'ouverture");
     // désactiver puis réactiver, sans fermer
-    h.get_by_role_and_label(egui::accesskit::Role::CheckBox, &n[0]).click();
+    h.cliquer_role(egui::accesskit::Role::CheckBox, &n[0]);
     h.run_steps(2);
     assert!(!h.state().state.logs[0].active);
     assert!(!toggled(&h, &n[0]));
     assert_eq!(h.state().state.logs.len(), 2, "désactiver ne ferme pas");
-    h.get_by_role_and_label(egui::accesskit::Role::CheckBox, &n[0]).click();
+    h.cliquer_role(egui::accesskit::Role::CheckBox, &n[0]);
     h.run_steps(2);
     assert!(h.state().state.logs[0].active);
     // le maître : le dernier ouvert ; un clic sur le rond du premier le désigne
     assert_eq!(h.state().state.master(), Some(1));
-    h.get_by_label(&master_label(&n[0], false)).click();
+    h.cliquer_label(&master_label(&n[0], false));
     h.run_steps(2);
     assert_eq!(h.state().state.master(), Some(0));
     h.get_by_label(&master_label(&n[0], true));
     // retirer le second : il est fermé
-    h.get_by_label(&remove_label(&n[1])).click();
+    h.cliquer_label(&remove_label(&n[1]));
     h.run_steps(2);
     assert_eq!(h.state().state.logs.len(), 1);
     assert_eq!(noms(&h), vec![n[0].clone()]);
@@ -115,7 +118,7 @@ fn sans_fragment_la_barre_invite_a_en_ajouter() {
     // les deux boutons gardés à droite de la barre (écarts écrits, D-066) et le thème de la maquette
     h.get_by_label("Ouvrir…");
     h.get_by_label("Exporter la fenêtre en image PNG");
-    h.get_by_label("Thème sombre").click();
+    h.cliquer_label("Thème sombre");
     h.run_steps(2);
     assert!(h.state().theme.dark);
     h.get_by_label("Thème clair");
@@ -137,9 +140,9 @@ fn le_rond_plus_d_un_fragment_n_ouvre_que_sa_session_puis_la_retire() {
     h.state_mut().state.clear();
     h.run_steps(2);
     let second = h.state().library.fragments()[1].clone();
-    h.get_by_label("JeNo Ced").click();
+    h.cliquer_label("JeNo Ced");
     h.run_steps(2);
-    h.get_by_label(&format!("Ajouter {} à l'analyse", second.name)).click();
+    h.cliquer_label(&format!("Ajouter {} à l'analyse", second.name));
     attendre_logs(&mut h, 1);
     assert_eq!(h.state().state.logs.len(), 1, "seulement la session du fragment");
     assert_eq!(h.state().state.logs[0].fragment.as_deref(), Some(second.id.as_str()));
@@ -151,7 +154,7 @@ fn le_rond_plus_d_un_fragment_n_ouvre_que_sa_session_puis_la_retire() {
         2,
         "le « × » de la pastille et le rond"
     );
-    h.query_all_by_label(&retirer).last().unwrap().click();
+    h.cliquer(|h| h.query_all_by_label(&retirer).last().unwrap().accesskit_node().locate());
     h.run_steps(2);
     assert!(h.state().state.logs.is_empty());
 }
@@ -299,7 +302,7 @@ fn nouveau_fragment(h: &mut Harness<'static, App>, bornes: (usize, usize), nom: 
     let brouillon = h.state_mut().viewer.draft.as_mut().expect("brouillon");
     brouillon.period = (log.t[bornes.0], log.t[bornes.1]);
     brouillon.name = nom.into();
-    h.get_by_label("Enregistrer comme nouveau fragment").click();
+    h.cliquer_label("Enregistrer comme nouveau fragment");
     h.run_steps(3);
 }
 
@@ -381,9 +384,9 @@ fn un_fragment_ajoute_se_rouvre_par_son_rond_son_crayon_et_au_lancement() {
     // rond « + » : session déjà ouverte sous l'origine → posé tout de suite, mêmes échantillons
     h.state_mut().state.remove(1);
     h.run_steps(2);
-    h.get_by_label("JeNo Ced").click();
+    h.cliquer_label("JeNo Ced");
     h.run_steps(2);
-    h.get_by_label("Ajouter Rafale à l'analyse").click();
+    h.cliquer_label("Ajouter Rafale à l'analyse");
     h.run_steps(2);
     assert_eq!(h.state().state.logs.len(), 2, "posé sans attendre une ouverture");
     assert!(std::sync::Arc::ptr_eq(
@@ -396,7 +399,7 @@ fn un_fragment_ajoute_se_rouvre_par_son_rond_son_crayon_et_au_lancement() {
     // rond « + » sans rien d'ouvert : seulement lui
     h.state_mut().state.clear();
     h.run_steps(2);
-    h.get_by_label("Ajouter Rafale à l'analyse").click();
+    h.cliquer_label("Ajouter Rafale à l'analyse");
     attendre_logs(&mut h, 1);
     assert_eq!(h.state().state.logs.len(), 1, "seulement le fragment demandé");
     assert_eq!(h.state().state.logs[0].fragment.as_deref(), Some(id.as_str()));
@@ -405,14 +408,14 @@ fn un_fragment_ajoute_se_rouvre_par_son_rond_son_crayon_et_au_lancement() {
     // crayon sans rien d'ouvert : l'écran d'extraction sur lui
     h.state_mut().state.clear();
     h.run_steps(2);
-    h.get_by_label("Modifier les limites de Rafale").click();
+    h.cliquer_label("Modifier les limites de Rafale");
     attendre_logs(&mut h, 1);
     assert_eq!(h.state().screen, Screen::Viewer);
     assert_eq!(
         h.state().state.current_log().unwrap().fragment.as_deref(),
         Some(id.as_str())
     );
-    h.get_by_label("Annuler").click();
+    h.cliquer_label("Annuler");
     h.run_steps(2);
 
     // liste enregistrée, relue au lancement : l'origine et lui
@@ -421,7 +424,7 @@ fn un_fragment_ajoute_se_rouvre_par_son_rond_son_crayon_et_au_lancement() {
         &h.state().state.logs[0].log,
     );
     let nom = h.state().library.fragment(&origine).unwrap().name.clone();
-    h.get_by_label(&format!("Ajouter {nom} à l'analyse")).click();
+    h.cliquer_label(&format!("Ajouter {nom} à l'analyse"));
     attendre_logs(&mut h, 2);
     h.state_mut().library.save().unwrap();
     let avant: Vec<_> = h
@@ -465,15 +468,15 @@ fn seul_un_fragment_ajoute_se_supprime_apres_confirmation() {
     let id = h.state().state.logs[1].fragment.clone().unwrap();
     h.state_mut().enter_extraction();
     h.run_steps(3);
-    h.get_by_label("Supprimer ce fragment…").click();
+    h.cliquer_label("Supprimer ce fragment…");
     h.run_steps(2);
     assert!(h.state().library.fragment(&id).is_some(), "rien avant la confirmation");
-    h.get_by_label("Garder").click();
+    h.cliquer_label("Garder");
     h.run_steps(2);
     assert!(h.query_by_label("Supprimer définitivement").is_none());
-    h.get_by_label("Supprimer ce fragment…").click();
+    h.cliquer_label("Supprimer ce fragment…");
     h.run_steps(2);
-    h.get_by_label("Supprimer définitivement").click();
+    h.cliquer_label("Supprimer définitivement");
     h.run_steps(3);
     assert_eq!(h.state().screen, Screen::Dashboard);
     assert!(h.state().library.fragment(&id).is_none());

@@ -1,5 +1,6 @@
 //! Contrats de l'interface vérifiables sans écran (port de `test_gui_contracts.py`) : aucune couleur hors de
-//! `theme.rs` (L-016), icônes et licence, contrastes des accents, deux thèmes rendus.
+//! `theme.rs` (L-016), icônes et licence, contrastes des accents, deux thèmes rendus, aucun clic de test sans défilement
+//! (L-114).
 
 use std::path::PathBuf;
 
@@ -16,6 +17,11 @@ fn racine() -> PathBuf {
 
 /// Tous les `.rs` de `src/`, sous-dossiers compris (les outils de 6-1 à 6-4 iront dans `src/tools/`).
 fn fichiers_src() -> Vec<PathBuf> {
+    fichiers_rs("src")
+}
+
+/// Tous les `.rs` du dossier `dossier` de la crate, sous-dossiers compris, dans l'ordre.
+fn fichiers_rs(dossier: &str) -> Vec<PathBuf> {
     fn parcourt(d: &std::path::Path, out: &mut Vec<PathBuf>) {
         for e in std::fs::read_dir(d).unwrap() {
             let p = e.unwrap().path();
@@ -27,9 +33,30 @@ fn fichiers_src() -> Vec<PathBuf> {
         }
     }
     let mut v = Vec::new();
-    parcourt(&racine().join("src"), &mut v);
+    parcourt(&racine().join(dossier), &mut v);
     v.sort();
     v
+}
+
+/// Les clics de **pointeur** d'egui_kittest (`Node::click`, `click_secondary`, `click_modifiers`, `click_button`…) :
+/// ils tombent au centre du nœud, même hors de la zone visible (L-114). `click_accesskit` passe par l'accessibilité, sans
+/// pointeur : il n'est pas visé.
+fn clics_nus(texte: &str) -> Vec<(usize, String)> {
+    let mut mauvais = Vec::new();
+    for (i, ligne) in texte.lines().enumerate() {
+        if ligne.trim_start().starts_with("//") {
+            continue;
+        }
+        let code = ligne.split("//").next().unwrap();
+        let pointeur = code
+            .match_indices(".click")
+            .map(|(pos, _)| &code[pos + ".click".len()..])
+            .any(|suite| suite.starts_with('(') || (suite.starts_with('_') && !suite.starts_with("_accesskit")));
+        if pointeur {
+            mauvais.push((i + 1, ligne.trim().to_string()));
+        }
+    }
+    mauvais
 }
 
 /// Lignes de `texte` qui contiennent une couleur en dur.
@@ -95,6 +122,50 @@ fn le_parcours_de_src_lit_les_sous_dossiers() {
     parcourt(&d, &mut v);
     std::fs::remove_dir_all(&d).unwrap();
     assert_eq!(v.len(), 1);
+}
+
+#[test]
+fn le_detecteur_de_clics_voit_les_clics_de_pointeur_et_laisse_passer_le_reste() {
+    for nu in [
+        "    h.get_by_label(\"OK\").click();",
+        "        .click();",
+        "    noeud.click_secondary();",
+        "    noeud.click_modifiers(m);",
+        "    let x = 1; noeud.click(); // commentaire",
+    ] {
+        assert_eq!(clics_nus(nu).len(), 1, "non vu : {nu}");
+    }
+    for permis in [
+        "    h.cliquer_label(\"OK\");",
+        "    noeud.click_accesskit();",
+        "    if r.clicked() {",
+        "    // un .click() dans un commentaire",
+        "    let y = 2; // puis .click()",
+    ] {
+        assert!(clics_nus(permis).is_empty(), "vu à tort : {permis}");
+    }
+}
+
+/// Tout clic de test passe par `tests/support/clic.rs`, qui fait d'abord défiler jusqu'au widget (L-114, deux récidives
+/// avant ce contrôle). Contre-preuve : un `h.get_by_label("…").click();` remis dans un test fait échouer celui-ci.
+#[test]
+fn tout_clic_de_test_passe_par_l_aide_qui_fait_defiler() {
+    let mut mauvais = Vec::new();
+    for p in fichiers_rs("tests").into_iter().chain(fichiers_rs("examples")) {
+        let nom = p.file_name().unwrap().to_string_lossy().to_string();
+        // l'aide elle-même, et ce fichier (les exemples du détecteur)
+        if nom == "clic.rs" || nom == "contracts.rs" {
+            continue;
+        }
+        for (n, l) in clics_nus(&std::fs::read_to_string(&p).unwrap()) {
+            mauvais.push(format!("{}:{n} {l}", p.strip_prefix(racine()).unwrap().display()));
+        }
+    }
+    assert!(
+        mauvais.is_empty(),
+        "clic nu (L-114) : passer par `support::Cliquer` (`h.cliquer_label`, `cliquer_role`, `cliquer_value`, `cliquer`) :\n{}",
+        mauvais.join("\n")
+    );
 }
 
 #[test]

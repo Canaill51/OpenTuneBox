@@ -99,9 +99,12 @@ est celle du commit qui les a introduites.
 - **Cause** — mesurée : la section « Supprimer » de la fiche du drone est sous le bas d'une fenêtre de 800 points, dans un
   `ScrollArea`. Le widget est **dans l'arbre d'accessibilité** (la recherche le trouve), mais `Node::click` d'egui_kittest
   envoie un clic de **pointeur** au centre du nœud (`node.rs:click_button`) : hors de la zone visible, il ne touche rien.
-- **Règle** — sur un écran plus haut que le banc, appeler `scroll_to_me()` puis quelques `run_steps` avant de cliquer un
-  widget du bas ; un « No nodes found » juste après un clic qui « a marché » fait d'abord penser à cela. Même geste dans
-  l'exemple `capture`.
+- **Règle** — **contrôle automatique depuis le 2026-11-23** (après la seconde récidive) : tout clic de test ou d'exemple
+  passe par `rust/otb-gui/tests/support/clic.rs:Cliquer` (`h.cliquer_label`, `cliquer_role`, `cliquer_value`, ou
+  `cliquer` avec la clé du nœud), qui fait défiler jusqu'au widget, dessine trois images, vérifie que son centre est dans la
+  fenêtre, puis clique ; `rust/otb-gui/tests/contracts.rs` (`tout_clic_de_test_passe_par_l_aide_qui_fait_defiler`) refuse
+  tout clic de pointeur nu (`.click()`, `click_secondary`…). Un « No nodes found » juste après un clic qui « a marché »
+  fait d'abord penser à cela.
 - **Preuve** — `rust/otb-gui/tests/guide.rs` (`creer_modifier_recommencer_et_supprimer_une_fiche`) : rouge sans
   `scroll_to_me`, vert avec.
 - **⚠️ RÉCIDIVE le 2026-11-23** (lot 31b) — même écran : « Valeurs proposées », en bas de la fiche cible, cliqué sans
@@ -113,8 +116,7 @@ est celle du commit qui les a introduites.
 - **⚠️ RÉCIDIVE le 2026-11-23** (lot 31d) — page Assistant, dans un exemple de capture jetable : « Enregistrer » (la raison
   d'un conseil écarté) cliqué sans `scroll_to_me` ; rien d'inscrit, l'image montrait encore la raison en cours d'écriture.
   Les tests de la page le font (`rust/otb-gui/tests/filter_tools.rs`, `un_pouce_baisse_n_inscrit_rien_sans_raison`).
-  Deuxième récidive : contrôle automatique proposé à Cédric (une aide de test qui fait défiler puis clique, à la place de
-  `click()` nu).
+  Deuxième récidive : contrôle automatique mis en place le même jour (voir la Règle ci-dessus).
 
 ### L-113 : une substitution Perl ou sed dont le délimiteur apparaît dans le texte écrit au mauvais endroit, sans erreur
 
@@ -1486,7 +1488,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 |---|---|---|
 | L-116 | `serde_json` sans `float_roundtrip` relit parfois un nombre avec un bit d'écart (55.732080660999316 → …931) : une mesure rangée ne se recalcule plus « à l'identique » ; un écart au dernier bit entre écrit et relu accuse d'abord la relecture | Outillage |
 | L-115 | Test qui attend une absence (« rien rangé ») : il passe aussi quand le calcul échoue pour une autre raison (session 0 alors que le décodeur compte à partir de 1) ; vérifier d'abord que le chemin heureux a eu lieu, lire la session dans le log | Tests |
-| L-114 | Clic de test (`Node::click`, un clic de pointeur) sur un widget sous le bas d'un `ScrollArea` : trouvé mais pas touché, l'échec vient au widget suivant ; `scroll_to_me()` puis `run_steps` avant de cliquer | Interface |
+| L-114 | Clic de test (`Node::click`, un clic de pointeur) sur un widget sous le bas d'un `ScrollArea` : trouvé mais pas touché, l'échec vient au widget suivant ; tout clic passe par `support::Cliquer` (défile d'abord), un contrat refuse le clic nu | Interface |
 | L-113 | Substitution `perl`/`sed` dont le délimiteur (`\|`, `#`, `/`) apparaît dans le texte : échappé, il devient une alternative et écrit n'importe où sans erreur ; outil d'édition pour le multi-ligne, sinon relire le diff et le début du fichier | Outillage |
 | L-112 | Clic par libellé (tests, exemple `capture`) : un libellé repris par un autre widget (nom de log devenu pastille) fait cliquer ailleurs sans erreur ; chercher les clics par ce libellé, viser par rôle, regarder les captures | Interface |
 | L-111 | Panneau egui de largeur fixe au contenu plus large (grille, noms longs) : il s'élargit et rogne le début des lignes, sans erreur ; borner colonnes et textes à la largeur, regarder la capture | Interface |

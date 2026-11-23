@@ -1,5 +1,8 @@
 //! Fenêtre principale : thème conservé quand le système change de thème, ouverture de fichiers par paquets (D-051).
 
+mod support;
+use support::Cliquer;
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -72,7 +75,7 @@ fn le_tableau_de_bord_montre_une_carte_par_drone_et_ses_fragments() {
         h.query_by_label("FINAL").is_none(),
         "les fragments ne sont pas montrés d'emblée"
     );
-    h.get_by_label("JeNo Ced").click();
+    h.cliquer_label("JeNo Ced");
     h.run();
     h.get_by_label("FINAL");
     h.get_by_label("1 fragment · plus récent en haut");
@@ -193,7 +196,7 @@ fn le_crayon_d_un_fragment_ouvre_l_ecran_d_extraction() {
     h.state_mut().screen = Screen::Dashboard;
     h.state_mut().dash.selected = Some("JeNo Ced".into());
     h.run_steps(2);
-    h.get_by_label("Modifier les limites de jeno5_5s").click();
+    h.cliquer_label("Modifier les limites de jeno5_5s");
     attendre_logs(&mut h, 1);
     h.run_steps(2);
     assert_eq!(h.state().screen, Screen::Viewer);
@@ -202,11 +205,11 @@ fn le_crayon_d_un_fragment_ouvre_l_ecran_d_extraction() {
         Some(id.as_str())
     );
     h.get_by_label("Modifier le fragment jeno5_5s");
-    h.get_by_label("Retour").click();
+    h.cliquer_label("Retour");
     h.run_steps(2);
     assert_eq!(h.state().screen, Screen::Dashboard);
     // log ouvert : le crayon passe directement à l'écran, sans rouvrir
-    h.get_by_label("Modifier les limites de jeno5_5s").click();
+    h.cliquer_label("Modifier les limites de jeno5_5s");
     h.run_steps(2);
     assert_eq!(h.state().screen, Screen::Viewer);
     assert_eq!(h.state().state.logs.len(), 1, "le log n'est pas rouvert");
@@ -286,7 +289,7 @@ fn le_rail_porte_les_entrees_de_navigation() {
 fn les_onglets_de_lespace_mènent_aux_quatre_vues() {
     let mut h = banc(App::new(otb_gui::tools::all_pages()));
     h.run();
-    h.get_by_label("Bruit et filtres").click();
+    h.cliquer_label("Bruit et filtres");
     h.run();
     let titre = |h: &Harness<'static, App>| match h.state().screen {
         Screen::Tool(i) => h.state().pages[i].title(),
@@ -299,7 +302,7 @@ fn les_onglets_de_lespace_mènent_aux_quatre_vues() {
         ("Fréq. × gaz", "Fréquence × gaz"),
         ("Spectre", "Analyse spectrale"),
     ] {
-        h.get_by_label(onglet).click();
+        h.cliquer_label(onglet);
         h.run();
         assert_eq!(titre(&h), attendu, "onglet « {onglet} »");
         // le rail reste allumé sur l'espace, quelle que soit la vue
@@ -316,13 +319,13 @@ fn cliquer_une_entree_du_rail_change_decran() {
     let mut h = banc(App::new(otb_gui::tools::all_pages()));
     h.run();
     assert_eq!(h.state().screen, Screen::Guide, "l'application démarre sur le Guide");
-    h.get_by_label("Assistant").click();
+    h.cliquer_label("Assistant");
     h.run();
     let Screen::Tool(i) = h.state().screen else {
         panic!("l'Assistant est un outil, écran : {:?}", h.state().screen)
     };
     assert_eq!(h.state().pages[i].title(), "Assistant");
-    h.get_by_label("Guide").click();
+    h.cliquer_label("Guide");
     h.run();
     assert_eq!(h.state().screen, Screen::Guide);
 }
@@ -619,7 +622,7 @@ fn l_icone_de_la_barre_exporte_toute_la_fenetre() {
     let propose = Rc::new(RefCell::new(Vec::new()));
     let mut h = banc_export(Some(cible.clone()), propose.clone());
     h.run();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     let img = image::open(&cible).expect("PNG écrit").to_rgba8();
     let ppp = h.ctx.pixels_per_point();
@@ -656,7 +659,7 @@ fn le_bouton_d_un_outil_exporte_seulement_sa_page() {
     let haut_barre = h.get_by_label("etat-connu").rect().min.y;
     // la barre du haut n'a plus de bouton de navigation depuis D-060 : on lit sa hauteur réelle
     let bas_du_haut = h.get_by_label("Ouvrir…").rect().max.y;
-    h.get_by_label("Exporter image").click();
+    h.cliquer_label("Exporter image");
     attendre_export(&mut h);
     let img = image::open(dir.join("outil.png"))
         .expect("PNG écrit avec l'extension")
@@ -696,7 +699,7 @@ fn annuler_la_boite_n_ecrit_rien() {
     let mut h = banc_export(None, propose.clone());
     let avant = h.state().export_dir.clone();
     h.run();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     assert_eq!(propose.borrow().len(), 1, "la boîte s'est ouverte");
     assert!(h.state().export_status.is_empty(), "{}", h.state().export_status);
@@ -709,7 +712,7 @@ fn un_dossier_introuvable_donne_un_message_d_erreur() {
     let mut h = banc_export(Some(cible), Rc::new(RefCell::new(Vec::new())));
     let avant = h.state().export_dir.clone();
     h.run();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     assert!(
         h.state().export_status.starts_with("Export impossible"),
@@ -729,9 +732,9 @@ fn le_dossier_retenu_sert_au_nom_propose_suivant() {
     let propose = Rc::new(RefCell::new(Vec::new()));
     let mut h = banc_export(Some(dir.join("a.png")), propose.clone());
     h.run();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     let noms = propose.borrow();
     assert_eq!(noms.len(), 2);
@@ -794,7 +797,7 @@ fn une_capture_jamais_recue_est_abandonnee_et_l_export_suivant_reste_possible() 
     let mut h = banc_export_avec(Some(dir.join("a.png")), Rc::new(RefCell::new(Vec::new())), Muet);
     h.state_mut().capture_timeout = Duration::ZERO;
     h.run();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     assert!(
         h.state().export_status.starts_with("Export impossible") && h.state().export_status.contains("capture"),
@@ -804,7 +807,7 @@ fn une_capture_jamais_recue_est_abandonnee_et_l_export_suivant_reste_possible() 
     assert!(!dir.join("a.png").exists());
     // un nouveau clic est de nouveau pris en compte (la demande bloquée ne reste pas jusqu'à la fermeture)
     h.state_mut().export_status.clear();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     assert!(
         h.state().export_status.starts_with("Export impossible"),
@@ -820,7 +823,7 @@ fn un_nom_sans_extension_ne_remplace_pas_un_fichier_existant() {
     std::fs::write(dir.join("vol1.png"), b"ancien").unwrap();
     let mut h = banc_export(Some(dir.join("vol1")), Rc::new(RefCell::new(Vec::new())));
     h.run();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     assert_eq!(
         std::fs::read(dir.join("vol1.png")).unwrap(),
@@ -847,7 +850,7 @@ fn un_nom_complet_choisi_dans_la_boite_est_ecrit_meme_s_il_existe() {
     std::fs::write(dir.join("vol1.png"), b"ancien").unwrap();
     let mut h = banc_export(Some(dir.join("vol1.png")), Rc::new(RefCell::new(Vec::new())));
     h.run();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     assert_ne!(std::fs::read(dir.join("vol1.png")).unwrap(), b"ancien");
     assert!(
@@ -888,7 +891,7 @@ fn le_delai_de_capture_ne_se_declenche_pas_apres_un_export_reussi() {
     let dir = dossier_temp("delai");
     let mut h = banc_export(Some(dir.join("a.png")), Rc::new(RefCell::new(Vec::new())));
     h.run();
-    h.get_by_label("Exporter la fenêtre en image PNG").click();
+    h.cliquer_label("Exporter la fenêtre en image PNG");
     attendre_export(&mut h);
     assert!(
         h.state().export_status.starts_with("Image enregistrée"),
