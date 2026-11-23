@@ -1341,7 +1341,13 @@ fn main() {
             Ok(out) => check_filter_sim(&mut rep, &refs, i, &st.inputs(&[0])[0], &out, &t),
             Err(e) => rep.fail(i, format!("simulateur de filtres : erreur {e}")),
         }
-        match AdvisorTool::compute(AdvisorOptions { profile: None }, st.inputs(&[0])) {
+        match AdvisorTool::compute(
+            AdvisorOptions {
+                profile: None,
+                compare: None,
+            },
+            st.inputs(&[0]),
+        ) {
             Ok(out) => check_advisor(&mut rep, &refs, i, &st.inputs(&[0])[0], &out, &t),
             Err(e) => rep.fail(i, format!("assistant : erreur {e}")),
         }

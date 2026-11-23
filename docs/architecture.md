@@ -87,6 +87,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   sans `self` : elle ne peut pas lire les réglages de l'interface, elle ne reçoit que `Options` (copie des réglages au moment de la
   demande) et `LogInput`, deux types `Send` (le compilateur fait respecter la règle). `ToolPage` numérote chaque demande (`latest`) et ne garde que le résultat
   qui porte le dernier numéro : un calcul terminé après un changement de sélection ou après le vidage de l'état est jeté (C2).
+  La bibliothèque appartient à `App` : juste avant d'afficher une page, la fenêtre lui passe la bibliothèque **en lecture**
+  (`Tool::read_library`, la page n'en copie que ce qu'il lui faut), puis applique ce qu'elle demande d'y changer
+  (`Tool::take_library_edits`, des `LibraryEdit`) ; aucune page n'écrit dans la bibliothèque (lot 31d, D-073).
 - Outils (`tools/`, une page chacun dans la fenêtre principale, enregistrés par `tools::all_pages` dans `rust/otb-gui/src/tools/mod.rs`) :
 
   | Bouton | Module | Fenêtre |
@@ -98,7 +101,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   | Curseurs PID | `rust/otb-gui/src/tools/pid_slider.rs` | curseurs du réglage simplifié et simulation |
   | Filtres | `rust/otb-gui/src/tools/filter_sim.rs` | simulateur de filtres (interface) ; `rust/otb-gui/src/tools/filter_sim_calc.rs` : calculs purs, sans egui |
   | Configuration (panneau de droite) | `rust/otb-gui/src/tools/setup.rs` | réglages des logs côte à côte (lignes alignées par nom : D-038) |
-  | Assistant | `rust/otb-gui/src/tools/advisor.rs` | rapport de l'assistant de réglage en cartes, jauge « mesure contre seuil » (D-070) ; `rust/otb-gui/src/tools/report_ui.rs` : constats et diagnostic du bruit |
+  | Assistant | `rust/otb-gui/src/tools/advisor.rs` | rapport de l'assistant de réglage en cartes, jauge « mesure contre seuil » (D-070) ; badge du drone, vol comparé, pouces et historique des conseils (lot 31d, D-073 ; calculs purs dans `rust/otb-gui/src/advice.rs`) ; `rust/otb-gui/src/tools/report_ui.rs` : constats et diagnostic du bruit |
 
   `rust/otb-gui/src/tools/common.rs` : briques partagées (dont `ViewMemo`, la vue retenue d'un graphique : « Tout voir » l'oublie,
   et `space_tabs` : les onglets d'un espace, avec `ESPACE_BRUIT` et `VUES_BRUIT` — le nom de l'espace « Bruit et filtres » et ses
@@ -128,12 +131,20 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   puis « Suivi des mesures » (lot 31a), qui dit où en est le calcul des mesures du drone (`tracking_lines`, fonction pure),
   et un graphique par grandeur (lot 31c) : `tracking::charts_of` les prépare, la bande lue dans les cases **du formulaire**
   (`target_values`), et `band_text` / `hover_text` (fonctions pures) écrivent la cible et la bulle d'un point.
+- `advice.rs` : ce que l'assistant retient d'un vol à l'autre (lot 31d, D-073), en fonctions pures : le vol précédent du
+  drone (`previous_flight`, dans l'ordre de `Library::flights_of_drone`, celui du suivi), le vol comparé
+  (`compare_target` : choisi par le pilote, sinon le précédent), les cartes nouvelles, disparues et la valeur de la jauge
+  du même constat sur le vol comparé (`compare_cards`, jamais un second calcul de la mesure), les conseils qui se votent
+  (`can_vote`) et l'historique des choix (`history`, `taken_by` : le premier vol rangé après, daté du jour du choix ou
+  après). Le rapport du vol comparé se calcule sur le fil de calcul de la page, avec le profil du fragment analysé, sur le
+  log ouvert s'il l'est, sinon en lisant son fichier (`rust/otb-gui/src/tools/advisor.rs:compare_report`).
 - `tracking.rs` : les **mesures suivies dans le temps** (lot 31a, D-072). Quand la fiche d'un drone enregistré s'affiche,
   `Tracking::wish` fait lire la table des mesures **sur un autre fil** (D-064), puis mesure en arrière-plan, un par un, les
   fragments du drone sans mesure valable (un fichier décodé une fois, une session déjà ouverte jamais relue) ;
   `Tracking::poll`, à chaque cadre, range les résultats — seulement si le fragment a encore les bornes mesurées. Un fragment
   en échec (log déplacé, fichier tronqué) est dit dans la fiche et n'est pas relancé pendant la séance. `charts_of`
-  (lot 31c, fonction pure) fait les séries des graphiques : les fragments aux mesures valables, rangés par date, numérotés
+  (lot 31c, fonction pure) fait les séries des graphiques : les fragments aux mesures valables, dans l'ordre des vols
+  (`Library::flights_of_drone`), numérotés
   1, 2, 3… ; un graphique par grandeur de `target::charted`, bande par `target::band` ; pas de point de réponse indicielle
   sous `STEP_MIN_WINDOWS` fenêtres, point « moins sûr » sous `STEP_SURE_WINDOWS` (sauf les marges de la boucle ouverte).
 - `app.rs` : fenêtre principale, écrans Tableau de bord / Guide / outil, et l'écran d'extraction (`Screen::Viewer`), hors
@@ -222,12 +233,13 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   dépendances realfft et rayon (D-033).
 - **otb-format** : formats de nombres (`{:.2f}`, `%g`, `repr`, `round`, D-035), pour que les textes restent identiques à ceux de l'ancienne version.
 - **otb-store** : la bibliothèque de données (lot 28), en **fichiers JSON** et non en base — tranché par Cédric le 2026-11-18,
-  le volume étant petit et une base embarquée apportant un compilateur C et une frontière FFI (D-054). Six tables dans
+  le volume étant petit et une base embarquée apportant un compilateur C et une frontière FFI (D-054). Sept tables dans
   `<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` : drones (clé = identifiant de la carte ; avec leur **fiche**,
   `DroneSheet`, absente tant qu'on ne l'a pas remplie, D-068), logs connus (copiés ou laissés
   en place), fragments de vol, configurations (`diff all` datés, gardés seulement quand ils changent), mesures (une par
-  fragment, axe et grandeur, avec les bornes du fragment, les réglages et la **version de calcul** qui les périment) et
-  liste d'analyse. ⚠️ La table des mesures **ne se lit pas à l'ouverture** (D-064) : `Library::measures_source` la lit sur un
+  fragment, axe et grandeur, avec les bornes du fragment, les réglages et la **version de calcul** qui les périment),
+  liste d'analyse et choix du pilote sur les conseils de l'assistant (`conseils.json`, `model::Advice` : appliqué, ou écarté
+  avec sa raison, un par carte et par fragment, gardé si les bornes du fragment changent ; lot 31d, D-073). ⚠️ La table des mesures **ne se lit pas à l'ouverture** (D-064) : `Library::measures_source` la lit sur un
   autre fil, `Library::attach_measures` la rattache en jetant les mesures dont le fragment a disparu ou changé de bornes
   entre-temps (`Library::load_measures` fait les deux d'un coup, pour la ligne de commande et les tests) ; tant qu'elle
   n'est pas lue, `Library::save` laisse `mesures.json` intact, et ensuite ne le réécrit que s'il a changé.
@@ -236,7 +248,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   fragment dans un log ouvert (`range_of`, en **numéros d'échantillon**), avec un message clair quand le fichier a changé
   depuis — sans dépendre du décodeur, l'appelant passant `FlightLog::n()` ; il tient aussi le format des identifiants
   (`session_fragment_id` pour le fragment d'une session, `added_fragment_id` pour un fragment ajouté, `is_added` ; D-067),
-  et `Library::remove_fragment` emporte mesures et place dans la liste d'analyse. La liste d'analyse est tenue par la
+  et `Library::remove_fragment` emporte mesures, place dans la liste d'analyse et choix sur les conseils.
+  `Library::flights_of_drone` range les fragments d'un drone en vols (date, nom du log, session, début). La liste d'analyse est tenue par la
   bibliothèque : ordre, **indice** de couleur attribué à l'entrée et jamais changé ensuite (les couleurs restent dans
   `theme.rs`, L-016), actif ou non, et un fragment de travail qui doit appartenir à la liste. **Un seul module d'accès** : le
   reste du programme ne voit jamais un fichier, ce qui limitera à ce fichier le passage à une vraie base le jour où le

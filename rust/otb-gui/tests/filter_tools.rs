@@ -8,13 +8,14 @@ use std::time::{Duration, Instant};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
 use otb_advisor::rules::{self as regles, Finding};
+use otb_gui::advice::{self, Comparison};
 use otb_gui::app::{App, Screen};
 use otb_gui::state::AppState;
 use otb_gui::theme::{CLAIR, SOMBRE, Theme};
 use otb_gui::tool::Tool;
 use otb_gui::tools::advisor::{
-    AdvisorOutput, AdvisorTool, FOOTER, HELP, ONE_CHANGE, Options, STEP_TITLE, card_id, oks_line, open_by_default,
-    pills, split_cards, step_text,
+    AdvisorOutput, AdvisorTool, FOOTER, HELP, NO_COMPARE, NO_COMPARE_META, NO_HISTORY, ONE_CHANGE, Options,
+    REASON_QUESTION, STEP_TITLE, card_id, gone_text, oks_line, open_by_default, pills, split_cards, step_text,
 };
 use otb_gui::tools::common::safe_text;
 use otb_gui::tools::filter_sim::{
@@ -29,6 +30,8 @@ use otb_gui::tools::setup::{
     self, Group, LogSetup, Row, SetupTool, align, sections_from, shown_rows, toggle_group, visible,
 };
 use otb_log::settings::{Settings, parse_settings};
+use otb_store::Library;
+use otb_store::model::{Advice, Drone, Fragment, LogEntry};
 
 fn log5s() -> otb_log::flightlog::FlightLog {
     let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/jeno5_5s.bbl");
@@ -42,7 +45,7 @@ fn etat() -> AppState {
 }
 
 fn calcule(profile: Option<&'static str>, st: &AppState) -> AdvisorOutput {
-    AdvisorTool::compute(Options { profile }, st.inputs(&[0])).unwrap()
+    AdvisorTool::compute(Options { profile, compare: None }, st.inputs(&[0])).unwrap()
 }
 
 // ------------------------------------------------------------------ Assistant : calcul
@@ -169,11 +172,21 @@ fn un_profil_inconnu_est_une_erreur() {
     let r = AdvisorTool::compute(
         Options {
             profile: Some("zeppelin"),
+            compare: None,
         },
         st.inputs(&[0]),
     );
     assert!(r.is_err());
-    assert!(AdvisorTool::compute(Options { profile: None }, Vec::new()).is_err());
+    assert!(
+        AdvisorTool::compute(
+            Options {
+                profile: None,
+                compare: None
+            },
+            Vec::new()
+        )
+        .is_err()
+    );
 }
 
 // ------------------------------------------------------------------ Assistant : dans la fenêtre
@@ -314,6 +327,328 @@ fn choisir_un_profil_change_le_drone_affiche() {
     };
     assert!(!h.state().pages[i].busy());
     h.get_by_label_contains(&format!("{whoop} (choisi par l'utilisateur)"));
+}
+
+// ------------------------------------------------------------------ Assistant : vol comparé et choix (lot 31d)
+
+fn vol(id: &str, log_id: &str, date: &str, start: u64) -> Fragment {
+    Fragment {
+        id: id.into(),
+        log_id: log_id.into(),
+        session: 1,
+        start,
+        end: start + 100,
+        name: id.to_uppercase(),
+        role: String::new(),
+        date: date.into(),
+        chosen: true,
+    }
+}
+
+/// Deux drones : « d1 » a trois vols (deux le 20, un le 22), « d2 » un seul.
+fn bibliotheque_de_vols() -> Library {
+    let mut lib = Library::in_memory();
+    lib.put_drone(Drone::new("d1", "JeNo 5"));
+    lib.put_drone(Drone::new("d2", "Whoop"));
+    for (id, drone) in [("l1", "d1"), ("l2", "d1"), ("lw", "d2")] {
+        lib.add_log(LogEntry {
+            id: id.into(),
+            drone_id: drone.into(),
+            name: id.into(),
+            path: format!("/logs/{id}.bbl"),
+            copied: false,
+            bytes: 1,
+            added: "2026-11-20".into(),
+        });
+    }
+    lib.put_fragment(vol("v3", "l2", "2026-11-22", 0));
+    lib.put_fragment(vol("v1", "l1", "2026-11-20", 0));
+    lib.put_fragment(vol("v2", "l1", "2026-11-20", 500));
+    lib.put_fragment(vol("w1", "lw", "2026-11-21", 0));
+    lib.add_to_analysis("w1");
+    lib
+}
+
+#[test]
+fn le_vol_compare_est_le_precedent_du_drone_sauf_choix_du_pilote() {
+    let lib = bibliotheque_de_vols();
+    assert_eq!(advice::previous_flight(&lib, "v2").map(|f| f.id.as_str()), Some("v1"));
+    assert!(advice::previous_flight(&lib, "v1").is_none(), "premier vol du drone");
+    let plus_recents: Vec<&str> = advice::newer_flights(&lib, "v1")
+        .iter()
+        .map(|f| f.id.as_str())
+        .collect();
+    assert_eq!(plus_recents, ["v2", "v3"]);
+    assert!(advice::newer_flights(&lib, "v3").is_empty());
+    assert_eq!(
+        advice::newer_text(&advice::newer_flights(&lib, "v1")),
+        "· 2 vols plus récents : V2, V3"
+    );
+    // au choix : les autres vols du drone, du plus récent au plus ancien, puis la liste d'analyse (un autre drone)
+    let choix: Vec<&str> = advice::candidates(&lib, "v2").iter().map(|f| f.id.as_str()).collect();
+    assert_eq!(choix, ["v3", "v1", "w1"]);
+
+    let auto = advice::compare_target(&lib, "v3", None).expect("vol précédent");
+    assert_eq!(auto.fragment.id, "v2");
+    assert!(auto.automatic);
+    assert_eq!(auto.meta, "vol précédent · 2026-11-20");
+    assert_eq!(auto.path, PathBuf::from("/logs/l1.bbl"));
+    let choisi = advice::compare_target(&lib, "v3", Some("w1")).unwrap();
+    assert_eq!((choisi.fragment.id.as_str(), choisi.automatic), ("w1", false));
+    assert_eq!(choisi.meta, "choisi · Whoop · 2026-11-21");
+    // un vol choisi puis supprimé, ou le fragment lui-même : retour au vol précédent
+    assert_eq!(
+        advice::compare_target(&lib, "v3", Some("parti")).unwrap().fragment.id,
+        "v2"
+    );
+    assert_eq!(
+        advice::compare_target(&lib, "v3", Some("v3")).unwrap().fragment.id,
+        "v2"
+    );
+    assert!(
+        advice::compare_target(&lib, "v1", None).is_none(),
+        "« aucun vol à comparer »"
+    );
+    assert!(advice::compare_target(&lib, "w1", None).is_none());
+}
+
+#[test]
+fn la_comparaison_marque_les_cartes_nouvelles_disparues_et_le_repere_des_jauges() {
+    let st = etat();
+    let rapport = calcule(None, &st).report;
+    let (cartes, _) = split_cards(&rapport);
+    let avec_jauge = cartes
+        .iter()
+        .find(|f| f.gauge.is_some())
+        .expect("une carte à jauge sur ce log");
+    let sans_jauge = cartes.iter().find(|f| f.gauge.is_none()).expect("une carte sans jauge");
+    let mut avant = (*rapport).clone();
+    // le vol comparé : la carte sans jauge n'y était pas, la carte à jauge y valait 99, une carte a disparu depuis
+    avant.findings.retain(|f| card_id(f) != card_id(sans_jauge));
+    for f in avant.findings.iter_mut().filter(|f| card_id(f) == card_id(avec_jauge)) {
+        f.gauge.as_mut().unwrap().value = 99.0;
+    }
+    let mut partie = sans_jauge.clone();
+    partie.key = "carte_disparue".into();
+    partie.title = "Ancien souci".into();
+    avant.findings.push(partie);
+    let c = advice::compare_cards("FINAL.02", &rapport, &avant);
+    assert_eq!(c.name, "FINAL.02");
+    assert!(c.new_cards.contains(&card_id(sans_jauge)));
+    assert!(!c.new_cards.contains(&card_id(avec_jauge)));
+    assert_eq!(c.values.get(&card_id(avec_jauge)), Some(&99.0));
+    assert_eq!(c.gone, ["Ancien souci"]);
+    assert_eq!(gone_text(&c), "Plus signalé depuis FINAL.02 : Ancien souci");
+    // une jauge d'une autre unité ne pose pas de repère (il serait faux)
+    for f in avant.findings.iter_mut().filter(|f| card_id(f) == card_id(avec_jauge)) {
+        f.gauge.as_mut().unwrap().unit = "unité inconnue";
+    }
+    assert!(
+        !advice::compare_cards("X", &rapport, &avant)
+            .values
+            .contains_key(&card_id(avec_jauge))
+    );
+    // le même vol des deux côtés : rien de nouveau, rien de parti
+    let meme = advice::compare_cards("X", &rapport, &rapport);
+    assert!(meme.new_cards.is_empty() && meme.gone.is_empty());
+    assert_eq!(meme.values.len(), cartes.iter().filter(|f| f.gauge.is_some()).count());
+    let _ = Comparison::default();
+}
+
+#[test]
+fn l_historique_dit_quand_et_par_quel_vol_un_conseil_a_ete_pris_en_compte() {
+    let lib = bibliotheque_de_vols();
+    let choix = |applique: bool, quand: &str| Advice {
+        fragment_id: "v1".into(),
+        card: "step_latency|Roll".into(),
+        title: "Réponse lente".into(),
+        applied: applique,
+        reason: if applique {
+            String::new()
+        } else {
+            "déjà essayé".into()
+        },
+        when: quand.into(),
+    };
+    // appliqué le 21 : V2 (le 20) a volé avant, V3 (le 22) l'a pris en compte
+    let h = advice::history_line(&lib, &choix(true, "2026-11-21T09:00:00Z"));
+    assert!(h.applied);
+    assert_eq!(h.status, "Appliqué le 21/11/2026");
+    assert_eq!(h.detail, "Pris en compte par V3");
+    assert_eq!(h.title, "Réponse lente");
+    let h = advice::history_line(&lib, &choix(true, "2026-11-23T09:00:00Z"));
+    assert_eq!(h.detail, "En attente du prochain vol");
+    let h = advice::history_line(&lib, &choix(false, "2026-11-21T09:00:00Z"));
+    assert_eq!(
+        (h.status.as_str(), h.detail.as_str()),
+        ("Écarté le 21/11/2026", "Raison : « déjà essayé »")
+    );
+    assert_eq!(advice::day_text("2026-11-03T23:59:59Z"), "03/11/2026");
+    assert_eq!(advice::day_text("hier"), "hier");
+    assert_eq!(advice::iso_of_secs(0), "1970-01-01T00:00:00Z");
+    assert_eq!(advice::iso_of_secs(1_763_918_765), "2025-11-23T17:26:05Z");
+    assert!(advice::now_iso().ends_with('Z'));
+}
+
+#[test]
+fn seuls_les_conseils_qui_proposent_un_geste_se_votent() {
+    let st = etat();
+    let rapport = calcule(None, &st).report;
+    let (cartes, oks) = split_cards(&rapport);
+    assert!(oks.iter().all(|f| !advice::can_vote(f)));
+    for f in &cartes {
+        assert_eq!(advice::can_vote(f), !f.actions.is_empty(), "{}", f.title);
+    }
+    assert!(
+        cartes.iter().any(advice::can_vote),
+        "au moins un conseil à voter sur ce log"
+    );
+}
+
+/// Le fragment analysé par la page (celui du log ouvert) et la bibliothèque de la fenêtre.
+fn fragment_ouvert(h: &Harness<'static, App>) -> Fragment {
+    let id = h.state().state.logs[0]
+        .fragment
+        .clone()
+        .expect("fragment rangé à l'ouverture");
+    h.state().library.fragment(&id).cloned().unwrap()
+}
+
+/// Ajoute au drone du log ouvert un vol de la même session, daté `date`, sur la seconde moitié du log.
+fn ajoute_un_vol(h: &mut Harness<'static, App>, id: &str, date: &str) {
+    let mut f = fragment_ouvert(h);
+    let milieu = (f.start + f.end) / 2;
+    f.id = id.into();
+    f.name = id.into();
+    f.date = date.into();
+    f.start = milieu;
+    h.state_mut().library.put_fragment(f);
+    attendre(h);
+}
+
+/// Le premier conseil à voter, dans l'ordre des cartes (celui du premier bouton « pouce » trouvé).
+fn premier_conseil(h: &Harness<'static, App>) -> Finding {
+    let out = calcule(None, &h.state().state);
+    split_cards(&out.report)
+        .0
+        .into_iter()
+        .find(advice::can_vote)
+        .expect("un conseil à voter")
+}
+
+const UP: &str = "Conseil appliqué : je l'ai réglé sur le drone";
+const DOWN: &str = "Conseil écarté : indiquer la raison";
+
+#[test]
+fn sans_vol_precedent_l_en_tete_le_dit() {
+    let mut h = banc(CLAIR);
+    h.run();
+    h.get_by_label("comparé à");
+    h.get_by_label("Vol comparé");
+    h.get_by_label(NO_COMPARE_META);
+    assert_eq!(h.get_by_label("Vol comparé").value().as_deref(), Some(NO_COMPARE));
+    assert!(
+        h.query_by_label("Fragment déjà traité").is_none(),
+        "le drone n'a pas volé depuis"
+    );
+}
+
+#[test]
+fn le_vol_precedent_du_drone_est_compare_sans_etre_ouvert() {
+    for theme in [CLAIR, SOMBRE] {
+        let mut h = banc(theme);
+        ajoute_un_vol(&mut h, "AVANT", "2000-01-01");
+        h.run();
+        // il n'est pas dans la liste d'analyse : le fil de calcul a lu son fichier
+        assert_eq!(h.state().state.logs.len(), 1);
+        h.get_by_label("vol précédent · 2000-01-01");
+        assert!(h.query_all_by_label_contains("AVANT").count() >= 1);
+        // au moins une jauge porte le repère du vol comparé
+        assert!(
+            h.query_all_by_label_contains("AVANT : ").count() >= 1,
+            "repère du vol comparé sous une jauge"
+        );
+        assert!(h.query_by_label_contains("analyse impossible").is_none());
+    }
+}
+
+#[test]
+fn un_pouce_leve_s_inscrit_tout_de_suite_et_un_second_clic_l_annule() {
+    let mut h = banc(CLAIR);
+    let frag = fragment_ouvert(&h).id;
+    let conseil = premier_conseil(&h);
+    h.get_all_by_label(UP).next().unwrap().scroll_to_me();
+    h.run_steps(3);
+    h.get_all_by_label(UP).next().unwrap().click();
+    h.run_steps(3);
+    let lib = &h.state().library;
+    let a = lib.advice(&frag, &card_id(&conseil)).expect("choix inscrit au clic");
+    assert!(a.applied);
+    assert_eq!(a.title, conseil.title);
+    let jour = advice::day_text(&a.when);
+    h.get_by_label(&format!("Appliqué le {jour}"));
+    h.get_by_label("· en attente du prochain vol");
+    h.get_all_by_label(UP).next().unwrap().click();
+    h.run_steps(3);
+    assert!(
+        h.state().library.advice_of(&frag).is_empty(),
+        "second clic : choix annulé"
+    );
+}
+
+#[test]
+fn un_pouce_baisse_n_inscrit_rien_sans_raison() {
+    let mut h = banc(CLAIR);
+    let frag = fragment_ouvert(&h).id;
+    let conseil = premier_conseil(&h);
+    h.get_all_by_label(DOWN).next().unwrap().scroll_to_me();
+    h.run_steps(3);
+    h.get_all_by_label(DOWN).next().unwrap().click();
+    h.run_steps(3);
+    assert!(
+        h.state().library.advice_of(&frag).is_empty(),
+        "rien avant « Enregistrer »"
+    );
+    assert!(
+        h.get_by_label("Enregistrer").accesskit_node().is_disabled(),
+        "raison vide"
+    );
+    // un clic passe le champ en saisie, puis le texte
+    let champ = || egui::accesskit::Role::MultilineTextInput;
+    h.get_by_role_and_label(champ(), REASON_QUESTION).click();
+    h.run_steps(2);
+    h.get_by_role_and_label(champ(), REASON_QUESTION)
+        .type_text("hélice abîmée");
+    h.run_steps(3);
+    h.get_by_label("Enregistrer").click();
+    h.run_steps(3);
+    let a = h
+        .state()
+        .library
+        .advice(&frag, &card_id(&conseil))
+        .expect("choix inscrit")
+        .clone();
+    assert!(!a.applied);
+    assert_eq!(a.reason, "hélice abîmée");
+    h.get_by_label("Raison : « hélice abîmée »");
+}
+
+#[test]
+fn un_fragment_deja_traite_montre_l_historique_de_ses_choix() {
+    let mut h = banc(CLAIR);
+    ajoute_un_vol(&mut h, "APRES", "2099-01-01");
+    h.run();
+    h.get_by_label("Fragment déjà traité");
+    h.get_by_label("· 1 vol plus récent : APRES");
+    h.get_by_label(NO_HISTORY);
+    h.get_all_by_label(UP).next().unwrap().scroll_to_me();
+    h.run_steps(3);
+    h.get_all_by_label(UP).next().unwrap().click();
+    h.run_steps(3);
+    assert!(h.query_by_label(NO_HISTORY).is_none());
+    // le vol daté après le jour du choix l'a pris en compte
+    h.get_by_label("Pris en compte par APRES");
+    h.get_by_label("· pris en compte par APRES");
 }
 
 // ------------------------------------------------------------------ Configuration : calcul pur

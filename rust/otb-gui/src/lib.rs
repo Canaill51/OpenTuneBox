@@ -1,6 +1,7 @@
 //! Interface egui d'OpenTuneBox (phase 6, D-035). Le calcul reste dans `otb-log`, `otb-analysis` et
 //! `otb-advisor` : cette crate n'affiche que ce qu'ils calculent.
 
+pub mod advice;
 pub mod analysis_bar;
 pub mod app;
 pub mod colormaps;

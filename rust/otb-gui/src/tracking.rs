@@ -336,14 +336,12 @@ pub fn charts_of(lib: &Library, drone_id: &str, targets: &[Option<f64>; 10]) -> 
     use otb_advisor::target::{ROWS, band, charted};
     use otb_advisor::tracked::{ALL_AXES, AXIS_KEYS, GAIN_MARGIN_DB, PHASE_MARGIN_DEG, STEP_WINDOWS};
 
-    let mut fragments: Vec<&Fragment> = lib
-        .fragments_of_drone(drone_id)
+    // l'ordre des vols de la bibliothèque : celui du « vol précédent » de l'assistant
+    let fragments: Vec<&Fragment> = lib
+        .flights_of_drone(drone_id)
         .into_iter()
         .filter(|f| lib.is_measured(f, CALC_VERSION))
         .collect();
-    let log_name = |f: &Fragment| lib.log(&f.log_id).map(|l| l.name.clone()).unwrap_or_default();
-    fragments
-        .sort_by(|a, b| (&a.date, log_name(a), a.session, a.start).cmp(&(&b.date, log_name(b), b.session, b.start)));
     let flights = fragments
         .iter()
         .map(|f| Flight {

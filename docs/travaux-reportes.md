@@ -75,8 +75,9 @@ Règles d'écriture :
 | W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
+| W-078 | Lignes CLI (`set …`) à copier sous chaque conseil de l'assistant (prototype) | ouvert (si Cédric les demande, D-073) |
 | W-077 | L'exemple `capture` échoue avec quatre logs du JeNo 5 (« second fragment posé » : 10 au lieu de 7) | ouvert |
-| W-076 | Assistant en cartes : sans comparaison avec un autre vol, sans votes ni historique des conseils, sans lignes CLI à copier (prototype) | ouvert (lot 31d, après le suivi des mesures, D-072) |
+| W-076 | ~~Assistant en cartes : sans comparaison avec un autre vol, sans votes ni historique des conseils, sans lignes CLI à copier (prototype)~~ | TRAITÉ le 2026-11-23 (lot 31d, D-073), sauf les lignes CLI : W-078 |
 | W-075 | Supprimer un drone laisse sur le disque les logs **copiés** dans la bibliothèque (récupérés par USB) : plus rien ne les désigne | ouvert (au lot 32b, quand la copie par USB existera à l'écran) |
 | W-074 | ~~Le Guide lit le rôle d'un log par fichier, pas par fragment : deux fragments d'une session aux rôles différents n'en montrent qu'un au Guide~~ | TRAITÉ le 2026-11-23 (lot 30g, D-071 : le rôle est lu sur le fragment ; le Guide ne vérifie que les fragments actifs) |
 | W-070 | ~~Maquette qui fait foi (D-061) absente du dépôt : aucune session ne peut vérifier un écran contre elle~~ | ✅ CLOS (2026-11-22) — retrouvée dans le canevas claude.ai de Cédric |
@@ -1224,6 +1225,8 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Reprise** : au lot 31d, après 31a à 31c (D-072, choix de Cédric le 2026-11-23) ; lignes CLI à copier si Cédric les
   demande (jamais envoyées au drone, D-063).
   [`rust/otb-gui/src/tools/advisor.rs:AdvisorTool`]
+  **✅ TRAITÉ le 2026-11-23** (lot 31d, D-073) : vol comparé (précédent par défaut) sur les jauges, badge du drone, pouces,
+  historique et bandeau « Fragment déjà traité ». Les lignes CLI restent de côté : W-078.
 
 ## Origine : graphiques du suivi (lot 31c, 2026-11-23)
 
@@ -1237,3 +1240,14 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   contourner l'exemple.
   **Reprise** : à la prochaine capture qui a besoin de plus de deux logs ; commencer par regarder ce que le clic sur
   « Enregistrer comme nouveau fragment » ajoute à `state.logs`. [`rust/otb-gui/examples/capture.rs`]
+
+## Origine : l'assistant d'un vol à l'autre (lot 31d, 2026-11-23)
+
+- **W-078** — **Lignes CLI à copier sous chaque conseil** (prototype : `set simplified_d_gain = 110`…), séparées de W-076
+  au lot 31d (D-073, choix de Cédric). Aujourd'hui les conseils disent le geste (« monter le D de 10 % ») sans la commande ;
+  `Finding::settings` ne nomme que les réglages cités, sans valeur.
+  **Pourquoi reporté** : il faut écrire la commande exacte de chaque conseil, règle par règle, à partir des valeurs du log, et
+  la relire constat par constat ; le lot 31d était déjà gros.
+  **Risque si on n'y touche pas** : le pilote recopie les valeurs conseillées dans le configurateur.
+  **Reprise** : si Cédric les demande ; lignes à copier, jamais envoyées au drone (D-063).
+  [`rust/otb-advisor/src/rules.rs:Finding`]

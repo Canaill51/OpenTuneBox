@@ -1273,7 +1273,11 @@ impl App {
             }
             Screen::Viewer => {} // dessiné plus haut, hors rail
             Screen::Tool(i) if i < self.pages.len() => {
+                self.pages[i].read_library(&self.library, &self.state);
                 self.pages[i].ui(ui, &mut self.state, &theme);
+                for edit in self.pages[i].take_library_edits() {
+                    edit.apply(&mut self.library);
+                }
                 goto = self.pages[i].take_goto();
                 space_goto = self.pages[i].take_space_goto();
                 export_page = self.pages[i].take_export();
