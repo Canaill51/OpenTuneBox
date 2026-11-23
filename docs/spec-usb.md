@@ -169,7 +169,7 @@ cargo run --release -p otb-dev -- usb sd /media/$USER/CARTE ~/Documents/Drones/u
       relue vaut 0.
 - [ ] Carte SD (dans un drone, `usb msc`, et dans un lecteur, `usb sd`) : logs `LOGS/*.BFL` trouvés, copiés et vérifiés ;
       `--erase` ne supprime qu'eux ; la carte se relit ensuite dans le drone (nouveau log enregistré).
-- [ ] **L'écran, mode disque** (lot 32c-2) : **Copier en mode disque** ; le disque est trouvé seul (sinon **Choisir le
+- [x] **L'écran, mode disque** (lot 32c-2, mémoire interne ; carte SD pas encore essayée) : **Copier en mode disque** ; le disque est trouvé seul (sinon **Choisir le
       dossier…**) ; les vols sont rangés sous le drone ; débrancher, rebrancher : OpenTuneBox se reconnecte seul et
       propose **Effacer la mémoire du drone…** ; après l'effacement, place relue à 0. Carte SD (drone ou lecteur) :
       **Supprimer N logs de la carte SD…**, puis la carte se relit dans le drone.
@@ -219,4 +219,8 @@ facultatifs (drone armé, port occupé) non relevés.
 **2026-11-23, Linux, même carte G474** — `usb msc` (lot 32c-1), par Cédric : la carte redémarre en mode stockage de
 masse, le disque apparaît **monté par le système, sous le nom du lecteur**, et la copie se fait. Débit non relevé ;
 `--erase` après rebranchement, Windows et **carte SD** pas encore essayés (aucune carte de vol à carte SD sous la main).
+
+**2026-11-23, Linux, même carte G474** — l'écran du mode disque (lot 32c-2), par Cédric : **Copier en mode disque**,
+disque trouvé, vols rangés, puis débranchement, rebranchement, reconnexion et effacement — **tout a fonctionné**, et la
+copie est **plus rapide qu'en USB série** (débit non relevé). Carte SD et Windows pas encore essayés.
 
