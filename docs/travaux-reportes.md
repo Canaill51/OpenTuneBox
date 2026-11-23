@@ -75,6 +75,7 @@ Règles d'écriture :
 | W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
+| W-080 | Contrôle par étage : le second vol de calibration (SVF, PT2, notch statique du gyro, notch du D) n'a jamais été fait | ouvert (aucun écart soupçonné sur ces filtres) |
 | W-079 | Carte à mémoire interne **et** carte SD : le mode disque montre le support de `blackbox_device`, que MSP ne lit pas ; OpenTuneBox suppose la mémoire quand elle contient des logs | ouvert (aucune carte de ce type vue) |
 | W-078 | Lignes CLI (`set …`) à copier sous chaque conseil de l'assistant (prototype) | ouvert (si Cédric les demande, D-073) |
 | W-077 | L'exemple `capture` échoue avec quatre logs du JeNo 5 (« second fragment posé » : 10 au lieu de 7) | ouvert |
@@ -1268,3 +1269,18 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Reprise** : quand un pilote a une telle carte ; lire `blackbox_device` par `MSP_BLACKBOX_CONFIG` (lecture seule, à
   ajouter à la liste fermée avec l'accord de Cédric).
   [`rust/otb-usb/src/msc.rs:reboot_to_disk`]
+
+## Origine : clôture du lot 22 (2026-11-23)
+
+- **W-080** — **Second vol de calibration des filtres jamais fait.** Le lot 22b prévoyait deux vols `GYRO_SAMPLE` : le
+  premier (LPF2, RPM, LPF1 de l'Air65) a été volé et passé dans le contrôle par étage ; le second, avec les types de filtres
+  que le premier n'emploie pas — BIQUAD (donc SVF en 2026.12), PT2, un notch statique du gyro, un notch du D — ne l'a pas été
+  ([validation.md](validation.md), lot 22b). Ces filtres sont rejoués d'après le firmware (`docs/spec-betaflight.md`) sans
+  avoir été isolés par un vol de calibration.
+  **Pourquoi reporté** : 22e n'en a pas eu besoin, et Cédric a clos le lot 22 sans lui.
+  **Risque si on n'y touche pas** : une erreur sur l'un de ces filtres fausserait la page Filtres et le bruit prévu par
+  l'assistant (D-059) pour les drones qui les emploient, sans qu'aucun test ne le voie.
+  **Reprise** : quand un drone de Cédric ou du corpus emploie l'un de ces filtres et qu'un écart est soupçonné, ou quand
+  Cédric vole ce second vol ; consigne : `debug_mode = GYRO_SAMPLE`, `gyro_filter_debug_axis = ROLL`,
+  `blackbox_sample_rate = 1/1`, mode angle, 10 s de stationnaire puis le chirp sur le roll, puis `otb-dev corpus stages`.
+  [`rust/otb-analysis/src/filter_stages.rs`]
