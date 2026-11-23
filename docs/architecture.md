@@ -46,6 +46,8 @@ fichier .bbl/.bfl
                  ├─ tuning_path.rs        parcours du guide : 4 phases de cases, état automatique d'après les logs
                  ├─ tracked.rs            mesures suivies dans le temps (lot 31) : grandeurs d'un fragment lues
                  │                        dans le rapport de l'assistant, version du calcul
+                 ├─ target.rs             fiche cible d'un drone (lot 31b) : dix cases, valeurs proposées = seuils
+                 │                        de l'assistant pour la taille
                  ├─ rust/otb-cli          opentunebox info / report
                  └─ rust/otb-gui/src/tools/*   une page par outil (calcul en arrière-plan, affichage egui_plot)
 ```
@@ -120,8 +122,10 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   précédent), suppression en deux temps. La partie sans fenêtre : choix proposés, traduction fiche ↔ fiche du Guide
   (`card_of`, `sheet_of_card` : la taille affichée choisit le profil de l'assistant), enregistrement (`save_form` : un nom
   n'appartient qu'à un drone), reprise de l'ancien `drones.json` au lancement (`import_old_file`). L'écran rend des
-  `SheetAction` que `App::apply_sheet` exécute. Sa section « Suivi des mesures » (lot 31a) dit où en est le calcul des
-  mesures du drone (`tracking_lines`, fonction pure).
+  `SheetAction` que `App::apply_sheet` exécute. Colonne de droite : la **Fiche cible** (lot 31b, D-072 ; `target_texts`,
+  `target_note`, `check_target`, sans fenêtre) — dix cases de `otb_advisor::target::ROWS` ; tant que `DroneSheet::target`
+  est `None`, elles montrent `proposed_values` pour la taille du formulaire, et la première case changée fige les dix ;
+  puis « Suivi des mesures » (lot 31a), qui dit où en est le calcul des mesures du drone (`tracking_lines`, fonction pure).
 - `tracking.rs` : les **mesures suivies dans le temps** (lot 31a, D-072). Quand la fiche d'un drone enregistré s'affiche,
   `Tracking::wish` fait lire la table des mesures **sur un autre fil** (D-064), puis mesure en arrière-plan, un par un, les
   fragments du drone sans mesure valable (un fichier décodé une fois, une session déjà ouverte jamais relue) ;
@@ -255,7 +259,7 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   simulée, et le second accès refusé). Dépendances : otb-decoder, otb-log, serial2 (BSD-2-Clause OR Apache-2.0).
 - **otb-analysis** : voir « Modules d'analyse » ; dépend d'otb-dsp et de rayon (L-041, L-042).
 - **otb-advisor** : l'assistant. `profiles.rs` (profils de taille et seuils), `rules.rs` (constats), `noise.rs`, `step_tuning.rs`,
-  `drone_card.rs`, `log_check.rs`, `tuning_path.rs` (voir « Flux de données »), `tracked.rs` (mesures suivies, D-072) ; `pyclasses.rs` : tables de caractères (`\d`, `\w`) qui
+  `drone_card.rs`, `log_check.rs`, `tuning_path.rs` (voir « Flux de données »), `tracked.rs` (mesures suivies, D-072), `target.rs` (fiche cible et valeurs proposées, D-072) ; `pyclasses.rs` : tables de caractères (`\d`, `\w`) qui
   reproduisent les classes d'expressions régulières de Python, nécessaires pour que les noms de drone se comparent comme avant.
 - **otb-cli** : binaire `opentunebox info` / `report` ; `lib.rs` produit le texte, `main.rs` l'écrit au fil de l'eau.
 - **otb-gui** : l'interface (voir « Interface ») ; `colormaps.rs` : palettes des cartes de fréquence (tables d'octets, licences en tête du fichier).

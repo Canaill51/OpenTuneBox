@@ -101,6 +101,10 @@ pub struct DroneSheet {
     /// tableau de bord les compte sans refaire une analyse par log. Le Guide, lui, les recalcule toujours.
     /// Absent des fichiers écrits avant le lot 30g : lu vide.
     pub verified: Vec<String>,
+    /// La fiche cible (D-072), case par case : (clé de `otb_advisor::target::ROWS`, texte saisi ; vide = pas de
+    /// cible). `None` : le pilote n'a rien changé, la fiche montre les **valeurs proposées** pour la taille, qui
+    /// suivent la taille et les seuils de l'assistant. Absente des fichiers écrits avant le lot 31b : lue `None`.
+    pub target: Option<Vec<(String, String)>>,
 }
 
 /// Une liste de clés de cases ; vide si le champ manque ou n'est pas une liste.
@@ -113,7 +117,7 @@ fn keys(v: &Value, field: &str) -> Vec<String> {
 
 impl DroneSheet {
     pub fn to_value(&self) -> Value {
-        object(vec![
+        let mut v = object(vec![
             ("taille", self.size.clone().into()),
             ("batterie", self.cells.clone().into()),
             ("poids", self.weight.clone().into()),
@@ -131,7 +135,13 @@ impl DroneSheet {
                 "cases_verifiees",
                 Value::Array(self.verified.iter().map(|k| Value::from(k.as_str())).collect()),
             ),
-        ])
+        ]);
+        // écrite seulement si le pilote l'a changée : une fiche sans cible garde le texte d'avant
+        if let (Some(t), Value::Object(m)) = (&self.target, &mut v) {
+            let cible: Map<String, Value> = t.iter().map(|(k, x)| (k.clone(), Value::from(x.as_str()))).collect();
+            m.insert("cible".to_string(), Value::Object(cible));
+        }
+        v
     }
 
     pub fn from_value(v: &Value) -> Self {
@@ -147,6 +157,11 @@ impl DroneSheet {
             pid_khz: text(v, "boucle_pid_khz"),
             done: keys(v, "cases"),
             verified: keys(v, "cases_verifiees"),
+            target: v.get("cible").and_then(Value::as_object).map(|m| {
+                m.iter()
+                    .map(|(k, x)| (k.clone(), x.as_str().unwrap_or("").to_string()))
+                    .collect()
+            }),
         }
     }
 }

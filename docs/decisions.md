@@ -174,11 +174,20 @@ prime » entre la cible du drone et le seuil de l'assistant (D-011), deux chiffr
   proposée** : la case reste vide jusqu'à ce que le pilote la remplisse, et le suivi trace la mesure sans bande.
 - **Le suivi est dans la fiche du drone**, sous la fiche cible ; pas de nouvelle entrée du rail.
 - **W-076** (comparaison avec le vol précédent, votes et historique des conseils) vient **après** : lot 31d.
+- **Précisé au lot 31b** (Cédric, 2026-11-23) : le **haut de la zone du pic** proposé est le seuil **sans** feedforward
+  (`STEP_PEAK_HIGH`, 1,20) — la fiche ne sait pas si le drone vole avec, le pilote qui en a la monte lui-même ; la latence
+  proposée est le haut de la plage habituelle du profil (`latency_ms.1`). Tant que le pilote n'a **rien changé**, rien
+  n'est enregistré (`DroneSheet::target` vaut `None`) : les cases **suivent** la taille et les seuils de l'assistant s'ils
+  sont recalibrés ; la première case changée fige les dix, et « Valeurs proposées » les remet à suivre. Le sous-titre du
+  prototype (« les jauges, le guide et le suivi s'y comparent ») devient « le suivi de ses vols s'y compare ; l'assistant
+  garde ses propres seuils ». Liste des cases et valeurs proposées : `rust/otb-advisor/src/target.rs:proposed`.
 
 **Options écartées.** La cible du drone à la place du seuil dans les jauges des cartes, comme le prototype : une carte
 pourrait alerter alors que sa jauge est dans la cible. Les valeurs du prototype : sans source (D-005, D-011). Calibrer sur le
 corpus les trois grandeurs sans seuil : un passage de calibration de plus pour des valeurs que le pilote fixe lui-même. Un
-écran « Suivi » dans le rail : un écart de plus avec le prototype (D-061).
+écran « Suivi » dans le rail : un écart de plus avec le prototype (D-061). Au lot 31b : des valeurs proposées **recopiées**
+à la création de la fiche, comme le prototype (elles cesseraient d'égaler les seuils dès un changement de taille ou une
+recalibration) ; le pic haut lu sur le dernier log (1,60 avec feedforward), qui changerait d'un vol à l'autre.
 
 **Témoins.** `rust/otb-advisor/tests/tracked.rs` (grandeurs identiques à celles du rapport, recalcul au bit près après
 fermeture de la bibliothèque) ; `rust/otb-gui/tests/tracking.rs` (calcul en arrière-plan, échec dit et pas relancé,

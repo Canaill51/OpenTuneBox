@@ -6,14 +6,19 @@
 //! l'ancien fichier des fiches, enregistrement), testé sans écran ; puis l'écran, au dessin du prototype
 //! (`docs/maquettes/Application.dc.html`, écran `droneEdit`), dont les mesures sont des constantes nommées.
 //!
-//! Écarts au prototype, écrits ici et dans D-068 (D-061 : un écart se justifie par écrit) :
-//! - **pas de « Fiche cible »** : elle arrive avec le suivi des mesures (lot 31), seul à s'en servir ; sa colonne
-//!   reste vide pour que la colonne de gauche garde la largeur du prototype ;
+//! Écarts au prototype, écrits ici et dans D-068 et D-072 (D-061 : un écart se justifie par écrit) :
+//! - **sous-titre de la « Fiche cible »** : le prototype dit que « les jauges, le guide et le suivi » s'y comparent ;
+//!   seul le suivi s'y compare, l'assistant garde ses seuils (D-072) ;
+//! - **note de la fiche cible** : elle dit aussi quand les valeurs ont été changées, et quand les seuils de la
+//!   taille sont encore provisoires (`CraftProfile::provisional`) ;
+//! - **« Suivi des mesures »** sous la fiche cible, dans la colonne de droite (D-072 ; absent du prototype) ;
 //! - **taille « 8″ et plus »** en plus des sept du prototype : l'assistant a un profil pour ces drones ;
 //! - **boucle PID à 1,6 kHz** en plus des cinq du prototype : la moitié d'un gyro BMI270, déjà proposée avant.
 
 use egui::{Align, Layout, RichText, Ui, Vec2};
 use otb_advisor::drone_card::{DEFAULT_SIZE, DroneCard};
+use otb_advisor::profiles::profile;
+use otb_advisor::target::{FILTERING, RESPONSE, ROWS, TargetRow, parse, proposed_values, shown};
 use otb_store::Library;
 use otb_store::model::{Config, Drone, DroneSheet, config_changes};
 
@@ -223,12 +228,63 @@ impl SheetForm {
     }
 }
 
+// ---------------------------------------------------------------- fiche cible (lot 31b, D-072)
+
+/// Les textes des dix cases de la fiche cible, dans l'ordre de `ROWS` : ceux que le pilote a saisis, ou, s'il n'a
+/// rien changé (`target` vide), les **valeurs proposées** pour la taille de la fiche — vides là où l'assistant n'a
+/// pas de seuil. Une clé absente d'une cible enregistrée se lit vide.
+pub fn target_texts(sheet: &DroneSheet) -> [String; 10] {
+    match &sheet.target {
+        Some(t) => ROWS.map(|r| {
+            t.iter()
+                .find(|(k, _)| k == r.key)
+                .map_or_else(String::new, |(_, v)| v.clone())
+        }),
+        None => {
+            let p = proposed_values(profile_of_size(&sheet.size));
+            let mut out: [String; 10] = Default::default();
+            for (i, r) in ROWS.iter().enumerate() {
+                out[i] = p[i].map_or_else(String::new, |x| shown(r, x));
+            }
+            out
+        }
+    }
+}
+
+/// La note sous les cases : d'où viennent les valeurs.
+pub fn target_note(sheet: &DroneSheet) -> String {
+    let taille = if sheet.size.is_empty() {
+        "par défaut"
+    } else {
+        sheet.size.as_str()
+    };
+    if sheet.target.is_some() {
+        return format!("Valeurs choisies pour ce drone ; « Valeurs proposées » reprend celles de la taille {taille}.");
+    }
+    let provisoire = profile(profile_of_size(&sheet.size)).is_some_and(|p| p.provisional);
+    format!(
+        "Valeurs proposées pour la taille {taille}{}, modifiables.",
+        if provisoire { " (seuils encore provisoires)" } else { "" }
+    )
+}
+
+/// Refuse une case de la fiche cible qui n'est pas un nombre (une case vide est permise : pas de cible).
+pub fn check_target(sheet: &DroneSheet) -> Result<(), String> {
+    for (r, t) in ROWS.iter().zip(target_texts(sheet)) {
+        if let Err(t) = parse(&t) {
+            return Err(format!("Fiche cible : « {} » n'est pas un nombre ({t}).", r.label));
+        }
+    }
+    Ok(())
+}
+
 /// Enregistre la fiche dans la bibliothèque ; rend l'identifiant du drone, ou pourquoi c'est refusé.
 ///
 /// ⚠️ Le **nom** relie les logs à la fiche (`craft_name`) : deux drones ne peuvent pas le partager, sinon les logs
 /// iraient au premier des deux. Un drone connu par ses seuls logs (sans fiche) **reçoit** la fiche d'un nouveau
 /// drone du même nom, plutôt que d'en faire un second.
 pub fn save_form(lib: &mut Library, form: &SheetForm) -> Result<String, String> {
+    check_target(&form.sheet)?;
     let name = form.saved_name();
     let same_name = lib.drone_by_name(&name).cloned();
     match &form.id {
@@ -398,19 +454,28 @@ impl DroneSheetPage {
                     ui.label(RichText::new(&form.error).color(th.accent("red")));
                 }
                 egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                    let largeur = ((ui.available_width() - GAP) * LEFT_SHARE).floor();
-                    ui.allocate_ui_with_layout(Vec2::new(largeur, 0.0), Layout::top_down(Align::LEFT), |ui| {
-                        ui.set_width(largeur);
-                        ui.spacing_mut().item_spacing.y = GAP;
-                        identity(ui, form, lib, th);
-                        machine(ui, form, th);
-                        configurations(ui, form, lib, th);
-                        if let Some(v) = suivi {
-                            tracking(ui, th, v);
-                        }
-                        if let Some(id) = form.id.clone() {
-                            delete(ui, form, lib, &id, th, &mut actions);
-                        }
+                    let gauche = ((ui.available_width() - GAP) * LEFT_SHARE).floor();
+                    let droite = (ui.available_width() - GAP - gauche).floor();
+                    ui.horizontal_top(|ui| {
+                        ui.spacing_mut().item_spacing.x = GAP;
+                        ui.allocate_ui_with_layout(Vec2::new(gauche, 0.0), Layout::top_down(Align::LEFT), |ui| {
+                            ui.set_width(gauche);
+                            ui.spacing_mut().item_spacing.y = GAP;
+                            identity(ui, form, lib, th);
+                            machine(ui, form, th);
+                            configurations(ui, form, lib, th);
+                            if let Some(id) = form.id.clone() {
+                                delete(ui, form, lib, &id, th, &mut actions);
+                            }
+                        });
+                        ui.allocate_ui_with_layout(Vec2::new(droite, 0.0), Layout::top_down(Align::LEFT), |ui| {
+                            ui.set_width(droite);
+                            ui.spacing_mut().item_spacing.y = GAP;
+                            target(ui, form, th);
+                            if let Some(v) = suivi {
+                                tracking(ui, th, v);
+                            }
+                        });
                     });
                 });
             });
@@ -756,6 +821,130 @@ pub fn tracking_lines(v: &TrackingView) -> Vec<String> {
         out.push(format!("Non mesuré : « {name} » — {why}"));
     }
     out
+}
+
+// mesures de la fiche cible relevées dans le prototype : libellé souple, signe sur 26, case de 96
+const TARGET_SIGN_W: f32 = 26.0;
+const TARGET_FIELD_W: f32 = 96.0;
+const TARGET_ROW: f32 = 13.0;
+const TARGET_UNIT: f32 = 12.0;
+const TARGET_GROUP: f32 = 11.0;
+const TARGET_NOTE: f32 = 12.5;
+pub const TARGET_SUBTITLE: &str =
+    "Ce que ce drone doit atteindre. Le suivi de ses vols s'y compare ; l'assistant garde ses propres seuils.";
+
+/// « Fiche cible » : dix cases en deux groupes, la note et « Valeurs proposées » (lot 31b, D-072). Tant que le pilote
+/// n'a rien changé, les cases montrent les valeurs proposées pour la taille choisie **dans le formulaire** (elles
+/// suivent donc la taille) ; la première case modifiée fige les dix.
+fn target(ui: &mut Ui, form: &mut SheetForm, th: &Theme) {
+    section(ui, th, "Fiche cible", Some(TARGET_SUBTITLE), |ui| {
+        let mut texts = target_texts(&form.sheet);
+        let mut changed = false;
+        for group in [RESPONSE, FILTERING] {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.label(
+                    RichText::new(group.to_uppercase())
+                        .size(TARGET_GROUP)
+                        .strong()
+                        .color(th.ui.muted),
+                );
+                for (row, text) in ROWS.iter().zip(texts.iter_mut()).filter(|(r, _)| r.group == group) {
+                    changed |= target_row(ui, th, row, text);
+                }
+            });
+        }
+        if changed {
+            form.sheet.target = Some(ROWS.iter().zip(texts).map(|(r, t)| (r.key.to_string(), t)).collect());
+        }
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 10.0;
+            let note = target_note(&form.sheet);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.spacing_mut().button_padding = Vec2::new(10.0, 5.0);
+                let b = egui::Button::new(RichText::new("Valeurs proposées").size(TARGET_NOTE).color(th.ui.text))
+                    .fill(th.ui.base)
+                    .stroke(egui::Stroke::new(1.0, th.ui.mid))
+                    .corner_radius(FIELD_RADIUS);
+                if ui.add(b).clicked() {
+                    form.sheet.target = None;
+                }
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    ui.add(egui::Label::new(RichText::new(note).size(TARGET_NOTE).color(th.ui.muted)).wrap());
+                });
+            });
+        });
+    });
+}
+
+/// Une case : libellé, signe (≤ ou ≥), saisie en chiffres de machine alignée à droite avec son unité. Rend `true`
+/// si le texte a changé.
+fn target_row(ui: &mut Ui, th: &Theme, row: &TargetRow, text: &mut String) -> bool {
+    let mut changed = false;
+    // une ligne : 4 points au-dessus et au-dessous, comme le `padding: 4px 0` du prototype
+    egui::Frame::new()
+        .inner_margin(egui::Margin::symmetric(0, 4))
+        .show(ui, |ui| {
+            ui.allocate_ui_with_layout(
+                Vec2::new(ui.available_width(), 0.0),
+                Layout::right_to_left(Align::Center),
+                |ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    let case = ui
+                        .allocate_ui_with_layout(
+                            Vec2::new(TARGET_FIELD_W, 0.0),
+                            Layout::left_to_right(Align::Center),
+                            |ui| {
+                                egui::Frame::new()
+                                    .fill(th.ui.base)
+                                    .stroke(egui::Stroke::new(1.0, th.ui.mid))
+                                    .corner_radius(FIELD_RADIUS)
+                                    .inner_margin(egui::Margin::symmetric(8, 6))
+                                    .show(ui, |ui| {
+                                        ui.set_width(TARGET_FIELD_W - 2.0 * 8.0 - 2.0);
+                                        // l'unité d'abord, depuis la droite : la saisie prend exactement le reste, et les dix
+                                        // cases gardent la même largeur quelle que soit leur unité
+                                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                            ui.spacing_mut().item_spacing.x = 4.0;
+                                            // la hauteur de la saisie d'abord : sans elle, l'unité, posée avant,
+                                            // se centre sur sa propre hauteur et reste en haut de la case
+                                            let mono = egui::FontId::monospace(MONO);
+                                            ui.set_min_height(ui.fonts_mut(|f| f.row_height(&mono)));
+                                            if !row.unit.is_empty() {
+                                                ui.label(RichText::new(row.unit).size(TARGET_UNIT).color(th.ui.muted));
+                                            }
+                                            ui.add(
+                                                egui::TextEdit::singleline(text)
+                                                    .id_salt(("fiche-cible", row.key))
+                                                    .frame(egui::Frame::NONE)
+                                                    .font(egui::FontId::monospace(MONO))
+                                                    .text_color(th.ui.text)
+                                                    .align(egui::Align2::RIGHT_CENTER)
+                                                    .desired_width(ui.available_width()),
+                                            )
+                                        })
+                                        .inner
+                                    })
+                                    .inner
+                            },
+                        )
+                        .inner;
+                    changed = case.changed();
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(TARGET_SIGN_W, case.rect.height()),
+                        Layout::right_to_left(Align::Center),
+                        |ui| ui.label(RichText::new(row.bound.sign()).size(TARGET_ROW).color(th.ui.muted)),
+                    );
+                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                        let l = ui.add(
+                            egui::Label::new(RichText::new(row.label).size(TARGET_ROW).color(th.ui.text)).truncate(),
+                        );
+                        case.labelled_by(l.id);
+                    });
+                },
+            );
+        });
+    changed
 }
 
 /// « Suivi des mesures » : l'état du calcul des grandeurs de chaque fragment (lot 31a).

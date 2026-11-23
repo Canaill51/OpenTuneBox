@@ -91,7 +91,12 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   carte de vol et son identifiant s'y liront au branchement USB, comme l'historique des **configurations** (`diff all`) :
   **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis **Supprimer
   définitivement** retire le drone, ses fragments et ses configurations du logiciel (vos fichiers de logs ne sont pas
-  effacés). La section **Suivi des mesures** dit où en sont les mesures du drone : à l'ouverture de la fiche, le
+  effacés). La **Fiche cible**, à droite, dit ce que ce drone doit atteindre : latence, zone du pic, temps de montée,
+  marges de phase et de gain, bruit du gyro et du terme D, retard des filtres. Tant que vous n'y touchez pas, elle
+  montre les seuils de l'Assistant pour la taille choisie (et les suit si vous changez la taille) ; une case sans seuil
+  dans l'Assistant reste vide, à vous de la remplir. Changez une case et la fiche garde vos valeurs ; **Valeurs
+  proposées** reprend celles de la taille. L'Assistant garde ses propres seuils : votre cible sert au suivi du drone.
+  Sous elle, la section **Suivi des mesures** dit où en sont les mesures du drone : à l'ouverture de la fiche, le
   logiciel mesure en arrière-plan chaque fragment qui ne l'est pas encore (latence, pic, temps de montée, marges, bruit
   du gyro et du terme D, retard des filtres — les chiffres de l'Assistant) et les garde pour suivre le drone d'un vol à
   l'autre. Un fragment dont le log a été déplacé ou supprimé est signalé avec la raison. Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier

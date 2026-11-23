@@ -10,5 +10,6 @@ pub mod profiles;
 mod pyclasses;
 pub mod rules;
 pub mod step_tuning;
+pub mod target;
 pub mod tracked;
 pub mod tuning_path;

@@ -104,6 +104,12 @@ est celle du commit qui les a introduites.
   l'exemple `capture`.
 - **Preuve** — `rust/otb-gui/tests/guide.rs` (`creer_modifier_recommencer_et_supprimer_une_fiche`) : rouge sans
   `scroll_to_me`, vert avec.
+- **⚠️ RÉCIDIVE le 2026-11-23** (lot 31b) — même écran : « Valeurs proposées », en bas de la fiche cible, cliqué sans
+  `scroll_to_me` ; cette fois le clic « passe » et c'est l'assertion **d'après** qui échoue (l'écran ne s'est pas fermé),
+  ce qui a fait chercher la cause dans le code de la fiche pendant trois allers-retours. Règle précisée : **tout** clic de
+  test sur la fiche du drone (plus haute que le banc de 800 points) passe d'abord par `scroll_to_me`, et tout échec qui
+  suit un clic « réussi » fait d'abord vérifier que le widget était dans la zone visible. Preuve :
+  `rust/otb-gui/tests/drone_sheet.rs` (`la_fiche_cible_se_change_a_l_ecran`).
 
 ### L-113 : une substitution Perl ou sed dont le délimiteur apparaît dans le texte écrit au mauvais endroit, sans erreur
 
