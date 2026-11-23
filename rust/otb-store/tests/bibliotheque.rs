@@ -790,3 +790,97 @@ fn une_mesure_relue_est_identique_au_dernier_bit() {
         assert_eq!(lu.to_bits(), v.to_bits(), "{v:e} relue {lu:e}");
     }
 }
+
+// ---------------------------------------------------------------- choix sur les conseils (lot 31d)
+
+fn choix(fragment: &str, carte: &str, applique: bool, raison: &str) -> otb_store::model::Advice {
+    otb_store::model::Advice {
+        fragment_id: fragment.to_string(),
+        card: carte.to_string(),
+        title: format!("Titre de {carte}"),
+        applied: applique,
+        reason: raison.to_string(),
+        when: "2026-11-23T17:26:00Z".to_string(),
+    }
+}
+
+#[test]
+fn les_choix_sur_les_conseils_se_retrouvent_et_un_par_carte() {
+    let dir = dossier("conseils");
+    let mut lib = Library::open(dir.clone());
+    lib.add_log(log("l1", "d1", "FINAL"));
+    lib.put_fragment(fragment("f1", "l1", (0, 1000), "2026-11-20"));
+    lib.set_advice(choix("f1", "step_latency|Roll", true, ""));
+    lib.set_advice(choix("f1", "dterm_noise|", false, "hélice abîmée"));
+    // un second choix sur la même carte remplace le premier
+    lib.set_advice(choix("f1", "step_latency|Roll", false, "déjà essayé"));
+    lib.save().unwrap();
+    let relue = Library::open(dir);
+    assert!(relue.problems().is_empty(), "{:?}", relue.problems());
+    let tous = relue.advice_of("f1");
+    assert_eq!(tous.len(), 2);
+    let a = relue.advice("f1", "step_latency|Roll").expect("choix relu");
+    assert!(!a.applied);
+    assert_eq!(a.reason, "déjà essayé");
+    assert_eq!(a.title, "Titre de step_latency|Roll");
+    assert_eq!(a.when, "2026-11-23T17:26:00Z");
+    assert_eq!(relue.advice("f1", "dterm_noise|").unwrap().reason, "hélice abîmée");
+}
+
+#[test]
+fn annuler_un_choix_ou_supprimer_son_fragment_le_retire() {
+    let mut lib = Library::in_memory();
+    lib.add_log(log("l1", "d1", "FINAL"));
+    lib.put_fragment(fragment("f1", "l1", (0, 1000), "2026-11-20"));
+    lib.put_fragment(fragment("f2", "l1", (1000, 2000), "2026-11-20"));
+    lib.set_advice(choix("f1", "a|", true, ""));
+    lib.set_advice(choix("f2", "a|", true, ""));
+    assert!(lib.remove_advice("f1", "a|"));
+    assert!(!lib.remove_advice("f1", "a|"), "rien à annuler une seconde fois");
+    lib.set_advice(choix("f1", "a|", true, ""));
+    // déplacer un fragment garde ses choix : c'est le souvenir d'un geste fait sur le drone
+    let mut f1 = lib.fragment("f1").unwrap().clone();
+    f1.start = 10;
+    lib.put_fragment(f1);
+    assert!(lib.advice("f1", "a|").is_some());
+    lib.remove_fragment("f1");
+    assert!(
+        lib.advice_of("f1").is_empty(),
+        "un choix ne doit pas survivre à son fragment"
+    );
+    // Contre-preuve : sans `self.advice.retain` dans `remove_fragment`, l'assertion ci-dessus échoue.
+    assert_eq!(lib.advice_of("f2").len(), 1);
+    lib.remove_drone("d1");
+    assert!(lib.advice_of("f2").is_empty());
+}
+
+#[test]
+fn un_choix_illisible_est_saute_sans_perdre_les_autres() {
+    let dir = dossier("conseils-abimes");
+    std::fs::write(
+        dir.join("conseils.json"),
+        r#"{"version": 1, "items": [
+            {"fragment": "f1", "carte": "a|", "choix": "peut-etre"},
+            {"fragment": "f1", "carte": "b|", "choix": "applique", "le": "2026-11-23T10:00:00Z"}
+        ]}"#,
+    )
+    .unwrap();
+    let lib = Library::open(dir);
+    assert_eq!(lib.advice_of("f1").len(), 1);
+    assert_eq!(lib.problems().len(), 1, "{:?}", lib.problems());
+}
+
+#[test]
+fn les_vols_dun_drone_se_rangent_par_date_puis_log_session_et_debut() {
+    let mut lib = Library::in_memory();
+    lib.add_log(log("lb", "d1", "B"));
+    lib.add_log(log("la", "d1", "A"));
+    lib.add_log(log("lx", "d2", "X"));
+    lib.put_fragment(fragment("tard", "la", (0, 10), "2026-11-21"));
+    lib.put_fragment(fragment("b", "lb", (0, 10), "2026-11-20"));
+    lib.put_fragment(fragment("a-fin", "la", (500, 900), "2026-11-20"));
+    lib.put_fragment(fragment("a-debut", "la", (0, 400), "2026-11-20"));
+    lib.put_fragment(fragment("autre-drone", "lx", (0, 10), "2026-11-19"));
+    let ids: Vec<&str> = lib.flights_of_drone("d1").iter().map(|f| f.id.as_str()).collect();
+    assert_eq!(ids, ["a-debut", "a-fin", "b", "tard"]);
+}

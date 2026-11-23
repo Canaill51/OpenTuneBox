@@ -8,6 +8,8 @@ use std::sync::Arc;
 
 use egui::{Color32, RichText, Ui};
 use otb_log::flightlog::FlightLog;
+use otb_store::Library;
+use otb_store::model::Advice;
 
 use crate::state::{AppState, Cache, NoiseSignal};
 use crate::theme::Theme;
@@ -20,6 +22,8 @@ pub struct LogInput {
     pub log: Arc<FlightLog>,
     /// Identifiant du chargement (`LoadedLog::uid`) : à préférer à l'adresse du log pour reconnaître un log (L-072).
     pub uid: u64,
+    /// Fragment de la bibliothèque que ce log montre (`LoadedLog::fragment`).
+    pub fragment: Option<String>,
     pub period: (f64, f64),
     pub label: String,
     pub color: Color32,
@@ -36,12 +40,34 @@ impl AppState {
             .map(|l| LogInput {
                 log: l.log.clone(),
                 uid: l.uid,
+                fragment: l.fragment.clone(),
                 period: l.period,
                 label: l.label.clone(),
                 color: l.color,
                 cache: l.extras.clone(),
             })
             .collect()
+    }
+}
+
+/// Un changement de la bibliothèque demandé par une page (`take_library_edits`) : la fenêtre, seule propriétaire de
+/// la bibliothèque, l'applique après l'affichage.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LibraryEdit {
+    /// Inscrit le choix du pilote sur un conseil (il remplace celui de la même carte).
+    SetAdvice(Advice),
+    /// Annule le choix fait sur la carte `card` du fragment `fragment`.
+    RemoveAdvice { fragment: String, card: String },
+}
+
+impl LibraryEdit {
+    pub fn apply(self, lib: &mut Library) {
+        match self {
+            LibraryEdit::SetAdvice(a) => lib.set_advice(a),
+            LibraryEdit::RemoveAdvice { fragment, card } => {
+                lib.remove_advice(&fragment, &card);
+            }
+        }
     }
 }
 
@@ -76,6 +102,14 @@ pub trait Tool {
     /// Plusieurs outils d'un même espace n'y font qu'**une** entrée.
     const SPACE: Option<&'static str> = None;
 
+    /// Lit dans la bibliothèque ce que l'outil affiche ou dont ses réglages dépendent (le vol auquel l'assistant
+    /// compare), juste avant son affichage. La bibliothèque appartient à la fenêtre : l'outil n'en garde qu'une copie
+    /// de ce qu'il lui faut. Rien par défaut.
+    fn read_library(&mut self, _lib: &Library, _state: &AppState) {}
+    /// Changements de la bibliothèque demandés pendant le dernier affichage ; la fenêtre les applique. Aucun par défaut.
+    fn take_library_edits(&mut self) -> Vec<LibraryEdit> {
+        Vec::new()
+    }
     /// Copie les réglages de l'interface (appelé dans le thread de l'interface).
     fn options(&self) -> Self::Options;
     /// Indices des logs à analyser.
@@ -148,6 +182,12 @@ pub trait Page {
     /// Le bouton « Exporter image » a été cliqué pendant le dernier affichage : la fenêtre exporte alors toute la page.
     fn take_export(&mut self) -> bool {
         false
+    }
+    /// Voir `Tool::read_library` ; la fenêtre l'appelle juste avant `ui`.
+    fn read_library(&mut self, _lib: &Library, _state: &AppState) {}
+    /// Voir `Tool::take_library_edits` ; la fenêtre les applique juste après `ui`.
+    fn take_library_edits(&mut self) -> Vec<LibraryEdit> {
+        Vec::new()
     }
     fn ui(&mut self, ui: &mut Ui, state: &mut AppState, theme: &Theme);
 }
@@ -320,6 +360,14 @@ impl<T: Tool> Page for ToolPage<T> {
 
     fn take_export(&mut self) -> bool {
         std::mem::take(&mut self.export)
+    }
+
+    fn read_library(&mut self, lib: &Library, state: &AppState) {
+        self.tool.read_library(lib, state);
+    }
+
+    fn take_library_edits(&mut self) -> Vec<LibraryEdit> {
+        self.tool.take_library_edits()
     }
 
     fn ui(&mut self, ui: &mut Ui, state: &mut AppState, theme: &Theme) {

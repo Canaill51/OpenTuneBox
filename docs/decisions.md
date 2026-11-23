@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-073 | **L'assistant d'un vol à l'autre** : vol comparé = vol précédent du drone (ou choisi), repère du même constat sur chaque jauge, cartes nouvelles et disparues, pas de « drones de même taille » ; pouce levé (appliqué) inscrit au clic, pouce baissé avec sa raison, dans la bibliothèque ; « Fragment déjà traité » et son historique ; pas de lignes CLI (W-078) | 2026-11-23 |
 | D-072 | **Mesures suivies dans le temps** : dix grandeurs par fragment lues dans le rapport de l'assistant (jamais un second calcul), gardées avec les bornes du fragment et la version du calcul, mesurées en arrière-plan à l'ouverture de la fiche du drone ; la cible du drone part des seuils de l'assistant, une case sans seuil reste vide, l'assistant garde ses seuils ; le suivi est dans la fiche du drone | 2026-11-23 |
 | D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
 | D-070 | **L'assistant en cartes, et la mesure contre son seuil en jauge** : une carte par constat triée par gravité, les « info » et les vérifications OK repliées ; un constat qui compare **une** mesure à **un** seul seuil porte une jauge (`Gauge`), hors des références Python ; le bouton « Appliquer » du prototype n'est pas repris (D-063 gardée) | 2026-11-23 |
@@ -142,6 +143,57 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-23 — L'assistant d'un vol à l'autre (lot 31d)
+
+### D-073 : l'assistant compare au vol précédent sur ses jauges, et les choix du pilote s'inscrivent au clic
+
+**Tranché par Cédric** le 2026-11-23, au début du lot 31d (W-076) : les quatre questions de la phase « planifier ».
+
+**Contexte.** Le prototype ajoute aux cartes de l'assistant un menu « comparé à », un badge du drone, un pouce levé ou
+baissé par conseil, un historique « appliqué / écarté » et le bandeau « Fragment déjà traité » (D-070 les avait reportés
+au lot 31). Il ne dit pas ce que la comparaison change aux cartes, et ses votes partent avec le bouton « Appliquer », refusé
+par D-063.
+
+**Décision.**
+- **Le vol comparé** est par défaut le **vol précédent du drone**, dans l'ordre des vols du suivi
+  (`rust/otb-store/src/lib.rs:Library::flights_of_drone` : date, nom du log, session, début), qu'il soit ouvert ou non ; le
+  menu choisit un autre vol du drone ou un fragment de la liste d'analyse. Le choix se perd quand le fragment analysé change.
+  Son rapport se calcule **avec le profil du fragment analysé** (mêmes seuils, donc mêmes cartes), sur le fil de calcul de la
+  page, sur le log ouvert s'il l'est, sinon en lisant son fichier.
+- **Ce que la comparaison montre** (`rust/otb-gui/src/advice.rs:compare_cards`) : sur chaque jauge, un **repère creux** et la
+  valeur du **même constat** (clé et axe, D-028) dans le rapport du vol comparé — jamais un second calcul de la mesure (D-070),
+  et rien si l'unité diffère ; « NOUVEAU » sur une carte absente du vol comparé ; une ligne « Plus signalé depuis … » pour
+  ses cartes disparues. Les vérifications OK ne se comparent pas.
+- **Pas de « drones de même taille »** : sans vol précédent, l'en-tête dit « Aucun vol à comparer — pas de vol précédent pour
+  ce drone ». Les seuils de l'assistant viennent déjà des drones de même taille.
+- **Les votes s'inscrivent au clic** (`rust/otb-store/src/model.rs:Advice`, table `conseils.json`) : pouce levé = conseil
+  **appliqué** à la main sur le drone, inscrit tout de suite avec l'instant (ISO, temps universel) ; pouce baissé = conseil
+  **écarté**, inscrit seulement avec sa raison (« Enregistrer » refusé sans elle). Un second clic sur le pouce enfoncé annule.
+  Un choix par carte et par fragment ; il suit le fragment s'il est supprimé, reste si ses bornes changent (c'est un geste
+  fait sur le drone, pas une mesure). Seuls les conseils qui proposent un geste se votent (`can_vote`).
+- **La bibliothèque reste à la fenêtre** : la page la lit avant son affichage (`Tool::read_library`) et rend ses changements
+  (`Tool::take_library_edits`), que `App` applique.
+- **« Fragment déjà traité »** quand le drone a des vols rangés après le fragment, avec ses choix ; un conseil appliqué est
+  « pris en compte » par le premier vol suivant **daté du jour du choix ou après** (`taken_by`). Limite assumée : la date d'un
+  vol est au jour près, un vol du même jour fait avant le choix compte aussi. Les dates s'affichent au jour (l'heure, en
+  temps universel, serait fausse d'une ou deux heures en France).
+- **Lignes CLI** (`set …` par conseil) : **pas dans ce lot** (W-078).
+
+**Écarts avec le prototype, voulus.** Pas de bouton « Appliquer » ni d'envoi au drone (D-063) : le pouce levé dit « je l'ai
+réglé », il n'envoie rien. Pas d'état « en attente d'envoi ». Les pouces sont sur les conseils qui ont un geste, pas sur ceux
+qui ont des lignes CLI (il n'y en a pas). Heure du choix non affichée.
+
+**Options écartées.** Les écarts chiffrés lus dans la table des mesures suivies (22 grandeurs seulement, et ni carte nouvelle
+ni carte disparue) ; le nom du vol comparé dans l'en-tête seul (sans effet sur les cartes) ; « Drones de même taille »
+(doublon des seuils) ; des votes en attente inscrits par un bouton « Inscrire à l'historique (N) ».
+
+**Témoins.** `rust/otb-store/tests/bibliotheque.rs` (4 tests) et `rust/otb-gui/tests/filter_tools.rs` (9 tests : 4 purs, 5 de
+la page), avec **5 contre-preuves vues en échec** (L-071) : choix gardé après la suppression de son fragment, vols non rangés,
+unité de la jauge non vérifiée, vol « pris en compte » sans la date du choix, « Enregistrer » sans raison. Captures des deux
+thèmes sur `FINAL.bbl` et `LAST.bbl` du JeNo 5.
 
 ---
 
@@ -302,7 +354,7 @@ en échec** (L-071) : sans le tri, une info ouverte au départ (calcul et écran
 d'alerte vide, un sigle mis en minuscules, une carte reconnue par son titre, la jauge non bornée, l'échelle en décibels
 non centrée. Captures des deux thèmes ; 0,4 ms par cadre (`--example capture`, `FINAL.bbl`).
 
-**Ouvert.** W-076.
+**Ouvert.** W-076 (traité au lot 31d, D-073, sauf les lignes CLI : W-078).
 
 ### D-069 : un seul choix « Gyro | Terme D » et des axes partagés pour l'espace « Bruit et filtres »
 

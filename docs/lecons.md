@@ -110,6 +110,11 @@ est celle du commit qui les a introduites.
   test sur la fiche du drone (plus haute que le banc de 800 points) passe d'abord par `scroll_to_me`, et tout échec qui
   suit un clic « réussi » fait d'abord vérifier que le widget était dans la zone visible. Preuve :
   `rust/otb-gui/tests/drone_sheet.rs` (`la_fiche_cible_se_change_a_l_ecran`).
+- **⚠️ RÉCIDIVE le 2026-11-23** (lot 31d) — page Assistant, dans un exemple de capture jetable : « Enregistrer » (la raison
+  d'un conseil écarté) cliqué sans `scroll_to_me` ; rien d'inscrit, l'image montrait encore la raison en cours d'écriture.
+  Les tests de la page le font (`rust/otb-gui/tests/filter_tools.rs`, `un_pouce_baisse_n_inscrit_rien_sans_raison`).
+  Deuxième récidive : contrôle automatique proposé à Cédric (une aide de test qui fait défiler puis clique, à la place de
+  `click()` nu).
 
 ### L-113 : une substitution Perl ou sed dont le délimiteur apparaît dans le texte écrit au mauvais endroit, sans erreur
 

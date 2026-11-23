@@ -1,4 +1,4 @@
-//! Les six tables de la bibliothèque et leur écriture en JSON.
+//! Les sept tables de la bibliothèque et leur écriture en JSON.
 //!
 //! Conversion **à la main** (`to_value` / `from_value`), comme les fiches drone de
 //! `rust/otb-gui/src/guide.rs` : aucune dérive, donc aucune dépendance de plus, et une lecture **tolérante** —
@@ -444,6 +444,58 @@ impl Measure {
             end: number(v, "fin"),
             settings: text(v, "reglages"),
             calc_version: number(v, "version_calcul"),
+        })
+    }
+}
+
+// ---------------------------------------------------------------- choix sur les conseils
+
+/// Le choix du pilote sur un conseil de l'assistant (lot 31d, D-073) : **appliqué** (il a changé le réglage à la
+/// main, dans le configurateur), ou **écarté** avec sa raison. Il s'inscrit au clic ; un choix par carte et par
+/// fragment.
+///
+/// Il reste attaché au fragment même si ses bornes changent ensuite : c'est le souvenir d'un geste fait sur le
+/// drone, pas une mesure qui deviendrait fausse.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Advice {
+    pub fragment_id: String,
+    /// La carte : clé du constat et son axe (`card_id` de la page Assistant), jamais son titre (D-028).
+    pub card: String,
+    /// Titre du constat au moment du choix : l'historique le montre même si le constat a disparu depuis.
+    pub title: String,
+    /// `true` : appliqué ; `false` : écarté.
+    pub applied: bool,
+    /// Raison d'un conseil écarté (vide pour un conseil appliqué).
+    pub reason: String,
+    /// Date et heure du choix, ISO 8601 en temps universel (`AAAA-MM-JJTHH:MM:SSZ`), fournies par l'appelant.
+    pub when: String,
+}
+
+impl Advice {
+    pub fn to_value(&self) -> Value {
+        object(vec![
+            ("fragment", self.fragment_id.clone().into()),
+            ("carte", self.card.clone().into()),
+            ("titre", self.title.clone().into()),
+            ("choix", if self.applied { "applique" } else { "ecarte" }.into()),
+            ("raison", self.reason.clone().into()),
+            ("le", self.when.clone().into()),
+        ])
+    }
+
+    pub fn from_value(v: &Value) -> Result<Self, String> {
+        let applied = match text(v, "choix").as_str() {
+            "applique" => true,
+            "ecarte" => false,
+            autre => return Err(format!("choix inconnu « {autre} »")),
+        };
+        Ok(Advice {
+            fragment_id: required(v, "fragment")?,
+            card: required(v, "carte")?,
+            title: text(v, "titre"),
+            applied,
+            reason: text(v, "raison"),
+            when: text(v, "le"),
         })
     }
 }

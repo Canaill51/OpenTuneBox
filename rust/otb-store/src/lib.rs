@@ -1,5 +1,5 @@
 //! La bibliothèque de données d'OpenTuneBox : drones, logs connus (copiés ou non), fragments de vol, historique
-//! des `diff all` et mesures suivies dans le temps.
+//! des `diff all`, mesures suivies dans le temps et choix du pilote sur les conseils de l'assistant.
 //!
 //! **Un seul module d'accès** (lot 28 de `docs/plan.md`) : le reste du programme appelle des fonctions de lecture
 //! et d'écriture, et ne voit **jamais** un fichier ni un chemin de la bibliothèque. C'est ce qui rendra le
@@ -20,7 +20,7 @@
 pub mod link;
 pub mod model;
 
-use model::{Analysis, AnalysisItem, Config, Drone, FORMAT_VERSION, Fragment, LogEntry, Measure};
+use model::{Advice, Analysis, AnalysisItem, Config, Drone, FORMAT_VERSION, Fragment, LogEntry, Measure};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -40,6 +40,7 @@ const FRAGMENTS: &str = "fragments.json";
 const CONFIGS: &str = "configurations.json";
 const MEASURES: &str = "mesures.json";
 const ANALYSIS: &str = "analyse.json";
+const ADVICE: &str = "conseils.json";
 
 /// Sous-dossier des logs **copiés** (ceux récupérés par USB : la carte est vidée ensuite, donc la copie est la
 /// seule trace). Les logs que l'utilisateur ouvre lui-même restent où ils sont, et la bibliothèque n'écrit jamais
@@ -108,7 +109,7 @@ fn free_name(path: &Path, suffix: &str) -> PathBuf {
     first
 }
 
-/// La bibliothèque : les six tables en mémoire, et le dossier où elles s'écrivent.
+/// La bibliothèque : les sept tables en mémoire, et le dossier où elles s'écrivent.
 ///
 /// `Library::in_memory()` n'a pas de dossier : `save` ne fait rien. Les bancs de test l'emploient pour ne
 /// **jamais** écrire la vraie bibliothèque de l'utilisateur.
@@ -130,6 +131,8 @@ pub struct Library {
     /// de l'interface (toutes les 30 s) réécrirait les 8 Mo de la table au volume plein, sur le fil de l'écran.
     measures_dirty: bool,
     analysis: Analysis,
+    /// Les choix du pilote sur les conseils (lot 31d).
+    advice: Vec<Advice>,
     problems: Vec<String>,
     /// Changements de la table des drones depuis l'ouverture (`drones_revision`).
     drones_rev: u64,
@@ -263,6 +266,7 @@ impl Library {
         lib.logs = lib.read_items(LOGS, LogEntry::from_value);
         lib.fragments = lib.read_items(FRAGMENTS, Fragment::from_value);
         lib.configs = lib.read_items(CONFIGS, Config::from_value);
+        lib.advice = lib.read_items(ADVICE, Advice::from_value);
         let items = lib.read_items(ANALYSIS, AnalysisItem::from_value);
         lib.analysis = Analysis {
             items,
@@ -324,7 +328,7 @@ impl Library {
 
     // ------------------------------------------------------------ écriture
 
-    /// Écrit les six fichiers. Un fichier illisible ou plus récent est d'abord **mis de côté**, jamais écrasé.
+    /// Écrit les sept fichiers. Un fichier illisible ou plus récent est d'abord **mis de côté**, jamais écrasé.
     /// Ne fait rien pour une bibliothèque en mémoire.
     pub fn save(&mut self) -> io::Result<()> {
         let Some(dir) = self.dir.clone() else {
@@ -362,6 +366,7 @@ impl Library {
             (CONFIGS, table(self.configs.iter().map(Config::to_value).collect())),
             (MEASURES, table(self.measures.values().map(Measure::to_value).collect())),
             (ANALYSIS, Value::Object(analysis)),
+            (ADVICE, table(self.advice.iter().map(Advice::to_value).collect())),
         ];
         for (name, value) in files {
             if name == MEASURES && !(self.measures_loaded && self.measures_dirty) {
@@ -412,8 +417,8 @@ impl Library {
         self.drones_rev
     }
 
-    /// Supprime un drone et **tout ce qui le désigne** : ses logs connus, leurs fragments (avec leurs mesures et
-    /// leur place dans la liste d'analyse) et ses configurations. Rend les identifiants des fragments retirés,
+    /// Supprime un drone et **tout ce qui le désigne** : ses logs connus, leurs fragments (avec leurs mesures, leur
+    /// place dans la liste d'analyse et les choix faits sur leurs conseils) et ses configurations. Rend les identifiants des fragments retirés,
     /// pour que l'appelant ferme ce qui les affiche.
     ///
     /// ⚠️ Les fichiers de logs **copiés** dans la bibliothèque restent sur le disque : on n'efface jamais un vol
@@ -488,7 +493,7 @@ impl Library {
         self.fragments.iter().find(|f| f.id == id)
     }
 
-    /// Supprime un fragment, **avec ses mesures et sa place dans la liste d'analyse** : rien ne doit plus désigner
+    /// Supprime un fragment, **avec ses mesures, sa place dans la liste d'analyse et les choix faits sur ses conseils** : rien ne doit plus désigner
     /// un fragment absent (une mesure orpheline ressortirait dans l'historique, une entrée de liste rouvrirait un
     /// fantôme au lancement). `false` s'il n'existait pas.
     pub fn remove_fragment(&mut self, id: &str) -> bool {
@@ -499,6 +504,7 @@ impl Library {
         }
         self.drop_measures_of_fragment(id);
         self.remove_from_analysis(id);
+        self.advice.retain(|a| a.fragment_id != id);
         true
     }
 
@@ -508,6 +514,52 @@ impl Library {
             .iter()
             .filter(|f| self.log(&f.log_id).is_some_and(|l| l.drone_id == drone_id))
             .collect()
+    }
+
+    /// Les fragments d'un drone **dans l'ordre de ses vols** : par date, puis par nom de log, session et début (la
+    /// date d'un fichier est au jour près). C'est l'ordre des numéros de vol du suivi et celui du « vol précédent »
+    /// de l'assistant : les deux doivent dire la même chose.
+    pub fn flights_of_drone(&self, drone_id: &str) -> Vec<&Fragment> {
+        let mut fragments = self.fragments_of_drone(drone_id);
+        let log_name = |f: &Fragment| self.log(&f.log_id).map(|l| l.name.as_str()).unwrap_or("");
+        fragments.sort_by(|a, b| {
+            (&a.date, log_name(a), a.session, a.start).cmp(&(&b.date, log_name(b), b.session, b.start))
+        });
+        fragments
+    }
+
+    // ------------------------------------------------------------ choix sur les conseils
+
+    /// Les choix faits sur les conseils d'un fragment, dans l'ordre où ils ont été faits.
+    pub fn advice_of(&self, fragment_id: &str) -> Vec<&Advice> {
+        self.advice.iter().filter(|a| a.fragment_id == fragment_id).collect()
+    }
+
+    /// Le choix fait sur la carte `card` du fragment, s'il y en a un.
+    pub fn advice(&self, fragment_id: &str, card: &str) -> Option<&Advice> {
+        self.advice
+            .iter()
+            .find(|a| a.fragment_id == fragment_id && a.card == card)
+    }
+
+    /// Inscrit un choix ; il **remplace** celui de la même carte du même fragment (un seul choix par carte).
+    pub fn set_advice(&mut self, advice: Advice) {
+        match self
+            .advice
+            .iter_mut()
+            .find(|a| a.fragment_id == advice.fragment_id && a.card == advice.card)
+        {
+            Some(slot) => *slot = advice,
+            None => self.advice.push(advice),
+        }
+    }
+
+    /// Annule le choix fait sur une carte. `false` s'il n'y en avait pas.
+    pub fn remove_advice(&mut self, fragment_id: &str, card: &str) -> bool {
+        let before = self.advice.len();
+        self.advice
+            .retain(|a| !(a.fragment_id == fragment_id && a.card == card));
+        before != self.advice.len()
     }
 
     // ------------------------------------------------------------ configurations

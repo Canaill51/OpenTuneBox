@@ -308,6 +308,20 @@ le feedforward en mode Angle), à comparer d'un vol à l'autre. Pour les tailles
 2–3,5", 8" et plus), l'assistant prévient que ses seuils sont provisoires. Les conseils sont des points de départ : confirmez au ressenti et à la
 température des moteurs.
 
+**D'un vol à l'autre.** En tête, le drone du fragment, puis **comparé à** : par défaut le **vol précédent** du même drone
+(dans l'ordre de ses vols, celui du suivi de sa fiche), qu'il soit ouvert ou non ; le menu en choisit un autre (un autre vol
+du drone, ou un fragment de la liste d'analyse). Sans vol précédent, l'en-tête le dit et les cartes restent seules. Sur
+chaque jauge, un **rond creux** et une ligne (« FINAL.02 : −10,7 dB ») donnent la mesure du même constat sur le vol comparé ;
+une carte absente du vol comparé porte **NOUVEAU**, et une ligne liste ce qui n'est **plus signalé** depuis.
+
+**Vos choix sur les conseils.** Chaque conseil qui propose un geste a deux pouces. **Pouce levé** : vous avez appliqué le
+conseil sur le drone (dans le configurateur : OpenTuneBox n'écrit jamais sur la carte) ; c'est inscrit tout de suite, avec la
+date. **Pouce baissé** : le conseil ne convient pas ; écrivez pourquoi, puis **Enregistrer** (rien n'est inscrit sans raison).
+Un second clic sur le pouce enfoncé annule le choix. Quand le drone a volé depuis le fragment, un bandeau **Fragment déjà
+traité** le rappelle et liste vos choix : un conseil appliqué dit quel vol l'a **pris en compte** (le premier vol suivant,
+daté du jour du choix ou après ; la date d'un vol étant au jour près, un vol du même jour fait avant le choix compte aussi).
+Ces choix sont gardés dans la bibliothèque, avec le fragment.
+
 ## 6. Méthode de réglage
 
 La méthode est le **parcours du guide intégré** (bouton **Guide**) : des cases à cocher, par drone.

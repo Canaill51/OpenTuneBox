@@ -5,7 +5,7 @@
 
 use egui::{Image, Vec2};
 
-pub const ICONS: [(&str, &str); 30] = [
+pub const ICONS: [(&str, &str); 33] = [
     ("arrow-left", include_str!("../assets/icons/arrow-left.svg")),
     ("audio-waveform", include_str!("../assets/icons/audio-waveform.svg")),
     ("book-open", include_str!("../assets/icons/book-open.svg")),
@@ -15,6 +15,7 @@ pub const ICONS: [(&str, &str); 30] = [
     ("chevron-left", include_str!("../assets/icons/chevron-left.svg")),
     ("chevron-right", include_str!("../assets/icons/chevron-right.svg")),
     ("chevron-up", include_str!("../assets/icons/chevron-up.svg")),
+    ("clock", include_str!("../assets/icons/clock.svg")),
     ("cpu", include_str!("../assets/icons/cpu.svg")),
     ("folder-open", include_str!("../assets/icons/folder-open.svg")),
     ("drone", include_str!("../assets/icons/drone.svg")),
@@ -36,6 +37,8 @@ pub const ICONS: [(&str, &str); 30] = [
         "sliders-horizontal",
         include_str!("../assets/icons/sliders-horizontal.svg"),
     ),
+    ("thumbs-down", include_str!("../assets/icons/thumbs-down.svg")),
+    ("thumbs-up", include_str!("../assets/icons/thumbs-up.svg")),
     ("trash-2", include_str!("../assets/icons/trash-2.svg")),
     ("triangle-alert", include_str!("../assets/icons/triangle-alert.svg")),
     ("x", include_str!("../assets/icons/x.svg")),
