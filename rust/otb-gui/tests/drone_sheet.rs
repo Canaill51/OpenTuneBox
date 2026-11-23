@@ -279,3 +279,108 @@ fn un_log_rejoint_le_drone_qui_porte_son_nom() {
     assert_eq!(lib.logs()[0].drone_id, "cree-a-la-main");
     assert!(lib.drones()[0].sheet.is_some(), "la fiche est gardée");
 }
+
+// ---------------------------------------------------------------- fiche cible (lot 31b, D-072)
+
+/// Tant que le pilote n'a rien changé, les cases montrent les seuils de l'assistant pour la taille **choisie** :
+/// changer la taille change les valeurs. Une cible enregistrée, elle, ne bouge plus.
+#[test]
+fn la_fiche_cible_suit_la_taille_tant_qu_elle_n_est_pas_changee() {
+    let mut s = new_sheet();
+    assert_eq!(
+        target_texts(&s),
+        ["22", "", "1,20", "", "35", "", "-28,3", "-13,1", "1,90", "2,70"]
+    );
+    assert_eq!(target_note(&s), "Valeurs proposées pour la taille 5″, modifiables.");
+    s.size = "7″".into();
+    assert_eq!(target_texts(&s)[0], "24", "latence du profil 6 à 7 pouces");
+    assert_eq!(target_texts(&s)[6], "-31,4");
+    s.size = "65 mm".into();
+    assert_eq!(
+        target_note(&s),
+        "Valeurs proposées pour la taille 65 mm (seuils encore provisoires), modifiables."
+    );
+
+    s.target = Some(vec![
+        ("latency_ms".into(), "18".into()),
+        ("rise_ms".into(), "12".into()),
+    ]);
+    let t = target_texts(&s);
+    assert_eq!((t[0].as_str(), t[2].as_str(), t[3].as_str()), ("18", "", "12"));
+    assert!(target_note(&s).starts_with("Valeurs choisies pour ce drone"));
+}
+
+/// Une case qui n'est pas un nombre refuse l'enregistrement, et la bibliothèque n'est pas touchée.
+#[test]
+fn une_cible_illisible_refuse_l_enregistrement() {
+    let mut lib = Library::in_memory();
+    let mut form = SheetForm::new("Cine 3", new_sheet());
+    form.sheet.target = Some(vec![("peak_high".into(), "1,1x".into())]);
+    let e = save_form(&mut lib, &form).unwrap_err();
+    assert_eq!(e, "Fiche cible : « Pic, haut de la zone » n'est pas un nombre (1,1x).");
+    assert!(lib.drones().is_empty());
+    form.sheet.target = Some(vec![
+        ("peak_high".into(), " 1.1 ".into()),
+        ("rise_ms".into(), "".into()),
+    ]);
+    assert!(save_form(&mut lib, &form).is_ok(), "point décimal et case vide permis");
+}
+
+/// À l'écran : une case changée fige les dix et s'enregistre ; « Valeurs proposées » les remet à suivre la taille ;
+/// un texte illisible laisse la fiche ouverte avec le message.
+#[test]
+fn la_fiche_cible_se_change_a_l_ecran() {
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.library.put_drone(avec_fiche("uid-1", "JeNo Ced"));
+    app.screen = Screen::Dashboard;
+    let mut h = banc(app);
+    h.run_steps(3);
+    h.get_by_role_and_label(Role::Button, "Modifier le drone").click();
+    h.run_steps(3);
+    h.get_by_label("Fiche cible");
+    h.get_by_label("Valeurs proposées pour la taille 5″, modifiables.");
+    h.get_by_label("Latence (50 %)").set_text_value_accesskit("18");
+    h.run_steps(2);
+    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.run_steps(3);
+    assert_eq!(h.state().screen, Screen::Dashboard);
+    let cible = h
+        .state()
+        .library
+        .drone("uid-1")
+        .unwrap()
+        .sheet
+        .clone()
+        .unwrap()
+        .target
+        .unwrap();
+    let attendu: Vec<(String, String)> = otb_advisor::target::ROWS
+        .iter()
+        .zip(["18", "", "1,20", "", "35", "", "-28,3", "-13,1", "1,90", "2,70"])
+        .map(|(r, v)| (r.key.to_string(), v.to_string()))
+        .collect();
+    assert_eq!(
+        cible, attendu,
+        "une case changée, les neuf autres gardées telles qu'affichées"
+    );
+
+    h.get_by_role_and_label(Role::Button, "Modifier le drone").click();
+    h.run_steps(3);
+    h.get_by_label("Pic, haut de la zone").set_text_value_accesskit("abc");
+    h.run_steps(2);
+    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.run_steps(3);
+    assert_eq!(h.state().screen, Screen::DroneSheet, "refusé : la fiche reste ouverte");
+    h.get_by_label("Fiche cible : « Pic, haut de la zone » n'est pas un nombre (abc).");
+
+    // sous le bas du banc de 800 points : le faire défiler d'abord (L-114)
+    h.get_by_role_and_label(Role::Button, "Valeurs proposées")
+        .scroll_to_me();
+    h.run_steps(3);
+    h.get_by_role_and_label(Role::Button, "Valeurs proposées").click();
+    h.run_steps(2);
+    h.get_by_role_and_label(Role::Button, "Enregistrer").click();
+    h.run_steps(3);
+    assert_eq!(h.state().screen, Screen::Dashboard);
+    assert_eq!(h.state().library.drone("uid-1").unwrap().sheet, Some(new_sheet()));
+}

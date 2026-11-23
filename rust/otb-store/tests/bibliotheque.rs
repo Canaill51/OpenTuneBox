@@ -465,6 +465,7 @@ fn fiche() -> DroneSheet {
         pid_khz: "8".into(),
         done: vec!["recording".into(), "rpm".into()],
         verified: vec!["blackbox".into()],
+        target: None,
     }
 }
 
@@ -486,6 +487,37 @@ fn la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste() {
     assert_eq!(relue.drone("uid-1").unwrap().board, "STM32F405");
     assert_eq!(relue.drone("uid-1").unwrap().sheet, Some(fiche()));
     assert_eq!(relue.drone("Whoop").unwrap().sheet, None);
+}
+
+/// La fiche cible (lot 31b, D-072) fait l'aller-retour, cases vides comprises et dans l'ordre ; une fiche dont le
+/// pilote n'a pas changé la cible n'écrit **pas** de clé `cible` (elle suit alors les valeurs proposées), et un
+/// fichier d'avant le lot 31b se lit sans cible.
+#[test]
+fn la_fiche_cible_se_retrouve_et_n_est_ecrite_que_si_elle_a_change() {
+    let mut f = fiche();
+    assert!(
+        f.to_value().get("cible").is_none(),
+        "cible écrite sans avoir été changée"
+    );
+    let cible: Vec<(String, String)> = [("latency_ms", "18"), ("peak_low", ""), ("peak_high", "1,15")]
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+    f.target = Some(cible.clone());
+
+    let dir = dossier("fiche-cible");
+    let mut lib = Library::open(dir.clone());
+    let mut d = Drone::new("uid-1", "JeNo Ced");
+    d.sheet = Some(f.clone());
+    lib.put_drone(d);
+    lib.save().expect("écriture");
+    let relue = Library::open(dir);
+    let s = relue.drone("uid-1").unwrap().sheet.clone().unwrap();
+    assert_eq!(s.target, Some(cible));
+    assert_eq!(s, f);
+
+    let avant = DroneSheet::from_value(&serde_json::json!({"taille": "5″", "cases": []}));
+    assert_eq!(avant.target, None);
 }
 
 /// Un fichier de drones écrit avant la fiche (lot 28) se lit sans problème, et sans fiche.
