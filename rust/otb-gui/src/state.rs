@@ -220,6 +220,13 @@ impl AppState {
     /// Ajoute un log ; `false` s'il y en a déjà `MAX_LOGS`. Il prend la première couleur libre et un
     /// libellé unique (« nom (2) »…), puis devient le log courant.
     pub fn add(&mut self, log: FlightLog) -> bool {
+        self.add_shared(Arc::new(log))
+    }
+
+    /// Comme [`Self::add`], pour un log **déjà décodé** : un second fragment de la même session partage ses
+    /// échantillons avec le premier au lieu de relire le fichier (D-067). Chaque pastille garde sa période, sa
+    /// couleur et son cache.
+    pub fn add_shared(&mut self, log: Arc<FlightLog>) -> bool {
         if self.logs.len() >= MAX_LOGS {
             return false;
         }
@@ -238,7 +245,7 @@ impl AppState {
         let uid = self.next_uid;
         self.next_uid += 1;
         self.logs.push(LoadedLog {
-            log: Arc::new(log),
+            log,
             uid,
             period,
             fragment: None,

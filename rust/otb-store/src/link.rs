@@ -55,3 +55,27 @@ pub fn length(fragment: &Fragment) -> u64 {
 pub fn overlaps(a: &Fragment, b: &Fragment) -> bool {
     a.log_id == b.log_id && a.session == b.session && a.start < b.end && b.start < a.end
 }
+
+/// Identifiant du **fragment d'une session** : l'empreinte du fichier et le numéro de session. Il est créé à chaque
+/// ouverture du fichier et revient même supprimé ; c'est lui que l'ouverture d'un fichier met en analyse.
+pub fn session_fragment_id(log_id: &str, session: u64) -> String {
+    format!("{log_id}-{session}")
+}
+
+/// Le fragment a-t-il été **ajouté** à sa session dans l'écran d'extraction (« Enregistrer comme nouveau
+/// fragment ») ? Seuls ceux-là se suppriment : le fragment de la session reviendrait à la prochaine ouverture.
+pub fn is_added(fragment: &Fragment) -> bool {
+    fragment.id != session_fragment_id(&fragment.log_id, fragment.session)
+}
+
+/// Premier identifiant libre pour un fragment ajouté à la session `session` du log `log_id` :
+/// `<log>-<session>-2`, puis `-3`… Un numéro libéré par une suppression peut resservir — sans risque, ses mesures
+/// et sa place dans la liste d'analyse sont parties avec lui.
+pub fn added_fragment_id<'a>(log_id: &str, session: u64, taken: impl IntoIterator<Item = &'a Fragment>) -> String {
+    let base = session_fragment_id(log_id, session);
+    let pris: std::collections::HashSet<&str> = taken.into_iter().map(|f| f.id.as_str()).collect();
+    (2..)
+        .map(|k| format!("{base}-{k}"))
+        .find(|id| !pris.contains(id.as_str()))
+        .expect("une suite infinie a toujours un numéro libre")
+}

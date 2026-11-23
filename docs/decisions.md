@@ -70,12 +70,13 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-067 | **Plusieurs fragments par session** : « Enregistrer comme nouveau fragment » dans l'écran d'extraction en range un autre, posé aussitôt en pastille sur les mêmes échantillons ; seul un fragment ajouté se supprime ; « Ouvrir… » ne met en analyse que le fragment de la session (amende D-061) | 2026-11-23 |
 | D-066 | La **barre de fragments** (liste d'analyse à l'écran) décide de ce que montrent toutes les pages : fragments actifs dans l'ordre de la barre, maître pour les pages à un seul vol, couleur fixe par fragment ; plus de liste « Fichiers » par page ; liste retrouvée au lancement (remplace D-049) | 2026-11-23 |
 | D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
 | D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels), prouvé par le banc **et** les vrais vols | 2026-11-18 |
-| D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit | 2026-11-19 |
+| D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit **(amendée par D-067)** | 2026-11-19 |
 | D-060 | Amende D-015 : une entrée de navigation est **un outil ou un espace** qui regroupe plusieurs vues ; les boutons deviennent un **rail à gauche** ; deux écrans hors rail sont permis. Ce qui reste : aucune fenêtre séparée, une vue cachée ne calcule pas | 2026-11-19 |
 | D-059 | Assistant : bruit prévu après un conseil de filtres par le **rejeu** de la page Filtres, vérifié en vol (amende D-008) | 2026-11-22 |
 | D-058 | Page Filtres : chaîne du firmware rejouée ; « modifié » = spectre du log × rejeu modifié / rejeu actuel (amende D-008, remplace D-041 pour la page) | 2026-11-22 |
@@ -139,6 +140,48 @@ ici, jamais dans le code.
 
 ---
 
+## 2026-11-23 — Second fragment d'une session
+
+### D-067 : une session peut porter plusieurs fragments ; on les crée dans l'écran d'extraction
+
+**Tranché par Cédric** le 2026-11-23, à la fin du lot 29, entre deux propositions pour chacune des quatre questions.
+Amende D-061 (« chaque session ouverte devient un fragment ») : elle le reste, et peut en porter d'autres.
+
+**Contexte.** Le prototype qui fait foi (D-061) n'a qu'un écran « Modifier le fragment » et ne montre aucun geste pour
+découper un même vol en plusieurs morceaux ; la bibliothèque, elle, savait déjà en ranger plusieurs (lot 29a). Or
+comparer deux passages d'un même log (une rafale de gaz, un stationnaire) est l'usage même d'un fragment.
+
+**Décision.**
+- **Le geste** : un bouton « Enregistrer comme nouveau fragment » dans la barre du haut de l'écran d'extraction, à
+  côté de « Enregistrer le fragment ». Le fragment affiché ne change pas ; un autre est rangé dans la même session
+  avec les bornes, le nom (rendu distinct par « (2) »…) et le rôle du brouillon. Écart au prototype, assumé.
+- **Il rejoint la liste d'analyse** aussitôt : pastille juste après son origine, couleur à lui, devenu maître, sur
+  les **mêmes échantillons** (pas de relecture du fichier).
+- **Suppression** d'un fragment **ajouté** seulement, en deux temps (« Supprimer ce fragment… », puis « Supprimer
+  définitivement » ou « Garder »), en bas de la section Fragment : il part avec ses mesures et sa place dans la liste.
+  Le fragment de la session n'a pas ce bouton : il reviendrait à la prochaine ouverture du fichier.
+- **« Ouvrir… »** ne met en analyse que le fragment de chaque session ; un fragment ajouté revient par son rond
+  « + », son crayon ou la liste relue au lancement.
+- **Identifiants** : `<empreinte>-<session>` pour le fragment de la session (inchangé : les bibliothèques existantes
+  restent valables), `<empreinte>-<session>-<k>` (k ≥ 2, premier libre) pour un fragment ajouté
+  (`rust/otb-store/src/link.rs`).
+
+**Écartés.** Un bouton « Nouveau fragment » sur la fiche du drone (un écran de plus à traverser pour le même
+résultat) ; un fragment ajouté seulement rangé, sans pastille (il faudrait aller le chercher au tableau de bord pour
+le comparer) ; pas de suppression (une erreur encombrerait la fiche pour toujours) ; rouvrir tous les fragments d'un
+fichier à son ouverture (la barre se remplirait d'un coup, 10 pastilles au plus).
+
+**Témoins.** `rust/otb-store/tests/fragments.rs`
+(`un_fragment_ajoute_prend_un_numero_libre_et_se_distingue_de_celui_de_la_session`,
+`supprimer_un_fragment_emporte_ses_mesures_et_sa_place_dans_la_liste`), `rust/otb-gui/tests/analysis_list.rs`
+(`enregistrer_comme_nouveau_fragment_garde_l_origine_et_ajoute_une_pastille`,
+`un_fragment_ajoute_se_rouvre_par_son_rond_son_crayon_et_au_lancement`,
+`seul_un_fragment_ajoute_se_supprime_apres_confirmation`) ; 8 contre-preuves vues en échec (L-071). Captures
+`fragment-ajoute-clair.png` et `-sombre.png` de l'exemple `capture`.
+
+**Ouvert.** Le Guide retient le rôle d'un log **par fichier** (D-039) : deux fragments d'une même session aux rôles
+différents n'en font voir qu'un au Guide (W-074).
+
 ## 2026-11-23 — Liste d'analyse à l'écran
 
 ### D-066 : la barre de fragments décide de ce que montrent toutes les pages
@@ -180,7 +223,7 @@ au lancement, fragment introuvable, doublon, place d'une pastille lâchée), `ru
 nouvelle (gestes, filtre des sessions, relecture, doublon, pages, recalcul, colonnes ; L-071).
 Captures `barre-desactivee-clair.png` et `-sombre.png` de l'exemple `capture`.
 
-**Ouvert.** Créer un second fragment dans une même session (lot 29, reste).
+**Ouvert.** Créer un second fragment dans une même session : fait, D-067.
 
 ## 2026-11-23 — Écran d'extraction d'un fragment
 
@@ -346,7 +389,8 @@ celles d'INAV et d'ArduPilot restent lues dans l'étude, à confirmer au lot qui
 Numérotée D-059 dans le fork `GerryNatif/OpenTuneBox` où elle a été écrite, renumérotée à la reprise dans ce dépôt le 2026-11-22. **Confirmée par Cédric** le même jour : les arbitrages ci-dessous ont été discutés avec lui pendant l'écriture
 du fork.
 
-Complète D-060, qui ne fixait que la **structure** de la navigation.
+Complète D-060, qui ne fixait que la **structure** de la navigation. **AMENDÉE par D-067** (2026-11-23) : chaque
+session ouverte devient toujours un fragment, et peut en porter d'autres.
 
 **Contexte.** Le 2026-11-19, après la livraison du rail, de l'espace « Bruit et filtres » et du tableau de bord,
 Cédric reprend : « le design du logiciel doit correspondre à 100 % à la maquette ». Les trois lots avaient repris

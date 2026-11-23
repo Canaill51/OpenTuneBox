@@ -121,6 +121,9 @@ pub struct FragmentInfo {
     /// Le fragment est rangé dans la bibliothèque ; sinon (log sans nom de machine), les bornes valent pour la
     /// séance seulement.
     pub stored: bool,
+    /// Fragment **ajouté** à sa session (« Enregistrer comme nouveau fragment ») : seul celui-là se supprime, le
+    /// fragment de la session revenant à chaque ouverture du fichier.
+    pub added: bool,
 }
 
 /// Ce que l'écran demande à la fenêtre.
@@ -131,6 +134,12 @@ pub enum ExtAction {
     /// « Enregistrer le fragment » : les bornes deviennent la période d'analyse du log `index`, et la bibliothèque
     /// les garde.
     Save { index: usize, draft: Draft },
+    /// « Enregistrer comme nouveau fragment » : le fragment du log `index` ne change pas ; un autre est rangé dans la
+    /// même session avec les bornes, le nom et le rôle du brouillon, et rejoint la liste d'analyse.
+    SaveAsNew { index: usize, draft: Draft },
+    /// « Supprimer définitivement » (après « Supprimer ce fragment… ») : le fragment ajouté du log `index` quitte
+    /// la bibliothèque et la liste d'analyse.
+    Delete { index: usize },
     /// Bouton du thème de la barre du haut.
     ToggleTheme,
 }
@@ -164,6 +173,8 @@ pub struct ViewerPage {
     pub playing: bool,
     /// Le fragment en cours de modification (`None` : pas encore lu pour le log affiché).
     pub draft: Option<Draft>,
+    /// « Supprimer ce fragment… » a été cliqué pour ce log (`LoadedLog::uid`) : la confirmation est affichée.
+    pub confirm_delete: Option<u64>,
     /// Sections ouvertes du panneau de droite (ordre de `SECTIONS`).
     pub open: [bool; 5],
     drags: [VDrag; 4],
@@ -202,6 +213,7 @@ impl Default for ViewerPage {
             measure: Vec::new(),
             playing: false,
             draft: None,
+            confirm_delete: None,
             // la maquette ouvre tout sauf « Au curseur » ; « Affichage » (absent de la maquette) est replié
             open: [true, true, false, true, false],
             drags: [VDrag::default(); 4],
@@ -386,6 +398,7 @@ impl ViewerPage {
             self.series.clear();
             self.present.clear();
             self.measure.clear();
+            self.confirm_delete = None;
             self.playing = false;
             self.fit = true;
             self.window = None;
@@ -431,7 +444,7 @@ impl ViewerPage {
             .resizable(false)
             .show_separator_line(false)
             .frame(egui::Frame::new().fill(th.ui.base))
-            .show(ui, |ui| self.side_panel(ui, state, info, th))
+            .show(ui, |ui| self.side_panel(ui, state, info, th, &mut actions))
             .response
             .rect;
         egui::CentralPanel::default()
@@ -545,6 +558,32 @@ impl ViewerPage {
                 {
                     actions.push(ExtAction::Save { index, draft });
                 }
+                // ⚠️ Écart au prototype (D-067) : il n'a qu'un fragment par session et pas ce bouton. Dessiné comme
+                // ses boutons secondaires bleus (« Extraire un fragment ») : fond de la page, bord gris, texte bleu.
+                let nouveau = egui::Button::image_and_text(
+                    icon("plus", 15.0).tint(th.ui.highlight),
+                    RichText::new("Enregistrer comme nouveau fragment")
+                        .size(13.0)
+                        .color(th.ui.highlight),
+                )
+                .fill(th.ui.base)
+                .stroke(egui::Stroke::new(1.0, th.ui.mid))
+                .corner_radius(6);
+                let aide = if info.stored {
+                    "Ce fragment ne change pas : un autre est rangé dans la même session, avec ces bornes, ce nom et ce \
+                     rôle, et rejoint la liste d'analyse."
+                } else {
+                    "Impossible : ce log n'est rangé sous aucun drone (pas de nom de machine dans l'en-tête)."
+                };
+                if ui
+                    .add_enabled(ll.is_some() && info.stored, nouveau)
+                    .on_hover_text(aide)
+                    .on_disabled_hover_text(aide)
+                    .clicked()
+                    && let (Some(index), Some(draft)) = (state.current, self.draft.clone())
+                {
+                    actions.push(ExtAction::SaveAsNew { index, draft });
+                }
                 let annuler = egui::Button::new(RichText::new("Annuler").size(13.0).color(th.ui.text))
                     .fill(th.ui.base)
                     .stroke(egui::Stroke::new(1.0, th.ui.mid))
@@ -622,13 +661,20 @@ impl ViewerPage {
     }
 
     /// Le panneau de droite, section par section.
-    fn side_panel(&mut self, ui: &mut Ui, state: &mut AppState, info: &FragmentInfo, th: &Theme) {
+    fn side_panel(
+        &mut self,
+        ui: &mut Ui,
+        state: &mut AppState,
+        info: &FragmentInfo,
+        th: &Theme,
+        actions: &mut Vec<ExtAction>,
+    ) {
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             for (k, titre) in SECTIONS.iter().enumerate() {
                 let mut open = self.open[k];
                 section(ui, th, titre, &mut open, |ui| match k {
-                    0 => self.fragment_section(ui, state, info, th),
+                    0 => self.fragment_section(ui, state, info, th, actions),
                     1 => self.traces_section(ui, state, th),
                     2 => self.display_section(ui),
                     3 => self.player(ui, state, th),
@@ -640,7 +686,14 @@ impl ViewerPage {
     }
 
     /// « Fragment » : nom, rôle, début et fin, durée, limites automatiques ou session entière.
-    fn fragment_section(&mut self, ui: &mut Ui, state: &AppState, info: &FragmentInfo, th: &Theme) {
+    fn fragment_section(
+        &mut self,
+        ui: &mut Ui,
+        state: &AppState,
+        info: &FragmentInfo,
+        th: &Theme,
+        actions: &mut Vec<ExtAction>,
+    ) {
         let (Some(ll), Some(draft)) = (state.current_log(), self.draft.as_mut()) else {
             ui.label(RichText::new("Aucun log ouvert.").size(13.0).color(th.ui.muted));
             return;
@@ -712,6 +765,57 @@ impl ViewerPage {
                  cette séance, la bibliothèque ne les garde pas.",
             );
         }
+        if info.added {
+            ui.add_space(14.0);
+            self.delete_zone(ui, state, th, actions);
+        }
+    }
+
+    /// Supprimer un fragment ajouté, en deux temps comme la suppression d'un drone dans la maquette : « Supprimer
+    /// ce fragment… » (bord rouge), puis « Supprimer définitivement » (fond rouge) ou « Garder ». Le fragment de la
+    /// session n'a pas cette zone : il reviendrait à la prochaine ouverture du fichier (D-067).
+    fn delete_zone(&mut self, ui: &mut Ui, state: &AppState, th: &Theme, actions: &mut Vec<ExtAction>) {
+        let (Some(index), Some(ll)) = (state.current, state.current_log()) else {
+            return;
+        };
+        let rouge = th.accent("red");
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            ui.spacing_mut().button_padding = Vec2::new(12.0, 6.0);
+            if self.confirm_delete == Some(ll.uid) {
+                let oui = egui::Button::new(
+                    RichText::new("Supprimer définitivement")
+                        .size(13.0)
+                        .color(theme::plot::ON_ACCENT),
+                )
+                .fill(rouge)
+                .stroke(egui::Stroke::new(1.0, rouge))
+                .corner_radius(6);
+                if ui
+                    .add(oui)
+                    .on_hover_text("Retire ce fragment de la bibliothèque, avec ses mesures, et de la liste d'analyse")
+                    .clicked()
+                {
+                    self.confirm_delete = None;
+                    actions.push(ExtAction::Delete { index });
+                }
+                let garder = egui::Button::new(RichText::new("Garder").size(13.0).color(th.ui.text))
+                    .fill(th.ui.base)
+                    .stroke(egui::Stroke::new(1.0, th.ui.mid))
+                    .corner_radius(6);
+                if ui.add(garder).clicked() {
+                    self.confirm_delete = None;
+                }
+            } else {
+                let supprimer = egui::Button::new(RichText::new("Supprimer ce fragment…").size(13.0).color(rouge))
+                    .fill(th.ui.base)
+                    .stroke(egui::Stroke::new(1.0, rouge))
+                    .corner_radius(6);
+                if ui.add(supprimer).clicked() {
+                    self.confirm_delete = Some(ll.uid);
+                }
+            }
+        });
     }
 
     /// « Traces » : une case par trace présente dans le log, sur deux colonnes, avec sa couleur.

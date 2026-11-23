@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
-//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b) et `tableau-de-bord-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 use egui_kittest::Harness;
@@ -50,6 +50,24 @@ fn main() {
         h.run_steps(4);
         let img = h.render().expect("rendu");
         img.save(out.join(format!("courbes-{}.png", th.name))).unwrap();
+        // un second fragment de la même session (D-067) : l'écran d'extraction sur lui, avec sa zone de suppression ;
+        // puis supprimé, pour que la suite des captures reste celle d'avant
+        let deja = h.state().state.logs.len();
+        h.state_mut().viewer.draft.as_mut().expect("brouillon").name = "Rafale".into();
+        h.get_by_label("Enregistrer comme nouveau fragment").click();
+        h.run_steps(4);
+        assert_eq!(h.state().state.logs.len(), deja + 1, "second fragment posé");
+        h.state_mut().enter_extraction();
+        h.run_steps(4);
+        h.render()
+            .expect("rendu")
+            .save(out.join(format!("fragment-ajoute-{}.png", th.name)))
+            .unwrap();
+        h.get_by_label("Supprimer ce fragment…").click();
+        h.run_steps(2);
+        h.get_by_label("Supprimer définitivement").click();
+        h.run_steps(4);
+        assert_eq!(h.state().state.logs.len(), deja, "second fragment supprimé");
         // le tableau de bord : les drones que la bibliothèque a retenus en ouvrant ces logs (lot 30c)
         h.state_mut().screen = Screen::Dashboard;
         h.run_steps(4);

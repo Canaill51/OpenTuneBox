@@ -277,3 +277,206 @@ fn un_meme_fragment_ouvert_deux_fois_n_est_garde_qu_une_fois() {
     assert_eq!(h.state().state.logs.len(), 2);
     assert_eq!(h.state().library.analysis().items.len(), 1);
 }
+
+// ---------------------------------------------------------------- second fragment d'une session (lot 29, D-067)
+
+/// Le vrai log de 5 s ouvert, puis l'écran d'extraction sur son fragment, brouillon prêt.
+fn extraction_du_vrai_log(app: App) -> Harness<'static, App> {
+    let un = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/jeno5_5s.bbl");
+    let mut h = banc(app);
+    h.state_mut().screen = Screen::Dashboard;
+    h.state_mut().open(vec![un]);
+    attendre_logs(&mut h, 1);
+    h.state_mut().state.set_current(Some(0));
+    h.state_mut().enter_extraction();
+    h.run_steps(3);
+    h
+}
+
+/// Règle le brouillon puis clique « Enregistrer comme nouveau fragment ».
+fn nouveau_fragment(h: &mut Harness<'static, App>, bornes: (usize, usize), nom: &str) {
+    let log = h.state().state.current_log().unwrap().log.clone();
+    let brouillon = h.state_mut().viewer.draft.as_mut().expect("brouillon");
+    brouillon.period = (log.t[bornes.0], log.t[bornes.1]);
+    brouillon.name = nom.into();
+    h.get_by_label("Enregistrer comme nouveau fragment").click();
+    h.run_steps(3);
+}
+
+/// « Enregistrer comme nouveau fragment » laisse le fragment d'origine tel quel et en range un second dans la même
+/// session : pastille juste après l'origine, sur les **mêmes échantillons** (pas de relecture), bornes choisies,
+/// devenu maître ; un second nom identique est distingué.
+///
+/// **Contre-preuves vues en échec** : `save_new_fragment` sans le nom distinct (deux « Rafale ») ; sans
+/// `move_log` après la pose (la pastille du second ajout n'est pas juste après son origine).
+#[test]
+fn enregistrer_comme_nouveau_fragment_garde_l_origine_et_ajoute_une_pastille() {
+    let mut h = extraction_du_vrai_log(App::new(otb_gui::tools::all_pages()));
+    let origine = h.state().state.logs[0]
+        .fragment
+        .clone()
+        .expect("rangé sous « JeNo Ced »");
+    let avant = h.state().library.fragment(&origine).unwrap().clone();
+    let periode = h.state().state.logs[0].period;
+    nouveau_fragment(&mut h, (400, 6000), "Rafale");
+
+    assert_eq!(h.state().screen, Screen::Dashboard, "retour à l'écran d'où l'on venait");
+    let logs = &h.state().state.logs;
+    assert_eq!(logs.len(), 2);
+    assert_eq!(logs[0].period, periode, "la période de l'origine n'a pas bougé");
+    assert_eq!(
+        h.state().library.fragment(&origine),
+        Some(&avant),
+        "l'origine n'a pas bougé"
+    );
+    assert!(
+        std::sync::Arc::ptr_eq(&logs[0].log, &logs[1].log),
+        "mêmes échantillons, fichier non relu"
+    );
+    assert_ne!(logs[0].color, logs[1].color);
+    assert_eq!(logs[1].period, (logs[1].log.t[400], logs[1].log.t[6000]));
+    assert_eq!(h.state().state.current, Some(1), "le nouveau fragment est le maître");
+    let id = logs[1].fragment.clone().unwrap();
+    assert_eq!(id, format!("{origine}-2"));
+    let f = h.state().library.fragment(&id).unwrap();
+    assert!(f.chosen);
+    assert_eq!((f.start, f.end, f.session), (400, 6001, avant.session));
+    assert_eq!(f.name, "Rafale");
+    assert_eq!(noms(&h), [avant.name.clone(), "Rafale".to_string()]);
+
+    // depuis l'origine encore : le troisième se pose juste après elle, avec un nom distinct
+    h.state_mut().state.set_current(Some(0));
+    h.state_mut().enter_extraction();
+    h.run_steps(3);
+    nouveau_fragment(&mut h, (100, 2000), "Rafale");
+    assert_eq!(
+        noms(&h),
+        [avant.name.clone(), "Rafale (2)".to_string(), "Rafale".to_string()]
+    );
+    assert_eq!(h.state().state.logs[1].fragment, Some(format!("{origine}-3")));
+    assert_eq!(
+        h.state().library.analysis().items.len(),
+        3,
+        "trois fragments dans la liste enregistrée"
+    );
+}
+
+/// Un fragment ajouté se retrouve comme les autres : par son rond « + » (sur la session déjà ouverte, sans relire le
+/// fichier ; ou en n'ouvrant que lui), par son crayon, et dans la liste relue au lancement.
+///
+/// **Contre-preuves vues en échec** : `accepte` qui ne cherche que le fragment de la session (le « + » d'un fragment
+/// ajouté n'ouvre rien) ; `toggle_fragment` sans `loaded_session` (le fichier est relu, échantillons non partagés) ;
+/// `edit_fragment` sans sa branche « fragment ajouté » (le crayon ouvre la session et n'entre pas dans l'écran).
+#[test]
+fn un_fragment_ajoute_se_rouvre_par_son_rond_son_crayon_et_au_lancement() {
+    let d = dossier_temp("ajoute");
+    let lib = d.join("bibliotheque");
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.library = Library::open(lib.clone());
+    let mut h = extraction_du_vrai_log(app);
+    nouveau_fragment(&mut h, (400, 6000), "Rafale");
+    let id = h.state().state.logs[1].fragment.clone().unwrap();
+    let periode = h.state().state.logs[1].period;
+
+    // rond « + » : session déjà ouverte sous l'origine → posé tout de suite, mêmes échantillons
+    h.state_mut().state.remove(1);
+    h.run_steps(2);
+    h.get_by_label("JeNo Ced").click();
+    h.run_steps(2);
+    h.get_by_label("Ajouter Rafale à l'analyse").click();
+    h.run_steps(2);
+    assert_eq!(h.state().state.logs.len(), 2, "posé sans attendre une ouverture");
+    assert!(std::sync::Arc::ptr_eq(
+        &h.state().state.logs[0].log,
+        &h.state().state.logs[1].log
+    ));
+    assert_eq!(h.state().state.logs[1].fragment.as_deref(), Some(id.as_str()));
+    assert_eq!(h.state().state.logs[1].period, periode, "ses bornes choisies");
+
+    // rond « + » sans rien d'ouvert : seulement lui
+    h.state_mut().state.clear();
+    h.run_steps(2);
+    h.get_by_label("Ajouter Rafale à l'analyse").click();
+    attendre_logs(&mut h, 1);
+    assert_eq!(h.state().state.logs.len(), 1, "seulement le fragment demandé");
+    assert_eq!(h.state().state.logs[0].fragment.as_deref(), Some(id.as_str()));
+    assert_eq!(h.state().state.logs[0].period, periode);
+
+    // crayon sans rien d'ouvert : l'écran d'extraction sur lui
+    h.state_mut().state.clear();
+    h.run_steps(2);
+    h.get_by_label("Modifier les limites de Rafale").click();
+    attendre_logs(&mut h, 1);
+    assert_eq!(h.state().screen, Screen::Viewer);
+    assert_eq!(
+        h.state().state.current_log().unwrap().fragment.as_deref(),
+        Some(id.as_str())
+    );
+    h.get_by_label("Annuler").click();
+    h.run_steps(2);
+
+    // liste enregistrée, relue au lancement : l'origine et lui
+    let origine = otb_gui::app::fragment_id(
+        &h.state().library.fragment(&id).unwrap().log_id.clone(),
+        &h.state().state.logs[0].log,
+    );
+    let nom = h.state().library.fragment(&origine).unwrap().name.clone();
+    h.get_by_label(&format!("Ajouter {nom} à l'analyse")).click();
+    attendre_logs(&mut h, 2);
+    h.state_mut().library.save().unwrap();
+    let avant: Vec<_> = h
+        .state()
+        .state
+        .logs
+        .iter()
+        .map(|l| (l.fragment.clone(), l.period))
+        .collect();
+    assert_eq!(avant.len(), 2);
+    assert!(avant.iter().any(|(f, _)| f.as_deref() == Some(origine.as_str())));
+    drop(h);
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.library = Library::open(lib);
+    app.restore_analysis();
+    let mut h = banc(app);
+    attendre_logs(&mut h, 2);
+    let apres: Vec<_> = h
+        .state()
+        .state
+        .logs
+        .iter()
+        .map(|l| (l.fragment.clone(), l.period))
+        .collect();
+    assert_eq!(apres, avant, "les deux fragments de la session, avec leurs bornes");
+}
+
+/// Un fragment ajouté se supprime, en deux temps ; celui de la session n'en a pas le bouton (il reviendrait à la
+/// prochaine ouverture du fichier).
+///
+/// **Contre-preuve vue en échec** : `FragmentInfo::added` toujours vrai (le fragment de la session montre le
+/// bouton).
+#[test]
+fn seul_un_fragment_ajoute_se_supprime_apres_confirmation() {
+    let mut h = extraction_du_vrai_log(App::new(otb_gui::tools::all_pages()));
+    assert!(
+        h.query_by_label("Supprimer ce fragment…").is_none(),
+        "le fragment de la session ne se supprime pas"
+    );
+    nouveau_fragment(&mut h, (400, 6000), "Rafale");
+    let id = h.state().state.logs[1].fragment.clone().unwrap();
+    h.state_mut().enter_extraction();
+    h.run_steps(3);
+    h.get_by_label("Supprimer ce fragment…").click();
+    h.run_steps(2);
+    assert!(h.state().library.fragment(&id).is_some(), "rien avant la confirmation");
+    h.get_by_label("Garder").click();
+    h.run_steps(2);
+    assert!(h.query_by_label("Supprimer définitivement").is_none());
+    h.get_by_label("Supprimer ce fragment…").click();
+    h.run_steps(2);
+    h.get_by_label("Supprimer définitivement").click();
+    h.run_steps(3);
+    assert_eq!(h.state().screen, Screen::Dashboard);
+    assert!(h.state().library.fragment(&id).is_none());
+    assert_eq!(h.state().state.logs.len(), 1, "sa pastille est partie, l'origine reste");
+    assert!(h.state().library.analysis().items.iter().all(|i| i.fragment_id != id));
+}

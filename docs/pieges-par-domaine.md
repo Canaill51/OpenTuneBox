@@ -118,6 +118,9 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 
 ## Outillage, vérification et crochets
 
+- Une substitution `perl`/`sed` dont le délimiteur apparaît dans le texte (fermetures Rust `|x|`, `#` et `|` du
+  Markdown, `/` des chemins) écrit au mauvais endroit sans erreur (un `\|` échappé devient une alternative) : outil
+  d'édition pour le multi-ligne, sinon `git diff --stat` et le début du fichier relus aussitôt. L-113
 - Sur `tests/data/jeno5_5s.bbl` (coupé en plein vol), les limites automatiques couvrent tout le log : un test qui oppose une période à « limites auto » ou à « vol entier » part de bornes qui diffèrent des deux, et ne compte qu'après sa contre-preuve. L-110
 - CodeQL classe tout nom en « uid » comme identifiant de compte et rougit dès qu'il est affiché ou écrit, empreinte comprise :
   l'identifiant de la carte s'appelle `chip_id` (`ChipId`) ; ne jamais recopier l'identifiant complet d'une carte dans le dépôt. L-109
