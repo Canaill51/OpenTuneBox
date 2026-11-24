@@ -1,8 +1,9 @@
 //! Chaîne de filtres Betaflight **assemblée** avec les briques à l'arithmétique du firmware (lot 24c du plan, D-062).
 //!
 //! Les briques (`otb_dsp::firmware::betaflight`) sont identiques au firmware compilé sur PC au bit près (lot 24b) ; ce module
-//! les enchaîne comme la boucle du firmware, à côté de la chaîne actuelle (`bf_filters`), **sans rien brancher à l'écran** :
-//! le contrôle par étage et le rejeu la choisissent par [`Engine`], `Engine::Model` par défaut. Ordre et cadence des étapes :
+//! les enchaîne comme la boucle du firmware. **Chaîne en service depuis la bascule (lot 24d)** : le rejeu de la page Filtres,
+//! l'assistant et le contrôle par étage la prennent par [`Engine::in_service`] dès la 4.3 ; l'ancienne chaîne (`bf_filters`,
+//! `Engine::Model`) ne sert plus qu'aux logs d'avant la 4.3 et aux mesures (`otb-dev corpus … --chain model`). Ordre et cadence des étapes :
 //! lus dans la description de la chaîne (`chain::betaflight`), jamais écrits ici.
 //!
 //! Recopié du firmware, version par version (sources lues : `sensors/gyro.c`, `gyro_init.c`, `gyro_filter_impl.c`,
@@ -37,17 +38,26 @@ use otb_log::flightlog::FlightLog;
 use otb_log::settings::{Lowpass, Settings};
 use std::ops::Range;
 
-/// Chaîne qui rejoue les filtres : l'actuelle (float64, réponses idéales) ou l'assemblée ici.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+/// Chaîne qui rejoue les filtres : l'ancienne (float64, réponses idéales) ou l'assemblée ici.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Engine {
-    /// La chaîne en service (`bf_filters`), celle de l'écran et de l'assistant.
-    #[default]
+    /// L'ancienne chaîne (`bf_filters`), celle de l'écran et de l'assistant jusqu'au lot 24c : logs d'avant la 4.3 et mesures.
     Model,
-    /// La chaîne de ce module, à l'arithmétique du firmware.
+    /// La chaîne de ce module, à l'arithmétique du firmware : celle de l'écran et de l'assistant depuis le lot 24d.
     Firmware,
 }
 
 impl Engine {
+    /// Chaîne en service pour un log de réglages `s` (bascule du lot 24d, D-062) : celle du firmware dès la 4.3, l'ancienne
+    /// avant (aucune arithmétique vérifiée, et aucun log d'avant la 4.3 au corpus : rien ne change pour eux).
+    pub fn in_service(s: &Settings) -> Engine {
+        if Release::of(s).is_some() {
+            Engine::Firmware
+        } else {
+            Engine::Model
+        }
+    }
+
     /// `model` ou `firmware`.
     pub fn parse(s: &str) -> Result<Engine, String> {
         match s {

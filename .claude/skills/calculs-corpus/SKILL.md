@@ -11,16 +11,16 @@ comparer), et le noyau de `step_response` partage ce même pool. Toujours en `--
 
 | Commande (dans `rust/`) | Rôle | Durée |
 |---|---|---|
-| `cargo run --release -p otb-dev -- corpus calibrate 600 SCRATCH/stats.json` | mesures brutes des seuils ; `--resume SCRATCH/stats.json` : percentiles p10 / p50 / p90 par taille | non mesurée (l'ordre de grandeur sous Python était de 2 à 3 min) |
-| `… corpus rates SCRATCH/rates.json` | assistant complet sur chaque session, taux de chaque constat ; `--resume` : tableau seul | non mesurée (idem) |
+| `cargo run --release -p otb-dev -- corpus calibrate 600 SCRATCH/stats.json` | mesures brutes des seuils ; `--resume SCRATCH/stats.json` : percentiles p10 / p50 / p90 par taille | 40 s, corpus entier (2026-11-24) |
+| `… corpus rates SCRATCH/rates.json` | assistant complet sur chaque session, taux de chaque constat ; `--resume` : tableau seul ; pas de `--dir` | 45 s, corpus entier (2026-11-24, après la bascule du lot 24d) |
 | `… corpus labels [--csv COPIE]` | tableau `$OTB_LOGS/corpus.csv` | non mesurée (moins d'une minute sous Python) |
 | `… corpus rates --compare AVANT.json APRÈS.json` | sessions dont un constat a changé (texte complet, chiffres compris) ; code 1 si différence | quasi instantanée |
 | `… corpus validate [--limit N] [--start N] [-j N]` | décodeur contre `blackbox_decode` | 6 min, corpus entier, 4 fichiers à la fois |
 | `… corpus stages SCRATCH/stages.json [--dir SOUS-DOSSIER]` | modèle de filtres contre le firmware, étage par étage (lot 22) ; `--resume` : tableau seul | 22 s, corpus entier (2026-11-22, lot 22b, fichiers déjà lus une fois ; 14 s avant les filtres rejoués à leur cadence, 43 s au lot 22a) |
 | `… corpus dyntrack SCRATCH/dyntrack.json [--dir SOUS-DOSSIER]` | suivi du notch dynamique rejoué contre les centres `FFT_FREQ` (lot 22c) ; `--resume` : tableau seul | 21 s, corpus entier (2026-11-22, fichiers déjà lus une fois) |
 | `… corpus replay SCRATCH/replay.json [--dir SOUS-DOSSIER]` | simulateur de la page Filtres : rejeu « actuel » contre le spectre enregistré (lot 22e, D-058) ; `--resume` : tableau seul | 68 s, corpus entier (2026-11-22, 675 sessions) |
-| `… corpus stages --chain firmware …` puis `… corpus stages --compare AVANT.json APRÈS.json` | contrôle par étage avec la chaîne à l'arithmétique du firmware, puis comparaison des deux passages (critère d'arrêt du lot 24c, code 1 s'il est atteint) | 13 s, corpus entier (2026-11-24) |
-| `… corpus replay --chain firmware SCRATCH/replay.json` | rejeu « actuel » par la chaîne à l'arithmétique du firmware (lot 24c) | 26 s, corpus entier (2026-11-24 ; 66 s pour la chaîne actuelle le même jour) |
+| `… corpus stages --chain model …` puis `… corpus stages --compare AVANT.json APRÈS.json` | contrôle par étage avec l'ancienne chaîne (par défaut depuis le lot 24d : celle du firmware), puis comparaison des deux passages (critère d'arrêt du lot 24c, code 1 s'il est atteint) | 13 s (firmware), 23 s (ancienne), corpus entier (2026-11-24) |
+| `… corpus replay --chain model SCRATCH/replay.json` | rejeu « actuel » par l'ancienne chaîne (par défaut depuis le lot 24d : celle du firmware) | 26 s, corpus entier (2026-11-24 ; 66 s pour l'ancienne chaîne le même jour) |
 | `… corpus chaindiff SCRATCH/chaindiff.json [--dir SOUS-DOSSIER]` | écart entre la chaîne actuelle et celle à l'arithmétique du firmware, par version et bande (lot 24c) ; `--resume` : tableau seul | 69 s, corpus entier (2026-11-24, 676 sessions) |
 | `… corpus thin SCRATCH/thin.json [--factor N] [--dir SOUS-DOSSIER]` | logs enregistrés à chaque boucle ramenés à une boucle sur N : d'où vient l'écart d'un rejeu sur les logs ralentis (W-083), chaque chaîne contre un rejeu idéal ; `--resume` : tableau seul | 19 s, corpus entier (2026-11-24, 32 sessions) |
 | `… corpus predict AVANT.bbl APRÈS.bbl` | vérification en vol du simulateur (lot 22f) : filtres d'APRÈS appliqués à AVANT, rejeu et rapport des \|H\|² contre APRÈS, par bande ; deux vols à la même cadence | 0,8 s par paire (Air65, deux vols de 43 s, 2026-11-22) |

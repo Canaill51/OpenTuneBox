@@ -347,7 +347,8 @@ LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallumen
   coupé à 4 kHz : 6 sessions ; D d'ordre 1 : 14 sessions (2 %) ; LPF1 du D statique : 83 (12 %) ; aucun
   biquad sur le gyro.
 - **Simulateur** (`rules.predict_filter_change`, variation ajoutée aux mesures des règles ; rejeu de la chaîne du firmware
-  comme la page Filtres depuis le 2026-11-22, D-059, et non plus le spectre « et si » de `bf_filters` : couper le LPF1 du
+  comme la page Filtres depuis le 2026-11-22, D-059, à l'arithmétique du firmware depuis la bascule du 2026-11-24 (lot 24d, D-062 :
+  un seul avis changé sur le corpus, `validation.md`), et non plus le spectre « et si » de `bf_filters` : couper le LPF1 du
   gyro y coûte +1,0 dB de gyro en médiane de plus, les filtres du D ne changent pas, `validation.md`). Mesure d'origine, avec
   l'ancienne méthode : couper le LPF1 du gyro (92 sessions) fait gagner 0,47 ms (médiane) pour +3,4 dB de
   gyro et +3,1 dB de D ; le bruit reste sous les repères (gyro et D sous le p90, sommet du D sous −10 dB

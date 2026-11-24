@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use otb_analysis::bf_filters::{GyroStage, gyro_stage, gyro_stage_own_rate};
 use otb_analysis::chain::{self, Signal};
-use otb_analysis::filter_replay::{chain_gap, replay_with};
+use otb_analysis::filter_replay::{before_after, before_after_with, chain_gap, replay, replay_with};
 use otb_analysis::filter_stages::{check_stages, check_stages_with};
 use otb_analysis::firmware_chain::{Engine, Release, every, gyro_steps};
 use otb_decoder::file::{Matrix, Stats};
@@ -282,6 +282,50 @@ fn avant_la_4_3_rien_n_est_rejoue() {
     assert!(gyro_steps(&log, &s, block(), &[vec![0.0; 100]], 1, None).is_err());
 }
 
+/// Bascule du lot 24d (D-062) : dès la 4.3, le rejeu par défaut — celui de la page Filtres (`before_after`), de l'assistant
+/// (`replay`) et du contrôle par étage (`check_stages`) — est celui de la chaîne du firmware ; avant la 4.3, l'ancienne chaîne
+/// reste (arithmétique non vérifiée).
+#[test]
+fn la_chaine_en_service_est_celle_du_firmware_des_la_4_3() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/jeno5_5s.bbl");
+    let mut lg = load(&path).unwrap().swap_remove(0);
+    let s = lg.settings.clone();
+    assert_eq!(Engine::in_service(&s), Engine::Firmware);
+    assert_eq!(replay(&lg, &s).unwrap().unwrap().engine, Engine::Firmware);
+    let mut modf = s.clone();
+    modf.gyro_lpf2 = lpf("PT1", 250);
+    let sel = 0..lg.n();
+    let ba = before_after(&lg, sel.clone(), &s, &modf, 300.0).unwrap().unwrap();
+    let fw = before_after_with(&lg, sel.clone(), &s, &modf, 300.0, Engine::Firmware)
+        .unwrap()
+        .unwrap();
+    let old = before_after_with(&lg, sel.clone(), &s, &modf, 300.0, Engine::Model)
+        .unwrap()
+        .unwrap();
+    let cur = |b: &otb_analysis::filter_replay::BeforeAfter| b.gyro[0].current_db.clone();
+    let modified = |b: &otb_analysis::filter_replay::BeforeAfter| b.gyro[0].modified_db.clone();
+    assert_eq!(cur(&ba), cur(&fw));
+    assert_eq!(modified(&ba), modified(&fw));
+    assert_ne!(cur(&ba), cur(&old), "les deux chaînes ne rendent pas les mêmes bits");
+    let gaps = |c: &otb_analysis::filter_stages::StageChecks| -> Vec<u64> {
+        c.checks
+            .iter()
+            .flat_map(|k| k.bands.iter().map(|b| b.error_db.to_bits()))
+            .collect()
+    };
+    let by_default = check_stages(&lg, sel.clone()).unwrap();
+    assert_eq!(
+        gaps(&by_default),
+        gaps(&check_stages_with(&lg, sel.clone(), Engine::Firmware).unwrap())
+    );
+    // avant la 4.3 : l'ancienne chaîne, sans erreur
+    lg.settings.version = vec![4, 2, 11];
+    let s42 = lg.settings.clone();
+    assert_eq!(Engine::in_service(&s42), Engine::Model);
+    assert_eq!(replay(&lg, &s42).unwrap().unwrap().engine, Engine::Model);
+    assert!(before_after(&lg, sel, &s42, &s42, 300.0).unwrap().is_some());
+}
+
 /// Sur un vrai log (JeNo 5, 2026.6, gyro et PID à 3,2 kHz, log une boucle sur deux), la chaîne du firmware et l'actuelle
 /// rejouent presque le même gyro, et le contrôle par étage ne se dégrade pas. Mesuré le 2026-11-24 (lot 24c) : écart
 /// moyen +0,01 / −0,02 dB sous 100 Hz, +0,24 / +0,05 dB de 100 à 250 Hz, écart efficace 7,7 % / 0,5 % (roulis, tangage) ;
@@ -312,7 +356,7 @@ fn jeno5_les_deux_chaines_se_rejoignent() {
     let fw = replay_with(lg, s, Engine::Firmware).unwrap().unwrap();
     assert_eq!(fw.engine, Engine::Firmware);
     assert!(!fw.gyro_pid.is_empty());
-    let old = check_stages(lg, 0..lg.n()).unwrap();
+    let old = check_stages_with(lg, 0..lg.n(), Engine::Model).unwrap();
     let new = check_stages_with(lg, 0..lg.n(), Engine::Firmware).unwrap();
     assert_eq!(old.checks.len(), new.checks.len());
     for (o, n) in old.checks.iter().zip(&new.checks) {
