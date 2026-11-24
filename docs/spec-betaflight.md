@@ -90,7 +90,10 @@ Fins de liste :
 
 - **PT1** : `k = ω/(ω+1)`, `ω = 2π fc dT`; `y += k(x−y)`; `H(z) = k/(1−(1−k)z⁻¹)`.
 - **PT2/PT3** : cascade de n PT1 identiques, coupure corrigée `k = pt1Gain(fc·C, dT)`,
-  `C = 1/sqrt(2^(1/n)−1)`: C_PT2 = 1.553773974, C_PT3 = 1.961459177.
+  `C = 1/sqrt(2^(1/n)−1)`: C_PT2 = 1.553773974, C_PT3 = 1.961459177. ⚠️ Jusqu'à la 4.5, un passe-bas **gyro** PT2 ou PT3
+  est initialisé avec le gain d'un PT1 (`gyroInitLowpassFilterLpf` : `gain = pt1FilterGain(lpfHz, dT)` passé à `pt2FilterInit`) :
+  fixe, il coupe plus bas que son réglage ; dynamique, il prend le bon gain au premier recalcul. Corrigé en 2025.12 ; le terme
+  D a toujours eu le bon gain.
 - **Biquad (4.4–2025.12)** RBJ : `ω=2πf Ts, sn=sin ω, cs=cos ω, α=sn/(2Q), a0=1+α`.
   LPF (Q = 1/√2) : b0=b2=(1−cs)/2, b1=1−cs, a1=−2cs, a2=1−α.
   Notch : b0=1, b1=−2cs, b2=1, a1=−2cs, a2=1−α. Passe-bande : b0=α, b1=0, b2=−α. Tout est divisé par a0.
@@ -124,6 +127,9 @@ Fins de liste :
 - **LPF dynamique selon les gaz** (t ∈ [0,1], pas de 0,01, mis à jour au plus toutes les 5 ms) :
   expo > 0 : `curve = t(1−t)(expo/10) + t`, `fc = (max−min)·curve + min`;
   expo = 0 : `fc = max(min, max·t(1−t²/3)·1.5)`. Si dyn_min > 0, il remplace le LPF1 statique. Expo 5 par défaut.
+  Recalcul par le mixeur (`updateDynLpfCutoffs`), sur les gaz **d'avant** le throttle boost, quand leur centième change et que
+  5 ms au moins ont passé depuis le dernier ; il vaut donc à partir de la boucle suivante. 2026.6 : coupure bornée à
+  `0,475 / dT` avant le recalcul d'un SVF.
 
 ## 3. Chaînes de filtres
 
@@ -134,7 +140,13 @@ Fins de liste :
   → notchs dynamiques → `gyroADCf` (loggé `gyroADC`).
 - **Filtre RPM** : un notch par moteur × harmonique à `(h+1)·motorHz`, borné à `[min_hz, 0.48/looptime_s]`,
   Q = rpm_filter_q/100, poids `rpm_filter_weights[h]/100` × atténuation `(fh−min)/fade_range` sous la zone de fondu.
-  motorHz = PT1(rpm_filter_lpf_hz) de `erpm·100/60/(poles/2)`.
+  motorHz = PT1(rpm_filter_lpf_hz) de `erpm·100/60/(poles/2)`, à chaque boucle PID (en 4.3, le PT1 lisse l'eRPM avant la
+  conversion en Hz).
+  **Recalcul** (`rpmFilterUpdate`) : `notchUpdatesPerIteration` notchs par boucle, de quoi les revoir tous en 1 ms
+  (`ceilf(n / boucles par ms)` ; 4.3 : `rintf(… + 0,49)`), harmonique puis moteur, à tour de rôle ; jusqu'à la 2025.12 dans
+  la boucle PID, donc **après** le filtrage de la même boucle, depuis la 2026.6 juste avant (`rpmFilterRun`). **Application**
+  harmonique puis moteur (4.4 à 2026.6 ; moteur puis harmonique en 4.3) : l'ordre compte quand les fréquences bougent (L-120).
+  Une fréquence au-delà du plafond est **plaquée** au plafond, le notch reste actif.
   Défauts : 3 harmoniques, min 100, fondu 50, q 500, lpf 150, poids 100,100,100 (4.5+).
 - **Notch dynamique** : défauts min 100, max 600, q 300, 3 notchs (7 au maximum) ; désactivé sous 2 kHz de PID.
   SDFT sur 72 échantillons après moyenne par groupes de `max(1, floor(nyq/maxHz))` ; binHz = (pidRate/sampleCount)/72 ;

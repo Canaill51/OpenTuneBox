@@ -799,6 +799,93 @@ projet `rust/otb-dev/bench/betaflight_filters.c` (GCC 15.2, `-O2 -ffp-contract=o
 - Ce que le banc ne vérifie pas (W-081) : l'ordonnancement des recalculs dans la boucle (notchs RPM un à un, LPF dynamiques),
   le suivi des pics du notch dynamique, et la fusion multiplication-addition que le compilateur de la carte de vol emploie.
 
+### Chaîne assemblée à l'arithmétique du firmware (2026-11-24, lot 24c)
+
+`rust/otb-analysis/src/firmware_chain.rs` enchaîne les briques du lot 24a comme la boucle du firmware (méthode dans son en-tête),
+**à côté** de la chaîne actuelle : rien ne change à l'écran ni dans l'assistant. Outils : `otb-dev corpus chaindiff` (écart entre
+les deux chaînes, spectres exacts), `corpus stages --chain firmware` puis `--compare`, `corpus replay --chain firmware`. Corpus
+entier, période de l'assistant, poste Linux.
+
+**Au bit près contre le banc** (`rust/otb-analysis/tests/firmware_chain.rs:la_chaine_assemblee_rend_les_bits_du_banc`) : les cas
+« deux cadences » du lot 24b que le firmware joue tels quels (moyenne de décimation, notch statique, LPF1 PT1 ou PT3), entrée à la
+cadence gyro, sont rendus au bit près par la chaîne assemblée pour les six versions, **sauf** le PT3 jusqu'à la 4.5 : là, le
+firmware initialise un passe-bas gyro PT2 ou PT3 fixe avec le gain d'un **PT1** (`gyro_init.c`), ce que le programme du banc ne
+fait pas ; la chaîne recopie le firmware et le test exige cette différence. Les autres cas du banc ne sont pas la boucle du firmware
+(biquad du LPF1 en forme directe II au lieu de I).
+
+**Critère d'arrêt du lot** (accepté par Cédric : logs à chaque boucle PID, sous 250 Hz, médiane d'un étage dégradée de plus de
+0,05 dB ou une bande de plus de 0,5 dB) : **non atteint**. `corpus stages --compare`, mêmes bandes concluantes dans les deux
+passages, |écart| médian chaîne actuelle → chaîne du firmware :
+
+| Étage, log | 5–50 Hz | 50–100 Hz | 100–250 Hz | 250–500 Hz | pire bande |
+|---|---|---|---|---|---|
+| LPF2, chaque boucle (12) | 0,008 → 0,008 | 0,079 → 0,079 | 0,038 → 0,038 | 0,020 → 0,020 | +0,000 dB |
+| notchs RPM, chaque boucle (12) | 0,005 → 0,005 | 0,017 → 0,016 | 0,005 → 0,007 | 0,308 → 0,334 | +0,035 dB |
+| notchs statiques + LPF1, chaque boucle (12) | 0,005 → 0,005 | 0,021 → 0,021 | 0,016 → 0,016 | 0,057 → 0,057 | +0,000 dB |
+| bloc gyro, chaque boucle (17) | 0,007 → 0,006 | 0,045 → 0,026 | 0,047 → 0,046 | 0,341 → 0,345 | +0,025 dB |
+| notch dynamique, chaque boucle (17) | 0,005 → 0,005 | 0,013 → 0,013 | 0,021 → 0,021 | 0,028 → 0,028 | +0,015 dB |
+| filtres D, chaque boucle (56 axes) | 0,001 → 0,001 | 0,024 → 0,023 | 0,029 → 0,032 | 0,063 → 0,053 | +0,014 dB |
+| bloc gyro, une boucle sur 2 ou moins (434) | 0,035 → 0,034 | 0,202 → 0,174 | 0,227 → 0,206 | 0,214 → 0,215 | +0,847 dB |
+| notch dynamique, une boucle sur 2 ou moins (435) | 0,020 → 0,020 | 0,059 → 0,062 | 0,071 → 0,071 | 0,126 → 0,126 | +0,032 dB |
+
+Durée : 23 s pour la chaîne actuelle, 13 s pour celle du firmware. Seule bande dégradée de plus de 0,5 dB : bloc gyro de
+`1. PTB/schteven/…_214547_ATOMRCF405NAVIMINI.BBL` #6 (2025.12.2, drone à **deux** moteurs, log une boucle sur deux, hors du critère),
+100–250 Hz, 0,89 → 1,74 dB. Cause mesurée : l'**ordre** des notchs RPM. Le firmware les applique harmonique par harmonique puis
+moteur par moteur (`rpmFilterApply`, de la 4.4 à la 2026.6 ; moteur d'abord en 4.3), la chaîne actuelle moteur d'abord ; quand leur
+fréquence bouge, des notchs en série ne commutent plus. Rejouée dans l'ordre de la chaîne actuelle, la bande revient à 1,03 dB
+(écart de l'étage RPM seul ÷ 2,5). **Pourquoi l'ordre du firmware colle moins à ce vol-là reste inexpliqué** (W-083).
+
+**Écart entre les deux chaînes** (`corpus chaindiff`, 676 sessions, 69 s ; spectres exacts, firmware − actuelle, roulis et
+tangage ; aucune session d'avant la 4.3 dans le corpus) :
+
+| Logs | Sessions | Gyro 20–100 / 100–250 / 250–500 Hz, \|écart\| médian (90e centile) | Terme D, mêmes bandes |
+|---|---|---|---|
+| chaque boucle PID, 2026.6 | 27 | 0,003 (0,008) / 0,019 (0,033) / 0,039 (0,057) dB | 0,003 (0,008) / 0,019 (0,035) / 0,040 (0,057) dB |
+| chaque boucle PID, 2025.12 et 4.5 | 5 | 0,003 à 0,007 / 0,009 à 0,034 / 0,061 à 0,173 dB | mêmes ordres de grandeur |
+| une boucle sur 2 ou moins, 4.5 | 409 | 0,003 (0,045) / 0,031 (0,252) / 0,027 (0,154) dB | 0,313 (0,865) / 0,866 (2,362) / 0,979 (2,212) dB |
+| une boucle sur 2 ou moins, 2025.12 | 138 | 0,006 (0,073) / 0,065 (0,384) / 0,044 (0,187) dB | 0,344 (0,786) / 1,018 (2,182) / 1,100 (1,798) dB |
+| une boucle sur 2 ou moins, 2026.6 | 95 | 0,009 (0,101) / 0,075 (0,356) / 0,030 (0,113) dB | 0,301 (0,812) / 0,888 (2,446) / 1,121 (2,435) dB |
+
+Écart efficace du gyro rejoué (firmware − actuelle, rapporté au signal) : 8e-4 en médiane à chaque boucle, 1e-3 à 3e-3 sinon. À
+chaque boucle PID, la chaîne du firmware filtre à peine plus (moyenne signée −0,02 à −0,05 dB au-dessus de 100 Hz). Sur les logs
+ralentis, son terme D est **calculé à la cadence PID** (sur le gyro rejoué à cette cadence, puis une boucle sur N gardée), comme le
+firmware, au lieu de la cadence du log : de là les +0,3 à +1,2 dB du D. Deux sessions sortent du lot (gyro jusqu'à −21 dB) :
+`Cedric/J3.5/HQ/btfl_001.bbl` et `48k-HQ.bbl` (4.5.0, PID 4 kHz), dont les moteurs montent à 643 Hz. Leur 3e harmonique
+(1 930 Hz) dépasse le plafond des notchs RPM (0,48 × 4 000 = 1 920 Hz) : le firmware **plaque** le notch au plafond
+(`constrainf`), la chaîne actuelle l'**ignore** (`otb_dsp::run_section`, fréquence ≥ 0,48 × cadence). Sans la 3e harmonique,
+l'écart de l'étage RPM tombe de 17 % à 0,1 %. Le vol tranche : rejeu « actuel » de la chaîne actuelle à **+18 à +24 dB** du spectre
+enregistré entre 20 et 100 Hz, de la chaîne du firmware à +3 à +4 dB (W-082).
+
+**Rejeu contre le vol** (`corpus replay`, chaîne actuelle → chaîne du firmware, |écart| médian au spectre enregistré, mêmes
+sessions ; 66 s → 26 s) :
+
+| Logs | Gyro 20–100 / 100–250 / 250–500 Hz | Terme D, mêmes bandes |
+|---|---|---|
+| chaque boucle PID, ≥ 1,6 kHz (32) | 0,09 → 0,08 / 0,10 → 0,08 / 0,22 → 0,24 dB | 0,11 → 0,11 / 0,10 → 0,09 / 0,27 → 0,30 dB |
+| une boucle sur 2 ou moins, ≥ 1,6 kHz (493 ; D : 490) | 0,47 → 0,41 / 0,45 → 0,36 / 0,39 → 0,35 dB | 0,56 → 0,78 / 0,64 → 0,91 / 0,72 → 1,13 dB |
+| une boucle sur 2 ou moins, < 1,6 kHz (151) | 3,03 → 3,04 / 1,89 → 1,86 / 1,61 → 1,62 dB | 2,72 → 3,59 / 1,95 → 4,05 / 1,81 → 3,93 dB |
+
+Le gyro de la chaîne du firmware est égal ou plus proche du vol partout. Son terme D, sur les logs ralentis, s'en **éloigne**
+(moyenne signée −0,12 → +0,67 dB entre 100 et 250 Hz, à 1,6 kHz ou plus) : cause **supposée**, non mesurée — le gyro à la cadence
+PID est reconstruit par sinus cardinal depuis un log qui n'a rien au-dessus de sa demi-cadence, et la dérivée amplifie ce qui
+diffère là-haut ; le filtre D de la chaîne actuelle, calculé à la cadence du log, coupait un peu plus et compensait par hasard
+(W-083). Sur le JeNo 5 (2026.6, log à 1,6 kHz), FINAL et LAST se rapprochent du vol (D −1,07 → −0,45 dB entre 100 et 250 Hz), les
+autres vols s'en éloignent de 0,1 à 0,7 dB.
+
+- **Sur `tests/data/jeno5_5s.bbl`** (CI) : écart firmware − actuelle +0,01 / −0,02 dB sous 100 Hz, +0,24 / +0,05 dB de 100 à
+  250 Hz, écart efficace 7,7 % / 0,5 % (roulis, tangage) ; aucune bande du contrôle par étage ne se dégrade de plus de 0,1 dB
+  (`jeno5_les_deux_chaines_se_rejoignent`).
+- **Défaut trouvé par le premier passage** : le LPF2, à la cadence gyro, partageait l'état du roulis entre les trois axes (−5 dB
+  à toutes les fréquences, y compris 5–20 Hz où rien ne filtre) ; corrigé avant toute mesure ci-dessus, gardé par
+  `les_axes_ont_chacun_leurs_filtres` (L-119).
+- **Contre-preuves** (une erreur introduite, le test rougit) : LPF2 partagé entre les axes → `les_axes_ont_chacun_leurs_filtres` ;
+  nombre de pôles faux dans l'eRPM → `les_notchs_rpm_eteignent_la_frequence_des_moteurs` (−0,1 dB au lieu de −30 ; avec trois
+  harmoniques le test restait vert, la deuxième tombant sur la fréquence testée : il n'en garde qu'une) ; PT3 gyro sans le gain de
+  PT1 des 4.x, ou décimation sans la moyenne → `la_chaine_assemblee_rend_les_bits_du_banc` ; nombre de notchs RPM par boucle arrondi
+  au lieu du plafond → `notchs_rpm_par_boucle` ; délai de 5 ms des LPF dynamiques retiré → `lpf_dynamique_cinq_ms_et_centieme`.
+- **Sans effet mesurable** sur la bande dégradée de schteven : gaz d'avant ou d'après le throttle boost pour les LPF dynamiques,
+  délai de 5 ms, notchs RPM tous recalculés à chaque boucle ou avant le filtrage.
+
 ### Bibliothèque de données en fichiers JSON (2026-11-18, lot 28)
 
 Mesuré par `rust/otb-store/tests/bibliotheque.rs` (`a_volume_reel_les_fichiers_restent_petits_et_louverture_rapide`),

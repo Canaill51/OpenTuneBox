@@ -8,7 +8,8 @@
 
 use super::json::{as_f64, dump, num, parse};
 use super::{Args, Output, analysed, drone_id, log_files, logs_root, map_files, rel};
-use otb_analysis::filter_replay::before_after;
+use otb_analysis::filter_replay::before_after_with;
+use otb_analysis::firmware_chain::Engine;
 use otb_log::flightlog::{FlightLog, load};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
@@ -33,11 +34,11 @@ fn band(f: &[f64], a: &[f64], b: &[f64], lo: f64, hi: f64) -> f64 {
     }
 }
 
-fn session_row(lg: &FlightLog, f: &Path, root: &Path) -> Result<Option<Value>, String> {
+fn session_row(lg: &FlightLog, f: &Path, root: &Path, engine: Engine) -> Result<Option<Value>, String> {
     let s = &lg.settings;
     let Some(sel) = analysed(lg) else { return Ok(None) };
     let t = Instant::now();
-    let Some(r) = before_after(lg, sel.clone(), s, s, 300.0)? else {
+    let Some(r) = before_after_with(lg, sel.clone(), s, s, 300.0, engine)? else {
         return Ok(None);
     };
     let secs = t.elapsed().as_secs_f64();
@@ -91,10 +92,10 @@ fn session_row(lg: &FlightLog, f: &Path, root: &Path) -> Result<Option<Value>, S
     })))
 }
 
-fn measure_file(f: &Path, root: &Path) -> Result<Vec<Value>, String> {
+fn measure_file(f: &Path, root: &Path, engine: Engine) -> Result<Vec<Value>, String> {
     let mut out = Vec::new();
     for lg in load(f).map_err(|e| e.to_string())? {
-        out.extend(session_row(&lg, f, root)?);
+        out.extend(session_row(&lg, f, root, engine)?);
     }
     Ok(out)
 }
@@ -165,7 +166,8 @@ fn resume_text(rows: &[Value]) -> String {
 }
 
 pub fn run(args: &[&str]) -> Result<Output, String> {
-    let a = Args::parse(args, &["-j", "--limit", "--dir"], &["--resume"])?;
+    let a = Args::parse(args, &["-j", "--limit", "--dir", "--chain"], &["--resume"])?;
+    let engine = Engine::parse(a.text("--chain").unwrap_or("model"))?;
     match (a.has("--resume"), a.positional.as_slice()) {
         (true, [path]) => {
             let t = std::fs::read_to_string(path).map_err(|e| format!("{path} : {e}"))?;
@@ -179,7 +181,7 @@ pub fn run(args: &[&str]) -> Result<Output, String> {
             if let Some(n) = a.number("--limit")? {
                 files.truncate(n);
             }
-            let res = map_files(|f| measure_file(f, &root), &files, a.number("-j")?, &root);
+            let res = map_files(|f| measure_file(f, &root, engine), &files, a.number("-j")?, &root);
             let rows: Vec<Value> = res.into_iter().flat_map(|(_, rows)| rows).collect();
             std::fs::write(path, dump(&Value::Array(rows.clone()))?).map_err(|e| format!("{path} : {e}"))?;
             Ok(Output::ok(resume_text(&rows)))

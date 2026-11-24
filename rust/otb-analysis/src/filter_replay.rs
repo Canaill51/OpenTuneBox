@@ -30,6 +30,7 @@ use crate::bf_filters::{
 use crate::chain::{self, Brick, Signal};
 use crate::dyn_notch::{DynNotchTracker, PREROLL_S, ticks_per_log_sample};
 use crate::filter_stages::{model_rate_hz, tpa_d_factor};
+use crate::firmware_chain::{self, Engine, every, pid_loops_per_log_sample};
 use crate::spectral::{Mode, py_round, seg_spectra, segments, to_db};
 use otb_log::flightlog::{FlightLog, clamp_range, slow_gain};
 use otb_log::settings::Settings;
@@ -47,6 +48,10 @@ pub struct Replay {
     pub gyro: Vec<Vec<f64>>,
     /// Terme D rejoué (°/s² × facteur TPA ; le gain Kd n'y est pas), une ligne par axe.
     pub dterm: Matrix64,
+    /// Chaîne qui a rejoué.
+    pub engine: Engine,
+    /// `Engine::Firmware` : gyro rejoué à la cadence PID (le terme D en part), sinon vide.
+    pub gyro_pid: Vec<Vec<f32>>,
 }
 
 fn wide(r: &[f32]) -> Vec<f64> {
@@ -80,11 +85,81 @@ fn dyn_centres(log: &FlightLog, s: &Settings, pre: &[Vec<f64>]) -> Vec<Vec<Vec<f
 /// `replay` : chaîne de filtres de `s` rejouée sur le gyro non filtré de tout le log (voir l'en-tête du module).
 /// `None` sans gyro non filtré.
 pub fn replay(log: &FlightLog, s: &Settings) -> Result<Option<Replay>, String> {
+    replay_with(log, s, Engine::Model)
+}
+
+/// [`replay`] par la chaîne `engine` : l'actuelle, ou celle à l'arithmétique du firmware (`firmware_chain`, lot 24c).
+pub fn replay_with(log: &FlightLog, s: &Settings, engine: Engine) -> Result<Option<Replay>, String> {
+    if engine == Engine::Firmware {
+        return replay_firmware(log, s);
+    }
     let Some(gyro) = replay_gyro(log, s)? else {
         return Ok(None);
     };
     let dterm = replay_dterm(log, s, &gyro)?;
-    Ok(Some(Replay { gyro, dterm }))
+    Ok(Some(Replay {
+        gyro,
+        dterm,
+        engine,
+        gyro_pid: Vec::new(),
+    }))
+}
+
+/// Rejeu par la chaîne à l'arithmétique du firmware : le bloc d'avant le notch dynamique d'une traite (cadence gyro puis
+/// PID), les centres du notch dynamique suivis sur sa sortie ramenée à la cadence du log ([`dyn_centres`], comme la chaîne
+/// actuelle), le notch dynamique et le terme D à la cadence PID, chaque signal ramené à la cadence du log à la fin.
+fn replay_firmware(log: &FlightLog, s: &Settings) -> Result<Option<Replay>, String> {
+    let desc = chain::betaflight();
+    let Some(gu) = desc.recorded_input(log) else {
+        return Ok(None);
+    };
+    let r = pid_loops_per_log_sample(s)?;
+    let rows: Vec<Vec<f64>> = (0..gu.k.min(3)).map(|a| wide(gu.row(a))).collect();
+    let block = desc.gyro_between(Signal::GyroUnfilt, Signal::FftFreqBeforeDynNotch)?;
+    let pre = firmware_chain::gyro_steps(log, s, block, &rows, 1, None)?;
+    let centres = if dyn_notch_enabled(s) {
+        let pre_log: Vec<Vec<f64>> = pre.iter().map(|p| every(p, r)).collect();
+        dyn_centres(log, s, &pre_log)
+    } else {
+        vec![Vec::new(); pre.len()]
+    };
+    let pre_wide: Vec<Vec<f64>> = pre.iter().map(|p| p.iter().map(|&v| v as f64).collect()).collect();
+    let rest = desc.gyro_between(Signal::FftFreqBeforeDynNotch, Signal::Gyro)?;
+    let gyro_pid = firmware_chain::gyro_steps(log, s, rest, &pre_wide, r, Some(&centres))?;
+    let gyro: Vec<Vec<f64>> = gyro_pid.iter().map(|g| every(g, r)).collect();
+    let dterm = replay_dterm_firmware(log, s, &gyro_pid)?;
+    Ok(Some(Replay {
+        gyro,
+        dterm,
+        engine: Engine::Firmware,
+        gyro_pid,
+    }))
+}
+
+/// Terme D de la chaîne à l'arithmétique du firmware, depuis le gyro rejoué à la cadence PID (× facteur TPA).
+fn replay_dterm_firmware(log: &FlightLog, s: &Settings, gyro_pid: &[Vec<f32>]) -> Result<Matrix64, String> {
+    let r = pid_loops_per_log_sample(s)?;
+    let n = log.n();
+    let d = firmware_chain::dterm(log, s, gyro_pid, r)?;
+    let mut data = Vec::with_capacity(d.len() * n);
+    for row in &d {
+        let mut v = every(row, r);
+        v.resize(n, 0.0);
+        data.extend(v);
+    }
+    let mut dterm = Matrix64 { k: d.len(), n, data };
+    apply_tpa(log, s, &mut dterm);
+    Ok(dterm)
+}
+
+/// Le D filtré multiplié par le facteur TPA, comme le firmware (`flight/pid.c`).
+fn apply_tpa(log: &FlightLog, s: &Settings, dterm: &mut Matrix64) {
+    let n = dterm.n;
+    if let Some(tpa) = tpa_d_factor(s, &pre_boost_throttle(s, &log.throttle, model_rate_hz(s))) {
+        for row in dterm.data.chunks_mut(n) {
+            row.iter_mut().zip(&tpa).for_each(|(v, f)| *v *= f);
+        }
+    }
 }
 
 /// Vrai si `s` et `base` ne diffèrent que par les filtres du terme D (passe-bas et notch du D), qui ne touchent pas au gyro.
@@ -103,13 +178,13 @@ pub fn replay_from(log: &FlightLog, s: &Settings, base: &Settings, cur: &Replay)
         return Ok(Some(cur.clone()));
     }
     if same_gyro_chain(s, base) {
-        let dterm = replay_dterm(log, s, &cur.gyro)?;
-        return Ok(Some(Replay {
-            gyro: cur.gyro.clone(),
-            dterm,
-        }));
+        let dterm = match cur.engine {
+            Engine::Model => replay_dterm(log, s, &cur.gyro)?,
+            Engine::Firmware => replay_dterm_firmware(log, s, &cur.gyro_pid)?,
+        };
+        return Ok(Some(Replay { dterm, ..cur.clone() }));
     }
-    replay(log, s)
+    replay_with(log, s, cur.engine)
 }
 
 /// Gyro filtré rejoué (une ligne par axe) ; `None` sans gyro non filtré.
@@ -164,12 +239,7 @@ fn replay_dterm(log: &FlightLog, s: &Settings, gyro: &[Vec<f64>]) -> Result<Matr
         data: gyro.concat(),
     };
     let mut dterm = simulate_dterm_at(log, Some(s), Some(&m), fs)?;
-    // le firmware multiplie le D filtré par le facteur TPA (`flight/pid.c`)
-    if let Some(tpa) = tpa_d_factor(s, &pre_boost_throttle(s, &log.throttle, fs)) {
-        for row in dterm.data.chunks_mut(n) {
-            row.iter_mut().zip(&tpa).for_each(|(v, f)| *v *= f);
-        }
-    }
+    apply_tpa(log, s, &mut dterm);
     Ok(dterm)
 }
 
@@ -249,7 +319,19 @@ pub fn before_after(
     modf: &Settings,
     seg_ms: f64,
 ) -> Result<Option<BeforeAfter>, String> {
-    let Some(cur) = replay(log, base)? else {
+    before_after_with(log, sel, base, modf, seg_ms, Engine::Model)
+}
+
+/// [`before_after`] avec la chaîne `engine` ([`replay_with`]).
+pub fn before_after_with(
+    log: &FlightLog,
+    sel: Range<usize>,
+    base: &Settings,
+    modf: &Settings,
+    seg_ms: f64,
+    engine: Engine,
+) -> Result<Option<BeforeAfter>, String> {
+    let Some(cur) = replay_with(log, base, engine)? else {
         return Ok(None);
     };
     before_after_from(log, sel, base, &cur, modf, seg_ms)
@@ -332,4 +414,69 @@ pub fn before_after_from(
         }));
     }
     Ok(Some(BeforeAfter { freqs, gyro, dterm }))
+}
+
+/// Écart entre les deux chaînes sur un log (lot 24c) : spectres (dB, moyenne des fenêtres) des rejeux **exacts** de la
+/// chaîne actuelle et de celle à l'arithmétique du firmware, réglages du log, et écart dans le temps.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChainGap {
+    pub freqs: Vec<f64>,
+    /// Par axe : (chaîne actuelle, chaîne du firmware).
+    pub gyro_db: Vec<(Vec<f64>, Vec<f64>)>,
+    /// Par axe, `None` sans terme D enregistré.
+    pub dterm_db: Vec<Option<(Vec<f64>, Vec<f64>)>>,
+    /// Par axe : valeur efficace de (firmware − actuelle) rapportée à celle de l'actuelle, gyro, sur la période.
+    pub gyro_rel_rms: Vec<f64>,
+}
+
+/// `chain_gap` : [`ChainGap`] de la période `sel` (fenêtres de `seg_ms`). `None` sans gyro non filtré, si la période ne
+/// contient aucune fenêtre, ou si la chaîne du firmware refuse le log (version d'avant la 4.3 : `Err`).
+pub fn chain_gap(log: &FlightLog, sel: Range<usize>, seg_ms: f64) -> Result<Option<ChainGap>, String> {
+    let s = &log.settings;
+    let (Some(old), Some(new)) = (
+        replay_with(log, s, Engine::Model)?,
+        replay_with(log, s, Engine::Firmware)?,
+    ) else {
+        return Ok(None);
+    };
+    let sel = clamp_range(sel.start, sel.end, log.n());
+    let fs = log.fs;
+    let l = 32.max(py_round(seg_ms * fs / 1000.0)?) as usize;
+    let br: Vec<i64> = log.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect();
+    let w = |x: &[f64]| windows(x, &sel, l, &br, fs);
+    let mut freqs = Vec::new();
+    let mut gyro_db = Vec::new();
+    let mut gyro_rel_rms = Vec::new();
+    for (a, b) in old.gyro.iter().zip(&new.gyro) {
+        let (Some((f, pa)), Some((_, pb))) = (w(a)?, w(b)?) else {
+            return Ok(None);
+        };
+        let nf = f.len();
+        freqs = f;
+        gyro_db.push((mean_db(&pa, nf), mean_db(&pb, nf)));
+        let (mut e, mut r) = (0.0, 0.0);
+        for i in sel.clone() {
+            e += (b[i] - a[i]).powi(2);
+            r += a[i] * a[i];
+        }
+        gyro_rel_rms.push(if r > 0.0 { (e / r).sqrt() } else { f64::NAN });
+    }
+    let nf = freqs.len();
+    let mut dterm_db = Vec::new();
+    for ax in 0..old.gyro.len() {
+        if !log.d_term.row(ax).iter().any(|&v| v != 0.0) {
+            dterm_db.push(None);
+            continue;
+        }
+        match (w(old.dterm.row(ax))?, w(new.dterm.row(ax))?) {
+            (Some((_, pa)), Some((_, pb))) => dterm_db.push(Some((mean_db(&pa, nf), mean_db(&pb, nf)))),
+            _ => dterm_db.push(None),
+        }
+    }
+    Ok(Some(ChainGap {
+        freqs,
+        gyro_db,
+        dterm_db,
+        gyro_rel_rms,
+    }))
 }

@@ -790,7 +790,10 @@ briques ne se prouvent pas sans le banc), 24c dans la suivante. Fait le même jo
 (4.3–4.4, 4.5, 2025.12, 2026.6 et après) dans `rust/otb-dsp/src/firmware/betaflight/`, banc `otb-dev firmware-bench` sur six
 versions, toutes identiques au bit près ([validation.md](validation.md#briques-à-larithmétique-du-firmware-2026-11-24-lots-24a-et-24b)).
 Le suivi des pics du notch dynamique et l'ordonnancement des recalculs (notchs RPM, LPF dynamiques) restent hors du banc
-(W-081).
+(W-081). Fait le même jour (24c) : la chaîne assemblée `rust/otb-analysis/src/firmware_chain.rs`, à côté de l'actuelle et choisie
+par `Engine` (`Engine::Model` par défaut : rien ne change à l'écran), recopie l'ordonnancement version par version ; écart chiffré
+sur tout le corpus, critère d'arrêt non atteint ([validation.md](validation.md#chaîne-assemblée-à-larithmétique-du-firmware-2026-11-24-lot-24c),
+W-082, W-083).
 
 **Témoins.** Code relu le 2026-11-22 (le fork le décrivait avant le lot 22). La chaîne est écrite **deux fois** :
 - en **réponse en fréquence**, par `rust/otb-analysis/src/bf_filters.rs:gyro_chain` et

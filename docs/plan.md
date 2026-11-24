@@ -43,8 +43,8 @@ pour Betaflight seul, le lot 22 a déjà vérifié le simulateur sur de vrais vo
 **et** par le contrôle par étage du lot 22 ; et le seul écart qui touche déjà l'écran, l'**ordre du terme D**, est
 corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis du plan. Le 2026-11-23, Cédric a levé la
 condition pour le **lot 23 seul** (D-062 amendée) : fait le même jour, sans changer un seul résultat. Le 2026-11-24, il
-l'a levée pour les **étapes 24a à 24c** (rien de branché) : 24a et 24b faits le même jour ; la bascule (24d, 24e) et le lot 25
-attendent toujours.
+l'a levée pour les **étapes 24a à 24c** (rien de branché) : 24a, 24b et 24c faits le même jour ; la bascule (24d, 24e) et le
+lot 25 attendent toujours sa décision au vu des chiffres de 24c.
 
 ## Comment s'en servir
 
@@ -65,7 +65,7 @@ attendent toujours.
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14, 16 à 23, 28 à 31
   et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15 et le 32 sont ouverts (les parties
-  faites du 32 y sont déjà) ; les **24 et 25** restent du chantier des scripts firmware, **conditionnel** (D-062 ; 24a et 24b faits, 24c levé), et les **26 et 27** en sont
+  faites du 32 y sont déjà) ; les **24 et 25** restent du chantier des scripts firmware, **conditionnel** (D-062 ; 24a à 24c faits, la bascule attend Cédric), et les **26 et 27** en sont
   sortis le 2026-11-18 ; le prochain numéro libre est **34**.
 
 ## Ordre des étapes
@@ -74,8 +74,7 @@ attendent toujours.
 |---|---|---|---|
 | 1 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075), mode disque essayé sur la G474 ; reste une carte SD réelle et Windows |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| 3 | **24c** | Écart entre l'ancienne et la nouvelle chaîne chiffré sur tout le corpus (point de non-retour) | 24a et 24b **faits le 2026-11-24** ; condition levée pour 24a à 24c (D-062 amendée) |
-| — | **24d, 24e** | Bascule et seuils revérifiés — **conditionnel** | D-062 : décision de Cédric au vu des chiffres de 24c |
+| — | **24d, 24e** | Bascule et seuils revérifiés — **conditionnel** | 24a à 24c **faits le 2026-11-24** ; D-062 : décision de Cédric au vu des chiffres de 24c ([validation.md](validation.md#chaîne-assemblée-à-larithmétique-du-firmware-2026-11-24-lot-24c), W-082, W-083) |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -269,7 +268,11 @@ avant la suivante**, et qu'aucune ne saute.
       ne garde que des vecteurs (D-062) ; licences d'INAV et d'ArduPilot vérifiées à leur source à ce moment-là.
       Balayage de fréquence, bruit, échelons, fréquences de notch variables. La CI les rejoue et exige l'**égalité bit à
       bit** ; elle n'a pas le corpus, donc tout se prouve sur vecteurs et sur `tests/data/jeno5_5s.bbl` (L-023).
-- [ ] **24c — l'écart chiffré sur tout le corpus, avant de brancher quoi que ce soit.** Assembler la chaîne nouvelle à côté
+- [x] **24c — l'écart chiffré sur tout le corpus, avant de brancher quoi que ce soit.** Fait le 2026-11-24 :
+      `rust/otb-analysis/src/firmware_chain.rs`, choisie par `Engine` dans le contrôle par étage et le rejeu, `Engine::Model` par
+      défaut ; `otb-dev corpus chaindiff`, `--chain firmware`, `corpus stages --compare`. Critère d'arrêt non atteint ; deux écarts
+      expliqués (W-082 : la chaîne actuelle ignore un notch RPM au plafond ; L-120 : ordre des notchs RPM), deux non expliqués
+      (W-083). Texte d'origine : Assembler la chaîne nouvelle à côté
       de l'ancienne (recalculs recopiés du firmware, W-081 point 1), sans rien changer à l'écran. Différence entre l'ancienne
       et la nouvelle chaîne sur tout le corpus, et `otb-dev corpus stages` / `corpus replay` relancés : le contrôle par
       étage **ne doit pas se dégrader** (preuve par les vrais vols, D-062). Chiffres dans [validation.md](validation.md).
@@ -404,3 +407,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 32c-2 | 2026-11-23 | **Mode stockage de masse et cartes SD, l'écran** (branche `feat/usb-mass-storage-screen`, D-075 complétée, D-074 amendée) : « Copier en mode disque » à côté de « Copier les vols », attente du disque et « Choisir le dossier… », copie de la mémoire gardée jusqu'au rebranchement puis reconnexion seule et effacement si c'est la même carte, logs d'une carte SD copiés un par un (refusés gardés sur la carte) et supprimés en deux clics, section « Carte SD dans un lecteur » (drone choisi à la main, nom lu dans le log) ; `otb-usb` refuse de prendre le fichier de la carte pour sa propre copie. Preuve : 9 tests nouveaux (8 de l'écran, 1 d'`otb-usb`), 4 contre-preuves vues en échec, captures des deux thèmes sur la carte simulée ; parcours du mode disque essayé à l'écran sur la carte G474 sous Linux | carte SD réelle, Windows |
 | 23 | 2026-11-23 | **La chaîne Betaflight décrite en données** (branche `refactor/chain-as-data`, D-062 amendée : condition des vrais logs levée pour ce lot seul) : `rust/otb-analysis/chains/betaflight.json`, intégré à la compilation et lu par `chain.rs`, donne les étapes des chaînes gyro et D (brique, cadence, réglage lu), les prises du log et la position de la dérivée du D ; la réponse en fréquence, les étages `GyroStage` (intervalle entre deux prises), le rejeu, le suivi du notch dynamique, le contrôle par étage et le terme D la lisent au lieu de porter l'ordre en dur ; `dterm_chain` rend un `Result`. Preuve d'iso-résultat ([validation.md](validation.md#chaîne-décrite-en-données-2026-11-23-lot-23)) : `otb-parity` 0 échec au bit près sur 1 732 appels, `corpus replay`, `stages`, `dyntrack` identiques, 0 constat changé sur 676 sessions, 42 captures identiques octet pour octet ; 6 tests nouveaux ; contre-preuves : LPF1 déplacé (6 tests rouges), LPF2 à la cadence PID (14 rouges) | lots 24 et 25, toujours conditionnels |
 | 24a, 24b | 2026-11-24 | **Briques à l'arithmétique du firmware et banc de référence** (branche `feat/firmware-exact-bricks`, D-062 amendée : condition levée pour 24a à 24c) : briques float32 de `rust/otb-dsp/src/firmware/betaflight/` (sinus approchés, PT1/2/3, biquad, SVF, notch RPM, décimation), **non branchées** ; banc `otb-dev firmware-bench` (télécharge et compile `filter.c` et `maths.c` hors du dépôt, ne garde que des vecteurs) ; 6 versions, 23 ou 24 cas chacune, **toutes identiques au bit près**, rejouées par la CI (`rust/otb-dsp/tests/firmware_vectors.rs`) ; contre-preuves, dont un trou du jeu de cas (L-118) | W-081 ouvert ; 24c suivant |
+| 24c | 2026-11-24 | **Chaîne assemblée à l'arithmétique du firmware, écart chiffré** (branche `feat/firmware-chain-compare`, D-062 amendée, W-081 point 1 traité, W-082 et W-083 ouverts, L-119, L-120) : `rust/otb-analysis/src/firmware_chain.rs` enchaîne les briques comme la boucle du firmware (deux cadences, notchs RPM à tour de rôle, LPF dynamiques par le mixeur, D de `pid.c`), à côté de la chaîne actuelle, rien de changé à l'écran ; cas « deux cadences » du banc rendus au bit près ; critère d'arrêt non atteint (contrôle par étage, chaque boucle PID : pire bande +0,035 dB) ; gyro rejoué égal ou plus proche du vol partout, D des logs ralentis plus loin (W-083) ; la chaîne actuelle ignore un notch RPM au plafond, jusqu'à +24 dB sur deux vols (W-082) | bascule 24d, 24e : décision de Cédric |

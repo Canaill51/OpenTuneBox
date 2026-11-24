@@ -910,7 +910,7 @@ const UPSAMPLE_HALF_TAPS: usize = 16;
 /// bords prolongés par la première et la dernière valeur. ⚠️ Pas d'interpolation linéaire : elle agit comme un passe-bas
 /// sur l'entrée reconstruite, et le LPF2 rejoué à 8 kHz depuis un log à 4 kHz restait à +0,12 à +0,17 dB entre 250 et
 /// 500 Hz (−0,04 à +0,01 dB ainsi) ; le bloc gyro d'un log à 2 kHz, à +0,94 à +1,16 dB (+0,11 à +0,19 dB ainsi, lot 22b).
-fn upsample(x: &[f64], r: usize) -> Vec<f64> {
+pub(crate) fn upsample(x: &[f64], r: usize) -> Vec<f64> {
     let n = x.len();
     let h = UPSAMPLE_HALF_TAPS as isize;
     // un noyau par position j : poids des échantillons x[i − 1 + m], m = −h+1…h

@@ -6,6 +6,7 @@
 //! donc pas de « cœurs × cœurs » fils (le `RAYON_NUM_THREADS=1` par processus de `map_files` en Python n'a plus d'objet).
 
 pub mod calibrate;
+pub mod chaindiff;
 pub mod dyntrack;
 pub mod json;
 pub mod labels;
@@ -265,7 +266,7 @@ impl Output {
     }
 }
 
-pub const USAGE: &str = "Usage :\n  otb-dev corpus <outil> …\nOutils : rates, calibrate, labels, validate, stages, dyntrack, replay, predict";
+pub const USAGE: &str = "Usage :\n  otb-dev corpus <outil> …\nOutils : rates, calibrate, labels, validate, stages, dyntrack, replay, predict, chaindiff";
 
 /// Point d'entrée de `otb-dev corpus …`.
 pub fn run(args: &[&str]) -> Result<Output, String> {
@@ -278,6 +279,7 @@ pub fn run(args: &[&str]) -> Result<Output, String> {
         ["dyntrack", rest @ ..] => dyntrack::run(rest),
         ["replay", rest @ ..] => replay::run(rest),
         ["predict", rest @ ..] => predict::run(rest),
+        ["chaindiff", rest @ ..] => chaindiff::run(rest),
         [outil, ..] => Err(format!("outil inconnu : {outil}\n{USAGE}")),
         [] => Err(USAGE.into()),
     }

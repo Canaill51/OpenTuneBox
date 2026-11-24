@@ -39,9 +39,10 @@
 //! Seuls les logs enregistrés à [`MIN_LOG_RATE_HZ`] ou plus sont contrôlés (D-057).
 
 use crate::bf_filters::{
-    GyroStage, dyn_notch_enabled, gyro_stage_own_rate, pre_boost_throttle, simulate_dterm_at, stages_before,
+    GyroStage, Matrix64, dyn_notch_enabled, gyro_stage_own_rate, pre_boost_throttle, simulate_dterm_at, stages_before,
 };
 use crate::chain::Signal;
+use crate::firmware_chain::{self, Engine, every, pid_loops_per_log_sample};
 use crate::spectral::{rfftfreq, row_mean, segments};
 use otb_dsp::numeric::{hann, rfft_rows};
 use otb_log::flightlog::{FlightLog, GyroDebugTaps, clamp_range};
@@ -300,6 +301,16 @@ fn every_pid_loop(s: &Settings) -> bool {
 /// `stage_signals` : signaux de tous les étages que le log permet de contrôler sur `sel`, et raisons des étages sautés.
 /// Le modèle tourne sur tout le log (état des filtres établi) avant d'être découpé sur `sel`.
 pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSignals>, Skipped), String> {
+    stage_signals_with(log, sel, Engine::Model)
+}
+
+/// [`stage_signals`] avec la chaîne `engine` comme modèle : l'actuelle, ou celle à l'arithmétique du firmware
+/// (`firmware_chain`, lot 24c) ; même entrée enregistrée, même mesure.
+pub fn stage_signals_with(
+    log: &FlightLog,
+    sel: Range<usize>,
+    engine: Engine,
+) -> Result<(Vec<StageSignals>, Skipped), String> {
     let s = &log.settings;
     let mut out = Vec::new();
     let mut skipped = Vec::new();
@@ -319,6 +330,14 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
     let rpm_missing = s.rpm_harmonics > 0 && log.motor_hz.is_none();
     let model = |stages: &[GyroStage], x: &[f32]| -> Result<Vec<f64>, String> {
         let mut y = wide(x);
+        if engine == Engine::Firmware {
+            let (Some(first), Some(last)) = (stages.first(), stages.last()) else {
+                return Ok(y);
+            };
+            let steps = first.steps()?.start..last.steps()?.end;
+            let out = firmware_chain::gyro_steps(log, s, steps, &[y], 1, None)?;
+            return Ok(every(&out[0], pid_loops_per_log_sample(s)?));
+        }
         for &st in stages {
             // chaque étage à la cadence de ses étapes, même si le log ne garde qu'une boucle PID sur N (L-104)
             y = gyro_stage_own_rate(st, log, s, y, fs)?;
@@ -452,7 +471,18 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
         } else if constant.is_empty() {
             skipped.push((Stage::Dterm, "D max actif : le gain du D varie en vol".into()));
         } else {
-            let mut sim = simulate_dterm_at(log, None, None, fs)?;
+            let mut sim = match engine {
+                Engine::Model => simulate_dterm_at(log, None, None, fs)?,
+                Engine::Firmware => {
+                    let g: Vec<Vec<f32>> = (0..log.gyro.k).map(|a| log.gyro.row(a).to_vec()).collect();
+                    let d = firmware_chain::dterm(log, s, &g, 1)?;
+                    Matrix64 {
+                        k: d.len(),
+                        n,
+                        data: d.iter().flat_map(|r| r.iter().map(|&v| v as f64)).collect(),
+                    }
+                }
+            };
             // le firmware multiplie le D filtré par le facteur TPA (`flight/pid.c`, `getTpaFactor`)
             if let Some(tpa) = tpa_d_factor(s, &pre_boost_throttle(s, &log.throttle, fs)) {
                 for row in sim.data.chunks_mut(n) {
@@ -699,8 +729,13 @@ pub fn compare(sig: &StageSignals, fs: f64, breaks: &[i64], correct_clock: bool)
 /// `check_stages` : tous les étages contrôlables du log sur `sel`, décalage d'horloge retiré, fréquences comptées à la
 /// cadence nominale ([`model_rate_hz`]).
 pub fn check_stages(log: &FlightLog, sel: Range<usize>) -> Result<StageChecks, String> {
+    check_stages_with(log, sel, Engine::Model)
+}
+
+/// [`check_stages`] avec la chaîne `engine` comme modèle ([`stage_signals_with`]).
+pub fn check_stages_with(log: &FlightLog, sel: Range<usize>, engine: Engine) -> Result<StageChecks, String> {
     let sel = clamp_range(sel.start, sel.end, log.n());
-    let (signals, mut skipped) = stage_signals(log, sel.clone())?;
+    let (signals, mut skipped) = stage_signals_with(log, sel.clone(), engine)?;
     let breaks: Vec<i64> = log.breaks(sel, 4.0).iter().map(|&b| b as i64).collect();
     let mut checks = Vec::new();
     for sig in &signals {

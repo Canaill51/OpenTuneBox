@@ -78,6 +78,10 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Rapport « modifié / actuel » de deux spectres : sur des signaux **exacts** ; arrondis comme le log, chacun porte son bruit
   d'arrondi et la moyenne du rapport monte (filtrer plus « ajoutait » du bruit). L'arrondi ne sert qu'à la courbe comparée au
   log. L-105
+- Chaîne à l'arithmétique du firmware (`firmware_chain`, lot 24c) : tout état de filtre est indexé par son axe (trois axes
+  ensemble = chacun seul, test) ; un état partagé par position a donné −5 dB à toutes les fréquences. L-119
+- Notchs RPM : garder l'**ordre** des boucles du firmware (harmonique puis moteur depuis la 4.4) ; des notchs dont la
+  fréquence bouge ne commutent pas, malgré le commentaire du firmware. L-120
 - Effet d'un changement de modèle : comparer les spectres exacts, pas la courbe « actuel » arrondie ; sur un D enregistré sous
   l'unité, l'arrondi fait d'un écart de 0,001 dB un écart de 0,38 dB. L-108
 
