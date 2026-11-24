@@ -26,13 +26,13 @@ use crate::tools::filter_sim_calc::{
     Bode, DELAY_FREQS, DYN_COUNT_MAX, DYN_COUNT_MAX_44, DYN_MAX_RANGE, DYN_MIN_RANGE, DYN_Q_RANGE, Delays, EXPO_RANGE,
     Editor, FilterSimResult, HZ_RANGE, LPF_MODES, LPF_TYPES, Lpf1Edit, MOTOR_HZ_DEFAULT, MOTOR_HZ_RANGE,
     RPM_HARM_RANGE, RPM_MIN_RANGE, RPM_Q_RANGE, RPM_WEIGHT_RANGE, THROTTLE_DEFAULT, THROTTLE_RANGE, bode, cli_values,
-    delays, filter_cli, simulate_filters,
+    delays, filter_cli, flight_gap_detail, flight_gap_line, gap_cause_text, simulate_filters,
 };
 
 /// Texte d'aide du panneau.
 pub const HELP: &str = "Bode : trait plein = log, tirets = modifié. Spectres : « Appliquer » relance la simulation (quelques secondes sur un long vol).";
 /// Info-bulle de la case « simulation réglages actuels ».
-pub const CURRENT_HINT: &str = "Filtres du log rejoués sur le gyro non filtré, comme le firmware. Plus la courbe « simulé actuel » colle au log filtré, plus la simulation est fiable sur ce vol ; un écart vers le haut des fréquences peut venir d'un log enregistré à moins de 1600 Hz.";
+pub const CURRENT_HINT: &str = "Filtres du log rejoués sur le gyro non filtré, comme le firmware. Plus la courbe « simulé actuel » colle au log filtré, plus la simulation est fiable sur ce vol ; l'écart mesuré et sa cause s'affichent au-dessus des courbes.";
 /// Statut quand l'éditeur diffère du dernier calcul.
 pub const STALE_STATUS: &str = "Réglages modifiés : cliquez sur « Appliquer » pour simuler les spectres.";
 pub const COPIED_STATUS: &str = "Commandes CLI copiées dans le presse-papiers.";
@@ -683,6 +683,19 @@ impl FilterSimTool {
         });
     }
 
+    /// Écart de la simulation au vol, et ses causes connues, au-dessus des courbes (fin du lot 24, `flight_gap`). Absent du
+    /// prototype (D-061) : le plan demande de montrer cet écart à l'écran ; texte seul, aux couleurs du thème, juste au-dessus
+    /// des spectres qu'il juge, pour ne rien déplacer du dessin.
+    fn flight_gap_ui(ui: &mut Ui, out: &FilterSimResult, theme: &Theme) {
+        let Some(g) = &out.flight_gap else { return };
+        if let Some(line) = flight_gap_line(g) {
+            ui.label(line).on_hover_text(flight_gap_detail(g));
+        }
+        for c in &g.causes {
+            ui.label(RichText::new(gap_cause_text(c)).color(theme.ui.muted));
+        }
+    }
+
     fn delays_ui(&self, ui: &mut Ui, theme: &Theme, d: &Delays) {
         let font = TextStyle::Body.resolve(ui.style());
         let fmt = |color: Color32| TextFormat::simple(font.clone(), color);
@@ -863,6 +876,7 @@ impl Tool for FilterSimTool {
             if let Some(Err(e)) = self.derived.as_ref().map(|d| &d.bode) {
                 ui.colored_label(theme.accent("red"), format!("Calcul impossible : {e}"));
             }
+            Self::flight_gap_ui(ui, out, theme);
             self.plots(ui, out, theme);
         });
     }

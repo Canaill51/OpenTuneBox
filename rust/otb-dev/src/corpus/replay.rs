@@ -10,62 +10,23 @@ use super::json::{as_f64, dump, num, parse};
 use super::{Args, Output, analysed, drone_id, log_files, logs_root, map_files, rel};
 use otb_analysis::filter_replay::{BeforeAfter, before_after_with};
 use otb_analysis::firmware_chain::Engine;
+use otb_analysis::flight_gap::band_gaps;
 use otb_log::flightlog::{FlightLog, load};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Instant;
 
-/// Bandes comparées (Hz) ; la dernière s'arrête à 0,45 × cadence du log.
-const BANDS: [(f64, f64); 3] = [(20.0, 100.0), (100.0, 250.0), (250.0, 500.0)];
-
-/// Moyenne de `a − b` (dB) sur [`lo`, `hi`[ ; NaN sans fréquence dans la bande.
-fn band(f: &[f64], a: &[f64], b: &[f64], lo: f64, hi: f64) -> f64 {
-    let v: Vec<f64> = f
-        .iter()
-        .zip(a.iter().zip(b))
-        .filter(|(x, _)| **x >= lo && **x < hi)
-        .map(|(_, (p, q))| p - q)
-        .collect();
-    if v.is_empty() {
-        f64::NAN
-    } else {
-        v.iter().sum::<f64>() / v.len() as f64
-    }
-}
-
-/// Écarts par bande, rejeu actuel − log (dB), moyenne du roulis et du tangage : `gyro_<bas>_<haut>` et `d_<bas>_<haut>`. La
-/// dernière bande s'arrête à 0,45 × `fs` (cadence du log).
+/// Écarts par bande, rejeu actuel − log (dB), moyenne du roulis et du tangage (`otb_analysis::flight_gap`, la mesure que
+/// montre la page Filtres) : `gyro_<bas>_<haut>` et `d_<bas>_<haut>`. La dernière bande s'arrête à 0,45 × `fs` (cadence du
+/// log).
 pub(super) fn errors(r: &BeforeAfter, fs: f64) -> Map<String, Value> {
-    let top = 0.45 * fs;
     let mut errs = Map::new();
-    for (lo, nominal_hi) in BANDS {
-        // bande nommée d'après sa borne nominale, coupée à 0,45 × cadence du log
-        let hi = nominal_hi.min(top);
-        if hi <= lo {
-            continue;
-        }
-        let mean = |v: Vec<f64>| -> f64 {
-            let v: Vec<f64> = v.into_iter().filter(|x| x.is_finite()).collect();
-            if v.is_empty() {
-                f64::NAN
-            } else {
-                v.iter().sum::<f64>() / v.len() as f64
-            }
-        };
-        let g = mean(
-            (0..2)
-                .map(|a| band(&r.freqs, &r.gyro[a].current_db, &r.gyro[a].logged_db, lo, hi))
-                .collect(),
-        );
-        let d = mean(
-            (0..2)
-                .filter_map(|a| r.dterm[a].as_ref())
-                .map(|d| band(&r.freqs, &d.current_db, &d.logged_db, lo, hi))
-                .collect(),
-        );
-        errs.insert(format!("gyro_{lo:.0}_{nominal_hi:.0}"), num(g));
-        errs.insert(format!("d_{lo:.0}_{nominal_hi:.0}"), num(d));
+    for b in band_gaps(r, fs) {
+        // bande nommée d'après sa borne nominale
+        let (lo, hi) = (b.lo_hz, b.nominal_hi_hz);
+        errs.insert(format!("gyro_{lo:.0}_{hi:.0}"), num(b.gyro_db));
+        errs.insert(format!("d_{lo:.0}_{hi:.0}"), num(b.d_db));
     }
     errs
 }

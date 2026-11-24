@@ -44,8 +44,8 @@ pour Betaflight seul, le lot 22 a déjà vérifié le simulateur sur de vrais vo
 corrigé à part (lot 33). Ses lots 26 (INAV) et 27 (ArduCopter) restent sortis du plan. Le 2026-11-23, Cédric a levé la
 condition pour le **lot 23 seul** (D-062 amendée) : fait le même jour, sans changer un seul résultat. Le 2026-11-24, il
 l'a levée pour les **étapes 24a à 24c** (rien de branché) : 24a, 24b et 24c faits le même jour ; puis, au vu de leurs chiffres
-et de la cause de l'écart du D (24c bis), pour la **bascule** (24d, 24e), faite le même jour. Le lot 25 et l'écart au vol affiché
-(dernier point du lot 24) restent conditionnels.
+et de la cause de l'écart du D (24c bis), pour la **bascule** (24d, 24e), faite le même jour. L'écart au vol affiché (dernier point du
+lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 
 ## Comment s'en servir
 
@@ -75,8 +75,7 @@ et de la cause de l'écart du D (24c bis), pour la **bascule** (24d, 24e), faite
 |---|---|---|---|
 | 1 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075), mode disque essayé sur la G474 ; reste une carte SD réelle et Windows |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
-| — | **24 (reste)** | Écart au vol réel mesuré et affiché — **conditionnel** | 24a à 24e **faits le 2026-11-24** (bascule décidée par Cédric, D-062 ; [validation.md](validation.md#bascule-sur-la-chaîne-du-firmware-2026-11-24-lots-24d-et-24e)) ; l'écart d'un log ralenti se dit (D-076) : `filter_replay::chain_gap` le mesure déjà, rien ne l'affiche |
-| — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 |
+| — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 (fait le 2026-11-24) |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
 de 3 sur la plus longue session du corpus. Les lots qui touchaient à un utilisateur réel ont été réglés le
@@ -225,7 +224,7 @@ lecteur ». Essayé à l'écran sur la carte G474 sous Linux (mode disque, puis 
 
 ---
 
-## Lots 23 à 25 : scripts firmware — **conditionnels** (le 23 est fait)
+## Lots 23 à 25 : scripts firmware — **conditionnels** (le 23 et le 24 sont faits)
 
 Repris du fork `GerryNatif/OpenTuneBox` (sa demande de fusion n° 2, écrite le 2026-11-18 avant le lot 22), relus le
 2026-11-22 (D-062). **Déclencheur** : de vrais logs INAV ou ArduCopter, et la demande de Cédric. Pour un pilote Betaflight
@@ -238,7 +237,7 @@ est sorti dans le lot 33.
 Voir l'historique en bas : la chaîne est décrite une seule fois, dans `rust/otb-analysis/chains/betaflight.json`
 (`rust/otb-analysis/src/chain.rs`), forme en [spec-betaflight.md](spec-betaflight.md) §8.
 
-### Lot 24 : briques à l'arithmétique du firmware (Opus)
+### Lot 24 : briques à l'arithmétique du firmware (Opus) — **fait le 2026-11-24**
 
 **But** : atteindre le bit à bit contre le firmware compilé sur PC, **et basculer l'application sur cette nouvelle
 chaîne dans le même lot** (D-062). C'est le plus gros lot du plan : il déplace un chiffre dans presque tous les écrans,
@@ -290,8 +289,12 @@ avant la suivante**, et qu'aucune ne saute.
       après (aucune mesure de la calibration ne passe par le rejeu), aucun seuil changé. Texte d'origine : (`otb-dev corpus
       calibrate`, compétence `calculs-corpus`). ⚠️ Si un seuil change l'**avis** de l'assistant sur un vrai log, **s'arrêter**
       et revenir vers Cédric avec le log et le chiffre : c'est exactement le risque accepté en choisissant la bascule d'un coup.
-- [ ] **Écart au vol réel mesuré et affiché**, jamais promis : écart entre gyro simulé et gyro enregistré, montré
-      dans l'interface avec sa cause quand le log ne contient pas l'entrée des filtres à pleine cadence.
+- [x] **Écart au vol réel mesuré et affiché.** Fait le 2026-11-24 (branche `feat/flight-gap-display`) :
+      `rust/otb-analysis/src/flight_gap.rs` (la mesure de `corpus replay`, qui l'appelle désormais) ; la page Filtres
+      affiche au-dessus des spectres la pire bande du gyro et du terme D, le détail en bulle d'aide, et la cause quand le log
+      est ralenti ou d'avant la 4.3. Ligne absente du prototype (D-061) : texte seul au-dessus des spectres qu'elle juge,
+      rien du dessin déplacé. Texte d'origine : écart entre gyro simulé et gyro enregistré, jamais promis, montré dans
+      l'interface avec sa cause quand le log ne contient pas l'entrée des filtres à pleine cadence.
 - [ ] **Critère d'arrêt** : un vecteur qui ne tombe pas au bit près sans cause identifiée (approximation, ordre des
       opérations, initialisation), un étage du lot 22 qui se dégrade, ou un avis de l'assistant qui change sans
       explication → s'arrêter, consigner, revenir vers Cédric.
@@ -418,3 +421,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 24c | 2026-11-24 | **Chaîne assemblée à l'arithmétique du firmware, écart chiffré** (branche `feat/firmware-chain-compare`, D-062 amendée, W-081 point 1 traité, W-082 et W-083 ouverts, L-119, L-120) : `rust/otb-analysis/src/firmware_chain.rs` enchaîne les briques comme la boucle du firmware (deux cadences, notchs RPM à tour de rôle, LPF dynamiques par le mixeur, D de `pid.c`), à côté de la chaîne actuelle, rien de changé à l'écran ; cas « deux cadences » du banc rendus au bit près ; critère d'arrêt non atteint (contrôle par étage, chaque boucle PID : pire bande +0,035 dB) ; gyro rejoué égal ou plus proche du vol partout, D des logs ralentis plus loin (W-083) ; corrigés dans la chaîne en service à la demande de Cédric : notch RPM au plafond gardé (W-082, jusqu'à 24 dB d'écart au vol en moins sur deux vols) et ordre des notchs RPM du firmware (L-120), aucun avis de l'assistant changé, références Python intactes | bascule 24d, 24e : décision de Cédric |
 | 24c bis | 2026-11-24 | **Écart du D des logs ralentis expliqué** (branche `test/thinned-log-dterm`, W-083 point 1) : `otb-dev corpus thin` réduit les 32 sessions enregistrées à chaque boucle à une boucle sur deux ; rejouée avec le vrai gyro, la chaîne du firmware colle au D enregistré comme sur le log complet, l'excès (+0,48 dB entre 100 et 250 Hz hors Air65) vient du gyro non filtré sous-échantillonné sans anti-repliement, et le D de la chaîne actuelle, dérivé à la cadence du log, est trop bas de 0,4 à 0,7 dB et le compense par hasard ; rien de changé à l'écran ; Cédric garde le D du firmware pour tous les logs (D-076) | bascule 24d |
 | 24d, 24e | 2026-11-24 | **Bascule sur la chaîne du firmware** (branche `feat/firmware-chain-switch`, D-062 amendée, L-121) : page Filtres, assistant et contrôle par étage rejouent par `firmware_chain.rs` dès la 4.3 (`Engine::in_service`), l'ancienne chaîne gardée pour les logs d'avant la 4.3 et les mesures ; références figées intactes (`otb-parity check` : 0 échec), non réenregistrées ; un avis bascule sur 676 sessions (`1. PTB/Kris/13. Hover.bbl`, seuil frôlé, log ralenti), accepté par Cédric ; calibration identique au bit près, aucun seuil changé ; assistant 1 019 → 681 s cumulées sur le corpus | écart au vol affiché (reste du lot 24), lot 25 : conditionnels |
+| 24 (fin) | 2026-11-24 | **Écart de la simulation au vol affiché** (branche `feat/flight-gap-display`, demandé par Cédric) : `otb_analysis::flight_gap` mesure, par bande, le rejeu des réglages du log contre le spectre enregistré (roulis et tangage) et dit la cause connue (log ralenti, firmware d'avant la 4.3) ; la page Filtres l'affiche au-dessus des spectres ; `corpus replay` passe par la même fonction, résultats identiques sur 676 sessions. Preuve : 7 tests nouveaux, 3 contre-preuves vues en échec, captures des deux thèmes sur `FINAL.bbl` du JeNo 5 | lot 25 : conditionnel |
