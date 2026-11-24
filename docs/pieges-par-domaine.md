@@ -150,7 +150,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - **Notes générées par GitHub** : `release.yml` est lu **au commit de l'étiquette** ; une version étiquetée avant ce fichier
   sort sans rubriques, et `configuration_file_path` n'y change rien. L-097
 - **Contrôle qui lit l'événement d'une PR** (`etiquette-pr.yml`) : ses passages se font dans l'ordre (`concurrency` par PR, sans
-  annulation), sinon deux passages simultanés laissent l'ancien résultat gagner. L-098
+  annulation), sinon deux passages simultanés laissent l'ancien résultat gagner ; à l'ouverture sans étiquette, il relit
+  l'état présent de la PR, car `gh pr create --label` ouvre avant d'étiqueter (sinon un passage rouge reste dans l'historique). L-098
 - **PR de Dependabot qui monte une crate livrée** : elle arrive rouge, car `THIRD-PARTY-LICENSES.txt` cite les versions ; sur sa
   branche, `cargo run -p otb-dev -- licenses`, `verify`, commit du seul fichier (procédure dans `CONTRIBUTING.md`). L-099
 

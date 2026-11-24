@@ -419,6 +419,12 @@ est celle du commit qui les a introduites.
 - **Preuve** — les trois passages de la #148 (`check-runs?check_name=etiquette`) ; correctif dans
   `.github/workflows/etiquette-pr.yml`, éprouvé par la même manœuvre sur la PR d'essai #149 (fermée sans fusion) : le
   passage en échec finit à 22:42:56, le passage réussi commence à 22:42:58, et le contrôle `etiquette` est retenu « pass ».
+- **⚠️ RÉCIDIVE le 2026-11-24** — PR #188 et #189, ouvertes par `gh pr create --label` (qui ouvre **puis** étiquette) : le
+  contrôle retenu est bien « pass », mais le passage `opened`, lu sans étiquette, reste **en échec dans l'historique des
+  Actions** (et envoie son courriel) ; Cédric y a vu deux CI rouges de suite. Règle précisée : à l'ouverture sans étiquette
+  « RN: », le contrôle attend 20 s et relit les étiquettes **présentes** de la PR (`gh api`, droit `pull-requests: read`) ;
+  une PR vraiment sans étiquette échoue toujours. Essayé en local sur quatre cas avec un faux `gh` (étiquette posée après
+  l'ouverture, aucune étiquette, événement `labeled`, deux étiquettes RN).
 
 ### L-097 : pour une étiquette qui existe déjà, GitHub lit `release.yml` sur l'étiquette, jamais sur `main`
 
