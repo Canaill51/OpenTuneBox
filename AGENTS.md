@@ -19,7 +19,7 @@ Contexte, options écartées et preuves : `docs/decisions.md`.
 - Dépôt **public**, licence **PolyForm Noncommercial 1.0.0** : code ouvert, tout usage commercial interdit, aucune dépendance copyleft (polices : chacune sous sa licence, D-046). D-043, D-045
 - **Aucune copie de code PIDtoolbox** ni d'autres projets : tout est réimplémenté d'après le firmware Betaflight et des méthodes publiées
   (`docs/spec-*.md`). Seule exception : les icônes [Lucide](https://lucide.dev) (ISC) dans `rust/otb-gui/assets/icons/`, avec leur licence. D-004, D-005
-- **Scripts firmware** (chantier conditionnel : de vrais logs INAV ou ArduCopter d'abord) : chaîne décrite en **données**, briques
+- **Scripts firmware** (chantier conditionnel : de vrais logs INAV ou ArduCopter d'abord ; lots 23 et 24a–24c faits sans attendre, sans rien changer à l'écran) : chaîne décrite en **données**, briques
   en **Rust compilé** (jamais de moteur de script) ; rien du code des firmwares (GPL 3) dans le dépôt ; **Betaflight seul** d'ici là. D-062
 - **Dessin de l'interface** : le **prototype complet de l'application** (`docs/maquettes/Application.dc.html`) fait foi — mesures, couleurs et
   contenu s'y relèvent ; thème clair identique, thème sombre dérivé ; tout écart se justifie par écrit. D-060, D-061
@@ -46,7 +46,7 @@ ligne par lot fait. Ne jamais ouvrir un second document de plan : un plan qui ti
 
 `rust/` est l'espace de travail Cargo (D-031) ; détail de chaque crate et fichier : `docs/architecture.md`.
 
-- `otb-decoder` (BBL/BFL → valeurs brutes), `otb-log` (FlightLog en unités physiques, float32 : D-029 ; `parallel.rs` : plusieurs fichiers à la fois, D-051), `otb-dsp` (noyaux de calcul, D-033),
+- `otb-decoder` (BBL/BFL → valeurs brutes), `otb-log` (FlightLog en unités physiques, float32 : D-029 ; `parallel.rs` : plusieurs fichiers à la fois, D-051), `otb-dsp` (noyaux de calcul, D-033 ; `firmware/` : briques à l'arithmétique du firmware, pas encore branchées, D-062),
   `otb-analysis` (calculs purs), `otb-advisor` (assistant et guide intégré), `otb-format` (formats de nombres), `otb-cli` (`opentunebox info` / `report`),
   `otb-gui` (egui), `otb-store` (bibliothèque de données : drones, logs copiés, fragments, réglages datés, mesures suivies, choix sur les conseils — **fichiers JSON**, un seul module d'accès),
   `otb-usb` (récupération par USB, protocole : trames MSP, copie, contrôles avant effacement, port simulé ; **jamais d'écriture de réglage**, D-063 ; l'écran : `otb-gui`, D-074),
@@ -74,7 +74,7 @@ cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, mentions de lice
 cargo test -p otb-dev --test docs   # cohérence de la documentation
 cargo run --release -p otb-gui -- [LOG…]   # interface
 cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande
-cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z | release notes vX.Y.Z | bench-open LOG… [--jobs N] | usb ports|info|copy|diff|msc|sd …   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version, notes de la page Releases, banc d'ouverture de logs (`--jobs 1` : les uns après les autres), essai de la récupération USB sur une vraie carte
+cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z | release notes vX.Y.Z | bench-open LOG… [--jobs N] | usb ports|info|copy|diff|msc|sd … | firmware-bench   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version, notes de la page Releases, banc d'ouverture de logs (`--jobs 1` : les uns après les autres), essai de la récupération USB sur une vraie carte, banc de référence des filtres (télécharge et compile Betaflight hors du dépôt, réécrit les vecteurs du test `firmware_vectors`)
 cargo run --release -p otb-dev -- corpus rates|calibrate|labels|validate|stages|dyntrack|replay|predict   # calculs sur le corpus : compétence `calculs-corpus`
 cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées (aussi : list, check-header|decoder|settings|flightlog|sliders|analysis|advisor|guide|tuning|cli)
 cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG…]   # captures sans écran (wgpu) : regarder l'image produite

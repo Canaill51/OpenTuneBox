@@ -76,6 +76,7 @@ Règles d'écriture :
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
 | W-080 | Contrôle par étage : le second vol de calibration (SVF, PT2, notch statique du gyro, notch du D) n'a jamais été fait | ouvert (aucun écart soupçonné sur ces filtres) |
+| W-081 | Banc des briques du firmware (lot 24b) : ordonnancement des recalculs (notchs RPM un à un, LPF dynamiques, pas corrigé de la 2025.12), suivi des pics du notch dynamique et fusion multiplication-addition de la carte de vol hors du bit à bit | ouvert (24c pour l'ordonnancement) |
 | W-079 | Carte à mémoire interne **et** carte SD : le mode disque montre le support de `blackbox_device`, que MSP ne lit pas ; OpenTuneBox suppose la mémoire quand elle contient des logs | ouvert (aucune carte de ce type vue) |
 | W-078 | Lignes CLI (`set …`) à copier sous chaque conseil de l'assistant (prototype) | ouvert (si Cédric les demande, D-073) |
 | W-077 | L'exemple `capture` échoue avec quatre logs du JeNo 5 (« second fragment posé » : 10 au lieu de 7) | ouvert |
@@ -1286,3 +1287,27 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   Cédric vole ce second vol ; consigne : `debug_mode = GYRO_SAMPLE`, `gyro_filter_debug_axis = ROLL`,
   `blackbox_sample_rate = 1/1`, mode angle, 10 s de stationnaire puis le chirp sur le roll, puis `otb-dev corpus stages`.
   [`rust/otb-analysis/src/filter_stages.rs`]
+
+## Origine : briques à l'arithmétique du firmware, lots 24a et 24b (2026-11-24)
+
+- **W-081** — **Ce que le banc des briques ne prouve pas au bit près.** `otb-dev firmware-bench` compile `common/filter.c` et
+  `maths.c` du firmware (les briques) ; il ne compile ni `flight/rpm_filter.c`, ni `sensors/gyro.c`, ni `flight/pid.c`, ni
+  `flight/dyn_notch_filter.c`, trop liés au reste du firmware. Trois choses restent donc hors du bit à bit :
+  1. **L'ordonnancement des recalculs** : les notchs RPM sont recalculés quelques-uns par boucle, à tour de rôle
+     (`notchUpdatesPerIteration`), avec fondu près de `rpm_filter_min_hz` et plafond à 0,48 × la cadence ; les LPF dynamiques
+     sont recalculés quand les gaz changent ; en 2025.12, le pas des notchs RPM est corrigé par
+     `schedulerGetCycleTimeMultiplier()`, que le log n'enregistre pas. Les briques savent recalculer ; **quand**, c'est la
+     chaîne assemblée au lot 24c qui le dira, recopiée du firmware et vérifiée sur les vrais vols (`corpus stages`, `corpus replay`).
+  2. **Le suivi des pics du notch dynamique** (transformée de Fourier glissante du firmware) : les briques prennent ses centres
+     en entrée ; la chaîne en service les obtient de `rust/otb-analysis/src/dyn_notch.rs` (float64) ou du debug `FFT_FREQ`.
+  3. **La fusion multiplication-addition** : le banc compile sans (`-ffp-contract=off`), comme un PC sans FMA ; le compilateur
+     de la carte de vol (Cortex-M4/M7) fusionne en général, d'où un écart de l'ordre du dernier bit au vol réel — mesuré, jamais
+     promis (D-062).
+  **Pourquoi reporté** : découpage du lot 24 choisi par Cédric le 2026-11-24 (24a et 24b d'abord, rien de branché).
+  **Risque si on n'y touche pas** : point 1, une chaîne assemblée en 24c qui recalcule au mauvais moment s'écarterait du
+  firmware sans qu'un vecteur le voie ; seuls les vrais vols le montreraient. Points 2 et 3 : écart faible, déjà visible dans
+  le contrôle par étage du lot 22.
+  **Reprise** : point 1 au lot 24c (en le recopiant du firmware, et en le mesurant sur le corpus) ; point 2 si l'écart du
+  notch dynamique domine celui des étages ; point 3 seulement si un jour un log enregistre l'entrée des filtres à pleine
+  cadence (W-071).
+  [`rust/otb-dsp/src/firmware/betaflight/cases.rs`, `rust/otb-dev/src/firmware_bench.rs`]

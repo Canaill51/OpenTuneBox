@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-118 : un vecteur de test construit sur des puissances de deux ne distingue pas deux arithmétiques : `÷ n` et `× (1/n)` ont les mêmes bits pour n = 2 ou 4
+
+- **Symptôme** — 2026-11-24 (lot 24b) : contre-preuve du banc des briques du firmware ; la moyenne de la décimation gyro → PID
+  écrite `somme × (1/n)` au lieu de `somme ÷ n` laisse le test **vert**, alors que les deux formes n'ont en général pas les
+  mêmes bits en float32.
+- **Cause** — mesurée : les cas du banc ne décimaient que par 2 et 4 ; `1/2` et `1/4` sont exacts en binaire, donc
+  `x × (1/n)` = `x ÷ n` au bit près. Pour n = 3 ou 6, 6 666 valeurs sur 20 000 diffèrent. Même famille : `BIQUAD_Q` écrit
+  `1.0f / sqrtf(2.0f)` ou `FRAC_1_SQRT_2` donne les mêmes bits (pas une erreur, mais pas une preuve non plus).
+- **Règle** — un vecteur censé prouver une arithmétique prend des paramètres qui ne sont **pas** des puissances de deux
+  (diviseurs, gains, rapports) ; chaque contre-preuve qui reste verte se mesure (même valeur, ou trou du jeu de cas ?) avant
+  d'être écartée.
+- **Preuve** — cas `two_rate_average_denom3` de `rust/otb-dev/src/firmware_bench.rs` : avec lui, la forme `× (1/n)` rend 919
+  valeurs fausses sur 1 024 ([validation.md](validation.md#briques-à-larithmétique-du-firmware-2026-11-24-lots-24a-et-24b)).
+
 ### L-117 : CodeQL voit un « sel cryptographique écrit en dur » dans tout paramètre nommé `salt`, même l'identifiant d'une liste egui
 
 - **Symptôme** — 2026-11-23 (PR #186, lot 32c-2) : tests, Windows, `cargo deny` verts, mais CodeQL rouge avec **deux
@@ -1501,6 +1515,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-118 | Vecteur de test aux paramètres puissances de deux (décimation par 2 ou 4) : `÷ n` et `× (1/n)` ont les mêmes bits, une arithmétique fausse passe ; prendre des diviseurs et gains qui n'en sont pas (3, 6…) et mesurer chaque contre-preuve restée verte | Analyses |
 | L-117 | CodeQL prend tout nom en « salt » (paramètre `salt` d'une liste egui) pour un sel cryptographique écrit en dur, alerte critique : jamais de nom `salt` dans l'interface, `widget` ou `id` ; une alerte « critique » sans cryptographie accuse d'abord un nom | Outillage |
 | L-116 | `serde_json` sans `float_roundtrip` relit parfois un nombre avec un bit d'écart (55.732080660999316 → …931) : une mesure rangée ne se recalcule plus « à l'identique » ; un écart au dernier bit entre écrit et relu accuse d'abord la relecture | Outillage |
 | L-115 | Test qui attend une absence (« rien rangé ») : il passe aussi quand le calcul échoue pour une autre raison (session 0 alors que le décodeur compte à partir de 1) ; vérifier d'abord que le chemin heureux a eu lieu, lire la session dans le log | Tests |

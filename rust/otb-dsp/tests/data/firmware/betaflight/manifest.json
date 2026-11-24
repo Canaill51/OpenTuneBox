@@ -1,0 +1,1294 @@
+{
+  "firmware": "betaflight",
+  "generated_by": "otb-dev firmware-bench (lot 24b, D-062)",
+  "compiler": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cflags": "-std=gnu11 -O2 -ffp-contract=off -fno-fast-math -fexcess-precision=standard",
+  "harness_sha256": "f2fa81c9599b70fa7c42d7f116ff3fc9223575d670fd961d3209c071363ae5b5",
+  "inputs_file": "inputs.f32",
+  "inputs": {
+    "angles": {
+      "offset": 0,
+      "len": 2048
+    },
+    "gain_dt": {
+      "offset": 2048,
+      "len": 168
+    },
+    "gain_fc": {
+      "offset": 2216,
+      "len": 168
+    },
+    "notch_center": {
+      "offset": 2384,
+      "len": 60
+    },
+    "notch_cutoff": {
+      "offset": 2444,
+      "len": 60
+    },
+    "signal": {
+      "offset": 2504,
+      "len": 3072
+    },
+    "signal_axis2": {
+      "offset": 5576,
+      "len": 3072
+    },
+    "signal_axis3": {
+      "offset": 8648,
+      "len": 3072
+    },
+    "track_lpf": {
+      "offset": 11720,
+      "len": 3072
+    },
+    "track_notch": {
+      "offset": 14792,
+      "len": 3072
+    },
+    "track_weight": {
+      "offset": 17864,
+      "len": 3072
+    }
+  },
+  "cases": [
+    {
+      "id": "sincos",
+      "kind": "sincos",
+      "params": {},
+      "inputs": [
+        "angles"
+      ]
+    },
+    {
+      "id": "sincosf",
+      "kind": "sincosf",
+      "params": {},
+      "inputs": [
+        "angles"
+      ]
+    },
+    {
+      "id": "gains",
+      "kind": "gains",
+      "params": {},
+      "inputs": [
+        "gain_fc",
+        "gain_dt"
+      ]
+    },
+    {
+      "id": "notch_q",
+      "kind": "notch_q",
+      "params": {},
+      "inputs": [
+        "notch_center",
+        "notch_cutoff"
+      ]
+    },
+    {
+      "id": "pt1_100hz_8k",
+      "kind": "pt",
+      "params": {
+        "order": 1.0,
+        "hz": 100.0,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "pt1_250hz_4k",
+      "kind": "pt",
+      "params": {
+        "order": 1.0,
+        "hz": 250.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "pt2_100hz_8k",
+      "kind": "pt",
+      "params": {
+        "order": 2.0,
+        "hz": 100.0,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "pt3_100hz_8k",
+      "kind": "pt",
+      "params": {
+        "order": 3.0,
+        "hz": 100.0,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "pt1_dyn_4k",
+      "kind": "pt_dyn",
+      "params": {
+        "order": 1.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "track_lpf"
+      ]
+    },
+    {
+      "id": "pt2_dyn_4k",
+      "kind": "pt_dyn",
+      "params": {
+        "order": 2.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "track_lpf"
+      ]
+    },
+    {
+      "id": "pt3_dyn_4k",
+      "kind": "pt_dyn",
+      "params": {
+        "order": 3.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "track_lpf"
+      ]
+    },
+    {
+      "id": "biquad_lpf_df2_250hz_8k",
+      "kind": "biquad_lpf",
+      "params": {
+        "hz": 250.0,
+        "looptime_us": 125.0,
+        "df1": 0.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "biquad_lpf_df1_150hz_4k",
+      "kind": "biquad_lpf",
+      "params": {
+        "hz": 150.0,
+        "looptime_us": 250.0,
+        "df1": 1.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "biquad_lpf_dyn_4k",
+      "kind": "biquad_lpf_dyn",
+      "params": {
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "track_lpf"
+      ]
+    },
+    {
+      "id": "biquad_notch_260_160_4k",
+      "kind": "biquad_notch",
+      "params": {
+        "center_hz": 260.0,
+        "cutoff_hz": 160.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "biquad_notch_400_300_8k",
+      "kind": "biquad_notch",
+      "params": {
+        "center_hz": 400.0,
+        "cutoff_hz": 300.0,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "biquad_notch_dyn_4k",
+      "kind": "biquad_notch_dyn",
+      "params": {
+        "q": 3.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "track_notch"
+      ]
+    },
+    {
+      "id": "biquad_notch_dyn_8k",
+      "kind": "biquad_notch_dyn",
+      "params": {
+        "q": 3.5,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal",
+        "track_notch"
+      ]
+    },
+    {
+      "id": "biquad_rpm_4k",
+      "kind": "biquad_rpm",
+      "params": {
+        "init_hz": 0.0,
+        "q": 5.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "track_notch",
+        "track_weight"
+      ]
+    },
+    {
+      "id": "biquad_rpm_8k",
+      "kind": "biquad_rpm",
+      "params": {
+        "init_hz": 100.0,
+        "q": 5.0,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal",
+        "track_notch",
+        "track_weight"
+      ]
+    },
+    {
+      "id": "svf_lpf_250hz_8k",
+      "kind": "svf_lpf",
+      "params": {
+        "hz": 250.0,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "svf_lpf_150hz_4k",
+      "kind": "svf_lpf",
+      "params": {
+        "hz": 150.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "svf_lpf_dyn_4k",
+      "kind": "svf_lpf_dyn",
+      "params": {
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "track_lpf"
+      ]
+    },
+    {
+      "id": "svf_notch_260_160_4k",
+      "kind": "svf_notch",
+      "params": {
+        "center_hz": 260.0,
+        "cutoff_hz": 160.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "svf_notch_400_300_8k",
+      "kind": "svf_notch",
+      "params": {
+        "center_hz": 400.0,
+        "cutoff_hz": 300.0,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "svf_notch_dyn_4k",
+      "kind": "svf_notch_dyn",
+      "params": {
+        "q": 3.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "track_notch"
+      ]
+    },
+    {
+      "id": "svf_notch_dyn_8k",
+      "kind": "svf_notch_dyn",
+      "params": {
+        "q": 3.5,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal",
+        "track_notch"
+      ]
+    },
+    {
+      "id": "rpm_notch_4k",
+      "kind": "rpm_notch",
+      "params": {
+        "init_hz": 100.0,
+        "q": 5.0,
+        "looptime_us": 250.0
+      },
+      "inputs": [
+        "signal",
+        "signal_axis2",
+        "signal_axis3",
+        "track_notch",
+        "track_weight"
+      ]
+    },
+    {
+      "id": "rpm_notch_8k",
+      "kind": "rpm_notch",
+      "params": {
+        "init_hz": 200.0,
+        "q": 5.0,
+        "looptime_us": 125.0
+      },
+      "inputs": [
+        "signal",
+        "signal_axis2",
+        "signal_axis3",
+        "track_notch",
+        "track_weight"
+      ]
+    },
+    {
+      "id": "two_rate_lpf2_pt1_denom2",
+      "kind": "two_rate",
+      "params": {
+        "gyro_us": 125.0,
+        "denom": 2.0,
+        "lpf2_type": 1.0,
+        "lpf2_hz": 500.0,
+        "notch_center_hz": 260.0,
+        "notch_cutoff_hz": 160.0,
+        "lpf1_type": 2.0,
+        "lpf1_hz": 250.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "two_rate_average_denom4",
+      "kind": "two_rate",
+      "params": {
+        "gyro_us": 125.0,
+        "denom": 4.0,
+        "lpf2_type": 0.0,
+        "lpf2_hz": 0.0,
+        "notch_center_hz": 0.0,
+        "notch_cutoff_hz": 0.0,
+        "lpf1_type": 1.0,
+        "lpf1_hz": 150.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "two_rate_average_denom3",
+      "kind": "two_rate",
+      "params": {
+        "gyro_us": 125.0,
+        "denom": 3.0,
+        "lpf2_type": 0.0,
+        "lpf2_hz": 0.0,
+        "notch_center_hz": 200.0,
+        "notch_cutoff_hz": 100.0,
+        "lpf1_type": 4.0,
+        "lpf1_hz": 90.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    },
+    {
+      "id": "two_rate_lpf2_biquad_denom2",
+      "kind": "two_rate",
+      "params": {
+        "gyro_us": 125.0,
+        "denom": 2.0,
+        "lpf2_type": 2.0,
+        "lpf2_hz": 300.0,
+        "notch_center_hz": 0.0,
+        "notch_cutoff_hz": 0.0,
+        "lpf1_type": 3.0,
+        "lpf1_hz": 120.0
+      },
+      "inputs": [
+        "signal"
+      ]
+    }
+  ],
+  "versions": [
+    {
+      "version": "4.3.2",
+      "git_ref": "4.3.2",
+      "header_version": [
+        4,
+        3
+      ],
+      "arith": "V4_3",
+      "license": "GPL-3.0, LICENSE sha256 3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "sources_sha256": {
+        "src/main/common/filter.c": "69c44b8f6d3d010e62a6528af35aca077137a4520857a19d15677a35f5978243",
+        "src/main/common/filter.h": "4a0b67bf7a6b99e56d9831c79c40e00fedd45c23733a8ea4cc418928012a853b",
+        "src/main/common/maths.c": "4d4660eca399fed65055ecbf99aed0986a20fd572b742992748144f008f41d17",
+        "src/main/common/maths.h": "8a05eebc375a753227bc9be7f42f51aea7938a7d40fa60eef7566bd1d61bd6da",
+        "src/main/common/axis.h": "f9d068203f2a6f46cc19b039e9fd651b24b836a12dbb6962909bca96885e3f77",
+        "src/main/common/utils.h": "13dc38ba3f03d2291cf4b8c5189b3c5d3e71dd3a990d523853245af4262716f6"
+      },
+      "outputs": "4.3.2.f32",
+      "cases": [
+        {
+          "case": "sincos",
+          "offset": 0,
+          "len": 4096
+        },
+        {
+          "case": "gains",
+          "offset": 4096,
+          "len": 504
+        },
+        {
+          "case": "notch_q",
+          "offset": 4600,
+          "len": 60
+        },
+        {
+          "case": "pt1_100hz_8k",
+          "offset": 4660,
+          "len": 3072
+        },
+        {
+          "case": "pt1_250hz_4k",
+          "offset": 7732,
+          "len": 3072
+        },
+        {
+          "case": "pt2_100hz_8k",
+          "offset": 10804,
+          "len": 3072
+        },
+        {
+          "case": "pt3_100hz_8k",
+          "offset": 13876,
+          "len": 3072
+        },
+        {
+          "case": "pt1_dyn_4k",
+          "offset": 16948,
+          "len": 3072
+        },
+        {
+          "case": "pt2_dyn_4k",
+          "offset": 20020,
+          "len": 3072
+        },
+        {
+          "case": "pt3_dyn_4k",
+          "offset": 23092,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_df2_250hz_8k",
+          "offset": 26164,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_df1_150hz_4k",
+          "offset": 29236,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_dyn_4k",
+          "offset": 32308,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_260_160_4k",
+          "offset": 35380,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_400_300_8k",
+          "offset": 38452,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_dyn_4k",
+          "offset": 41524,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_dyn_8k",
+          "offset": 44596,
+          "len": 3072
+        },
+        {
+          "case": "biquad_rpm_4k",
+          "offset": 47668,
+          "len": 3072
+        },
+        {
+          "case": "biquad_rpm_8k",
+          "offset": 50740,
+          "len": 3072
+        },
+        {
+          "case": "two_rate_lpf2_pt1_denom2",
+          "offset": 53812,
+          "len": 1536
+        },
+        {
+          "case": "two_rate_average_denom4",
+          "offset": 55348,
+          "len": 768
+        },
+        {
+          "case": "two_rate_average_denom3",
+          "offset": 56116,
+          "len": 1024
+        },
+        {
+          "case": "two_rate_lpf2_biquad_denom2",
+          "offset": 57140,
+          "len": 1536
+        }
+      ]
+    },
+    {
+      "version": "4.4.3",
+      "git_ref": "4.4.3",
+      "header_version": [
+        4,
+        4
+      ],
+      "arith": "V4_3",
+      "license": "GPL-3.0, LICENSE sha256 3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "sources_sha256": {
+        "src/main/common/filter.c": "6f46569c9dcdedbc37d68d2d2078b04246d60b63e11ae5d4a9f154e23c45fe0c",
+        "src/main/common/filter.h": "db055f89aa2e1313f41266a055d456269bfd912642c5c85c5f298dcee6e8d7d8",
+        "src/main/common/maths.c": "c588b86f4d6bcbd4311c6808ef9f691190de21cd5245081a0eef5845f0f4cd1b",
+        "src/main/common/maths.h": "56e1aca584bfd2e12d82e3e7eb235cc7409fe1994ab8627f412dc66962c5c7e1",
+        "src/main/common/axis.h": "f9d068203f2a6f46cc19b039e9fd651b24b836a12dbb6962909bca96885e3f77",
+        "src/main/common/utils.h": "2bc4e222c3066753ad2e550f9fd5e32f8f1d8044529ff144182a17d4564736f0"
+      },
+      "outputs": "4.4.3.f32",
+      "cases": [
+        {
+          "case": "sincos",
+          "offset": 0,
+          "len": 4096
+        },
+        {
+          "case": "gains",
+          "offset": 4096,
+          "len": 504
+        },
+        {
+          "case": "notch_q",
+          "offset": 4600,
+          "len": 60
+        },
+        {
+          "case": "pt1_100hz_8k",
+          "offset": 4660,
+          "len": 3072
+        },
+        {
+          "case": "pt1_250hz_4k",
+          "offset": 7732,
+          "len": 3072
+        },
+        {
+          "case": "pt2_100hz_8k",
+          "offset": 10804,
+          "len": 3072
+        },
+        {
+          "case": "pt3_100hz_8k",
+          "offset": 13876,
+          "len": 3072
+        },
+        {
+          "case": "pt1_dyn_4k",
+          "offset": 16948,
+          "len": 3072
+        },
+        {
+          "case": "pt2_dyn_4k",
+          "offset": 20020,
+          "len": 3072
+        },
+        {
+          "case": "pt3_dyn_4k",
+          "offset": 23092,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_df2_250hz_8k",
+          "offset": 26164,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_df1_150hz_4k",
+          "offset": 29236,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_dyn_4k",
+          "offset": 32308,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_260_160_4k",
+          "offset": 35380,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_400_300_8k",
+          "offset": 38452,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_dyn_4k",
+          "offset": 41524,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_dyn_8k",
+          "offset": 44596,
+          "len": 3072
+        },
+        {
+          "case": "biquad_rpm_4k",
+          "offset": 47668,
+          "len": 3072
+        },
+        {
+          "case": "biquad_rpm_8k",
+          "offset": 50740,
+          "len": 3072
+        },
+        {
+          "case": "two_rate_lpf2_pt1_denom2",
+          "offset": 53812,
+          "len": 1536
+        },
+        {
+          "case": "two_rate_average_denom4",
+          "offset": 55348,
+          "len": 768
+        },
+        {
+          "case": "two_rate_average_denom3",
+          "offset": 56116,
+          "len": 1024
+        },
+        {
+          "case": "two_rate_lpf2_biquad_denom2",
+          "offset": 57140,
+          "len": 1536
+        }
+      ]
+    },
+    {
+      "version": "4.5.5",
+      "git_ref": "4.5.5",
+      "header_version": [
+        4,
+        5
+      ],
+      "arith": "V4_5",
+      "license": "GPL-3.0, LICENSE sha256 3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "sources_sha256": {
+        "src/main/common/filter.c": "8a083d17b299c8f2764b5d7ea70de2037b73cf70d7f0b835c77a612b9876a868",
+        "src/main/common/filter.h": "9c6fd90c395966ecddb960d3a7939faa35db2661c82f5aeca5bc4899c8c2cd21",
+        "src/main/common/maths.c": "c588b86f4d6bcbd4311c6808ef9f691190de21cd5245081a0eef5845f0f4cd1b",
+        "src/main/common/maths.h": "b6759635d63113d27937a20f675003e34c1ff4194d0731be395c344721e756a0",
+        "src/main/common/axis.h": "f9d068203f2a6f46cc19b039e9fd651b24b836a12dbb6962909bca96885e3f77",
+        "src/main/common/utils.h": "3492c27211906cb0e678577e5deef89e19368110f4c3d44f683adec5aee692ac"
+      },
+      "outputs": "4.5.5.f32",
+      "cases": [
+        {
+          "case": "sincos",
+          "offset": 0,
+          "len": 4096
+        },
+        {
+          "case": "gains",
+          "offset": 4096,
+          "len": 504
+        },
+        {
+          "case": "notch_q",
+          "offset": 4600,
+          "len": 60
+        },
+        {
+          "case": "pt1_100hz_8k",
+          "offset": 4660,
+          "len": 3072
+        },
+        {
+          "case": "pt1_250hz_4k",
+          "offset": 7732,
+          "len": 3072
+        },
+        {
+          "case": "pt2_100hz_8k",
+          "offset": 10804,
+          "len": 3072
+        },
+        {
+          "case": "pt3_100hz_8k",
+          "offset": 13876,
+          "len": 3072
+        },
+        {
+          "case": "pt1_dyn_4k",
+          "offset": 16948,
+          "len": 3072
+        },
+        {
+          "case": "pt2_dyn_4k",
+          "offset": 20020,
+          "len": 3072
+        },
+        {
+          "case": "pt3_dyn_4k",
+          "offset": 23092,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_df2_250hz_8k",
+          "offset": 26164,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_df1_150hz_4k",
+          "offset": 29236,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_dyn_4k",
+          "offset": 32308,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_260_160_4k",
+          "offset": 35380,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_400_300_8k",
+          "offset": 38452,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_dyn_4k",
+          "offset": 41524,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_dyn_8k",
+          "offset": 44596,
+          "len": 3072
+        },
+        {
+          "case": "biquad_rpm_4k",
+          "offset": 47668,
+          "len": 3072
+        },
+        {
+          "case": "biquad_rpm_8k",
+          "offset": 50740,
+          "len": 3072
+        },
+        {
+          "case": "two_rate_lpf2_pt1_denom2",
+          "offset": 53812,
+          "len": 1536
+        },
+        {
+          "case": "two_rate_average_denom4",
+          "offset": 55348,
+          "len": 768
+        },
+        {
+          "case": "two_rate_average_denom3",
+          "offset": 56116,
+          "len": 1024
+        },
+        {
+          "case": "two_rate_lpf2_biquad_denom2",
+          "offset": 57140,
+          "len": 1536
+        }
+      ]
+    },
+    {
+      "version": "2025.12.5",
+      "git_ref": "2025.12.5",
+      "header_version": [
+        2025,
+        12
+      ],
+      "arith": "V2025_12",
+      "license": "GPL-3.0, LICENSE sha256 3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "sources_sha256": {
+        "src/main/common/filter.c": "f79e1c906d3e07284b300944a6dce2d2bec83418e077d6987c9f210b960fe4f1",
+        "src/main/common/filter.h": "6b5a39a2c3e40ed298f82ca11e0c76701a37a36b900f2f6118cef391616fa29a",
+        "src/main/common/maths.c": "a777eae72dc6cdf107aa494e3fc7d177e04ccc8dd46d559393b39302eaf0ffb3",
+        "src/main/common/maths.h": "b25f65086df2b6acedbe4638bd0bb701dec31aca523568f3997ecf59e09d477e",
+        "src/main/common/axis.h": "4511700e92aac76a42605247813c8fd046c92bd1cad08ce40a294d3a5f5dd4f2",
+        "src/main/common/utils.h": "816c6dbf57f4c29d90d7abf8bb56cdb01f73e5cbc6a1c5d7859565f3aca7b3bd"
+      },
+      "outputs": "2025.12.5.f32",
+      "cases": [
+        {
+          "case": "sincos",
+          "offset": 0,
+          "len": 4096
+        },
+        {
+          "case": "gains",
+          "offset": 4096,
+          "len": 504
+        },
+        {
+          "case": "notch_q",
+          "offset": 4600,
+          "len": 60
+        },
+        {
+          "case": "pt1_100hz_8k",
+          "offset": 4660,
+          "len": 3072
+        },
+        {
+          "case": "pt1_250hz_4k",
+          "offset": 7732,
+          "len": 3072
+        },
+        {
+          "case": "pt2_100hz_8k",
+          "offset": 10804,
+          "len": 3072
+        },
+        {
+          "case": "pt3_100hz_8k",
+          "offset": 13876,
+          "len": 3072
+        },
+        {
+          "case": "pt1_dyn_4k",
+          "offset": 16948,
+          "len": 3072
+        },
+        {
+          "case": "pt2_dyn_4k",
+          "offset": 20020,
+          "len": 3072
+        },
+        {
+          "case": "pt3_dyn_4k",
+          "offset": 23092,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_df2_250hz_8k",
+          "offset": 26164,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_df1_150hz_4k",
+          "offset": 29236,
+          "len": 3072
+        },
+        {
+          "case": "biquad_lpf_dyn_4k",
+          "offset": 32308,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_260_160_4k",
+          "offset": 35380,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_400_300_8k",
+          "offset": 38452,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_dyn_4k",
+          "offset": 41524,
+          "len": 3072
+        },
+        {
+          "case": "biquad_notch_dyn_8k",
+          "offset": 44596,
+          "len": 3072
+        },
+        {
+          "case": "biquad_rpm_4k",
+          "offset": 47668,
+          "len": 3072
+        },
+        {
+          "case": "biquad_rpm_8k",
+          "offset": 50740,
+          "len": 3072
+        },
+        {
+          "case": "two_rate_lpf2_pt1_denom2",
+          "offset": 53812,
+          "len": 1536
+        },
+        {
+          "case": "two_rate_average_denom4",
+          "offset": 55348,
+          "len": 768
+        },
+        {
+          "case": "two_rate_average_denom3",
+          "offset": 56116,
+          "len": 1024
+        },
+        {
+          "case": "two_rate_lpf2_biquad_denom2",
+          "offset": 57140,
+          "len": 1536
+        }
+      ]
+    },
+    {
+      "version": "2026.6.2",
+      "git_ref": "2026.6.2",
+      "header_version": [
+        2026,
+        6
+      ],
+      "arith": "V2026_6",
+      "license": "GPL-3.0, LICENSE sha256 3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "sources_sha256": {
+        "src/main/common/filter.c": "aade63c4ea755c4f65493faf9c42a561b3914ad0dd942fa1d9a49643e297bb8e",
+        "src/main/common/filter.h": "e721e35172d50c49a35823eca5e3c9255b602589d3ffe1cca1663dc0b3782457",
+        "src/main/common/maths.c": "c5439f80fde7510d900188d1cac8f78433120c2537211507ebfc4f94512cdfd8",
+        "src/main/common/maths.h": "f36a91f29147747dc11aed4400ac6dde74e82a89447185961a35e205cec8fa0a",
+        "src/main/common/axis.h": "aa023a9fbc51e6880ba532ece7374f2dd34e87b69c2f53ca975ae9f1e689168a",
+        "src/main/common/utils.h": "f41c0d5c4c6bc593a549a2e5d4a9c930de6f3d019b5d048ca7acd98de42e9e62"
+      },
+      "outputs": "2026.6.2.f32",
+      "cases": [
+        {
+          "case": "sincos",
+          "offset": 0,
+          "len": 4096
+        },
+        {
+          "case": "sincosf",
+          "offset": 4096,
+          "len": 4096
+        },
+        {
+          "case": "gains",
+          "offset": 8192,
+          "len": 504
+        },
+        {
+          "case": "notch_q",
+          "offset": 8696,
+          "len": 60
+        },
+        {
+          "case": "pt1_100hz_8k",
+          "offset": 8756,
+          "len": 3072
+        },
+        {
+          "case": "pt1_250hz_4k",
+          "offset": 11828,
+          "len": 3072
+        },
+        {
+          "case": "pt2_100hz_8k",
+          "offset": 14900,
+          "len": 3072
+        },
+        {
+          "case": "pt3_100hz_8k",
+          "offset": 17972,
+          "len": 3072
+        },
+        {
+          "case": "pt1_dyn_4k",
+          "offset": 21044,
+          "len": 3072
+        },
+        {
+          "case": "pt2_dyn_4k",
+          "offset": 24116,
+          "len": 3072
+        },
+        {
+          "case": "pt3_dyn_4k",
+          "offset": 27188,
+          "len": 3072
+        },
+        {
+          "case": "svf_lpf_250hz_8k",
+          "offset": 30260,
+          "len": 3072
+        },
+        {
+          "case": "svf_lpf_150hz_4k",
+          "offset": 33332,
+          "len": 3072
+        },
+        {
+          "case": "svf_lpf_dyn_4k",
+          "offset": 36404,
+          "len": 3072
+        },
+        {
+          "case": "svf_notch_260_160_4k",
+          "offset": 39476,
+          "len": 3072
+        },
+        {
+          "case": "svf_notch_400_300_8k",
+          "offset": 42548,
+          "len": 3072
+        },
+        {
+          "case": "svf_notch_dyn_4k",
+          "offset": 45620,
+          "len": 3072
+        },
+        {
+          "case": "svf_notch_dyn_8k",
+          "offset": 48692,
+          "len": 3072
+        },
+        {
+          "case": "rpm_notch_4k",
+          "offset": 51764,
+          "len": 9216
+        },
+        {
+          "case": "rpm_notch_8k",
+          "offset": 60980,
+          "len": 9216
+        },
+        {
+          "case": "two_rate_lpf2_pt1_denom2",
+          "offset": 70196,
+          "len": 1536
+        },
+        {
+          "case": "two_rate_average_denom4",
+          "offset": 71732,
+          "len": 768
+        },
+        {
+          "case": "two_rate_average_denom3",
+          "offset": 72500,
+          "len": 1024
+        },
+        {
+          "case": "two_rate_lpf2_biquad_denom2",
+          "offset": 73524,
+          "len": 1536
+        }
+      ]
+    },
+    {
+      "version": "2026.12-dev",
+      "git_ref": "1b94a3871529bbb68d8dbb7d33a99d1101d3f2d4",
+      "header_version": [
+        2026,
+        12
+      ],
+      "arith": "V2026_6",
+      "license": "GPL-3.0, LICENSE sha256 3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "sources_sha256": {
+        "src/main/common/filter.c": "7332188837940f69fe9f22bdb7e0918bdad641cce9790583b44778970e5cf54a",
+        "src/main/common/filter.h": "d0f35d395903bd371e254cca2ddbf5c912becdd43c473de6c4c63368a20f3f8c",
+        "src/main/common/maths.c": "c5439f80fde7510d900188d1cac8f78433120c2537211507ebfc4f94512cdfd8",
+        "src/main/common/maths.h": "d21c1269351309e090b5cf0eb697d7b7cf09c58feca9a25a00454d65edf47b19",
+        "src/main/common/axis.h": "aa023a9fbc51e6880ba532ece7374f2dd34e87b69c2f53ca975ae9f1e689168a",
+        "src/main/common/utils.h": "ff45fe06ff229b21e4d84d79af89b5936b92ee4e347a238a194f7e0dfb1265ad"
+      },
+      "outputs": "2026.12-dev.f32",
+      "cases": [
+        {
+          "case": "sincos",
+          "offset": 0,
+          "len": 4096
+        },
+        {
+          "case": "sincosf",
+          "offset": 4096,
+          "len": 4096
+        },
+        {
+          "case": "gains",
+          "offset": 8192,
+          "len": 504
+        },
+        {
+          "case": "notch_q",
+          "offset": 8696,
+          "len": 60
+        },
+        {
+          "case": "pt1_100hz_8k",
+          "offset": 8756,
+          "len": 3072
+        },
+        {
+          "case": "pt1_250hz_4k",
+          "offset": 11828,
+          "len": 3072
+        },
+        {
+          "case": "pt2_100hz_8k",
+          "offset": 14900,
+          "len": 3072
+        },
+        {
+          "case": "pt3_100hz_8k",
+          "offset": 17972,
+          "len": 3072
+        },
+        {
+          "case": "pt1_dyn_4k",
+          "offset": 21044,
+          "len": 3072
+        },
+        {
+          "case": "pt2_dyn_4k",
+          "offset": 24116,
+          "len": 3072
+        },
+        {
+          "case": "pt3_dyn_4k",
+          "offset": 27188,
+          "len": 3072
+        },
+        {
+          "case": "svf_lpf_250hz_8k",
+          "offset": 30260,
+          "len": 3072
+        },
+        {
+          "case": "svf_lpf_150hz_4k",
+          "offset": 33332,
+          "len": 3072
+        },
+        {
+          "case": "svf_lpf_dyn_4k",
+          "offset": 36404,
+          "len": 3072
+        },
+        {
+          "case": "svf_notch_260_160_4k",
+          "offset": 39476,
+          "len": 3072
+        },
+        {
+          "case": "svf_notch_400_300_8k",
+          "offset": 42548,
+          "len": 3072
+        },
+        {
+          "case": "svf_notch_dyn_4k",
+          "offset": 45620,
+          "len": 3072
+        },
+        {
+          "case": "svf_notch_dyn_8k",
+          "offset": 48692,
+          "len": 3072
+        },
+        {
+          "case": "rpm_notch_4k",
+          "offset": 51764,
+          "len": 9216
+        },
+        {
+          "case": "rpm_notch_8k",
+          "offset": 60980,
+          "len": 9216
+        },
+        {
+          "case": "two_rate_lpf2_pt1_denom2",
+          "offset": 70196,
+          "len": 1536
+        },
+        {
+          "case": "two_rate_average_denom4",
+          "offset": 71732,
+          "len": 768
+        },
+        {
+          "case": "two_rate_average_denom3",
+          "offset": 72500,
+          "len": 1024
+        },
+        {
+          "case": "two_rate_lpf2_biquad_denom2",
+          "offset": 73524,
+          "len": 1536
+        }
+      ]
+    }
+  ]
+}

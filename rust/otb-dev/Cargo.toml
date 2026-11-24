@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 ico = "0.6"
 otb-decoder = { path = "../otb-decoder" }
+otb-dsp = { path = "../otb-dsp" }
 otb-format = { path = "../otb-format" }
 otb-advisor = { path = "../otb-advisor" }
 otb-analysis = { path = "../otb-analysis" }

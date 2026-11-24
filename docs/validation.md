@@ -765,6 +765,40 @@ sur le corpus entier (676 sessions), binaires de `main` mis de côté avant de t
 Critère d'arrêt du lot (plus de 0,5 dB sous 250 Hz, ou un constat qui bascule) : non atteint. L'effet attendu « faible » est
 confirmé : quelques centièmes de dB au plus ; pas de capture, la courbe D ne bouge pas à l'œil.
 
+### Briques à l'arithmétique du firmware (2026-11-24, lots 24a et 24b)
+
+Briques float32 de `rust/otb-dsp/src/firmware/betaflight/` (pas encore branchées) contre le firmware **compilé sur PC** par
+`otb-dev firmware-bench` (D-062) : `common/filter.c` et `maths.c` de chaque version téléchargés, compilés avec le programme du
+projet `rust/otb-dev/bench/betaflight_filters.c` (GCC 15.2, `-O2 -ffp-contract=off`), dans le dossier temporaire du système.
+
+| Version jouée | Arithmétique | Cas | Identiques au bit près |
+|---|---|---|---|
+| 4.3.2 | `V4_3` | 23 | 23 |
+| 4.4.3 | `V4_3` | 23 | 23 |
+| 4.5.5 | `V4_5` | 23 | 23 |
+| 2025.12.5 | `V2025_12` | 23 | 23 |
+| 2026.6.2 | `V2026_6` | 24 | 24 |
+| 2026.12 (commit `1b94a3871`, pas encore d'étiquette) | `V2026_6` | 24 | 24 |
+
+- Cas joués : sinus et cosinus sur 2 048 angles (de −36 à 36 rad, multiples de π/2 et leurs voisins au bit près), gains
+  PT1/PT2/PT3 sur 168 couples (fréquence, pas de temps), Q des notchs sur 60 couples, et sur un signal de 3 072 échantillons
+  (balayage de 20 à 3 800 Hz, bruit, échelons) : PT1/2/3 fixes et à coupure variable, biquad ou SVF passe-bas fixe et
+  dynamique, notchs statiques, notch à centre variable, notch RPM à centre et poids variables (trois axes en SVF), et trois
+  chaînes à deux cadences (LPF2 à la cadence gyro, décimation par 2, 3 ou 4, notch et LPF1 à la cadence PID). Vecteurs :
+  1,6 Mo dans `rust/otb-dsp/tests/data/firmware/betaflight/`, rejoués par `rust/otb-dsp/tests/firmware_vectors.rs` (CI).
+- **Le banc distingue bien les versions** : 4.3.2 et 4.4.3 donnent les mêmes bits, comme 2026.6.2 et 2026.12 ; entre 4.4.3 et
+  4.5.5, le gain des PTn change (264 gains sur 504 ; jusqu'à 2 354 sorties sur 3 072 d'un PT2) ; entre 4.5.5 et 2025.12.5,
+  seul le cosinus approché change (2 261 valeurs sur 4 096), sans effet sur les sorties des biquads de ces cas.
+- Reproductible : deux passages complets du banc écrivent des fichiers identiques (empreintes SHA-256).
+- **Contre-preuves** (une erreur introduite, le test rougit) : PT1 écrit `(1 − k)·état + k·entrée` → rouge (2 636 valeurs
+  sur 3 072) ; DF1 du biquad avec les additions regroupées autrement → rouge ; 2025.12 avec le sinus de la 4.5 → rouge ;
+  notch SVF `a2q = f·(1/d·q)` au lieu de `(f·1/d)·q` → rouge ; moyenne de la décimation `× 1/n` au lieu de `÷ n` → **vert**
+  d'abord (décimations par 2 et 4 seulement, L-118), rouge après l'ajout du cas par 3 (919 valeurs sur 1 024). Sans effet, et
+  c'est attendu : `powf` des 4.3–4.4 calculé par la bibliothèque du système (même valeur ici que l'évaluation de GCC) et
+  `BIQUAD_Q` remplacé par `FRAC_1_SQRT_2` (mêmes bits que `1.0f / sqrtf(2.0f)`).
+- Ce que le banc ne vérifie pas (W-081) : l'ordonnancement des recalculs dans la boucle (notchs RPM un à un, LPF dynamiques),
+  le suivi des pics du notch dynamique, et la fusion multiplication-addition que le compilateur de la carte de vol emploie.
+
 ### Bibliothèque de données en fichiers JSON (2026-11-18, lot 28)
 
 Mesuré par `rust/otb-store/tests/bibliotheque.rs` (`a_volume_reel_les_fichiers_restent_petits_et_louverture_rapide`),

@@ -8,5 +8,6 @@
 *.icns binary
 *.bbl binary
 *.bfl binary
+*.f32 binary
 # Données de test compressées : opaques pour git, jamais converties en texte
 *.gz binary
