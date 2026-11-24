@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
 | D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
 | D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
 | D-073 | **L'assistant d'un vol à l'autre** : vol comparé = vol précédent du drone (ou choisi), repère du même constat sur chaque jauge, cartes nouvelles et disparues, pas de « drones de même taille » ; pouce levé (appliqué) inscrit au clic, pouce baissé avec sa raison, dans la bibliothèque ; « Fragment déjà traité » et son historique ; pas de lignes CLI (W-078) | 2026-11-23 |
@@ -149,6 +150,27 @@ ici, jamais dans le code.
 ---
 
 ## 2026-11-23 — Le mode stockage de masse et les cartes SD (lot 32c)
+
+### D-076 : terme D des logs ralentis — celui du firmware, même quand le log est ralenti
+
+**Tranché par Cédric** le 2026-11-24, après la mesure de W-083 point 1 ([validation.md](validation.md#terme-d-des-logs-ralentis--cause-mesurée-2026-11-24-w-083)) :
+« je veux que le D soit le plus correct possible ».
+
+**Contexte.** Sur les logs qui ne gardent qu'une boucle PID sur N, le D de la chaîne à l'arithmétique du firmware (lot 24c)
+s'écarte davantage du D enregistré que celui de la chaîne actuelle (0,64 → 0,91 dB en médiane entre 100 et 250 Hz). Mesuré
+sur des logs enregistrés à chaque boucle puis réduits : avec le **vrai** gyro, le D du firmware colle au D enregistré comme
+sur le log complet ; l'excès vient du gyro non filtré sous-échantillonné sans anti-repliement (W-067). Le D calculé à la
+cadence du log (dérivée et filtres du D à cette cadence) est 0,4 à 0,7 dB trop bas **même avec le vrai gyro** : il ne colle
+que par compensation, et pas sur un drone qui replie peu (Air65 : 0,63 dB contre 0,21 dB).
+
+**Décision.** À la bascule (lot 24d), le terme D rejoué (page Filtres, assistant) est celui de `firmware_chain::dterm` :
+dérivée et filtres du D à la cadence PID, une boucle sur N gardée ensuite, pour **tous** les logs. L'écart qui reste sur un
+log ralenti est une perte d'information du log, pas un défaut de calcul ; il ne se corrige pas, il se dit (point « écart au
+vol réel mesuré et affiché » du lot 24).
+
+**Options écartées.** Dériver à la cadence du log pour les logs ralentis (faux en lui-même, juste par compensation) ; choisir
+la cadence de la dérivée selon le drone ou la cadence du log ; corriger l'excès par un gain empirique (le repliement dépend du
+bruit de chaque drone au-dessus de la demi-cadence du log, que le log ne contient pas).
 
 ### D-075 : le mode stockage de masse, pour la mémoire interne au choix et pour toute carte SD, avec suppression vérifiée
 
