@@ -64,7 +64,8 @@ Dans `rust/otb-analysis/src/` (noyaux de calcul dans `rust/otb-dsp/src/`).
 | `open_loop.rs` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.rs` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |
 | `filter_stages.rs` | Contrôle du modèle de filtres étage par étage contre le firmware (canaux debug `GYRO_SAMPLE` / `FFT_FREQ`, terme D), par bande de fréquences ; lot 22 du plan, D-057 |
-| `filter_replay.rs` | Simulateur de la page Filtres : chaîne du firmware rejouée sur le gyro non filtré (règles du contrôle par étage, suivi du notch dynamique), spectres avant / après (« actuel » rejoué, « modifié » = log × rejeu modifié / rejeu actuel) ; `replay_from` reprend le rejeu actuel quand seuls les filtres du D changent ; lot 22e, D-058 ; sert aussi à l'assistant, D-059 |
+| `filter_replay.rs` | Simulateur de la page Filtres : chaîne du firmware rejouée sur le gyro non filtré (règles du contrôle par étage, suivi du notch dynamique), spectres avant / après (« actuel » rejoué, « modifié » = log × rejeu modifié / rejeu actuel) ; `replay_from` reprend le rejeu actuel quand seuls les filtres du D changent ; lot 22e, D-058 ; sert aussi à l'assistant, D-059. `replay_with` / `before_after_with` prennent la chaîne (`Engine`), `chain_gap` mesure l'écart entre les deux (lot 24c) |
+| `firmware_chain.rs` | Chaîne Betaflight **assemblée** avec les briques à l'arithmétique du firmware (`rust/otb-dsp/src/firmware/betaflight/`), à côté de la chaîne actuelle, **branchée nulle part à l'écran** (lot 24c, D-062) : LPF2 à la cadence gyro puis passage à la cadence PID, notchs RPM recalculés à tour de rôle, LPF dynamiques recalculés par le mixeur, terme D comme `pid.c`, version par version (`Release`). Le contrôle par étage et le rejeu la choisissent par `Engine` (`Engine::Model` par défaut) |
 | `dyn_notch.rs` | Suivi des pics du notch dynamique rejoué comme le firmware (SDFT, pics, lissage, variantes par version), centres par axe, contrôle contre les centres enregistrés en `FFT_FREQ` ; lot 22c du plan, W-057 |
 | `chain.rs` | Chaîne de filtres décrite en **données** (lot 23, D-062) : lit `rust/otb-analysis/chains/betaflight.json`, intégré à la compilation (étapes ordonnées des chaînes gyro et D avec brique, cadence et réglage lu ; prises du log ; position de la dérivée du D). Seule description de l'ordre et de la cadence des filtres : la réponse en fréquence, les étages de la simulation, le rejeu, le suivi du notch dynamique et le contrôle par étage la lisent |
 | `bf_filters.rs` | Filtres Betaflight exacts (PT1/2/3, biquad, SVF, RPM, notch dynamique, LPF dynamiques), chaînes gyro et D (dans l'ordre de `chain.rs`), étages de la simulation (`GyroStage` : intervalle entre deux prises), spectre « et si » par les réponses \|H\|² (assistant, logs sans gyro non filtré), passe-bas relevé ou coupé ; noyaux de calcul dans `rust/otb-dsp` (D-032) |
@@ -371,11 +372,15 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     `rows` / `values` / `missing` / `noref` / `refhang` ; 4 fichiers à la fois par défaut, la mémoire montant à ≈ 1 Go) ; `stages.rs`
     (`corpus stages SORTIE.json [--dir SOUS-DOSSIER] [--limit N] [-j FILS]` : contrôle du modèle de filtres étage par étage,
     une ligne par session, étage et axe ; `--resume SORTIE.json` : tableau par étage, version et type de filtre, alertes du
-    critère d'arrêt du lot 22) ; `dyntrack.rs` (`corpus dyntrack SORTIE.json [--dir SOUS-DOSSIER] [--limit N] [-j FILS]` :
+    critère d'arrêt du lot 22 ; `--chain firmware` : modèle = chaîne à l'arithmétique du firmware ; `--compare AVANT.json
+    APRÈS.json` : bandes concluantes des deux passages, critère d'arrêt du lot 24c, code 1 s'il est atteint) ; `dyntrack.rs` (`corpus dyntrack SORTIE.json [--dir SOUS-DOSSIER] [--limit N] [-j FILS]` :
     suivi du notch dynamique rejoué contre les centres enregistrés en `FFT_FREQ`, une ligne par session et par notch ;
     `--resume SORTIE.json` : tableau par version et cadence du log) ; `replay.rs` (`corpus replay SORTIE.json [--dir SOUS-DOSSIER]
     [--limit N] [-j FILS]` : rejeu de la page Filtres avec les réglages du log contre le spectre enregistré, gyro et D, par
-    bande ; `--resume SORTIE.json` : tableau selon que le log enregistre chaque boucle PID ou non, D-058) ; `predict.rs`
+    bande ; `--resume SORTIE.json` : tableau selon que le log enregistre chaque boucle PID ou non, D-058 ; `--chain firmware` :
+    rejeu par la chaîne à l'arithmétique du firmware) ; `chaindiff.rs` (`corpus chaindiff SORTIE.json [--dir SOUS-DOSSIER]
+    [--limit N] [-j FILS]` : écart entre la chaîne actuelle et celle à l'arithmétique du firmware, spectres exacts gyro et D par
+    bande et écart dans le temps, une ligne par session ; `--resume SORTIE.json` : tableau par version et cadence du log, lot 24c) ; `predict.rs`
     (`corpus predict AVANT APRÈS` : filtres du vol APRÈS appliqués au vol AVANT, rejeu et rapport des |H|² contre le vol
     APRÈS, et changement du gyro non filtré, par bande ; lot 22f, W-060).
 

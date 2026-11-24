@@ -76,7 +76,9 @@ Règles d'écriture :
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
 | W-080 | Contrôle par étage : le second vol de calibration (SVF, PT2, notch statique du gyro, notch du D) n'a jamais été fait | ouvert (aucun écart soupçonné sur ces filtres) |
-| W-081 | Banc des briques du firmware (lot 24b) : ordonnancement des recalculs (notchs RPM un à un, LPF dynamiques, pas corrigé de la 2025.12), suivi des pics du notch dynamique et fusion multiplication-addition de la carte de vol hors du bit à bit | ouvert (24c pour l'ordonnancement) |
+| W-081 | Banc des briques du firmware (lot 24b) : ordonnancement des recalculs (notchs RPM un à un, LPF dynamiques, pas corrigé de la 2025.12), suivi des pics du notch dynamique et fusion multiplication-addition de la carte de vol hors du bit à bit | point 1 **TRAITÉ** le 2026-11-24 (lot 24c : recopié du firmware, mesuré sur le corpus ; correction du pas de la 2025.12 prise à 1) ; points 2 et 3 ouverts |
+| W-082 | Chaîne actuelle (écran, assistant) : un notch RPM dont la fréquence atteint 0,48 × la cadence PID est **ignoré**, alors que le firmware le plaque à ce plafond ; jusqu'à +24 dB d'écart au vol sur `Cedric/J3.5/HQ` | TRAITÉ le 2026-11-24 (lot 24c, à la demande de Cédric) : rejeu, assistant et contrôle par étage ; reste dans `simulate_gyro` (étalon Python, références figées) |
+| W-083 | Chaîne à l'arithmétique du firmware (lot 24c) : terme D des logs ralentis plus loin du vol que la chaîne actuelle (+0,3 dB en médiane), et un vol où l'ordre des notchs RPM du firmware colle moins au log | ouvert (à trancher avant la bascule 24d) |
 | W-079 | Carte à mémoire interne **et** carte SD : le mode disque montre le support de `blackbox_device`, que MSP ne lit pas ; OpenTuneBox suppose la mémoire quand elle contient des logs | ouvert (aucune carte de ce type vue) |
 | W-078 | Lignes CLI (`set …`) à copier sous chaque conseil de l'assistant (prototype) | ouvert (si Cédric les demande, D-073) |
 | W-077 | L'exemple `capture` échoue avec quatre logs du JeNo 5 (« second fragment posé » : 10 au lieu de 7) | ouvert |
@@ -1311,3 +1313,46 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   notch dynamique domine celui des étages ; point 3 seulement si un jour un log enregistre l'entrée des filtres à pleine
   cadence (W-071).
   [`rust/otb-dsp/src/firmware/betaflight/cases.rs`, `rust/otb-dev/src/firmware_bench.rs`]
+  **Point 1 traité le 2026-11-24 (lot 24c)** : `rust/otb-analysis/src/firmware_chain.rs` recopie version par version le tour de
+  rôle des notchs RPM, leur recalcul après ou avant le filtrage, le lissage de la fréquence des moteurs et les recalculs des LPF
+  dynamiques par le mixeur (gaz d'avant le boost, au centième, toutes les 5 ms au plus) ; mesuré sur le corpus
+  ([validation.md](validation.md#chaîne-assemblée-à-larithmétique-du-firmware-2026-11-24-lot-24c)). La correction
+  `schedulerGetCycleTimeMultiplier()` (2025.12 et après) reste prise à 1 : le log ne l'enregistre pas.
+
+## Origine : chaîne assemblée à l'arithmétique du firmware, lot 24c (2026-11-24)
+
+- **W-082** — **La chaîne actuelle ignore un notch RPM plaqué au plafond.** Le firmware borne la fréquence de chaque notch RPM
+  entre `rpm_filter_min_hz` et 0,48 × la cadence PID (`constrainf`, `flight/rpm_filter.c`) et le garde actif au plafond ;
+  `otb_dsp::run_section`, par lequel passe la chaîne actuelle, ne garde une fréquence que si elle est **sous** 0,48 × la
+  cadence, et coupe sinon le notch. Sur `Cedric/J3.5/HQ/btfl_001.bbl` et `48k-HQ.bbl` (4.5.0, PID 4 kHz, moteurs jusqu'à 643 Hz),
+  la 3e harmonique dépasse 1 920 Hz : le rejeu « actuel » de la page Filtres s'écarte du vol de +18 à +24 dB entre 20 et 100 Hz,
+  celui de la chaîne du firmware de +3 à +4 dB.
+  **Pourquoi reporté** : le lot 24c ne change rien à l'écran (D-062) ; la chaîne du firmware, qui fait juste, remplacera
+  l'actuelle à la bascule (24d), que Cédric décide au vu des chiffres.
+  **Risque si on n'y touche pas** : sur un drone dont les moteurs tournent vite à PID 4 kHz ou moins, la page Filtres et le
+  bruit prévu par l'assistant (D-059) se trompent fortement ; les deux vols du J3.5 en sont un exemple.
+  **Reprise** : à la bascule 24d ; ou plus tôt, sur demande de Cédric, en gardant le notch au plafond dans `run_section` (les
+  références Python figées devront alors être relues pour ce cas).
+  [`rust/otb-dsp/src/lib.rs:run_section`, `rust/otb-analysis/src/firmware_chain.rs`]
+  **Traité le 2026-11-24** (même branche, demande de Cédric avant la PR) : la simulation du rejeu (`bf_filters::gyro_stage_upsampled`,
+  donc page Filtres, assistant et contrôle par étage) garde un notch jusqu'à Nyquist, et les notchs RPM sont plaqués au plafond
+  comme dans le firmware ; `simulate_gyro` et `gyro_stage` gardent la règle de l'étalon (références Python figées, 0 échec).
+  Test `rust/otb-analysis/tests/firmware_chain.rs:le_notch_rpm_au_plafond_reste_actif`.
+- **W-083** — **Deux écarts de la chaîne du firmware au vol, non expliqués.**
+  1. **Terme D des logs ralentis** : calculé à la cadence PID comme le firmware, puis une boucle sur N gardée, il s'éloigne du D
+     enregistré (|écart| médian 0,64 → 0,91 dB entre 100 et 250 Hz, moyenne signée −0,12 → +0,67 dB, logs à 1,6 kHz ou plus).
+     Cause supposée, non mesurée : le gyro à la cadence PID est reconstruit depuis un log qui n'a rien au-dessus de sa
+     demi-cadence, et la dérivée amplifie l'écart là-haut ; le D de la chaîne actuelle, filtré à la cadence du log, coupait un
+     peu plus et compensait par hasard.
+  2. **Ordre des notchs RPM** : sur `1. PTB/schteven/…_214547_ATOMRCF405NAVIMINI.BBL` #6 (deux moteurs, log une boucle sur deux),
+     l'ordre du firmware (harmonique d'abord) porte l'écart du bloc gyro de 0,89 à 1,74 dB entre 100 et 250 Hz ; l'ordre de
+     la chaîne actuelle, 1,03 dB (L-120). Pourquoi l'ordre recopié colle moins à ce vol-là n'est pas trouvé. Depuis que la
+     chaîne en service suit aussi l'ordre du firmware (2026-11-24), son écart sur ce vol est de 1,66 dB.
+  **Pourquoi reporté** : le lot 24c chiffre et explique ; ces deux points ne touchent pas le critère d'arrêt (logs à chaque
+  boucle PID), qui n'est pas atteint.
+  **Risque si on n'y touche pas** : à la bascule, la courbe « actuel » du D de la page Filtres s'écarterait un peu plus du vol
+  sur les logs ralentis ; le rapport « modifié / actuel », lui, annule l'essentiel de l'écart.
+  **Reprise** : avant la bascule 24d (décision de Cédric) : mesurer le D en dérivant à la cadence du log puis à la cadence
+  PID sur un log enregistré à chaque boucle, ramené à une boucle sur deux ; pour le point 2, un autre vol de ce drone ou d'un
+  drone à deux moteurs.
+  [`rust/otb-analysis/src/firmware_chain.rs`, `rust/otb-analysis/src/filter_replay.rs:chain_gap`]

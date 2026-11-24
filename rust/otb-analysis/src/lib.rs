@@ -11,6 +11,7 @@ pub mod delay;
 pub mod dyn_notch;
 pub mod filter_replay;
 pub mod filter_stages;
+pub mod firmware_chain;
 pub mod motors;
 pub mod npstat;
 pub mod open_loop;

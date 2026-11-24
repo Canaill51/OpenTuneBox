@@ -188,7 +188,9 @@ ils viennent du bruit (`validation.md`).
   contrôle par étage : cadence nominale (L-101), LPF2 à la cadence gyro et autres filtres à la cadence PID même si le log saute
   des boucles (L-104), notch dynamique aux centres du suivi rejoué sur chaque axe avec les réglages simulés (ci-dessous) ; terme
   D = −dg/dt du gyro rejoué passé par la chaîne D, dans l'ordre du firmware (filtrer puis dériver, `bf_filters::simulate_dterm_at` ;
-  W-072), × facteur TPA de chaque instant.
+  W-072), × facteur TPA de chaque instant. Notchs RPM comme le firmware : plaqués au plafond de 0,48 × la cadence PID et gardés
+  actifs (W-082), appliqués harmonique puis moteur (moteur d'abord en 4.3, `firmware_chain::rpm_apply_order`, L-120) ;
+  `bf_filters::simulate_gyro` garde les règles de l'étalon Python (notch ignoré au plafond, moteur d'abord) pour les références figées.
 - **Spectres** (`filter_replay::before_after`), fenêtres de 300 ms, roulis, tangage et lacet : « actuel » = rejeu avec les
   réglages du log, arrondi comme le Blackbox (gyro au °/s ou au 1/10, D à l'unité ; sinon jusqu'à 1,7 dB d'écart au-dessus de
   250 Hz, L-103), à comparer au log ; « modifié » = spectre enregistré × (rejeu modifié / rejeu actuel) case par case et fenêtre

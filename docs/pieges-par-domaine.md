@@ -78,6 +78,11 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Rapport « modifié / actuel » de deux spectres : sur des signaux **exacts** ; arrondis comme le log, chacun porte son bruit
   d'arrondi et la moyenne du rapport monte (filtrer plus « ajoutait » du bruit). L'arrondi ne sert qu'à la courbe comparée au
   log. L-105
+- Chaîne à l'arithmétique du firmware (`firmware_chain`, lot 24c) : tout état de filtre est indexé par son axe (trois axes
+  ensemble = chacun seul, test) ; un état partagé par position a donné −5 dB à toutes les fréquences. L-119
+- Notchs RPM : garder l'**ordre** des boucles du firmware (harmonique puis moteur depuis la 4.4), écrit une seule fois dans
+  `firmware_chain::rpm_apply_order` ; des notchs dont la fréquence bouge ne commutent pas, malgré le commentaire du firmware.
+  Un notch au-delà du plafond (0,48 × cadence PID) y est plaqué et reste actif (W-082). L-120
 - Effet d'un changement de modèle : comparer les spectres exacts, pas la courbe « actuel » arrondie ; sur un D enregistré sous
   l'unité, l'arrondi fait d'un écart de 0,001 dB un écart de 0,38 dB. L-108
 
@@ -150,7 +155,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - **Notes générées par GitHub** : `release.yml` est lu **au commit de l'étiquette** ; une version étiquetée avant ce fichier
   sort sans rubriques, et `configuration_file_path` n'y change rien. L-097
 - **Contrôle qui lit l'événement d'une PR** (`etiquette-pr.yml`) : ses passages se font dans l'ordre (`concurrency` par PR, sans
-  annulation), sinon deux passages simultanés laissent l'ancien résultat gagner. L-098
+  annulation), sinon deux passages simultanés laissent l'ancien résultat gagner ; à l'ouverture sans étiquette, il relit
+  l'état présent de la PR, car `gh pr create --label` ouvre avant d'étiqueter (sinon un passage rouge reste dans l'historique). L-098
 - **PR de Dependabot qui monte une crate livrée** : elle arrive rouge, car `THIRD-PARTY-LICENSES.txt` cite les versions ; sur sa
   branche, `cargo run -p otb-dev -- licenses`, `verify`, commit du seul fichier (procédure dans `CONTRIBUTING.md`). L-099
 

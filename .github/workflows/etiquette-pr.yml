@@ -4,14 +4,16 @@
 # - un titre en phrase, pas un nom de branche (« fix/… ») : ce titre devient la ligne des notes.
 # Relancé quand on pose ou retire une étiquette, change le titre ou envoie un commit : le contrôle exigé par la règle
 # protection-main porte sur le dernier commit.
-# Aucun checkout ni droit : tout est lu dans l'événement. Titre et étiquettes passent par des variables d'environnement,
-# jamais par ${{ }} dans le script (un titre est écrit par n'importe qui et serait exécuté comme du bash).
+# Aucun checkout ; seul droit, la lecture des demandes de fusion (étiquettes relues à l'ouverture, voir plus bas). Titre et
+# étiquettes passent par des variables d'environnement, jamais par ${{ }} dans le script (un titre est écrit par n'importe qui
+# et serait exécuté comme du bash).
 name: Étiquette de la demande de fusion
 on:
   pull_request:
     types: [opened, edited, labeled, unlabeled, synchronize, reopened]
 
-permissions: {}
+permissions:
+  pull-requests: read
 
 # ⚠️ Ouvrir une PR puis poser son étiquette dans la même seconde lance deux passages qui finissent ensemble : GitHub retient
 # alors l'échec du premier (lu sans étiquette) et la PR reste rouge (L-098). Les passages d'une même PR attendent donc leur
@@ -30,7 +32,19 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          ACTION: ${{ github.event.action }}
+          PR_API: repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # ⚠️ `gh pr create --label` ouvre la demande **puis** pose l'étiquette : l'événement `opened` arrive sans elle. Le
+          # passage échouait alors, et restait rouge dans l'historique des Actions (avec son courriel) même quand le passage
+          # `labeled` qui suit était retenu au vert (L-098). À l'ouverture sans étiquette « RN: », relire l'état présent.
+          if [ "$ACTION" = opened ] || [ "$ACTION" = reopened ]; then
+            if [ "$(jq '[.[] | select(startswith("RN: "))] | length' <<< "$LABELS")" -eq 0 ]; then
+              sleep 20
+              LABELS=$(gh api "$PR_API" --jq '[.labels[].name]')
+            fi
+          fi
           # Même liste que les rubriques et exclusions de .github/release.yml (otb-dev la compare : tests/release.rs).
           connues='["RN: nouveauté majeure","RN: nouveauté","RN: amélioration","RN: sécurité","RN: refonte","RN: correction","RN: ignorer"]'
           echo "titre : $TITLE"

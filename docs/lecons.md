@@ -60,6 +60,34 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-120 : des notchs dont la fréquence bouge ne commutent plus : l'ordre d'application des notchs RPM change le résultat, malgré le commentaire du firmware
+
+- **Symptôme** — 2026-11-24 (lot 24c) : sur `1. PTB/schteven/…_214547_ATOMRCF405NAVIMINI.BBL` #6, l'étage RPM de la chaîne à
+  l'arithmétique du firmware s'écarte de 17 % (valeur efficace) de la chaîne actuelle. Fréquence fixe : écart de 0,1 %. Un notch
+  seul, même suite de fréquences : 1e-5. Ni le fondu, ni le tour de rôle des recalculs, ni les gaz du LPF n'y changent rien.
+- **Cause** — mesurée : le firmware applique les notchs harmonique par harmonique puis moteur par moteur (`rpmFilterApply`,
+  4.4 à 2026.6), la chaîne actuelle moteur d'abord. Remis dans le même ordre, l'écart est divisé par 2,5. Des filtres linéaires
+  **invariants** commutent ; des notchs dont la fréquence suit les moteurs, non. Le commentaire du firmware (« Order of
+  application doesn't matter because biquads are linear time-invariant filters ») est faux dès que la fréquence bouge.
+- **Règle** — une chaîne recopiée du firmware garde l'**ordre** de ses boucles (harmoniques, moteurs, axes), même quand un
+  commentaire dit qu'il est indifférent ; un écart qui n'apparaît qu'avec des fréquences variables se cherche d'abord là.
+- **Preuve** — [validation.md](validation.md#chaîne-assemblée-à-larithmétique-du-firmware-2026-11-24-lot-24c) ;
+  ordre écrit une seule fois, `rust/otb-analysis/src/firmware_chain.rs:rpm_apply_order`, suivi par les deux chaînes depuis le
+  2026-11-24 (la simulation de l'étalon Python garde le sien) ; tests `ordre_des_notchs_rpm` et
+  `rust/otb-analysis/tests/firmware_chain.rs:le_rejeu_applique_les_notchs_rpm_dans_l_ordre_du_firmware`.
+
+### L-119 : un filtre à la cadence gyro appliqué ligne par ligne avec un tableau d'une case prend toujours l'état de la première ligne : trois axes, un seul état
+
+- **Symptôme** — 2026-11-24 (lot 24c) : premier passage de `otb-dev corpus chaindiff` sur l'Air65 : la chaîne à l'arithmétique
+  du firmware rend un gyro **−5 dB** sous la chaîne actuelle à toutes les fréquences, 5–20 Hz compris, où aucun filtre n'agit.
+  Chaque étage, essayé seul sur un axe, est pourtant juste.
+- **Cause** — mesurée : dans la boucle à la cadence gyro, chaque axe passait par `Unit::apply(&mut [y], …)`, qui associe les
+  valeurs reçues aux filtres **par position** : une seule valeur, donc toujours le filtre du roulis. Les trois axes mêlaient
+  leurs échantillons dans le même état du LPF2. Un seul axe à la fois (contrôle par étage) ne pouvait pas le montrer.
+- **Règle** — tout filtre qui garde un état est indexé par l'axe qu'il filtre ; un test rejoue trois axes **différents**
+  ensemble et chacun seul, et exige les mêmes valeurs.
+- **Preuve** — `rust/otb-analysis/tests/firmware_chain.rs:les_axes_ont_chacun_leurs_filtres` (rouge avec l'ancien appel).
+
 ### L-118 : un vecteur de test construit sur des puissances de deux ne distingue pas deux arithmétiques : `÷ n` et `× (1/n)` ont les mêmes bits pour n = 2 ou 4
 
 - **Symptôme** — 2026-11-24 (lot 24b) : contre-preuve du banc des briques du firmware ; la moyenne de la décimation gyro → PID
@@ -419,6 +447,12 @@ est celle du commit qui les a introduites.
 - **Preuve** — les trois passages de la #148 (`check-runs?check_name=etiquette`) ; correctif dans
   `.github/workflows/etiquette-pr.yml`, éprouvé par la même manœuvre sur la PR d'essai #149 (fermée sans fusion) : le
   passage en échec finit à 22:42:56, le passage réussi commence à 22:42:58, et le contrôle `etiquette` est retenu « pass ».
+- **⚠️ RÉCIDIVE le 2026-11-24** — PR #188 et #189, ouvertes par `gh pr create --label` (qui ouvre **puis** étiquette) : le
+  contrôle retenu est bien « pass », mais le passage `opened`, lu sans étiquette, reste **en échec dans l'historique des
+  Actions** (et envoie son courriel) ; Cédric y a vu deux CI rouges de suite. Règle précisée : à l'ouverture sans étiquette
+  « RN: », le contrôle attend 20 s et relit les étiquettes **présentes** de la PR (`gh api`, droit `pull-requests: read`) ;
+  une PR vraiment sans étiquette échoue toujours. Essayé en local sur quatre cas avec un faux `gh` (étiquette posée après
+  l'ouverture, aucune étiquette, événement `labeled`, deux étiquettes RN).
 
 ### L-097 : pour une étiquette qui existe déjà, GitHub lit `release.yml` sur l'étiquette, jamais sur `main`
 
@@ -1515,6 +1549,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-120 | Notchs dont la fréquence bouge : leur ordre d'application change le résultat (le commentaire du firmware dit le contraire) ; une chaîne recopiée garde l'ordre des boucles du firmware | Filtres |
+| L-119 | Filtre à état appliqué par position (`zip` avec les lignes) sur un tableau d'une case : tous les axes prennent l'état du premier ; indexer chaque état par son axe, tester trois axes ensemble contre chacun seul | Filtres |
 | L-118 | Vecteur de test aux paramètres puissances de deux (décimation par 2 ou 4) : `÷ n` et `× (1/n)` ont les mêmes bits, une arithmétique fausse passe ; prendre des diviseurs et gains qui n'en sont pas (3, 6…) et mesurer chaque contre-preuve restée verte | Analyses |
 | L-117 | CodeQL prend tout nom en « salt » (paramètre `salt` d'une liste egui) pour un sel cryptographique écrit en dur, alerte critique : jamais de nom `salt` dans l'interface, `widget` ou `id` ; une alerte « critique » sans cryptographie accuse d'abord un nom | Outillage |
 | L-116 | `serde_json` sans `float_roundtrip` relit parfois un nombre avec un bit d'écart (55.732080660999316 → …931) : une mesure rangée ne se recalcule plus « à l'identique » ; un écart au dernier bit entre écrit et relu accuse d'abord la relecture | Outillage |
