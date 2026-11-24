@@ -72,7 +72,7 @@ Règles d'écriture :
 | W-060 | Simulateur de filtres jamais vérifié « avant / après » : seul le contrôle d'identité (vrai par construction) existe | EN PARTIE TRAITÉ le 2026-11-22 (lot 22f, `corpus predict`) : un notch dynamique de plus, vérifié en vol sur l'Air65 ; LPF, RPM et autres drones jamais vérifiés |
 | W-061 | Marge de 95 % de Nyquist (2026.6+) appliquée au notch gyro de toutes les versions et jamais au notch D ; passe-bas BIQUAD au-delà de Nyquist jamais coupé | ouvert (cas rares) |
 | W-062 | Gaz du passe-bas dynamique lus dans `setpoint[3]`, qui contient le throttle boost, alors que le firmware met à jour le filtre avant le boost | ouvert (mesuré sans effet ; l'écart léger du D et du notch dynamique venait de la mesure, L-103) |
-| W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement) |
+| W-072 | Simulation des filtres dans le temps : terme D **dérivé puis filtré** (le firmware filtre puis dérive), et `simulate_gyro` à la seule cadence du log | ouvert (ordre du D : **réglé** au lot 33, reste dans `simulate_dterm` pour la parité ; cadence : réglée dans le rejeu, reste dans `simulate_gyro`, tests et parité seulement ; laissé tel quel à la bascule 24d, choix de Cédric) |
 | W-071 | ArduCopter (logs DataFlash `.bin`) non pris en charge | ouvert (périmètre Betaflight seul, D-062) |
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
 | W-080 | Contrôle par étage : le second vol de calibration (SVF, PT2, notch statique du gyro, notch du D) n'a jamais été fait | ouvert (aucun écart soupçonné sur ces filtres) |
@@ -1175,9 +1175,12 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   peu du firmware quand les gaz bougent). Point 2, un agent suivant peut prendre `simulate_gyro` ou `simulate_dterm` pour
   une référence fidèle au firmware : leur commentaire le signale.
   **Reprise** : point 1, fait (lot 33). Point 2, et l'ordre restant de `simulate_dterm`, au prochain réenregistrement des
-  références (W-028) — au plus tard au lot 24, qui les réenregistre. Le lot 23 (2026-11-23) ne les a **pas** changés : la
+  références (W-028). Le lot 23 (2026-11-23) ne les a **pas** changés : la
   description unique de la chaîne y donne maintenant la cadence de chaque étape et la position de la dérivée, mais les
   appliquer à ces deux fonctions aurait fait diverger les références Python, contraire au « résultat identique » du lot.
+  **Le lot 24d (2026-11-24) ne les a pas réenregistrées** non plus, au choix de Cédric : la bascule passe l'écran et l'assistant
+  à la chaîne du firmware sans toucher à ces deux fonctions, qui ne servent plus qu'à l'étalon Python (`$OTB_GOLDEN/modules`),
+  et Python ne sait pas écrire la chaîne du firmware. Plus de lien avec le lot 24 : reprise au prochain réenregistrement (W-028).
   [`rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm`]
 
 ## Origine : réponses de Cédric après la vérification USB (2026-11-22)
@@ -1358,3 +1361,6 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Reprise** : point 1 mesuré et tranché par Cédric (D-076) : à la bascule 24d, le D du firmware pour tous les logs, l'écart
   d'un log ralenti dit et non corrigé. Point 2 : un autre vol de ce drone ou d'un drone à deux moteurs.
   [`rust/otb-analysis/src/firmware_chain.rs`, `rust/otb-analysis/src/filter_replay.rs:chain_gap`]
+  **Depuis la bascule (lot 24d, 2026-11-24)**, la chaîne du firmware est celle de l'écran et de l'assistant : le risque du point 1
+  est arrivé comme prévu (D du rejeu « actuel » des logs ralentis plus loin du vol, `validation.md`), celui du point 2 porte sur
+  ce seul vol.

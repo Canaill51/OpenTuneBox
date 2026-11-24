@@ -84,7 +84,7 @@ ici, jamais dans le code.
 | D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
-| D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels ; le lot 23, la description, fait sans attendre le 2026-11-23 ; les étapes 24a à 24c, sans rien brancher, levées le 2026-11-24), prouvé par le banc **et** les vrais vols | 2026-11-18 |
+| D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels ; le lot 23, la description, fait sans attendre le 2026-11-23 ; les étapes 24a à 24c, sans rien brancher, levées le 2026-11-24, puis la bascule 24d–24e le même jour), prouvé par le banc **et** les vrais vols | 2026-11-18 |
 | D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit **(amendée par D-067 et D-068)** | 2026-11-19 |
 | D-060 | Amende D-015 : une entrée de navigation est **un outil ou un espace** qui regroupe plusieurs vues ; les boutons deviennent un **rail à gauche** ; deux écrans hors rail sont permis. Ce qui reste : aucune fenêtre séparée, une vue cachée ne calcule pas | 2026-11-19 |
 | D-059 | Assistant : bruit prévu après un conseil de filtres par le **rejeu** de la page Filtres, vérifié en vol (amende D-008) | 2026-11-22 |
@@ -819,6 +819,20 @@ W-082, W-083). Au vu des chiffres, Cédric a demandé le même jour de corriger 
 fusion, les deux écarts expliqués : notch RPM plaqué au plafond et gardé (W-082), ordre des notchs RPM du firmware (L-120). Le
 rejeu, l'assistant et le contrôle par étage changent donc dès ce lot ; `simulate_gyro` garde les règles de l'étalon (références
 figées), et aucun avis de l'assistant ne change sur le corpus.
+
+**Amendement du 2026-11-24, bascule** (Cédric, au vu des chiffres de 24c et de la cause de l'écart du D, D-076) : la condition est
+**levée pour 24d et 24e**, livrés dans une même demande de fusion (choix de Cédric). La page Filtres, l'assistant et le contrôle par
+étage rejouent par `rust/otb-analysis/src/firmware_chain.rs` dès la 4.3 (`Engine::in_service`). **Cohabitation limitée, choisie par
+Cédric** : l'ancienne chaîne (`bf_filters`, `Engine::Model`) reste un **outil de mesure** (`otb-dev corpus … --chain model`, étalon
+des références Python) et sert encore aux logs **d'avant la 4.3**, que la chaîne du firmware refuse (arithmétique non vérifiée ;
+aucun au corpus) : pour eux, rien ne change. La réponse en fréquence (repli sans gyro non filtré, retards, boucle ouverte) reste
+celle de `gyro_chain` / `dterm_chain` : même réponse, l'arithmétique n'y joue pas. **Références figées non réenregistrées**
+(choix de Cédric) : `$OTB_GOLDEN` ne porte que les fonctions de l'étalon, que la bascule ne touche pas (`otb-parity check` :
+0 échec) ; W-028 et W-072 restent ouverts. **Un avis a basculé** (critère d'arrêt de ce lot) : « Le LPF1 du gyro peut être
+coupé » sur `1. PTB/Kris/13. Hover.bbl`, gyro prévu à 0,1 dB du seuil sur un log enregistré une boucle sur 4 ; expliqué et
+**accepté par Cédric** le même jour. Seuils (24e) : la calibration ne passe pas par le rejeu, mesures identiques au bit près,
+aucun seuil changé. Chiffres : [validation.md](validation.md#bascule-sur-la-chaîne-du-firmware-2026-11-24-lots-24d-et-24e).
+Le lot 25 reste conditionnel.
 
 **Témoins.** Code relu le 2026-11-22 (le fork le décrivait avant le lot 22). La chaîne est écrite **deux fois** :
 - en **réponse en fréquence**, par `rust/otb-analysis/src/bf_filters.rs:gyro_chain` et

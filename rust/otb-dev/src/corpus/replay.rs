@@ -174,7 +174,7 @@ fn resume_text(rows: &[Value]) -> String {
 
 pub fn run(args: &[&str]) -> Result<Output, String> {
     let a = Args::parse(args, &["-j", "--limit", "--dir", "--chain"], &["--resume"])?;
-    let engine = Engine::parse(a.text("--chain").unwrap_or("model"))?;
+    let engine = Engine::parse(a.text("--chain").unwrap_or("firmware"))?;
     match (a.has("--resume"), a.positional.as_slice()) {
         (true, [path]) => {
             let t = std::fs::read_to_string(path).map_err(|e| format!("{path} : {e}"))?;

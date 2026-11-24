@@ -335,7 +335,7 @@ fn compare_text(before: &[Value], after: &[Value]) -> Output {
 
 pub fn run(args: &[&str]) -> Result<Output, String> {
     let a = Args::parse(args, &["-j", "--limit", "--dir", "--chain"], &["--resume", "--compare"])?;
-    let engine = Engine::parse(a.text("--chain").unwrap_or("model"))?;
+    let engine = Engine::parse(a.text("--chain").unwrap_or("firmware"))?;
     if a.has("--compare") {
         let [before, after] = a.positional.as_slice() else {
             return Err("--compare AVANT.json APRÈS.json".into());

@@ -187,8 +187,11 @@ ils viennent du bruit (`validation.md`).
 - **Rejeu** (`filter_replay::replay`) : la chaîne du firmware appliquée au gyro non filtré de tout le log, avec les règles du
   contrôle par étage : cadence nominale (L-101), LPF2 à la cadence gyro et autres filtres à la cadence PID même si le log saute
   des boucles (L-104), notch dynamique aux centres du suivi rejoué sur chaque axe avec les réglages simulés (ci-dessous) ; terme
-  D = −dg/dt du gyro rejoué passé par la chaîne D, dans l'ordre du firmware (filtrer puis dériver, `bf_filters::simulate_dterm_at` ;
-  W-072), × facteur TPA de chaque instant. Notchs RPM comme le firmware : plaqués au plafond de 0,48 × la cadence PID et gardés
+  D = −dg/dt du gyro rejoué passé par la chaîne D, dans l'ordre du firmware (filtrer puis dériver ; W-072), × facteur TPA de
+  chaque instant. **Depuis le lot 24d** (D-062), dès la 4.3, par la chaîne **à l'arithmétique du firmware**
+  (`firmware_chain.rs`, `Engine::in_service`) : briques float32 identiques au firmware compilé au bit près, recalculs des notchs
+  RPM et des LPF dynamiques au rythme du firmware, gyro et terme D calculés à la cadence PID puis une boucle sur N gardée,
+  **même pour un log ralenti** (D-076). Avant la 4.3, l'ancienne chaîne (`bf_filters`, float64, D à la cadence du log). Notchs RPM comme le firmware : plaqués au plafond de 0,48 × la cadence PID et gardés
   actifs (W-082), appliqués harmonique puis moteur (moteur d'abord en 4.3, `firmware_chain::rpm_apply_order`, L-120) ;
   `bf_filters::simulate_gyro` garde les règles de l'étalon Python (notch ignoré au plafond, moteur d'abord) pour les références figées.
 - **Spectres** (`filter_replay::before_after`), fenêtres de 300 ms, roulis, tangage et lacet : « actuel » = rejeu avec les

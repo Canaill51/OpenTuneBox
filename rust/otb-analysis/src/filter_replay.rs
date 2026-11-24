@@ -2,7 +2,12 @@
 //! gyro non filtré du log, avec les règles vérifiées étage par étage au lot 22 (`filter_stages`), et les spectres « avant /
 //! après » qui en sortent.
 //!
-//! Rejeu ([`replay`]) :
+//! ⚠️ Depuis la bascule du lot 24d, [`replay`] et [`before_after`] rejouent par la chaîne à l'arithmétique du firmware
+//! (`firmware_chain`, [`Engine::in_service`]) : dès la 4.3, gyro filtré à la cadence gyro puis PID, terme D dérivé et filtré
+//! à la cadence PID puis une boucle sur N gardée, même pour un log ralenti (D-076). Ce qui suit décrit l'ancienne chaîne
+//! (`Engine::Model`), gardée pour les logs d'avant la 4.3 et pour les mesures ; elle suit les mêmes règles, en float64.
+//!
+//! Rejeu de l'ancienne chaîne :
 //! - filtres calculés pour la cadence **nominale** de l'en-tête, comme le firmware (L-101) ;
 //! - ordre et cadence des filtres lus dans la description de la chaîne (`chain::betaflight`, lot 23) ; chaque filtre rejoué
 //!   à la cadence où le firmware l'applique : LPF2 à la cadence gyro, notchs RPM, notchs statiques, LPF1 et notch
@@ -82,10 +87,10 @@ fn dyn_centres(log: &FlightLog, s: &Settings, pre: &[Vec<f64>]) -> Vec<Vec<Vec<f
     vec![rows; pre.len()]
 }
 
-/// `replay` : chaîne de filtres de `s` rejouée sur le gyro non filtré de tout le log (voir l'en-tête du module).
-/// `None` sans gyro non filtré.
+/// `replay` : chaîne de filtres de `s` rejouée sur le gyro non filtré de tout le log par la chaîne en service
+/// ([`Engine::in_service`], voir l'en-tête du module). `None` sans gyro non filtré.
 pub fn replay(log: &FlightLog, s: &Settings) -> Result<Option<Replay>, String> {
-    replay_with(log, s, Engine::Model)
+    replay_with(log, s, Engine::in_service(s))
 }
 
 /// [`replay`] par la chaîne `engine` : l'actuelle, ou celle à l'arithmétique du firmware (`firmware_chain`, lot 24c).
@@ -312,7 +317,8 @@ fn estimate(logged: &[f64], cur: &[f64], modf: &[f64], before: Option<&[f64]>) -
 }
 
 /// `before_after` : spectres gyro et D de la période `sel` (fenêtres de `seg_ms`), réglages `base` (ceux du log) et
-/// `modf` (voir l'en-tête du module). `None` sans gyro non filtré ou si la période ne contient aucune fenêtre.
+/// `modf` (voir l'en-tête du module), par la chaîne en service ([`Engine::in_service`]). `None` sans gyro non filtré ou si la
+/// période ne contient aucune fenêtre.
 pub fn before_after(
     log: &FlightLog,
     sel: Range<usize>,
@@ -320,7 +326,7 @@ pub fn before_after(
     modf: &Settings,
     seg_ms: f64,
 ) -> Result<Option<BeforeAfter>, String> {
-    before_after_with(log, sel, base, modf, seg_ms, Engine::Model)
+    before_after_with(log, sel, base, modf, seg_ms, Engine::in_service(base))
 }
 
 /// [`before_after`] avec la chaîne `engine` ([`replay_with`]).

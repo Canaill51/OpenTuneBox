@@ -300,8 +300,9 @@ fn every_pid_loop(s: &Settings) -> bool {
 
 /// `stage_signals` : signaux de tous les étages que le log permet de contrôler sur `sel`, et raisons des étages sautés.
 /// Le modèle tourne sur tout le log (état des filtres établi) avant d'être découpé sur `sel`.
+/// Modèle : la chaîne en service ([`Engine::in_service`]).
 pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSignals>, Skipped), String> {
-    stage_signals_with(log, sel, Engine::Model)
+    stage_signals_with(log, sel, Engine::in_service(&log.settings))
 }
 
 /// [`stage_signals`] avec la chaîne `engine` comme modèle : l'actuelle, ou celle à l'arithmétique du firmware
@@ -727,9 +728,9 @@ pub fn compare(sig: &StageSignals, fs: f64, breaks: &[i64], correct_clock: bool)
 }
 
 /// `check_stages` : tous les étages contrôlables du log sur `sel`, décalage d'horloge retiré, fréquences comptées à la
-/// cadence nominale ([`model_rate_hz`]).
+/// cadence nominale ([`model_rate_hz`]) ; modèle : la chaîne en service ([`Engine::in_service`]).
 pub fn check_stages(log: &FlightLog, sel: Range<usize>) -> Result<StageChecks, String> {
-    check_stages_with(log, sel, Engine::Model)
+    check_stages_with(log, sel, Engine::in_service(&log.settings))
 }
 
 /// [`check_stages`] avec la chaîne `engine` comme modèle ([`stage_signals_with`]).

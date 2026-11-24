@@ -938,6 +938,49 @@ dB :
 - **Contre-preuve** : le log réduit gardant le premier échantillon de chaque groupe au lieu du dernier →
   `le_log_reduit_garde_le_dernier_echantillon_de_chaque_groupe`.
 
+### Bascule sur la chaîne du firmware (2026-11-24, lots 24d et 24e)
+
+Depuis la bascule (D-062, décidée par Cédric au vu des chiffres de 24c), la page Filtres (`filter_replay::before_after`),
+l'assistant (`filter_replay::replay`) et le contrôle par étage (`filter_stages::check_stages`) rejouent par
+`rust/otb-analysis/src/firmware_chain.rs` dès la 4.3 (`Engine::in_service`) ; terme D du firmware pour tous les logs (D-076).
+Avant la 4.3, l'ancienne chaîne reste (aucune arithmétique vérifiée ; **aucun log d'avant la 4.3 au corpus** : 331 fichiers en
+4.5, 134 en 2025.12, 71 en 2026.6, 27 en 2026.12, un en 4.3 et un en 4.4). Corpus entier, poste Linux, binaires d'avant et
+d'après la bascule.
+
+- **Avis de l'assistant** (`corpus rates --compare`, 676 sessions) : 151 sessions aux textes différents, **un seul conseil
+  retiré**, aucun ajouté ni changé de gravité : « Le LPF1 du gyro peut être coupé » sur `1. PTB/Kris/13. Hover.bbl` (2025.12, PID
+  8 kHz, log enregistré une boucle sur 4), où l'ancienne chaîne prévoyait un gyro à −31,1 dB pour un seuil de −31,0 dB ; le rejeu
+  du firmware le relève de quelques centièmes (W-067, log ralenti), au-dessus du seuil. Résultat refait deux fois (passages
+  complets, mêmes constats) : pas une inversion de bits du poste. Même cas que le seul conseil changé par D-059
+  (`1. PTB/Kris/Wobble.bbl`). **Accepté par Cédric** le 2026-11-24. Chiffres prévus qui bougent, nouvelle − ancienne :
+
+  | Constat | Chiffres changés | Médiane | Extrêmes |
+  |---|---|---|---|
+  | Terme D propre : ses filtres peuvent être relevés | 116 | +0,1 dB | +0,1 / +0,3 dB |
+  | Le LPF1 du gyro peut être coupé | 61 | +0,1 dB | −0,2 / +0,6 dB |
+  | Filtrage du D peut-être trop fort | 11 | +0,1 dB | −0,1 / +0,1 dB |
+  | Retard des filtres D | 1 | +0,1 | — |
+
+  Durée cumulée de l'assistant sur le corpus : 1 019 → 681 s ; session la plus lente : 22,7 → 16,1 s (en parallèle, L-106) ;
+  passage complet : 45 s.
+- **Seuils (24e)** : `corpus calibrate 600` rend un JSON **identique au bit près** avant et après (40 s) : aucune mesure de la
+  calibration ne passe par le rejeu, les seuils ne bougent pas. Seul le bruit prévu, comparé à ces seuils, change (ci-dessus).
+- **Contrôle par étage** (`corpus stages`, chaîne en service par défaut, contre `--chain model`, `--compare`) : critère d'arrêt
+  non atteint ; à chaque boucle PID sous 250 Hz, pire bande +0,020 dB (notchs RPM, 100–250 Hz). Mêmes médianes que 24c.
+- **Rejeu contre le vol** (`corpus replay`) : les chiffres de la chaîne du firmware de 24c, inchangés (gyro 0,08 / 0,08 /
+  0,24 dB à chaque boucle PID ; logs ralentis ≥ 1,6 kHz, gyro 0,41 / 0,36 / 0,35 dB, D 0,78 / 0,91 / 1,13 dB ; sous 1,6 kHz, D
+  3,59 / 4,05 / 3,93 dB, contre 2,72 / 1,95 / 1,81 dB avec l'ancienne chaîne : écart d'un log ralenti dit, non corrigé, D-076).
+  Durée : 26 s (66 s avec l'ancienne chaîne, 24c).
+- **Références figées** (`otb-parity check`) : 1 732 appels rejoués, **0 échec** : les fonctions de l'étalon Python
+  (`simulate_gyro`, `simulate_dterm`) ne sont pas touchées, `$OTB_GOLDEN` n'est pas réenregistré (W-028 et W-072 restent ouverts,
+  choix de Cédric).
+- **Captures** (`--example capture`, `Cedric/JeNo 5/LAST.bbl`, thèmes clair et sombre) : page Filtres et Assistant regardées,
+  normales ; « D simulé (actuel) » un peu au-dessus du log vers 700–800 Hz (log une boucle sur deux, D-076).
+- **Test** : `rust/otb-analysis/tests/firmware_chain.rs:la_chaine_en_service_est_celle_du_firmware_des_la_4_3` (vrai log de 5 s,
+  2026.6 ; puis version forcée à 4.2.11). **Contre-preuves** (L-071), chacune rougit : `before_after` laissé sur l'ancienne chaîne
+  (page Filtres) ; `replay` laissé sur l'ancienne chaîne (assistant) ; `Engine::in_service` sans le cas d'avant la 4.3. Piège
+  trouvé en route : L-121.
+
 ### Bibliothèque de données en fichiers JSON (2026-11-18, lot 28)
 
 Mesuré par `rust/otb-store/tests/bibliotheque.rs` (`a_volume_reel_les_fichiers_restent_petits_et_louverture_rapide`),

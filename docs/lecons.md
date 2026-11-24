@@ -60,6 +60,20 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-121 : changer la chaîne par défaut vide en silence un test qui comparait « l'ancienne » (appelée par défaut) à la nouvelle
+
+- **Symptôme** — 2026-11-24 (lot 24d) : après la bascule de `check_stages` sur la chaîne du firmware, deux tests du contrôle par
+  étage rougissent (résidu 2e-4 au lieu de 1e-4), mais `jeno5_les_deux_chaines_se_rejoignent` **reste vert** : son « ancienne »
+  chaîne, `check_stages(…)`, est devenue la chaîne du firmware, et le test la comparait à elle-même.
+- **Cause** — mesurée : un test qui désigne une chaîne par la fonction **par défaut** suit le défaut quand il change. Un test de
+  comparaison devient trivial (vert à coup sûr) ; un test qui fabrique un log avec une chaîne et le mesure avec le défaut rougit
+  pour une raison sans rapport (arrondi float32 contre float64).
+- **Règle** — avant de changer un défaut, chercher chaque appel de la fonction par défaut dans les tests (`grep`) ; un test qui
+  compare deux chaînes, ou qui mesure la chaîne qui a fabriqué son log, la nomme explicitement (`…_with(…, Engine::Model)`).
+- **Preuve** — `rust/otb-analysis/tests/firmware_chain.rs:jeno5_les_deux_chaines_se_rejoignent` (`check_stages_with(…,
+  Engine::Model)`) ; `rust/otb-analysis/tests/filter_stages.rs` (ses `check_stages` et `stage_signals` locaux) ; test de la bascule
+  `la_chaine_en_service_est_celle_du_firmware_des_la_4_3`, avec trois contre-preuves ([validation.md](validation.md#bascule-sur-la-chaîne-du-firmware-2026-11-24-lots-24d-et-24e)).
+
 ### L-120 : des notchs dont la fréquence bouge ne commutent plus : l'ordre d'application des notchs RPM change le résultat, malgré le commentaire du firmware
 
 - **Symptôme** — 2026-11-24 (lot 24c) : sur `1. PTB/schteven/…_214547_ATOMRCF405NAVIMINI.BBL` #6, l'étage RPM de la chaîne à
@@ -1549,6 +1563,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-121 | Changer un défaut (chaîne, méthode) : un test qui appelait « l'ancienne » par la fonction par défaut compare la nouvelle à elle-même et reste vert ; nommer la chaîne dans tout test de comparaison | Outillage |
 | L-120 | Notchs dont la fréquence bouge : leur ordre d'application change le résultat (le commentaire du firmware dit le contraire) ; une chaîne recopiée garde l'ordre des boucles du firmware | Filtres |
 | L-119 | Filtre à état appliqué par position (`zip` avec les lignes) sur un tableau d'une case : tous les axes prennent l'état du premier ; indexer chaque état par son axe, tester trois axes ensemble contre chacun seul | Filtres |
 | L-118 | Vecteur de test aux paramètres puissances de deux (décimation par 2 ou 4) : `÷ n` et `× (1/n)` ont les mêmes bits, une arithmétique fausse passe ; prendre des diviseurs et gains qui n'en sont pas (3, 6…) et mesurer chaque contre-preuve restée verte | Analyses |

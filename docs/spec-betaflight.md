@@ -99,8 +99,8 @@ Fins de liste :
   Notch : b0=1, b1=−2cs, b2=1, a1=−2cs, a2=1−α. Passe-bande : b0=α, b1=0, b2=−α. Tout est divisé par a0.
   Notch RPM pondéré (jusqu'à la 2025.12) : `y = w·notch(x) + (1−w)·x`.
 - **SVF/TPT (2026.6+)** : transformation bilinéaire avec précompensation à f0 du même prototype analogique →
-  même réponse en fréquence que RBJ à f0/Q égaux ; la chaîne en service (float64) le simule avec les coefficients RBJ
-  (écart de précompensation minime). L'arithmétique, elle, diffère : `f = tan(π f0 dt)` par `sincosf_approx` puis `sn/cs` ;
+  même réponse en fréquence que RBJ à f0/Q égaux ; l'ancienne chaîne (float64, réponse en fréquence et logs d'avant la 4.3) le
+  simule avec les coefficients RBJ (écart de précompensation minime) ; la chaîne en service depuis le lot 24d le calcule comme le firmware. L'arithmétique, elle, diffère : `f = tan(π f0 dt)` par `sincosf_approx` puis `sn/cs` ;
   passe-bas `a1 = 1/(1 + f(f + √2))`, `a2 = f·a1`, état `ic1`, `ic2`, sortie `v2` ; notch : sortie `entrée − q·bande` ;
   **notch RPM** : `entrée −= (poids/Q)·bande`, un état par axe et des coefficients communs (plus de mélange
   `w·notch + (1−w)·x`).
@@ -316,5 +316,6 @@ dégrader.
 ⚠️ Une chaîne identique sur le papier peut changer d'implémentation sans qu'aucun réglage ne change : c'est pourquoi
 un script s'arrête au premier changement de calcul. Exemple vérifié dans les sources le 2026-11-22 (§2) : les notchs
 et le type BIQUAD sont des biquads RBJ de la 4.4 à la 2025.12, puis des filtres à variables d'état (SVF/TPT) à partir
-de la 2026.6. Même réponse en fréquence, autre arithmétique : notre simulateur garde les coefficients RBJ, juste pour
-le niveau « même réponse », pas pour le bit à bit.
+de la 2026.6. Même réponse en fréquence, autre arithmétique : la réponse en fréquence de notre simulateur garde les
+coefficients RBJ, juste pour le niveau « même réponse » ; le rejeu dans le temps, depuis le lot 24d, suit l'arithmétique de
+chaque version (`rust/otb-analysis/src/firmware_chain.rs`).

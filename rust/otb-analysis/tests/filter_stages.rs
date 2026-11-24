@@ -8,9 +8,10 @@ use std::path::PathBuf;
 
 use otb_analysis::bf_filters::{GyroStage, gyro_stage, gyro_stage_at, pre_boost_throttle, simulate_dterm_at};
 use otb_analysis::filter_stages::{
-    InputNoise, Stage, StageCheck, StageSignals, check_stages, clock_offset_s, compare, model_rate_hz, stage_signals,
-    tpa_d_factor,
+    InputNoise, Skipped, Stage, StageCheck, StageChecks, StageSignals, check_stages_with, clock_offset_s, compare,
+    model_rate_hz, stage_signals_with, tpa_d_factor,
 };
+use otb_analysis::firmware_chain::Engine;
 use otb_decoder::file::{Matrix, Stats};
 use otb_log::flightlog::{FlightLog, Rows};
 use otb_log::settings::{AxisPid, Lowpass, Settings};
@@ -165,6 +166,17 @@ fn fabricated(debug: &str, filtered_with: Option<&Settings>) -> FlightLog {
         set_row(&mut log.d_term, ax, &v);
     }
     log
+}
+
+/// Les canaux debug de ces logs sortent des étages de l'ancienne chaîne (`bf_filters`) : c'est elle qu'on contrôle, pour un
+/// écart nul attendu. La chaîne en service depuis le lot 24d, celle du firmware, a ses tests dans `firmware_chain.rs`.
+fn check_stages(log: &FlightLog, sel: std::ops::Range<usize>) -> Result<StageChecks, String> {
+    check_stages_with(log, sel, Engine::Model)
+}
+
+/// Voir [`check_stages`].
+fn stage_signals(log: &FlightLog, sel: std::ops::Range<usize>) -> Result<(Vec<StageSignals>, Skipped), String> {
+    stage_signals_with(log, sel, Engine::Model)
 }
 
 fn find(checks: &[StageCheck], st: Stage) -> &StageCheck {
