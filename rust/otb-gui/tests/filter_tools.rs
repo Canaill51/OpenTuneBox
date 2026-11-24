@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
 use otb_advisor::rules::{self as regles, Finding};
+use otb_analysis::flight_gap::{BandGap, FlightGap, GapCause};
 use otb_gui::advice::{self, Comparison};
 use otb_gui::app::{App, Screen};
 use otb_gui::state::AppState;
@@ -1652,6 +1653,75 @@ fn un_log_sans_gyro_non_filtre_n_a_ni_spectre_avant_filtres_ni_simulation_du_d_n
     assert!(res.d_scale[2].is_nan() && res.d_scale[0] == 1.0);
     assert!(res.spectrum("d", 2).is_none() && res.spectrum("d_pf", 2).is_none() && res.spectrum("d", 0).is_some());
     assert!((0..3).all(|a| res.spectrum("gyro_sim_cur", a).is_none() && res.spectrum("d_sim_cur", a).is_none()));
+    // rien de rejoué : aucun écart au vol à montrer
+    assert!(res.flight_gap.is_none());
+}
+
+#[test]
+fn l_ecart_au_vol_donne_la_pire_bande_de_chaque_signal_et_sa_cause() {
+    let b = |lo, hi, gyro_db, d_db| BandGap {
+        lo_hz: lo,
+        nominal_hi_hz: hi,
+        hi_hz: hi.min(721.0),
+        gyro_db,
+        d_db,
+    };
+    let g = FlightGap {
+        bands: vec![
+            b(20.0, 100.0, 0.08, -0.4),
+            b(100.0, 250.0, -0.36, 1.13),
+            b(250.0, 500.0, 0.2, f64::NAN),
+        ],
+        causes: vec![
+            GapCause::Slowed {
+                loops_per_sample: 4,
+                log_hz: 999.6,
+            },
+            GapCause::OldFirmware,
+        ],
+    };
+    assert_eq!(
+        fsc::flight_gap_line(&g).unwrap(),
+        "Écart de la simulation au vol : gyro 0,4 dB (100 à 250 Hz), terme D 1,1 dB (100 à 250 Hz)"
+    );
+    let detail = fsc::flight_gap_detail(&g);
+    assert!(detail.starts_with(fsc::FLIGHT_GAP_HINT), "{detail}");
+    assert!(detail.ends_with("\n20 à 100 Hz : gyro +0,08 dB, terme D -0,40 dB\n100 à 250 Hz : gyro -0,36 dB, terme D +1,13 dB\n250 à 500 Hz : gyro +0,20 dB, terme D —"), "{detail}");
+    assert!(fsc::gap_cause_text(&g.causes[0]).starts_with("Ce log ne garde qu'une boucle PID sur 4 (log à 1000 Hz) :"));
+    assert!(fsc::gap_cause_text(&g.causes[1]).starts_with("Firmware d'avant la 4.3"));
+    // sans aucune bande mesurée, pas de ligne
+    assert!(
+        fsc::flight_gap_line(&FlightGap {
+            bands: vec![],
+            causes: vec![]
+        })
+        .is_none()
+    );
+}
+
+#[test]
+fn le_simulateur_mesure_l_ecart_au_vol_du_log_de_5_s() {
+    let st = etat();
+    let log = &*st.logs[0].log;
+    let base = &log.settings;
+    let res = simulate_filters(log, st.logs[0].sel(), base, base, false).unwrap();
+    let g = res.flight_gap.as_ref().expect("gyro non filtré : écart mesuré");
+    assert!(g.worst_gyro().is_some() && g.worst_d().is_some(), "{g:?}");
+    assert!(
+        matches!(
+            g.causes[..],
+            [GapCause::Slowed {
+                loops_per_sample: 2,
+                ..
+            }]
+        ),
+        "{g:?}"
+    );
+    // l'écart ne dépend que des réglages du log, pas de ceux qu'on essaie
+    let mut ed = Editor::from_settings(base);
+    ed.g2_hz = 250;
+    let res2 = simulate_filters(log, st.logs[0].sel(), base, &ed.modified_settings(base), false).unwrap();
+    assert_eq!(res2.flight_gap.as_ref(), Some(g));
 }
 
 // ------------------------------------------------------------------ Simulateur de filtres : interface
@@ -1714,6 +1784,9 @@ fn le_simulateur_se_calcule_et_s_affiche_dans_les_deux_themes() {
         }
         assert!(h.query_by_label(STALE_STATUS).is_none(), "rien n'a changé");
         assert!(h.query_by_label(NO_UNFILT_TITLE).is_none());
+        // écart au vol et sa cause : le log de 5 s garde une boucle PID sur 2
+        h.get_by_label_contains("Écart de la simulation au vol : gyro ");
+        h.get_by_label_contains("Ce log ne garde qu'une boucle PID sur 2 (log à 1603 Hz)");
     }
 }
 

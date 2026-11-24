@@ -200,6 +200,11 @@ ils viennent du bruit (`validation.md`).
   par fenêtre, rapport plafonné à ×1 000, calculé sur les rejeux **exacts** (L-105) ; là où les filtres actuels écrasent le
   signal d'avant filtres (sous −20 dB) et que les modifiés filtrent moins, le rejeu modifié sert de plancher. Réglages
   inchangés : exactement le log (D-008). Terme D rejoué mis à l'échelle du D enregistré par un gain ajusté sous ~30 Hz.
+- **Écart au vol** (`flight_gap::flight_gap`, fin du lot 24) : par bande (20–100, 100–250, 250–500 Hz, la dernière coupée à
+  0,45 × la cadence du log), moyenne de « actuel » − log en dB, puis moyenne du roulis et du tangage, gyro et terme D ; la
+  page Filtres affiche la pire bande de chacun, et la cause connue : log qui ne garde qu'une boucle PID sur N (gyro non
+  filtré replié, W-067 ; D le plus touché, D-076) ou firmware d'avant la 4.3 (ancienne chaîne). Même mesure que
+  `otb-dev corpus replay` ; chiffres du corpus dans [validation.md](validation.md). Aucun seuil : l'écart se lit, rien n'est promis.
 - **Sans gyro non filtré** : rien à rejouer ; rapport des réponses |H|² des chaînes (`bf_filters::whatif_spectrum`, D-008),
   sans courbe « actuel ».
 - **Assistant** (D-059) : même rejeu pour le bruit prévu après un conseil de filtres (`rules.rs:predict_filter_change`),

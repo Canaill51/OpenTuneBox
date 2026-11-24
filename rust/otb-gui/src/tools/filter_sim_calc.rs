@@ -9,8 +9,10 @@ use otb_analysis::bf_filters::{
     whatif_spectrum,
 };
 use otb_analysis::filter_replay::before_after;
+use otb_analysis::flight_gap::{BandGap, FlightGap, GapCause, flight_gap};
 use otb_analysis::npstat::unwrap;
 use otb_analysis::spectral::{Mode, spectrum, to_ptb_db};
+use otb_format::fixed;
 use otb_log::flightlog::{FlightLog, Rows};
 use otb_log::settings::{Lowpass, Settings};
 
@@ -77,6 +79,9 @@ pub struct FilterSimResult {
     /// Le log a-t-il le signal que la description de la chaîne prend en entrée (`chain::ChainDesc::recorded_input` : le
     /// gyro non filtré pour Betaflight) ? Sans lui, la page ne simule rien.
     pub has_unfilt: bool,
+    /// Écart du rejeu des réglages du log au spectre enregistré, et ses causes connues (`flight_gap`, fin du lot 24) ;
+    /// `None` sans rejeu (pas de gyro non filtré).
+    pub flight_gap: Option<FlightGap>,
 }
 
 impl FilterSimResult {
@@ -116,7 +121,9 @@ pub fn simulate_filters(
     let mut freqs = Vec::new();
     let mut d_scale = Vec::new();
     let has_d = |ax: usize| log.d_term.row(ax).iter().any(|&v| v != 0.0);
+    let mut gap = None;
     if let Some(ba) = before_after(log, sel.clone(), base, modf, 300.0)? {
+        gap = Some(flight_gap(&ba, fs, base));
         freqs = ba.freqs;
         for (ax, g) in ba.gyro.iter().enumerate() {
             set("gyro", ax, &g.logged_db);
@@ -199,8 +206,83 @@ pub fn simulate_filters(
         spectra,
         d_scale,
         has_unfilt,
+        flight_gap: gap,
     })
 }
+
+// ---------------------------------------------------------------- écart au vol
+
+/// Un nombre à `prec` décimales, virgule française (`plus` : signe + devant un positif).
+fn comma(x: f64, prec: usize, plus: bool) -> String {
+    fixed(x, prec, plus).replace('.', ",")
+}
+
+/// Bande d'un écart, en mots (« 100 à 250 Hz ») ; la borne haute est celle mesurée (coupée sous la demi-cadence du log).
+fn band_words(b: &BandGap) -> String {
+    format!("{} à {} Hz", b.lo_hz as i64, b.hi_hz.round() as i64)
+}
+
+/// `flight_gap_line` : la ligne de la page, pire bande du gyro et du terme D (|écart|, dB) ; `None` sans bande mesurée.
+pub fn flight_gap_line(g: &FlightGap) -> Option<String> {
+    let part = |name: &str, w: Option<(f64, BandGap)>| {
+        w.map(|(v, b)| format!("{name} {} dB ({})", comma(v, 1, false), band_words(&b)))
+    };
+    let parts: Vec<String> = [part("gyro", g.worst_gyro()), part("terme D", g.worst_d())]
+        .into_iter()
+        .flatten()
+        .collect();
+    if parts.is_empty() {
+        return None;
+    }
+    Some(format!("Écart de la simulation au vol : {}", parts.join(", ")))
+}
+
+/// `flight_gap_detail` : bulle d'aide de la ligne, écart signé de chaque bande.
+pub fn flight_gap_detail(g: &FlightGap) -> String {
+    let mut s = String::from(FLIGHT_GAP_HINT);
+    for b in &g.bands {
+        let v = |x: f64| {
+            if x.is_finite() {
+                format!("{} dB", comma(x, 2, true))
+            } else {
+                "—".to_string()
+            }
+        };
+        s.push_str(&format!(
+            "\n{} : gyro {}, terme D {}",
+            band_words(b),
+            v(b.gyro_db),
+            v(b.d_db)
+        ));
+    }
+    s
+}
+
+/// `gap_cause_text` : la cause d'un écart, en une phrase.
+pub fn gap_cause_text(c: &GapCause) -> String {
+    match c {
+        GapCause::Slowed {
+            loops_per_sample,
+            log_hz,
+        } => format!(
+            "Ce log ne garde qu'une boucle PID sur {loops_per_sample} (log à {} Hz) : le gyro non filtré y est \
+             sous-échantillonné sans filtre anti-repliement, la simulation ne retrouve pas exactement ce que les filtres ont \
+             reçu en vol. En général, le terme D s'en écarte le plus.",
+            log_hz.round() as i64
+        ),
+        GapCause::OldFirmware => {
+            "Firmware d'avant la 4.3 : les filtres sont rejoués par le modèle d'OpenTuneBox, pas avec \
+                                  l'arithmétique exacte du firmware."
+                .to_string()
+        }
+    }
+}
+
+/// En tête de la bulle d'aide de l'écart au vol.
+pub const FLIGHT_GAP_HINT: &str = "Pour le gyro et le terme D, la ligne donne la bande où la simulation avec les \
+    réglages du log (« simulé actuel ») s'écarte le plus du spectre enregistré, en moyenne sur le roulis et le tangage. Plus \
+    l'écart est petit, plus « simulé modifié » est fiable sur ce vol. Écart de chaque bande (+ : la simulation laisse \
+    passer plus que le vol) :";
 
 // ---------------------------------------------------------------- commandes CLI
 

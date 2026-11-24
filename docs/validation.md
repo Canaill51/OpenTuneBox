@@ -981,6 +981,21 @@ d'après la bascule.
   (page Filtres) ; `replay` laissé sur l'ancienne chaîne (assistant) ; `Engine::in_service` sans le cas d'avant la 4.3. Piège
   trouvé en route : L-121.
 
+### Écart au vol affiché (2026-11-24, fin du lot 24)
+
+`otb_analysis::flight_gap` reprend la mesure de `otb-dev corpus replay` (bandes, roulis et tangage), qui l'appelle désormais ;
+la page Filtres l'affiche avec sa cause connue.
+
+- **Même mesure qu'avant** : `corpus replay` avant et après le déplacement du calcul, **676 sessions identiques** (toutes
+  les valeurs, hors durée de rejeu). Les chiffres de référence restent ceux de la bascule, ci-dessus.
+- **Vrai log de 5 s** (`tests/data/jeno5_5s.bbl`, 2026.6, PID à 3,2 kHz, log à 1,6 kHz, une boucle sur 2) : gyro +0,02 /
+  −0,33 / +0,05 dB, terme D +0,02 / −0,21 / +0,07 dB (20–100 / 100–250 / 250–500 Hz) ; cause « log ralenti » seule.
+- **Capture** (`Cedric/JeNo 5/FINAL.bbl`, thèmes clair et sombre) : « gyro 0,4 dB (250 à 500 Hz), terme D 0,5 dB (250 à
+  500 Hz) » et la phrase du log ralenti au-dessus des spectres, lisibles dans les deux thèmes.
+- **Tests** : `rust/otb-analysis/tests/flight_gap.rs` (spectres fabriqués, causes, vrai log), trois tests de
+  `rust/otb-gui/tests/filter_tools.rs` (textes, écart indépendant des réglages essayés, page). **Contre-preuves** (L-071),
+  chacune rougit : lacet compté dans la moyenne ; pire bande sans valeur absolue ; ligne retirée de la page.
+
 ### Bibliothèque de données en fichiers JSON (2026-11-18, lot 28)
 
 Mesuré par `rust/otb-store/tests/bibliotheque.rs` (`a_volume_reel_les_fichiers_restent_petits_et_louverture_rapide`),

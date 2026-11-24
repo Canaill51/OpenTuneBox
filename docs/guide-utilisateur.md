@@ -322,7 +322,10 @@ cliqué sur Appliquer ; **Réinitialiser** revient aux réglages du log. Chaque 
 **filtré** (le log), **simulé modifié** et, case « simulation réglages actuels » cochée, **simulé actuel** : les filtres du
 log rejoués. Plus « simulé actuel » se confond avec le log filtré, plus la simulation est fiable sur ce vol ; elle l'est
 le plus avec un log enregistré à chaque boucle PID (0,1 à 0,2 dB d'écart en général), un peu moins une boucle sur deux, et
-beaucoup moins sous 1 600 Hz. « Simulé modifié » part du spectre du log : sans changement, il le recouvre exactement. Sans
+beaucoup moins sous 1 600 Hz. Au-dessus des courbes, la ligne **« Écart de la simulation au vol »** chiffre cet écart sur
+le vol ouvert : pour le gyro et le terme D, la bande de fréquences où il est le plus grand (survolez-la pour le détail
+de chaque bande). Quand la cause est connue, une phrase la dit : log qui ne garde qu'une boucle PID sur plusieurs (le
+gyro non filtré y est incomplet, le terme D en souffre le plus), ou firmware d'avant la 4.3. « Simulé modifié » part du spectre du log : sans changement, il le recouvre exactement. Sans
 gyro non filtré, il n'y a rien à rejouer : la simulation se contente des réponses des filtres, sans « simulé actuel ». Copiez ensuite les commandes CLI. Les deux spectres (gyro et terme D) sont sur
 l'échelle de PIDtoolbox, **−50 à 20 dB**, la même que la page Spectre : les deux lignes et les deux pages
 se lisent l'une contre l'autre.
