@@ -22,6 +22,7 @@ comparer), et le noyau de `step_response` partage ce même pool. Toujours en `--
 | `… corpus stages --chain firmware …` puis `… corpus stages --compare AVANT.json APRÈS.json` | contrôle par étage avec la chaîne à l'arithmétique du firmware, puis comparaison des deux passages (critère d'arrêt du lot 24c, code 1 s'il est atteint) | 13 s, corpus entier (2026-11-24) |
 | `… corpus replay --chain firmware SCRATCH/replay.json` | rejeu « actuel » par la chaîne à l'arithmétique du firmware (lot 24c) | 26 s, corpus entier (2026-11-24 ; 66 s pour la chaîne actuelle le même jour) |
 | `… corpus chaindiff SCRATCH/chaindiff.json [--dir SOUS-DOSSIER]` | écart entre la chaîne actuelle et celle à l'arithmétique du firmware, par version et bande (lot 24c) ; `--resume` : tableau seul | 69 s, corpus entier (2026-11-24, 676 sessions) |
+| `… corpus thin SCRATCH/thin.json [--factor N] [--dir SOUS-DOSSIER]` | logs enregistrés à chaque boucle ramenés à une boucle sur N : d'où vient l'écart d'un rejeu sur les logs ralentis (W-083), chaque chaîne contre un rejeu idéal ; `--resume` : tableau seul | 19 s, corpus entier (2026-11-24, 32 sessions) |
 | `… corpus predict AVANT.bbl APRÈS.bbl` | vérification en vol du simulateur (lot 22f) : filtres d'APRÈS appliqués à AVANT, rejeu et rapport des \|H\|² contre APRÈS, par bande ; deux vols à la même cadence | 0,8 s par paire (Air65, deux vols de 43 s, 2026-11-22) |
 
 Relever la durée du premier passage et la noter ici : c'est une mesure à faire, pas à supposer. ⚠️ La durée **par session**

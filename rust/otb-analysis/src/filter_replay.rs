@@ -229,8 +229,9 @@ fn replay_gyro(log: &FlightLog, s: &Settings) -> Result<Option<Vec<Vec<f64>>>, S
     Ok(Some(gyro))
 }
 
-/// Terme D rejoué à partir du gyro rejoué `gyro` (× facteur TPA).
-fn replay_dterm(log: &FlightLog, s: &Settings, gyro: &[Vec<f64>]) -> Result<Matrix64, String> {
+/// Terme D rejoué par la chaîne actuelle à partir du gyro rejoué `gyro` (× facteur TPA), à la cadence du log. Public pour
+/// `otb-dev corpus thin`, qui le reprend sur le gyro de l'autre chaîne (W-083).
+pub fn replay_dterm(log: &FlightLog, s: &Settings, gyro: &[Vec<f64>]) -> Result<Matrix64, String> {
     let fs = model_rate_hz(s);
     let n = log.n();
     let m = Matrix64 {

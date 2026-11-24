@@ -866,7 +866,8 @@ sessions ; 66 s → 26 s) :
 | une boucle sur 2 ou moins, < 1,6 kHz (151) | 3,03 → 3,04 / 1,89 → 1,86 / 1,61 → 1,62 dB | 2,72 → 3,59 / 1,95 → 4,05 / 1,81 → 3,93 dB |
 
 Le gyro de la chaîne du firmware est égal ou plus proche du vol partout. Son terme D, sur les logs ralentis, s'en **éloigne**
-(moyenne signée −0,12 → +0,67 dB entre 100 et 250 Hz, à 1,6 kHz ou plus) : cause **supposée**, non mesurée — le gyro à la cadence
+(moyenne signée −0,12 → +0,67 dB entre 100 et 250 Hz, à 1,6 kHz ou plus) : cause supposée ici, **mesurée** depuis
+([ci-dessous](#terme-d-des-logs-ralentis--cause-mesurée-2026-11-24-w-083)) — le gyro à la cadence
 PID est reconstruit par sinus cardinal depuis un log qui n'a rien au-dessus de sa demi-cadence, et la dérivée amplifie ce qui
 diffère là-haut ; le filtre D de la chaîne actuelle, calculé à la cadence du log, coupait un peu plus et compensait par hasard
 (W-083). Sur le JeNo 5 (2026.6, log à 1,6 kHz), FINAL et LAST se rapprochent du vol (D −1,07 → −0,45 dB entre 100 et 250 Hz), les
@@ -902,6 +903,40 @@ autres vols s'en éloignent de 0,1 à 0,7 dB.
     `rpm_apply_order` → `ordre_des_notchs_rpm`.
 - **Sans effet mesurable** sur la bande dégradée de schteven : gaz d'avant ou d'après le throttle boost pour les LPF dynamiques,
   délai de 5 ms, notchs RPM tous recalculés à chaque boucle ou avant le filtrage.
+
+### Terme D des logs ralentis : cause mesurée (2026-11-24, W-083)
+
+`otb-dev corpus thin` (`rust/otb-dev/src/corpus/thin.rs`) ramène chaque log enregistré à **chaque** boucle PID à une boucle sur
+deux, en gardant un échantillon sur deux de chaque signal (ce qu'aurait écrit le Blackbox, sans anti-repliement) : le D enregistré
+du log réduit est donc le vrai D du firmware. Rejeux jugés comme `corpus replay`, période de l'assistant ; **32 sessions** (toutes à
+3,2 kHz ou plus, réduites à 1,6 kHz ou plus), dont 25 de l'Air65 ; 19 s, corpus entier. |écart| médian au log (moyenne signée), D,
+dB :
+
+| Rejeu | Air65 (25) 100–250 Hz | Air65 250–500 Hz | Autres drones (7) 100–250 Hz | Autres 250–500 Hz |
+|---|---|---|---|---|
+| chaîne du firmware, log complet | 0,06 (+0,22) | 0,29 (−0,57) | 0,51 (+0,17) | 0,31 (+0,29) |
+| chaîne actuelle, log réduit | 0,63 (−0,49) | 0,99 (−1,24) | 0,38 (−0,19) | 0,50 (+0,34) |
+| chaîne du firmware, log réduit | 0,21 (+0,34) | 0,16 (−0,38) | 0,92 (+0,66) | 0,97 (+1,01) |
+| **idéal** : chaîne du firmware sur le log complet, une boucle sur deux gardée | 0,07 (+0,19) | 0,28 (−0,53) | 0,52 (+0,18) | 0,29 (+0,28) |
+| vrai gyro de l'idéal, D de la chaîne actuelle (à la cadence du log) | 0,79 (−0,65) | 1,13 (−1,38) | 0,32 (−0,47) | 0,70 (−0,07) |
+
+- **La chaîne du firmware calcule juste le D d'un log ralenti** : avec le vrai gyro à la cadence PID, son D garde une boucle sur
+  deux et colle au D enregistré **exactement comme sur le log complet** (0,52 contre 0,51 dB ; 0,07 contre 0,06 dB).
+- **L'excès vient du log** : sur le log réduit, la même chaîne prend +0,48 dB (autres drones) et +0,15 dB (Air65) de plus que
+  l'idéal entre 100 et 250 Hz, **positif sur chacune des 7 sessions des autres drones** (+0,09 à +1,12 dB). Seul change ce que le log
+  a perdu : le gyro non filtré, gardé un échantillon sur deux sans anti-repliement, replie le bruit d'au-dessus de la demi-cadence
+  plus bas, où il est filtré et dérivé comme du vrai signal (W-067).
+- **La chaîne actuelle compense par hasard** : dériver et filtrer le D à la cadence du log le baisse de 0,4 à 0,7 dB entre 100 et
+  250 Hz **même avec le vrai gyro** (dernière ligne). Sur les autres drones, cette baisse annule presque l'excès du repliement ; sur
+  l'Air65, dont le gyro replie peu, elle reste seule et la chaîne actuelle est la plus loin du vol.
+- **Mêmes signes sur les vrais logs ralentis** (`corpus replay` du lot 24c, chaîne actuelle → firmware, D 100–250 Hz) : PID 4 kHz
+  enregistré une boucle sur deux (354 sessions, 61 drones) 0,63 (+0,02) → 1,08 (+0,77) dB, comme les autres drones ici ; PID
+  3,2 kHz une boucle sur deux (55) 0,77 → 0,33 dB et PID 8 kHz une boucle sur quatre (81) 0,71 (−0,73) → 0,65 (+0,30) dB, où la
+  chaîne du firmware est déjà la plus proche.
+- **Limite** : 7 sessions hors de l'Air65, toutes de petits drones (75 à 85 mm, un 3 pouces) ; le corpus n'a pas d'autre log
+  enregistré à chaque boucle. Le point 2 de W-083 (ordre des notchs RPM sur schteven #6) n'est pas touché.
+- **Contre-preuve** : le log réduit gardant le premier échantillon de chaque groupe au lieu du dernier →
+  `le_log_reduit_garde_le_dernier_echantillon_de_chaque_groupe`.
 
 ### Bibliothèque de données en fichiers JSON (2026-11-18, lot 28)
 
