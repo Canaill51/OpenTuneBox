@@ -380,7 +380,9 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     bande ; `--resume SORTIE.json` : tableau selon que le log enregistre chaque boucle PID ou non, D-058 ; `--chain firmware` :
     rejeu par la chaîne à l'arithmétique du firmware) ; `chaindiff.rs` (`corpus chaindiff SORTIE.json [--dir SOUS-DOSSIER]
     [--limit N] [-j FILS]` : écart entre la chaîne actuelle et celle à l'arithmétique du firmware, spectres exacts gyro et D par
-    bande et écart dans le temps, une ligne par session ; `--resume SORTIE.json` : tableau par version et cadence du log, lot 24c) ; `predict.rs`
+    bande et écart dans le temps, une ligne par session ; `--resume SORTIE.json` : tableau par version et cadence du log, lot 24c) ;
+    `thin.rs` (`corpus thin SORTIE.json [--factor N] [--dir SOUS-DOSSIER]` : logs enregistrés à chaque boucle PID ramenés à une
+    boucle sur N, les deux chaînes et un rejeu idéal contre le D enregistré, W-083) ; `predict.rs`
     (`corpus predict AVANT APRÈS` : filtres du vol APRÈS appliqués au vol AVANT, rejeu et rapport des |H|² contre le vol
     APRÈS, et changement du gyro non filtré, par bande ; lot 22f, W-060).
 

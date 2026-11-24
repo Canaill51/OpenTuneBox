@@ -8,7 +8,7 @@
 
 use super::json::{as_f64, dump, num, parse};
 use super::{Args, Output, analysed, drone_id, log_files, logs_root, map_files, rel};
-use otb_analysis::filter_replay::before_after_with;
+use otb_analysis::filter_replay::{BeforeAfter, before_after_with};
 use otb_analysis::firmware_chain::Engine;
 use otb_log::flightlog::{FlightLog, load};
 use serde_json::{Map, Value, json};
@@ -34,15 +34,10 @@ fn band(f: &[f64], a: &[f64], b: &[f64], lo: f64, hi: f64) -> f64 {
     }
 }
 
-fn session_row(lg: &FlightLog, f: &Path, root: &Path, engine: Engine) -> Result<Option<Value>, String> {
-    let s = &lg.settings;
-    let Some(sel) = analysed(lg) else { return Ok(None) };
-    let t = Instant::now();
-    let Some(r) = before_after_with(lg, sel.clone(), s, s, 300.0, engine)? else {
-        return Ok(None);
-    };
-    let secs = t.elapsed().as_secs_f64();
-    let top = 0.45 * lg.fs;
+/// Écarts par bande, rejeu actuel − log (dB), moyenne du roulis et du tangage : `gyro_<bas>_<haut>` et `d_<bas>_<haut>`. La
+/// dernière bande s'arrête à 0,45 × `fs` (cadence du log).
+pub(super) fn errors(r: &BeforeAfter, fs: f64) -> Map<String, Value> {
+    let top = 0.45 * fs;
     let mut errs = Map::new();
     for (lo, nominal_hi) in BANDS {
         // bande nommée d'après sa borne nominale, coupée à 0,45 × cadence du log
@@ -72,6 +67,18 @@ fn session_row(lg: &FlightLog, f: &Path, root: &Path, engine: Engine) -> Result<
         errs.insert(format!("gyro_{lo:.0}_{nominal_hi:.0}"), num(g));
         errs.insert(format!("d_{lo:.0}_{nominal_hi:.0}"), num(d));
     }
+    errs
+}
+
+fn session_row(lg: &FlightLog, f: &Path, root: &Path, engine: Engine) -> Result<Option<Value>, String> {
+    let s = &lg.settings;
+    let Some(sel) = analysed(lg) else { return Ok(None) };
+    let t = Instant::now();
+    let Some(r) = before_after_with(lg, sel.clone(), s, s, 300.0, engine)? else {
+        return Ok(None);
+    };
+    let secs = t.elapsed().as_secs_f64();
+    let errs = errors(&r, lg.fs);
     // gaz de la période (%) : la coupure du LPF1 D dynamique les suit, et l'ordre filtrer / dériver ne compte qu'alors (W-072)
     let mut thr: Vec<f64> = lg.throttle[sel.clone()].iter().map(|&v| v as f64).collect();
     let (thr_p10, thr_p90) = (percentile(&mut thr, 0.1), percentile(&mut thr, 0.9));
@@ -100,7 +107,7 @@ fn measure_file(f: &Path, root: &Path, engine: Engine) -> Result<Vec<Value>, Str
     Ok(out)
 }
 
-fn percentile(v: &mut [f64], q: f64) -> f64 {
+pub(super) fn percentile(v: &mut [f64], q: f64) -> f64 {
     if v.is_empty() {
         return f64::NAN;
     }

@@ -75,7 +75,7 @@ cargo test -p otb-dev --test docs   # cohérence de la documentation
 cargo run --release -p otb-gui -- [LOG…]   # interface
 cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande
 cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z | release notes vX.Y.Z | bench-open LOG… [--jobs N] | usb ports|info|copy|diff|msc|sd … | firmware-bench   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version, notes de la page Releases, banc d'ouverture de logs (`--jobs 1` : les uns après les autres), essai de la récupération USB sur une vraie carte, banc de référence des filtres (télécharge et compile Betaflight hors du dépôt, réécrit les vecteurs du test `firmware_vectors`)
-cargo run --release -p otb-dev -- corpus rates|calibrate|labels|validate|stages|dyntrack|replay|predict|chaindiff   # calculs sur le corpus : compétence `calculs-corpus`
+cargo run --release -p otb-dev -- corpus rates|calibrate|labels|validate|stages|dyntrack|replay|predict|chaindiff|thin   # calculs sur le corpus : compétence `calculs-corpus`
 cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées (aussi : list, check-header|decoder|settings|flightlog|sliders|analysis|advisor|guide|tuning|cli)
 cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER [AUTRE_LOG…]   # captures sans écran (wgpu) : regarder l'image produite
 ```
