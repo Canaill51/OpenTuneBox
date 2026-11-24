@@ -77,7 +77,7 @@ Règles d'écriture :
 | W-073 | Guide : conseiller un log à chaque boucle PID et `blackbox_high_resolution` pour les vols de filtres | ⏸ BLOQUÉ (d'autres vols d'abord, W-067) |
 | W-080 | Contrôle par étage : le second vol de calibration (SVF, PT2, notch statique du gyro, notch du D) n'a jamais été fait | ouvert (aucun écart soupçonné sur ces filtres) |
 | W-081 | Banc des briques du firmware (lot 24b) : ordonnancement des recalculs (notchs RPM un à un, LPF dynamiques, pas corrigé de la 2025.12), suivi des pics du notch dynamique et fusion multiplication-addition de la carte de vol hors du bit à bit | point 1 **TRAITÉ** le 2026-11-24 (lot 24c : recopié du firmware, mesuré sur le corpus ; correction du pas de la 2025.12 prise à 1) ; points 2 et 3 ouverts |
-| W-082 | Chaîne actuelle (écran, assistant) : un notch RPM dont la fréquence atteint 0,48 × la cadence PID est **ignoré**, alors que le firmware le plaque à ce plafond ; jusqu'à +24 dB d'écart au vol sur `Cedric/J3.5/HQ` | ouvert (la bascule 24d le corrige ; avant elle, sur demande de Cédric) |
+| W-082 | Chaîne actuelle (écran, assistant) : un notch RPM dont la fréquence atteint 0,48 × la cadence PID est **ignoré**, alors que le firmware le plaque à ce plafond ; jusqu'à +24 dB d'écart au vol sur `Cedric/J3.5/HQ` | TRAITÉ le 2026-11-24 (lot 24c, à la demande de Cédric) : rejeu, assistant et contrôle par étage ; reste dans `simulate_gyro` (étalon Python, références figées) |
 | W-083 | Chaîne à l'arithmétique du firmware (lot 24c) : terme D des logs ralentis plus loin du vol que la chaîne actuelle (+0,3 dB en médiane), et un vol où l'ordre des notchs RPM du firmware colle moins au log | ouvert (à trancher avant la bascule 24d) |
 | W-079 | Carte à mémoire interne **et** carte SD : le mode disque montre le support de `blackbox_device`, que MSP ne lit pas ; OpenTuneBox suppose la mémoire quand elle contient des logs | ouvert (aucune carte de ce type vue) |
 | W-078 | Lignes CLI (`set …`) à copier sous chaque conseil de l'assistant (prototype) | ouvert (si Cédric les demande, D-073) |
@@ -1334,6 +1334,10 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Reprise** : à la bascule 24d ; ou plus tôt, sur demande de Cédric, en gardant le notch au plafond dans `run_section` (les
   références Python figées devront alors être relues pour ce cas).
   [`rust/otb-dsp/src/lib.rs:run_section`, `rust/otb-analysis/src/firmware_chain.rs`]
+  **Traité le 2026-11-24** (même branche, demande de Cédric avant la PR) : la simulation du rejeu (`bf_filters::gyro_stage_upsampled`,
+  donc page Filtres, assistant et contrôle par étage) garde un notch jusqu'à Nyquist, et les notchs RPM sont plaqués au plafond
+  comme dans le firmware ; `simulate_gyro` et `gyro_stage` gardent la règle de l'étalon (références Python figées, 0 échec).
+  Test `rust/otb-analysis/tests/firmware_chain.rs:le_notch_rpm_au_plafond_reste_actif`.
 - **W-083** — **Deux écarts de la chaîne du firmware au vol, non expliqués.**
   1. **Terme D des logs ralentis** : calculé à la cadence PID comme le firmware, puis une boucle sur N gardée, il s'éloigne du D
      enregistré (|écart| médian 0,64 → 0,91 dB entre 100 et 250 Hz, moyenne signée −0,12 → +0,67 dB, logs à 1,6 kHz ou plus).
@@ -1342,7 +1346,8 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
      peu plus et compensait par hasard.
   2. **Ordre des notchs RPM** : sur `1. PTB/schteven/…_214547_ATOMRCF405NAVIMINI.BBL` #6 (deux moteurs, log une boucle sur deux),
      l'ordre du firmware (harmonique d'abord) porte l'écart du bloc gyro de 0,89 à 1,74 dB entre 100 et 250 Hz ; l'ordre de
-     la chaîne actuelle, 1,03 dB (L-120). Pourquoi l'ordre recopié colle moins à ce vol-là n'est pas trouvé.
+     la chaîne actuelle, 1,03 dB (L-120). Pourquoi l'ordre recopié colle moins à ce vol-là n'est pas trouvé. Depuis que la
+     chaîne en service suit aussi l'ordre du firmware (2026-11-24), son écart sur ce vol est de 1,66 dB.
   **Pourquoi reporté** : le lot 24c chiffre et explique ; ces deux points ne touchent pas le critère d'arrêt (logs à chaque
   boucle PID), qui n'est pas atteint.
   **Risque si on n'y touche pas** : à la bascule, la courbe « actuel » du D de la page Filtres s'écarterait un peu plus du vol

@@ -550,40 +550,38 @@ impl RpmBank {
 
     /// Les notchs appliqués aux lignes `v` (`rpmFilterApply`, `applyFilter`).
     fn apply(&mut self, v: &mut [f32]) {
-        let (hn, mn) = (self.harmonics, self.motors);
+        let hn = self.harmonics;
+        // harmonique sautée quand son poids est nul (4.5 et après ; avant, tous les poids valent 1)
+        let order: Vec<usize> = rpm_apply_order(self.rel, self.motors, hn)
+            .into_iter()
+            .filter(|&(_, h)| self.weights[h] > 0.0)
+            .map(|(m, h)| m * hn + h)
+            .collect();
         if !self.svf.is_empty() {
             let mut lanes = [0.0_f32; 3];
             lanes[..v.len()].copy_from_slice(v);
-            for h in 0..hn {
-                if self.weights[h] <= 0.0 {
-                    continue;
-                }
-                for m in 0..mn {
-                    self.svf[m * hn + h].apply(&mut lanes);
-                }
+            for &i in &order {
+                self.svf[i].apply(&mut lanes);
             }
             v.copy_from_slice(&lanes[..v.len()]);
             return;
         }
-        for (r, x) in v.iter_mut().enumerate() {
-            let row = &mut self.biquads[r];
-            if self.rel == Release::V4_3 {
-                for m in 0..mn {
-                    for h in 0..hn {
-                        *x = row[m * hn + h].apply_df1_weighted(*x);
-                    }
-                }
-            } else {
-                for h in 0..hn {
-                    if self.weights[h] <= 0.0 {
-                        continue;
-                    }
-                    for m in 0..mn {
-                        *x = row[m * hn + h].apply_df1_weighted(*x);
-                    }
-                }
+        for (x, row) in v.iter_mut().zip(&mut self.biquads) {
+            for &i in &order {
+                *x = row[i].apply_df1_weighted(*x);
             }
         }
+    }
+}
+
+/// Ordre dans lequel le firmware applique les notchs RPM (`rpmFilterApply`, `applyFilter`) : `(moteur, harmonique)`,
+/// moteur puis harmonique en 4.3, harmonique puis moteur ensuite. ⚠️ Des notchs dont la fréquence bouge ne commutent pas :
+/// l'ordre change le résultat (L-120). Seule source de cet ordre, pour les deux chaînes.
+pub fn rpm_apply_order(rel: Release, motors: usize, harmonics: usize) -> Vec<(usize, usize)> {
+    if rel == Release::V4_3 {
+        (0..motors).flat_map(|m| (0..harmonics).map(move |h| (m, h))).collect()
+    } else {
+        (0..harmonics).flat_map(|h| (0..motors).map(move |m| (m, h))).collect()
     }
 }
 
@@ -989,6 +987,24 @@ mod tests {
         assert_eq!(rpm_updates_per_loop(Release::V4_3, 4, 125), 1);
         assert_eq!(rpm_updates_per_loop(Release::V4_3, 8, 312), 3);
         assert_eq!(rpm_updates_per_loop(Release::V4_5, 8, 312), 3);
+    }
+
+    #[test]
+    fn ordre_des_notchs_rpm() {
+        // 4.4 et après : harmonique puis moteur
+        assert_eq!(
+            rpm_apply_order(Release::V4_5, 2, 2),
+            vec![(0, 0), (1, 0), (0, 1), (1, 1)]
+        );
+        assert_eq!(
+            rpm_apply_order(Release::V2026_6, 2, 2),
+            rpm_apply_order(Release::V4_4, 2, 2)
+        );
+        // 4.3 : moteur puis harmonique
+        assert_eq!(
+            rpm_apply_order(Release::V4_3, 2, 2),
+            vec![(0, 0), (0, 1), (1, 0), (1, 1)]
+        );
     }
 
     #[test]

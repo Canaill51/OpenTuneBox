@@ -72,7 +72,9 @@ est celle du commit qui les a introduites.
 - **Règle** — une chaîne recopiée du firmware garde l'**ordre** de ses boucles (harmoniques, moteurs, axes), même quand un
   commentaire dit qu'il est indifférent ; un écart qui n'apparaît qu'avec des fréquences variables se cherche d'abord là.
 - **Preuve** — [validation.md](validation.md#chaîne-assemblée-à-larithmétique-du-firmware-2026-11-24-lot-24c) ;
-  `rust/otb-analysis/src/firmware_chain.rs:RpmBank` (ordre par version).
+  ordre écrit une seule fois, `rust/otb-analysis/src/firmware_chain.rs:rpm_apply_order`, suivi par les deux chaînes depuis le
+  2026-11-24 (la simulation de l'étalon Python garde le sien) ; tests `ordre_des_notchs_rpm` et
+  `rust/otb-analysis/tests/firmware_chain.rs:le_rejeu_applique_les_notchs_rpm_dans_l_ordre_du_firmware`.
 
 ### L-119 : un filtre à la cadence gyro appliqué ligne par ligne avec un tableau d'une case prend toujours l'état de la première ligne : trois axes, un seul état
 

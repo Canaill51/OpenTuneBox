@@ -852,7 +852,7 @@ ralentis, son terme D est **calculé à la cadence PID** (sur le gyro rejoué à
 firmware, au lieu de la cadence du log : de là les +0,3 à +1,2 dB du D. Deux sessions sortent du lot (gyro jusqu'à −21 dB) :
 `Cedric/J3.5/HQ/btfl_001.bbl` et `48k-HQ.bbl` (4.5.0, PID 4 kHz), dont les moteurs montent à 643 Hz. Leur 3e harmonique
 (1 930 Hz) dépasse le plafond des notchs RPM (0,48 × 4 000 = 1 920 Hz) : le firmware **plaque** le notch au plafond
-(`constrainf`), la chaîne actuelle l'**ignore** (`otb_dsp::run_section`, fréquence ≥ 0,48 × cadence). Sans la 3e harmonique,
+(`constrainf`), la chaîne en service l'**ignorait** (corrigé, ci-dessous) (`otb_dsp::run_section`, fréquence ≥ 0,48 × cadence). Sans la 3e harmonique,
 l'écart de l'étage RPM tombe de 17 % à 0,1 %. Le vol tranche : rejeu « actuel » de la chaîne actuelle à **+18 à +24 dB** du spectre
 enregistré entre 20 et 100 Hz, de la chaîne du firmware à +3 à +4 dB (W-082).
 
@@ -883,6 +883,23 @@ autres vols s'en éloignent de 0,1 à 0,7 dB.
   harmoniques le test restait vert, la deuxième tombant sur la fréquence testée : il n'en garde qu'une) ; PT3 gyro sans le gain de
   PT1 des 4.x, ou décimation sans la moyenne → `la_chaine_assemblee_rend_les_bits_du_banc` ; nombre de notchs RPM par boucle arrondi
   au lieu du plafond → `notchs_rpm_par_boucle` ; délai de 5 ms des LPF dynamiques retiré → `lpf_dynamique_cinq_ms_et_centieme`.
+- **Corrections de la chaîne en service** (demandées par Cédric le 2026-11-24, même branche) : le rejeu de la page Filtres, l'assistant
+  et le contrôle par étage gardent le notch RPM plaqué au plafond (W-082) et appliquent les notchs RPM dans l'ordre du firmware
+  (L-120) ; `simulate_gyro` garde les règles de l'étalon. Mesuré contre la chaîne en service d'avant, mêmes sessions :
+  - `otb-parity check` : 1 732 appels rejoués, **0 échec au bit près** ;
+  - `corpus stages --compare` : à chaque boucle PID, rien ne bouge de plus de +0,015 dB (critère non atteint) ; logs ralentis,
+    bloc gyro 100–250 Hz 0,227 → 0,241 dB en médiane, seule bande au-delà de 0,5 dB : schteven #6, 0,89 → 1,66 dB (W-083) ;
+  - `corpus replay`, |écart| médian au vol, logs ralentis ≥ 1,6 kHz : gyro 0,47 → 0,46 / 0,45 → 0,43 / 0,39 → 0,37 dB, D 0,56 →
+    0,57 / 0,64 → 0,67 / 0,72 → 0,73 dB ; à chaque boucle, médianes inchangées (90e centile du gyro 0,23 → 0,25 et 0,32 → 0,35 dB) ;
+    89 sessions sur 676 bougent de plus de 0,1 dB ; `Cedric/J3.5/HQ/btfl_001.bbl` 23,8 → 2,9 dB et `48k-HQ.bbl` 18,1 → 3,9 dB
+    (gyro 20–100 Hz), d'autres vols mieux entre 250 et 500 Hz (`1. PTB/ivan.mole/btfl_all.bbl` #3 −1,70 → −0,48 dB,
+    `1. PTB/demonsgalore/d gain.bbl` +1,02 → +0,14 dB) ;
+  - `corpus rates --compare` : 43 sessions aux textes différents, **aucun conseil ajouté, retiré ou changé de niveau** : seuls des
+    chiffres prévus bougent de 0,1 à 0,5 dB (« Le LPF1 du gyro peut être coupé » 42 fois, « Terme D propre » une fois) ; durée
+    d'une session seule (`-j 1`) inchangée (0,63 → 0,62 s ; 4,14 → 4,52 s pour la plus lente des deux essayées) ;
+  - contre-preuves : notch ignoré au plafond → `le_notch_rpm_au_plafond_reste_actif` (−0,0 dB au lieu de −20) ; ordre de l'étalon
+    dans le rejeu → `le_rejeu_applique_les_notchs_rpm_dans_l_ordre_du_firmware` (5,3 % au lieu de 2,1 %) ; ordre inversé dans
+    `rpm_apply_order` → `ordre_des_notchs_rpm`.
 - **Sans effet mesurable** sur la bande dégradée de schteven : gaz d'avant ou d'après le throttle boost pour les LPF dynamiques,
   délai de 5 ms, notchs RPM tous recalculés à chaque boucle ou avant le filtrage.
 

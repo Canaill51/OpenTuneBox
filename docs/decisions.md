@@ -793,7 +793,10 @@ Le suivi des pics du notch dynamique et l'ordonnancement des recalculs (notchs R
 (W-081). Fait le même jour (24c) : la chaîne assemblée `rust/otb-analysis/src/firmware_chain.rs`, à côté de l'actuelle et choisie
 par `Engine` (`Engine::Model` par défaut : rien ne change à l'écran), recopie l'ordonnancement version par version ; écart chiffré
 sur tout le corpus, critère d'arrêt non atteint ([validation.md](validation.md#chaîne-assemblée-à-larithmétique-du-firmware-2026-11-24-lot-24c),
-W-082, W-083).
+W-082, W-083). Au vu des chiffres, Cédric a demandé le même jour de corriger **dans la chaîne en service**, avant la demande de
+fusion, les deux écarts expliqués : notch RPM plaqué au plafond et gardé (W-082), ordre des notchs RPM du firmware (L-120). Le
+rejeu, l'assistant et le contrôle par étage changent donc dès ce lot ; `simulate_gyro` garde les règles de l'étalon (références
+figées), et aucun avis de l'assistant ne change sur le corpus.
 
 **Témoins.** Code relu le 2026-11-22 (le fork le décrivait avant le lot 22). La chaîne est écrite **deux fois** :
 - en **réponse en fréquence**, par `rust/otb-analysis/src/bf_filters.rs:gyro_chain` et

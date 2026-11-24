@@ -80,8 +80,9 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
   log. L-105
 - Chaîne à l'arithmétique du firmware (`firmware_chain`, lot 24c) : tout état de filtre est indexé par son axe (trois axes
   ensemble = chacun seul, test) ; un état partagé par position a donné −5 dB à toutes les fréquences. L-119
-- Notchs RPM : garder l'**ordre** des boucles du firmware (harmonique puis moteur depuis la 4.4) ; des notchs dont la
-  fréquence bouge ne commutent pas, malgré le commentaire du firmware. L-120
+- Notchs RPM : garder l'**ordre** des boucles du firmware (harmonique puis moteur depuis la 4.4), écrit une seule fois dans
+  `firmware_chain::rpm_apply_order` ; des notchs dont la fréquence bouge ne commutent pas, malgré le commentaire du firmware.
+  Un notch au-delà du plafond (0,48 × cadence PID) y est plaqué et reste actif (W-082). L-120
 - Effet d'un changement de modèle : comparer les spectres exacts, pas la courbe « actuel » arrondie ; sur un D enregistré sous
   l'unité, l'arrondi fait d'un écart de 0,001 dB un écart de 0,38 dB. L-108
 

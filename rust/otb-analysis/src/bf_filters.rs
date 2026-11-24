@@ -7,6 +7,7 @@
 //! (bibliothèque mathématique du système) et par `np.convolve` (BLAS) : tolérance mesurée (L-048).
 
 use crate::chain::{self, Brick, Signal, Step};
+use crate::firmware_chain::{Release, rpm_apply_order};
 use crate::spectral::{Mode, py_round, row_mean, seg_spectra, segments, to_db};
 use otb_dsp::{K_LPF, K_NOTCH, K_PT1, Sections, biquad, notch_q, pt1_gain, pt1_track, run_section, sections_response};
 use otb_log::flightlog::{FlightLog, Rows};
@@ -572,6 +573,23 @@ fn apply(
     q: f64,
     weight: &[f64],
 ) -> Result<Vec<f64>, String> {
+    apply_under(x, k, n, kind, freq, fs, q, weight, Rules::Python)
+}
+
+/// [`apply`] selon `rules` : l'étalon ignore une fréquence à partir de 0,48·fs ; le firmware plaque les notchs RPM à
+/// 0,48 × la cadence PID et les garde (W-082) : seule une fréquence au-delà de Nyquist (0,5·fs) est alors ignorée.
+#[allow(clippy::too_many_arguments)]
+fn apply_under(
+    x: &[f64],
+    k: usize,
+    n: usize,
+    kind: Kind,
+    freq: &[f64],
+    fs: f64,
+    q: f64,
+    weight: &[f64],
+    rules: Rules,
+) -> Result<Vec<f64>, String> {
     // np.broadcast_to(·, (n,)) : une valeur seule se répète, sinon la longueur doit être n
     let broadcast = |v: &[f64]| -> Result<Vec<f64>, String> {
         if v.len() == n {
@@ -593,7 +611,10 @@ fn apply(
         Kind::BiquadLpf => K_LPF,
         Kind::Notch => K_NOTCH,
     };
-    let limit = 0.48 * fs;
+    let limit = match rules {
+        Rules::Python => 0.48 * fs,
+        Rules::Firmware => 0.5 * fs,
+    };
     let f_eff: Vec<f64> = freq.iter().map(|&f| if f < limit { f * corr } else { 0.0 }).collect();
     let mut cur = x.to_vec();
     for _ in 0..reps {
@@ -751,7 +772,36 @@ pub fn gyro_stage_at(
     k: usize,
     fs: f64,
 ) -> Result<Vec<f64>, String> {
-    gyro_stage_held(stage, log, s, x, k, fs, 1)
+    gyro_stage_held(stage, log, s, x, k, Pace::python(fs))
+}
+
+/// Règles de la simulation dans le temps : celles de l'étalon Python, que gardent [`gyro_stage`] et [`simulate_gyro`] pour
+/// les références figées, ou celles du firmware, que suivent le rejeu, l'assistant et le contrôle par étage
+/// ([`gyro_stage_upsampled`]) : notch RPM gardé au plafond (W-082), notchs RPM appliqués harmonique puis moteur comme
+/// `rpmFilterApply` (moteur puis harmonique en 4.3, L-120).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Rules {
+    Python,
+    Firmware,
+}
+
+/// Cadence d'une simulation : `fs`, cadence de `x` ; `r`, nombre de pas par échantillon du log (les valeurs lues dans le
+/// log sont tenues `r` pas) ; règles suivies.
+#[derive(Clone, Copy, Debug)]
+struct Pace {
+    fs: f64,
+    r: usize,
+    rules: Rules,
+}
+
+impl Pace {
+    fn python(fs: f64) -> Pace {
+        Pace {
+            fs,
+            r: 1,
+            rules: Rules::Python,
+        }
+    }
 }
 
 /// Chaque valeur répétée `r` fois : une valeur lue dans le log (gaz, eRPM, centre de notch) tenue pendant les `r` pas
@@ -771,16 +821,16 @@ fn gyro_stage_held(
     s: &Settings,
     mut x: Vec<f64>,
     k: usize,
-    fs: f64,
-    r: usize,
+    pace: Pace,
 ) -> Result<Vec<f64>, String> {
+    let r = pace.r;
     if r > 1 && k != 1 {
         return Err(format!(
             "filtre rejoué {r} fois plus vite que le log : une seule ligne à la fois ({k} reçues)"
         ));
     }
     for step in &chain::betaflight().gyro[stage.steps()?] {
-        x = step_sim(step, log, s, x, k, fs, r)?;
+        x = step_sim(step, log, s, x, k, pace)?;
     }
     Ok(x)
 }
@@ -793,9 +843,9 @@ fn step_sim(
     s: &Settings,
     mut x: Vec<f64>,
     k: usize,
-    fs: f64,
-    r: usize,
+    pace: Pace,
 ) -> Result<Vec<f64>, String> {
+    let Pace { fs, r, rules } = pace;
     let n = x.len().checked_div(k).unwrap_or(0);
     match step.brick {
         Brick::Lowpass(lp) => lowpass_sim(x, k, n, lp.get(s), &held(throttle_frac(log), r), fs),
@@ -817,16 +867,30 @@ fn step_sim(
                 } else {
                     1.0
                 };
+                // (fréquence, poids) de chaque notch, [moteur][harmonique]
+                let mut notches = Vec::with_capacity(mhz.k);
                 for m in 0..mhz.k {
                     let row: Vec<f64> = mhz.row(m).iter().map(|&v| v as f64).collect();
                     let tracked = pt1_track(&held(row, r), kk);
+                    let mut per_h = Vec::new();
                     for h in 0..s.rpm_harmonics {
-                        let (f, w) = rpm_notch_freq_weight(&tracked, h, s, step.rate.hz(s))?;
-                        if !w.iter().any(|&v| v > 0.0) {
-                            continue;
-                        }
-                        x = apply(&x, k, n, Kind::Notch, &f, fs, q, &w)?;
+                        per_h.push(rpm_notch_freq_weight(&tracked, h, s, step.rate.hz(s))?);
                     }
+                    notches.push(per_h);
+                }
+                // ⚠️ des notchs dont la fréquence bouge ne commutent pas : l'ordre est celui du firmware (L-120) ;
+                // l'étalon Python, et toute version d'avant la 4.3 (rien de vérifié) : moteur puis harmonique
+                let harmonics = s.rpm_harmonics as usize;
+                let order: Vec<(usize, usize)> = match (rules, Release::of(s)) {
+                    (Rules::Firmware, Some(rel)) => rpm_apply_order(rel, mhz.k, harmonics),
+                    _ => rpm_apply_order(Release::V4_3, mhz.k, harmonics),
+                };
+                for (m, h) in order {
+                    let (f, w) = &notches[m][h];
+                    if !w.iter().any(|&v| v > 0.0) {
+                        continue;
+                    }
+                    x = apply_under(&x, k, n, Kind::Notch, f, fs, q, w, rules)?;
                 }
             }
             Ok(x)
@@ -864,10 +928,20 @@ pub fn gyro_stage_upsampled(
     r: usize,
 ) -> Result<Vec<f64>, String> {
     if r <= 1 || x.is_empty() {
-        return gyro_stage_at(stage, log, s, x, 1, fs);
+        let pace = Pace {
+            fs,
+            r: 1,
+            rules: Rules::Firmware,
+        };
+        return gyro_stage_held(stage, log, s, x, 1, pace);
     }
     let n = x.len();
-    let y = gyro_stage_held(stage, log, s, upsample(&x, r), 1, fs * r as f64, r)?;
+    let pace = Pace {
+        fs: fs * r as f64,
+        r,
+        rules: Rules::Firmware,
+    };
+    let y = gyro_stage_held(stage, log, s, upsample(&x, r), 1, pace)?;
     Ok((0..n).map(|i| y[i * r + r - 1]).collect())
 }
 
@@ -1055,7 +1129,8 @@ fn dterm_steps(
     fs: f64,
 ) -> Result<Vec<f64>, String> {
     for step in steps {
-        x = step_sim(step, log, s, x, k, fs, 1)?;
+        // pas de notch RPM dans la chaîne D : les règles n'y changent rien
+        x = step_sim(step, log, s, x, k, Pace::python(fs))?;
     }
     Ok(x)
 }

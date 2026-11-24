@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use std::f64::consts::PI;
 use std::path::PathBuf;
 
+use otb_analysis::bf_filters::{GyroStage, gyro_stage, gyro_stage_own_rate};
 use otb_analysis::chain::{self, Signal};
 use otb_analysis::filter_replay::{chain_gap, replay_with};
 use otb_analysis::filter_stages::{check_stages, check_stages_with};
@@ -240,6 +241,39 @@ fn les_notchs_rpm_eteignent_la_frequence_des_moteurs() {
     }
 }
 
+/// Un notch RPM dont la fréquence dépasse 0,48 × la cadence PID est plaqué à ce plafond et reste actif, comme dans le
+/// firmware (`constrainf`) : dans la chaîne du firmware **et** dans le rejeu de la chaîne actuelle (page Filtres,
+/// assistant). Seule la simulation de l'étalon Python (`gyro_stage`, références figées) l'ignore encore (W-082).
+#[test]
+fn le_notch_rpm_au_plafond_reste_actif() {
+    // 4.5, gyro, PID et log à 4 kHz ; moteurs à 650 Hz : la 3e harmonique (1 950 Hz) dépasse 1 920 Hz
+    let mut s = bare([4, 5], 250, 1);
+    s.rpm_harmonics = 3;
+    s.rpm_q = 500;
+    s.rpm_min_hz = 100;
+    s.rpm_fade_hz = 50;
+    s.rpm_lpf_hz = 150;
+    s.rpm_weights = vec![100, 100, 100];
+    let n = 8000;
+    let log = log_with(s.clone(), n, Some(650.0));
+    let ceiling = 0.48 * 4000.0;
+    let x: Vec<f64> = (0..n)
+        .map(|i| 50.0 * (2.0 * PI * ceiling * i as f64 / 4000.0).sin())
+        .collect();
+    let rms = |v: &[f64]| (v[n / 2..].iter().map(|a| a * a).sum::<f64>() / (n / 2) as f64).sqrt();
+    let db = |y: &[f64]| 20.0 * (rms(y) / rms(&x)).log10();
+    let replayed = gyro_stage_own_rate(GyroStage::Rpm, &log, &s, x.clone(), s.log_rate_hz()).unwrap();
+    assert!(db(&replayed) < -20.0, "rejeu : {:.1} dB", db(&replayed));
+    let rpm = GyroStage::Rpm.steps().unwrap();
+    let fw = every(
+        &gyro_steps(&log, &s, rpm, std::slice::from_ref(&x), 1, None).unwrap()[0],
+        1,
+    );
+    assert!(db(&fw) < -20.0, "chaîne du firmware : {:.1} dB", db(&fw));
+    let python = gyro_stage(GyroStage::Rpm, &log, &s, x.clone(), 1).unwrap();
+    assert!(db(&python) > -1.0, "étalon : {:.1} dB", db(&python));
+}
+
 /// Avant la 4.3, la chaîne refuse le log : aucune arithmétique vérifiée.
 #[test]
 fn avant_la_4_3_rien_n_est_rejoue() {
@@ -295,5 +329,55 @@ fn jeno5_les_deux_chaines_se_rejoignent() {
                 );
             }
         }
+    }
+}
+
+/// Le rejeu de la chaîne actuelle applique les notchs RPM dans l'ordre du firmware (harmonique puis moteur depuis la 4.4,
+/// `firmware_chain::rpm_apply_order`) : quand la fréquence des moteurs bouge, il rejoint la chaîne du firmware à 2,1 %
+/// (valeur efficace de l'écart, mesuré le 2026-11-24) ; dans l'ordre de l'étalon (moteur d'abord), à 5,3 % (L-120). Le reste
+/// vient du calendrier des recalculs, que seule la chaîne du firmware recopie.
+#[test]
+fn le_rejeu_applique_les_notchs_rpm_dans_l_ordre_du_firmware() {
+    for version in [[4, 5], [2025, 12]] {
+        let mut s = bare(version, 125, 2);
+        s.rpm_harmonics = 3;
+        s.rpm_q = 500;
+        s.rpm_min_hz = 100;
+        s.rpm_fade_hz = 50;
+        s.rpm_lpf_hz = 150;
+        s.rpm_weights = vec![100, 100, 100];
+        let n = 16000;
+        let mut log = log_with(s.clone(), n, Some(200.0));
+        let back = 7.0 * 60.0 / 100.0;
+        let mh = log.motor_hz.as_mut().unwrap();
+        for m in 0..4 {
+            for i in 0..n {
+                let t = i as f64 / 4000.0;
+                let hz = 220.0 + 15.0 * m as f64 + 80.0 * (2.0 * PI * (3.0 + 1.0 * m as f64) * t).sin();
+                mh.data[m * n + i] = ((hz * back).round() / back) as f32;
+            }
+        }
+        let mut st = 5u64;
+        let x: Vec<f64> = (0..n)
+            .map(|_| {
+                st = st.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                ((st >> 11) as f64 / (1u64 << 53) as f64 - 0.5) * 100.0
+            })
+            .collect();
+        let rep = gyro_stage_own_rate(GyroStage::Rpm, &log, &s, x.clone(), s.log_rate_hz()).unwrap();
+        let rpm = GyroStage::Rpm.steps().unwrap();
+        let fw = every(
+            &gyro_steps(&log, &s, rpm, std::slice::from_ref(&x), 1, None).unwrap()[0],
+            1,
+        );
+        let d: f64 = rep
+            .iter()
+            .zip(&fw)
+            .skip(n / 4)
+            .map(|(a, b)| (a - b).powi(2))
+            .sum::<f64>();
+        let r: f64 = fw.iter().skip(n / 4).map(|a| a * a).sum::<f64>();
+        let gap = (d / r).sqrt();
+        assert!(gap < 0.035, "{version:?} : écart {gap:.4}");
     }
 }
