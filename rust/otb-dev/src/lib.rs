@@ -13,6 +13,7 @@
 pub mod bench_open;
 pub mod corpus;
 pub mod docs;
+pub mod firmware_bench;
 pub mod icons;
 pub mod licenses;
 pub mod release;

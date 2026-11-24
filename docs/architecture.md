@@ -252,7 +252,15 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   ordre des fichiers conservé ; D-051). Dépendances : otb-decoder, otb-dsp et rayon.
 - **otb-dsp** : noyaux des filtres Betaflight, de `step_response`, primitives numériques (`numeric.rs`) et décimation min/max des
   courbes (`minmax.rs` : `MinMaxPyramid`, index multi-résolution par courbe, `window_points` en O(points rendus) ; D-048) ;
-  dépendances realfft et rayon (D-033).
+  dépendances realfft et rayon (D-033). `firmware/` (lot 24a, D-062) : les briques de filtrage **à l'arithmétique du firmware**,
+  float32, **pas encore branchées** (la chaîne en service reste celle de `bf_filters.rs`, en float64, jusqu'à la bascule du lot 24d).
+  Une famille par firmware, seule Betaflight est écrite (`firmware/betaflight/`) : `mod.rs` (`Arith` : l'arithmétique d'une plage
+  de versions, 4.3–4.4, 4.5, 2025.12, 2026.6 et après, choisie par `Arith::for_version` ; gains des PTn ; `notch_q`),
+  `approx.rs` (sinus et cosinus approchés de chaque version), `pt.rs` (PT1, PT2, PT3), `biquad.rs` (biquad RBJ, formes directes I,
+  I pondérée et II), `svf.rs` (SVF passe-bas, notch, notch RPM, 2026.6 et après), `decimate.rs` (`Decimator` : passage de la
+  cadence gyro à la cadence PID) et `cases.rs` (les cas du banc de référence joués avec ces briques). Preuve :
+  `rust/otb-dsp/tests/firmware_vectors.rs` rejoue au bit près les vecteurs de `rust/otb-dsp/tests/data/firmware/betaflight/`,
+  écrits par `otb-dev firmware-bench`.
 - **otb-format** : formats de nombres (`{:.2f}`, `%g`, `repr`, `round`, D-035), pour que les textes restent identiques à ceux de l'ancienne version.
 - **otb-store** : la bibliothèque de données (lot 28), en **fichiers JSON** et non en base — tranché par Cédric le 2026-11-18,
   le volume étant petit et une base embarquée apportant un compilateur C et une frontière FFI (D-054). Sept tables dans
@@ -338,6 +346,14 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     passe par les mêmes contrôles que l'application et demande de taper « effacer ». L'identifiant de la carte n'est montré que par une
     empreinte courte (`chip_id_summary`) : c'est un numéro de série du matériel, et la sortie se recopie dans le dépôt public (alerte
     CodeQL de la PR #169).
+  - `firmware_bench.rs` : `otb-dev firmware-bench`, le banc de référence des briques de filtrage (lot 24b, D-062), poste Linux
+    (`curl`, `cc`). Pour chaque version de `VERSIONS` (4.3.2, 4.4.3, 4.5.5, 2025.12.5, 2026.6.2, commit figé de la 2026.12), il
+    télécharge `common/filter.c`, `maths.c` et leurs en-têtes, vérifie que la licence du dépôt est la GPL 3, compile **dans le
+    dossier temporaire du système** le programme du projet `rust/otb-dev/bench/betaflight_filters.c` avec ces fichiers (sans
+    fusion multiplication-addition), lui fait jouer chaque cas et n'écrit dans le dépôt que des nombres : manifeste, entrées et
+    sorties float32 dans `rust/otb-dsp/tests/data/firmware/betaflight/`. Il compare aussitôt aux briques Rust et l'affiche. Aucun
+    fichier du firmware n'est gardé (D-045). Un test du module refuse des vecteurs qui ne viennent pas du banc actuel (empreinte du
+    programme C, liste des cas et des versions).
   - `release.rs` : `otb-dev release prepare X.Y.Z` (numéro de version dans `rust/Cargo.toml`) et `otb-dev release notes vX.Y.Z FICHIER` (contrôle
     du numéro, puis `translate_generated_notes`, fonction pure : traduit la liste générée par GitHub, ajoute le bloc Téléchargements,
     refuse une liste vide ou restée en anglais ; D-056).

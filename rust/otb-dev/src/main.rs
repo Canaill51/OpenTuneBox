@@ -3,6 +3,7 @@
 //! ```text
 //! otb-dev release prepare X.Y.Z                       numéro de version
 //! otb-dev release notes vX.Y.Z FICHIER                texte de la page Releases (FICHIER : liste générée par GitHub)
+//! otb-dev firmware-bench                            banc de référence des briques de filtrage (télécharge et compile Betaflight hors du dépôt, lot 24b)
 //! otb-dev icons [--svg CHEMIN]                        PNG Linux et .ico Windows depuis le SVG
 //! otb-dev licenses [--check]                           THIRD-PARTY-LICENSES.txt (mentions de licences des composants livrés) ; --check : compare sans écrire
 //! otb-dev corpus <outil> …                            outils du corpus de vrais logs (`OTB_LOGS`)
@@ -15,7 +16,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z\n  otb-dev release notes vX.Y.Z FICHIER\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]\n  otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER\n  otb-dev usb msc PORT DOSSIER [--erase] | sd RACINE DOSSIER [--erase]";
+const USAGE: &str = "Usage :\n  otb-dev release prepare X.Y.Z\n  otb-dev release notes vX.Y.Z FICHIER\n  otb-dev firmware-bench\n  otb-dev icons [--svg CHEMIN]\n  otb-dev licenses [--check]\n  otb-dev corpus <outil> …\n  otb-dev verify [--quick] [--strict]\n  otb-dev bench-open LOG… [--jobs N] [--trials N] [--drop]\n  otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER\n  otb-dev usb msc PORT DOSSIER [--erase] | sd RACINE DOSSIER [--erase]";
 
 /// Racine du dépôt : `OTB_DEV_ROOT`, sinon le premier dossier parent qui contient `AGENTS.md` et `rust/Cargo.toml`.
 fn repo_root() -> Result<PathBuf, String> {
@@ -87,6 +88,7 @@ fn run(args: &[String]) -> Result<String, String> {
         ["usb", "msc", port, dir, "--erase"] => otb_dev::usb::msc(port, Path::new(dir), true),
         ["usb", "sd", root, dir] => otb_dev::usb::sd(Path::new(root), Path::new(dir), false),
         ["usb", "sd", root, dir, "--erase"] => otb_dev::usb::sd(Path::new(root), Path::new(dir), true),
+        ["firmware-bench"] => otb_dev::firmware_bench::run(&repo_root()?),
         ["icons"] => otb_dev::icons::generate(&repo_root()?, None),
         ["icons", "--svg", path] => otb_dev::icons::generate(&repo_root()?, Some(Path::new(path))),
         _ => Err(USAGE.into()),

@@ -83,7 +83,7 @@ ici, jamais dans le code.
 | D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
-| D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels ; le lot 23, la description, fait sans attendre le 2026-11-23), prouvé par le banc **et** les vrais vols | 2026-11-18 |
+| D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels ; le lot 23, la description, fait sans attendre le 2026-11-23 ; les étapes 24a à 24c, sans rien brancher, levées le 2026-11-24), prouvé par le banc **et** les vrais vols | 2026-11-18 |
 | D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit **(amendée par D-067 et D-068)** | 2026-11-19 |
 | D-060 | Amende D-015 : une entrée de navigation est **un outil ou un espace** qui regroupe plusieurs vues ; les boutons deviennent un **rail à gauche** ; deux écrans hors rail sont permis. Ce qui reste : aucune fenêtre séparée, une vue cachée ne calcule pas | 2026-11-19 |
 | D-059 | Assistant : bruit prévu après un conseil de filtres par le **rejeu** de la page Filtres, vérifié en vol (amende D-008) | 2026-11-22 |
@@ -781,6 +781,16 @@ conditionnels. Fait le même jour : la chaîne Betaflight est décrite une seule
 `rust/otb-analysis/chains/betaflight.json` (intégré à la compilation, lu par `rust/otb-analysis/src/chain.rs`) ; champs en
 anglais (D-001), forme en [spec-betaflight.md](spec-betaflight.md) §8. Preuve d'iso-résultat dans
 [validation.md](validation.md#chaîne-décrite-en-données-2026-11-23-lot-23).
+
+**Amendement du 2026-11-24** (Cédric, en lançant le lot 24) : la condition est **levée pour les étapes 24a à 24c seules**
+— les briques à côté des actuelles, le banc et ses vecteurs, l'écart chiffré sur tout le corpus —, parce qu'elles ne changent
+rien à l'écran et qu'on peut tout annuler à ce stade. La **bascule** (24d, 24e) et le lot 25 restent conditionnels : Cédric
+décidera au vu des chiffres de 24c. Découpage choisi par lui le même jour : 24a et 24b dans une même demande de fusion (des
+briques ne se prouvent pas sans le banc), 24c dans la suivante. Fait le même jour (24a, 24b) : quatre arithmétiques
+(4.3–4.4, 4.5, 2025.12, 2026.6 et après) dans `rust/otb-dsp/src/firmware/betaflight/`, banc `otb-dev firmware-bench` sur six
+versions, toutes identiques au bit près ([validation.md](validation.md#briques-à-larithmétique-du-firmware-2026-11-24-lots-24a-et-24b)).
+Le suivi des pics du notch dynamique et l'ordonnancement des recalculs (notchs RPM, LPF dynamiques) restent hors du banc
+(W-081).
 
 **Témoins.** Code relu le 2026-11-22 (le fork le décrivait avant le lot 22). La chaîne est écrite **deux fois** :
 - en **réponse en fréquence**, par `rust/otb-analysis/src/bf_filters.rs:gyro_chain` et

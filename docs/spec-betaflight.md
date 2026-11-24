@@ -94,9 +94,31 @@ Fins de liste :
 - **Biquad (4.4–2025.12)** RBJ : `ω=2πf Ts, sn=sin ω, cs=cos ω, α=sn/(2Q), a0=1+α`.
   LPF (Q = 1/√2) : b0=b2=(1−cs)/2, b1=1−cs, a1=−2cs, a2=1−α.
   Notch : b0=1, b1=−2cs, b2=1, a1=−2cs, a2=1−α. Passe-bande : b0=α, b1=0, b2=−α. Tout est divisé par a0.
-  Notch RPM pondéré : `y = w·notch(x) + (1−w)·x`.
+  Notch RPM pondéré (jusqu'à la 2025.12) : `y = w·notch(x) + (1−w)·x`.
 - **SVF/TPT (2026.6+)** : transformation bilinéaire avec précompensation à f0 du même prototype analogique →
-  même réponse en fréquence que RBJ à f0/Q égaux ; simulé avec les coefficients RBJ (écart de précompensation minime).
+  même réponse en fréquence que RBJ à f0/Q égaux ; la chaîne en service (float64) le simule avec les coefficients RBJ
+  (écart de précompensation minime). L'arithmétique, elle, diffère : `f = tan(π f0 dt)` par `sincosf_approx` puis `sn/cs` ;
+  passe-bas `a1 = 1/(1 + f(f + √2))`, `a2 = f·a1`, état `ic1`, `ic2`, sortie `v2` ; notch : sortie `entrée − q·bande` ;
+  **notch RPM** : `entrée −= (poids/Q)·bande`, un état par axe et des coefficients communs (plus de mélange
+  `w·notch + (1−w)·x`).
+- **Arithmétique par version** (lue dans `filter.c` et `maths.c` de chaque version ; briques float32 de
+  `rust/otb-dsp/src/firmware/betaflight/`, prouvées au bit près par `otb-dev firmware-bench`, lot 24) :
+
+  | Versions | Sinus et cosinus approchés (`FAST_MATH`, toujours défini) | Gain des PTn | Filtres |
+  |---|---|---|---|
+  | 4.3, 4.4 | ordre 7 ; 0 hors de ±32 rad ; repli par boucles, réflexion `π/2 − (x − π/2)` | `RC = 1/(2π·C·fc)`, `k = dT/(RC + dT)`, `C = 1/√(powf(2, 1/n) − 1)` | biquad |
+  | 4.5 | idem | `ω = 2π·fc·dT`, `k = ω/(ω + 1)`, `C` écrit à 10 chiffres | biquad |
+  | 2025.12 | ordre 7 ; repli par `fmodf`, réflexion `π − x` | idem 4.5 | biquad |
+  | 2026.6 et après | polynômes par quadrant (`roundf(x·2/π)`) | idem 4.5 | SVF |
+
+  Le biquad s'applique en forme directe II (`biquadFilterApply`) pour un filtre fixe (LPF statiques, notchs statiques gyro et
+  D), en forme directe I pour un filtre recalculé en vol (LPF dynamiques, notch dynamique) et en forme directe I pondérée pour
+  les notchs RPM. `refreshRate` est un entier de microsecondes ; en 2025.12, le pas corrigé des notchs RPM
+  (`looptimeUs × schedulerGetCycleTimeMultiplier()`, flottant) y est **tronqué** à l'entier. Toutes ces opérations sont
+  `+ − × ÷`, `sqrtf`, `fmodf`, `roundf` (et `powf` des 4.3–4.4, évalué par GCC à la compilation) : exactes sur toute machine.
+- **Décimation gyro → PID** (`gyro.c`, `gyro_filter_impl.c`, inchangée de la 4.3 à la 2026.12) : LPF2 en service → il
+  filtre chaque échantillon gyro et la boucle PID prend sa **dernière** sortie ; sinon, **moyenne** des échantillons
+  reçus depuis la boucle précédente (somme float32 ÷ compteur entier).
 - Types de filtre : 0 PT1, 1 BIQUAD (SVF à partir de 2026.6), 2 PT2, 3 PT3.
 - Q du notch statique : `Q = f0·fc/(f0²−fc²)` (f0 = notch_hz, fc = notch_cutoff) ; centre limité à 0,95 × Nyquist.
 - **LPF dynamique selon les gaz** (t ∈ [0,1], pas de 0,01, mis à jour au plus toutes les 5 ms) :
