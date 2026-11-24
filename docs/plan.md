@@ -65,9 +65,9 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14, 16 à 23, 28 à 31
-  et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15 et le 32 sont ouverts (les parties
+  et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 32 et le 34 sont ouverts (les parties
   faites du 32 y sont déjà) ; les **24 et 25** restent du chantier des scripts firmware, **conditionnel** (D-062 ; 24a à 24e faits, reste l'écart au vol affiché), et les **26 et 27** en sont
-  sortis le 2026-11-18 ; le prochain numéro libre est **34**.
+  sortis le 2026-11-18 ; le prochain numéro libre est **35**.
 
 ## Ordre des étapes
 
@@ -75,6 +75,7 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 |---|---|---|---|
 | 1 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075), mode disque essayé sur la G474 ; reste une carte SD réelle et Windows |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
+| 3 | **34** | Emplacement de la bibliothèque au choix, avec déplacement sûr | lot 28 (bibliothèque) ; demandé le 2026-11-24 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 (fait le 2026-11-24) |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -221,6 +222,40 @@ lecteur ». Essayé à l'écran sur la carte G474 sous Linux (mode disque, puis 
       (`rust/otb-usb/tests/contrats.rs:un_seul_chemin_supprime_un_fichier`) ; à revoir en 32c-2 pour l'écran. **Non
       atteint en 32c-2** : les copies SD vérifiées ne quittent pas le fil du disque, et la copie de la mémoire ne sort de
       `Held` que pour une connexion à la même carte (`rust/otb-gui/tests/usb_disque.rs`).
+
+---
+
+## Lot 34 : emplacement de la bibliothèque au choix (Opus)
+
+**But** : laisser l'utilisateur **choisir où vit sa bibliothèque** (fiches, fragments, mesures, logs copiés par USB) et
+l'y **déplacer** sans rien perdre : un disque plus grand pour les logs copiés, une sauvegarde simple, la même bibliothèque
+d'un PC à l'autre. Demandé par Cédric le 2026-11-24, pendant l'essai de `essai-v0.10.0`. Aujourd'hui le dossier est fixe :
+`<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` (`rust/otb-store/src/lib.rs:dir`), le doublon `OpenTuneBox/OpenTuneBox`
+venant du chemin de Qt de la version Python, gardé pour reprendre l'ancien `drones.json` (D-068).
+
+**Branche** : `feat/library-location`.
+
+**À lire** : `rust/otb-store/src/lib.rs` (`dir`, `dir_in`, `Library::open`, `logs_dir`, `delete_copies_of_drone`),
+`rust/otb-gui/src/main.rs` (ouverture au lancement), `rust/otb-gui/src/guide.rs:cards_path_in` (reprise de l'ancien
+fichier), [decisions.md](decisions.md) D-064 et D-068, [architecture.md](architecture.md) (`otb-store`).
+
+- [ ] **Pointeur** : le dossier par défaut garde un petit fichier qui dit où est la bibliothèque (sans lui,
+      l'application ne sait pas où chercher au démarrage) ; absent, rien ne change pour qui ne déplace rien.
+- [ ] **Réglage** « Emplacement de la bibliothèque » avec « Changer… » (sélecteur de dossier du système) ; le chemin
+      actuel affiché, avec un bouton pour l'ouvrir dans le gestionnaire de fichiers.
+- [ ] **Déplacement sûr** : copier tout, relire la copie fichier par fichier, basculer, **puis seulement** effacer
+      l'ancien dossier (même règle que l'USB : un effacement reporté ne coûte rien). Les chemins des **logs copiés**
+      sont absolus dans `logs.json` (vu le 2026-11-24) : les réécrire au déplacement, ou passer à des chemins relatifs à
+      la bibliothèque — à trancher en planifiant (décision à écrire). Les logs ouverts sur place ne bougent pas.
+- [ ] **Bibliothèque déjà présente** dans le dossier choisi (autre PC, disque externe) : proposer de **l'utiliser telle
+      quelle**, jamais de fusionner ni d'écraser en silence.
+- [ ] **Dossier introuvable au lancement** (disque débranché) : message clair, « Réessayer » ou « Choisir un autre
+      dossier » ; **jamais** une bibliothèque vide recréée sans le dire.
+- [ ] **Dossier synchronisé ouvert sur deux PC à la fois** (Dropbox, OneDrive, Syncthing) : risque d'écritures
+      croisées, au minimum le signaler (verrou ou avertissement, à trancher en planifiant).
+- [ ] Tests sur un dossier temporaire (déplacement, échec à mi-copie, dossier absent, bibliothèque existante) ; essai à
+      la main sous Linux **et** Windows ; guide utilisateur et [architecture.md](architecture.md) à jour.
+- [ ] **Critère d'arrêt** : un seul fichier perdu ou un log copié introuvable après un déplacement.
 
 ---
 
