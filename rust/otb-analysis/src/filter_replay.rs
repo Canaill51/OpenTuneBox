@@ -4,8 +4,9 @@
 //!
 //! Rejeu ([`replay`]) :
 //! - filtres calculés pour la cadence **nominale** de l'en-tête, comme le firmware (L-101) ;
-//! - chaque filtre rejoué à la cadence où le firmware l'applique : LPF2 à la cadence gyro, notchs RPM, notchs statiques,
-//!   LPF1 et notch dynamique à la cadence PID, même quand le log n'enregistre qu'une boucle sur N (L-104) ;
+//! - ordre et cadence des filtres lus dans la description de la chaîne (`chain::betaflight`, lot 23) ; chaque filtre rejoué
+//!   à la cadence où le firmware l'applique : LPF2 à la cadence gyro, notchs RPM, notchs statiques, LPF1 et notch
+//!   dynamique à la cadence PID, même quand le log n'enregistre qu'une boucle sur N (L-104) ;
 //! - centres du notch dynamique donnés par le suivi des pics du firmware rejoué sur chaque axe (`dyn_notch`, lot 22c), avec
 //!   les réglages simulés : changer le nombre, le Q ou la plage déplace les notchs comme en vol (W-057) ;
 //! - terme D : −dg/dt du gyro rejoué dans la chaîne D, × facteur TPA de chaque instant (gaz d'avant le throttle boost).
@@ -24,8 +25,9 @@ use std::ops::Range;
 
 use crate::bf_filters::{
     GyroStage, Matrix64, dyn_notch_enabled, dyn_notch_initial_centres, dyn_notch_with_centres, fft_freq_centres,
-    gyro_stage_upsampled, lpf2_at_gyro_rate, pre_boost_throttle, simulate_dterm_at,
+    gyro_stage_own_rate, pre_boost_throttle, simulate_dterm_at, stages_before,
 };
+use crate::chain::{self, Brick, Signal};
 use crate::dyn_notch::{DynNotchTracker, PREROLL_S, ticks_per_log_sample};
 use crate::filter_stages::{model_rate_hz, tpa_d_factor};
 use crate::spectral::{Mode, py_round, seg_spectra, segments, to_db};
@@ -112,20 +114,34 @@ pub fn replay_from(log: &FlightLog, s: &Settings, base: &Settings, cur: &Replay)
 
 /// Gyro filtré rejoué (une ligne par axe) ; `None` sans gyro non filtré.
 fn replay_gyro(log: &FlightLog, s: &Settings) -> Result<Option<Vec<Vec<f64>>>, String> {
-    let Some(gu) = &log.gyro_unfilt else {
+    let desc = chain::betaflight();
+    let Some(gu) = desc.recorded_input(log) else {
         return Ok(None);
     };
     let fs = model_rate_hz(s);
-    // filtres de la boucle PID : à sa cadence, même si le log n'en garde qu'une sur `pid_loops` (L-104)
-    let pid_loops = (s.pid_rate_hz() / fs).round().max(1.0) as usize;
+    // étages d'avant le notch dynamique, chacun à la cadence de ses étapes dans la description, même si le log ne garde
+    // qu'une boucle PID sur N (L-104)
+    let stages = stages_before(Signal::FftFreqBeforeDynNotch)?;
     let mut pre = Vec::with_capacity(3);
     for a in 0..gu.k.min(3) {
-        let mut y = lpf2_at_gyro_rate(log, s, wide(gu.row(a)), fs)?;
-        for st in [GyroStage::Rpm, GyroStage::StaticLpf1] {
-            y = gyro_stage_upsampled(st, log, s, y, fs, pid_loops)?;
+        let mut y = wide(gu.row(a));
+        for &st in &stages {
+            y = gyro_stage_own_rate(st, log, s, y, fs)?;
         }
         pre.push(y);
     }
+    // notch dynamique : aux centres du suivi rejoué, à la cadence de son étage
+    let dyn_steps = GyroStage::DynNotch.steps()?;
+    if desc.gyro[dyn_steps.clone()]
+        .iter()
+        .any(|st| st.brick != Brick::DynNotch)
+    {
+        return Err(format!(
+            "{} : l'étage du notch dynamique contient un autre filtre",
+            desc.firmware
+        ));
+    }
+    let pid_loops = GyroStage::DynNotch.loops_per_sample(s, fs)?;
     let centres = if dyn_notch_enabled(s) {
         dyn_centres(log, s, &pre)
     } else {

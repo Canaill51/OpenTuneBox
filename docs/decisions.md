@@ -83,7 +83,7 @@ ici, jamais dans le code.
 | D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
-| D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels), prouvé par le banc **et** les vrais vols | 2026-11-18 |
+| D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels ; le lot 23, la description, fait sans attendre le 2026-11-23), prouvé par le banc **et** les vrais vols | 2026-11-18 |
 | D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit **(amendée par D-067 et D-068)** | 2026-11-19 |
 | D-060 | Amende D-015 : une entrée de navigation est **un outil ou un espace** qui regroupe plusieurs vues ; les boutons deviennent un **rail à gauche** ; deux écrans hors rail sont permis. Ce qui reste : aucune fenêtre séparée, une vue cachée ne calcule pas | 2026-11-19 |
 | D-059 | Assistant : bruit prévu après un conseil de filtres par le **rejeu** de la page Filtres, vérifié en vol (amende D-008) | 2026-11-22 |
@@ -775,6 +775,13 @@ autres le 2026-11-18, une par une.
 - **L'ordre du terme D n'attend pas le lot 23** : corrigé à part, mesuré sur le corpus (lot 33, W-072), parce qu'il est
   maintenant visible dans la page Filtres et l'assistant.
 
+**Amendement du 2026-11-23** (Cédric, en lançant le lot 23) : la condition des vrais logs INAV ou ArduCopter est **levée
+pour le lot 23 seul**, parce qu'il ne change aucun résultat et qu'il prépare le terrain. Les lots 24 et 25 restent
+conditionnels. Fait le même jour : la chaîne Betaflight est décrite une seule fois, dans
+`rust/otb-analysis/chains/betaflight.json` (intégré à la compilation, lu par `rust/otb-analysis/src/chain.rs`) ; champs en
+anglais (D-001), forme en [spec-betaflight.md](spec-betaflight.md) §8. Preuve d'iso-résultat dans
+[validation.md](validation.md#chaîne-décrite-en-données-2026-11-23-lot-23).
+
 **Témoins.** Code relu le 2026-11-22 (le fork le décrivait avant le lot 22). La chaîne est écrite **deux fois** :
 - en **réponse en fréquence**, par `rust/otb-analysis/src/bf_filters.rs:gyro_chain` et
   `rust/otb-analysis/src/bf_filters.rs:dterm_chain` : rapport des |H|² de `whatif_spectrum` (repli de la page Filtres
@@ -786,6 +793,10 @@ autres le 2026-11-18, une par une.
   par les tests et `otb-parity`. Le terme D du rejeu passe par `rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, qui
   filtre puis dérive comme le firmware (`flight/pid.c`) depuis le lot 33 ; `simulate_dterm`, réservé aux références Python,
   dérive encore avant de filtrer (W-072).
+- **Depuis le lot 23** (2026-11-23), les deux lisent la même description : `gyro_chain` et `dterm_chain` la parcourent, un
+  étage `GyroStage` est l'intervalle entre deux prises du log, la cadence de chaque étage et la position de la dérivée du D
+  y sont lues. `simulate_gyro` (cadence du log) et `simulate_dterm` (dérivée d'abord) gardent leurs approximations pour les
+  références Python, mais prennent l'ordre des étapes dans la description.
 
 Refus du copyleft : liste `allow` de `rust/deny.toml`, onze licences de code, aucune copyleft, plus les deux licences de
 polices de D-046. Licence GPL 3 de Betaflight **vérifiée** le 2026-11-22 (fichier `LICENSE` du dépôt du firmware) ;

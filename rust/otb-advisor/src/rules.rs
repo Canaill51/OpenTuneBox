@@ -1128,7 +1128,7 @@ fn predict_with(p: &Predictor, sel: &Range<usize>, modf: &Settings, hi: f64) -> 
         |chain: &bf_filters::Chain| -> Result<f64, String> { Ok(bf_filters::chain_delay_ms(chain, 10.0)?.phase_ms) };
     out.gyro_delay_gain_ms = delay(&bf_filters::gyro_chain(s, thr, None, Some(&[]))?)?
         - delay(&bf_filters::gyro_chain(modf, thr, None, Some(&[]))?)?;
-    out.d_delay_gain_ms = delay(&bf_filters::dterm_chain(s, thr))? - delay(&bf_filters::dterm_chain(modf, thr))?;
+    out.d_delay_gain_ms = delay(&bf_filters::dterm_chain(s, thr)?)? - delay(&bf_filters::dterm_chain(modf, thr)?)?;
     Ok(out)
 }
 

@@ -29,7 +29,8 @@
 //! log est inconnue (au plus 12 boucles d'écart) ; l'état au début du log aussi : on le reconstruit en rejouant d'abord le
 //! début du log ([`PREROLL_S`]).
 
-use crate::bf_filters::{GyroStage, dyn_notch_enabled, gyro_stage_at};
+use crate::bf_filters::{dyn_notch_enabled, gyro_stage_at, stages_before};
+use crate::chain::Signal;
 use otb_log::flightlog::FlightLog;
 use otb_log::settings::Settings;
 
@@ -525,15 +526,18 @@ pub fn ticks_per_log_sample(s: &Settings) -> usize {
     ((den as f64 / num as f64).round() as usize).max(1)
 }
 
-/// Gyro d'avant le notch dynamique selon le modèle (LPF2, notchs RPM, notchs statiques, LPF1 appliqués au gyro non
-/// filtré), pour les trois axes, filtres calculés pour la cadence nominale du log (L-101). `None` sans gyro non filtré.
+/// Gyro d'avant le notch dynamique selon le modèle (étages de la description qui le précèdent, `bf_filters::stages_before` :
+/// LPF2, notchs RPM, notchs statiques, LPF1 appliqués au gyro non filtré), pour les trois axes, filtres calculés pour la cadence nominale du log (L-101). `None` sans gyro non filtré.
 pub fn modelled_input(log: &FlightLog, s: &Settings) -> Result<Option<Vec<Vec<f64>>>, String> {
-    let Some(gu) = &log.gyro_unfilt else { return Ok(None) };
+    let Some(gu) = crate::chain::betaflight().recorded_input(log) else {
+        return Ok(None);
+    };
     let fs = s.log_rate_hz();
+    let stages = stages_before(Signal::FftFreqBeforeDynNotch)?;
     let mut out = Vec::with_capacity(gu.k);
     for a in 0..gu.k.min(3) {
         let mut y: Vec<f64> = gu.row(a).iter().map(|&v| v as f64).collect();
-        for st in [GyroStage::Lpf2, GyroStage::Rpm, GyroStage::StaticLpf1] {
+        for &st in &stages {
             y = gyro_stage_at(st, log, s, y, 1, fs)?;
         }
         out.push(y);

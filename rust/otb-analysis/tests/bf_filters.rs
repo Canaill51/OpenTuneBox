@@ -272,7 +272,7 @@ fn dterm_chain_identique() {
     for k in c["dterm_chain"].as_array().unwrap() {
         let (i, t) = (k["s"].as_u64().unwrap() as usize, f1(&k["t"]));
         assert_chain(
-            &dterm_chain(&ss[i], t),
+            &dterm_chain(&ss[i], t).unwrap(),
             &k["out"],
             &format!("dterm_chain réglage {i} gaz {t}"),
         );

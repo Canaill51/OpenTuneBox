@@ -1,6 +1,6 @@
 [package]
 name = "otb-analysis"
-description = "Boucles par fenêtre de analysis/motors.py (atténuation des notchs RPM, hauteur des harmoniques, spectres masqués) ; Rust pur, dépendances : otb-dsp et rayon"
+description = "Calculs purs d'OpenTuneBox (spectres, réponse indicielle, filtres Betaflight, boucle ouverte) ; Rust pur, dépendances : otb-dsp, otb-log, otb-format, rayon et serde_json (description de la chaîne de filtres)"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -11,9 +11,9 @@ otb-dsp = { path = "../otb-dsp" }
 otb-log = { path = "../otb-log" }
 otb-format = { path = "../otb-format" }
 rayon = "1.12.0"
+serde_json = "1"
 
 [dev-dependencies]
-serde_json = "1"
 flate2 = "1"
 otb-decoder = { path = "../otb-decoder" }
 

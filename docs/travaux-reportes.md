@@ -1171,8 +1171,10 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Risque si on n'y touche pas** : point 1, plus rien à l'écran depuis le lot 33 (avant : le terme D rejoué s'écartait un
   peu du firmware quand les gaz bougent). Point 2, un agent suivant peut prendre `simulate_gyro` ou `simulate_dterm` pour
   une référence fidèle au firmware : leur commentaire le signale.
-  **Reprise** : point 1, fait (lot 33). Point 2, et l'ordre restant de `simulate_dterm`, au prochain réenregistrement des références (W-028), ou
-  au lot 23, dont la description unique de la chaîne donne la simulation dans le temps avec la cadence de chaque étape.
+  **Reprise** : point 1, fait (lot 33). Point 2, et l'ordre restant de `simulate_dterm`, au prochain réenregistrement des
+  références (W-028) — au plus tard au lot 24, qui les réenregistre. Le lot 23 (2026-11-23) ne les a **pas** changés : la
+  description unique de la chaîne y donne maintenant la cadence de chaque étape et la position de la dérivée, mais les
+  appliquer à ces deux fonctions aurait fait diverger les références Python, contraire au « résultat identique » du lot.
   [`rust/otb-analysis/src/bf_filters.rs:simulate_dterm_at`, `rust/otb-analysis/src/bf_filters.rs:simulate_dterm`]
 
 ## Origine : réponses de Cédric après la vérification USB (2026-11-22)

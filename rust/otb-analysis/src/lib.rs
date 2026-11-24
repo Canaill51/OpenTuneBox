@@ -5,6 +5,7 @@
 //! [`nan_mean_rows`]). La FFT et le découpage en fenêtres restent côté Python (numpy, déjà en C).
 
 pub mod bf_filters;
+pub mod chain;
 pub mod datasets;
 pub mod delay;
 pub mod dyn_notch;

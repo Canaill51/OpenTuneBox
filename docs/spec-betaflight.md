@@ -213,8 +213,10 @@ pitch seulement : pr = roll_pitch_ratio, pp = pitch_pi_gain (1 en roll / yaw). A
 ## 8. Contrat d'un script firmware (D-062)
 
 Un script **décrit** la chaîne d'un firmware et **fournit** ses briques de calcul ; le cœur assemble et exécute.
-**Rien de ce contrat n'est encore codé** : chantier conditionnel, repris quand de vrais logs INAV ou ArduCopter
-arrivent (lots 23 à 25 de [plan.md](plan.md)).
+**Seule `decrire_chaine` est codée**, pour Betaflight (lot 23 de [plan.md](plan.md), 2026-11-23) : le fichier
+`rust/otb-analysis/chains/betaflight.json`, intégré au programme à la compilation et lu par
+`rust/otb-analysis/src/chain.rs`. Les briques restent celles de `rust/otb-analysis/src/bf_filters.rs` ; le reste du
+contrat attend de vrais logs INAV ou ArduCopter (lots 24 et 25, D-062).
 
 Aucune des sept fonctions n'affiche quoi que ce soit ni ne lit de fichier.
 
@@ -228,22 +230,30 @@ Aucune des sept fonctions n'affiche quoi que ce soit ni ne lit de fichier.
 | `briques` | type + paramètres + cadence | un filtre exécutable : `init`, `mettre_a_jour(freq)`, `appliquer(x)` |
 | `ecrire_cli` | réglages modifiés | commandes `set` (ou paramètres, pour un firmware qui n'a pas de CLI), avec les plages autorisées pour l'interface |
 
-Description de chaîne, exemple (Betaflight 4.5, extrait) :
+Description de chaîne : le fichier Betaflight (extrait ; noms des champs en anglais, D-001) :
 
 ```json
 {
+  "firmware": "betaflight",
   "gyro": [
-    {"id": "lpf2", "brique": "bf.pt1", "cadence": "gyro", "params": {"hz": 500}, "cli": "gyro_lpf2_static_hz"},
-    {"id": "rpm",  "brique": "bf.notch_rpm", "cadence": "pid", "freq": "erpm", "params": {"harmoniques": 3, "q": 500}},
-    {"id": "lpf1", "brique": "bf.pt1", "cadence": "pid", "params": {"hz": 165}, "utilise": false}
+    {"id": "lpf2", "brick": "lowpass", "rate": "gyro", "setting": "gyro_lpf2"},
+    {"id": "rpm", "brick": "rpm_notch", "rate": "pid"},
+    {"id": "notch1", "brick": "static_notch", "rate": "pid", "setting": "gyro_notch1", "nyquist": "pid_95"},
+    …
+    {"id": "dyn_notch", "brick": "dyn_notch", "rate": "pid"}
   ],
-  "prises": {"gyro_unfilt": "avant:lpf2", "gyro": "apres:fin"},
-  "derivation": {"chaine": "d", "position": "apres:d_lpf2", "signe": -1}
+  "dterm": [ … {"id": "d_lpf2", "brick": "lowpass", "rate": "pid", "setting": "dterm_lpf2"} ],
+  "taps": {"gyro_unfilt": "before:lpf2", "gyro_sample.after_rpm": "after:rpm", "gyro": "end:gyro", …},
+  "derivative": {"after": "d_lpf2", "sign": -1}
 }
 ```
 
-- `prises` dit **où le log a enregistré chaque signal** : c'est ce qui décide si l'interface affiche « simulé ».
-- `derivation` place la dérivée du terme D dans la chaîne. Elle couvre les trois manières de le calculer : dériver
+- Une étape nomme sa **brique**, sa **cadence** et le **réglage** qu'elle lit ; elle est en service ou non selon ce
+  réglage, jamais selon la description. Les paramètres (coupures, Q, poids) se lisent dans l'en-tête du log.
+- `taps` (les **prises**) dit **où le log a enregistré chaque signal** : la prise du début de la chaîne gyro donne
+  l'entrée du rejeu (sans elle, la page Filtres ne simule rien), et un étage de la simulation est l'intervalle entre deux
+  prises (`bf_filters::GyroStage`).
+- `derivative` place la dérivée du terme D dans la chaîne. Elle couvre les trois manières de le calculer : dériver
   le gyro filtré après ses filtres D (Betaflight), dériver entre deux filtres D (INAV), dériver l'erreur
   consigne − mesure (ArduCopter). **Le cœur ne suppose rien** : il lit cette position.
 

@@ -1,0 +1,27 @@
+{
+  "firmware": "betaflight",
+  "gyro": [
+    {"id": "lpf2", "brick": "lowpass", "rate": "gyro", "setting": "gyro_lpf2"},
+    {"id": "rpm", "brick": "rpm_notch", "rate": "pid"},
+    {"id": "notch1", "brick": "static_notch", "rate": "pid", "setting": "gyro_notch1", "nyquist": "pid_95"},
+    {"id": "notch2", "brick": "static_notch", "rate": "pid", "setting": "gyro_notch2", "nyquist": "pid_95"},
+    {"id": "lpf1", "brick": "lowpass", "rate": "pid", "setting": "gyro_lpf1"},
+    {"id": "dyn_notch", "brick": "dyn_notch", "rate": "pid"}
+  ],
+  "dterm": [
+    {"id": "d_notch", "brick": "static_notch", "rate": "pid", "setting": "dterm_notch", "nyquist": "pid"},
+    {"id": "d_lpf1", "brick": "lowpass", "rate": "pid", "setting": "dterm_lpf1"},
+    {"id": "d_lpf2", "brick": "lowpass", "rate": "pid", "setting": "dterm_lpf2"}
+  ],
+  "taps": {
+    "gyro_unfilt": "before:lpf2",
+    "gyro_sample.before_lpf2": "before:lpf2",
+    "gyro_sample.after_lpf2": "after:lpf2",
+    "gyro_sample.after_rpm": "after:rpm",
+    "gyro_sample.after_static": "after:lpf1",
+    "fft_freq.before_dyn_notch": "before:dyn_notch",
+    "gyro": "end:gyro",
+    "axis_d": "end:dterm"
+  },
+  "derivative": {"after": "d_lpf2", "sign": -1}
+}

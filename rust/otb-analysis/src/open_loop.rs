@@ -265,7 +265,7 @@ pub fn loop_from_t(freqs: &[f64], t: &[C], coh: &[f64], f_max: f64, min_coh: f64
 /// `dterm_model` : Cd attendu d'après l'en-tête, Kd · dérivée discrète · filtres du D (cadence PID), pour recouper Ĉd.
 pub fn dterm_model(s: &Settings, freqs: &[f64], d_gain: f64, throttle_frac: f64) -> Result<Vec<C>, String> {
     let fp = s.pid_rate_hz();
-    let chain = crate::bf_filters::dterm_chain(s, throttle_frac);
+    let chain = crate::bf_filters::dterm_chain(s, throttle_frac)?;
     let (hr, hi) = crate::bf_filters::chain_response(&chain, freqs)?;
     let scale = DTERM_SCALE * d_gain * fp;
     Ok(freqs

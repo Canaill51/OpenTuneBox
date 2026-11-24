@@ -74,6 +74,8 @@ pub struct FilterSimResult {
     pub spectra: BTreeMap<&'static str, [Option<Vec<f64>>; 3]>,
     /// 1,0 par axe, NaN quand le terme D de l'axe est nul.
     pub d_scale: Vec<f64>,
+    /// Le log a-t-il le signal que la description de la chaîne prend en entrée (`chain::ChainDesc::recorded_input` : le
+    /// gyro non filtré pour Betaflight) ? Sans lui, la page ne simule rien.
     pub has_unfilt: bool,
 }
 
@@ -97,7 +99,7 @@ pub fn simulate_filters(
     with_current: bool,
 ) -> Result<FilterSimResult, String> {
     let fs = log.fs;
-    let has_unfilt = log.gyro_unfilt.is_some();
+    let has_unfilt = otb_analysis::chain::betaflight().recorded_input(log).is_some();
     let mut spectra: BTreeMap<&'static str, [Option<Vec<f64>>; 3]> =
         SPECTRA_KEYS.iter().map(|&k| (k, [None, None, None])).collect();
     let br: Vec<i64> = log.breaks(sel.clone(), 4.0).iter().map(|&b| b as i64).collect();
@@ -534,7 +536,7 @@ pub fn chains(s: &Settings, thr_pct: i64, motor_hz: f64, dyn_notch_initial: bool
     let thr = thr_pct as f64 / 100.0;
     let dynamic: Option<&[f64]> = if dyn_notch_initial { None } else { Some(&[]) };
     let g = gyro_chain(s, thr, Some(&[motor_hz]), dynamic)?;
-    Ok((g, dterm_chain(s, thr)))
+    Ok((g, dterm_chain(s, thr)?))
 }
 
 /// Courbe de Bode d'une chaîne, 900 points de 1 Hz à 0,999 × Nyquist.

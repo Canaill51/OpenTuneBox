@@ -31,15 +31,17 @@
 //!   boost ([`pre_boost_throttle`]) ;
 //! - les instants où le firmware force le D à zéro (PID coupé, récupération de vrille en lacet : `flight/pid.c`) sont
 //!   écartés de l'étage D comme des trous du log ;
-//! - ⚠️ chaque filtre gyro est rejoué à la cadence où le firmware l'applique ([`gyro_stage_upsampled`]) : la cadence gyro pour
-//!   le LPF2 ([`lpf2_at_gyro_rate`]), la cadence PID pour les autres quand le log saute des boucles ; jamais à la cadence du
-//!   log (L-104).
+//! - ⚠️ chaque filtre gyro est rejoué à la cadence où le firmware l'applique, lue dans la description de la chaîne
+//!   ([`gyro_stage_own_rate`], `chain`) : la cadence gyro pour le LPF2, la cadence PID pour les autres quand le log saute des
+//!   boucles ; jamais à la cadence du log (L-104) ;
+//! - un étage est l'intervalle entre deux prises du log (`GyroStage::taps`) ; ses filtres sont ceux de la description.
 //!
 //! Seuls les logs enregistrés à [`MIN_LOG_RATE_HZ`] ou plus sont contrôlés (D-057).
 
 use crate::bf_filters::{
-    GyroStage, dyn_notch_enabled, gyro_stage_upsampled, lpf2_at_gyro_rate, pre_boost_throttle, simulate_dterm_at,
+    GyroStage, dyn_notch_enabled, gyro_stage_own_rate, pre_boost_throttle, simulate_dterm_at, stages_before,
 };
+use crate::chain::Signal;
 use crate::spectral::{rfftfreq, row_mean, segments};
 use otb_dsp::numeric::{hann, rfft_rows};
 use otb_log::flightlog::{FlightLog, GyroDebugTaps, clamp_range};
@@ -315,15 +317,11 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
     let offset = clock_offset_s(s);
     let fs = model_rate_hz(s);
     let rpm_missing = s.rpm_harmonics > 0 && log.motor_hz.is_none();
-    let pid_loops = (s.pid_rate_hz() / fs).round().max(1.0) as usize;
     let model = |stages: &[GyroStage], x: &[f32]| -> Result<Vec<f64>, String> {
         let mut y = wide(x);
         for &st in stages {
-            y = match st {
-                GyroStage::Lpf2 => lpf2_at_gyro_rate(log, s, y, fs)?,
-                // filtres de la boucle PID : à sa cadence, même si le log n'en garde qu'une sur `pid_loops` (L-104)
-                _ => gyro_stage_upsampled(st, log, s, y, fs, pid_loops)?,
-            };
+            // chaque étage à la cadence de ses étapes, même si le log ne garde qu'une boucle PID sur N (L-104)
+            y = gyro_stage_own_rate(st, log, s, y, fs)?;
         }
         Ok(y)
     };
@@ -407,7 +405,7 @@ pub fn stage_signals(log: &FlightLog, sel: Range<usize>) -> Result<(Vec<StageSig
                         skipped.push((Stage::GyroBlock, "filtre RPM actif mais pas d'eRPM dans le log".into()))
                     }
                     Some(gu) => {
-                        let block = [GyroStage::Lpf2, GyroStage::Rpm, GyroStage::StaticLpf1];
+                        let block = stages_before(Signal::FftFreqBeforeDynNotch)?;
                         push(
                             Stage::GyroBlock,
                             axis,
