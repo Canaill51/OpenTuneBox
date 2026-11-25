@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-080 | **Et si : multiplicateurs de filtres gyro et D comme Betaflight Configurator** : interrupteur et curseur (0,10 à 2,00, pas de 0,05) en tête des passe-bas, fréquences recalculées à l'arithmétique du firmware et grisées ; interrupteur repris du log seulement si ses coupures sont celles du curseur ; CLI = état du curseur + coupures | 2026-11-25 |
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
 | D-078 | **« Bruit et filtres » sans le terme D préfiltre** : le D avant filtres, reconstruit et non enregistré, n'est plus proposé dans le Spectre, Fréq. × gaz et Fréq. × temps ; « Terme D » montre le D filtré seul (une colonne par fragment dans × gaz) ; préréglages 1 et 5 de PIDtoolbox retirés ; onglets de l'espace dessinés comme le prototype ; **amende D-069** | 2026-11-25 |
 | D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
@@ -148,6 +149,45 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-25 — Les multiplicateurs de filtres dans l'Et si
+
+### D-080 : l'Et si des filtres a les multiplicateurs gyro et D de Betaflight Configurator
+
+**Tranché par Cédric** le 2026-11-25 : « dans et si je voudrais que l'onglet Gyro et terme D soit comme dans Betaflight
+Configurator. C'est-à-dire qu'il modifie effectivement les fréquences de coupure avec les sliders. »
+
+**Contexte.** Les pages Gyro et Terme D de l'Et si n'avaient que des cases de fréquences. Les pilotes règlent pourtant
+leurs passe-bas par les deux multiplicateurs (`simplified_gyro_filter_multiplier`, `simplified_dterm_filter_multiplier`),
+dont l'arithmétique était déjà réimplémentée (`rust/otb-analysis/src/sliders.rs:filters_from_sliders`, page Curseurs PID).
+
+**Décision.**
+- En tête des passe-bas de chaque page : un interrupteur « Multiplicateur du filtre gyro / D » et son curseur, de 0,10 à
+  2,00 par pas de 0,05, « plus de filtrage » à gauche (`rust/otb-gui/src/tools/filter_sim.rs:mult_slider`). Proposés
+  seulement si l'en-tête du log contient les deux multiplicateurs (Betaflight 4.3 et après).
+- Curseur mis : les coupures des passe-bas actifs suivent le firmware (`config/simplified_tuning.c` : seulement les
+  réglages non nuls ; LPF1 selon son mode, LPF2 s'il est actif) et sont grisées ; type, mode et expo restent libres, et
+  un LPF2 désactivé reste saisissable pour l'activer (`rust/otb-gui/src/tools/filter_sim_calc.rs:Editor::follow_sliders`).
+- À l'ouverture d'un log, l'interrupteur est mis seulement si le log le dit **et** que ses coupures sont celles que donne
+  le curseur, comme le configurateur (`validateTuningSliders`) ; la position du log reste connue dans tous les cas.
+- Commandes CLI (`rust/otb-gui/src/tools/filter_sim_calc.rs:filter_cli_lines_with`) : un curseur mis écrit `ON` et sa position quand
+  ils diffèrent du log, **plus** les coupures, puisque le CLI ne les recalcule pas sur un `set` ; un type changé sous le
+  curseur ne le coupe plus. Curseur coupé : règle d'avant (un passe-bas changé coupe le curseur du log).
+- Avertissement aux positions où le configurateur avertit (gyro ≤ 0,45 ou ≥ 1,55 ; D ≤ 0,75 ou ≥ 1,25), sans bornes
+  « hors mode expert » : l'Et si ne règle rien sur le drone.
+
+**Écartés.** Remplacer les cases par des curseurs (on perd la saisie fine que permet Betaflight hors curseur) ; les bornes
+réduites du configurateur hors mode expert (0,50 à 1,50 et 0,80 à 1,20) : utiles pour qui écrit sur la carte, pas pour
+une simulation ; écrire seulement l'état du curseur dans le CLI (les coupures resteraient celles d'avant jusqu'à
+`simplified_tuning apply`).
+
+**Témoins.** `rust/otb-gui/tests/filter_tools.rs` : `les_curseurs_de_filtres_recalculent_les_frequences_comme_le_firmware`,
+`l_interrupteur_suit_le_log_seulement_si_ses_frequences_sont_celles_du_curseur`,
+`le_cli_ecrit_le_curseur_mis_et_les_frequences_qu_il_donne`, `le_curseur_de_filtre_grise_les_frequences_et_les_recalcule_a_l_ecran` ;
+quatre contre-preuves vues en échec (L-071) : sans recalcul après saisie, champs jamais grisés, interrupteur repris du log
+sans comparer, curseur ignoré par le CLI. Captures de l'Et si sur `CHIRP-25Hz.bbl`.
 
 ---
 
