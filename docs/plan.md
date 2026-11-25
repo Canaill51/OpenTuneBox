@@ -302,9 +302,9 @@ Un départ maximal (`|r(0)| ≤ 0,1`) n'écarte rien sur ce log : à garder seul
       Valeurs par défaut à confirmer sur le corpus (recalibrage).
 - [x] **Concordance Python** (35a) : tri de Python gardé (`StepOptions::python`, `rules::Method::python`,
       `flight_step_with`, `check_log_with`) pour `otb-parity` et les tests sur références ; l'application prend le nouveau.
-- [ ] **Écran** : les nouveaux réglages dans la colonne de droite (rubrique « Calcul »), le nombre de fenêtres
-      écartées affiché ; la **légende** « P, I, D, Dm, F · pic · latence · cassure » ne cache plus le début de la montée
-      (aujourd'hui posée sur la courbe entre 0 et 0,25).
+- [x] **Écran** (35b) : « Tri des fenêtres » sous « Calcul » (régime établi dès, bande gardée, écart à la médiane) ; la
+      légende dit « n=281 sur 456 » et passe sur deux lignes par fichier, dans la moitié droite : elle ne cache plus la
+      montée (`rust/otb-gui/tests/step_tools.rs`).
 - [ ] **Recalibrage de l'assistant** : relancer `otb-dev corpus calibrate` (pic, latence, cassure, vagues) avec le
       nouveau tri ; chaque seuil changé justifié dans [assistant.md](assistant.md) ; taux de déclenchement avant / après.
 - [ ] **Validation** : les logs CHIRP d'Air65 (25, 45, 65 Hz) et des captures `PTB_FIGS_*` du corpus vont dans le sens de

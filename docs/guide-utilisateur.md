@@ -319,8 +319,15 @@ Plus vos wobbles sont rapides et secs (roll et pitch en même temps, au hasard),
 en fréquence ; l'Assistant le rappelle quand le pic tombe au bord.
 Sous le diagnostic : **curseurs PID Betaflight** de chaque log (réglage simplifié ; point plein = curseurs de
 l'en-tête, point creux = estimés depuis les PID), pour voir d'un coup d'œil ce qui change entre les vols.
-Dans chaque graphique, en bas à droite : gains P, I, D, Dm, F de chaque fichier, nombre de fenêtres (n), pic,
-latence et cassure. « Temps affiché » : 250 ms par défaut (la montée en grand), 500 ms comme PIDtoolbox, ou
+Dans chaque graphique, en bas à droite : gains P, I, D, Dm, F de chaque fichier et fenêtres gardées
+(« n=281 sur 456 »), puis, sur la ligne suivante, pic, latence et cassure.
+
+**Tri des fenêtres** (colonne de droite) : chaque fenêtre de 2 s donne sa propre réponse, et certaines sont
+aberrantes (un rebond, une rafale) : elles tireraient la moyenne vers le haut. Une fenêtre est écartée si sa réponse
+sort de la **bande gardée** (0,5 à 1,5 par défaut) à partir du **régime établi** (150 ms par défaut), ou si elle
+s'écarte trop de la courbe médiane des autres (**écart à la médiane**, k = 3 ; plus petit = plus sévère, « aucun »
+pour ne pas trier ainsi). Avec ce tri, la courbe va dans le sens de PIDtoolbox, sans retomber exactement sur ses
+chiffres : le tri est le nôtre. « Temps affiché » : 250 ms par défaut (la montée en grand), 500 ms comme PIDtoolbox, ou
 150 ms pour bien voir la cassure. Le yaw est masqué au départ (case Y) : la méthode ne le juge pas et ses
 mouvements suffisent rarement. La colonne « Cassure (ripple) » suit la cassure d'un vol à l'autre.
 

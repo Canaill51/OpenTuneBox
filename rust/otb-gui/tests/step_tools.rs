@@ -38,6 +38,36 @@ fn calcule(opts: StepOpts, st: &AppState) -> StepOutput {
 
 // ------------------------------------------------------------------ calcul
 
+/// Les réglages « Tri des fenêtres » de la page arrivent jusqu'au calcul (D-082) : une bande plus large garde plus de
+/// fenêtres, une bande plus étroite moins ; les candidates ne changent pas.
+#[test]
+fn les_reglages_du_tri_changent_les_fenetres_gardees() {
+    let st = etat();
+    let n = |o: StepOpts| {
+        let out = calcule(o, &st);
+        let r = &out.files[0].data.axes[1].res;
+        (r.n, r.windows)
+    };
+    let base = n(StepOpts::default());
+    let wide = n(StepOpts {
+        band: 2.0,
+        k: f64::INFINITY,
+        ..StepOpts::default()
+    });
+    let narrow = n(StepOpts {
+        band: 0.6,
+        ..StepOpts::default()
+    });
+    assert!(
+        wide.0 > base.0 && narrow.0 < base.0,
+        "large {wide:?}, défaut {base:?}, étroite {narrow:?}"
+    );
+    assert!(
+        wide.1 == base.1 && narrow.1 == base.1,
+        "candidates : {wide:?} {base:?} {narrow:?}"
+    );
+}
+
 #[test]
 fn le_calcul_par_defaut_donne_les_reponses_des_trois_axes_et_le_diagnostic() {
     let st = etat();
@@ -332,16 +362,20 @@ fn les_bornes_y_des_metriques_gardent_un_quart_de_marge_et_le_pic_de_sensibilite
 fn le_bloc_de_texte_donne_gains_pic_latence_en_virgule_decimale_ou_donnees_insuffisantes() {
     let out = calcule(StepOpts::default(), &etat());
     let l = text_lines(&out.files, 1, &CLAIR);
-    assert_eq!(l.len(), 2);
-    assert_eq!(l[0].0, "P, I, D, Dm, F · pic · latence · cassure");
-    assert!(
-        l[1].0.starts_with("1) 67,84,48,48,178 (n=9) · 1,17 · 22,9 ms · +0,297"),
-        "{}",
-        l[1].0
-    ); // gains du pitch
-    assert!(!l[1].0.contains('.'), "virgule décimale : {}", l[1].0);
-    assert_eq!(l[1].1, out.files[0].color);
-    assert_eq!(text_lines(&out.files, 0, &CLAIR)[1].0, "1) données insuffisantes");
+    let texts: Vec<&str> = l.iter().map(|(t, _)| t.as_str()).collect();
+    // deux lignes par fichier : sur une seule, le bloc débordait sur la montée de la courbe
+    assert_eq!(
+        texts,
+        [
+            "P, I, D, Dm, F (fenêtres gardées)",
+            "pic · latence · cassure",
+            "1) 67,84,48,48,178 (n=9 sur 26)", // gains du pitch ; 26 fenêtres candidates
+            "     1,17 · 22,9 ms · +0,297",
+        ]
+    );
+    assert!(texts.iter().all(|t| !t.contains('.')), "virgule décimale : {texts:?}");
+    assert_eq!((l[2].1, l[3].1), (out.files[0].color, out.files[0].color));
+    assert_eq!(text_lines(&out.files, 0, &CLAIR)[2].0, "1) données insuffisantes");
 }
 
 // ------------------------------------------------------------------ dans la fenêtre
