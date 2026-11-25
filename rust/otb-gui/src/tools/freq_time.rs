@@ -13,7 +13,7 @@ use otb_analysis::spectral::{freq_time, to_ptb_db};
 
 use super::common::{
     AxisToggles, FileSelection, HARMONICS, MAX_NOTCHES, MotorToggles, ViewMemo, decimate, harmonic_style,
-    harmonics_and_notches_ui, motor_freqs, nan_unless_positive, ranks, sel_rows, wide,
+    harmonics_and_notches_ui, motor_freqs, nan_unless_positive, noise_datasets, ranks, sel_rows, wide,
 };
 use crate::plots::{VDrag, colorbar, heatmap_texture, nice_axes};
 use crate::state::{AppState, NoiseSignal};
@@ -160,8 +160,9 @@ impl FreqTimeTool {
         }
     }
 
+    /// Choisit le jeu affiché ; un jeu que l'espace ne propose pas (D-078) est ignoré.
     pub fn set_dataset(&mut self, key: &str) {
-        if let Some((k, _)) = DATASETS.iter().find(|(k, _)| *k == key) {
+        if let Some((k, _)) = noise_datasets().find(|(k, _)| *k == key) {
             self.key = k;
         }
     }
@@ -315,7 +316,7 @@ impl Tool for FreqTimeTool {
                 egui::ComboBox::from_id_salt("ft-donnees")
                     .selected_text(DATASETS.iter().find(|(k, _)| *k == self.key).map_or("", |(_, l)| *l))
                     .show_ui(ui, |ui| {
-                        for (k, l) in DATASETS {
+                        for (k, l) in noise_datasets() {
                             ui.selectable_value(&mut self.key, k, l);
                         }
                     })
@@ -488,12 +489,11 @@ impl Tool for FreqTimeTool {
                                     }
                                     let y: Vec<f64> = hz.iter().map(|v| v * h as f64).collect();
                                     for run in finite_runs(tt, &y) {
-                                        pu.line(
-                                            Line::new("", PlotPoints::from(run))
-                                                .color(motor_color(m))
-                                                .width(1.5)
-                                                .style(harmonic_style(h)),
-                                        );
+                                        pu.line(crate::plots::styled(
+                                            Line::new("", PlotPoints::from(run)).color(motor_color(m)),
+                                            1.5,
+                                            harmonic_style(h),
+                                        ));
                                     }
                                 }
                             }

@@ -71,6 +71,7 @@ ici, jamais dans le code.
 | ID | Décision | Date |
 |---|---|---|
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
+| D-078 | **« Bruit et filtres » sans le terme D préfiltre** : le D avant filtres, reconstruit et non enregistré, n'est plus proposé dans le Spectre, Fréq. × gaz et Fréq. × temps ; « Terme D » montre le D filtré seul (une colonne par fragment dans × gaz) ; préréglages 1 et 5 de PIDtoolbox retirés ; onglets de l'espace dessinés comme le prototype ; **amende D-069** | 2026-11-25 |
 | D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
 | D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
 | D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
@@ -78,7 +79,7 @@ ici, jamais dans le code.
 | D-072 | **Mesures suivies dans le temps** : dix grandeurs par fragment lues dans le rapport de l'assistant (jamais un second calcul), gardées avec les bornes du fragment et la version du calcul, mesurées en arrière-plan à l'ouverture de la fiche du drone ; la cible du drone part des seuils de l'assistant, une case sans seuil reste vide, l'assistant garde ses seuils ; le suivi est dans la fiche du drone | 2026-11-23 |
 | D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
 | D-070 | **L'assistant en cartes, et la mesure contre son seuil en jauge** : une carte par constat triée par gravité, les « info » et les vérifications OK repliées ; un constat qui compare **une** mesure à **un** seul seuil porte une jauge (`Gauge`), hors des références Python ; le bouton « Appliquer » du prototype n'est pas repris (D-063 gardée) | 2026-11-23 |
-| D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) | 2026-11-23 |
+| D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) **(amendée par D-078)** | 2026-11-23 |
 | D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) | 2026-11-23 |
 | D-067 | **Plusieurs fragments par session** : « Enregistrer comme nouveau fragment » dans l'écran d'extraction en range un autre, posé aussitôt en pastille sur les mêmes échantillons ; seul un fragment ajouté se supprime ; « Ouvrir… » ne met en analyse que le fragment de la session (amende D-061) | 2026-11-23 |
 | D-066 | La **barre de fragments** (liste d'analyse à l'écran) décide de ce que montrent toutes les pages : fragments actifs dans l'ordre de la barre, maître pour les pages à un seul vol, couleur fixe par fragment ; plus de liste « Fichiers » par page ; liste retrouvée au lancement (remplace D-049) | 2026-11-23 |
@@ -181,6 +182,40 @@ crates du projet se recompileraient quand même ; on paie la place (≈ 20 Go pa
 
 **Témoins.** `rust/otb-dev/tests/numero.rs:deux_chantiers_ne_recoivent_jamais_le_meme_numero` (deux contre-preuves) ; essai du
 crochet sur quatre dossiers, ancien et nouveau (L-125) ; première réservation réelle : L-125, parce que le numéro précédent était déjà cité dans le brouillon de ce chantier, écrit avant la réservation.
+
+---
+
+## 2026-11-25 — L'espace « Bruit et filtres » sans le terme D préfiltre
+
+### D-078 : le terme D préfiltre n'est plus proposé dans « Bruit et filtres » ; « Terme D » montre le D filtré seul
+
+**Tranché par Cédric** le 2026-11-25 : « le champ Terme D Préfiltre n'est plus utile », puis, entre trois propositions
+(D filtré seul, D filtré avec le gyro avant filtres, case seulement masquée), « le D filtré seul ». Amende D-069 (ce que
+montre le bouton « Terme D »).
+
+**Contexte.** Betaflight n'enregistre pas le terme D avant ses filtres : OpenTuneBox le reconstruit à partir du gyro
+(`rust/otb-log/src/flightlog.rs:FlightLog::d_term_prefilter`). D-069 en faisait l'étage « avant filtres » du bouton « Terme D », dans
+les trois vues à courbes et cartes de l'espace.
+
+**Décision.**
+- Le Spectre, Fréq. × gaz et Fréq. × temps ne proposent plus « Terme D préfiltre » (`rust/otb-gui/src/tools/common.rs:NOT_IN_NOISE_SPACE`) :
+  ni case, ni ligne des listes, et les fonctions qui cochent un jeu l'ignorent. Il reste calculé là où il sert : retard
+  des filtres D, courbe « D avant filtres » du « Et si » (entrée de la simulation), visualiseur.
+- `NoiseSignal::DTerm` n'a plus qu'un jeu, `dterm`. Changer de signal garde l'étage filtré ; tous les jeux d'un signal
+  deviennent tous ceux de l'autre (le D seul redevient le gyro avant et après filtres).
+- Fréq. × gaz : les préréglages 1 et 5 de PIDtoolbox (« … D pf | D ») sont retirés, les autres renumérotés de 1 à 7 ;
+  « Terme D » prend « A|B|C|D D », une colonne par fragment (`PRESET_DTERM`), sauf depuis le gyro filtré seul, où
+  chaque colonne garde son fragment.
+- Dans la même demande, les onglets de l'espace suivent le prototype (`tabOn` : icône, gris, bleu souligné de 2 px
+  pour la vue affichée), avec la main au survol ; « Et si », absent du prototype, prend l'icône `funnel`.
+
+**Écartés.** Le D filtré avec le gyro avant filtres en repère (deux signaux sur un même bouton) ; masquer la case en
+gardant le D reconstruit sous le bouton (une courbe sans case pour la retirer).
+
+**Témoins.** `rust/otb-gui/tests/spectral.rs` (`le_terme_d_prefiltre_nest_pas_propose`), `rust/otb-gui/tests/noise_space.rs`
+(`changer_de_signal_garde_letage_choisi`, `frequence_gaz_suit_le_signal_par_ses_colonnes`,
+`les_onglets_de_lespace_sont_des_boutons`), contre-preuves vues en échec (L-071) : sans le filtre de la liste, sans la
+main au survol. Captures des quatre vues dans les deux thèmes (`CHIRP-25Hz.bbl`).
 
 ---
 
@@ -518,6 +553,9 @@ non centrée. Captures des deux thèmes ; 0,4 ms par cadre (`--example capture`,
 **Ouvert.** W-076 (traité au lot 31d, D-073, sauf les lignes CLI : W-078).
 
 ### D-069 : un seul choix « Gyro | Terme D » et des axes partagés pour l'espace « Bruit et filtres »
+
+✏️ AMENDÉE par D-078 (le bouton « Terme D » montre le D filtré seul : le D préfiltre, reconstruit, n'est plus proposé
+dans l'espace ; × gaz prend « A|B|C|D D » ; le reste de D-069 reste en vigueur).
 
 **Tranché par Cédric** le 2026-11-23, au début du lot 30e : les cases détaillées de chaque vue sont **gardées dessous**
 (plutôt que repliées ou supprimées), et le partage des **axes** entre dans le même lot. Précise D-060 (ce qu'un espace

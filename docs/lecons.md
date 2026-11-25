@@ -76,6 +76,32 @@ est celle du commit qui les a introduites.
   au lieu de 8 ; sans le fichier des réservations, deux réservations donnaient le même) ; essai de `check-docs.sh` avec un faux
   `cargo` qui affiche le dossier : l'ancien vérifie le principal pour les quatre dossiers essayés, le nouveau celui de la
   conversation ; la première réservation réelle a rendu L-125, parce que le numéro précédent était déjà cité dans le brouillon même de ce chantier (commentaires écrits avant la réservation) : le travail non validé est bien vu.
+### L-123 : une icône dans une page d'outil fait paniquer les bancs de test qui n'appellent pas `app::setup`
+
+- **Symptôme** — 2026-11-25 : après l'ajout d'icônes aux onglets de l'espace « Bruit et filtres », huit tests de
+  `rust/otb-gui/tests/tool.rs` et `freq_time.rs` paniquent dans `epaint` : « No glyph for "⚠\u{fe0f}" ». Aucun « ⚠ » dans le
+  code des onglets ; l'application, elle, s'affiche bien.
+- **Cause** — mesurée : ces bancs construisent la page seule (`Harness::builder()…build_ui_state`) sans
+  `with_context_setup(otb_gui::app::setup)`, donc sans chargeur d'images. egui dessine alors, à la place de l'icône, un « ⚠ » que
+  la police des tests n'a pas. Les pages d'outils n'avaient encore aucune icône : le défaut dormait.
+- **Règle** — tout banc egui passe par `.with_context_setup(otb_gui::app::setup)`, comme le dit déjà son commentaire, même pour
+  une page sans icône aujourd'hui. Une panique « No glyph » sur un signe absent du code = une image non chargée.
+- **Preuve** — les bancs de `rust/otb-gui/tests/tool.rs` et `rust/otb-gui/tests/freq_time.rs` passent par `setup` ; sans lui, les huit
+  tests rougissent de nouveau.
+
+### L-122 : egui_plot prend l'épaisseur d'un pointillé pour rayon de ses points : un pointillé paraît plus gros que le trait plein
+
+- **Symptôme** — 2026-11-25 : Cédric trouve les courbes du Spectre « un peu différentes » de PIDtoolbox. Les niveaux concordent à
+  0,3 dB ([validation.md](validation.md#spectres-comparés-à-pidtoolbox-sur-les-logs-chirp-2026-11-25)), mais le gyro préfiltre,
+  tracé en `dotted_dense()` d'épaisseur 1,5, forme un chapelet de perles de 3 px, plus épais que le trait plein de 2,5 ; la
+  courbe « simulé (actuel) » du « Et si » (épaisseur 2) des perles de 4 px.
+- **Cause** — lue dans `egui_plot` 0.38 (`aesthetics.rs`, `LineStyle::Dotted`) : « Take the stroke width for the radius even
+  though it's not "correct" » ; le rayon vaut l'épaisseur, le diamètre le double. Sur un spectre dentelé, les points se placent
+  le long du tracé et s'entassent dans chaque colonne de pixels.
+- **Règle** — tout trait passe par `rust/otb-gui/src/plots.rs:styled` (ou `stroke`), qui donne aux points le diamètre demandé ;
+  jamais `.width(w).style(LineStyle::Dotted…)` en direct.
+- **Preuve** — `rust/otb-gui/tests/plots.rs:un_pointille_a_des_points_du_diametre_demande`, rouge si `stroke` rend l'épaisseur telle
+  quelle ; captures avant et après du Spectre sur `CHIRP-25Hz.bbl`.
 
 ### L-121 : changer la chaîne par défaut vide en silence un test qui comparait « l'ancienne » (appelée par défaut) à la nouvelle
 
@@ -1581,6 +1607,8 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
 | L-125 | Plusieurs conversations dans un seul dossier se partagent branche et fichiers ; les crochets tournent dans le dossier principal ; un numéro peut être cité ailleurs avant d'être au registre : un worktree par conversation, `otb-dev numero`, crochet parti du `cwd` | Outillage |
+| L-123 | Banc egui sans `app::setup` : pas de chargeur d'images, une icône devient un « ⚠ » que la police n'a pas et le test panique ; tout banc passe par `setup` | Interface |
+| L-122 | egui_plot prend l'épaisseur d'un pointillé pour rayon de ses points (perles deux fois trop grosses) : tout trait passe par `plots::styled` | Interface |
 | L-121 | Changer un défaut (chaîne, méthode) : un test qui appelait « l'ancienne » par la fonction par défaut compare la nouvelle à elle-même et reste vert ; nommer la chaîne dans tout test de comparaison | Outillage |
 | L-120 | Notchs dont la fréquence bouge : leur ordre d'application change le résultat (le commentaire du firmware dit le contraire) ; une chaîne recopiée garde l'ordre des boucles du firmware | Filtres |
 | L-119 | Filtre à état appliqué par position (`zip` avec les lignes) sur un tableau d'une case : tous les axes prennent l'état du premier ; indexer chaque état par son axe, tester trois axes ensemble contre chacun seul | Filtres |

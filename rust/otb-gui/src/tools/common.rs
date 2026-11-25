@@ -17,28 +17,96 @@ pub const MOTOR_LABELS: [&str; 4] = ["M1/5", "M2/6", "M3/7", "M4/8"];
 pub const ESPACE_BRUIT: &str = "Bruit et filtres";
 
 /// Les quatre vues de l'espace « Bruit et filtres » : **nom court affiché** (celui des pages du Guide et des
-/// maquettes) et titre de la page à ouvrir.
-pub const VUES_BRUIT: [(&str, &str); 4] = [
-    ("Spectre", "Analyse spectrale"),
-    ("Fréq. × gaz", "Fréquence × gaz"),
-    ("Fréq. × temps", "Fréquence × temps"),
-    ("Et si", "Simulateur de filtres"),
+/// maquettes), titre de la page à ouvrir et icône Lucide de l'onglet (celles du prototype ; « Et si », absent du
+/// prototype, prend l'entonnoir des filtres).
+pub const VUES_BRUIT: [(&str, &str, &str); 4] = [
+    ("Spectre", "Analyse spectrale", "audio-waveform"),
+    ("Fréq. × gaz", "Fréquence × gaz", "grid-3x3"),
+    ("Fréq. × temps", "Fréquence × temps", "clock"),
+    ("Et si", "Simulateur de filtres", "funnel"),
 ];
 
+/// Jeux de données que l'espace « Bruit et filtres » ne propose pas : le terme D avant ses filtres, reconstruit à partir
+/// du gyro et non enregistré (D-078). Il reste calculé ailleurs (retard des filtres D, « Et si », visualiseur).
+pub const NOT_IN_NOISE_SPACE: [&str; 1] = ["dterm_prefilt"];
+
+/// Le jeu de données est-il proposé dans l'espace « Bruit et filtres » ?
+pub fn in_noise_space(key: &str) -> bool {
+    !NOT_IN_NOISE_SPACE.contains(&key)
+}
+
+/// Jeux de données des listes de l'espace « Bruit et filtres » (clé, libellé), dans l'ordre de `DATASETS`.
+pub fn noise_datasets() -> impl Iterator<Item = (&'static str, &'static str)> {
+    otb_analysis::datasets::DATASETS
+        .iter()
+        .copied()
+        .filter(|(k, _)| in_noise_space(k))
+}
+
 /// La barre d'onglets d'un espace, en haut de chacune de ses vues : rend le titre de la page à ouvrir quand on
-/// clique une autre vue. L'onglet de la vue affichée est mis en valeur et ne fait rien.
+/// clique une autre vue. Dessin du prototype (`tabOn`) : icône et nom, gris pour les autres vues, bleu et souligné de
+/// 2 px pour la vue affichée, qui ne fait rien ; un trait fin sous toute la barre. Au survol, un onglet passe à la
+/// couleur du texte, se souligne en gris et la souris prend la main : sans cela, on ne voyait pas que c'étaient des
+/// boutons (retour de Cédric, 2026-11-25).
 pub fn space_tabs(ui: &mut Ui, courante: &'static str, th: &Theme) -> Option<&'static str> {
     let mut aller = None;
-    ui.horizontal_wrapped(|ui| {
-        for (court, titre) in VUES_BRUIT {
+    let blue = th.accent("blue");
+    let mut underlines = Vec::new();
+    let row = ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 20.0;
+        for (court, titre, nom) in VUES_BRUIT {
             let ici = titre == courante;
-            let texte = RichText::new(court).color(if ici { th.ui.text } else { th.accent("blue") });
-            if ui.add(egui::Button::new(texte).selected(ici).frame(ici)).clicked() && !ici {
-                aller = Some(titre);
+            let mut texte = RichText::new(court).size(13.5);
+            if ici {
+                texte = texte.strong();
+            }
+            let galley = egui::WidgetText::from(texte).into_galley(
+                ui,
+                Some(egui::TextWrapMode::Extend),
+                f32::INFINITY,
+                egui::TextStyle::Button,
+            );
+            // prototype : 2 px de marge à gauche et à droite, 8 en haut, 7 en bas ; icône de 16, 7 px avant le nom
+            let size = egui::vec2(
+                2.0 + 16.0 + 7.0 + galley.size().x + 2.0,
+                8.0 + galley.size().y.max(16.0) + 7.0,
+            );
+            let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
+            r.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, ici, court));
+            let color = if ici {
+                blue
+            } else if r.hovered() {
+                th.ui.text
+            } else {
+                th.ui.muted
+            };
+            let cy = rect.top() + 8.0 + galley.size().y.max(16.0) / 2.0;
+            let icon_rect =
+                egui::Rect::from_center_size(egui::pos2(rect.left() + 2.0 + 8.0, cy), egui::Vec2::splat(16.0));
+            crate::icons::icon(nom, 16.0).tint(color).paint_at(ui, icon_rect);
+            let text_pos = egui::pos2(icon_rect.right() + 7.0, cy - galley.size().y / 2.0);
+            ui.painter().galley(text_pos, galley, color);
+            if ici {
+                underlines.push((rect.x_range(), blue));
+            } else {
+                if r.hovered() {
+                    underlines.push((rect.x_range(), th.ui.muted));
+                }
+                if r.clicked() {
+                    aller = Some(titre);
+                }
+                r.on_hover_cursor(egui::CursorIcon::PointingHand);
             }
         }
     });
-    ui.separator();
+    // un trait fin sous toute la barre, et celui de l'onglet par-dessus (`border-bottom` du prototype)
+    let y = row.response.rect.bottom();
+    let painter = ui.painter();
+    painter.hline(ui.max_rect().x_range(), y - 0.5, egui::Stroke::new(1.0, th.ui.border));
+    for (x, c) in underlines {
+        painter.hline(x, y - 1.0, egui::Stroke::new(2.0, c));
+    }
+    ui.add_space(6.0);
     aller
 }
 
@@ -432,6 +500,6 @@ pub fn harmonic_style(h: i64) -> egui_plot::LineStyle {
     match h {
         1 => egui_plot::LineStyle::Solid,
         2 => egui_plot::LineStyle::dashed_dense(),
-        _ => egui_plot::LineStyle::dotted_dense(),
+        _ => crate::plots::dotted(),
     }
 }

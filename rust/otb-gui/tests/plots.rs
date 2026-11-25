@@ -5,7 +5,8 @@ use egui::{Color32, Pos2, vec2};
 use egui_kittest::Harness;
 use egui_plot::{GridInput, Line, Plot, PlotPoints, VLine};
 use otb_gui::plots::{
-    VDrag, decimate_minmax, error_bars, format_hz, heatmap_pixels, log_grid, log_points, right_axis_scale,
+    DOT_SPACING, VDrag, decimate_minmax, error_bars, format_hz, heatmap_pixels, log_grid, log_points, right_axis_scale,
+    stroke,
 };
 use otb_gui::theme::Palette;
 
@@ -347,4 +348,24 @@ fn reperes_en_francais_et_vols_entiers() {
     });
     assert!(g.iter().all(|m| m.value.fract() == 0.0 && m.value >= 1.0));
     assert_eq!(g[0].value, 5.0);
+}
+
+/// ⚠️ egui_plot prend l'épaisseur d'un pointillé pour rayon de ses points (L-122) : `stroke` la divise par deux pour que
+/// les points aient le diamètre demandé, et écarte les points d'au moins deux diamètres ; les autres styles passent
+/// tels quels.
+///
+/// **Contre-preuve** : `stroke` qui rend l'épaisseur telle quelle fait rougir la première assertion.
+#[test]
+fn un_pointille_a_des_points_du_diametre_demande() {
+    use egui_plot::LineStyle;
+    assert_eq!(
+        stroke(2.0, otb_gui::plots::dotted()),
+        (1.0, LineStyle::Dotted { spacing: DOT_SPACING })
+    );
+    assert_eq!(
+        stroke(3.0, LineStyle::Dotted { spacing: 1.0 }),
+        (1.5, LineStyle::Dotted { spacing: 6.0 })
+    );
+    assert_eq!(stroke(2.0, LineStyle::Solid), (2.0, LineStyle::Solid));
+    assert_eq!(stroke(1.5, LineStyle::dashed_dense()), (1.5, LineStyle::dashed_dense()));
 }

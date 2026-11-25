@@ -475,7 +475,7 @@ impl FilterSimTool {
                     "gyro_sim_cur",
                     "gyro simulé (actuel)",
                     plot::SIM_CURRENT,
-                    LineStyle::dotted_dense(),
+                    crate::plots::dotted(),
                     2.0,
                 ));
             }
@@ -497,7 +497,7 @@ impl FilterSimTool {
                     "d_sim_cur",
                     "D simulé (actuel)",
                     plot::SIM_CURRENT,
-                    LineStyle::dotted_dense(),
+                    crate::plots::dotted(),
                     2.0,
                 ));
             }
@@ -630,12 +630,11 @@ impl FilterSimTool {
                         pu.set_plot_bounds_y(lo..=hi);
                     }
                     for s in lines {
-                        pu.line(
-                            Line::new(s.label, PlotPoints::from(s.pts))
-                                .color(s.color)
-                                .width(s.width)
-                                .style(s.style),
-                        );
+                        pu.line(crate::plots::styled(
+                            Line::new(s.label, PlotPoints::from(s.pts)).color(s.color),
+                            s.width,
+                            s.style,
+                        ));
                     }
                 });
             });

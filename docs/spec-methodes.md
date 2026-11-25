@@ -123,7 +123,8 @@ ils viennent du bruit (`validation.md`).
   tranches vides (niveaux 0, 1, 2, 3, 4, 6) ; palette « hot » ; échelle amplitude 0–0,5, DSP −40..10 dB.
   Moyenne et pic annotés sur 100–1000 Hz (ou 20–60 Hz en mode « < 100 Hz »). Axe X en % de gaz.
 - Préréglages (PTB) : 1 Gyro pf | Gyro | D pf | D ; 2 Gyro pf | Gyro | P | D ; 3 Gyro | D | Consigne | Erreur PID ;
-  4 A|A|B|B Gyro pf | Gyro ; 5 A|A|B|B D pf | D ; 6–9 A|B|C|D Gyro pf / Gyro / D / Erreur PID.
+  4 A|A|B|B Gyro pf | Gyro ; 5 A|A|B|B D pf | D ; 6–9 A|B|C|D Gyro pf / Gyro / D / Erreur PID. Les nôtres
+  (`rust/otb-gui/src/tools/freq_throttle.rs:PRESETS`) retirent 1 et 5, au D préfiltre (D-078), et renumérotent les autres de 1 à 7.
 - **Fréquence × temps** : fenêtres centrées de 300 ms, pas de 300 / {1, 2, 5, 10} ms, DSP, lissage en fréquence
   aucun / 5 / 10 / 20 points (largeurs réelles 1 / 5 / 11 / 21), palette « hot », Z −30..10 dB.
   Superpositions : harmoniques moteur (eRPM) et centres des notchs dynamiques (debug FFT_FREQ).

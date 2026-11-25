@@ -3,9 +3,41 @@
 //! et la décimation min/max des longues séries.
 
 use egui::{Color32, ColorImage, Context, TextureHandle, TextureOptions};
-use egui_plot::{GridInput, GridMark};
+use egui_plot::{GridInput, GridMark, Line, LineStyle};
 
 use crate::theme::Palette;
+
+// ------------------------------------------------------------------ pointillés
+
+/// Écart entre deux points d'un pointillé fin (px) : deux fois leur diamètre, comme le `:` de PIDtoolbox.
+pub const DOT_SPACING: f32 = 4.0;
+
+/// Pointillé fin (le `:` de PIDtoolbox), à tracer par [`styled`].
+pub fn dotted() -> LineStyle {
+    LineStyle::Dotted { spacing: DOT_SPACING }
+}
+
+/// Épaisseur et style à donner à egui_plot pour qu'un pointillé ait des points de **diamètre** `width`, comme
+/// l'épaisseur d'un trait plein. ⚠️ egui_plot prend l'épaisseur pour **rayon** des points (L-122) : un pointillé
+/// d'épaisseur 2 donnait des perles de 4 px, plus grosses que le trait plein, qui s'entassent en chapelet sur un
+/// spectre dentelé. Les autres styles passent tels quels.
+pub fn stroke(width: f32, style: LineStyle) -> (f32, LineStyle) {
+    match style {
+        LineStyle::Dotted { spacing } => (
+            width / 2.0,
+            LineStyle::Dotted {
+                spacing: spacing.max(2.0 * width),
+            },
+        ),
+        s => (width, s),
+    }
+}
+
+/// Une courbe d'épaisseur `width` et de style `style`, pointillés corrigés par [`stroke`].
+pub fn styled(line: Line<'_>, width: f32, style: LineStyle) -> Line<'_> {
+    let (w, s) = stroke(width, style);
+    line.width(w).style(s)
+}
 
 // ------------------------------------------------------------------ axe logarithmique
 

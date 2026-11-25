@@ -14,7 +14,9 @@ use otb_analysis::npstat::percentile_f32;
 use otb_analysis::spectral::{Mode, freq_throttle, smooth_map, to_ptb_db};
 use otb_log::flightlog::FlightLog;
 
-use super::common::{AxisToggles, FileSelection, ViewMemo, fmt3, motor_freqs, nice_ceil, percentile_linear, wide};
+use super::common::{
+    AxisToggles, FileSelection, ViewMemo, fmt3, motor_freqs, nice_ceil, noise_datasets, percentile_linear, wide,
+};
 use crate::plots::{colorbar, corner_text, heatmap_texture, nice_axes};
 use crate::state::{AppState, NoiseSignal};
 use crate::theme::{AXIS_NAMES, Palette, Theme, plot};
@@ -54,43 +56,34 @@ impl XAxis {
 pub type ColumnChoice = (Option<&'static str>, Option<usize>);
 
 /// Préréglages de PIDtoolbox : (libellé, jeux de données des 4 colonnes, rang du fichier de chaque colonne dans la liste
-/// des fichiers choisis : A = 0, B = 1…).
-pub const PRESETS: [(&str, [&str; 4], [usize; 4]); 9] = [
+/// des fichiers choisis : A = 0, B = 1…). Ceux de PIDtoolbox qui montrent le terme D préfiltre (« Gyro pf | Gyro | D pf |
+/// D » et « A|A|B|B D pf | D ») sont retirés, comme ce jeu (D-078) ; les autres sont renumérotés.
+pub const PRESETS: [(&str, [&str; 4], [usize; 4]); 7] = [
     (
-        "1 : Gyro pf | Gyro | D pf | D",
-        ["gyro_prefilt", "gyro", "dterm_prefilt", "dterm"],
-        [0, 0, 0, 0],
-    ),
-    (
-        "2 : Gyro pf | Gyro | P | D",
+        "1 : Gyro pf | Gyro | P | D",
         ["gyro_prefilt", "gyro", "pterm", "dterm"],
         [0, 0, 0, 0],
     ),
     (
-        "3 : Gyro | D | Consigne | Erreur PID",
+        "2 : Gyro | D | Consigne | Erreur PID",
         ["gyro", "dterm", "setpoint", "pid_error"],
         [0, 0, 0, 0],
     ),
     (
-        "4 : A|A|B|B Gyro pf | Gyro",
+        "3 : A|A|B|B Gyro pf | Gyro",
         ["gyro_prefilt", "gyro", "gyro_prefilt", "gyro"],
         [0, 0, 1, 1],
     ),
-    (
-        "5 : A|A|B|B D pf | D",
-        ["dterm_prefilt", "dterm", "dterm_prefilt", "dterm"],
-        [0, 0, 1, 1],
-    ),
-    ("6 : A|B|C|D Gyro pf", ["gyro_prefilt"; 4], [0, 1, 2, 3]),
-    ("7 : A|B|C|D Gyro", ["gyro"; 4], [0, 1, 2, 3]),
-    ("8 : A|B|C|D D", ["dterm"; 4], [0, 1, 2, 3]),
-    ("9 : A|B|C|D Erreur PID", ["pid_error"; 4], [0, 1, 2, 3]),
+    ("4 : A|B|C|D Gyro pf", ["gyro_prefilt"; 4], [0, 1, 2, 3]),
+    ("5 : A|B|C|D Gyro", ["gyro"; 4], [0, 1, 2, 3]),
+    ("6 : A|B|C|D D", ["dterm"; 4], [0, 1, 2, 3]),
+    ("7 : A|B|C|D Erreur PID", ["pid_error"; 4], [0, 1, 2, 3]),
 ];
 
-/// Préréglages « A|A|B|B » du gyro et du terme D (`PRESETS`), pris quand on choisit un signal alors que les
-/// colonnes en mêlent plusieurs (D-069).
-pub const PRESET_GYRO: usize = 3;
-pub const PRESET_DTERM: usize = 4;
+/// Préréglages pris quand on choisit un signal alors que les colonnes en mêlent plusieurs (D-069) : le gyro avant et
+/// après ses filtres par fragment (« A|A|B|B »), le terme D filtré par fragment (« A|B|C|D », D-078).
+pub const PRESET_GYRO: usize = 2;
+pub const PRESET_DTERM: usize = 5;
 
 fn static_key(key: &str) -> Option<&'static str> {
     DATASETS.iter().find(|(k, _)| *k == key).map(|(k, _)| *k)
@@ -464,18 +457,23 @@ impl Tool for FreqThrottleTool {
         NoiseSignal::of_keys(self.columns.iter().filter_map(|c| c.0))
     }
 
-    /// Chaque colonne passe à l'autre signal, au même étage et sur le même fragment ; des colonnes mêlées (le
-    /// préréglage 1 de PIDtoolbox, l'erreur PID…) laissent place au préréglage « A|A|B|B » du signal : avant et
-    /// après ses filtres, une paire de colonnes par fragment.
+    /// Du gyro filtré seul au terme D, chaque colonne passe au terme D sur le même fragment ; sinon (gyro avant
+    /// filtres, terme D vers gyro, colonnes mêlées comme l'erreur PID…), le préréglage du signal : le gyro avant et
+    /// après ses filtres, une paire de colonnes par fragment, ou le terme D filtré par fragment (D-078).
     fn show_signal(&mut self, signal: NoiseSignal, state: &AppState) {
+        let filtered_only = self
+            .columns
+            .iter()
+            .filter_map(|c| c.0)
+            .all(|k| !datasets::is_prefilt(k));
         match self.signal() {
             Some(s) if s == signal => {}
-            Some(_) => {
+            Some(_) if signal == NoiseSignal::DTerm && filtered_only => {
                 for c in &mut self.columns {
                     c.0 = c.0.map(|k| signal.counterpart(k));
                 }
             }
-            None => {
+            _ => {
                 let preset = match signal {
                     NoiseSignal::Gyro => PRESET_GYRO,
                     NoiseSignal::DTerm => PRESET_DTERM,
@@ -583,7 +581,7 @@ impl Tool for FreqThrottleTool {
                         .width(120.0)
                         .show_ui(ui, |ui| {
                             ui.selectable_value(&mut self.columns[c].0, None, "(vide)");
-                            for (k, l) in DATASETS {
+                            for (k, l) in noise_datasets() {
                                 ui.selectable_value(&mut self.columns[c].0, Some(k), l);
                             }
                         })
