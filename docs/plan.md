@@ -76,7 +76,7 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 | 1 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075), mode disque essayé sur la G474 ; reste une carte SD réelle et Windows |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 | 3 | **34** | Emplacement de la bibliothèque au choix, avec déplacement sûr | **fait le 2026-11-25** (D-081) ; reste l'essai à la main sous Linux et Windows |
-| 4 | **35** | Tri des fenêtres de la réponse indicielle, puis recalibrage de l'assistant | **fait le 2026-11-25** (D-082) ; reste l'essai à la main par Cédric |
+| 4 | **35** | Tri des fenêtres de la réponse indicielle, puis recalibrage de l'assistant | **fait le 2026-11-25** (D-082), essayé à la main par Cédric |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 (fait le 2026-11-24) |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -312,7 +312,7 @@ Un départ maximal (`|r(0)| ≤ 0,1`) n'écarte rien sur ce log : à garder seul
 - [x] **Validation** : logs CHIRP d'Air65 (25, 45, 65 Hz) dans le sens de PIDtoolbox web ([validation.md](validation.md)) ;
       série BlackSummer (captures `PTB_FIGS_2026-08-16`) : au plus 0,015 d'écart sur ses vols propres, repère 1,03 gardé ;
       contre-preuves des tests du tri, de l'écran et du rang des fenêtres.
-- [ ] **Essai à la main** par Cédric : page Réponse indicielle (réglages du tri, légende), Assistant et fiche cible d'un
+- [x] **Essai à la main** par Cédric (2026-11-25, « c'est ok ») : page Réponse indicielle (réglages du tri, légende), Assistant et fiche cible d'un
       drone (mesures suivies refaites à l'ouverture de la fiche).
 - [ ] **Critère d'arrêt** : un tri qui écarte la majorité des fenêtres d'un vol propre, ou qui change le sens d'un
       conseil de l'assistant sans que la mesure l'explique → s'arrêter et revenir vers Cédric. **Non atteint** : 60 à 92 %
