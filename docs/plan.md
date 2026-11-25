@@ -65,9 +65,9 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14, 16 à 23, 28 à 31
-  et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 32, le 34 et le 35 sont ouverts (les parties
+  et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 32, le 34, le 35 et le 36 sont ouverts (les parties
   faites du 32 y sont déjà) ; les **24 et 25** restent du chantier des scripts firmware, **conditionnel** (D-062 ; 24a à 24e faits, reste l'écart au vol affiché), et les **26 et 27** en sont
-  sortis le 2026-11-18 ; le prochain numéro libre est **36**.
+  sortis le 2026-11-18 ; le prochain numéro libre est **37**.
 
 ## Ordre des étapes
 
@@ -77,6 +77,7 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 | 3 | **34** | Emplacement de la bibliothèque au choix, avec déplacement sûr | **fait le 2026-11-25** (D-081) ; reste l'essai à la main sous Linux et Windows |
 | 4 | **35** | Tri des fenêtres de la réponse indicielle, puis recalibrage de l'assistant | **fait le 2026-11-25** (D-082), essayé à la main par Cédric |
+| 5 | **36** | Retirer la page « Curseurs PID » | lot 35 (fait le 2026-11-25 : mêmes fichiers de la réponse indicielle) ; demandé par Cédric le 2026-11-25 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 (fait le 2026-11-24) |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -317,6 +318,45 @@ Un départ maximal (`|r(0)| ≤ 0,1`) n'écarte rien sur ce log : à garder seul
 - [ ] **Critère d'arrêt** : un tri qui écarte la majorité des fenêtres d'un vol propre, ou qui change le sens d'un
       conseil de l'assistant sans que la mesure l'explique → s'arrêter et revenir vers Cédric. **Non atteint** : 60 à 92 %
       des fenêtres gardées sur les logs CHIRP et BlackSummer ; chaque taux qui bouge suit un seuil recalculé.
+
+---
+
+## Lot 36 : retirer la page « Curseurs PID » (Sonnet)
+
+**But** : enlever de la barre de gauche la page **Curseurs PID** (positions des 8 curseurs du réglage simplifié,
+simulation « et si… », commandes CLI à coller). Demandé par Cédric le 2026-11-25 : elle n'est pas vraiment utile et
+**peut prêter à confusion**. Il a choisi de retirer **la page seule** :
+
+- **reste** le graphique « Curseurs PID Betaflight » sous le diagnostic de la page **Réponse indicielle** ;
+- **reste** la ligne « Curseurs simplifiés » de la page **Configuration** ;
+- **reste** tout le calcul (`rust/otb-analysis/src/sliders.rs`) : il sert à l'assistant (`rules.rs`), à la vérification
+  des logs et au guide (`log_check.rs`, `guide_page.rs`), au simulateur de filtres (`filter_sim_calc.rs`) et aux
+  références figées (`otb-parity`, `check-sliders`).
+
+**Branche** : `feat/remove-pid-sliders-page`.
+
+**À lire** : `rust/otb-gui/src/tools/pid_slider.rs`, `rust/otb-gui/src/tools/mod.rs:all_pages`, `rust/otb-gui/src/app.rs`
+(icône et ordre du rail), `rust/otb-gui/src/guide.rs:TOOLS`, `rust/otb-gui/src/tools/step_common.rs:slider_plot`,
+[decisions.md](decisions.md) D-015, D-060 et D-061, [spec-ecrans.md](spec-ecrans.md), [architecture.md](architecture.md).
+
+- [ ] **Décision** (numéro pris par `otb-dev numero D`) : la page est retirée ; l'objectif « couvrir tous les outils de
+      PIDtoolbox Pro V0.94 » devient « tous sauf Curseurs PID » (AGENTS.md, README, état en tête de ce plan) ; l'écart
+      au prototype (D-061, qui dessine cette page) est écrit.
+- [ ] **Code** : supprimer `pid_slider.rs`, son entrée dans `all_pages`, son icône et sa place dans le rail, son bouton
+      dans `guide.rs:TOOLS`. La case `sliders` du parcours (`rust/otb-advisor/src/tuning_path.rs`, « Curseurs de
+      réglage PID en mode RPY ») est une étape de réglage dans le configurateur, pas un lien : elle reste. Simplifier ce
+      qui ne servait qu'à la page (le losange de simulation de `slider_plot`, par exemple).
+- [ ] **Tests** : ôter ceux de la page (`rust/otb-gui/tests/step_tools.rs`, section « Curseurs PID » ; `rust/otb-gui/tests/app.rs`,
+      ordre du rail ; `rust/otb-gui/tests/contracts.rs`, icône ; `rust/otb-gui/examples/check_tools.rs`) en le disant dans la PR — retirer le test
+      d'un écran supprimé n'est pas affaiblir un test ; garder ceux du calcul et du graphique de la réponse indicielle ;
+      un test vérifie que le rail n'a plus la page.
+- [ ] **Documentation** : [guide-utilisateur.md](guide-utilisateur.md) (section « Curseurs PID » et liste du rail),
+      README, [architecture.md](architecture.md), [spec-ecrans.md](spec-ecrans.md) ; compétence `docs-sync`.
+- [ ] **Critère d'arrêt** : un texte de l'assistant ou du guide qui envoie l'utilisateur vers cette page (aucun trouvé
+      le 2026-11-25) : s'arrêter et demander à Cédric où le renvoyer.
+
+**Recouvrement** : le lot 35 (fusionné le 2026-11-25) a touché les mêmes fichiers de la réponse indicielle
+(`rust/otb-gui/src/tools/step.rs`, `step_common.rs`, `rust/otb-gui/tests/step_tools.rs`) : partir du `main` du jour.
 
 ---
 
