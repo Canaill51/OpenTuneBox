@@ -110,32 +110,29 @@ fn une_taille_libre_choisit_son_profil_et_le_dit() {
     );
 }
 
-/// Pôles, KV et boucle PID se lisent dans l'en-tête du vrai log ; un en-tête qui ne les porte pas ne donne
+/// Pôles et boucle PID se lisent dans l'en-tête du vrai log ; un en-tête qui ne les porte pas ne donne
 /// **rien** — surtout pas les 14 pôles et les 8 kHz que `Settings` met par défaut.
 ///
 /// Contre-preuve vue en échec (2026-11-25) : en lisant `motor_poles` sans regarder l'en-tête brut, la seconde
 /// assertion rougit (« 14 » inventé).
 #[test]
-fn le_log_dit_les_poles_le_kv_et_la_boucle_pid() {
+fn le_log_dit_les_poles_et_la_boucle_pid() {
     let log = &otb_log::flightlog::load(&donnees()).unwrap()[0];
     let m = machine_of_log(&log.settings, "2026-11-25");
     assert_eq!(
-        (m.poles.as_str(), m.kv.as_str(), m.pid_khz.as_str()),
-        ("14", "1960", "3.2"),
+        (m.poles.as_str(), m.pid_khz.as_str()),
+        ("14", "3.2"),
         "312 µs, une boucle sur 1 : 3,2 kHz"
     );
     let vide = machine_of_log(&otb_log::settings::Settings::default(), "2026-11-25");
-    assert_eq!(
-        (vide.poles, vide.kv, vide.pid_khz),
-        (String::new(), String::new(), String::new())
-    );
+    assert_eq!((vide.poles, vide.pid_khz), (String::new(), String::new()));
     assert_eq!(
         [8000.0, 4000.0, 3205.1, 1600.0, 2666.7].map(khz_text),
         ["8", "4", "3.2", "1.6", "2.7"]
     );
 }
 
-/// La fiche **suit** le log pour la boucle PID, ne **remplit** que les pôles et le KV vides, et dit sous le champ
+/// La fiche **suit** le log pour la boucle PID, ne **remplit** que les pôles vides, et dit sous le champ
 /// quand elle diffère du log ; un log plus ancien rouvert ne change rien ; un drone sans fiche n'en reçoit pas
 /// (D-068), mais la fiche qu'on lui ouvre part des valeurs du log.
 ///
@@ -146,7 +143,6 @@ fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
     let lu = |date: &str, pid: &str| otb_store::model::LogMachine {
         date: date.into(),
         poles: "14".into(),
-        kv: "1960".into(),
         pid_khz: pid.into(),
     };
     let mut d = avec_fiche("A", "A");
@@ -155,7 +151,6 @@ fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
     let s = d.sheet.clone().unwrap();
     assert_eq!(s.pid_khz, "3.2", "la boucle PID suit le log");
     assert_eq!(s.poles, "12", "les pôles saisis restent");
-    assert_eq!(s.kv, "1960", "le KV vide est rempli");
     assert_eq!(
         log_note("poles", &s.poles, d.from_log.as_ref()),
         Some((
@@ -164,7 +159,7 @@ fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
         ))
     );
     assert_eq!(
-        log_note("kv", &s.kv, d.from_log.as_ref()),
+        log_note("pid", &s.pid_khz, d.from_log.as_ref()),
         Some(("Lu dans le dernier log.".to_string(), false))
     );
     assert_eq!(
@@ -185,13 +180,16 @@ fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
     take_log(&mut sans, lu("2026-11-20", "4"));
     assert_eq!(sans.sheet, None, "pas de fiche inventée");
     let f = SheetForm::edit(&sans);
-    assert_eq!(
-        (f.sheet.poles.as_str(), f.sheet.kv.as_str(), f.sheet.pid_khz.as_str()),
-        ("14", "1960", "4")
-    );
+    assert_eq!((f.sheet.poles.as_str(), f.sheet.pid_khz.as_str()), ("14", "4"));
+    assert_eq!(f.sheet.kv, "", "le KV n'est jamais tiré du log");
 }
 
-/// Ouvrir un vrai log range ce qu'il dit dans le drone qui porte son nom, et la fiche suit sa boucle PID.
+/// Ouvrir un vrai log range ce qu'il dit dans le drone qui porte son nom, et la fiche suit sa boucle PID. Le KV,
+/// lui, reste celui du pilote — vide ici — bien que l'en-tête de ce log dise `motor_kv:1960` (D-077, Cédric :
+/// « les KV moteurs ne doivent pas être tirés du log »).
+///
+/// Contre-preuve vue en échec (2026-11-25) : en recopiant `motor_kv` dans la fiche à l'ouverture du log, la
+/// dernière assertion rougit (« 1960 »).
 #[test]
 fn un_log_ouvert_renseigne_la_fiche() {
     let mut app = App::new(otb_gui::tools::all_pages());
@@ -203,10 +201,8 @@ fn un_log_ouvert_renseigne_la_fiche() {
     let d = h.state().library.drone("cree-a-la-main").unwrap().clone();
     assert_eq!(d.from_log.as_ref().map(|m| m.pid_khz.as_str()), Some("3.2"));
     let s = d.sheet.unwrap();
-    assert_eq!(
-        (s.pid_khz.as_str(), s.poles.as_str(), s.kv.as_str()),
-        ("3.2", "14", "1960")
-    );
+    assert_eq!((s.pid_khz.as_str(), s.poles.as_str()), ("3.2", "14"));
+    assert_eq!(s.kv, "", "le KV n'est jamais tiré du log");
 }
 
 /// À l'écran : la taille se tape (hors de la liste), la taille des moteurs a son champ, et l'enregistrement les

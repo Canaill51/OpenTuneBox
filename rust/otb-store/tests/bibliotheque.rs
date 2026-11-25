@@ -483,7 +483,6 @@ fn la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste() {
     let lu = LogMachine {
         date: "2026-11-25".into(),
         poles: "14".into(),
-        kv: "1960".into(),
         pid_khz: "3.2".into(),
     };
     d.from_log = Some(lu.clone());

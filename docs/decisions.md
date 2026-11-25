@@ -72,7 +72,7 @@ ici, jamais dans le code.
 |---|---|---|
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
 | D-078 | **« Bruit et filtres » sans le terme D préfiltre** : le D avant filtres, reconstruit et non enregistré, n'est plus proposé dans le Spectre, Fréq. × gaz et Fréq. × temps ; « Terme D » montre le D filtré seul (une colonne par fragment dans × gaz) ; préréglages 1 et 5 de PIDtoolbox retirés ; onglets de l'espace dessinés comme le prototype ; **amende D-069** | 2026-11-25 |
-| D-077 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** : la taille se tape (la liste propose), son profil d'assistant se lit avec les bornes de la taille par le nom et s'écrit sous le champ ; champ « Taille des moteurs » ; pôles, KV et boucle PID lus dans l'en-tête du dernier log (par date) : la fiche suit la boucle PID, ne remplit pôles et KV que vides, et signale un écart sans le corriger **(amende D-068 et D-061)** | 2026-11-25 |
+| D-077 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** : la taille se tape (la liste propose), son profil d'assistant se lit avec les bornes de la taille par le nom et s'écrit sous le champ ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log (par date) : la fiche suit la boucle PID, ne remplit les pôles que vides, et signale un écart sans le corriger ; le KV reste saisi par le pilote, jamais tiré du log **(amende D-068 et D-061)** | 2026-11-25 |
 | D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
 | D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
 | D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
@@ -154,18 +154,20 @@ ici, jamais dans le code.
 
 ## 2026-11-25 — La fiche du drone lit le log
 
-### D-077 : taille saisie librement, taille des moteurs, pôles, KV et boucle PID lus dans le dernier log
+### D-077 : taille saisie librement, taille des moteurs, pôles et boucle PID lus dans le dernier log
 
 **Tranché par Cédric** le 2026-11-25, après son essai de la fiche : « la partie taille, c'est un menu déroulant où les
 chiffres sont verrouillés […] je voudrais qu'on puisse modifier ça. La partie des pôles moteurs, […] tu peux récupérer
 l'information à partir du log. La boucle PID, c'est la même chose. […] on voit le KV, mais on ne voit pas la taille du
 moteur. » Entre deux propositions pour chaque point, il a retenu : saisie libre avec la liste en proposition (plutôt
 qu'une liste plus « Autre… » et un profil choisi à la main) ; « suivre le log, avertir » (plutôt que toujours écraser par
-le log, ou des champs en lecture seule). Amende D-068 (champs de la fiche) et D-061 (écarts au prototype).
+le log, ou des champs en lecture seule). **Précisé** le même jour, après la première version qui lisait aussi le
+KV : « Les KV moteurs ne doivent pas être tirés du log, ça doit être quelque chose qui est ajouté par l'utilisateur.
+Comme la taille du drone, la taille des moteurs. » Amende D-068 (champs de la fiche) et D-061 (écarts au prototype).
 
 **Contexte.** La taille choisit le profil de seuils de l'assistant : la liste figée des huit tailles garantissait un
 profil connu, mais refusait un 3,5″ ou un 10″. Les pôles et la boucle PID se tapaient à la main alors que l'en-tête de
-chaque log les porte (`motor_poles`, `looptime` et `pid_process_denom`), comme le KV depuis Betaflight 4.5 (`motor_kv`).
+chaque log les porte (`motor_poles`, `looptime` et `pid_process_denom`).
 ⚠️ L'en-tête dit ce que **Betaflight** croit : un `motor_poles` faux y est recopié, et c'est justement ce qu'il faut voir.
 
 **Décision.**
@@ -178,28 +180,33 @@ chaque log les porte (`motor_poles`, `looptime` et `pid_process_denom`), comme l
   ne s'en sert. La section Machine passe à quatre lignes : taille, batterie, poids ; taille des moteurs, KV, pôles ;
   hélices, ESC, Betaflight ; boucle PID.
 - **Lu dans le log** (`Drone::from_log`, `model::LogMachine`, clé `lu_dans_le_log`) : à chaque log rangé
-  (`App::remember`), pôles, KV et boucle PID de l'en-tête (`drone_sheet::machine_of_log`, au dixième de kHz). Une valeur
+  (`App::remember`), pôles et boucle PID de l'en-tête (`drone_sheet::machine_of_log`, au dixième de kHz). Une valeur
   absente de l'en-tête reste **vide** : `Settings` met 14 pôles et 125 µs par défaut, on lit donc l'en-tête brut. Un
   log plus ancien que le dernier lu ne change rien (`take_log`).
-- **La fiche suit le log pour la boucle PID** (un réglage dont le log fait foi), mais **ne remplit pôles et KV que
+- **La fiche suit le log pour la boucle PID** (un réglage dont le log fait foi), mais **ne remplit les pôles que
   vides** : le pilote sait ce qu'il a monté. Une différence s'écrit sous le champ, en couleur « attention » (« Le dernier
   log dit 14 : vérifiez motor_poles dans Betaflight, le filtre RPM s'en sert. »), jamais corrigée en silence
   (`log_note`).
 - Un drone **sans fiche n'en reçoit pas** (D-068 reste) : la fiche qu'on lui ouvre part des valeurs du log plutôt que de
   celles d'un drone neuf ; de même pour « Nouveau drone » depuis le Guide, avec le log ouvert.
+- **Le KV n'est jamais tiré du log**, comme la taille du drone et celle des moteurs : il décrit le matériel monté, que
+  seul le pilote connaît ; le `motor_kv` de l'en-tête (Betaflight 4.5 et plus) n'est qu'un réglage, que rien n'oblige à
+  tenir juste.
 
 **Options écartées.** Liste plus « Autre… » avec un profil choisi à la main (un choix de plus, que la taille tapée suffit
 à faire) ; écraser toujours par le log (un `motor_poles` faux effacerait la bonne valeur du pilote) ; champs en lecture
 seule (un drone sans log ne pourrait plus être décrit, et l'écart ne se verrait plus) ; lire la taille des moteurs dans
-le log (l'en-tête ne la porte pas).
+le log (l'en-tête ne la porte pas) ; lire le KV dans le log (`motor_kv`), comme le faisait la première version : écarté
+par Cédric, c'est au pilote de le dire.
 
 **Témoins.** `rust/otb-advisor/tests/profiles.rs:taille_saisie_librement` (17 cas) ; `rust/otb-gui/tests/drone_sheet.rs` :
-`une_taille_libre_choisit_son_profil_et_le_dit`, `le_log_dit_les_poles_le_kv_et_la_boucle_pid` (sur
-`tests/data/jeno5_5s.bbl` : 14 pôles, 1960 KV, 3,2 kHz), `la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents`,
+`une_taille_libre_choisit_son_profil_et_le_dit`, `le_log_dit_les_poles_et_la_boucle_pid` (sur
+`tests/data/jeno5_5s.bbl` : 14 pôles, 3,2 kHz), `la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents`,
 `un_log_ouvert_renseigne_la_fiche`, `la_taille_et_la_taille_des_moteurs_se_tapent_a_l_ecran` ;
 `rust/otb-store/tests/bibliotheque.rs:la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste` (aller-retour, et
-fichier d'avant lu sans les nouveaux champs). Deux contre-preuves vues en échec (L-071) : lire `motor_poles` sans
-regarder l'en-tête brut, écrire les pôles du log par-dessus ceux du pilote. Captures `fiche-drone-*.png` des deux thèmes :
+fichier d'avant lu sans les nouveaux champs). Trois contre-preuves vues en échec (L-071) : lire `motor_poles` sans
+regarder l'en-tête brut, écrire les pôles du log par-dessus ceux du pilote, recopier `motor_kv` dans la fiche
+(`un_log_ouvert_renseigne_la_fiche` : l'en-tête de `jeno5_5s.bbl` dit 1960, la fiche garde son KV vide). Captures `fiche-drone-*.png` des deux thèmes :
 section Machine alignée sur Identité (un champ à unité qui dépassait sa colonne est corrigé au passage, L-111).
 
 ---
@@ -650,7 +657,7 @@ les 16,7 ms d'un écran à 60 images par seconde.
 
 ### D-068 : une seule fiche par drone, rangée dans la bibliothèque ; le Guide la lit
 
-**AMENDÉE par D-077** (2026-11-25) : taille saisie librement, champ « Taille des moteurs », pôles, KV et boucle PID lus dans le dernier log (la fiche suit la boucle PID, signale les écarts).
+**AMENDÉE par D-077** (2026-11-25) : taille saisie librement, champ « Taille des moteurs », pôles et boucle PID lus dans le dernier log (la fiche suit la boucle PID, signale les écarts).
 
 **Tranché par Cédric** le 2026-11-23, au début du lot 30d, entre deux propositions : une seule fiche (retenue) ou deux
 fichiers gardés ; et la « Fiche cible » repoussée au lot 31. Amende D-036 et D-039 (le fichier des fiches) et D-061

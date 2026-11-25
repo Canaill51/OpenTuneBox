@@ -16,7 +16,7 @@
 //! - **taille « 8″ et plus »** en plus des sept du prototype : l'assistant a un profil pour ces drones ;
 //! - **boucle PID à 1,6 kHz** en plus des cinq du prototype : la moitié d'un gyro BMI270, déjà proposée avant ;
 //! - **taille saisie librement** (la liste ne fait que proposer), le profil de l'Assistant qu'elle choisit écrit
-//!   dessous ; **taille des moteurs** (`2207`) en plus du KV ; **pôles, KV et boucle PID lus dans le dernier log**,
+//!   dessous ; **taille des moteurs** (`2207`) en plus du KV ; **pôles et boucle PID lus dans le dernier log**,
 //!   une note sous le champ quand la fiche en diffère (D-077, demandé par Cédric le 2026-11-25).
 
 use egui::{Align, Layout, RichText, Ui, Vec2};
@@ -101,7 +101,7 @@ pub fn khz_text(hz: f64) -> String {
     t.strip_suffix(".0").map_or_else(|| t.clone(), str::to_string)
 }
 
-/// Pôles, KV et boucle PID d'un log, datés de `date`. Une valeur que l'en-tête ne porte pas reste vide :
+/// Pôles et boucle PID d'un log, datés de `date` (jamais le KV : il est saisi par le pilote, D-077). Une valeur que l'en-tête ne porte pas reste vide :
 /// ⚠️ `Settings` remplace un `motor_poles` absent par 14, et un `looptime` absent par 125 µs — on regarde
 /// donc l'en-tête brut, sinon la fiche recevrait une valeur inventée.
 pub fn machine_of_log(s: &Settings, date: &str) -> LogMachine {
@@ -110,11 +110,6 @@ pub fn machine_of_log(s: &Settings, date: &str) -> LogMachine {
         date: date.to_string(),
         poles: if has("motor_poles") {
             s.motor_poles.to_string()
-        } else {
-            String::new()
-        },
-        kv: if has("motor_kv") && s.motor_kv > 0 {
-            s.motor_kv.to_string()
         } else {
             String::new()
         },
@@ -128,7 +123,7 @@ pub fn machine_of_log(s: &Settings, date: &str) -> LogMachine {
 
 /// Range ce qu'un log dit de la machine dans son drone. Un log **plus ancien** que le dernier lu ne change rien.
 /// La fiche, si elle existe, suit le log pour la boucle PID (un réglage de Betaflight, dont le log fait foi) ;
-/// pôles et KV n'y sont écrits que s'ils sont vides : le pilote sait mieux que Betaflight ce qu'il a monté, et
+/// les pôles n'y sont écrits que s'ils sont vides : le pilote sait mieux que Betaflight ce qu'il a monté, et
 /// une différence est signalée sous le champ (`log_note`), jamais corrigée en silence.
 pub fn take_log(drone: &mut Drone, m: LogMachine) {
     if drone.from_log.as_ref().is_some_and(|old| m.date < old.date) {
@@ -140,9 +135,6 @@ pub fn take_log(drone: &mut Drone, m: LogMachine) {
         }
         if s.poles.trim().is_empty() {
             s.poles = m.poles.clone();
-        }
-        if s.kv.trim().is_empty() {
-            s.kv = m.kv.clone();
         }
     }
     drone.from_log = Some(m);
@@ -158,12 +150,11 @@ fn same_number(a: &str, b: &str) -> bool {
 }
 
 /// La note sous un champ que le log renseigne : `None` si le log n'en dit rien ; sinon `(texte, true)` quand la
-/// fiche en diffère. `what` : `poles`, `kv` ou `pid`.
+/// fiche en diffère. `what` : `poles` ou `pid`.
 pub fn log_note(what: &str, sheet_value: &str, from_log: Option<&LogMachine>) -> Option<(String, bool)> {
     let m = from_log?;
     let v = match what {
         "poles" => &m.poles,
-        "kv" => &m.kv,
         _ => &m.pid_khz,
     };
     if v.is_empty() {
@@ -174,7 +165,6 @@ pub fn log_note(what: &str, sheet_value: &str, from_log: Option<&LogMachine>) ->
     }
     let text = match what {
         "poles" => format!("Le dernier log dit {v} : vérifiez motor_poles dans Betaflight, le filtre RPM s’en sert."),
-        "kv" => format!("Le dernier log dit {v} KV (motor_kv dans Betaflight)."),
         _ => format!("Le dernier log dit {} kHz.", khz(v)),
     };
     Some((text, true))
@@ -300,7 +290,7 @@ pub struct SheetForm {
 
 impl SheetForm {
     /// La fiche d'un drone de la bibliothèque ; un drone sans fiche part des valeurs d'un drone neuf, avec la
-    /// version de Betaflight, les pôles, le KV et la boucle PID de ses logs quand ils les disent.
+    /// version de Betaflight, les pôles et la boucle PID de ses logs quand ils les disent.
     pub fn edit(drone: &Drone) -> SheetForm {
         let sheet = drone.sheet.clone().unwrap_or_else(|| {
             let mut s = new_sheet();
@@ -308,11 +298,7 @@ impl SheetForm {
                 s.betaflight = v.to_string();
             }
             if let Some(m) = &drone.from_log {
-                for (field, v) in [
-                    (&mut s.poles, &m.poles),
-                    (&mut s.kv, &m.kv),
-                    (&mut s.pid_khz, &m.pid_khz),
-                ] {
+                for (field, v) in [(&mut s.poles, &m.poles), (&mut s.pid_khz, &m.pid_khz)] {
                     if !v.is_empty() {
                         field.clone_from(v);
                     }
@@ -951,7 +937,6 @@ fn machine(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
     let s = &mut form.sheet;
     let taille = size_note(&s.size);
     let poles = log_note("poles", &s.poles, from_log.as_ref());
-    let kv = log_note("kv", &s.kv, from_log.as_ref());
     let pid = log_note("pid", &s.pid_khz, from_log.as_ref());
     let pid = pid.map(|(t, w)| (format!("en kHz · {}", t.to_lowercase().trim_end_matches('.')), w));
     section(ui, th, "Machine", None, |ui| {
@@ -979,7 +964,7 @@ fn machine(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
                 None,
                 Some(("Stator, par exemple 2207.", false)),
             );
-            text_field(&mut c[1], th, "Moteurs", &mut s.kv, Some("KV"), as_note(&kv));
+            text_field(&mut c[1], th, "Moteurs", &mut s.kv, Some("KV"), None);
             text_field(
                 &mut c[2],
                 th,

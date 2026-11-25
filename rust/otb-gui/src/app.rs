@@ -971,7 +971,7 @@ impl App {
             .unwrap_or_else(|| otb_store::model::Drone::new(&nom, &nom));
         let drone_id = drone.id.clone();
         drone.firmware = first.settings.firmware.clone();
-        // pôles, KV et boucle PID de l'en-tête (D-077) : la fiche suit la boucle PID, compare le reste
+        // pôles et boucle PID de l'en-tête (D-077) : la fiche suit la boucle PID, compare les pôles
         crate::drone_sheet::take_log(&mut drone, crate::drone_sheet::machine_of_log(&first.settings, &date));
         if drone.first_seen.is_empty() {
             drone.first_seen = date.clone();
@@ -1378,11 +1378,7 @@ impl App {
                                 }
                                 // ce que l'en-tête dit remplace les valeurs d'un drone neuf (D-077)
                                 let m = crate::drone_sheet::machine_of_log(&l.log.settings, "");
-                                for (field, v) in [
-                                    (&mut sheet.poles, m.poles),
-                                    (&mut sheet.kv, m.kv),
-                                    (&mut sheet.pid_khz, m.pid_khz),
-                                ] {
+                                for (field, v) in [(&mut sheet.poles, m.poles), (&mut sheet.pid_khz, m.pid_khz)] {
                                     if !v.is_empty() {
                                         *field = v;
                                     }

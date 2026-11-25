@@ -84,16 +84,16 @@ pub struct Drone {
     pub from_log: Option<LogMachine>,
 }
 
-/// Pôles moteur, KV et boucle PID lus dans l'en-tête d'un log (`motor_poles`, `motor_kv`, `looptime` et
-/// `pid_process_denom`), écrits comme dans la fiche (`14`, `1950`, `3.2`) ; vide : l'en-tête ne le disait pas.
-/// ⚠️ C'est ce que **Betaflight** croit : un mauvais `motor_poles` y est recopié tel quel. La fiche le compare à
-/// ce que le pilote a saisi, elle ne l'écrase pas (D-077).
+/// Pôles moteur et boucle PID lus dans l'en-tête d'un log (`motor_poles`, `looptime` et `pid_process_denom`),
+/// écrits comme dans la fiche (`14`, `3.2`) ; vide : l'en-tête ne le disait pas. ⚠️ C'est ce que **Betaflight**
+/// croit : un mauvais `motor_poles` y est recopié tel quel. La fiche le compare à ce que le pilote a saisi, elle ne
+/// l'écrase pas (D-077). Le KV n'en fait **pas** partie : comme la taille, il est saisi par le pilote, seul à savoir
+/// quels moteurs il a montés (`motor_kv` de l'en-tête n'est qu'un réglage, souvent laissé à sa valeur d'usine).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LogMachine {
     /// Date du log (ISO) : un log plus ancien rouvert ne remplace pas celui-ci.
     pub date: String,
     pub poles: String,
-    pub kv: String,
     pub pid_khz: String,
 }
 
@@ -102,7 +102,6 @@ impl LogMachine {
         object(vec![
             ("le", self.date.clone().into()),
             ("poles", self.poles.clone().into()),
-            ("kv", self.kv.clone().into()),
             ("boucle_pid_khz", self.pid_khz.clone().into()),
         ])
     }
@@ -111,7 +110,6 @@ impl LogMachine {
         LogMachine {
             date: text(v, "le"),
             poles: text(v, "poles"),
-            kv: text(v, "kv"),
             pid_khz: text(v, "boucle_pid_khz"),
         }
     }
