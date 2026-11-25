@@ -39,11 +39,22 @@ fn strs(v: &Value) -> Vec<String> {
         .collect()
 }
 
+/// Limite d'angle : Python la donnait à 30° tout rond ; depuis le 2026-11-25 (choix de Cédric), 30° reste conseillé et toute
+/// valeur de 20 à 45° convient. Seuls le titre et l'aide de la case `log_rates` changent.
+fn angle_limit_now(python: &str) -> String {
+    python
+        .replace("limite d'angle 30°", "limite d'angle 30° (de 20 à 45°)")
+        .replace(
+            "« Limite de l'Angle » : **30** (elle",
+            "« Limite de l'Angle » : **30** conseillé, toute valeur de 20 à 45 convient (elle",
+        )
+}
+
 fn check_step(what: &str, c: &Value, got: &Step, w: &Value) {
     let key = &got.key;
     assert_eq!(*key, w[0].as_str().unwrap(), "{what} : clé de case");
-    assert_eq!(got.title, text(c, &w[1]), "{what} : {key} titre");
-    assert_eq!(got.help, text(c, &w[2]), "{what} : {key} aide");
+    assert_eq!(got.title, angle_limit_now(text(c, &w[1])), "{what} : {key} titre");
+    assert_eq!(got.help, angle_limit_now(text(c, &w[2])), "{what} : {key} aide");
     assert_eq!(got.checks, strs(&w[3]), "{what} : {key} vérifications");
     assert_eq!(got.usages, strs(&w[4]), "{what} : {key} usages");
     assert_eq!(got.any_log, w[5].as_bool().unwrap(), "{what} : {key} any_log");

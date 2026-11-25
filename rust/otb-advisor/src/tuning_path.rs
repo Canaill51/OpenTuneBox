@@ -6,7 +6,8 @@
 
 use crate::drone_card::{DYN_NOTCH_DEFAULTS, DroneCard, FF_SERIES, MASTER_SERIES, RPM_DEFAULTS};
 use crate::log_check::{
-    BLOCK, FILTERS, FilterTargets, LOG_ANGLE_LIMIT, LOG_RATE_DPS, LogCheck, OK, PID, WARN, configurator_slider,
+    BLOCK, FILTERS, FilterTargets, LOG_ANGLE_LIMIT, LOG_ANGLE_LIMIT_RANGE, LOG_RATE_DPS, LogCheck, OK, PID, WARN,
+    configurator_slider,
 };
 use otb_format::fixed;
 
@@ -164,7 +165,9 @@ fn defaults_help(c: &DroneCard) -> String {
 
 fn log_rates_help(c: &DroneCard) -> String {
     format!(
-        "Les mouvements de réglage se font en **mode Angle**, ou en **Acro avec le feedforward à 0**, avec des rates linéaires : la réponse est la même, le mode Angle rend les mouvements plus faciles à doser (le firmware y coupe le feedforward). Onglet **Réglages de PID**, choisissez un profil de rates libre (ex. 3) et nommez-le « LOG » : « Type de rates » ACTUAL, « Sensibilité au centre » {LOG_RATE_DPS}, « Max Vel » {LOG_RATE_DPS}, Expo 0, sur les trois axes. Puis « Limite de l'Angle » : **{LOG_ANGLE_LIMIT}** (elle appartient au profil PID, et ne sert qu'en mode Angle).\n\nCLI : `set rates_type = ACTUAL`, `set roll_rc_rate = {}`, `set roll_srate = {}`, `set roll_expo = 0` (idem pitch et yaw), `set {} = {LOG_ANGLE_LIMIT}`.",
+        "Les mouvements de réglage se font en **mode Angle**, ou en **Acro avec le feedforward à 0**, avec des rates linéaires : la réponse est la même, le mode Angle rend les mouvements plus faciles à doser (le firmware y coupe le feedforward). Onglet **Réglages de PID**, choisissez un profil de rates libre (ex. 3) et nommez-le « LOG » : « Type de rates » ACTUAL, « Sensibilité au centre » {LOG_RATE_DPS}, « Max Vel » {LOG_RATE_DPS}, Expo 0, sur les trois axes. Puis « Limite de l'Angle » : **{LOG_ANGLE_LIMIT}** conseillé, toute valeur de {} à {} convient (elle appartient au profil PID, et ne sert qu'en mode Angle).\n\nCLI : `set rates_type = ACTUAL`, `set roll_rc_rate = {}`, `set roll_srate = {}`, `set roll_expo = 0` (idem pitch et yaw), `set {} = {LOG_ANGLE_LIMIT}`.",
+        LOG_ANGLE_LIMIT_RANGE.0,
+        LOG_ANGLE_LIMIT_RANGE.1,
         LOG_RATE_DPS / 10,
         LOG_RATE_DPS / 10,
         c.angle_limit_setting()
@@ -261,7 +264,7 @@ pub fn phases(card: &DroneCard) -> Vec<Phase> {
                 .logs(FILTERS),
             Step::new(
                 "log_rates",
-                format!("Profil de rates « LOG » : ACTUAL {LOG_RATE_DPS} / {LOG_RATE_DPS} / 0, limite d'angle {LOG_ANGLE_LIMIT}°"),
+                format!("Profil de rates « LOG » : ACTUAL {LOG_RATE_DPS} / {LOG_RATE_DPS} / 0, limite d'angle {LOG_ANGLE_LIMIT}° (de {} à {}°)", LOG_ANGLE_LIMIT_RANGE.0, LOG_ANGLE_LIMIT_RANGE.1),
                 log_rates_help(card),
             )
             .checks(&["rates", "angle_limit"])
