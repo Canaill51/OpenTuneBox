@@ -324,7 +324,14 @@ simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, co
 ### Simulateur de filtres (Filtres)
 S'ouvre par l'onglet **Et si** de l'entrée **Bruit et filtres** du rail.
 Reconstitue la chaîne de filtres de Betaflight à partir du log. **Gyro | Terme D**, en tête du panneau, choisit les
-filtres à régler ; ceux du gyro ont deux pages, **Passe-bas et notchs** et **Notch dyn / RPM**. Modifiez un filtre, puis cliquez sur
+filtres à régler ; ceux du gyro ont deux pages, **Passe-bas et notchs** et **Notch dyn / RPM**. En tête des passe-bas du
+gyro et du terme D, le **multiplicateur du filtre**, comme dans Betaflight Configurator : coché, son curseur (de 0,10 à
+2,00, par pas de 0,05) recalcule les coupures des passe-bas actifs comme le firmware, plus de filtrage à gauche, moins à
+droite ; les fréquences sont alors grisées (type, mode et expo restent libres). Décochez-le pour les saisir à la main. Il
+part de l'état du log ; coché dans le log mais avec des coupures changées depuis, il démarre décoché, comme dans le
+configurateur. Aux extrémités (gyro jusqu'à 0,45 ou dès 1,55, terme D jusqu'à 0,75 ou dès 1,25), un avertissement rouge.
+Les commandes CLI écrivent alors l'état du curseur **et** les coupures : un `set` dans le CLI ne les recalcule pas.
+Modifiez un filtre, puis cliquez sur
 **Appliquer** : le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
 les filtres sur le gyro non filtré du vol, comme le firmware (notch dynamique compris : il suit les pics avec vos
 nouveaux réglages ; une à quelques secondes de calcul). Les spectres ne bougent **pas** tant que vous n'avez pas

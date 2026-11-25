@@ -220,7 +220,13 @@ pitch seulement : pr = roll_pitch_ratio, pp = pitch_pi_gain (1 en roll / yaw). A
 - 4.4/4.5 : défauts R {45,80,40,120}, P {47,84,46,125}; D_MIN_DEFAULT {30,34,0}.
   `d_min = DminDef·M·Dg·pr`; `D(max) = DminDef·M·Dg·pr·(1 + (Ddef−DminDef)/DminDef·s)`.
 - Multiplicateurs de filtres m : gyro dynamique 250m–500m, statique 250m, LPF2 500m ; D dynamique 75m–150m,
-  statique 75m, LPF2 150m (appliqués seulement aux réglages non nuls, limités à 1000).
+  statique 75m, LPF2 150m (appliqués seulement aux réglages non nuls, limités à 1000). Bornes du multiplicateur : 10 à 200
+  (`SIMPLIFIED_TUNING_FILTERS_MIN`, `SIMPLIFIED_TUNING_MAX`). Le firmware ne les applique qu'au changement d'un curseur (MSP,
+  menu OSD) ou par `defaults` / `simplified_tuning apply` dans le CLI, **pas** sur un `set` (`cli/cli.c`).
+  Betaflight Configurator (`FilterSubTab.vue`) : interrupteur et curseur de 0,10 à 2,00 par pas de 0,05 ; curseur mis =
+  fréquences grisées ; curseur grisé sans passe-bas actif ; avertissement gyro ≤ 0,45 ou ≥ 1,55, D ≤ 0,75 ou ≥ 1,25 ; un
+  curseur dont les fréquences ne sont plus celles qu'il donne est coupé à la lecture (`validateTuningSliders`). Réimplémenté
+  dans l'Et si des filtres (D-080).
 - Défauts : curseurs 100, mode RPY ; d_max_gain/advance 37/20 (4.4–2025.12), 0/35 (2026.6+) ;
   ff smooth 25 (4.x) / 65 (2025.12+) ; ff averaging OFF / 2_POINT ; iterm_windup 85 / 80.
 
