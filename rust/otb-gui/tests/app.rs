@@ -792,6 +792,47 @@ fn le_dossier_d_export_survit_entre_deux_lancements() {
 }
 
 #[test]
+fn le_theme_choisi_survit_entre_deux_lancements() {
+    use eframe::App as _;
+    // thème sombre choisi, application fermée puis relancée : elle rouvre en sombre
+    let mut a = App::new(Vec::new());
+    a.theme = theme::SOMBRE;
+    let mut stockage = Memoire::default();
+    a.save(&mut stockage);
+    let mut b = App::new(Vec::new());
+    assert_eq!(b.theme.name, "clair", "départ en clair avant la relecture");
+    b.restore(&stockage);
+    assert_eq!(b.theme.name, "sombre");
+    // et retour au clair : le choix suivant remplace le précédent
+    b.theme = theme::CLAIR;
+    b.save(&mut stockage);
+    let mut c = App::new(Vec::new());
+    c.theme = theme::SOMBRE;
+    c.restore(&stockage);
+    assert_eq!(c.theme.name, "clair");
+    // premier lancement (rien d'enregistré) ou nom inconnu : thème clair
+    let mut d = App::new(Vec::new());
+    d.restore(&Memoire::default());
+    assert_eq!(d.theme.name, "clair");
+    let mut inconnu = Memoire::default();
+    eframe::set_value(&mut inconnu, "theme", &"violet".to_string());
+    d.restore(&inconnu);
+    assert_eq!(d.theme.name, "clair");
+}
+
+#[test]
+fn le_theme_relu_s_applique_des_la_premiere_image() {
+    // relu avant la première image (comme au lancement), le thème sombre vaut tout de suite pour egui
+    let mut stockage = Memoire::default();
+    eframe::set_value(&mut stockage, "theme", &"sombre".to_string());
+    let mut app = App::new(Vec::new());
+    app.restore(&stockage);
+    let mut h = banc(app);
+    h.run();
+    assert_eq!(h.ctx.theme(), egui::Theme::Dark, "egui doit être passé en sombre");
+}
+
+#[test]
 fn une_capture_jamais_recue_est_abandonnee_et_l_export_suivant_reste_possible() {
     let dir = dossier_temp("muet");
     let mut h = banc_export_avec(Some(dir.join("a.png")), Rc::new(RefCell::new(Vec::new())), Muet);
