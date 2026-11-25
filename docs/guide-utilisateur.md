@@ -102,7 +102,8 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 - **Titre de la fenêtre** : le nom du programme suivi de sa **version** (« OpenTuneBox 0.9.0 ») — utile pour savoir
   laquelle vous utilisez avant de signaler un problème.
 - **Barre du haut** : la **barre de fragments** (une pastille par vol en analyse, voir ci-dessous), puis
-  **Ouvrir…**, l'icône qui exporte la fenêtre en image et la lune qui passe au **thème sombre** (ou clair).
+  **Ouvrir…**, l'icône qui exporte la fenêtre en image et la lune qui passe au **thème sombre** (ou clair) ;
+  OpenTuneBox rouvre avec le dernier thème choisi.
 - **La barre de fragments** décide de ce que montrent **tous les outils** : chaque pastille porte la couleur de ses
   courbes, le nom du fragment et celui du drone. Survolez-la pour sa fiche (rôle, date, heure de début, durée,
   PID roll, firmware).

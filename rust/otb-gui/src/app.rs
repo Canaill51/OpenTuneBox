@@ -428,11 +428,15 @@ impl App {
         };
     }
 
-    /// Dossier du dernier export, relu au lancement.
+    /// Dossier du dernier export et thème choisi, relus au lancement. Un nom de thème absent ou inconnu
+    /// laisse le thème clair (`theme::by_name`).
     pub fn restore(&mut self, storage: &dyn eframe::Storage) {
         self.export_dir = eframe::get_value::<String>(storage, "export_dir")
             .filter(|d| !d.is_empty())
             .map(PathBuf::from);
+        if let Some(name) = eframe::get_value::<String>(storage, "theme") {
+            self.theme = theme::by_name(&name);
+        }
     }
 
     /// Fichiers reçus au lancement (double-clic) : ouverts, et l'écran passe aux courbes sans attendre le premier log,
@@ -1707,7 +1711,8 @@ impl eframe::App for App {
         self.ui(ui);
     }
 
-    /// Mémoire du Guide entre deux lancements (D-039) : phase, fiche choisie, rôle de chaque log.
+    /// Mémoire entre deux lancements : celle du Guide (D-039 : phase, fiche choisie, rôle de chaque log), le dossier
+    /// du dernier export et le thème choisi.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         // la bibliothèque a ses propres fichiers : une erreur d'écriture se dit dans la barre d'état plutôt que
         // de passer inaperçue (une bibliothèque en mémoire, elle, n'écrit rien et ne peut pas échouer)
@@ -1724,5 +1729,6 @@ impl eframe::App for App {
                 .map(|d| d.to_string_lossy().into_owned())
                 .unwrap_or_default(),
         );
+        eframe::set_value(storage, "theme", &self.theme.name.to_string());
     }
 }
