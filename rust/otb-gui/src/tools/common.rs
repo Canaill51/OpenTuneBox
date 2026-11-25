@@ -17,17 +17,17 @@ pub const MOTOR_LABELS: [&str; 4] = ["M1/5", "M2/6", "M3/7", "M4/8"];
 pub const ESPACE_BRUIT: &str = "Bruit et filtres";
 
 /// Les quatre vues de l'espace « Bruit et filtres » : **nom court affiché** (celui des pages du Guide et des
-/// maquettes), titre de la page à ouvrir et icône Lucide de l'onglet (celles du prototype ; « Et si », absent du
+/// maquettes), titre de la page à ouvrir et icône Lucide de l'onglet (celles du prototype ; le « Simulateur », absent du
 /// prototype, prend l'entonnoir des filtres).
 pub const VUES_BRUIT: [(&str, &str, &str); 4] = [
     ("Spectre", "Analyse spectrale", "audio-waveform"),
     ("Fréq. × gaz", "Fréquence × gaz", "grid-3x3"),
     ("Fréq. × temps", "Fréquence × temps", "clock"),
-    ("Et si", "Simulateur de filtres", "funnel"),
+    ("Simulateur", "Simulateur de filtres", "funnel"),
 ];
 
 /// Jeux de données que l'espace « Bruit et filtres » ne propose pas : le terme D avant ses filtres, reconstruit à partir
-/// du gyro et non enregistré (D-078). Il reste calculé ailleurs (retard des filtres D, « Et si », visualiseur).
+/// du gyro et non enregistré (D-078). Il reste calculé ailleurs (retard des filtres D, Simulateur, visualiseur).
 pub const NOT_IN_NOISE_SPACE: [&str; 1] = ["dterm_prefilt"];
 
 /// Le jeu de données est-il proposé dans l'espace « Bruit et filtres » ?

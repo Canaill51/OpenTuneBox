@@ -283,7 +283,7 @@ fn le_rail_porte_les_entrees_de_navigation() {
 /// ⚠️ D-060 : les quatre vues de l'espace « Bruit et filtres » s'atteignent les unes depuis les autres par ses
 /// onglets, sans repasser par le rail, et le rail reste allumé sur l'espace.
 ///
-/// **Contre-preuve** : en rendant `space_goto` toujours `None` dans `take_goto`, le clic sur « Et si » ne change
+/// **Contre-preuve** : en rendant `space_goto` toujours `None` dans `take_goto`, le clic sur « Simulateur » ne change
 /// plus de vue et l'assertion sur le Simulateur rougit.
 #[test]
 fn les_onglets_de_lespace_mènent_aux_quatre_vues() {
@@ -297,7 +297,7 @@ fn les_onglets_de_lespace_mènent_aux_quatre_vues() {
     };
     assert_eq!(titre(&h), "Analyse spectrale", "l'espace s'ouvre sur sa première vue");
     for (onglet, attendu) in [
-        ("Et si", "Simulateur de filtres"),
+        ("Simulateur", "Simulateur de filtres"),
         ("Fréq. × temps", "Fréquence × temps"),
         ("Fréq. × gaz", "Fréquence × gaz"),
         ("Spectre", "Analyse spectrale"),

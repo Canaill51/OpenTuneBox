@@ -22,7 +22,7 @@ automatiquement, réglables à l'échantillon près), barre de navigation sur to
 fréquence entre deux points, lecteur, manches, modes de vol. Le fragment enregistré est retenu d'un lancement à
 l'autre, et tous les outils l'analysent. Chaque outil s'affiche par son entrée du **rail de navigation**, à gauche,
 dans la même fenêtre. Une entrée peut réunir plusieurs vues : **Bruit et filtres** porte le Spectre, Fréq. × gaz,
-Fréq. × temps et le « Et si » des filtres, qui s'atteignent par ses onglets.
+Fréq. × temps et le Simulateur des filtres, qui s'atteignent par ses onglets.
 
 Quatre d'entre eux — **Analyse spectrale**, **Fréquence × gaz**, **Fréquence × temps** et **Simulateur de
 filtres** — partagent une seule entrée du rail, **Bruit et filtres**, et s'atteignent par ses onglets.
