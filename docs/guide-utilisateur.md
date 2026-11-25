@@ -94,7 +94,7 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 - **DShot bidirectionnel** activé (onglet **Moteurs**) ;
 - **un vol de réglage en deux parties** : 20 à 30 s de stationnaire avec des montées de gaz (bruit), puis 20
   à 30 s de wobbles en **mode Angle**, ou en **Acro avec le feedforward à 0**, avec le profil de rates
-  « LOG » (ACTUAL 200 / 200 / 0, limite d'angle 30° en mode Angle), roll et pitch mêlés (retard des filtres, réponse des PID). OpenTuneBox découpe les deux parties tout
+  « LOG » (ACTUAL 200 / 200 / 0, limite d'angle 30° conseillée en mode Angle, de 20 à 45° accepté), roll et pitch mêlés (retard des filtres, réponse des PID). OpenTuneBox découpe les deux parties tout
   seul.
 
 ## 4. La fenêtre, et les courbes du vol

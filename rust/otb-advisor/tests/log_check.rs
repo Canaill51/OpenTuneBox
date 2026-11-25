@@ -51,13 +51,29 @@ fn check_items(what: &str, got: &[CheckItem], want: &Value) {
         let key = &g.key;
         assert_eq!(g.title, w["title"].as_str().unwrap(), "{what} : {key} titre");
         assert_eq!(g.status, w["status"].as_str().unwrap(), "{what} : {key} état");
-        assert_eq!(g.detail, w["detail"].as_str().unwrap(), "{what} : {key} texte");
+        let detail = w["detail"].as_str().unwrap();
+        assert_eq!(g.detail, angle_limit_now(detail), "{what} : {key} texte");
         let fixes = w["fixes"].as_array().unwrap();
         assert_eq!(g.fixes.len(), fixes.len(), "{what} : {key} nombre de corrections");
         for (gf, wf) in g.fixes.iter().zip(fixes) {
             assert_eq!(gf.where_, wf[0].as_str().unwrap(), "{what} : {key} où");
             assert_eq!(gf.cli, wf[1].as_str().unwrap(), "{what} : {key} commandes");
         }
+    }
+}
+
+/// Limite d'angle : Python exigeait 30° tout rond ; depuis le 2026-11-25 (choix de Cédric), 20 à 45° conviennent et 30° reste
+/// conseillé. Les cas Python n'ont que 0°, 30°, 55° et « non enregistrée » : seuls les textes changent, pas les états
+/// (0° et 55° restent « à revoir ») ; la plage elle-même est éprouvée par `limite_d_angle_de_20_a_45_degres`.
+fn angle_limit_now(python: &str) -> String {
+    match python {
+        "0° : le protocole demande 30°." => "0° : le protocole conseille de 20 à 45° (30° conseillé).".into(),
+        "55° : le protocole demande 30°." => "55° : le protocole conseille de 20 à 45° (30° conseillé).".into(),
+        "Non enregistrée dans le log (Betaflight 4.4) : vérifiez qu'elle vaut 30°." => {
+            "Non enregistrée dans le log (Betaflight 4.4) : vérifiez qu'elle est entre 20 et 45° (30° conseillé)."
+                .into()
+        }
+        other => other.into(),
     }
 }
 
@@ -449,4 +465,57 @@ fn cli_commands_et_roles_comme_python() {
     assert_eq!(keys(Some("")), ["rates"]); // « role or self.role »
     assert_eq!(keys(Some("x")), ["rates"]); // rôle inconnu : les points des deux rôles sont écartés (log_rate aussi)
     assert_eq!(keys(Some(log_check::FILTERS)), ["rates", "log_rate"]);
+}
+
+/// Toute limite d'angle de 20 à 45° est acceptée sans remarque (25° des logs de l'Air65 de Cédric, 45° de bien des pilotes) ;
+/// en dehors, « à revoir » avec la correction vers 30°. Rejoué sur le cas Python où la limite vaut 30°.
+#[test]
+fn limite_d_angle_de_20_a_45_degres() {
+    let c = data();
+    let k = c["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| {
+            k["out"]["items"]
+                .as_array()
+                .is_some_and(|its| its.iter().any(|i| i["key"] == "angle_limit" && i["detail"] == "30°."))
+        })
+        .expect("un cas Python avec une limite d'angle de 30°");
+    let sel = (!k["sel"].is_null()).then(|| {
+        let s = k["sel"].as_array().unwrap();
+        s[0].as_u64().unwrap() as usize..s[1].as_u64().unwrap() as usize
+    });
+    for (lim, status, detail, fixes) in [
+        (20, "ok", "20° : convient (30° conseillé, de 20 à 45° sans souci).", 0),
+        (25, "ok", "25° : convient (30° conseillé, de 20 à 45° sans souci).", 0),
+        (30, "ok", "30°.", 0),
+        (45, "ok", "45° : convient (30° conseillé, de 20 à 45° sans souci).", 0),
+        (
+            19,
+            "à revoir",
+            "19° : le protocole conseille de 20 à 45° (30° conseillé).",
+            1,
+        ),
+        (
+            46,
+            "à revoir",
+            "46° : le protocole conseille de 20 à 45° (30° conseillé).",
+            1,
+        ),
+    ] {
+        let mut lg = log_of(&c, &k["log"]);
+        lg.settings.raw.insert("angle_limit".into(), lim.to_string());
+        let ck = log_check::check_log(&lg, sel.clone(), "essai", false).unwrap();
+        let it = ck
+            .items
+            .iter()
+            .find(|i| i.key == "angle_limit")
+            .expect("point angle_limit");
+        assert_eq!(
+            (it.status, it.detail.as_str(), it.fixes.len()),
+            (status, detail, fixes),
+            "{lim}°"
+        );
+    }
 }

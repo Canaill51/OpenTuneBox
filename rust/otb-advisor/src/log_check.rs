@@ -40,6 +40,9 @@ pub const RATES_TYPE_ACTUAL: i64 = 3;
 pub const LOG_RATE_DPS: i64 = 200;
 /// Limite d'angle conseillée pour le wobble [S33] (degrés).
 pub const LOG_ANGLE_LIMIT: i64 = 30;
+/// Limites d'angle acceptées sans remarque (degrés) : simple conseil, pas une exigence (Cédric, 2026-11-25) ;
+/// 20° pour un gros drone [S33], jusqu'à 45° sans effet gênant sur la lecture du wobble.
+pub const LOG_ANGLE_LIMIT_RANGE: (i64, i64) = (20, 45);
 /// Part du temps en mouvement où roll et pitch bougent ensemble (corpus, 2026-10-12).
 pub const AXES_MIXED_MIN: f64 = 0.4;
 /// Curseur Dynamic Damping « à 0 » pendant les séries [S34].
@@ -757,27 +760,33 @@ fn protocol_items(c: &mut Check, exact: bool) -> Result<(), String> {
             }
         ),
     )];
+    let (lo, hi) = LOG_ANGLE_LIMIT_RANGE;
     if acro {
     } else if lim < 0 {
         c.add(
             "angle_limit",
             "Limite d'angle",
             INFO,
-            format!("Non enregistrée dans le log (Betaflight 4.4) : vérifiez qu'elle vaut {LOG_ANGLE_LIMIT}°."),
+            format!(
+                "Non enregistrée dans le log (Betaflight 4.4) : vérifiez qu'elle est entre {lo} et {hi}° ({LOG_ANGLE_LIMIT}° conseillé)."
+            ),
             lim_fix,
         );
     } else {
+        let fine = (lo..=hi).contains(&lim);
         c.add(
             "angle_limit",
             "Limite d'angle",
-            if lim == LOG_ANGLE_LIMIT { OK } else { WARN },
+            if fine { OK } else { WARN },
             format!("{lim}°")
                 + &if lim == LOG_ANGLE_LIMIT {
                     ".".to_string()
+                } else if fine {
+                    format!(" : convient ({LOG_ANGLE_LIMIT}° conseillé, de {lo} à {hi}° sans souci).")
                 } else {
-                    format!(" : le protocole demande {LOG_ANGLE_LIMIT}°.")
+                    format!(" : le protocole conseille de {lo} à {hi}° ({LOG_ANGLE_LIMIT}° conseillé).")
                 },
-            if lim == LOG_ANGLE_LIMIT { vec![] } else { lim_fix },
+            if fine { vec![] } else { lim_fix },
         );
     }
 
