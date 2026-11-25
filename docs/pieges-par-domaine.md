@@ -135,6 +135,9 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
   branche ou restaure un fichier sous les pieds de l'autre. Chacune son worktree (compétence `chantiers`) ; un numéro de
   registre se prend par `otb-dev numero` ; les crochets se lisent dans le dossier principal, donc `check-docs.sh`
   vérifie le dossier de la conversation (`cwd`), pas `$CLAUDE_PROJECT_DIR`. L-125
+- Contre-preuve : un fichier restauré en renommant sa sauvegarde reprend une date **plus ancienne** que sa modification, et
+  cargo ne recompile pas — le binaire garde la protection cassée. Redonner l'heure au fichier (`touch`) après l'avoir
+  restauré. L-126
 
 - Une substitution `perl`/`sed` dont le délimiteur apparaît dans le texte (fermetures Rust `|x|`, `#` et `|` du
   Markdown, `/` des chemins) écrit au mauvais endroit sans erreur (un `\|` échappé devient une alternative) : outil

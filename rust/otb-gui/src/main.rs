@@ -43,13 +43,24 @@ fn main() -> eframe::Result {
         },
         Box::new(|cc| {
             otb_gui::app::setup(&cc.egui_ctx);
-            // seul le lancement réel ouvre la bibliothèque du poste : les bancs de test gardent la leur en mémoire
-            let mut library = otb_store::Library::open(otb_store::dir());
+            // seul le lancement réel ouvre la bibliothèque du poste : les bancs de test gardent la leur en mémoire.
+            // Elle est là où le pointeur le dit (D-081) ; introuvable, elle reste en mémoire et n'écrit **rien** : une
+            // bibliothèque vide recréée en silence à la place d'un disque débranché ferait croire à tout perdu.
+            let (mut library, missing) = match otb_store::place::locate(&otb_store::default_dir()) {
+                otb_store::place::Place::Ready { dir, .. } => (otb_store::Library::open(dir), None),
+                otb_store::place::Place::Missing { why, .. } => (otb_store::Library::in_memory(), Some(why)),
+            };
             for p in library.problems() {
                 eprintln!("bibliothèque : {p}");
             }
-            // les fiches de l'ancien fichier du Guide entrent dans la bibliothèque (D-068)
-            let reprise = otb_gui::drone_sheet::import_old_file(&mut library, &cards_path());
+            let warning = library.claim();
+            // les fiches de l'ancien fichier du Guide entrent dans la bibliothèque (D-068). ⚠️ Jamais dans une
+            // bibliothèque introuvable : la reprise renomme l'ancien fichier, et rien ne serait écrit.
+            let reprise = if missing.is_none() {
+                otb_gui::drone_sheet::import_old_file(&mut library, &cards_path())
+            } else {
+                None
+            };
             // le Guide reçoit ses fiches **avant** de retrouver la fiche choisie la dernière fois (par son nom)
             let mut guide = GuidePage::new();
             guide.refresh(otb_gui::drone_sheet::cards_of(&library));
@@ -64,6 +75,7 @@ fn main() -> eframe::Result {
             }
             // les pastilles de la dernière fois, rouvertes en arrière-plan (D-066)
             app.restore_analysis();
+            app.show_library_problem(missing, warning);
             Ok(Box::new(app))
         }),
     )

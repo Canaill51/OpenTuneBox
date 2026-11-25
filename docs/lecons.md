@@ -60,6 +60,24 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-126 : une contre-preuve qui restaure le fichier en renommant sa sauvegarde lui rend une date plus ancienne : cargo garde le binaire de la protection cassée
+
+- **Symptôme** — 2026-11-25 (lot 34) : après une série de contre-preuves menée par un petit script (copie de sauvegarde,
+  protection cassée, test, puis `shutil.move(sauvegarde, fichier)`), le test complet échoue sur
+  `une_relecture_differente_fait_echouer_le_deplacement` : la copie est déclarée identique alors que les deux fichiers
+  diffèrent sur le disque (`zzzzz` contre `aaaaa`). Le code source est pourtant bien restauré (`cmp` le confirme).
+- **Cause** — mesurée : la sauvegarde a la date de sa création, **antérieure** à la modification ; la renommer par-dessus le
+  fichier rend au fichier cette date ancienne. Cargo juge une crate à jour quand aucun de ses fichiers n'est plus récent que
+  sa dernière compilation : il n'a pas recompilé, et le test tournait encore avec la comparaison cassée (`if false`). Un
+  `touch` du fichier et le test repasse. Le même mécanisme peut faire **passer** une contre-preuve à tort si la casse n'a pas
+  été recompilée.
+- **Règle** — après avoir restauré un fichier dans une contre-preuve, lui redonner l'heure actuelle (`touch`, `os.utime`), ou
+  restaurer par une **copie** sans garder la date (`cp` sans `-p`) ; un test qui se met à échouer juste après une série de
+  contre-preuves : soupçonner un binaire périmé avant le code.
+- **Preuve** — `touch otb-store/src/place.rs otb-store/src/lib.rs` : les 11 tests de `rust/otb-store/tests/emplacement.rs`
+  repassent sans autre changement ; toutes les contre-preuves rejouées ensuite avec la date remise à jour échouent comme
+  attendu.
+
 ### L-125 : trois conversations, un seul dossier : branche changée sous les pieds, crochet qui vérifie le mauvais dossier, numéro cité hors du registre
 
 - **Symptôme** — 2026-11-25 : une conversation (thème) passe le dossier principal sur sa branche pendant qu'une autre (fiche
@@ -1606,6 +1624,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-126 | Contre-preuve qui restaure le fichier en renommant sa sauvegarde : il reprend une date ancienne et cargo garde le binaire de la protection cassée (test faux rouge, ou contre-preuve faux vert) ; redonner l'heure au fichier restauré (`touch`) | Outillage |
 | L-125 | Plusieurs conversations dans un seul dossier se partagent branche et fichiers ; les crochets tournent dans le dossier principal ; un numéro peut être cité ailleurs avant d'être au registre : un worktree par conversation, `otb-dev numero`, crochet parti du `cwd` | Outillage |
 | L-123 | Banc egui sans `app::setup` : pas de chargeur d'images, une icône devient un « ⚠ » que la police n'a pas et le test panique ; tout banc passe par `setup` | Interface |
 | L-122 | egui_plot prend l'épaisseur d'un pointillé pour rayon de ses points (perles deux fois trop grosses) : tout trait passe par `plots::styled` | Interface |

@@ -5,7 +5,7 @@
 
 use egui::{Image, Vec2};
 
-pub const ICONS: [(&str, &str); 34] = [
+pub const ICONS: [(&str, &str); 35] = [
     ("arrow-left", include_str!("../assets/icons/arrow-left.svg")),
     ("audio-waveform", include_str!("../assets/icons/audio-waveform.svg")),
     ("book-open", include_str!("../assets/icons/book-open.svg")),
@@ -21,6 +21,7 @@ pub const ICONS: [(&str, &str); 34] = [
     ("drone", include_str!("../assets/icons/drone.svg")),
     ("funnel", include_str!("../assets/icons/funnel.svg")),
     ("grid-3x3", include_str!("../assets/icons/grid-3x3.svg")),
+    ("hard-drive", include_str!("../assets/icons/hard-drive.svg")),
     ("image-down", include_str!("../assets/icons/image-down.svg")),
     ("info", include_str!("../assets/icons/info.svg")),
     ("lightbulb", include_str!("../assets/icons/lightbulb.svg")),

@@ -144,6 +144,12 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   dossier… », reconnexion seule après rebranchement, suppression SD en deux clics, section « Carte SD dans un lecteur »
   (`apply_reader_choice`, nom proposé lu dans le log : `craft_name`) ; `volumes` et `pick_folder` sont inertes dans les
   tests (L-075).
+- `library_page.rs` : l'écran **Bibliothèque** (lot 34, D-081), hors rail (`Screen::Library`), ouvert par le bouton du
+  tableau de bord (`DashAction::Library`) ou seul au lancement (`App::show_library_problem` : dossier introuvable, autre
+  poste) : chemin et contenu, « Ouvrir le dossier », « Changer d'emplacement… » (confirmation, puis copie relue sur un fil
+  de travail et barre d'avancement ; la fenêtre reste sur l'écran tant qu'elle dure), bibliothèque trouvée utilisée telle
+  quelle (`App::switch_library` ferme les logs ouverts et rouvre la liste d'analyse de la nouvelle). Les boîtes du
+  système et le dossier par défaut sont inertes dans `App::new` (L-075).
 - `drone_sheet.rs` : la **fiche d'un drone** (lot 30d, D-068), second écran hors rail du prototype (`Screen::DroneSheet` ; le
   rail reste, « Tableau de bord » choisi) : Identité, Machine, Configurations Betaflight (« Voir », « Comparer » au
   précédent), suppression en deux temps. La partie sans fenêtre : choix proposés, traduction fiche ↔ fiche du Guide
@@ -294,6 +300,12 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   déclencheur du plan sera atteint. Un fichier illisible ou d'une version plus récente est **mis de côté**, jamais écrasé
   (même règle que l'ancien fichier des fiches, D-039). `Library::remove_drone` emporte tout ce qui désigne le drone (W-075 :
   pas ses fichiers copiés) ; `model::config_changes` dit ce qui change d'un `diff all` au suivant. Mesures de volume dans [validation](validation.md). Dépendance : serde_json.
+  **Emplacement au choix** (lot 34, D-081) : `place.rs` tient le pointeur (`locate`, `set_pointer` ; `default_dir` est le
+  dossier par défaut), le choix d'un dossier (`target_of` : bibliothèque existante ou nouveau dossier), la copie relue
+  (`copy_library`, marque `deplacement-en-cours`, `finish_move`, `remove_old`) et le témoin d'ouverture (`Witness`,
+  `Library::claim` et `Library::release`) ; `Library::relocate` fait suivre les chemins, `Library::pause_writes` suspend
+  les écritures pendant la copie. ⚠️ Un log copié s'écrit **relatif** à la bibliothèque (`logs/<drone>/<fichier>`) et se
+  relit complet (`copied_path_in`).
 - **otb-usb** : récupération des logs par USB, **partie protocole** (lot 32a, D-063 ; mode stockage de masse et cartes SD : lot 32c, D-075 ; l'écran : lot 32b, `rust/otb-gui/src/usb.rs`). Ce que
   fait le firmware : [spec-usb](spec-usb.md). `frame.rs` : trames MSP v1 (« jumbo » dès 255 octets) et v2 (CRC-8 DVB-S2),
   écrites et lues octet par octet. `link.rs` : le trait `Link` (envoyer, recevoir dans un délai) et `SerialLink`, le vrai

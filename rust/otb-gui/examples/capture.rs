@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
-//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `tableau-de-bord-releve-<thème>.png` (la carte après le passage du Guide, D-071), `fiche-drone-<thème>.png`, `fiche-drone-suivi-<thème>.png` (les graphiques du suivi, lot 31c), `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
+//! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `bibliotheque-<thème>.png` et `bibliotheque-introuvable-<thème>.png` (lot 34, D-081), `tableau-de-bord-releve-<thème>.png` (la carte après le passage du Guide, D-071), `fiche-drone-<thème>.png`, `fiche-drone-suivi-<thème>.png` (les graphiques du suivi, lot 31c), `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
 //! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
 
 #[path = "../tests/support/clic.rs"]
@@ -82,6 +82,45 @@ fn main() {
             .expect("rendu")
             .save(out.join(format!("tableau-de-bord-{}.png", th.name)))
             .unwrap();
+        // l'écran de la bibliothèque (lot 34, D-081) : une bibliothèque d'essai dans le dossier temporaire, le
+        // déplacement vers un dossier vide qui attend sa confirmation ; puis la même, introuvable au lancement. La
+        // bibliothèque des logs ouverts est remise ensuite, pour la suite des captures.
+        {
+            let essai = std::env::temp_dir().join(format!("otb-capture-bibliotheque-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&essai);
+            let (dir, vers) = (essai.join("bibliotheque"), essai.join("Disque externe"));
+            std::fs::create_dir_all(&vers).unwrap();
+            let mut lib = otb_store::Library::open(dir.clone());
+            for d in h.state().library.drones() {
+                lib.put_drone(d.clone());
+            }
+            lib.save().unwrap();
+            let garde = std::mem::replace(&mut h.state_mut().library, lib);
+            h.state_mut().libpage.default_dir = Some(dir);
+            let a = h.state_mut();
+            a.libpage.choose(&a.library, &vers);
+            a.open_library_screen();
+            h.run_steps(4);
+            h.render()
+                .expect("rendu")
+                .save(out.join(format!("bibliotheque-{}.png", th.name)))
+                .unwrap();
+            h.state_mut().libpage.cancel();
+            h.state_mut().libpage.missing = Some(format!(
+                "le dossier de la bibliothèque est introuvable : {} (disque débranché ?)",
+                vers.join("OpenTuneBox").display()
+            ));
+            h.run_steps(4);
+            h.render()
+                .expect("rendu")
+                .save(out.join(format!("bibliotheque-introuvable-{}.png", th.name)))
+                .unwrap();
+            h.state_mut().libpage.missing = None;
+            h.state_mut().library = garde;
+            h.state_mut().screen = Screen::Dashboard;
+            h.run_steps(4);
+            let _ = std::fs::remove_dir_all(&essai);
+        }
         // la fiche du drone (lot 30d, D-068) : deux « diff all » d'exemple, en mémoire, pour voir la liste des
         // configurations ; la seconde dépliée par « Comparer »
         if let Some(id) = h.state().library.drones().first().map(|d| d.id.clone()) {

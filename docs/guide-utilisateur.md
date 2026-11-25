@@ -82,6 +82,33 @@ ses vols (le nom lu dans le log est proposé), puis **Copier la carte SD** ; la 
 
 OpenTuneBox **n'écrit jamais de réglage** sur la carte.
 
+### La bibliothèque : où elle est, la déplacer
+
+Les drones, leurs fiches, les fragments, les mesures suivies et les **logs copiés par USB** sont rangés dans la
+**bibliothèque**, un dossier de votre ordinateur ; les logs que vous ouvrez depuis vos propres dossiers restent où ils
+sont. Le bouton **Bibliothèque**, en haut du tableau de bord, montre où elle est et ce qu'elle contient ; **Ouvrir le
+dossier** l'affiche dans le gestionnaire de fichiers.
+
+**Changer d'emplacement…** la déplace, par exemple sur un disque plus grand ou dans un dossier sauvegardé. Choisissez un
+dossier : vide, il reçoit la bibliothèque ; sinon, elle va dans un sous-dossier `OpenTuneBox`. OpenTuneBox annonce ce
+qu'il y a à copier et attend **Déplacer**. Chaque fichier est copié puis **relu et comparé** à l'original ; l'ancien
+dossier n'est effacé qu'une fois la bibliothèque en service à son nouvel emplacement. Si quelque chose échoue avant, elle
+reste là où elle était, sans rien perdre. Ne fermez pas OpenTuneBox pendant le déplacement ; il attend la fin d'une
+récupération USB. **Revenir à l'emplacement par défaut** la ramène dans le dossier de départ.
+
+**Une bibliothèque se trouve déjà dans le dossier choisi** (copiée d'un autre PC, sur un disque externe) : OpenTuneBox
+propose de **l'utiliser telle quelle**. Les deux ne sont jamais mélangées : celle d'avant reste intacte à sa place, et les
+logs ouverts sont fermés.
+
+**Bibliothèque introuvable au lancement** (disque débranché) : l'écran **Bibliothèque** s'ouvre et le dit.
+**Réessayer** une fois le disque rebranché, **Choisir un autre dossier…** qui contient une bibliothèque, ou **Revenir à
+l'emplacement par défaut**. En attendant, rien de ce que vous faites n'est enregistré : OpenTuneBox ne crée jamais une
+bibliothèque vide à la place de la vôtre.
+
+**Dossier synchronisé** (Dropbox, OneDrive, Syncthing…) : n'ouvrez pas la même bibliothèque sur deux PC à la fois, les
+changements de l'un effaceraient ceux de l'autre. Si un autre PC l'a utilisée il y a moins de 10 minutes, OpenTuneBox
+vous prévient au lancement ; fermez-le là-bas avant de continuer.
+
 ## 3. Bien enregistrer
 
 Le guide intégré (page **Guide**, phase « Préparer le drone ») donne les réglages d'enregistrement adaptés à
@@ -126,7 +153,8 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   fragments, du plus récent en haut ; le rond **+** rouvre le vol correspondant sans passer par la boîte de fichiers,
   une coche verte marque ceux qui sont déjà ouverts, et le **crayon** ouvre les courbes du fragment pour en
   régler les limites. Le logiciel retient ces drones et ces vols **d'un lancement à l'autre** : un drone est
-  reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un fragment.
+  reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un fragment. En haut, **Bibliothèque** dit où ils sont rangés
+  et permet de les déplacer (voir [La bibliothèque](#la-bibliothèque--où-elle-est-la-déplacer)).
 - **Fiche du drone** : le crayon en haut à droite d'une carte, ou **Nouveau drone**, ouvre la fiche — nom (le même que
   dans Betaflight, onglet Configuration : c'est lui qui relie les logs au drone), taille (elle choisit les seuils de
   l'Assistant et les valeurs du Guide), batterie, poids, taille et KV des moteurs, pôles moteur, hélices, ESC, version de
