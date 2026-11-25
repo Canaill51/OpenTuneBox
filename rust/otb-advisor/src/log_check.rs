@@ -325,6 +325,17 @@ impl Check<'_> {
 }
 
 pub fn check_log(log: &FlightLog, sel: Option<Range<usize>>, label: &str, exact: bool) -> Result<LogCheck, String> {
+    check_log_with(log, sel, label, exact, &StepOptions::default())
+}
+
+/// [`check_log`] avec les options `step` de la réponse indicielle (`exact`) ; [`StepOptions::python`] : celles des références.
+pub fn check_log_with(
+    log: &FlightLog,
+    sel: Option<Range<usize>>,
+    label: &str,
+    exact: bool,
+    step: &StepOptions,
+) -> Result<LogCheck, String> {
     let n = log.n();
     let sel = sel.unwrap_or(0..n);
     // Python : `sel.start or 0`, `min(sel.stop or log.n, log.n)` (un stop à 0 vaut « tout »)
@@ -358,7 +369,7 @@ pub fn check_log(log: &FlightLog, sel: Option<Range<usize>>, label: &str, exact:
     };
     recording_items(&mut c);
     flight_parts_item(&mut c)?;
-    protocol_items(&mut c, exact)?;
+    protocol_items(&mut c, exact, step)?;
     general_items(&mut c)?;
     let usages = usages(&c);
     Ok(LogCheck {
@@ -626,7 +637,7 @@ fn up(v: &[f32]) -> Vec<f64> {
 
 /// Protocole de la partie avec mouvements : fenêtres de mesure, rates, limite d'angle, mode de vol, axes mêlés, curseur I,
 /// atténuation dynamique.
-fn protocol_items(c: &mut Check, exact: bool) -> Result<(), String> {
+fn protocol_items(c: &mut Check, exact: bool, step: &StepOptions) -> Result<(), String> {
     let (log, fs) = (c.log, c.log.fs);
     let s = &log.settings;
     c.cond = Some(flight_conditions(log, c.sel.clone())?);
@@ -661,15 +672,7 @@ fn protocol_items(c: &mut Check, exact: bool) -> Result<(), String> {
     let mut windows = Vec::new();
     for a in 0..2 {
         windows.push(if exact {
-            step_response(
-                &sps[a],
-                &gys[a],
-                fs,
-                &StepOptions::default(),
-                &LoopInput::Absent,
-                Some(&mbr),
-            )?
-            .n
+            step_response(&sps[a], &gys[a], fs, step, &LoopInput::Absent, Some(&mbr))?.n
         } else {
             input_windows(&sps[a], fs, 2.0, 20.0, 62.5, Some(&mbr))?
         });

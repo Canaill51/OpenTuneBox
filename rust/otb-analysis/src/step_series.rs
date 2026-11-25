@@ -139,6 +139,16 @@ impl FlightStep {
 
 /// `flight_step` : réponse indicielle roll / pitch d'un vol sur `sel`, avec ses curseurs et ses conditions.
 pub fn flight_step(log: &FlightLog, sel: Range<usize>, label: &str) -> Result<FlightStep, String> {
+    flight_step_with(log, sel, label, &StepOptions::default())
+}
+
+/// [`flight_step`] avec les options `o` de la réponse indicielle ([`StepOptions::python`] : celles des références).
+pub fn flight_step_with(
+    log: &FlightLog,
+    sel: Range<usize>,
+    label: &str,
+    o: &StepOptions,
+) -> Result<FlightStep, String> {
     let s = &log.settings;
     let mut f = FlightStep {
         label: if label.is_empty() {
@@ -179,7 +189,7 @@ pub fn flight_step(log: &FlightLog, sel: Range<usize>, label: &str) -> Result<Fl
         } else {
             LoopInput::Unmeasurable(&terms.note)
         };
-        let r = step_response(&sp, &gy, log.fs, &StepOptions::default(), &input, br)?;
+        let r = step_response(&sp, &gy, log.fs, o, &input, br)?;
         f.metrics.push(r.metrics);
         f.n.push(r.n);
         // `np.std(sp) >= 5.0` sur le tableau float32 du journal

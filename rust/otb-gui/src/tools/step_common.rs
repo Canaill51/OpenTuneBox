@@ -11,7 +11,9 @@ use otb_analysis::delay::xcorr_delay_ms;
 use otb_analysis::npstat::std_f32;
 use otb_analysis::open_loop::Terms;
 use otb_analysis::sliders::{PTB_CATEGORIES, SliderView, slider_view};
-use otb_analysis::step::{LoopInput, StepOptions, StepResult, segment_metrics, step_response};
+use otb_analysis::step::{
+    LoopInput, Rejection, RobustRejection, StepOptions, StepResult, segment_metrics, step_response,
+};
 use otb_analysis::step_series::{FlightStep, filter_signature, flight_conditions};
 use otb_log::flightlog::{FlightLog, clamp_range};
 use otb_log::settings::AxisPid;
@@ -73,15 +75,25 @@ pub struct StepOpts {
     pub smooth: i64,
     pub split: Split,
     pub y_corr: bool,
+    /// Tri des fenêtres (D-082) : début du régime établi contrôlé, en ms.
+    pub steady_from_ms: f64,
+    /// Largeur de la bande gardée autour de 1.
+    pub band: f64,
+    /// Distance à la courbe médiane, en MAD normalisés ; `f64::INFINITY` : pas de tri par la médiane.
+    pub k: f64,
 }
 
 impl Default for StepOpts {
     fn default() -> Self {
+        let r = RobustRejection::default();
         Self {
             seg_s: 2.0,
             smooth: 0,
             split: Split::All,
             y_corr: false,
+            steady_from_ms: r.steady_from_ms,
+            band: r.band,
+            k: r.k,
         }
     }
 }
@@ -157,6 +169,11 @@ pub fn compute_file_data(log: &FlightLog, sel: Range<usize>, o: &StepOpts) -> Re
         max_input,
         smooth: o.smooth,
         y_correction: o.y_corr,
+        rejection: Rejection::Robust(RobustRejection {
+            steady_from_ms: o.steady_from_ms,
+            band: o.band,
+            k: o.k,
+        }),
         ..Default::default()
     };
     let mut axes = Vec::with_capacity(3);

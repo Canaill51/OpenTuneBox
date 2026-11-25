@@ -301,7 +301,7 @@ fn noise_report_rend_le_diagnostic_de_python() {
             .as_array()
             .map(|s| s[0].as_u64().unwrap() as usize..s[1].as_u64().unwrap() as usize);
         let prof = case["profile"].as_str().map(|k| profile(k).unwrap().clone());
-        let got = noise::noise_report_with(&lg, sel, prof.as_ref(), rules::FilterModel::Ratio);
+        let got = noise::noise_report_with(&lg, sel, prof.as_ref(), rules::Method::python());
         if is_error(case) {
             errors += 1;
             assert!(got.is_err(), "{label} : Python lève, Rust rend un diagnostic");

@@ -192,7 +192,7 @@ fn put_loop(f: &mut Flat, p: &str, lm: &open_loop::LoopMetrics) {
 /// fenêtres retenues, retards consigne → gyro et boucles ouvertes. Les métriques, moyennes et écarts-types viennent du noyau de
 /// déconvolution (le même des deux côtés) et de sommes dans l'ordre de numpy : **identiques au bit près**.
 fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, String> {
-    let fl = step_series::flight_step(lg, sel, "essai")?;
+    let fl = step_series::flight_step_with(lg, sel, "essai", &otb_analysis::step::StepOptions::python())?;
     let mut f = Flat::new();
     f.insert("step.label".into(), Item::S(fl.label.clone()));
     for (cat, v) in &fl.sliders {
@@ -236,7 +236,7 @@ fn step_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, Str
 
 /// Section `series` : `find_series` d'un seul vol ne rend jamais de série.
 fn series_section(lg: &FlightLog, sel: std::ops::Range<usize>) -> Result<Flat, String> {
-    let fl = step_series::flight_step(lg, sel, "essai")?;
+    let fl = step_series::flight_step_with(lg, sel, "essai", &otb_analysis::step::StepOptions::python())?;
     let series = step_series::find_series(&[fl])?;
     let mut f = Flat::new();
     for (i, s) in series.iter().enumerate() {

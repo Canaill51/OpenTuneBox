@@ -85,9 +85,12 @@ fn check_text(rel: &str, cmd: &str, expected: &str, actual: (String, Option<Stri
     }
 }
 
-/// Méthode de prévision du bruit de Python (rapport des |H|², D-008) : la ligne de commande rejoue la chaîne de filtres depuis
-/// D-059, mais les références ne connaissent que le rapport ; tout le reste du texte se compare au caractère près.
-const RATIO: otb_advisor::rules::FilterModel = otb_advisor::rules::FilterModel::Ratio;
+/// Méthodes de Python (rapport des |H|², D-008 ; tri historique des fenêtres de la réponse indicielle) : la ligne de commande
+/// rejoue la chaîne de filtres depuis D-059 et trie les fenêtres autrement depuis D-082, mais les références ne connaissent que
+/// les méthodes de Python ; tout le reste du texte se compare au caractère près.
+fn python() -> otb_advisor::rules::Method {
+    otb_advisor::rules::Method::python()
+}
 
 /// Compare les sorties aux références `dossier/cli.json`.
 pub fn check_cli(dossier: &Path, logs_root: &Path, threads: usize) -> Result<CliReport, String> {
@@ -110,8 +113,8 @@ pub fn check_cli(dossier: &Path, logs_root: &Path, threads: usize) -> Result<Cli
                         let one = std::slice::from_ref(&path);
                         let actual = match cmd {
                             "info" => (otb_cli::info(one), None),
-                            "report" => otb_cli::report_with(one, None, RATIO),
-                            _ => otb_cli::report_with(one, Some("whoop"), RATIO),
+                            "report" => otb_cli::report_with(one, None, python()),
+                            _ => otb_cli::report_with(one, Some("whoop"), python()),
                         };
                         check_text(rel, cmd, &expected, actual, &mut local);
                     }

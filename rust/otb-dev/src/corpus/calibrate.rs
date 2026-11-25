@@ -2,7 +2,9 @@
 //! `scripts/calibrate_advisor.py`, docs/assistant.md, « Calibration »).
 //!
 //! ```text
-//! otb-dev corpus calibrate NB_FICHIERS SORTIE.json [-j FILS]   mesures de chaque session (dossier : OTB_LOGS)
+//! otb-dev corpus calibrate NB_FICHIERS SORTIE.json [-j FILS] [--tri-python]
+//!                                                               mesures de chaque session (dossier : OTB_LOGS) ;
+//!                                                               --tri-python : ancien tri des fenêtres (D-082), pour comparer
 //! otb-dev corpus calibrate --resume SORTIE.json                p10 / p50 / p90 par taille de drone (sans recalcul)
 //! ```
 //!
@@ -62,7 +64,13 @@ fn nums(v: &[f64]) -> Value {
 }
 
 /// Les mesures de la session `lg` sur la période `sel` (les clés de `measure_file` de Python, dans le même ordre).
-fn measure_session(lg: &FlightLog, sel: &Range<usize>, f: &Path, root: &Path) -> Result<Value, String> {
+fn measure_session(
+    lg: &FlightLog,
+    sel: &Range<usize>,
+    f: &Path,
+    root: &Path,
+    so: &StepOptions,
+) -> Result<Value, String> {
     let (prof, _) = detect_profile(lg);
     let s = &lg.settings;
     let mut r = Map::new();
@@ -142,7 +150,7 @@ fn measure_session(lg: &FlightLog, sel: &Range<usize>, f: &Path, root: &Path) ->
         } else {
             LoopInput::Unmeasurable(&terms.note)
         };
-        let st = step_response(&sp, &gy, fs, &StepOptions::default(), &input, Some(&br))?;
+        let st = step_response(&sp, &gy, fs, so, &input, Some(&br))?;
         if st.n >= 20 {
             let (lp, m) = (&st.loop_, &st.metrics);
             r.insert(format!("peak_{a}"), num(m.peak));
@@ -168,7 +176,7 @@ fn measure_session(lg: &FlightLog, sel: &Range<usize>, f: &Path, root: &Path) ->
             r.insert(format!("track_{a}"), num(lp.tracking_peak_db));
             if measured {
                 // mêmes mesures par l'ancienne formule T/(1 − T), pour comparaison
-                let old = step_response(&sp, &gy, fs, &StepOptions::default(), &LoopInput::Absent, Some(&br))?.loop_;
+                let old = step_response(&sp, &gy, fs, so, &LoopInput::Absent, Some(&br))?.loop_;
                 r.insert(format!("smaxold_{a}"), num(old.sensitivity_peak_db));
                 r.insert(format!("pmold_{a}"), num(old.phase_margin_deg));
                 r.insert(format!("fcold_{a}"), num(old.crossover_hz));
@@ -197,12 +205,13 @@ fn measure_session(lg: &FlightLog, sel: &Range<usize>, f: &Path, root: &Path) ->
     Ok(Value::Object(r))
 }
 
-/// Mesures de chaque session analysable d'un log (au moins 8 s, période analysée d'au moins 5 s).
-pub fn measure_file(f: &Path, root: &Path) -> Result<Vec<Value>, String> {
+/// Mesures de chaque session analysable d'un log (au moins 8 s, période analysée d'au moins 5 s) ; `so` : options de la
+/// réponse indicielle (tri des fenêtres, D-082).
+pub fn measure_file(f: &Path, root: &Path, so: &StepOptions) -> Result<Vec<Value>, String> {
     let mut out = Vec::new();
     for lg in load(f).map_err(|e| e.to_string())? {
         let Some(sel) = analysed(&lg) else { continue };
-        out.push(measure_session(&lg, &sel, f, root)?);
+        out.push(measure_session(&lg, &sel, f, root, so)?);
     }
     Ok(out)
 }
@@ -395,7 +404,14 @@ fn read_rows(path: &str) -> Result<Vec<Value>, String> {
 }
 
 pub fn run(args: &[&str]) -> Result<Output, String> {
-    let a = Args::parse(args, &["-j"], &["--resume"])?;
+    let a = Args::parse(args, &["-j"], &["--resume", "--tri-python"])?;
+    // ⚠️ le tri de Python (D-082) sert seulement à comparer avant / après : les seuils se calibrent sur le tri de
+    // l'application, sinon l'assistant jugerait ses mesures contre des percentiles d'un autre calcul
+    let so = if a.has("--tri-python") {
+        StepOptions::python()
+    } else {
+        StepOptions::default()
+    };
     match (a.has("--resume"), a.positional.as_slice()) {
         (true, [path]) => Ok(Output::ok(resume_text(&read_rows(path)?)?)),
         (false, [n, path]) => {
@@ -406,7 +422,7 @@ pub fn run(args: &[&str]) -> Result<Output, String> {
             let root = logs_root();
             let mut files = log_files(&root).map_err(|e| format!("{} : {e}", root.display()))?;
             files.truncate(n);
-            let res = map_files(|f| measure_file(f, &root), &files, jobs, &root);
+            let res = map_files(|f| measure_file(f, &root, &so), &files, jobs, &root);
             let rows: Vec<Value> = res.into_iter().flat_map(|(_, rows)| rows).collect();
             std::fs::write(path, dump(&Value::Array(rows.clone()))?).map_err(|e| format!("{path} : {e}"))?;
             Ok(Output::ok(format!("{} sessions", rows.len())))

@@ -60,6 +60,21 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-127 : `cargo --manifest-path rust/Cargo.toml` lancé depuis la racine ignore la version de Rust figée : clippy signale un fichier qu'on n'a pas touché
+
+- **Symptôme** — 2026-11-25 (lot 35) : `cargo run --manifest-path rust/Cargo.toml -p otb-dev -- verify`, lancé depuis la
+  racine du worktree, échoue sur `clippy::needless_range_loop` dans `rust/otb-analysis/tests/filter_replay.rs`, un fichier
+  que la branche ne modifie pas ; le lien de l'aide cite `rust-1.100.0` alors que le projet est figé sur 1.99.1. Le même
+  `verify`, lancé quelques minutes plus tôt depuis `rust/`, passait.
+- **Cause** — mesurée : `rustup` cherche `rust-toolchain.toml` en remontant **depuis le dossier courant**, pas depuis le
+  manifeste. À la racine (`rustc --version` : 1.100.0), il n'y en a pas : la version par défaut du poste compile, et son
+  clippy plus récent connaît un avertissement de plus. Dans `rust/` : 1.99.1, et tout passe.
+- **Règle** — toute commande `cargo` du projet (et surtout `verify`) se lance **depuis `rust/`** ; ne pas remplacer le
+  `cd rust` par `--manifest-path`. Un avertissement de clippy dans un fichier non touché, ou un lien d'aide à une autre
+  version que celle de `rust/rust-toolchain.toml` : vérifier `rustc --version` dans le dossier courant avant le code.
+- **Preuve** — `rustc --version` : 1.100.0 à la racine, 1.99.1 dans `rust/` ; `cargo run -p otb-dev -- verify` relancé
+  depuis `rust/` : tout passe, sans toucher à `filter_replay.rs`.
+
 ### L-126 : une contre-preuve qui restaure le fichier en renommant sa sauvegarde lui rend une date plus ancienne : cargo garde le binaire de la protection cassée
 
 - **Symptôme** — 2026-11-25 (lot 34) : après une série de contre-preuves menée par un petit script (copie de sauvegarde,
@@ -1624,6 +1639,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-127 | `cargo --manifest-path rust/Cargo.toml` depuis la racine ignore `rust/rust-toolchain.toml` : autre Rust, autre clippy (avertissement dans un fichier non touché) ; lancer `cargo` depuis `rust/` | Outillage |
 | L-126 | Contre-preuve qui restaure le fichier en renommant sa sauvegarde : il reprend une date ancienne et cargo garde le binaire de la protection cassée (test faux rouge, ou contre-preuve faux vert) ; redonner l'heure au fichier restauré (`touch`) | Outillage |
 | L-125 | Plusieurs conversations dans un seul dossier se partagent branche et fichiers ; les crochets tournent dans le dossier principal ; un numéro peut être cité ailleurs avant d'être au registre : un worktree par conversation, `otb-dev numero`, crochet parti du `cwd` | Outillage |
 | L-123 | Banc egui sans `app::setup` : pas de chargeur d'images, une icône devient un « ⚠ » que la police n'a pas et le test panique ; tout banc passe par `setup` | Interface |

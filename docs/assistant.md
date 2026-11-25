@@ -64,8 +64,8 @@ plus bruités / lents / déséquilibrés de sa catégorie. Deux façons de compt
 | Terme D 80–500 Hz (dB) | −25,1 / −18,1 / −11,8 | −27,0 / −21,3 / −14,8 | −29,8 / −20,6 / −13,1 | −33,2 / −24,9 / −17,5 | −30,9 / −22,7 / −12,9 |
 | Gyro filtré 20–80 Hz (dB) | −26,0 / −21,5 / −14,9 | −29,9 / −24,6 / −13,9 | −30,6 / −25,0 / −15,7 | −32,4 / −28,6 / −21,7 | −34,2 / −26,2 / −16,8 |
 | 1re harmonique moteur restante (dB) | −42,1 / −36,0 / −29,6 | −40,4 / −36,5 / −32,5 | −40,2 / −34,9 / −28,4 | −41,3 / −38,8 / −31,8 | −40,2 / −33,4 / −25,0 |
-| Pic de réponse indicielle | 1,03 / 1,08 / 1,27 | 1,00 / 1,09 / 1,39 | 1,00 / 1,06 / 1,29 | 1,01 / 1,07 / 1,21 | 1,04 / 1,11 / 1,38 |
-| Latence 50 % (ms) | 10,5 / 14,5 / 18,2 | 10,8 / 15,5 / 20,1 | 10,6 / 15,7 / 21,4 | 15,5 / 19,9 / 24,0 | 19,1 / 23,4 / 29,3 |
+| Pic de réponse indicielle (tri D-082, 2026-11-25) | 1,01 / 1,07 / 1,16 | 0,99 / 1,06 / 1,27 | 0,99 / 1,04 / 1,20 | 1,00 / 1,05 / 1,16 | 1,02 / 1,09 / 1,31 |
+| Latence 50 % (ms, tri D-082, 2026-11-25) | 11,2 / 15,3 / 18,7 | 10,9 / 15,9 / 20,7 | 11,5 / 16,2 / 21,7 | 15,8 / 20,1 / 24,7 | 19,7 / 24,2 / 32,2 |
 | Pic de sensibilité, boucle mesurée (dB) | −1,1 / 5,6 / 8,4 | −8,7 / 3,6 / 6,3 | −13,0 / 3,0 / 6,7 | −1,6 / 3,5 / 6,0 | −0,5 / 3,5 / 7,5 |
 | Marge de phase, boucle mesurée (°) | 30 / 40 / 51 | 40 / 52 / 71 | 37 / 52 / 66 | 41 / 54 / 63 | 39 / 48 / 65 |
 | Fréquence de croisement (Hz) | 12 / 20 / 27 | 8 / 14 / 23 | 10 / 15 / 25 | 7 / 12 / 20 | 6 / 10 / 13 |
@@ -87,8 +87,8 @@ Seuils retenus dans `rust/otb-advisor/src/profiles.rs` :
 - **2–3,5", 5" et 7"** (recalculés le 2026-10-05) : bruit = p90 par session arrondi au 0,1 dB ; latence =
   p10 arrondi vers le bas et p90 vers le haut ; retards = p90 arrondi au dixième supérieur.
   2–3,5" : gyro −29,4 dB, D −14,8 dB, 20–80 Hz −13,9 dB, harmonique −32,5 dB, latence 10–21 ms, retards
-  1,8 / 2,6 ms (provisoire : 20 drones, à la limite). 5" : −28,3 / −13,1 / −15,7 / −28,4 dB, 10–22 ms,
-  1,9 / 2,7 ms. 7" : −31,4 / −17,5 / −21,7 / −31,8 dB, 15–24 ms, 2,6 / 2,8 ms.
+  1,8 / 2,6 ms (provisoire : 20 drones, à la limite). 5" : −28,3 / −13,1 / −15,7 / −28,4 dB, 11–22 ms
+  (10–22 ms jusqu'au tri des fenêtres du 2026-11-25, D-082 : p10 10,7 → 11,5 ms), 1,9 / 2,7 ms. 7" : −31,4 / −17,5 / −21,7 / −31,8 dB, 15–24 ms, 2,6 / 2,8 ms.
 - **Whoop** (provisoire, 11 drones) : inchangé depuis la calibration précédente (10 drones, une voix par
   drone) — gyro −28,0 dB, D −14,7 dB, 20–80 Hz −13,9 dB, harmonique −32,2 dB, latence 13–20 ms. Un seul
   drone ajouté (un whoop 1S) déplaçait le seuil gyro de 4 dB. Retards : **1,4 / 2,5 ms**
@@ -119,11 +119,17 @@ est toujours commune : par taille, son p90 vaut 0 % en 7" (la moindre saturation
 | Déséquilibre des moteurs (%) | 13,5 | 14,0 | 11,2 |
 | Terme I moyen (valeur absolue) | 33 | 32 | 31 |
 | Saturation (% du temps ≥ 98 %) | 1,5 | 1,5 | 1,5 |
-| Écart de pic roll / pitch | 0,12 | 0,11 | 0,08 |
+| Écart de pic roll / pitch | 0,08 | 0,07 | 0,08 |
 | Résonance (dB au-dessus du bruit voisin) | 7,9 | 6,8 | 8,2 |
 
 Les seuils communs, recalculés (déséquilibre 13,3 %, terme I 33, écart 0,12, résonance 7,9 dB, saturation
 1,4 %), restent ceux de la calibration précédente.
+
+**Écart de pic roll / pitch recalibré** (2026-11-25, lot 35, D-082) : le nouveau tri des fenêtres écarte celles qui
+gonflaient l'écart entre les deux axes. p90 par drone, ancien tri → nouveau, mêmes 678 sessions : commun 0,128 → 0,076
+(88 drones), 5" 0,106 → 0,070 (49 drones), 7" 0,069 → 0,044 (17 drones). Retenus : 0,08 commun, 0,07 en 5" ; le 7" prend
+le seuil commun, faute de 20 drones (choix de Cédric). Constat « Roll et pitch se comportent différemment » : 11 % des
+sessions avec l'ancien tri et les anciens seuils.
 
 ### Tableau d'étiquettes (`corpus.csv`)
 
@@ -376,7 +382,41 @@ LPF1 250–500 Hz, LPF2 500 Hz ; D LPF1 75–150 Hz, LPF2 150 Hz) et ne rallumen
     (choix de Cédric) : la chauffe des moteurs ne se voit pas dans le log ; l'assistant repropose au log
     suivant tant que le D reste propre.
 
-### Pic de réponse indicielle (2026-10-05, recalculé le 2026-10-13)
+### Recalibrage après le tri des fenêtres (2026-11-25, lot 35, D-082)
+
+Le tri des fenêtres de la réponse indicielle a changé (D-082) : il écarte les fenêtres qui tiraient la moyenne vers le
+haut. Le pic baisse, la latence s'allonge un peu, les mesures de boucle ne bougent presque pas : les seuils tirés du pic
+et de la latence sont recalculés **avec la même méthode** qu'avant, sur les mêmes 678 sessions passées deux fois
+(`otb-dev corpus calibrate`, puis `--tri-python` pour l'ancien tri). Le passage avec l'ancien tri retombe sur les paliers
+d'octobre (sans feedforward 1,195 / 1,242), preuve que la méthode est la même.
+
+| Mesure (678 sessions) | Ancien tri | Nouveau tri | Seuil retenu |
+|---|---|---|---|
+| Pic sans feedforward : p90 par drone / p95 par axe | 1,195 / 1,242 (78 drones) | 1,151 / 1,199 (77 drones) | 1,15 / 1,20 (`rules.STEP_PEAK_HIGH`) |
+| Pic avec feedforward : idem | 1,555 / 1,650 (44 drones) | 1,279 / 1,432 (42 drones) | 1,30 / 1,45 (`rules.STEP_PEAK_HIGH_FF`) |
+| Pic : p10 des axes sans feedforward | 1,008 | 0,996 | 1,00 (`rules.STEP_PEAK_SOFT`) |
+| Latence 5" : p10 / p90 par session (ms) | 10,7 / 21,4 | 11,5 / 21,7 | 11–22 ms |
+| Écart de pic roll / pitch : p90 par drone (commun / 5" / 7") | 0,128 / 0,106 / 0,069 | 0,076 / 0,070 / 0,044 | 0,08 / 0,07 / commun |
+| Axes lus sur moins de 200 fenêtres | 214 sur 1 230 | 305 sur 1 205 | 20 et 200 gardés |
+
+- **Choix de Cédric** (2026-11-25) : la méthode d'octobre telle quelle pour les paliers du pic, plutôt que de garder
+  1,20 / 1,25 sans feedforward ; le seuil commun pour l'écart roll / pitch du 7" (17 drones) ; le reste appliqué.
+- **Sessions signalées pour un dépassement** (estimation sur les mesures brutes) : 10 % (6 % en attention) avec l'ancien
+  tri et les anciens paliers ; 5 % avec le nouveau tri et les anciens paliers ; **15 % (6 % en attention)** avec les
+  paliers retenus, surtout par le palier sans feedforward à 1,15 (11 % des sessions à lui seul).
+  Confirmé par les vraies règles (`otb-dev corpus rates`, ancien tri et anciens seuils → nouveau tri et seuils retenus) :
+  léger dépassement 5 → 10 %, fort 6 → 5 %, dû au feedforward 1 → 2 %, réponse molle 1 → 1 %, roll et pitch différents
+  11 → 10 %, pas assez de mouvements 8 → 9 %, marge de stabilité faible 13 → 12 %, marge de phase réduite 1 → 2 %.
+- Le feedforward perd plus que le reste (p50 des axes 1,20 → 1,10, contre 1,06 → 1,05 sans) : ses fenêtres sont plus
+  dispersées d'un mouvement de manche à l'autre, et le tri écarte les plus éloignées de la courbe médiane.
+- **Inchangés** : latence des autres tailles (les écarts au corpus actuel, 7" p90 24,6 → 25 ms et whoop 18,4 → 19 ms,
+  existent avec les deux tris : ils viennent de l'évolution du corpus, pas du tri) ; pic de sensibilité et marge de
+  phase (p90 6,79 → 6,67 dB, p10 37,8 → 38,1°) ; cassure (p90 0,04) et vagues (p90 1,72) ; repère sans dépassement
+  1,03 (série BlackSummer : au plus 0,015 d'écart sur ses vols propres).
+- Les mesures suivies dans le temps sont refaites (`tracked::CALC_VERSION` 1 → 2, D-072). Les cas figés de Python gardent
+  leurs paliers (`rules::StepThresholds::PYTHON`) et leurs seuils de taille dans les tests.
+
+### Pic de réponse indicielle (2026-10-05, recalculé le 2026-10-13, remplacé le 2026-11-25)
 
 Les anciens paliers (conseil > 1,10, attention > 1,20, objectif 1,02–1,08) étaient des estimations sans
 source. Ils signalaient 46 % des sessions du corpus (23 % en attention). Mesures du 2026-10-13 sur 705 sessions,
@@ -399,7 +439,8 @@ l'en-tête, mais 0 en mode Angle (au moins 90 % de la période), où le firmware
   baisse la latence de 3,6 ms (−6,6 / −2,0).
 - **Paliers communs à toutes les tailles** : moins de 20 drones par taille dans chaque groupe (sauf le 5"
   avec feedforward), percentiles par taille instables.
-- **Paliers retenus** (décision de Cédric, option A du 2026-10-13) : conseil = p90 par drone, attention = p95
+- **Paliers retenus** (décision de Cédric, option A du 2026-10-13 ; recalculés le 2026-11-25 avec le tri des fenêtres,
+  voir plus haut) : conseil = p90 par drone, attention = p95
   par axe, arrondis à 0,05 : sans feedforward 1,20 / 1,25, avec feedforward 1,60 / 1,70
   (`rules.STEP_PEAK_HIGH`, `rules.STEP_PEAK_HIGH_FF`). Sessions signalées pour un dépassement : 13 % avant,
   11 % après (6 % en attention) ; corriger le mode Angle en gardant les anciens paliers en aurait signalé
@@ -602,10 +643,10 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   constats du pic et de la latence ajoutent « mesure moins sûre ») :
   - retard consigne → gyro roll / pitch (intercorrélation, info), avec la valeur du feedforward et le mode de
     vol : la mesure de la série Feedforward des finitions, comparée d'un vol à l'autre ;
-  - dépassement : sans feedforward, pic > 1,25 (attention), > 1,20 (conseil) ; avec feedforward en service
-    (F > 0 hors mode Angle, où le firmware le coupe), > 1,70 et > 1,60 ; attribué au feedforward s'il est en
+  - dépassement : sans feedforward, pic > 1,20 (attention), > 1,15 (conseil) ; avec feedforward en service
+    (F > 0 hors mode Angle, où le firmware le coupe), > 1,45 et > 1,30 ; attribué au feedforward s'il est en
     service et si la latence est plus courte que le repère bas de la taille ;
-  - réponse molle : pic < 1,01 et latence au-delà du repère haut de la taille ;
+  - réponse molle : pic < 1,00 et latence au-delà du repère haut de la taille ;
   - roll et pitch différents : écart de pic > seuil de la taille (curseur « D pitch ») ;
   - stabilité (boucle ouverte, voir « Boucle ouverte mesurée ») : pic de sensibilité > 7 dB (conseil ;
     « au moins » quand le pic est au bord de la bande mesurable ; précision ajoutée si la boucle n'est
@@ -757,10 +798,10 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Trous dans l'enregistrement | au moins un trou (pas de temps > 4 périodes du log) dans la période analysée | Corpus | Constat informatif (fenêtres touchées écartées, D-020) ; 7 % des sessions signalées (« Trous dans l'enregistrement », 2026-10-12). Remplace le compteur de trames corrompues (> 20), qui comptait des tentatives de resynchronisation et non du temps perdu |
 | Mouvements de manche suffisants | ≥ 20 fenêtres ; « mesure moins sûre » sous 200 | Corpus + communauté [S35] | Écart du pic p90 0,20 à 20 fenêtres, 0,07 à 200 (« Pic de réponse indicielle », 2026-10-12) ; mêmes valeurs que le Diagnostic du réglage |
 | Fenêtre de réponse retenue | consigne ≥ 20 °/s | Communauté | Code de PID-Analyzer (2018) et de PIDtoolbox v0.55 (2022) [S5, S2] |
-| Dépassement | sans feedforward : pic > 1,20 (conseil), > 1,25 (attention) ; avec feedforward : > 1,60, > 1,70 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon le feedforward en service, 0 en mode Angle (D-025, 2026-10-13, « Pic de réponse indicielle ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode des séries de vols [S24, S25]) |
+| Dépassement | sans feedforward : pic > 1,15 (conseil), > 1,20 (attention) ; avec feedforward : > 1,30, > 1,45 ; repère sans dépassement 1,03 | Corpus + communauté (méthode) | Conseil = p90 par drone, attention = p95 par axe, communs à toutes les tailles, séparés selon le feedforward en service, 0 en mode Angle (D-025, 2026-10-13 ; recalculés avec le tri des fenêtres, D-082, 2026-11-25, « Recalibrage après le tri des fenêtres ») ; aucune source publique pour des paliers chiffrés [S1, S4] ; repère 1,03 = première valeur sans dépassement de la série BlackSummer (méthode des séries de vols [S24, S25]) |
 | Dépassement dû au feedforward | feedforward en service (F > 0 hors mode Angle) et latence < p10 de la taille | Corpus | Séries du corpus où seul F change (2026-10-13, 8 drones) : +100 de F = pic +0,24 et latence −3,6 ms ; 7 des 8 dépassements dus au feedforward reconnus ; axes reconnus : terme F 2,85 fois le terme P (autres : 0,33). Voir « Pic de réponse indicielle » |
-| Réponse molle | pic < 1,01 et latence > p90 de la taille | Corpus | Pic : p10 des axes (« Pic de réponse indicielle », 2026-10-12) ; 1,3 % des sessions |
-| Roll et pitch différents | écart de pic > 0,08 (7") à 0,12 (commun) selon la taille | Corpus | Seuils mécaniques (`profiles.rs`, voir « Calibration ») |
+| Réponse molle | pic < 1,00 et latence > p90 de la taille | Corpus | Pic : p10 des axes (« Pic de réponse indicielle », 2026-10-12 ; 1,01 → 1,00 avec le tri des fenêtres, D-082, 2026-11-25) |
+| Roll et pitch différents | écart de pic > 0,07 (5") ou 0,08 (commun) | Corpus | Seuils mécaniques (`profiles.rs`, voir « Calibration » ; recalculés avec le tri des fenêtres, D-082, 2026-11-25) |
 | Stabilité | pic de sensibilité > 7 dB (conseil) | Théorie + corpus | Skogestad et Postlethwaite : Ms « inférieur à environ 2 (6 dB) » ; 7 dB (Ms ≈ 2,2) est un peu au-delà. Avec 6 dB / 40°, 33 % des sessions du corpus étaient signalées (72 % des whoops) ; avec 7 dB / 35°, 20 % (décision de Cédric, 2026-10-05) ; whoops 32 %, gardés : marge réelle (« Boucle ouverte mesurée »). Conseil seulement : la mesure s'arrête souvent sous le pic (minorant) |
 | Marge de phase | < 35° (conseil) | Théorie + corpus | Åström et Murray : valeurs raisonnables 30–60° ; 35° est dans cette plage, choisi avec le corpus (voir ci-dessus). Même réserve pour la valeur approchée |
 | D dominant au croisement | \|Ĉd/Ĉe\| > 1 | Corpus | Choisit le conseil (Master −0,1 plutôt que plus de D). 55 séries Damping et Pitch Damping (« D dominant », 2026-10-12) : dès 1,0, un cran de D fait monter le pic de sensibilité ; aussi la simulation (`test_loop` de l'ancienne version Python) et la série BlackSummer (`validation.md`) |

@@ -39,7 +39,8 @@ pas répétés ici : une règle écrite à deux endroits finit par ne plus dire 
 - Échelle des DSP : `otb-analysis` calcule la densité physique (= `scipy.signal.welch`), 6,5 dB au-dessus de PIDtoolbox
   (`spectral.PTB_PSD_OFFSET_DB`) ; l'interface affiche l'échelle de PTB (`spectral.to_ptb_db`, dans `compute` des
   outils), l'assistant convertit lui-même (`rules.band_peak_ptb_db`) : ne jamais appliquer la conversion deux fois. D-016, L-009
-- Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; pic
+- Réponse indicielle : fenêtres de 2 s, pas de 62,5 ms, consigne min 20 °/s, régularisation 1e-4 ; tri des fenêtres
+  par bande puis médiane (D-082), le tri de Python (`StepOptions::python`) seulement pour les références figées ; pic
   cherché dans max(150 ms, 3 × latence). Bande passante calculée à partir de 2 Hz, lissage `uniform_filter1d(mode="nearest")`.
 - Boucle ouverte (`rust/otb-analysis/src/open_loop.rs`) : L = G·(Ce + Cd) **mesurée** à partir des termes P, I, D, F loggés ;
   G par estimateur instrumental (consigne, ou `rcCommand` en mode angle/horizon, plus l'excitation du debug
@@ -138,6 +139,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - Contre-preuve : un fichier restauré en renommant sa sauvegarde reprend une date **plus ancienne** que sa modification, et
   cargo ne recompile pas — le binaire garde la protection cassée. Redonner l'heure au fichier (`touch`) après l'avoir
   restauré. L-126
+- `cargo` toujours **depuis `rust/`** : `--manifest-path rust/Cargo.toml` lancé de la racine ignore `rust/rust-toolchain.toml`
+  (autre Rust, autre clippy, avertissement dans un fichier non touché). L-127
 
 - Une substitution `perl`/`sed` dont le délimiteur apparaît dans le texte (fermetures Rust `|x|`, `#` et `|` du
   Markdown, `/` des chemins) écrit au mauvais endroit sans erreur (un `\|` échappé devient une alternative) : outil

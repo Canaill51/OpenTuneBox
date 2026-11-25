@@ -2,7 +2,8 @@
 //!
 //! À gauche, une ligne par axe (yaw masqué au départ) : réponse indicielle moyenne de chaque fichier (couleur du fichier), bande ± écart-type
 //! et réponses brutes en option, point creux à l'arrêt de la montée quand il y a une cassure, et dans le graphique le bloc
-//! « P, I, D, Dm, F (n=…) · pic · latence · cassure ». Au milieu, deux colonnes de métriques au choix (une valeur par fichier = « test » 1…N,
+//! « P, I, D, Dm, F (n=… sur …) », puis « pic · latence · cassure » sur une seconde ligne ; colonne de droite : réglages de calcul et du
+//! tri des fenêtres (D-082). Au milieu, deux colonnes de métriques au choix (une valeur par fichier = « test » 1…N,
 //! barres d'erreur = dispersion entre fenêtres pour le pic et la latence, écart-type jackknife pour les marges et la cassure ; vols conseillés
 //! entourés). Marges de stabilité : point plein = boucle ouverte mesurée, point creux = méthode approchée, triangle = minorant (pic de
 //! sensibilité au bord de la bande mesurable). À droite, le « Diagnostic du réglage » (`step_tuning`) et, dessous, les curseurs Betaflight.
@@ -64,6 +65,10 @@ pub const X_RANGES: [u32; 3] = [500, 250, 150];
 pub const X_DEFAULT: u32 = 250;
 const SEG_CHOICES: [f64; 3] = [1.0, 2.0, 3.0];
 const SMOOTH_CHOICES: [i64; 4] = [0, 20, 40, 60];
+/// Tri des fenêtres (D-082) : début du régime établi contrôlé (ms), largeur de la bande autour de 1, distance à la médiane.
+const STEADY_CHOICES: [f64; 3] = [100.0, 150.0, 200.0];
+const BAND_CHOICES: [f64; 4] = [0.6, 1.0, 1.6, 2.0];
+const K_CHOICES: [f64; 4] = [2.0, 3.0, 4.0, f64::INFINITY];
 
 /// Réponses brutes prêtes à tracer : (fichier, axe) → courbes.
 type RawCache = HashMap<(usize, usize), Vec<Vec<PlotPoint>>>;
@@ -171,12 +176,16 @@ fn fr(x: f64, n: usize) -> String {
     format!("{x:.n$}").replace('.', ",")
 }
 
-/// Bloc par fichier, en bas à droite du graphique (zone sans courbe) : gains, pic, latence, cassure.
+/// Bloc par fichier, en bas à droite du graphique (zone sans courbe) : gains et fenêtres gardées sur une ligne, pic,
+/// latence et cassure sur la suivante. Sur une seule ligne, le bloc était plus large que la zone vide et cachait la montée.
 pub fn text_lines(files: &[FileStep], ax: usize, theme: &Theme) -> Vec<(String, Color32)> {
-    let mut rows = vec![("P, I, D, Dm, F · pic · latence · cassure".to_string(), theme.fg)];
+    let mut rows = vec![
+        ("P, I, D, Dm, F (fenêtres gardées)".to_string(), theme.fg),
+        ("pic · latence · cassure".to_string(), theme.fg),
+    ];
     for (i, f) in files.iter().enumerate() {
         let d = &f.data;
-        let txt = match d.axes.get(ax) {
+        match d.axes.get(ax) {
             Some(a) if a.res.n > 0 => {
                 let m = &a.res.metrics;
                 let rip = if m.ripple.is_finite() {
@@ -184,17 +193,23 @@ pub fn text_lines(files: &[FileStep], ax: usize, theme: &Theme) -> Vec<(String, 
                 } else {
                     String::new()
                 };
-                format!(
-                    "{} (n={}) · {} · {} ms{rip}",
-                    pid_text(&d.pids[ax]),
-                    a.res.n,
-                    fr(m.peak, 2),
-                    fr(m.latency_ms, 1)
-                )
+                rows.push((
+                    format!(
+                        "{}) {} (n={} sur {})",
+                        i + 1,
+                        pid_text(&d.pids[ax]),
+                        a.res.n,
+                        a.res.windows
+                    ),
+                    f.color,
+                ));
+                rows.push((
+                    format!("     {} · {} ms{rip}", fr(m.peak, 2), fr(m.latency_ms, 1)),
+                    f.color,
+                ));
             }
-            _ => "données insuffisantes".to_string(),
-        };
-        rows.push((format!("{}) {txt}", i + 1), f.color));
+            _ => rows.push((format!("{}) données insuffisantes", i + 1), f.color)),
+        }
     }
     rows
 }
@@ -816,6 +831,51 @@ impl Tool for StepTool {
                 ui.end_row();
             });
             ui.checkbox(&mut self.calc.y_corr, "Y corr. (recentrer sur 1)");
+            ui.label(RichText::new("Tri des fenêtres").strong())
+                .on_hover_text(
+                    "Chaque fenêtre de 2 s donne sa propre réponse ; celles qui sortent de la bande ou s'écartent trop \
+                     de la courbe médiane sont écartées avant la moyenne. « n » dit combien sont gardées.",
+                );
+            egui::Grid::new("step-tri").show(ui, |ui| {
+                ui.label("Régime établi dès");
+                egui::ComboBox::from_id_salt("step-tri-debut")
+                    .selected_text(format!("{} ms", self.calc.steady_from_ms))
+                    .show_ui(ui, |ui| {
+                        for ms in STEADY_CHOICES {
+                            ui.selectable_value(&mut self.calc.steady_from_ms, ms, format!("{ms} ms"));
+                        }
+                    })
+                    .response
+                    .accessible_name("Régime établi dès");
+                ui.end_row();
+                ui.label("Bande gardée");
+                egui::ComboBox::from_id_salt("step-tri-bande")
+                    .selected_text(band_label(self.calc.band))
+                    .show_ui(ui, |ui| {
+                        for b in BAND_CHOICES {
+                            ui.selectable_value(&mut self.calc.band, b, band_label(b));
+                        }
+                    })
+                    .response
+                    .accessible_name("Bande gardée")
+                    .on_hover_text("La réponse doit rester dans cette bande, du début du régime établi à la fin.");
+                ui.end_row();
+                ui.label("Écart à la médiane");
+                egui::ComboBox::from_id_salt("step-tri-mediane")
+                    .selected_text(k_label(self.calc.k))
+                    .show_ui(ui, |ui| {
+                        for k in K_CHOICES {
+                            ui.selectable_value(&mut self.calc.k, k, k_label(k));
+                        }
+                    })
+                    .response
+                    .accessible_name("Écart à la médiane")
+                    .on_hover_text(
+                        "Une fenêtre plus loin de la courbe médiane que k fois l'écart habituel est écartée \
+                         (plus petit : tri plus sévère).",
+                    );
+                ui.end_row();
+            });
             ui.separator();
             ui.label(
                 RichText::new(
@@ -838,6 +898,20 @@ impl Tool for StepTool {
                 .show(ui, |ui| self.side(ui, out, theme));
         }
         egui::CentralPanel::default().show(ui, |ui| self.plots(ui, out, theme));
+    }
+}
+
+/// Bande de largeur `w` autour de 1, en texte : « 0,5 à 1,5 ».
+pub fn band_label(w: f64) -> String {
+    format!("{} à {}", fr(1.0 - w / 2.0, 1), fr(1.0 + w / 2.0, 1))
+}
+
+/// Distance à la médiane en texte : « k = 3 », ou « aucun » sans tri par la médiane.
+pub fn k_label(k: f64) -> String {
+    if k.is_finite() {
+        format!("k = {k}")
+    } else {
+        "aucun".to_string()
     }
 }
 

@@ -27,9 +27,16 @@ Entrées : consigne SP = setpoint[axe], GY = gyroADC[axe] sur la période choisi
 3. Fenêtre gardée si max|SP| ≥ 20 °/s.
 4. Fenêtre de Hann sur les deux signaux, 100 zéros ajoutés de chaque côté.
 5. `G = FFT(gy)/N`, `H = FFT(sp)/N`, `imp = réel(IFFT(G·conj(H) / (|H|² + 1e-4)))`, réponse = somme cumulée de `imp`.
-6. Correction Y (case « Y corr. », désactivée par défaut) : m = moyenne(réponse, 200–500 ms) ; réponse × (2 − m), comme PTB.
-7. Contrôle : fenêtre gardée si 0,5 < min et max < 3 sur le régime établi (200–500 ms).
-8. Réponse sur 500 ms ; moyenne ± écart-type et nombre de fenêtres n. Séparation possible à max|SP| 500 °/s.
+6. Tri des fenêtres (D-082), avant la correction Y :
+   - **bande** : fenêtre gardée si sa réponse reste strictement entre 1 − l/2 et 1 + l/2 (largeur l = 1 : 0,5 à 1,5) de
+     150 ms à la fin de la réponse ; un NaN l'écarte ;
+   - **distance à la médiane** : courbe médiane point par point des fenêtres gardées, écart quadratique moyen de chaque
+     fenêtre à elle ; écartée au-delà de médiane + 3 × MAD normalisé (× 1,4826) de ces écarts, à partir de 8 fenêtres
+     (`step::median_keep`) ; les mesures de boucle sont refaites sur les seules fenêtres gardées (second passage) ;
+   - **tri de Python** (`StepOptions::python`, références figées seulement) : 0,5 < min et max < 3 sur 200–500 ms.
+     Il laisse passer des fenêtres qui tirent la moyenne vers le haut (palier 1,11 en roulis sur `CHIRP-65Hz`).
+7. Correction Y (case « Y corr. », désactivée par défaut) : m = moyenne(réponse, 200–500 ms) ; réponse × (2 − m), comme PTB.
+8. Réponse sur 500 ms ; moyenne ± écart-type, nombre de fenêtres gardées n et de candidates. Séparation possible à max|SP| 500 °/s.
 9. Mesures sur la moyenne : pic = maximum sur t ≤ max(150 ms, 3 × latence) et son instant ;
    latence = passage à 50 % interpolé ; temps de montée 10–90 % ; établissement à ±5 %.
 10. Forme de la montée (`step.shape_metrics`), pour la méthode des séries de vols [S32] :

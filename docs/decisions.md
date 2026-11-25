@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-082 | **Tri des fenêtres de la réponse indicielle** : notre propre tri (jamais celui de PIDtoolbox, D-004) — réponse gardée **entre 0,5 et 1,5 dès 150 ms**, puis fenêtres trop loin de la **courbe médiane** écartées (médiane + 3 MAD normalisés) ; mesures de boucle sur les seules fenêtres gardées ; **tri de Python** (0,5–3 sur 200–500 ms) gardé pour les références figées (`StepOptions::python`, `rules::Method::python`) ; l'assistant est recalibré (pic 1,15 / 1,20, avec feedforward 1,30 / 1,45 ; D-025 amendée) | 2026-11-25 |
 | D-081 | **Emplacement de la bibliothèque au choix** : pointeur à côté du dossier par défaut ; logs copiés écrits **relatifs** à la bibliothèque ; déplacement = copie relue, bascule, **puis** ancien dossier effacé ; bibliothèque trouvée dans le dossier choisi utilisée telle quelle ; dossier introuvable au lancement : rien d'écrit ; témoin d'ouverture qui **avertit** (sans bloquer) quand une autre session l'a écrite depuis moins de 10 min ; écran hors rail « Bibliothèque », **écart au prototype** (D-061) | 2026-11-25 |
 | D-080 | **Et si : multiplicateurs de filtres gyro et D comme Betaflight Configurator** : interrupteur et curseur (0,10 à 2,00, pas de 0,05) en tête des passe-bas, fréquences recalculées à l'arithmétique du firmware et grisées ; interrupteur repris du log seulement si ses coupures sont celles du curseur ; CLI = état du curseur + coupures | 2026-11-25 |
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
@@ -126,7 +127,7 @@ ici, jamais dans le code.
 | D-028 | Les constats de l'assistant s'identifient par une clé stable, jamais par leur texte | 2026-10-13 |
 | D-027 | Raie fixe près de la fondamentale : test des deux trajets d'une tranche de gaz à l'autre | 2026-10-13 |
 | D-026 | Retard des filtres jugé dès 30 °/s de consigne (amende D-010) | 2026-10-13 |
-| D-025 | Paliers du pic de réponse selon le feedforward en service (0 en mode Angle) | 2026-10-13 |
+| D-025 | Paliers du pic de réponse selon le feedforward en service (0 en mode Angle) **(amendée par D-082 : paliers recalculés avec le tri des fenêtres)** | 2026-10-13 |
 | D-024 | Notch statique conseillé seulement si le notch dynamique ne peut pas traiter la raie | 2026-10-13 |
 | D-023 | « Q trop haut » seulement si une raie passe ; marge de 5 % de la fréquence moteur autour des harmoniques | 2026-10-13 |
 | D-022 | Notch dynamique : réponse des notchs RPM du firmware ; `dyn_notch_min_hz` jamais relevé | 2026-10-13 |
@@ -151,6 +152,53 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-25 — Le tri des fenêtres de la réponse indicielle (lot 35)
+
+### D-082 : la réponse indicielle écarte les fenêtres aberrantes par un tri qui nous est propre
+
+**Tranché par Cédric** le 2026-11-25, après avoir comparé notre page « Réponse indicielle » à PIDtoolbox web (version 0.3)
+sur `Cedric/Air65/Test BF Chirp/CHIRP-65Hz.bbl` : écrire **notre propre tri** (D-004 interdit de copier le sien, et des noms
+de réglages ne disent pas la méthode), qui ira dans le même sens sans retomber exactement sur ses chiffres ; **recalibrer**
+l'assistant.
+
+**Contexte.** Les deux courbes avaient la même forme (mêmes creux et bosses aux mêmes instants : même déconvolution), mais
+la nôtre était plus haute de 0,08 à 0,1 (roulis : pic 1,17 contre ≈ 1,05, palier 1,11 contre ≈ 1,03), parce qu'elle
+moyennait bien plus de fenêtres (378 contre 224). Notre seul contrôle, hérité de Python (régime établi de 200 à 500 ms
+strictement entre 0,5 et 3), laissait passer les nombreuses fenêtres de roulis qui montent au-dessus de 1,4. PIDtoolbox web
+expose désormais un tri réglable (début du régime établi, largeur de bande, départ maximal, distance à la médiane).
+
+**Décision.**
+- **Bande** (`otb_dsp::step::Accept`) : une fenêtre est gardée si sa réponse reste **strictement entre 1 − l/2 et 1 + l/2**
+  (largeur l = 1, donc 0,5 à 1,5) **de 150 ms à la fin** de la réponse ; un NaN l'écarte. Contrôle avant la correction Y,
+  comme le tri de Python.
+- **Distance à la médiane** (`otb_analysis::step::median_keep`) : courbe médiane point par point des fenêtres gardées, écart
+  quadratique moyen de chaque fenêtre à elle sur toute la réponse ; écartée au-delà de **médiane + k × MAD normalisé**
+  (k = 3, MAD × 1,4826, statistique robuste classique). Sous 8 fenêtres, pas de tri par la médiane.
+- **Second passage** : si la médiane écarte des fenêtres, le noyau est relancé sur les seules fenêtres gardées, pour que les
+  mesures de boucle (bande passante, marges : sommes spectrales faites au fil du calcul) ne comptent pas les écartées.
+- **Tri de Python gardé** : `StepOptions::python()`, `rules::Method::python()` (rapport des réponses et tri historique),
+  `step_series::flight_step_with`, `log_check::check_log_with` ; `otb-parity` et les tests sur les références figées les
+  prennent. L'application (écran, assistant, guide, ligne de commande) prend le nouveau tri par défaut.
+- Valeurs du tri (150 ms, largeur 1, k = 3) : celles du premier essai, gardées ; réglables à l'écran (« Tri des fenêtres »).
+- **Recalibrage de l'assistant** (choix de Cédric, même méthode qu'avant, mêmes 678 sessions passées avec les deux tris) :
+  paliers du pic 1,15 / 1,20 sans feedforward et 1,30 / 1,45 avec (D-025 amendée), réponse molle 1,00, latence du 5"
+  11–22 ms, écart de pic roll / pitch 0,08 commun et 0,07 en 5" (le 7" prend le seuil commun, 17 drones). Les cas figés
+  de Python gardent leurs paliers (`rules::StepThresholds::PYTHON`, `rules::Method::python`). Les mesures suivies sont
+  refaites (`tracked::CALC_VERSION` 2, D-072). Chiffres : [assistant.md](assistant.md#recalibrage-après-le-tri-des-fenêtres-2026-11-25-lot-35-d-082).
+
+**Options écartées.** Copier le tri de PIDtoolbox web (D-004). Garder le seul tri de Python en resserrant ses bornes (ne
+voit pas une fenêtre dans la bande mais d'une forme isolée). Écarter les fenêtres par la médiane **sans** second passage
+(les mesures de boucle compteraient des fenêtres que la courbe ne montre plus). Un « départ maximal » (`|r(0)|` borné) :
+n'écarte rien sur les logs CHIRP, la somme cumulée part de la première valeur de la réponse impulsionnelle.
+
+**Preuve.** `rust/otb-analysis/tests/step_rejection.rs` (vol fabriqué dont la moitié répond 1,8 fois trop fort : palier
+1,39 avec le tri de Python, 0,99 avec le nouveau ; une minorité à 1,35 écartée par la médiane, mesures de boucle
+recalculées), chacun vu échouer en cassant sa protection (bande neutralisée, second passage supprimé, sommes du premier
+passage gardées) ; `rust/otb-dsp/src/step.rs:kept_ranks_cross_batches`. Sur les trois logs CHIRP d'Air65 :
+[validation.md](validation.md#tri-des-fenêtres-de-la-réponse-indicielle-2026-11-25-lot-35).
 
 ---
 
@@ -581,7 +629,7 @@ prime » entre la cible du drone et le seuil de l'assistant (D-011), deux chiffr
 - **Le suivi est dans la fiche du drone**, sous la fiche cible ; pas de nouvelle entrée du rail.
 - **W-076** (comparaison avec le vol précédent, votes et historique des conseils) vient **après** : lot 31d.
 - **Précisé au lot 31b** (Cédric, 2026-11-23) : le **haut de la zone du pic** proposé est le seuil **sans** feedforward
-  (`STEP_PEAK_HIGH`, 1,20) — la fiche ne sait pas si le drone vole avec, le pilote qui en a la monte lui-même ; la latence
+  (`STEP_PEAK_HIGH`, 1,20 ; 1,15 depuis D-082) — la fiche ne sait pas si le drone vole avec, le pilote qui en a la monte lui-même ; la latence
   proposée est le haut de la plage habituelle du profil (`latency_ms.1`). Tant que le pilote n'a **rien changé**, rien
   n'est enregistré (`DroneSheet::target` vaut `None`) : les cases **suivent** la taille et les seuils de l'assistant s'ils
   sont recalibrés ; la première case changée fige les dix, et « Valeurs proposées » les remet à suivre. Le sous-titre du
@@ -2333,6 +2381,9 @@ protocole restent sans jugement du retard).
 [validation.md](validation.md) (« Retard des filtres et mouvements »).
 
 ### D-025 : paliers du pic de réponse selon le feedforward en service (0 en mode Angle)
+
+**AMENDÉE par D-082** (2026-11-25) : même méthode, paliers recalculés avec le nouveau tri des fenêtres — 1,15 / 1,20
+sans feedforward, 1,30 / 1,45 avec.
 
 **Contexte.** Les paliers du pic (2026-10-05) séparaient les vols selon le F de l'en-tête. Or le firmware coupe
 le feedforward en mode Angle (D-014) : 483 axes de vols en Angle avec F > 0 (50 drones) étaient comptés « avec

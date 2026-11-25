@@ -184,7 +184,7 @@ fn la_bande_vient_des_cases_de_la_fiche() {
     assert_eq!(chart(&c, LATENCY_MS).band, (None, Some(p.latency_ms.1)));
     assert_eq!(chart(&c, RISE_MS).band, (None, None), "pas de seuil : pas de bande");
     assert_eq!(band_text(chart(&c, RISE_MS)), "sans cible");
-    assert_eq!(band_text(chart(&c, PEAK)), "cible ≤ 1,20");
+    assert_eq!(band_text(chart(&c, PEAK)), "cible ≤ 1,15");
 
     // le pilote remplit le bas de la zone du pic et change la latence
     let mut cases: Vec<(String, String)> = ROWS.iter().map(|r| (r.key.to_string(), String::new())).collect();

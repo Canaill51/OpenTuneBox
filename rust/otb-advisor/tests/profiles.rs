@@ -27,7 +27,13 @@ fn les_cinq_profils_ont_les_seuils_de_python() {
             ("resonance_hz", p.resonance_hz),
             ("latency_ms", p.latency_ms),
         ] {
-            let (a, b) = pair(&w[name]);
+            // latence du 5" : p10 10 ms chez Python, 11 ms depuis le 2026-11-25 (lot 35, D-082 : nouveau tri des fenêtres,
+            // p10 du corpus 10,7 → 11,5 ms)
+            let (a, b) = if key == "five" && name == "latency_ms" {
+                (11.0, 22.0)
+            } else {
+                pair(&w[name])
+            };
             assert!(
                 same(got.0, a) && same(got.1, b),
                 "{key}.{name} : Rust {got:?} / Python ({a}, {b})"
@@ -48,8 +54,13 @@ fn les_cinq_profils_ont_les_seuils_de_python() {
         ] {
             // repère gyro du whoop : 1,5 ms chez Python, 1,4 ms depuis le 2026-11-22 (choix de Cédric : p90 du corpus
             // 1,48 → 1,36 ms une fois le décalage d'horloge de `gyroUnfilt` retiré, L-100)
+            // écart de pic roll / pitch : 0,12 (commun), 0,11 (5"), 0,08 (7") chez Python ; depuis le 2026-11-25 (lot 35,
+            // D-082 : nouveau tri des fenêtres, p90 par drone 0,128 → 0,076 et 0,106 → 0,070) 0,08 commun, 0,07 en 5", et le 7"
+            // prend le seuil commun (17 drones, choix de Cédric)
             let want = if key == "whoop" && name == "gyro_delay_max_ms" {
                 1.4
+            } else if name == "roll_pitch_gap_high" {
+                if key == "five" { 0.07 } else { 0.08 }
             } else {
                 f1(&w[name])
             };

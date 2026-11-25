@@ -125,7 +125,7 @@ fn ported(lg: &FlightLog) -> Vec<(&'static str, Result<Flat, String>)> {
     let name = lg.name();
     let one = |exact: bool, section: &'static str| {
         let mut f = Flat::new();
-        log_check::check_log(lg, None, &name, exact).map(|ck| {
+        log_check::check_log_with(lg, None, &name, exact, &otb_analysis::step::StepOptions::python()).map(|ck| {
             put_check(&mut f, section, &ck, fs);
             f
         })
