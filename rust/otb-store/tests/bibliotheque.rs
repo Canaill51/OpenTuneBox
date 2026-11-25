@@ -5,7 +5,7 @@
 //! sous le test concerné, avec ce qui échoue.
 
 use otb_store::model::{
-    Analysis, AnalysisItem, Drone, DroneSheet, FORMAT_VERSION, Fragment, LogEntry, Measure, config_changes,
+    Analysis, AnalysisItem, Drone, DroneSheet, FORMAT_VERSION, Fragment, LogEntry, LogMachine, Measure, config_changes,
 };
 use otb_store::{Library, dir_in, fingerprint};
 use std::ffi::OsString;
@@ -457,6 +457,7 @@ fn fiche() -> DroneSheet {
         size: "5″".into(),
         cells: "6S".into(),
         weight: "680".into(),
+        motor_size: "2207".into(),
         kv: "1950".into(),
         poles: "14".into(),
         props: "HQ 5.1×3.5×3".into(),
@@ -469,8 +470,9 @@ fn fiche() -> DroneSheet {
     }
 }
 
-/// La fiche et la carte de vol font l'aller-retour ; un drone sans fiche reste **sans** fiche (pas de valeurs
-/// inventées à la relecture).
+/// La fiche (taille des moteurs comprise), la carte de vol et ce que le dernier log dit de la machine (D-077) font
+/// l'aller-retour ; un drone sans fiche reste **sans** fiche (pas de valeurs inventées à la relecture), et un
+/// fichier d'avant le 2026-11-25 se lit sans taille des moteurs ni lecture du log.
 #[test]
 fn la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste() {
     let dir = dossier("fiche");
@@ -478,6 +480,13 @@ fn la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste() {
     let mut d = Drone::new("uid-1", "JeNo Ced");
     d.board = "STM32F405".into();
     d.sheet = Some(fiche());
+    let lu = LogMachine {
+        date: "2026-11-25".into(),
+        poles: "14".into(),
+        kv: "1960".into(),
+        pid_khz: "3.2".into(),
+    };
+    d.from_log = Some(lu.clone());
     lib.put_drone(d);
     lib.put_drone(Drone::new("Whoop", "Whoop"));
     lib.save().expect("écriture");
@@ -486,7 +495,18 @@ fn la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste() {
     assert!(relue.problems().is_empty(), "{:?}", relue.problems());
     assert_eq!(relue.drone("uid-1").unwrap().board, "STM32F405");
     assert_eq!(relue.drone("uid-1").unwrap().sheet, Some(fiche()));
+    assert_eq!(relue.drone("uid-1").unwrap().from_log, Some(lu));
     assert_eq!(relue.drone("Whoop").unwrap().sheet, None);
+    assert_eq!(relue.drone("Whoop").unwrap().from_log, None);
+
+    // un fichier d'avant : ni `taille_moteurs` dans la fiche, ni `lu_dans_le_log`
+    let mut v = Drone::new("A", "A");
+    v.sheet = Some(fiche());
+    let mut texte = v.to_value();
+    texte["fiche"].as_object_mut().unwrap().remove("taille_moteurs");
+    let ancien = Drone::from_value(&texte).unwrap();
+    assert_eq!(ancien.sheet.unwrap().motor_size, "");
+    assert_eq!(ancien.from_log, None);
 }
 
 /// La fiche cible (lot 31b, D-072) fait l'aller-retour, cases vides comprises et dans l'ordre ; une fiche dont le

@@ -14,14 +14,18 @@
 //! - **« Suivi des mesures »** sous la fiche cible, dans la colonne de droite (D-072 ; absent du prototype) : l'état
 //!   du calcul, puis un graphique par grandeur de la fiche cible, au fil des vols, la zone visée teintée (lot 31c) ;
 //! - **taille « 8″ et plus »** en plus des sept du prototype : l'assistant a un profil pour ces drones ;
-//! - **boucle PID à 1,6 kHz** en plus des cinq du prototype : la moitié d'un gyro BMI270, déjà proposée avant.
+//! - **boucle PID à 1,6 kHz** en plus des cinq du prototype : la moitié d'un gyro BMI270, déjà proposée avant ;
+//! - **taille saisie librement** (la liste ne fait que proposer), le profil de l'Assistant qu'elle choisit écrit
+//!   dessous ; **taille des moteurs** (`2207`) en plus du KV ; **pôles, KV et boucle PID lus dans le dernier log**,
+//!   une note sous le champ quand la fiche en diffère (D-077, demandé par Cédric le 2026-11-25).
 
 use egui::{Align, Layout, RichText, Ui, Vec2};
 use otb_advisor::drone_card::{DEFAULT_SIZE, DroneCard};
-use otb_advisor::profiles::profile;
+use otb_advisor::profiles::{profile, size_profile_key};
 use otb_advisor::target::{FILTERING, RESPONSE, ROWS, TargetRow, parse, proposed_values, shown};
+use otb_log::settings::Settings;
 use otb_store::Library;
-use otb_store::model::{Config, Drone, DroneSheet, config_changes};
+use otb_store::model::{Config, Drone, DroneSheet, LogMachine, config_changes};
 
 use crate::icons::icon;
 use crate::plots::{integer_grid, nice_grid, swatch, tick_fr};
@@ -30,7 +34,8 @@ use crate::tracking::{Chart, Charts, Flight, Progress, TrackingView, charts_of};
 
 // ---------------------------------------------------------------- choix proposés
 
-/// Tailles proposées et profil de l'assistant qu'elles choisissent (`otb_advisor::profiles::PROFILES`).
+/// Tailles proposées et profil de l'assistant qu'elles choisissent (`otb_advisor::profiles::PROFILES`). Une
+/// proposition seulement : la taille se saisit librement, et `size_profile_key` en lit le profil.
 pub const SIZES: [(&str, &str); 8] = [
     ("65 mm", "whoop"),
     ("2,5″", "micro"),
@@ -61,9 +66,118 @@ pub fn new_sheet() -> DroneSheet {
     }
 }
 
-/// Le profil de l'assistant d'une taille affichée ; une taille inconnue prend le profil par défaut.
+/// Le profil de l'assistant d'une taille affichée ou saisie ; une taille illisible prend le profil par défaut.
 pub fn profile_of_size(size: &str) -> &'static str {
-    SIZES.iter().find(|s| s.0 == size).map_or(DEFAULT_SIZE, |s| s.1)
+    SIZES
+        .iter()
+        .find(|s| s.0 == size)
+        .map(|s| s.1)
+        .or_else(|| size_profile_key(size))
+        .unwrap_or(DEFAULT_SIZE)
+}
+
+/// La note sous la taille : les seuils que l'Assistant prendra pour elle.
+pub fn size_note(size: &str) -> String {
+    let label = |k: &str| profile(k).map_or("", |p| p.label);
+    match SIZES
+        .iter()
+        .find(|s| s.0 == size)
+        .map(|s| s.1)
+        .or_else(|| size_profile_key(size))
+    {
+        Some(k) => format!("Seuils de l’Assistant : {}.", label(k)),
+        None => format!(
+            "Taille non reconnue : seuils « {} » par défaut. Écrivez-la en pouces (5″) ou en mm (85 mm).",
+            label(DEFAULT_SIZE)
+        ),
+    }
+}
+
+// ---------------------------------------------------------------- ce que le log dit de la machine (D-077)
+
+/// Une fréquence en kHz écrite comme dans la fiche : au dixième, avec un point, sans `.0` (`8`, `3.2`).
+pub fn khz_text(hz: f64) -> String {
+    let t = format!("{:.1}", hz / 1000.0);
+    t.strip_suffix(".0").map_or_else(|| t.clone(), str::to_string)
+}
+
+/// Pôles, KV et boucle PID d'un log, datés de `date`. Une valeur que l'en-tête ne porte pas reste vide :
+/// ⚠️ `Settings` remplace un `motor_poles` absent par 14, et un `looptime` absent par 125 µs — on regarde
+/// donc l'en-tête brut, sinon la fiche recevrait une valeur inventée.
+pub fn machine_of_log(s: &Settings, date: &str) -> LogMachine {
+    let has = |k: &str| s.raw.contains_key(k);
+    LogMachine {
+        date: date.to_string(),
+        poles: if has("motor_poles") {
+            s.motor_poles.to_string()
+        } else {
+            String::new()
+        },
+        kv: if has("motor_kv") && s.motor_kv > 0 {
+            s.motor_kv.to_string()
+        } else {
+            String::new()
+        },
+        pid_khz: if has("looptime") && s.implausible().is_none() {
+            khz_text(s.pid_rate_hz())
+        } else {
+            String::new()
+        },
+    }
+}
+
+/// Range ce qu'un log dit de la machine dans son drone. Un log **plus ancien** que le dernier lu ne change rien.
+/// La fiche, si elle existe, suit le log pour la boucle PID (un réglage de Betaflight, dont le log fait foi) ;
+/// pôles et KV n'y sont écrits que s'ils sont vides : le pilote sait mieux que Betaflight ce qu'il a monté, et
+/// une différence est signalée sous le champ (`log_note`), jamais corrigée en silence.
+pub fn take_log(drone: &mut Drone, m: LogMachine) {
+    if drone.from_log.as_ref().is_some_and(|old| m.date < old.date) {
+        return;
+    }
+    if let Some(s) = drone.sheet.as_mut() {
+        if !m.pid_khz.is_empty() {
+            s.pid_khz = m.pid_khz.clone();
+        }
+        if s.poles.trim().is_empty() {
+            s.poles = m.poles.clone();
+        }
+        if s.kv.trim().is_empty() {
+            s.kv = m.kv.clone();
+        }
+    }
+    drone.from_log = Some(m);
+}
+
+/// Deux valeurs de la fiche égales une fois lues comme nombres (`3,2` et `3.2`, ` 14` et `14`).
+fn same_number(a: &str, b: &str) -> bool {
+    let n = |t: &str| t.trim().replace(',', ".").parse::<f64>().ok();
+    match (n(a), n(b)) {
+        (Some(x), Some(y)) => x == y,
+        _ => a.trim() == b.trim(),
+    }
+}
+
+/// La note sous un champ que le log renseigne : `None` si le log n'en dit rien ; sinon `(texte, true)` quand la
+/// fiche en diffère. `what` : `poles`, `kv` ou `pid`.
+pub fn log_note(what: &str, sheet_value: &str, from_log: Option<&LogMachine>) -> Option<(String, bool)> {
+    let m = from_log?;
+    let v = match what {
+        "poles" => &m.poles,
+        "kv" => &m.kv,
+        _ => &m.pid_khz,
+    };
+    if v.is_empty() {
+        return None;
+    }
+    if same_number(sheet_value, v) {
+        return Some(("Lu dans le dernier log.".to_string(), false));
+    }
+    let text = match what {
+        "poles" => format!("Le dernier log dit {v} : vérifiez motor_poles dans Betaflight, le filtre RPM s’en sert."),
+        "kv" => format!("Le dernier log dit {v} KV (motor_kv dans Betaflight)."),
+        _ => format!("Le dernier log dit {} kHz.", khz(v)),
+    };
+    Some((text, true))
 }
 
 /// La taille affichée pour un profil de l'assistant (reprise d'une ancienne fiche, fiche tirée d'un log). Un
@@ -186,12 +300,23 @@ pub struct SheetForm {
 
 impl SheetForm {
     /// La fiche d'un drone de la bibliothèque ; un drone sans fiche part des valeurs d'un drone neuf, avec la
-    /// version de Betaflight de ses logs quand on la reconnaît.
+    /// version de Betaflight, les pôles, le KV et la boucle PID de ses logs quand ils les disent.
     pub fn edit(drone: &Drone) -> SheetForm {
         let sheet = drone.sheet.clone().unwrap_or_else(|| {
             let mut s = new_sheet();
             if let Some(v) = version_of_firmware(&drone.firmware) {
                 s.betaflight = v.to_string();
+            }
+            if let Some(m) = &drone.from_log {
+                for (field, v) in [
+                    (&mut s.poles, &m.poles),
+                    (&mut s.kv, &m.kv),
+                    (&mut s.pid_khz, &m.pid_khz),
+                ] {
+                    if !v.is_empty() {
+                        field.clone_from(v);
+                    }
+                }
             }
             s
         });
@@ -426,6 +551,8 @@ const LABEL: f32 = 12.5;
 const HINT: f32 = 11.5;
 const FIELD: f32 = 14.0;
 const FIELD_RADIUS: u8 = 6;
+/// Flèche des propositions d'un champ libre (la taille).
+const CHEVRON: f32 = 16.0;
 const MONO: f32 = 13.5;
 /// Opacité du teint du badge (`couleur + '1f'`) et du trait du cadre « Supprimer » (prototype : `#f1c7c4`, le
 /// rouge du thème à 25 % sur le blanc).
@@ -474,7 +601,7 @@ impl DroneSheetPage {
                             ui.set_width(gauche);
                             ui.spacing_mut().item_spacing.y = GAP;
                             identity(ui, form, lib, th);
-                            machine(ui, form, th);
+                            machine(ui, form, lib, th);
                             configurations(ui, form, lib, th);
                             if let Some(id) = form.id.clone() {
                                 delete(ui, form, lib, &id, th, &mut actions);
@@ -613,8 +740,21 @@ fn hint(ui: &mut Ui, th: &Theme, text: &str) {
     ui.add(egui::Label::new(RichText::new(text).size(HINT).color(th.ui.muted)).wrap());
 }
 
+/// La note sous un champ : atténuée, ou couleur « attention » quand elle avertit (la fiche diffère du log).
+type Note<'a> = Option<(&'a str, bool)>;
+
+fn note(ui: &mut Ui, th: &Theme, n: Note) {
+    match n {
+        Some((t, false)) => hint(ui, th, t),
+        Some((t, true)) => {
+            ui.add(egui::Label::new(RichText::new(t).size(HINT).color(th.severity("attention"))).wrap());
+        }
+        None => {}
+    }
+}
+
 /// Un champ de saisie encadré, avec son unité à droite (`g`, `KV`) s'il en a une, et sa note dessous.
-fn text_field(ui: &mut Ui, th: &Theme, label: &str, value: &mut String, unit: Option<&str>, note: Option<&str>) {
+fn text_field(ui: &mut Ui, th: &Theme, label: &str, value: &mut String, unit: Option<&str>, n: Note) {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = 5.0;
         let l = field_label(ui, th, label);
@@ -625,8 +765,48 @@ fn text_field(ui: &mut Ui, th: &Theme, label: &str, value: &mut String, unit: Op
             .inner_margin(egui::Margin::symmetric(10, 8))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
+                // ⚠️ l'unité d'abord, à droite, puis le texte dans la place qui reste : une place réservée à l'avance
+                // (24 points) était trop courte pour « KV », le champ dépassait sa colonne et les lignes suivantes
+                // de la section s'élargissaient
+                let haut = ui.ctx().fonts_mut(|f| f.row_height(&egui::FontId::proportional(FIELD)));
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    // la ligne a d'emblée la hauteur du texte : l'unité, posée la première, s'y centre
+                    ui.set_min_height(haut);
+                    if let Some(u) = unit {
+                        ui.label(RichText::new(u).size(LABEL).color(th.ui.muted));
+                    }
+                    ui.add(
+                        egui::TextEdit::singleline(value)
+                            .frame(egui::Frame::NONE)
+                            .font(egui::FontId::proportional(FIELD))
+                            .text_color(th.ui.text)
+                            .desired_width(ui.available_width()),
+                    )
+                    .labelled_by(l.id);
+                });
+            });
+        note(ui, th, n);
+    });
+}
+
+/// Un champ de saisie avec une flèche qui déroule des propositions : la taille se tape librement (« 3,5″ »,
+/// « 10″ », « 85 mm ») ou se choisit dans la liste.
+fn editable_select(ui: &mut Ui, th: &Theme, label: &str, choices: &[&str], value: &mut String, n: Note) {
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 5.0;
+        let l = field_label(ui, th, label);
+        let cadre = egui::Frame::new()
+            .fill(th.ui.base)
+            .stroke(egui::Stroke::new(1.0, th.ui.mid))
+            .corner_radius(FIELD_RADIUS)
+            .inner_margin(egui::Margin::symmetric(10, 8))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    let reste = unit.map_or(0.0, |_| 24.0);
+                    // ⚠️ la flèche sans marge, et sa place retirée du texte avec l'écart entre les deux : sinon le
+                    // champ dépasse sa colonne, et toute la section s'élargit d'une ligne à l'autre
+                    ui.spacing_mut().button_padding = Vec2::ZERO;
+                    let reste = CHEVRON + ui.spacing().item_spacing.x;
                     ui.add(
                         egui::TextEdit::singleline(value)
                             .frame(egui::Frame::NONE)
@@ -635,14 +815,29 @@ fn text_field(ui: &mut Ui, th: &Theme, label: &str, value: &mut String, unit: Op
                             .desired_width(ui.available_width() - reste),
                     )
                     .labelled_by(l.id);
-                    if let Some(u) = unit {
-                        ui.label(RichText::new(u).size(LABEL).color(th.ui.muted));
-                    }
-                });
+                    ui.add(
+                        egui::Button::image(icon("chevron-down", CHEVRON).tint(th.ui.muted))
+                            .frame(false)
+                            .min_size(Vec2::splat(CHEVRON)),
+                    )
+                    .on_hover_text(format!("{label} : propositions"))
+                })
+                .inner
             });
-        if let Some(n) = note {
-            hint(ui, th, n);
-        }
+        let fleche = cadre.inner;
+        egui::Popup::menu(&fleche)
+            .width(cadre.response.rect.width())
+            .show(|ui| {
+                for c in choices {
+                    if ui
+                        .selectable_label(value.as_str() == *c, RichText::new(*c).size(FIELD))
+                        .clicked()
+                    {
+                        *value = (*c).to_string();
+                    }
+                }
+            });
+        note(ui, th, n);
     });
 }
 
@@ -656,7 +851,7 @@ fn select(
     choices: &[&str],
     value: &mut String,
     shown: fn(&str) -> String,
-    note: Option<&str>,
+    n: Note,
 ) {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = 5.0;
@@ -679,9 +874,7 @@ fn select(
             })
             .response
             .labelled_by(l.id);
-        if let Some(n) = note {
-            hint(ui, th, n);
-        }
+        note(ui, th, n);
     });
 }
 
@@ -730,7 +923,10 @@ fn identity(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
                 "Nom du drone",
                 &mut form.name,
                 None,
-                Some("Doit être le nom du drone dans Betaflight (craft_name) : c’est lui qui relie les logs à cette fiche."),
+                Some((
+                    "Doit être le nom du drone dans Betaflight (craft_name) : c’est lui qui relie les logs à cette fiche.",
+                    false,
+                )),
             );
         });
         ui.columns(2, |c| {
@@ -746,40 +942,58 @@ fn identity(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
     });
 }
 
-fn machine(ui: &mut Ui, form: &mut SheetForm, th: &Theme) {
+fn machine(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
+    let from_log = form
+        .id
+        .as_ref()
+        .and_then(|id| lib.drone(id))
+        .and_then(|d| d.from_log.clone());
     let s = &mut form.sheet;
+    let taille = size_note(&s.size);
+    let poles = log_note("poles", &s.poles, from_log.as_ref());
+    let kv = log_note("kv", &s.kv, from_log.as_ref());
+    let pid = log_note("pid", &s.pid_khz, from_log.as_ref());
+    let pid = pid.map(|(t, w)| (format!("en kHz · {}", t.to_lowercase().trim_end_matches('.')), w));
     section(ui, th, "Machine", None, |ui| {
-        let taille = Some("Sert de profil aux seuils de l’Assistant.");
+        fn as_note(n: &Option<(String, bool)>) -> Note<'_> {
+            n.as_ref().map(|(t, w)| (t.as_str(), *w))
+        }
         ui.columns(3, |c| {
-            select(
+            editable_select(
                 &mut c[0],
                 th,
                 "Taille",
-                "taille",
                 &SIZES.map(|x| x.0),
                 &mut s.size,
-                as_is,
-                taille,
+                Some((&taille, false)),
             );
             select(&mut c[1], th, "Batterie", "batterie", &CELLS, &mut s.cells, as_is, None);
             text_field(&mut c[2], th, "Poids", &mut s.weight, Some("g"), None);
         });
         ui.columns(3, |c| {
-            text_field(&mut c[0], th, "Moteurs", &mut s.kv, Some("KV"), None);
             text_field(
-                &mut c[1],
+                &mut c[0],
+                th,
+                "Taille des moteurs",
+                &mut s.motor_size,
+                None,
+                Some(("Stator, par exemple 2207.", false)),
+            );
+            text_field(&mut c[1], th, "Moteurs", &mut s.kv, Some("KV"), as_note(&kv));
+            text_field(
+                &mut c[2],
                 th,
                 "Pôles moteur",
                 &mut s.poles,
                 None,
-                Some("Pour le filtre RPM."),
+                as_note(&poles).or(Some(("Pour le filtre RPM.", false))),
             );
-            text_field(&mut c[2], th, "Hélices", &mut s.props, None, None);
         });
         ui.columns(3, |c| {
-            select(&mut c[0], th, "ESC", "esc", &ESC_CHOICES, &mut s.esc, as_is, None);
+            text_field(&mut c[0], th, "Hélices", &mut s.props, None, None);
+            select(&mut c[1], th, "ESC", "esc", &ESC_CHOICES, &mut s.esc, as_is, None);
             select(
-                &mut c[1],
+                &mut c[2],
                 th,
                 "Betaflight",
                 "betaflight",
@@ -788,15 +1002,17 @@ fn machine(ui: &mut Ui, form: &mut SheetForm, th: &Theme) {
                 as_is,
                 None,
             );
+        });
+        ui.columns(3, |c| {
             select(
-                &mut c[2],
+                &mut c[0],
                 th,
                 "Boucle PID",
                 "boucle-pid",
                 &PID_KHZ,
                 &mut s.pid_khz,
                 khz,
-                Some("en kHz"),
+                as_note(&pid).or(Some(("en kHz", false))),
             );
         });
     });

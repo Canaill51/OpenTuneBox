@@ -971,6 +971,8 @@ impl App {
             .unwrap_or_else(|| otb_store::model::Drone::new(&nom, &nom));
         let drone_id = drone.id.clone();
         drone.firmware = first.settings.firmware.clone();
+        // pôles, KV et boucle PID de l'en-tête (D-077) : la fiche suit la boucle PID, compare le reste
+        crate::drone_sheet::take_log(&mut drone, crate::drone_sheet::machine_of_log(&first.settings, &date));
         if drone.first_seen.is_empty() {
             drone.first_seen = date.clone();
         }
@@ -1368,15 +1370,24 @@ impl App {
                     let form = match card {
                         Some(c) => {
                             let mut sheet = crate::drone_sheet::sheet_of_card(&c);
-                            if let Some(v) = self
-                                .state
-                                .current_log()
-                                .and_then(|l| crate::drone_sheet::version_of_firmware(&l.log.settings.firmware))
-                            {
-                                sheet.betaflight = v.to_string();
-                            }
                             sheet.cells = "6S".into();
                             sheet.poles = "14".into();
+                            if let Some(l) = self.state.current_log() {
+                                if let Some(v) = crate::drone_sheet::version_of_firmware(&l.log.settings.firmware) {
+                                    sheet.betaflight = v.to_string();
+                                }
+                                // ce que l'en-tête dit remplace les valeurs d'un drone neuf (D-077)
+                                let m = crate::drone_sheet::machine_of_log(&l.log.settings, "");
+                                for (field, v) in [
+                                    (&mut sheet.poles, m.poles),
+                                    (&mut sheet.kv, m.kv),
+                                    (&mut sheet.pid_khz, m.pid_khz),
+                                ] {
+                                    if !v.is_empty() {
+                                        *field = v;
+                                    }
+                                }
+                            }
                             // un drone que la bibliothèque connaît déjà par ses logs : c'est sa fiche qu'on remplit
                             match self.library.drone_by_name(&c.name) {
                                 Some(d) if d.sheet.is_none() => {

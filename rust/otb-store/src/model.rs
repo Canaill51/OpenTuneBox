@@ -79,6 +79,42 @@ pub struct Drone {
     /// n'a pas de fiche pour lui. ⚠️ Ne pas la remplacer par des valeurs par défaut : une fiche inventée
     /// donnerait des conseils faux (taille, version) sans que personne ne l'ait choisie.
     pub sheet: Option<DroneSheet>,
+    /// Ce que le **dernier log** du drone (par sa date) dit de la machine ; `None` tant qu'aucun log ne l'a dit.
+    /// Absent des fichiers écrits avant : lu `None`.
+    pub from_log: Option<LogMachine>,
+}
+
+/// Pôles moteur, KV et boucle PID lus dans l'en-tête d'un log (`motor_poles`, `motor_kv`, `looptime` et
+/// `pid_process_denom`), écrits comme dans la fiche (`14`, `1950`, `3.2`) ; vide : l'en-tête ne le disait pas.
+/// ⚠️ C'est ce que **Betaflight** croit : un mauvais `motor_poles` y est recopié tel quel. La fiche le compare à
+/// ce que le pilote a saisi, elle ne l'écrase pas (D-077).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LogMachine {
+    /// Date du log (ISO) : un log plus ancien rouvert ne remplace pas celui-ci.
+    pub date: String,
+    pub poles: String,
+    pub kv: String,
+    pub pid_khz: String,
+}
+
+impl LogMachine {
+    pub fn to_value(&self) -> Value {
+        object(vec![
+            ("le", self.date.clone().into()),
+            ("poles", self.poles.clone().into()),
+            ("kv", self.kv.clone().into()),
+            ("boucle_pid_khz", self.pid_khz.clone().into()),
+        ])
+    }
+
+    pub fn from_value(v: &Value) -> Self {
+        LogMachine {
+            date: text(v, "le"),
+            poles: text(v, "poles"),
+            kv: text(v, "kv"),
+            pid_khz: text(v, "boucle_pid_khz"),
+        }
+    }
 }
 
 /// Ce que le pilote dit de son drone : la partie « Machine » de l'écran de la fiche, et les cases du Guide
@@ -89,8 +125,10 @@ pub struct DroneSheet {
     /// Taille (`65 mm`, `5″`…) : elle choisit le profil des seuils de l'assistant.
     pub size: String,
     pub cells: String,
-    /// Poids en grammes, moteurs en KV, pôles, hélices : saisis librement, aucun calcul ne s'en sert encore.
+    /// Poids en grammes, taille des moteurs (`2207`), moteurs en KV, pôles, hélices : saisis librement, aucun
+    /// calcul ne s'en sert encore. Taille des moteurs absente des fichiers écrits avant : lue vide.
     pub weight: String,
+    pub motor_size: String,
     pub kv: String,
     pub poles: String,
     pub props: String,
@@ -125,6 +163,7 @@ impl DroneSheet {
             ("taille", self.size.clone().into()),
             ("batterie", self.cells.clone().into()),
             ("poids", self.weight.clone().into()),
+            ("taille_moteurs", self.motor_size.clone().into()),
             ("kv", self.kv.clone().into()),
             ("poles", self.poles.clone().into()),
             ("helices", self.props.clone().into()),
@@ -153,6 +192,7 @@ impl DroneSheet {
             size: text(v, "taille"),
             cells: text(v, "batterie"),
             weight: text(v, "poids"),
+            motor_size: text(v, "taille_moteurs"),
             kv: text(v, "kv"),
             poles: text(v, "poles"),
             props: text(v, "helices"),
@@ -181,6 +221,7 @@ impl Drone {
             board: String::new(),
             uid: String::new(),
             sheet: None,
+            from_log: None,
         }
     }
 
@@ -202,6 +243,9 @@ impl Drone {
         if let Some(sheet) = &self.sheet {
             pairs.push(("fiche", sheet.to_value()));
         }
+        if let Some(m) = &self.from_log {
+            pairs.push(("lu_dans_le_log", m.to_value()));
+        }
         object(pairs)
     }
 
@@ -215,6 +259,10 @@ impl Drone {
             board: text(v, "carte"),
             uid: text(v, "carte_uid"),
             sheet: v.get("fiche").filter(|f| f.is_object()).map(DroneSheet::from_value),
+            from_log: v
+                .get("lu_dans_le_log")
+                .filter(|f| f.is_object())
+                .map(LogMachine::from_value),
         })
     }
 }

@@ -147,7 +147,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
 - `drone_sheet.rs` : la **fiche d'un drone** (lot 30d, D-068), second écran hors rail du prototype (`Screen::DroneSheet` ; le
   rail reste, « Tableau de bord » choisi) : Identité, Machine, Configurations Betaflight (« Voir », « Comparer » au
   précédent), suppression en deux temps. La partie sans fenêtre : choix proposés, traduction fiche ↔ fiche du Guide
-  (`card_of`, `sheet_of_card` : la taille affichée choisit le profil de l'assistant), enregistrement (`save_form` : un nom
+  (`card_of`, `sheet_of_card` : la taille affichée ou tapée choisit le profil de l'assistant, `profile_of_size`, écrit
+  sous le champ par `size_note`), machine lue dans le log (D-077 : `machine_of_log`, `take_log` appelé par
+  `App::remember`, `log_note` pour l'écart sous le champ), enregistrement (`save_form` : un nom
   n'appartient qu'à un drone), reprise de l'ancien `drones.json` au lancement (`import_old_file`). L'écran rend des
   `SheetAction` que `App::apply_sheet` exécute. Colonne de droite : la **Fiche cible** (lot 31b, D-072 ; `target_texts`,
   `target_note`, `check_target`, sans fenêtre) — dix cases de `otb_advisor::target::ROWS` ; tant que `DroneSheet::target`
@@ -267,7 +269,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
 - **otb-store** : la bibliothèque de données (lot 28), en **fichiers JSON** et non en base — tranché par Cédric le 2026-11-18,
   le volume étant petit et une base embarquée apportant un compilateur C et une frontière FFI (D-054). Sept tables dans
   `<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` : drones (clé = identifiant de la carte ; avec leur **fiche**,
-  `DroneSheet`, absente tant qu'on ne l'a pas remplie, D-068), logs connus (copiés ou laissés
+  `DroneSheet`, absente tant qu'on ne l'a pas remplie, D-068, et ce que leur dernier log dit de la machine, `LogMachine`,
+  D-077), logs connus (copiés ou laissés
   en place), fragments de vol, configurations (`diff all` datés, gardés seulement quand ils changent), mesures (une par
   fragment, axe et grandeur, avec les bornes du fragment, les réglages et la **version de calcul** qui les périment),
   liste d'analyse et choix du pilote sur les conseils de l'assistant (`conseils.json`, `model::Advice` : appliqué, ou écarté

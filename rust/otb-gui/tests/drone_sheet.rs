@@ -76,14 +76,158 @@ fn la_fiche_se_traduit_pour_l_assistant_et_revient() {
     d.sheet = Some(new_sheet());
     let c = card_of(&d).unwrap();
     assert_eq!((c.bf.as_str(), c.size.as_str(), c.pid_khz), ("2025.12", "five", 8.0));
-    // chaque taille proposée choisit un profil qui existe
-    for (taille, _) in SIZES {
+    // chaque taille proposée choisit un profil qui existe, le même que si on l'avait tapée (D-077)
+    for (taille, p) in SIZES {
         assert!(
             otb_advisor::profiles::profile(profile_of_size(taille)).is_some(),
             "{taille}"
         );
+        assert_eq!(otb_advisor::profiles::size_profile_key(taille), Some(p), "{taille}");
     }
     assert_eq!(profile_of_size("inconnue"), "five");
+}
+
+// ---------------------------------------------------------------- taille libre et log (D-077)
+
+/// Une taille tapée hors de la liste choisit son profil, et la note sous le champ dit lequel ; une taille
+/// illisible prend le profil par défaut et le dit.
+#[test]
+fn une_taille_libre_choisit_son_profil_et_le_dit() {
+    assert_eq!(profile_of_size("3,5″"), "micro");
+    assert_eq!(profile_of_size("10″"), "large");
+    assert_eq!(profile_of_size("85 mm"), "whoop");
+    assert_eq!(size_note("3,5″"), "Seuils de l’Assistant : 2 à 3,5 pouces.");
+    assert_eq!(size_note("10″"), "Seuils de l’Assistant : 8 pouces et plus.");
+    assert!(size_note("grand").starts_with("Taille non reconnue : seuils « 4 à 5 pouces » par défaut."));
+    let mut d = Drone::new("A", "A");
+    let mut s = new_sheet();
+    s.size = "10″".into();
+    d.sheet = Some(s);
+    assert_eq!(
+        card_of(&d).unwrap().size,
+        "large",
+        "l'assistant reçoit le profil de la taille tapée"
+    );
+}
+
+/// Pôles, KV et boucle PID se lisent dans l'en-tête du vrai log ; un en-tête qui ne les porte pas ne donne
+/// **rien** — surtout pas les 14 pôles et les 8 kHz que `Settings` met par défaut.
+///
+/// Contre-preuve vue en échec (2026-11-25) : en lisant `motor_poles` sans regarder l'en-tête brut, la seconde
+/// assertion rougit (« 14 » inventé).
+#[test]
+fn le_log_dit_les_poles_le_kv_et_la_boucle_pid() {
+    let log = &otb_log::flightlog::load(&donnees()).unwrap()[0];
+    let m = machine_of_log(&log.settings, "2026-11-25");
+    assert_eq!(
+        (m.poles.as_str(), m.kv.as_str(), m.pid_khz.as_str()),
+        ("14", "1960", "3.2"),
+        "312 µs, une boucle sur 1 : 3,2 kHz"
+    );
+    let vide = machine_of_log(&otb_log::settings::Settings::default(), "2026-11-25");
+    assert_eq!(
+        (vide.poles, vide.kv, vide.pid_khz),
+        (String::new(), String::new(), String::new())
+    );
+    assert_eq!(
+        [8000.0, 4000.0, 3205.1, 1600.0, 2666.7].map(khz_text),
+        ["8", "4", "3.2", "1.6", "2.7"]
+    );
+}
+
+/// La fiche **suit** le log pour la boucle PID, ne **remplit** que les pôles et le KV vides, et dit sous le champ
+/// quand elle diffère du log ; un log plus ancien rouvert ne change rien ; un drone sans fiche n'en reçoit pas
+/// (D-068), mais la fiche qu'on lui ouvre part des valeurs du log.
+///
+/// Contre-preuve vue en échec (2026-11-25) : en écrivant les pôles du log même quand le pilote en a saisi, la
+/// troisième assertion rougit (« 14 » au lieu de « 12 »).
+#[test]
+fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
+    let lu = |date: &str, pid: &str| otb_store::model::LogMachine {
+        date: date.into(),
+        poles: "14".into(),
+        kv: "1960".into(),
+        pid_khz: pid.into(),
+    };
+    let mut d = avec_fiche("A", "A");
+    d.sheet.as_mut().unwrap().poles = "12".into();
+    take_log(&mut d, lu("2026-11-20", "3.2"));
+    let s = d.sheet.clone().unwrap();
+    assert_eq!(s.pid_khz, "3.2", "la boucle PID suit le log");
+    assert_eq!(s.poles, "12", "les pôles saisis restent");
+    assert_eq!(s.kv, "1960", "le KV vide est rempli");
+    assert_eq!(
+        log_note("poles", &s.poles, d.from_log.as_ref()),
+        Some((
+            "Le dernier log dit 14 : vérifiez motor_poles dans Betaflight, le filtre RPM s’en sert.".to_string(),
+            true
+        ))
+    );
+    assert_eq!(
+        log_note("kv", &s.kv, d.from_log.as_ref()),
+        Some(("Lu dans le dernier log.".to_string(), false))
+    );
+    assert_eq!(
+        log_note("pid", "8", d.from_log.as_ref()),
+        Some(("Le dernier log dit 3,2 kHz.".to_string(), true))
+    );
+    assert_eq!(log_note("poles", "12", None), None, "sans log, pas de note");
+
+    take_log(&mut d, lu("2026-11-01", "8"));
+    assert_eq!(
+        d.sheet.as_ref().unwrap().pid_khz,
+        "3.2",
+        "un log plus ancien ne change rien"
+    );
+    assert_eq!(d.from_log.as_ref().unwrap().date, "2026-11-20");
+
+    let mut sans = Drone::new("B", "B");
+    take_log(&mut sans, lu("2026-11-20", "4"));
+    assert_eq!(sans.sheet, None, "pas de fiche inventée");
+    let f = SheetForm::edit(&sans);
+    assert_eq!(
+        (f.sheet.poles.as_str(), f.sheet.kv.as_str(), f.sheet.pid_khz.as_str()),
+        ("14", "1960", "4")
+    );
+}
+
+/// Ouvrir un vrai log range ce qu'il dit dans le drone qui porte son nom, et la fiche suit sa boucle PID.
+#[test]
+fn un_log_ouvert_renseigne_la_fiche() {
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.library.put_drone(avec_fiche("cree-a-la-main", &nom_du_log()));
+    let mut h = banc(app);
+    h.run_steps(2);
+    h.state_mut().open(vec![donnees()]);
+    attendre_logs(&mut h, 1);
+    let d = h.state().library.drone("cree-a-la-main").unwrap().clone();
+    assert_eq!(d.from_log.as_ref().map(|m| m.pid_khz.as_str()), Some("3.2"));
+    let s = d.sheet.unwrap();
+    assert_eq!(
+        (s.pid_khz.as_str(), s.poles.as_str(), s.kv.as_str()),
+        ("3.2", "14", "1960")
+    );
+}
+
+/// À l'écran : la taille se tape (hors de la liste), la taille des moteurs a son champ, et l'enregistrement les
+/// garde telles que tapées.
+#[test]
+fn la_taille_et_la_taille_des_moteurs_se_tapent_a_l_ecran() {
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.library.put_drone(avec_fiche("uid-1", "JeNo Ced"));
+    app.screen = Screen::Dashboard;
+    let mut h = banc(app);
+    h.run_steps(3);
+    h.cliquer_role(Role::Button, "Modifier le drone");
+    h.run_steps(3);
+    h.get_by_label("Taille").set_text_value_accesskit("3,5″");
+    h.get_by_label("Taille des moteurs").set_text_value_accesskit("1404");
+    h.run_steps(2);
+    h.get_by_label("Seuils de l’Assistant : 2 à 3,5 pouces.");
+    h.cliquer_role(Role::Button, "Enregistrer");
+    h.run_steps(3);
+    let s = h.state().library.drone("uid-1").unwrap().sheet.clone().unwrap();
+    assert_eq!((s.size.as_str(), s.motor_size.as_str()), ("3,5″", "1404"));
 }
 
 /// ⚠️ Deux drones ne partagent jamais un nom (les logs iraient au premier) ; un drone connu par ses seuls logs
