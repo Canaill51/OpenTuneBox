@@ -142,7 +142,7 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   - **Le ×** la retire de l'analyse (le vol est fermé).
   - La liste est **retrouvée au lancement suivant** : mêmes vols, même ordre, mêmes couleurs.
 - **Rail de navigation à gauche** : **Tableau de bord**, **Guide**, **Assistant**, **Bruit et filtres**,
-  **Réponse indicielle**, **Curseurs PID** et **Configuration**, chacun avec sa couleur, l'un sous l'autre.
+  **Réponse indicielle** et **Configuration**, chacun avec sa couleur, l'un sous l'autre.
   Survolez une entrée pour sa description.
 - **Un clic dans le rail** remplace l'affichage par l'outil choisi, dans la même fenêtre
   (aucune nouvelle fenêtre) ; l'entrée de l'affichage en cours est mise en valeur. Un outil garde ses réglages et
@@ -351,10 +351,6 @@ Conditions vérifiées pour chaque vol (hors série Feedforward) : feedforward �
 est coupé ; pas en Horizon), curseur I (Drift-Wobble) à 0,2–0,3, assez de mouvements.
 Dans les colonnes de mesures, un cercle entoure les vols conseillés ; sur les courbes, un point creux marque
 l'arrêt de la montée quand il y a une cassure.
-
-### Curseurs PID
-Positions des curseurs (lues dans le log, ou estimées si le réglage simplifié est désactivé) et
-simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, copiez les commandes CLI.
 
 ### Simulateur de filtres (Filtres)
 S'ouvre par l'onglet **Simulateur** de l'entrée **Bruit et filtres** du rail.

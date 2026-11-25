@@ -1,5 +1,5 @@
 //! Parité des calculs des outils avec Python (phases 6-2 à 6-4) : rejoue, avec les réglages par défaut, `compute` des
-//! sept outils portés (Spectre, Fréquence × gaz, Fréquence × temps, Réponse indicielle, Curseurs PID, Simulateur de filtres,
+//! six outils portés (Spectre, Fréquence × gaz, Fréquence × temps, Réponse indicielle, Simulateur de filtres,
 //! Assistant) sur les 20 journaux de
 //! `golden.py record` (`DOSSIER/tools/NNN.npz`) et compare **chaque clé** de Python.
 //!
@@ -25,7 +25,6 @@ use otb_gui::tools::filter_sim::{FilterSimTool, Options as FilterSimOptions};
 use otb_gui::tools::filter_sim_calc::FilterSimResult;
 use otb_gui::tools::freq_throttle::{FreqThrottleOutput, FreqThrottleTool};
 use otb_gui::tools::freq_time::{FreqTimeOutput, FreqTimeTool};
-use otb_gui::tools::pid_slider::{PidOutput, PidSliderTool};
 use otb_gui::tools::spectral::{SpectralOutput, SpectralTool};
 use otb_gui::tools::step::{Options as StepOptions, StepOutput, StepTool};
 use otb_gui::tools::step_common::StepOpts;
@@ -748,22 +747,6 @@ fn check_step(rep: &mut Report, refs: &Refs, i: usize, out: &StepOutput, t: &Tol
     }
 }
 
-fn check_sliders(rep: &mut Report, refs: &Refs, i: usize, out: &PidOutput, t: &Tols) {
-    let Some(f) = out.files.first() else {
-        rep.fail(i, "curseurs PID : aucun fichier".into());
-        return;
-    };
-    let p = "sliders[0]";
-    rep.text(refs, i, &format!("{p}.label"), &f.label);
-    rep.text(refs, i, &format!("{p}.color"), &hex(f.color));
-    rep.ints(refs, i, &format!("{p}.mode"), &[f.mode]);
-    for (k, v) in &f.view.values {
-        rep.scalar(refs, i, &format!("{p}.view.values|{k}"), "curseurs", *v, t.slider);
-    }
-    rep.flag(refs, i, &format!("{p}.view.from_header"), f.view.from_header);
-    rep.flag(refs, i, &format!("{p}.view.consistent"), f.view.consistent);
-}
-
 // ------------------------------------------------------------------ Simulateur de filtres et Assistant (6-4c, 6-4a)
 
 fn check_lowpass(rep: &mut Report, refs: &Refs, i: usize, p: &str, l: &Lowpass) {
@@ -1327,10 +1310,6 @@ fn main() {
             Ok(out) => check_step(&mut rep, &refs, i, &out, &t),
             Err(e) => rep.fail(i, format!("réponse indicielle : erreur {e}")),
         }
-        match PidSliderTool::compute(Default::default(), st.inputs(&[0])) {
-            Ok(out) => check_sliders(&mut rep, &refs, i, &out, &t),
-            Err(e) => rep.fail(i, format!("curseurs PID : erreur {e}")),
-        }
         match FilterSimTool::compute(
             FilterSimOptions {
                 applied: None,
@@ -1358,7 +1337,6 @@ fn main() {
                 "freq_throttle.",
                 "freq_time.",
                 "step[",
-                "sliders[",
                 "filter_sim.",
                 "advisor[",
             ]
@@ -1366,8 +1344,7 @@ fn main() {
             .any(|p| k.starts_with(p));
             if !ported {
                 ignored += 1;
-            } else if k.contains(".entry.") || k.starts_with("sliders[0].settings.") || k.starts_with("advisor[0].log.")
-            {
+            } else if k.contains(".entry.") || k.starts_with("advisor[0].log.") {
                 ignored += 1; // champs du journal et réglages : couverts par les couches `flightlog` et `settings` (680 sessions)
             } else if rep.used.contains(k) {
                 compared += 1;

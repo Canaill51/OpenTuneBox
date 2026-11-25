@@ -28,12 +28,11 @@ pub enum ToolTarget {
 }
 
 /// (clé de Python, libellé du bouton, destination).
-pub const TOOLS: [(&str, &str, ToolTarget); 9] = [
+pub const TOOLS: [(&str, &str, ToolTarget); 8] = [
     ("spectral", "Spectre", ToolTarget::Page("Analyse spectrale")),
     ("freq_throttle", "Fréq. × gaz", ToolTarget::Page("Fréquence × gaz")),
     ("freq_time", "Fréq. × temps", ToolTarget::Page("Fréquence × temps")),
     ("step", "Réponse indicielle", ToolTarget::Page("Réponse indicielle")),
-    ("sliders", "Curseurs PID", ToolTarget::Page("Curseurs PID")),
     ("filter_sim", "Filtres", ToolTarget::Page("Simulateur de filtres")),
     ("setup", "Configuration", ToolTarget::Page("Configuration")),
     ("advisor", "Assistant", ToolTarget::Page("Assistant")),

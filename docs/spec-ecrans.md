@@ -8,6 +8,9 @@ n'ont jamais été exportées (seuls leurs boutons sont visibles) : leur interfa
 OpenTuneBox. Les modules de PTB (binaires chiffrés) citent aussi : PTplotFlightStats, PTdispSetupInfo,
 PTplotFilterSim, PTpidSliderTool, PTcalcDelays, PTgetBandwidth, PTB_AIAssistant_*.
 
+La fenêtre PID slider tool n'a **pas** de page dans OpenTuneBox : retirée le 2026-11-25 (D-083) ; seule reste la vue des
+curseurs BF de la réponse indicielle.
+
 Conventions : fond gris, axes blancs avec grille ; couleurs des fichiers comparés rouge, orange, jaune,
 vert clair, cyan, bleu, bleu foncé… (10 fichiers au maximum) ; couleurs des moteurs M1/5 rouge, M2/6 orange,
 M3/7 bleu, M4/8 cyan. Chaque outil a : Run, Reset, Save Fig, Save Settings, Markup, Quick Guide,

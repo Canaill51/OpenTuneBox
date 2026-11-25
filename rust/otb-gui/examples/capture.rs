@@ -191,6 +191,9 @@ fn main() {
         fiche.pid_khz = 3.2;
         h.state_mut().put_card(fiche);
         h.state_mut().guide.select_by_name(&nom);
+        // barre d'état vide pour le guide et les pages (les messages de l'essai des fragments n'ont rien à y faire) : `open` sans fichier
+        // ne fait que l'effacer
+        h.state_mut().open(Vec::new());
         h.state_mut().screen = Screen::Guide;
         for phase in [otb_gui::guide::HOME, "prep", "filters", "pid"] {
             h.state_mut().guide.phase = phase;
@@ -213,9 +216,6 @@ fn main() {
             .save(out.join(format!("tableau-de-bord-releve-{}.png", th.name)))
             .unwrap();
         h.state_mut().screen = Screen::Guide;
-        // barre d'état vide pour les pages (les messages de l'essai des fragments n'ont rien à y faire) : `open` sans fichier
-        // ne fait que l'effacer
-        h.state_mut().open(Vec::new());
         // un outil après l'autre : on attend la fin de son calcul avant de regarder
         for i in 0..h.state().pages.len() {
             h.state_mut().screen = Screen::Tool(i);

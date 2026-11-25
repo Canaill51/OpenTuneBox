@@ -2,7 +2,7 @@
 
 OpenTuneBox analyse les logs Blackbox Betaflight (`.bbl`/`.bfl`) pour régler les drones : décodeur natif,
 analyses FFT / Wiener / filtres Betaflight, interface egui, assistant à règles. Objectif : couvrir tous les
-outils de PIDtoolbox Pro V0.94, en multiplateforme et hors ligne.
+outils de PIDtoolbox Pro V0.94 (sauf Curseurs PID, retiré : D-083), en multiplateforme et hors ligne.
 
 ## Le propriétaire
 

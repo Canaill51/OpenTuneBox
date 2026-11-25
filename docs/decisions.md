@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-083 | **La page « Curseurs PID » est retirée** du rail (le calcul, le graphique de la Réponse indicielle et la ligne de la Configuration restent) ; l'objectif devient « tous les outils de PIDtoolbox Pro V0.94 **sauf Curseurs PID** » **(amende D-060 et D-061)** | 2026-11-25 |
 | D-082 | **Tri des fenêtres de la réponse indicielle** : notre propre tri (jamais celui de PIDtoolbox, D-004) — réponse gardée **entre 0,5 et 1,5 dès 150 ms**, puis fenêtres trop loin de la **courbe médiane** écartées (médiane + 3 MAD normalisés) ; mesures de boucle sur les seules fenêtres gardées ; **tri de Python** (0,5–3 sur 200–500 ms) gardé pour les références figées (`StepOptions::python`, `rules::Method::python`) ; l'assistant est recalibré (pic 1,15 / 1,20, avec feedforward 1,30 / 1,45 ; D-025 amendée) | 2026-11-25 |
 | D-081 | **Emplacement de la bibliothèque au choix** : pointeur à côté du dossier par défaut ; logs copiés écrits **relatifs** à la bibliothèque ; déplacement = copie relue, bascule, **puis** ancien dossier effacé ; bibliothèque trouvée dans le dossier choisi utilisée telle quelle ; dossier introuvable au lancement : rien d'écrit ; témoin d'ouverture qui **avertit** (sans bloquer) quand une autre session l'a écrite depuis moins de 10 min ; écran hors rail « Bibliothèque », **écart au prototype** (D-061) | 2026-11-25 |
 | D-080 | **Et si : multiplicateurs de filtres gyro et D comme Betaflight Configurator** : interrupteur et curseur (0,10 à 2,00, pas de 0,05) en tête des passe-bas, fréquences recalculées à l'arithmétique du firmware et grisées ; interrupteur repris du log seulement si ses coupures sont celles du curseur ; CLI = état du curseur + coupures | 2026-11-25 |
@@ -152,6 +153,31 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-25 — Le retrait de la page « Curseurs PID » (lot 36)
+
+### D-083 : la page « Curseurs PID » quitte le rail
+
+**Tranché par Cédric** le 2026-11-25 : la page n'est pas vraiment utile et **peut prêter à confusion** (positions de curseurs
+estimées depuis les PID quand le réglage simplifié est coupé, simulation « et si » qui concurrence le configurateur).
+Il retire **la page seule**.
+
+**Décision.**
+- **Retirés** : la page (`pid_slider.rs`), son entrée dans `all_pages`, sa place et son icône dans le rail
+  (`sliders-horizontal`), son bouton dans le guide (`guide.rs:TOOLS`), le losange de simulation de `slider_plot` et les tests
+  de la page.
+- **Gardés** : le graphique « Curseurs PID Betaflight » sous le diagnostic de la Réponse indicielle, la ligne « Curseurs
+  simplifiés » de la Configuration, et tout le calcul (`rust/otb-analysis/src/sliders.rs`) qu'utilisent l'assistant, la
+  vérification des logs, le guide, le simulateur de filtres et les références figées. La case « Curseurs de réglage PID en
+  mode RPY » du parcours reste : c'est une étape dans le configurateur, pas un lien.
+- **Amende D-060** (le rail passe de sept à **six entrées**) **et D-061** (le prototype dessine cette page : c'est un écart
+  voulu, écrit ici).
+- **Objectif** : « tous les outils de PIDtoolbox Pro V0.94 » devient « tous **sauf Curseurs PID** ».
+
+**Options écartées.** Garder la page en la simplifiant (le doute porte sur son principe) ; retirer aussi le graphique de la
+Réponse indicielle (utile à lire avec le diagnostic).
 
 ---
 

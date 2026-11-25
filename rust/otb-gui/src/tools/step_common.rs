@@ -1,4 +1,4 @@
-//! Briques communes à la Réponse indicielle et aux Curseurs PID (port de `gui/tools/_step_common.py`) : calcul de la réponse
+//! Briques de la Réponse indicielle (port de `gui/tools/_step_common.py`) : calcul de la réponse
 //! indicielle d'un log (par axe, avec les métriques fenêtre par fenêtre qui servent aux barres d'erreur) et graphique des 8
 //! curseurs Betaflight (position 0 à 2).
 
@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use egui::{Color32, RichText, Ui};
-use egui_plot::{GridMark, LineStyle, MarkerShape, Plot, PlotPoints, Points, VLine};
+use egui_plot::{GridMark, LineStyle, Plot, PlotPoints, Points, VLine};
 use otb_analysis::delay::xcorr_delay_ms;
 use otb_analysis::npstat::std_f32;
 use otb_analysis::open_loop::Terms;
@@ -259,17 +259,8 @@ pub fn file_offset(k: usize, nf: usize) -> f64 {
 }
 
 /// Positions des 8 curseurs (0 à 2) : un point par fichier, décalé s'il y a plusieurs fichiers. Point plein = curseurs de l'en-tête ;
-/// point creux = estimation depuis les PID. `extra` : positions supplémentaires (fractions, dans l'ordre des catégories), dessinées en
-/// losange (simulation).
-pub fn slider_plot(
-    ui: &mut Ui,
-    id: &str,
-    files: &[(Color32, &SliderView)],
-    extra: Option<&[f64; 8]>,
-    title: &str,
-    theme: &Theme,
-    height: f32,
-) {
+/// point creux = estimation depuis les PID.
+pub fn slider_plot(ui: &mut Ui, id: &str, files: &[(Color32, &SliderView)], title: &str, theme: &Theme, height: f32) {
     ui.label(RichText::new(title).strong());
     let n = PTB_CATEGORIES.len();
     Plot::new(id.to_string())
@@ -350,16 +341,6 @@ pub fn slider_plot(
                             .filled(false),
                     );
                 }
-            }
-            if let Some(x) = extra {
-                let pts: Vec<[f64; 2]> = x.iter().enumerate().map(|(i, v)| [*v, row_y(i)]).collect();
-                pu.points(
-                    Points::new("", PlotPoints::from(pts))
-                        .color(theme.fg)
-                        .shape(MarkerShape::Diamond)
-                        .radius(7.0)
-                        .filled(false),
-                );
             }
         });
 }
