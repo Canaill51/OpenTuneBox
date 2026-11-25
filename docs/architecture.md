@@ -100,8 +100,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   | Spectre | `rust/otb-gui/src/tools/spectral.rs` | analyse spectrale |
   | Fréq. × gaz (dans Spectre) | `rust/otb-gui/src/tools/freq_throttle.rs` | fréquence × gaz, jusqu'à 4 colonnes |
   | Fréq. × temps (dans Spectre) | `rust/otb-gui/src/tools/freq_time.rs` | spectrogrammes, curseur lié au lecteur |
-  | Indicielle | `rust/otb-gui/src/tools/step.rs` | réponse indicielle (+ `rust/otb-gui/src/tools/step_common.rs`, partagé avec les curseurs PID : calcul d'un fichier, graphique des curseurs) |
-  | Curseurs PID | `rust/otb-gui/src/tools/pid_slider.rs` | curseurs du réglage simplifié et simulation |
+  | Indicielle | `rust/otb-gui/src/tools/step.rs` | réponse indicielle (+ `rust/otb-gui/src/tools/step_common.rs`, calcul d'un fichier, graphique des curseurs) |
   | Filtres | `rust/otb-gui/src/tools/filter_sim.rs` | simulateur de filtres (interface) ; `rust/otb-gui/src/tools/filter_sim_calc.rs` : calculs purs, sans egui |
   | Configuration (panneau de droite) | `rust/otb-gui/src/tools/setup.rs` | réglages des logs côte à côte (lignes alignées par nom : D-038) |
   | Assistant | `rust/otb-gui/src/tools/advisor.rs` | rapport de l'assistant de réglage en cartes, jauge « mesure contre seuil » (D-070) ; badge du drone, vol comparé, pouces et historique des conseils (lot 31d, D-073 ; calculs purs dans `rust/otb-gui/src/advice.rs`) ; `rust/otb-gui/src/tools/report_ui.rs` : constats et diagnostic du bruit |

@@ -5,7 +5,7 @@ tableau en bas, une ligne par lot. Il n'y a **pas d'autre document de plan** : l
 se lit dans [travaux-reportes.md](travaux-reportes.md), jamais ici (L-092).
 
 **État au 2026-11-10, vérifié** : la **0.9.0 est publiée** (page « dernière version », AppImage et
-installateur Windows), les huit outils de PIDtoolbox Pro V0.94 sont tous couverts
+installateur Windows), les outils de PIDtoolbox Pro V0.94 sont tous couverts, sauf Curseurs PID retiré le 2026-11-25 (D-083)
 ([spec-ecrans.md](spec-ecrans.md), `rust/otb-gui/src/tools/mod.rs:all_pages`), `main` est propre, la CI est
 verte, et `cargo run -p otb-dev -- verify --strict` avec le corpus, les références figées et la comparaison
 au bit près : **0 saut, tout passe**.
@@ -77,7 +77,7 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 | 3 | **34** | Emplacement de la bibliothèque au choix, avec déplacement sûr | **fait le 2026-11-25** (D-081) ; reste l'essai à la main sous Linux et Windows |
 | 4 | **35** | Tri des fenêtres de la réponse indicielle, puis recalibrage de l'assistant | **fait le 2026-11-25** (D-082), essayé à la main par Cédric |
-| 5 | **36** | Retirer la page « Curseurs PID » | lot 35 (fait le 2026-11-25 : mêmes fichiers de la réponse indicielle) ; demandé par Cédric le 2026-11-25 |
+| 5 | **36** | Retirer la page « Curseurs PID » | **fait le 2026-11-25** (D-083) |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 (fait le 2026-11-24) |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -321,7 +321,7 @@ Un départ maximal (`|r(0)| ≤ 0,1`) n'écarte rien sur ce log : à garder seul
 
 ---
 
-## Lot 36 : retirer la page « Curseurs PID » (Sonnet)
+## Lot 36 : retirer la page « Curseurs PID » (Sonnet) — **fait le 2026-11-25** (D-083)
 
 **But** : enlever de la barre de gauche la page **Curseurs PID** (positions des 8 curseurs du réglage simplifié,
 simulation « et si… », commandes CLI à coller). Demandé par Cédric le 2026-11-25 : elle n'est pas vraiment utile et
@@ -335,24 +335,24 @@ simulation « et si… », commandes CLI à coller). Demandé par Cédric le 202
 
 **Branche** : `feat/remove-pid-sliders-page`.
 
-**À lire** : `rust/otb-gui/src/tools/pid_slider.rs`, `rust/otb-gui/src/tools/mod.rs:all_pages`, `rust/otb-gui/src/app.rs`
+**À lire** : `pid_slider.rs` (supprimé), `rust/otb-gui/src/tools/mod.rs:all_pages`, `rust/otb-gui/src/app.rs`
 (icône et ordre du rail), `rust/otb-gui/src/guide.rs:TOOLS`, `rust/otb-gui/src/tools/step_common.rs:slider_plot`,
 [decisions.md](decisions.md) D-015, D-060 et D-061, [spec-ecrans.md](spec-ecrans.md), [architecture.md](architecture.md).
 
-- [ ] **Décision** (numéro pris par `otb-dev numero D`) : la page est retirée ; l'objectif « couvrir tous les outils de
+- [x] **Décision** (numéro pris par `otb-dev numero D`) : la page est retirée ; l'objectif « couvrir tous les outils de
       PIDtoolbox Pro V0.94 » devient « tous sauf Curseurs PID » (AGENTS.md, README, état en tête de ce plan) ; l'écart
       au prototype (D-061, qui dessine cette page) est écrit.
-- [ ] **Code** : supprimer `pid_slider.rs`, son entrée dans `all_pages`, son icône et sa place dans le rail, son bouton
+- [x] **Code** : supprimer `pid_slider.rs` (fait), son entrée dans `all_pages`, son icône et sa place dans le rail, son bouton
       dans `guide.rs:TOOLS`. La case `sliders` du parcours (`rust/otb-advisor/src/tuning_path.rs`, « Curseurs de
       réglage PID en mode RPY ») est une étape de réglage dans le configurateur, pas un lien : elle reste. Simplifier ce
       qui ne servait qu'à la page (le losange de simulation de `slider_plot`, par exemple).
-- [ ] **Tests** : ôter ceux de la page (`rust/otb-gui/tests/step_tools.rs`, section « Curseurs PID » ; `rust/otb-gui/tests/app.rs`,
+- [x] **Tests** : ôter ceux de la page (`rust/otb-gui/tests/step_tools.rs`, section « Curseurs PID » ; `rust/otb-gui/tests/app.rs`,
       ordre du rail ; `rust/otb-gui/tests/contracts.rs`, icône ; `rust/otb-gui/examples/check_tools.rs`) en le disant dans la PR — retirer le test
       d'un écran supprimé n'est pas affaiblir un test ; garder ceux du calcul et du graphique de la réponse indicielle ;
       un test vérifie que le rail n'a plus la page.
-- [ ] **Documentation** : [guide-utilisateur.md](guide-utilisateur.md) (section « Curseurs PID » et liste du rail),
+- [x] **Documentation** : [guide-utilisateur.md](guide-utilisateur.md) (section « Curseurs PID » et liste du rail),
       README, [architecture.md](architecture.md), [spec-ecrans.md](spec-ecrans.md) ; compétence `docs-sync`.
-- [ ] **Critère d'arrêt** : un texte de l'assistant ou du guide qui envoie l'utilisateur vers cette page (aucun trouvé
+- [x] **Critère d'arrêt** : un texte de l'assistant ou du guide qui envoie l'utilisateur vers cette page (aucun trouvé
       le 2026-11-25) : s'arrêter et demander à Cédric où le renvoyer.
 
 **Recouvrement** : le lot 35 (fusionné le 2026-11-25) a touché les mêmes fichiers de la réponse indicielle

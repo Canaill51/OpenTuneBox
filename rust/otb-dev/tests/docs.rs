@@ -68,7 +68,7 @@ fn every_tool_documented() {
     let root = root();
     let pages = otb_gui::tools::all_pages();
     let titles: Vec<&str> = pages.iter().map(|p| p.title()).collect();
-    assert!(titles.len() >= 8, "pages d'outils trouvées : {titles:?}");
+    assert!(titles.len() >= 7, "pages d'outils trouvées : {titles:?}");
     let missing = tools_documented(
         &titles,
         &text(&root, "README.md"),

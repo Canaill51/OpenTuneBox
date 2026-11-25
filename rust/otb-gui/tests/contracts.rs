@@ -300,7 +300,6 @@ fn chaque_onglet_de_la_barre_a_son_icone_et_sa_couleur_comme_python() {
         ("Bruit et filtres", "audio-waveform", Some("blue")),
         ("Analyse spectrale", "audio-waveform", Some("blue")),
         ("Réponse indicielle", "chart-line", Some("green")),
-        ("Curseurs PID", "sliders-horizontal", Some("pink")),
         ("Simulateur de filtres", "funnel", Some("teal")),
         ("Assistant", "lightbulb", Some("orange")),
     ] {

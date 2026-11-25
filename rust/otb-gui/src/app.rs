@@ -96,7 +96,6 @@ pub fn tab_icon(title: &str) -> Option<(&'static str, Option<&'static str>)> {
         // l'espace du bruit et des filtres garde l'icône et la couleur de sa première vue (D-060)
         "Bruit et filtres" | "Analyse spectrale" => Some(("audio-waveform", Some("blue"))),
         "Réponse indicielle" => Some(("chart-line", Some("green"))),
-        "Curseurs PID" => Some(("sliders-horizontal", Some("pink"))),
         "Simulateur de filtres" => Some(("funnel", Some("teal"))),
         "Assistant" => Some(("lightbulb", Some("orange"))),
         _ => None,
@@ -159,13 +158,7 @@ pub enum EditTarget {
 }
 
 /// Ordre des entrées du rail après le Guide, celui du prototype (D-060) ; une page absente de la liste vient à la fin.
-const RAIL_ORDER: [&str; 5] = [
-    "Assistant",
-    "Bruit et filtres",
-    "Réponse indicielle",
-    "Curseurs PID",
-    "Configuration",
-];
+const RAIL_ORDER: [&str; 4] = ["Assistant", "Bruit et filtres", "Réponse indicielle", "Configuration"];
 
 pub struct App {
     pub state: AppState,

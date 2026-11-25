@@ -6,7 +6,6 @@ pub mod filter_sim;
 pub mod filter_sim_calc;
 pub mod freq_throttle;
 pub mod freq_time;
-pub mod pid_slider;
 pub mod report_ui;
 pub mod setup;
 pub mod spectral;
@@ -22,7 +21,6 @@ pub fn all_pages() -> Vec<Box<dyn Page>> {
         Box::new(ToolPage::new(freq_throttle::FreqThrottleTool::new())),
         Box::new(ToolPage::new(freq_time::FreqTimeTool::new())),
         Box::new(ToolPage::new(step::StepTool::new())),
-        Box::new(ToolPage::new(pid_slider::PidSliderTool::new())),
         Box::new(ToolPage::new(filter_sim::FilterSimTool::new())),
         Box::new(ToolPage::new(advisor::AdvisorTool::new())),
         Box::new(ToolPage::new(setup::SetupTool::new())),

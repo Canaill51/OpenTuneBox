@@ -232,7 +232,6 @@ fn le_rail_porte_les_entrees_de_navigation() {
         "Guide",
         "Bruit et filtres",
         "Réponse indicielle",
-        "Curseurs PID",
         "Assistant",
         "Configuration",
     ] {
@@ -254,7 +253,16 @@ fn le_rail_porte_les_entrees_de_navigation() {
             "« {cachee} » n'a pas d'entrée de rail"
         );
     }
-    // l'ordre du prototype : Tableau de bord, Guide, Assistant, Bruit et filtres, Réponse indicielle, Curseurs PID,
+    // la page « Curseurs PID » est retirée (D-083) : ni entrée de rail, ni page enregistrée
+    assert!(
+        h.query_by_label("Curseurs PID").is_none(),
+        "la page Curseurs PID n'a plus d'entrée"
+    );
+    assert!(
+        otb_gui::tools::all_pages().iter().all(|p| p.title() != "Curseurs PID"),
+        "la page Curseurs PID n'est plus enregistrée"
+    );
+    // l'ordre du prototype : Tableau de bord, Guide, Assistant, Bruit et filtres, Réponse indicielle,
     // Configuration
     let ordre: Vec<f32> = [
         "Tableau de bord",
@@ -262,7 +270,6 @@ fn le_rail_porte_les_entrees_de_navigation() {
         "Assistant",
         "Bruit et filtres",
         "Réponse indicielle",
-        "Curseurs PID",
         "Configuration",
     ]
     .iter()

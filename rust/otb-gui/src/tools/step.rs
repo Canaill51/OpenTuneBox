@@ -555,15 +555,7 @@ impl StepTool {
         ui.separator();
         let files: Vec<(Color32, &otb_analysis::sliders::SliderView)> =
             out.files.iter().map(|f| (f.color, &f.data.sliders)).collect();
-        slider_plot(
-            ui,
-            "step-curseurs",
-            &files,
-            None,
-            "Curseurs PID Betaflight",
-            theme,
-            slider_h,
-        );
+        slider_plot(ui, "step-curseurs", &files, "Curseurs PID Betaflight", theme, slider_h);
         modes_legend(ui, theme, &out.files);
     }
 }

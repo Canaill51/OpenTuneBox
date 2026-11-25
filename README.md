@@ -1,7 +1,7 @@
 # OpenTuneBox
 
 Boîte à outils d'analyse des logs **Blackbox Betaflight** pour régler les drones de toutes tailles,
-du whoop au 10 pouces. Elle reprend les outils de PIDtoolbox Pro V0.94 avec un décodeur et des
+du whoop au 10 pouces. Elle reprend les outils de PIDtoolbox Pro V0.94 (sauf Curseurs PID, retiré : D-083) avec un décodeur et des
 calculs entièrement réécrits, et fonctionne **hors ligne** sous Linux et Windows.
 
 ![Visualiseur de log](docs/images/visualiseur.png)
@@ -35,7 +35,6 @@ filtres** — partagent une seule entrée du rail, **Bruit et filtres**, et s'at
 | Fréquence × gaz | Cartes de bruit en fonction des gaz (4 colonnes, préréglages type PIDtoolbox) |
 | Fréquence × temps | Spectrogrammes avec harmoniques moteur et notchs dynamiques |
 | Réponse indicielle | Déconvolution de Wiener : pic, latence, temps de montée, bande passante, marge de phase… |
-| Curseurs PID | Position des curseurs simplifiés retrouvée depuis les PID, simulation « et si » + commandes CLI |
 | Simulateur de filtres | Chaînes gyro et D exactes de la version Betaflight, Bode, retards, filtres rejoués sur le vrai vol comme le firmware (avant / après, réglages actuels et modifiés) |
 | Configuration | Réglages des logs côte à côte, différences surlignées |
 | Assistant | Diagnostic à règles, seuils calibrés par taille de drone, chaque conseil justifié par sa mesure ; retard consigne → gyro (série feedforward) |
