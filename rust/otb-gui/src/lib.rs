@@ -11,6 +11,7 @@ pub mod export;
 pub mod guide;
 pub mod guide_page;
 pub mod icons;
+pub mod library_page;
 pub mod plots;
 pub mod state;
 pub mod theme;

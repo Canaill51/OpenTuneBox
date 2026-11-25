@@ -78,6 +78,10 @@ pub enum Screen {
     /// La récupération des logs par USB (lot 32b, D-074) : ouverte par le tableau de bord, elle y revient. Le rail
     /// reste, « Tableau de bord » choisi.
     Usb,
+    /// L'emplacement de la bibliothèque (lot 34, D-081) : ouvert par le tableau de bord, ou seul au lancement si elle
+    /// est introuvable ou ouverte ailleurs ; il revient d'où l'on venait (`App::library_return`). Le rail reste,
+    /// « Tableau de bord » choisi.
+    Library,
     /// Index dans `App::pages`.
     Tool(usize),
 }
@@ -176,6 +180,9 @@ pub struct App {
     /// L'écran de la récupération par USB ; ses ports se remplacent dans les tests par une carte simulée.
     pub usb: crate::usb_page::UsbPage,
     pub sheet_return: Screen,
+    /// L'écran de l'emplacement de la bibliothèque, et l'écran où revenir en le quittant.
+    pub libpage: crate::library_page::LibraryPage,
+    pub library_return: Screen,
     /// Mesures suivies dans le temps : lecture de leur table et calcul en arrière-plan (lot 31a).
     pub tracking: crate::tracking::Tracking,
     /// Version de la table des drones déjà donnée au Guide (`Library::drones_revision`) ; `None` : jamais.
@@ -313,6 +320,8 @@ impl App {
         // ni disques du poste, ni boîte du système dans les bancs de test (L-075)
         app.usb.volumes = std::sync::Arc::new(Vec::new);
         app.usb.pick_folder = Box::new(|| None);
+        // ni pointeur du poste, ni boîte du système, ni gestionnaire de fichiers (L-075)
+        app.libpage = crate::library_page::LibraryPage::default();
         app
     }
 
@@ -328,6 +337,8 @@ impl App {
             sheet: DroneSheetPage::default(),
             usb: crate::usb_page::UsbPage::system(),
             sheet_return: Screen::Dashboard,
+            libpage: crate::library_page::LibraryPage::system(),
+            library_return: Screen::Dashboard,
             tracking: Default::default(),
             cards_seen: None,
             bar: AnalysisBar::new(),
@@ -1068,7 +1079,10 @@ impl App {
                     if ui
                         .add(rail_entry(
                             "Tableau de bord",
-                            matches!(self.screen, Screen::Dashboard | Screen::DroneSheet | Screen::Usb),
+                            matches!(
+                                self.screen,
+                                Screen::Dashboard | Screen::DroneSheet | Screen::Usb | Screen::Library
+                            ),
                             theme,
                         ))
                         .clicked()
@@ -1288,6 +1302,12 @@ impl App {
         let mut sheet_actions = Vec::new();
         // la connexion USB vit hors de son écran : une copie finie pendant qu'on regarde ailleurs se range quand même
         let mut usb_actions = self.usb.poll(&self.library);
+        // déplacement de la bibliothèque : relevé à chaque image ; tant qu'il dure, la fenêtre reste sur son écran
+        self.libpage.poll(&mut self.library);
+        if self.libpage.moving() {
+            self.screen = Screen::Library;
+        }
+        let mut library_actions = Vec::new();
         egui::CentralPanel::default().show(root, |ui| match self.screen {
             Screen::Dashboard => {
                 dash_actions = self
@@ -1304,6 +1324,10 @@ impl App {
                 sheet_actions = self.sheet.ui(ui, &self.library, &theme, suivi.as_ref());
             }
             Screen::Usb => usb_actions.extend(self.usb.ui(ui, &self.library, &theme)),
+            Screen::Library => {
+                let blocked = (self.usb.busy() || self.usb.held.waiting()).then_some(crate::library_page::USB_BUSY);
+                library_actions = self.libpage.ui(ui, &mut self.library, &theme, blocked);
+            }
             Screen::Viewer => {} // dessiné plus haut, hors rail
             Screen::Tool(i) if i < self.pages.len() => {
                 self.pages[i].read_library(&self.library, &self.state);
@@ -1329,6 +1353,7 @@ impl App {
                     self.usb.enter();
                     self.screen = Screen::Usb;
                 }
+                DashAction::Library => self.open_library_screen(),
                 DashAction::NewDrone => self.open_sheet(SheetForm::new("", crate::drone_sheet::new_sheet())),
                 DashAction::EditDrone(id) => {
                     if let Some(d) = self.library.drone(&id) {
@@ -1343,6 +1368,12 @@ impl App {
                 }
                 DashAction::Toggle { fragment, path } => self.toggle_fragment(&fragment, path),
                 DashAction::Edit { fragment, path } => self.edit_fragment(&fragment, path),
+            }
+        }
+        for a in library_actions {
+            match a {
+                crate::library_page::LibraryAction::Leave => self.screen = self.library_return,
+                crate::library_page::LibraryAction::Switch(lib) => self.switch_library(*lib),
             }
         }
         if let Some(title) = goto {
@@ -1699,6 +1730,47 @@ impl App {
         }
     }
 
+    /// L'écran de l'emplacement de la bibliothèque ; il revient à l'écran d'où l'on vient.
+    pub fn open_library_screen(&mut self) {
+        if self.screen != Screen::Library {
+            self.library_return = self.screen;
+        }
+        self.screen = Screen::Library;
+    }
+
+    /// Au lancement (`main.rs`) : la bibliothèque est introuvable (`missing`, la raison), ou un autre poste semble
+    /// l'avoir ouverte (`warning`) ; l'écran de la bibliothèque s'ouvre pour le dire (D-081).
+    pub fn show_library_problem(&mut self, missing: Option<String>, warning: Option<String>) {
+        if missing.is_none() && warning.is_none() {
+            return;
+        }
+        if let Some(why) = &missing {
+            self.status = format!("Bibliothèque introuvable : {why}. Rien n'est enregistré.");
+        }
+        self.libpage.missing = missing;
+        self.libpage.warning = warning;
+        self.open_library_screen();
+    }
+
+    /// Une autre bibliothèque prend la place de l'actuelle (D-081) : l'actuelle écrit ses derniers changements et
+    /// rend son témoin, les logs ouverts sont fermés (leurs fragments sont ceux de l'ancienne), puis la liste
+    /// d'analyse de la nouvelle est rouverte, comme au lancement.
+    pub fn switch_library(&mut self, library: Library) {
+        if let Err(e) = self.library.save() {
+            self.errors.push(format!("bibliothèque : écriture impossible ({e})"));
+        }
+        self.library.release();
+        self.state.clear();
+        self.tracking = Default::default();
+        self.restoring = None;
+        self.wanted.clear();
+        self.open_roles.clear();
+        self.edit_after_open = None;
+        self.cards_seen = None;
+        self.library = library;
+        self.restore_analysis();
+    }
+
     /// Affiche l'outil de ce titre (`MainWindow.open_tool`) ; sans log ouvert, un message d'état à la place.
     pub fn open_tool(&mut self, title: &str) {
         if self.state.logs.is_empty() {
@@ -1716,6 +1788,16 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.ui(ui);
+    }
+
+    /// Fermeture, après le dernier `save` : un déplacement interrompu laisse la bibliothèque à l'ancien dossier, qui
+    /// reçoit les changements faits pendant la copie ; puis le témoin d'ouverture est retiré (D-081).
+    fn on_exit(&mut self) {
+        if self.libpage.moving() {
+            self.library.pause_writes(false);
+            let _ = self.library.save();
+        }
+        self.library.release();
     }
 
     /// Mémoire entre deux lancements : celle du Guide (D-039 : phase, fiche choisie, rôle de chaque log), le dossier

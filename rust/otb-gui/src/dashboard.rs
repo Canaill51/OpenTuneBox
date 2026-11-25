@@ -31,6 +31,8 @@ pub enum DashAction {
     OpenDialog,
     /// « Récupérer par USB » : l'écran de la récupération (lot 32b, D-074).
     Usb,
+    /// « Bibliothèque » : l'écran de son emplacement (lot 34, D-081).
+    Library,
     /// Rond « + » d'un fragment : l'ajouter à la liste d'analyse (en n'ouvrant que sa session) ou l'en retirer.
     Toggle { fragment: String, path: PathBuf },
     /// Crayon d'un fragment : l'écran d'extraction sur ce fragment (son log est ouvert d'abord s'il le faut).
@@ -176,7 +178,8 @@ impl DashboardPage {
         actions
     }
 
-    /// Le titre de l'écran et les deux boutons de la maquette.
+    /// Le titre de l'écran, les deux boutons de la maquette, puis « Récupérer par USB » (lot 32b) et
+    /// « Bibliothèque » (lot 34, D-081), absents du prototype.
     fn header(&mut self, ui: &mut Ui, th: &Theme, actions: &mut Vec<DashAction>) {
         ui.horizontal(|ui| {
             ui.label(RichText::new("Tableau de bord").size(TITLE_SIZE).color(th.ui.text));
@@ -211,6 +214,20 @@ impl DashboardPage {
                 .corner_radius(6);
                 if ui.add(usb).clicked() {
                     actions.push(DashAction::Usb);
+                }
+                let bibliotheque = egui::Button::image_and_text(
+                    icon("hard-drive", 15.0).tint(th.ui.text),
+                    RichText::new(crate::library_page::TITLE).color(th.ui.text),
+                )
+                .fill(th.ui.base)
+                .stroke(egui::Stroke::new(1.0, th.ui.mid))
+                .corner_radius(6);
+                if ui
+                    .add(bibliotheque)
+                    .on_hover_text("Où la bibliothèque est rangée, et la déplacer")
+                    .clicked()
+                {
+                    actions.push(DashAction::Library);
                 }
             });
         });

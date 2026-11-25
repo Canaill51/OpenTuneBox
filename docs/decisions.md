@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-081 | **Emplacement de la bibliothèque au choix** : pointeur à côté du dossier par défaut ; logs copiés écrits **relatifs** à la bibliothèque ; déplacement = copie relue, bascule, **puis** ancien dossier effacé ; bibliothèque trouvée dans le dossier choisi utilisée telle quelle ; dossier introuvable au lancement : rien d'écrit ; témoin d'ouverture qui **avertit** (sans bloquer) quand une autre session l'a écrite depuis moins de 10 min ; écran hors rail « Bibliothèque », **écart au prototype** (D-061) | 2026-11-25 |
 | D-080 | **Et si : multiplicateurs de filtres gyro et D comme Betaflight Configurator** : interrupteur et curseur (0,10 à 2,00, pas de 0,05) en tête des passe-bas, fréquences recalculées à l'arithmétique du firmware et grisées ; interrupteur repris du log seulement si ses coupures sont celles du curseur ; CLI = état du curseur + coupures | 2026-11-25 |
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
 | D-078 | **« Bruit et filtres » sans le terme D préfiltre** : le D avant filtres, reconstruit et non enregistré, n'est plus proposé dans le Spectre, Fréq. × gaz et Fréq. × temps ; « Terme D » montre le D filtré seul (une colonne par fragment dans × gaz) ; préréglages 1 et 5 de PIDtoolbox retirés ; onglets de l'espace dessinés comme le prototype ; **amende D-069** | 2026-11-25 |
@@ -150,6 +151,63 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-25 — L'emplacement de la bibliothèque au choix (lot 34)
+
+### D-081 : la bibliothèque se déplace sans rien perdre, et un dossier introuvable n'est jamais remplacé en silence
+
+**Tranché par Cédric** le 2026-11-25, au début du lot 34 (demandé le 2026-11-24 pendant l'essai de `essai-v0.10.0`),
+sur quatre questions : chemins des logs copiés, dossier ouvert sur deux PC, place du réglage, sort de l'ancien dossier.
+Il a retenu à chaque fois l'option recommandée.
+
+**Contexte.** Le dossier de la bibliothèque était fixe (`<données>/OpenTuneBox/OpenTuneBox/bibliotheque/`), et
+`logs.json` gardait le chemin **complet** de chaque log copié par USB : déplacer le dossier à la main rendait ces logs
+introuvables. Pour un disque plus grand, une sauvegarde ou la même bibliothèque sur deux PC, il faut pouvoir la déplacer.
+
+**Décision.**
+- **Pointeur** (`otb_store::place`) : `emplacement-bibliotheque.json`, dans le dossier **parent** du dossier par défaut
+  (il survit au déplacement), dit où est la bibliothèque. Absent : le dossier par défaut, rien ne change pour qui ne
+  déplace rien. Revenir au dossier par défaut retire le pointeur.
+- **Chemins relatifs** : un log **copié** s'écrit `logs/<drone>/<fichier>` (toujours avec `/`), relatif à la bibliothèque ;
+  en mémoire il reste complet, le reste du programme ne change pas. À la lecture, un ancien chemin complet ailleurs (autre
+  poste, autre système, dossier copié à la main) est ramené à ses trois derniers éléments dans ce dossier
+  (`otb_store::copied_path_in`). Un log ouvert sur place garde son chemin complet.
+- **Déplacement sûr** : la bibliothèque est écrite puis ses écritures **suspendues** ; tout est copié dans le nouveau
+  dossier, marqué `deplacement-en-cours` tant que ce n'est pas fini (une copie interrompue n'est jamais prise pour une
+  bibliothèque) ; chaque fichier est **relu et comparé** à l'original ; puis la bibliothèque bascule (écrite dans le
+  nouveau dossier, marque retirée, pointeur écrit) et **seulement ensuite** l'ancien dossier est effacé. Une étape qui
+  échoue avant la bascule laisse l'ancienne bibliothèque seule en service et retire la copie partielle. La table des
+  mesures est lue avant la copie (D-064 : une lecture en retard sur l'effacement rendrait une table vide). Refusé pendant
+  une récupération USB, dont les copies s'écrivent dans la bibliothèque.
+- **Dossier choisi** : vide, il reçoit la bibliothèque ; sinon son sous-dossier `OpenTuneBox`. S'il contient déjà une
+  bibliothèque (lui, ou son `OpenTuneBox`, ou son `bibliotheque`), elle est proposée **telle quelle** : jamais fusionnée ni
+  écrasée, l'actuelle reste intacte à sa place, les logs ouverts sont fermés.
+- **Introuvable au lancement** (disque débranché, pointeur illisible, dossier sans bibliothèque) : la bibliothèque reste en
+  mémoire et **n'écrit rien** ; l'écran « Bibliothèque » s'ouvre avec « Réessayer », « Choisir un autre dossier… » (une
+  bibliothèque existante seulement) et « Revenir à l'emplacement par défaut ». L'ancien fichier des fiches du Guide n'est
+  pas repris dans ce cas (la reprise le renomme, D-068).
+- **Deux PC sur un dossier synchronisé** : un témoin `ouverte-par.json` (poste, session, instant) s'écrit à l'ouverture et
+  à chaque enregistrement, et se retire à la fermeture. À l'ouverture, une **autre** session qui l'a écrit il y a moins de
+  10 minutes fait ouvrir l'écran « Bibliothèque » avec un avertissement ; **rien n'est bloqué**, un plantage ne laisse
+  qu'un avertissement de 10 minutes au plus. La ligne de commande n'écrit pas de témoin.
+- **Écran hors rail « Bibliothèque »** (`rust/otb-gui/src/library_page.rs`), ouvert par un bouton du tableau de bord à côté de
+  « Récupérer par USB », le rail gardant « Tableau de bord » choisi ; pendant un déplacement, la fenêtre y reste. **Écart
+  au prototype** (D-061), qui n'a pas d'écran de réglages : mise en page de l'écran USB (sections encadrées, une colonne),
+  icône Lucide `hard-drive`.
+
+**Options écartées.** Réécrire les chemins complets au déplacement (casse au premier dossier copié à la main ou à un
+changement de lettre de disque) ; un verrou bloquant (un plantage laisse un verrou à lever à la main) ; ne rien faire pour
+les deux PC ; le réglage en bas du tableau de bord ou derrière une icône de la barre du haut ; garder l'ancien dossier
+(les logs copiés en double) ou demander à chaque fois ; fusionner deux bibliothèques ; recréer une bibliothèque vide à la
+place d'un dossier introuvable.
+
+**Témoins.** `rust/otb-store/tests/emplacement.rs` (11 tests, 8 contre-preuves vues en échec : dossier absent, chemins
+complets, `relocate`, relecture, témoin ancien, écritures suspendues, copie partielle) ; `rust/otb-gui/tests/bibliotheque_emplacement.rs`
+(6 tests, 3 contre-preuves : bascule, refus pendant l'USB, bibliothèque trouvée) ; captures des deux thèmes
+(`--example capture` : `bibliotheque-*.png`). **À essayer à la main** : un vrai déplacement sous Linux et sous Windows
+(disque externe, puis débranché au lancement).
 
 ---
 

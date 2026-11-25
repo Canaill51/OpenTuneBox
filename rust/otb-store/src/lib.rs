@@ -19,6 +19,7 @@
 
 pub mod link;
 pub mod model;
+pub mod place;
 
 use model::{Advice, Analysis, AnalysisItem, Config, Drone, FORMAT_VERSION, Fragment, LogEntry, Measure};
 use serde_json::{Map, Value};
@@ -42,6 +43,9 @@ const MEASURES: &str = "mesures.json";
 const ANALYSIS: &str = "analyse.json";
 const ADVICE: &str = "conseils.json";
 
+/// Les sept fichiers de table : un dossier qui en contient un est une bibliothèque (`place::is_library`).
+pub(crate) const TABLES: [&str; 7] = [DRONES, LOGS, FRAGMENTS, CONFIGS, MEASURES, ANALYSIS, ADVICE];
+
 /// Sous-dossier des logs **copiés** (ceux récupérés par USB : la carte est vidée ensuite, donc la copie est la
 /// seule trace). Les logs que l'utilisateur ouvre lui-même restent où ils sont, et la bibliothèque n'écrit jamais
 /// dans leur dossier.
@@ -62,8 +66,8 @@ pub fn fingerprint(bytes: &[u8]) -> String {
     format!("{h:016x}{:08x}", bytes.len() as u32)
 }
 
-/// Le dossier de la bibliothèque, calculé comme celui des fiches drone (`rust/otb-gui/src/guide.rs`) puis suivi
-/// de `bibliotheque/`. Le système et la lecture des variables sont des arguments : les tests couvrent les trois
+/// Le dossier **par défaut** de la bibliothèque, calculé comme celui des fiches drone (`rust/otb-gui/src/guide.rs`)
+/// puis suivi de `bibliotheque/`. L'utilisateur peut en choisir un autre : `place::locate` dit où elle est (D-081). Le système et la lecture des variables sont des arguments : les tests couvrent les trois
 /// systèmes sans toucher au poste.
 pub fn dir_in(os: &str, var: &dyn Fn(&str) -> Option<OsString>) -> PathBuf {
     let get = |k: &str| var(k).filter(|v| !v.is_empty());
@@ -83,9 +87,51 @@ pub fn dir_in(os: &str, var: &dyn Fn(&str) -> Option<OsString>) -> PathBuf {
     }
 }
 
-/// Le dossier de la bibliothèque sur ce poste.
-pub fn dir() -> PathBuf {
+/// Le dossier par défaut de la bibliothèque sur ce poste ; celui où elle est vraiment : `place::locate`.
+pub fn default_dir() -> PathBuf {
     dir_in(std::env::consts::OS, &|k| std::env::var_os(k))
+}
+
+/// Le chemin **écrit** d'un log copié : relatif à la bibliothèque, toujours avec `/` (`logs/<drone>/<fichier>`), pour
+/// qu'elle se déplace ou passe d'un système à l'autre sans rien perdre (D-081). Un log ouvert sur place garde son
+/// chemin complet.
+fn stored_log(dir: &Path, l: &LogEntry) -> LogEntry {
+    let mut out = l.clone();
+    if l.copied
+        && let Ok(rel) = Path::new(&l.path).strip_prefix(dir)
+    {
+        let parts: Vec<String> = rel
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        out.path = parts.join("/");
+    }
+    out
+}
+
+/// Le chemin complet d'un log copié, lu dans la bibliothèque du dossier `dir`. ⚠️ Trois écritures possibles : le
+/// chemin relatif d'aujourd'hui (`logs/…`), un chemin complet dans ce dossier (avant le lot 34), ou un chemin complet
+/// **ailleurs** — bibliothèque copiée à la main, autre poste, autre système : on garde alors ses trois derniers
+/// éléments (`logs/<drone>/<fichier>`, la seule forme qu'écrit `copy_path`), séparés par `/` ou `\\`.
+pub fn copied_path_in(dir: &Path, stored: &str) -> String {
+    let parts: Vec<&str> = stored.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
+    let tail = |n: usize| {
+        let mut p = dir.to_path_buf();
+        for part in &parts[parts.len() - n..] {
+            p.push(part);
+        }
+        p.to_string_lossy().into_owned()
+    };
+    if stored.starts_with(&format!("{LOGS_FOLDER}/")) {
+        return tail(parts.len());
+    }
+    if Path::new(stored).starts_with(dir) {
+        return stored.to_string();
+    }
+    if parts.len() >= 3 && parts[parts.len() - 3] == LOGS_FOLDER {
+        return tail(3);
+    }
+    stored.to_string()
 }
 
 /// `nom.json.suffixe`, puis `.suffixe.1`… : un fichier déjà mis de côté n'est jamais écrasé.
@@ -138,6 +184,12 @@ pub struct Library {
     drones_rev: u64,
     /// Fichiers à mettre de côté avant la première écriture, avec le suffixe qui dit pourquoi.
     aside: Vec<(PathBuf, &'static str)>,
+    /// Écritures suspendues pendant la copie d'un déplacement (`pause_writes`) : ce qui change entre-temps reste en
+    /// mémoire et s'écrit dans le nouveau dossier.
+    paused: bool,
+    /// Le témoin de cette session (`claim`), récrit à chaque enregistrement ; `None` : la bibliothèque n'en écrit pas
+    /// (ligne de commande, tests).
+    witness: Option<place::Witness>,
 }
 
 /// La clé d'une mesure : le fragment, l'axe et la grandeur.
@@ -272,6 +324,11 @@ impl Library {
             items,
             working: lib.read_working(),
         };
+        if let Some(dir) = &lib.dir {
+            for l in lib.logs.iter_mut().filter(|l| l.copied) {
+                l.path = copied_path_in(dir, &l.path);
+            }
+        }
         lib
     }
 
@@ -314,6 +371,64 @@ impl Library {
     /// Ce qui s'est mal passé à l'ouverture, en français, à montrer à l'utilisateur. Vide = tout va bien.
     pub fn problems(&self) -> &[String] {
         &self.problems
+    }
+
+    /// Le dossier de la bibliothèque, **pour l'afficher** (écran de son emplacement) ; `None` en mémoire.
+    pub fn location(&self) -> Option<&Path> {
+        self.dir.as_deref()
+    }
+
+    /// La bibliothèque vit désormais dans `new_dir` (sa copie vient d'y être faite et relue, D-081) : les chemins
+    /// des logs copiés et des fichiers à mettre de côté suivent. N'écrit rien : `save` le fera.
+    pub fn relocate(&mut self, new_dir: PathBuf) {
+        let Some(old) = self.dir.replace(new_dir.clone()) else {
+            return;
+        };
+        let rebase = |p: &Path| p.strip_prefix(&old).ok().map(|rel| new_dir.join(rel));
+        for l in self.logs.iter_mut().filter(|l| l.copied) {
+            if let Some(p) = rebase(Path::new(&l.path)) {
+                l.path = p.to_string_lossy().into_owned();
+            }
+        }
+        for (p, _) in &mut self.aside {
+            if let Some(n) = rebase(p) {
+                *p = n;
+            }
+        }
+    }
+
+    /// Suspend (`true`) ou reprend les écritures : pendant la copie d'un déplacement, rien ne doit changer dans
+    /// l'ancien dossier, sans quoi la copie relue ne serait déjà plus à jour.
+    pub fn pause_writes(&mut self, paused: bool) {
+        self.paused = paused;
+    }
+
+    /// Cette session écrira son témoin à chaque enregistrement (`place::WITNESS`, D-081). Rend l'avertissement à
+    /// montrer si une **autre** session l'a écrite il y a peu (même dossier synchronisé ouvert sur deux PC).
+    pub fn claim(&mut self) -> Option<String> {
+        let dir = self.dir.clone()?;
+        let mine = place::Witness {
+            host: place::host_name(),
+            session: format!("{}-{}", std::process::id(), place::now_s()),
+            seen_s: place::now_s(),
+        };
+        let warning = place::Witness::read(&dir).and_then(|w| w.warning(&mine));
+        if dir.is_dir() {
+            let _ = mine.write(&dir);
+        }
+        self.witness = Some(mine);
+        warning
+    }
+
+    /// Fin de la session : son témoin est retiré, s'il est encore le sien. Un plantage le laisse, et il vieillit
+    /// seul (`place::WITNESS_FRESH_S`).
+    pub fn release(&mut self) {
+        let (Some(dir), Some(mine)) = (&self.dir, self.witness.take()) else {
+            return;
+        };
+        if place::Witness::read(dir).is_some_and(|w| w.session == mine.session) {
+            let _ = std::fs::remove_file(dir.join(place::WITNESS));
+        }
     }
 
     /// Le dossier des logs copiés, `None` pour une bibliothèque en mémoire.
@@ -389,6 +504,9 @@ impl Library {
         let Some(dir) = self.dir.clone() else {
             return Ok(());
         };
+        if self.paused {
+            return Ok(()); // déplacement en cours : tout s'écrira dans le nouveau dossier
+        }
         for (path, suffix) in std::mem::take(&mut self.aside) {
             if path.exists() {
                 std::fs::rename(&path, free_name(&path, suffix))?;
@@ -413,7 +531,10 @@ impl Library {
         );
         let files = [
             (DRONES, table(self.drones.iter().map(Drone::to_value).collect())),
-            (LOGS, table(self.logs.iter().map(LogEntry::to_value).collect())),
+            (
+                LOGS,
+                table(self.logs.iter().map(|l| stored_log(&dir, l).to_value()).collect()),
+            ),
             (
                 FRAGMENTS,
                 table(self.fragments.iter().map(Fragment::to_value).collect()),
@@ -436,6 +557,10 @@ impl Library {
         }
         if self.measures_loaded {
             self.measures_dirty = false;
+        }
+        if let Some(w) = &mut self.witness {
+            w.seen_s = place::now_s();
+            w.write(&dir)?;
         }
         Ok(())
     }

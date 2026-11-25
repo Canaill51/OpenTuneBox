@@ -65,9 +65,9 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14, 16 à 23, 28 à 31
-  et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15 et le 32 sont ouverts (les parties
+  et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 32 et le 34 sont ouverts (les parties
   faites du 32 y sont déjà) ; les **24 et 25** restent du chantier des scripts firmware, **conditionnel** (D-062 ; 24a à 24e faits, reste l'écart au vol affiché), et les **26 et 27** en sont
-  sortis le 2026-11-18 ; le prochain numéro libre est **34**.
+  sortis le 2026-11-18 ; le prochain numéro libre est **35**.
 
 ## Ordre des étapes
 
@@ -75,6 +75,7 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 |---|---|---|---|
 | 1 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075), mode disque essayé sur la G474 ; reste une carte SD réelle et Windows |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
+| 3 | **34** | Emplacement de la bibliothèque au choix, avec déplacement sûr | **fait le 2026-11-25** (D-081) ; reste l'essai à la main sous Linux et Windows |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 (fait le 2026-11-24) |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -221,6 +222,43 @@ lecteur ». Essayé à l'écran sur la carte G474 sous Linux (mode disque, puis 
       (`rust/otb-usb/tests/contrats.rs:un_seul_chemin_supprime_un_fichier`) ; à revoir en 32c-2 pour l'écran. **Non
       atteint en 32c-2** : les copies SD vérifiées ne quittent pas le fil du disque, et la copie de la mémoire ne sort de
       `Held` que pour une connexion à la même carte (`rust/otb-gui/tests/usb_disque.rs`).
+
+---
+
+## Lot 34 : emplacement de la bibliothèque au choix (Opus)
+
+**But** : laisser l'utilisateur **choisir où vit sa bibliothèque** (fiches, fragments, mesures, logs copiés par USB) et
+l'y **déplacer** sans rien perdre : un disque plus grand pour les logs copiés, une sauvegarde simple, la même bibliothèque
+d'un PC à l'autre. Demandé par Cédric le 2026-11-24, pendant l'essai de `essai-v0.10.0`. Jusque-là le dossier était fixe :
+`<données>/OpenTuneBox/OpenTuneBox/bibliotheque/` (aujourd'hui le dossier par défaut, `rust/otb-store/src/lib.rs:default_dir`), le doublon `OpenTuneBox/OpenTuneBox`
+venant du chemin de Qt de la version Python, gardé pour reprendre l'ancien `drones.json` (D-068).
+
+**Branche** : `feat/library-location`.
+
+**À lire** : `rust/otb-store/src/lib.rs` (`default_dir`, `dir_in`, `Library::open`, `logs_dir`, `delete_copies_of_drone`),
+`rust/otb-gui/src/main.rs` (ouverture au lancement), `rust/otb-gui/src/guide.rs:cards_path_in` (reprise de l'ancien
+fichier), [decisions.md](decisions.md) D-064 et D-068, [architecture.md](architecture.md) (`otb-store`).
+
+Fait le 2026-11-25 ([D-081](decisions.md)), sauf l'essai à la main.
+
+- [x] **Pointeur** : `emplacement-bibliotheque.json` à côté du dossier par défaut (`rust/otb-store/src/place.rs:locate`) ;
+      absent, rien ne change pour qui ne déplace rien.
+- [x] **Réglage** : écran hors rail « Bibliothèque » ouvert du tableau de bord (`rust/otb-gui/src/library_page.rs`) :
+      chemin, contenu, « Ouvrir le dossier », « Changer d'emplacement… », « Revenir à l'emplacement par défaut ».
+- [x] **Déplacement sûr** : écritures suspendues, copie relue fichier par fichier, bascule, **puis** ancien dossier
+      effacé ; refusé pendant une récupération USB. Logs copiés écrits **relatifs** à la bibliothèque (choix de Cédric) ;
+      les anciens chemins complets se relisent dans le nouveau dossier. Les logs ouverts sur place ne bougent pas.
+- [x] **Bibliothèque déjà présente** dans le dossier choisi : proposée telle quelle, jamais fusionnée ni écrasée.
+- [x] **Dossier introuvable au lancement** : bibliothèque en mémoire qui n'écrit rien, écran ouvert avec « Réessayer »,
+      « Choisir un autre dossier… », « Revenir à l'emplacement par défaut ».
+- [x] **Dossier synchronisé ouvert sur deux PC** : témoin d'ouverture et **avertissement** à l'ouverture, sans blocage
+      (choix de Cédric).
+- [x] Tests sur dossiers temporaires (`rust/otb-store/tests/emplacement.rs`, `rust/otb-gui/tests/bibliotheque_emplacement.rs`) ;
+      guide utilisateur et [architecture.md](architecture.md) à jour.
+- [ ] **Essai à la main** sous Linux **et** Windows : déplacer vers un disque externe, relancer, débrancher le disque et
+      relancer (à faire par Cédric).
+- [ ] **Critère d'arrêt** : un seul fichier perdu ou un log copié introuvable après un déplacement. **Non atteint** dans
+      les tests : chaque fichier comparé après déplacement, chaque log copié retrouvé sur le disque.
 
 ---
 
@@ -423,3 +461,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 24d, 24e | 2026-11-24 | **Bascule sur la chaîne du firmware** (branche `feat/firmware-chain-switch`, D-062 amendée, L-121) : page Filtres, assistant et contrôle par étage rejouent par `firmware_chain.rs` dès la 4.3 (`Engine::in_service`), l'ancienne chaîne gardée pour les logs d'avant la 4.3 et les mesures ; références figées intactes (`otb-parity check` : 0 échec), non réenregistrées ; un avis bascule sur 676 sessions (`1. PTB/Kris/13. Hover.bbl`, seuil frôlé, log ralenti), accepté par Cédric ; calibration identique au bit près, aucun seuil changé ; assistant 1 019 → 681 s cumulées sur le corpus | écart au vol affiché (reste du lot 24), lot 25 : conditionnels |
 | 24 (fin) | 2026-11-24 | **Écart de la simulation au vol affiché** (branche `feat/flight-gap-display`, demandé par Cédric) : `otb_analysis::flight_gap` mesure, par bande, le rejeu des réglages du log contre le spectre enregistré (roulis et tangage) et dit la cause connue (log ralenti, firmware d'avant la 4.3) ; la page Filtres l'affiche au-dessus des spectres ; `corpus replay` passe par la même fonction, résultats identiques sur 676 sessions. Preuve : 7 tests nouveaux, 3 contre-preuves vues en échec, captures des deux thèmes sur `FINAL.bbl` du JeNo 5 | lot 25 : conditionnel |
 | 30h | 2026-11-25 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** (branche `feat/drone-sheet-from-log`, D-077, D-068 et D-061 amendées, demandé par Cédric) : la taille se tape (la liste propose) et la fiche dit les seuils qu'elle choisit, lus avec les bornes de la taille par le nom ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log, la boucle PID suivie, les pôles remplis seulement vides, un écart signalé sous le champ ; le KV reste saisi par le pilote (première version qui le lisait aussi, corrigée à la demande de Cédric). Preuve : 6 tests nouveaux et 2 complétés, 3 contre-preuves vues en échec, captures des deux thèmes sur `FINAL.bbl` du JeNo 5 (0,4 ms par cadre). Les captures ont montré la section Machine plus large que sa colonne, la Fiche cible rognée à droite : un champ à unité réservait trop peu de place à « KV » (défaut d'avant, révélé par la nouvelle disposition) et la flèche de la taille gardait sa marge ; l'unité se pose maintenant d'abord, à droite (récidive de L-111) | — |
+| 34 | 2026-11-25 | **Emplacement de la bibliothèque au choix** (branche `feat/library-location`, D-081, L-126) : pointeur à côté du dossier par défaut, logs copiés écrits relatifs à la bibliothèque, déplacement par copie relue puis effacement de l'ancien dossier, bibliothèque trouvée utilisée telle quelle, dossier introuvable au lancement sans rien écrire, avertissement quand un autre poste l'a ouverte ; écran hors rail « Bibliothèque » ouvert du tableau de bord. Preuve : 17 tests nouveaux (11 de la bibliothèque, 6 de l'écran), 11 contre-preuves vues en échec, captures des deux thèmes | essai à la main sous Linux et Windows |
