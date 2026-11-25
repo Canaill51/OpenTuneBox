@@ -1,5 +1,5 @@
 //! Parité des calculs des outils avec Python (phases 6-2 à 6-4) : rejoue, avec les réglages par défaut, `compute` des
-//! sept outils portés (Spectre, Fréquence × gaz, Fréquence × temps, Réponse indicielle, Simulateur de filtres,
+//! six outils portés (Spectre, Fréquence × gaz, Fréquence × temps, Réponse indicielle, Simulateur de filtres,
 //! Assistant) sur les 20 journaux de
 //! `golden.py record` (`DOSSIER/tools/NNN.npz`) et compare **chaque clé** de Python.
 //!

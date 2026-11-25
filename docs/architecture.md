@@ -224,7 +224,7 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   `Heatmap` contre `PlotImage` ; `examples/banc_cadre.rs` mesure le temps de cadre de l'écran Guide et du viewer sur un
   vrai log (W-049, `docs/validation.md`) ; `examples/banc_cache.rs` mesure ce que **pèse une entrée du cache des
   outils** sur tout le corpus, avec un allocateur qui compte les octets vivants (W-035 point 9, `docs/validation.md`) —
-  il dépend d'`otb-dev` (liste des logs du corpus) **en dépendance de développement seulement** ; `examples/check_tools.rs` **rejoue les sept outils sur les références figées
+  il dépend d'`otb-dev` (liste des logs du corpus) **en dépendance de développement seulement** ; `examples/check_tools.rs` **rejoue les six outils sur les références figées
   et compare chaque clé** (`cargo run --release -p otb-gui --example check_tools -- $OTB_LOGS/golden`) — c'est la seule
   preuve que les outils de l'interface rendent ce que rendait la version Python sur de vrais vols, et ce n'est pas un
   test : la CI le compile sans le lancer (W-054).
