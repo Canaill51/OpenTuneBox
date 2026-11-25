@@ -297,11 +297,11 @@ médiane + 3 × MAD (écart absolu médian × 1,4826).
 
 Un départ maximal (`|r(0)| ≤ 0,1`) n'écarte rien sur ce log : à garder seulement s'il sert sur le corpus.
 
-- [ ] **Tri** : bande sur le régime établi (début et largeur réglables, valeurs par défaut justifiées sur le corpus) et
-      distance à la courbe médiane (k réglable) ; décrit dans [spec-methodes.md](spec-methodes.md) avec ses sources
-      (statistique robuste publiée, jamais PIDtoolbox) ; nouvelle décision (`otb-dev numero D`).
-- [ ] **Concordance Python** : les références figées (`golden/`, jamais modifiées) ont été faites avec l'ancien tri ;
-      `otb-parity` doit le garder (option explicite), l'écran et l'assistant passer au nouveau. À trancher au plan du lot.
+- [x] **Tri** (35a, [D-082](decisions.md)) : bande sur le régime établi (`RobustRejection` : début, largeur) et distance à
+      la courbe médiane (k) ; second passage pour les mesures de boucle ; décrit dans [spec-methodes.md](spec-methodes.md).
+      Valeurs par défaut à confirmer sur le corpus (recalibrage).
+- [x] **Concordance Python** (35a) : tri de Python gardé (`StepOptions::python`, `rules::Method::python`,
+      `flight_step_with`, `check_log_with`) pour `otb-parity` et les tests sur références ; l'application prend le nouveau.
 - [ ] **Écran** : les nouveaux réglages dans la colonne de droite (rubrique « Calcul »), le nombre de fenêtres
       écartées affiché ; la **légende** « P, I, D, Dm, F · pic · latence · cassure » ne cache plus le début de la montée
       (aujourd'hui posée sur la courbe entre 0 et 0,25).

@@ -29,14 +29,28 @@ pub struct StepParams<'a> {
     /// Régularisation absolue de la déconvolution.
     pub reg: f64,
     pub y_correction: bool,
-    /// Plage d'indices de la réponse où l'on contrôle la qualité ; vide = toutes les fenêtres passent.
+    /// Plage d'indices de la réponse dont la moyenne recentre la correction Y.
     pub steady: (usize, usize),
+    /// Contrôle de chaque fenêtre, avant la correction Y.
+    pub accept: Accept,
+}
+
+/// Une fenêtre est gardée si sa réponse reste strictement entre `lo` et `hi` sur la plage d'indices `range` ; une plage
+/// vide garde toutes les fenêtres, un NaN rejette la fenêtre. Le tri historique (Python, références figées) : 200–500 ms,
+/// 0,5 et 3.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Accept {
+    pub range: (usize, usize),
+    pub lo: f64,
+    pub hi: f64,
 }
 
 /// Résultat : `k` fenêtres retenues, dans l'ordre de `starts`.
 pub struct StepOut {
     /// `k × lr`, rangé ligne par ligne.
     pub rows: Vec<f64>,
+    /// Rang dans `starts` de chaque fenêtre retenue.
+    pub kept: Vec<usize>,
     pub maxin: Vec<f64>,
     pub sum_gh_re: Vec<f64>,
     pub sum_gh_im: Vec<f64>,
@@ -126,18 +140,19 @@ fn window(
         acc += v * scale;
         row.push(acc);
     }
-    let (lo, hi) = p.steady;
-    if hi > lo {
-        let (mn, mx) = min_max(&row[lo..hi]);
+    let (a, b) = p.accept.range;
+    if b > a {
+        let (mn, mx) = min_max(&row[a..b]);
         // comparaisons strictes ; un NaN rejette la fenêtre, comme `NaN > 0.5` en numpy
-        if !(mn > 0.5 && mx < 3.0) {
+        if !(mn > p.accept.lo && mx < p.accept.hi) {
             return Ok(None);
         }
-        if p.y_correction {
-            let mean = row[lo..hi].iter().sum::<f64>() / (hi - lo) as f64;
-            let f = 2.0 - mean;
-            row.iter_mut().for_each(|v| *v *= f);
-        }
+    }
+    let (lo, hi) = p.steady;
+    if hi > lo && p.y_correction {
+        let mean = row[lo..hi].iter().sum::<f64>() / (hi - lo) as f64;
+        let f = 2.0 - mean;
+        row.iter_mut().for_each(|v| *v *= f);
     }
     let mut maxin = 0.0f64;
     for &v in &sp[start..start + p.l] {
@@ -177,6 +192,9 @@ pub fn step_windows(sp: &[f64], gy: &[f64], starts: &[i64], p: &StepParams) -> R
     if p.steady.0 > p.steady.1 || p.steady.1 > p.lr {
         return Err("steady : plage hors de la réponse".into());
     }
+    if p.accept.range.0 > p.accept.range.1 || p.accept.range.1 > p.lr {
+        return Err("accept : plage hors de la réponse".into());
+    }
     let n = sp.len().min(gy.len());
     let mut idx = Vec::with_capacity(starts.len());
     for &s in starts {
@@ -191,13 +209,14 @@ pub fn step_windows(sp: &[f64], gy: &[f64], starts: &[i64], p: &StepParams) -> R
 
     let mut out = StepOut {
         rows: Vec::new(),
+        kept: Vec::new(),
         maxin: Vec::new(),
         sum_gh_re: vec![0.0; nf],
         sum_gh_im: vec![0.0; nf],
         sum_hh: vec![0.0; nf],
         sum_gg: vec![0.0; nf],
     };
-    for batch in idx.chunks(BATCH) {
+    for (bi, batch) in idx.chunks(BATCH).enumerate() {
         let wins: Vec<Option<Win>> = batch
             .par_iter()
             .map_init(
@@ -215,6 +234,12 @@ pub fn step_windows(sp: &[f64], gy: &[f64], starts: &[i64], p: &StepParams) -> R
             )
             .collect::<Result<_, _>>()?;
         // somme de ce paquet dans l'ordre des fenêtres, puis ajout au total (comme `np.sum(axis=0)` par paquet)
+        out.kept.extend(
+            wins.iter()
+                .enumerate()
+                .filter(|(_, w)| w.is_some())
+                .map(|(i, _)| bi * BATCH + i),
+        );
         let kept: Vec<&Win> = wins.iter().flatten().collect();
         if kept.is_empty() {
             continue;
@@ -271,6 +296,46 @@ mod tests {
             reg: 1e-4,
             y_correction: false,
             steady: (0, 0),
+            accept: Accept {
+                range: (0, 0),
+                lo: 0.5,
+                hi: 3.0,
+            },
+        }
+    }
+
+    /// `kept` donne le rang de chaque fenêtre retenue dans `starts`, y compris au-delà du premier paquet de `BATCH`.
+    #[test]
+    fn kept_ranks_cross_batches() {
+        let (l, n) = (32, BATCH + 40);
+        let (sp, gy) = (noise(l + n, 3), noise(l + n, 4));
+        let w = hann(l);
+        let starts: Vec<i64> = (0..n as i64).collect();
+        let all = step_windows(&sp, &gy, &starts, &params(&w, l, l, 4)).unwrap();
+        assert_eq!(all.kept, (0..n).collect::<Vec<_>>());
+        // bande sur la dernière valeur : ne garde qu'une partie des fenêtres, et chaque ligne est bien celle de son rang
+        let mut p = params(&w, l, l, 4);
+        p.accept = Accept {
+            range: (l - 1, l),
+            lo: 0.0,
+            hi: f64::INFINITY,
+        };
+        let some = step_windows(&sp, &gy, &starts, &p).unwrap();
+        assert!(
+            !some.kept.is_empty() && some.kept.len() < n,
+            "{} fenêtres gardées sur {n}",
+            some.kept.len()
+        );
+        assert!(
+            some.kept.iter().any(|&k| k >= BATCH),
+            "aucune fenêtre gardée dans le second paquet"
+        );
+        for (i, &k) in some.kept.iter().enumerate() {
+            assert_eq!(
+                some.rows[i * l..(i + 1) * l],
+                all.rows[k * l..(k + 1) * l],
+                "ligne {i} (rang {k})"
+            );
         }
     }
 
@@ -336,6 +401,7 @@ mod tests {
         let w = hann(l);
         let mut p = params(&w, l, 120, 20);
         p.steady = (60, 120);
+        p.accept.range = (60, 120);
         let half: Vec<f64> = sp.iter().map(|v| 0.4 * v).collect(); // plateau ≈ 0,4 < 0,5 : rejetée
         let big: Vec<f64> = sp.iter().map(|v| 3.5 * v).collect(); // plateau ≈ 3,5 > 3,0 : rejetée
         assert!(step_windows(&sp, &half, &[0], &p).unwrap().maxin.is_empty());

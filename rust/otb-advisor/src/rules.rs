@@ -721,6 +721,8 @@ pub struct Analysis<'a> {
     pub log: &'a FlightLog,
     /// Prévisions du bruit après un changement de filtres (méthode, rejeu actuel gardé pour tous les essais).
     pub pred: Predictor<'a>,
+    /// Options de la réponse indicielle, dont le tri des fenêtres (D-082).
+    pub step: StepOptions,
     pub sel: Range<usize>,
     pub profile: &'a CraftProfile,
     /// Constats accumulés, dans l'ordre d'affichage à gravité égale (`F`).
@@ -812,15 +814,42 @@ pub fn band_peak_ptb_db(x: &[f32], fs: f64, lo: f64, hi: f64, breaks: Option<&[i
 /// `analyze` : le diagnostic complet d'un vol. `sel` : période (tout le journal si absente) ; `profile` : taille choisie (détectée si absente).
 /// Bruit prévu après un changement de filtres : rejeu de la chaîne du firmware ([`FilterModel::Replay`], D-059).
 pub fn analyze(log: &FlightLog, sel: Option<Range<usize>>, profile: Option<&CraftProfile>) -> Result<Report, String> {
-    analyze_with(log, sel, profile, FilterModel::Replay)
+    analyze_with(log, sel, profile, Method::app())
 }
 
-/// [`analyze`] avec la méthode de prévision `model` ([`FilterModel::Ratio`] : celle de Python, pour les références).
+/// Méthodes de calcul de l'assistant : celles de l'application, ou celles de Python pour comparer aux références figées.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Method {
+    /// Prévision du bruit après un changement de filtres.
+    pub filters: FilterModel,
+    /// Réponse indicielle, dont le tri des fenêtres (D-082).
+    pub step: StepOptions,
+}
+
+impl Method {
+    /// Rejeu de la chaîne du firmware (D-059) et tri robuste des fenêtres (D-082).
+    pub fn app() -> Self {
+        Method {
+            filters: FilterModel::Replay,
+            step: StepOptions::default(),
+        }
+    }
+
+    /// Méthodes de Python : rapport des réponses (D-008) et tri historique des fenêtres.
+    pub fn python() -> Self {
+        Method {
+            filters: FilterModel::Ratio,
+            step: StepOptions::python(),
+        }
+    }
+}
+
+/// [`analyze`] avec les méthodes `method` ([`Method::python`] : celles des références).
 pub fn analyze_with(
     log: &FlightLog,
     sel: Option<Range<usize>>,
     profile: Option<&CraftProfile>,
-    model: FilterModel,
+    method: Method,
 ) -> Result<Report, String> {
     let sel = sel.unwrap_or(0..log.n());
     let (profile, reason) = match profile {
@@ -846,7 +875,8 @@ pub fn analyze_with(
         dterm_noisy: false,
         delays: None,
         br,
-        pred: Predictor::new(log, model),
+        pred: Predictor::new(log, method.filters),
+        step: method.step,
     };
     if profile.provisional {
         a.f.push(Finding::new(
@@ -1980,7 +2010,13 @@ sont écartées : il reste moins de données à analyser.",
 }
 
 /// Réponse indicielle d'un axe : mêmes entrées que `step_series::flight_step` (consigne, gyro et termes PID de la période, raccords).
-fn axis_step(log: &FlightLog, sel: &Range<usize>, ax: usize, br: &[i64]) -> Result<StepResult, String> {
+fn axis_step(
+    log: &FlightLog,
+    sel: &Range<usize>,
+    ax: usize,
+    br: &[i64],
+    o: &StepOptions,
+) -> Result<StepResult, String> {
     let (sp, gy) = (wide(sel_row(&log.setpoint, ax, sel)), wide(sel_row(&log.gyro, ax, sel)));
     let terms = log.pid_terms(ax, sel.clone());
     let (tp, ti, td, tf) = (wide(&terms.p), wide(&terms.i), wide(&terms.d), wide(&terms.f));
@@ -1996,7 +2032,7 @@ fn axis_step(log: &FlightLog, sel: &Range<usize>, ax: usize, br: &[i64]) -> Resu
     } else {
         LoopInput::Unmeasurable(&terms.note)
     };
-    step_response(&sp, &gy, log.fs, &StepOptions::default(), &input, Some(br))
+    step_response(&sp, &gy, log.fs, o, &input, Some(br))
 }
 
 /// 2. Réponse indicielle : pic, latence, marges de la boucle ouverte, écart roll / pitch.
@@ -2004,7 +2040,7 @@ fn step_section(a: &mut Analysis) -> Result<(), String> {
     let (log, sel, profile) = (a.log, a.sel.clone(), a.profile);
     let mut steps = Vec::new();
     for (ax, name) in AXES.iter().enumerate() {
-        let mut r = axis_step(log, &sel, ax, &a.br)?;
+        let mut r = axis_step(log, &sel, ax, &a.br, &a.step)?;
         // ⚠️ Le rapport ne garde **pas** les fenêtres individuelles : le cache des outils en garde une copie par profil
         // demandé, et elles pesaient 69 % du rapport (jusqu'à 72 Mo sur une session de 174 s à 2 kHz,
         // `docs/validation.md`). Personne ne les lit ici : les règles se servent de `n`, `metrics` et `loop_`, la page

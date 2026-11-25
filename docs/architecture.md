@@ -59,7 +59,7 @@ Dans `rust/otb-analysis/src/` (noyaux de calcul dans `rust/otb-dsp/src/`).
 | Module | Rôle |
 |---|---|
 | `spectral.rs` | PSD de Welch, fréquence × gaz (fenêtres 300 ms, 100 tranches), fréquence × temps |
-| `step.rs` | Réponse indicielle par déconvolution de Wiener (noyau dans `rust/otb-dsp/src/step.rs`, D-033) ; métriques (pic, latence, montée, cassure, vagues), bande passante, et boucle ouverte par `open_loop.rs` |
+| `step.rs` | Réponse indicielle par déconvolution de Wiener (noyau dans `rust/otb-dsp/src/step.rs`, D-033) ; tri des fenêtres (bande puis médiane, tri de Python pour les références : D-082) ; métriques (pic, latence, montée, cassure, vagues), bande passante, et boucle ouverte par `open_loop.rs` |
 | `step_series.rs` | Séries de vols à un seul curseur changé (Damping, Master, Pitch Tracking, Pitch Damping) et conditions du protocole (feedforward, mode Angle, curseur I) |
 | `open_loop.rs` | Boucle ouverte L = G·(Ce + Cd) mesurée à partir des termes P, I, D, F (estimateur instrumental, jackknife), repli approché T/(1 − T) ; marges de phase et de gain, croisement, pic de sensibilité |
 | `delay.rs` | Retards des filtres (phase pondérée par la cohérence) et consigne → gyro |

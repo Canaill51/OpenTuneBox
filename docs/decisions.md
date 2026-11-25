@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-082 | **Tri des fenêtres de la réponse indicielle** : notre propre tri (jamais celui de PIDtoolbox, D-004) — réponse gardée **entre 0,5 et 1,5 dès 150 ms**, puis fenêtres trop loin de la **courbe médiane** écartées (médiane + 3 MAD normalisés) ; mesures de boucle sur les seules fenêtres gardées ; **tri de Python** (0,5–3 sur 200–500 ms) gardé pour les références figées (`StepOptions::python`, `rules::Method::python`) ; l'assistant est recalibré | 2026-11-25 |
 | D-081 | **Emplacement de la bibliothèque au choix** : pointeur à côté du dossier par défaut ; logs copiés écrits **relatifs** à la bibliothèque ; déplacement = copie relue, bascule, **puis** ancien dossier effacé ; bibliothèque trouvée dans le dossier choisi utilisée telle quelle ; dossier introuvable au lancement : rien d'écrit ; témoin d'ouverture qui **avertit** (sans bloquer) quand une autre session l'a écrite depuis moins de 10 min ; écran hors rail « Bibliothèque », **écart au prototype** (D-061) | 2026-11-25 |
 | D-080 | **Et si : multiplicateurs de filtres gyro et D comme Betaflight Configurator** : interrupteur et curseur (0,10 à 2,00, pas de 0,05) en tête des passe-bas, fréquences recalculées à l'arithmétique du firmware et grisées ; interrupteur repris du log seulement si ses coupures sont celles du curseur ; CLI = état du curseur + coupures | 2026-11-25 |
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
@@ -151,6 +152,48 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-25 — Le tri des fenêtres de la réponse indicielle (lot 35)
+
+### D-082 : la réponse indicielle écarte les fenêtres aberrantes par un tri qui nous est propre
+
+**Tranché par Cédric** le 2026-11-25, après avoir comparé notre page « Réponse indicielle » à PIDtoolbox web (version 0.3)
+sur `Cedric/Air65/Test BF Chirp/CHIRP-65Hz.bbl` : écrire **notre propre tri** (D-004 interdit de copier le sien, et des noms
+de réglages ne disent pas la méthode), qui ira dans le même sens sans retomber exactement sur ses chiffres ; **recalibrer**
+l'assistant.
+
+**Contexte.** Les deux courbes avaient la même forme (mêmes creux et bosses aux mêmes instants : même déconvolution), mais
+la nôtre était plus haute de 0,08 à 0,1 (roulis : pic 1,17 contre ≈ 1,05, palier 1,11 contre ≈ 1,03), parce qu'elle
+moyennait bien plus de fenêtres (378 contre 224). Notre seul contrôle, hérité de Python (régime établi de 200 à 500 ms
+strictement entre 0,5 et 3), laissait passer les nombreuses fenêtres de roulis qui montent au-dessus de 1,4. PIDtoolbox web
+expose désormais un tri réglable (début du régime établi, largeur de bande, départ maximal, distance à la médiane).
+
+**Décision.**
+- **Bande** (`otb_dsp::step::Accept`) : une fenêtre est gardée si sa réponse reste **strictement entre 1 − l/2 et 1 + l/2**
+  (largeur l = 1, donc 0,5 à 1,5) **de 150 ms à la fin** de la réponse ; un NaN l'écarte. Contrôle avant la correction Y,
+  comme le tri de Python.
+- **Distance à la médiane** (`otb_analysis::step::median_keep`) : courbe médiane point par point des fenêtres gardées, écart
+  quadratique moyen de chaque fenêtre à elle sur toute la réponse ; écartée au-delà de **médiane + k × MAD normalisé**
+  (k = 3, MAD × 1,4826, statistique robuste classique). Sous 8 fenêtres, pas de tri par la médiane.
+- **Second passage** : si la médiane écarte des fenêtres, le noyau est relancé sur les seules fenêtres gardées, pour que les
+  mesures de boucle (bande passante, marges : sommes spectrales faites au fil du calcul) ne comptent pas les écartées.
+- **Tri de Python gardé** : `StepOptions::python()`, `rules::Method::python()` (rapport des réponses et tri historique),
+  `step_series::flight_step_with`, `log_check::check_log_with` ; `otb-parity` et les tests sur les références figées les
+  prennent. L'application (écran, assistant, guide, ligne de commande) prend le nouveau tri par défaut.
+- Valeurs (150 ms, largeur 1, k = 3) : point de départ du premier essai ; à confirmer sur le corpus avec le recalibrage.
+
+**Options écartées.** Copier le tri de PIDtoolbox web (D-004). Garder le seul tri de Python en resserrant ses bornes (ne
+voit pas une fenêtre dans la bande mais d'une forme isolée). Écarter les fenêtres par la médiane **sans** second passage
+(les mesures de boucle compteraient des fenêtres que la courbe ne montre plus). Un « départ maximal » (`|r(0)|` borné) :
+n'écarte rien sur les logs CHIRP, la somme cumulée part de la première valeur de la réponse impulsionnelle.
+
+**Preuve.** `rust/otb-analysis/tests/step_rejection.rs` (vol fabriqué dont la moitié répond 1,8 fois trop fort : palier
+1,39 avec le tri de Python, 0,99 avec le nouveau ; une minorité à 1,35 écartée par la médiane, mesures de boucle
+recalculées), chacun vu échouer en cassant sa protection (bande neutralisée, second passage supprimé, sommes du premier
+passage gardées) ; `rust/otb-dsp/src/step.rs:kept_ranks_cross_batches`. Sur les trois logs CHIRP d'Air65 :
+[validation.md](validation.md#tri-des-fenêtres-de-la-réponse-indicielle-2026-11-25-lot-35).
 
 ---
 

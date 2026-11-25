@@ -381,6 +381,8 @@ pub struct StepResult {
     pub metrics: StepMetrics,
     pub loop_: LoopMetrics,
     pub max_inputs: Vec<f64>,
+    /// Fenêtres candidates (consigne assez forte) avant le tri ; `n` en garde une partie.
+    pub windows: usize,
 }
 
 /// Lissage du gyro de `step_response` : `np.convolve(gy, np.ones(n) / n, mode="same")`.
@@ -453,6 +455,7 @@ pub fn segment_metrics(t_ms: &[f64], responses: &[f64], rows: usize) -> Result<(
 }
 
 /// Paramètres de `step_response` autres que les signaux.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StepOptions {
     pub seg_s: f64,
     pub min_input: f64,
@@ -462,6 +465,8 @@ pub struct StepOptions {
     pub reg: f64,
     pub smooth: i64,
     pub y_correction: bool,
+    /// Tri des fenêtres avant la moyenne.
+    pub rejection: Rejection,
 }
 
 impl Default for StepOptions {
@@ -475,8 +480,95 @@ impl Default for StepOptions {
             reg: 1e-4,
             smooth: 0,
             y_correction: false,
+            rejection: Rejection::Robust(RobustRejection::default()),
         }
     }
+}
+
+impl StepOptions {
+    /// Options de Python (tri [`Rejection::Python`]) : celles des références figées et d'`otb-parity`.
+    pub fn python() -> Self {
+        StepOptions {
+            rejection: Rejection::Python,
+            ..StepOptions::default()
+        }
+    }
+}
+
+/// Tri des fenêtres de 2 s avant la moyenne.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Rejection {
+    /// Tri de Python, gardé pour comparer aux références figées : régime établi (200–500 ms) strictement entre 0,5 et 3.
+    /// Il laisse passer des fenêtres qui tirent la moyenne vers le haut (lot 35 : roulis de `CHIRP-65Hz`, palier 1,11).
+    Python,
+    /// Bande autour de 1 sur le régime établi, puis distance à la courbe médiane.
+    Robust(RobustRejection),
+}
+
+/// Réglages de [`Rejection::Robust`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RobustRejection {
+    /// Début du régime établi contrôlé (ms) ; il court jusqu'à la fin de la réponse.
+    pub steady_from_ms: f64,
+    /// Largeur de la bande centrée sur 1 : la réponse doit rester strictement entre 1 − largeur/2 et 1 + largeur/2.
+    pub band: f64,
+    /// Une fenêtre est écartée si son écart quadratique à la courbe médiane dépasse médiane + k × MAD normalisé des
+    /// écarts ; `f64::INFINITY` désactive ce tri.
+    pub k: f64,
+}
+
+impl Default for RobustRejection {
+    fn default() -> Self {
+        RobustRejection {
+            steady_from_ms: 150.0,
+            band: 1.0,
+            k: 3.0,
+        }
+    }
+}
+
+/// En dessous de ce nombre de fenêtres, la courbe médiane n'est pas assez sûre pour juger une fenêtre : pas de tri par la médiane.
+pub const MEDIAN_MIN_WINDOWS: usize = 8;
+
+/// Facteur qui rend l'écart absolu médian (MAD) comparable à un écart-type pour un bruit gaussien (1 / Φ⁻¹(3/4)).
+const MAD_TO_SIGMA: f64 = 1.482_602_218_505_602;
+
+/// Médiane d'une liste sans NaN (moyenne des deux valeurs centrales pour une longueur paire).
+fn median_of(v: &mut [f64]) -> f64 {
+    v.sort_by(f64::total_cmp);
+    let n = v.len();
+    if n == 0 {
+        f64::NAN
+    } else if n % 2 == 1 {
+        v[n / 2]
+    } else {
+        0.5 * (v[n / 2 - 1] + v[n / 2])
+    }
+}
+
+/// Rangs (dans `rows`, `k` lignes de `len` valeurs) des fenêtres à garder après le tri par la médiane : écart quadratique
+/// moyen de chaque ligne à la courbe médiane (point par point), seuil médiane + `kk` × MAD normalisé de ces écarts.
+pub fn median_keep(rows: &[f64], k: usize, len: usize, kk: f64) -> Vec<usize> {
+    if k < MEDIAN_MIN_WINDOWS || !kk.is_finite() {
+        return (0..k).collect();
+    }
+    let mut col = vec![0.0; k];
+    let med: Vec<f64> = (0..len)
+        .map(|j| {
+            for (i, c) in col.iter_mut().enumerate() {
+                *c = rows[i * len + j];
+            }
+            median_of(&mut col)
+        })
+        .collect();
+    let dist: Vec<f64> = rows
+        .chunks(len)
+        .map(|r| (r.iter().zip(&med).map(|(a, m)| (a - m) * (a - m)).sum::<f64>() / len as f64).sqrt())
+        .collect();
+    let md = median_of(&mut dist.clone());
+    let mad = median_of(&mut dist.iter().map(|d| (d - md).abs()).collect::<Vec<_>>());
+    let limit = md + kk * MAD_TO_SIGMA * mad;
+    (0..k).filter(|&i| dist[i] <= limit).collect()
 }
 
 /// `step_response` : réponse indicielle d'un axe. `terms` : boucle ouverte mesurée ; sans eux, méthode approchée. `breaks` : raccords du log.
@@ -513,6 +605,7 @@ pub fn step_response(
         metrics: StepMetrics::default(),
         loop_: LoopMetrics::new(&[], &[], &[]),
         max_inputs: Vec::new(),
+        windows: 0,
     };
     if (n as i64) < l {
         return Ok(empty(&t_ms));
@@ -529,6 +622,22 @@ pub fn step_response(
     } else {
         (steady[0], steady[steady.len() - 1] + 1)
     };
+    let accept = match o.rejection {
+        Rejection::Python => otb_dsp::step::Accept {
+            range: (lo, hi),
+            lo: 0.5,
+            hi: 3.0,
+        },
+        Rejection::Robust(r) => otb_dsp::step::Accept {
+            // du premier instant ≥ steady_from_ms à la fin de la réponse (plage vide si la réponse est plus courte)
+            range: (
+                t_ms.iter().position(|&t| t >= r.steady_from_ms).unwrap_or(t_ms.len()),
+                t_ms.len(),
+            ),
+            lo: 1.0 - r.band / 2.0,
+            hi: 1.0 + r.band / 2.0,
+        },
+    };
     let p = otb_dsp::step::StepParams {
         w: &w,
         l: l as usize,
@@ -537,11 +646,25 @@ pub fn step_response(
         reg: o.reg,
         y_correction: o.y_correction,
         steady: (lo, hi),
+        accept,
     };
-    let out = otb_dsp::step::step_windows(sp, gy, &starts, &p)?;
+    let mut out = otb_dsp::step::step_windows(sp, gy, &starts, &p)?;
+    if let Rejection::Robust(r) = o.rejection {
+        let keep = median_keep(&out.rows, out.maxin.len(), lr as usize, r.k);
+        if keep.len() < out.maxin.len() {
+            // second passage sur les seules fenêtres gardées : les sommes spectrales de la boucle fermée ne doivent pas
+            // compter les fenêtres écartées (le noyau les additionne au fil du calcul)
+            let kept: Vec<i64> = keep.iter().map(|&i| starts[out.kept[i]]).collect();
+            out = otb_dsp::step::step_windows(sp, gy, &kept, &p)?;
+        }
+    }
+    let windows = starts.len();
     let k = out.maxin.len();
     if k == 0 {
-        return Ok(empty(&t_ms));
+        return Ok(StepResult {
+            windows,
+            ..empty(&t_ms)
+        });
     }
     let len = lr as usize;
     let mean = mean_rows(&out.rows, k, len);
@@ -594,6 +717,7 @@ pub fn step_response(
         metrics,
         loop_: lp,
         max_inputs: out.maxin,
+        windows,
     })
 }
 

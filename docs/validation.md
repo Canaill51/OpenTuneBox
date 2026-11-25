@@ -1064,6 +1064,26 @@ mesurée deux fois) : 11 sessions de `Cedric/JeNo 5` (FINAL, LAST), `Air65`, `Ap
 fragment (3,5 s pour 99 s de vol à 8 kHz), en arrière-plan. Grandeurs non mesurées (NaN) : 1 à 5 sur 22 pour un vrai vol,
 le plus souvent la marge de gain ou un axe sans assez de mouvements ; 17 sur 22 pour une session d'une seconde.
 
+### Tri des fenêtres de la réponse indicielle (2026-11-25, lot 35)
+
+D-082. Vol entier de chacun des trois logs `Cedric/Air65/Test BF Chirp/CHIRP-*.bbl` (programme jetable hors du dépôt,
+`step_response` sans termes PID, `--release`), tri de Python puis nouveau tri ; n = fenêtres gardées / candidates :
+
+| Log, axe | n Python | n nouveau | Pic | Latence (ms) | Palier 200–500 ms | Bande passante (Hz) |
+|---|---|---|---|---|---|---|
+| 25 Hz, roll | 278 / 357 | 222 / 357 | 1,131 → 1,109 | 12,9 → 13,4 | 1,117 → 1,030 | 28,3 → 28,3 |
+| 25 Hz, pitch | 273 / 349 | 225 / 349 | 1,155 → 1,104 | 17,5 → 17,9 | 1,050 → 0,981 | 18,5 → 18,5 |
+| 45 Hz, roll | 350 / 384 | 284 / 384 | 1,163 → 1,126 | 11,8 → 12,1 | 1,149 → 1,072 | 32,7 → 32,7 |
+| 45 Hz, pitch | 316 / 385 | 259 / 385 | 1,052 → 1,038 | 15,9 → 16,2 | 1,054 → 0,967 | 19,5 → 19,5 |
+| 65 Hz, roll | 381 / 460 | 282 / 460 | 1,172 → 1,107 | 12,4 → 12,8 | 1,115 → 1,025 | 30,7 → 31,2 |
+| 65 Hz, pitch | 287 / 331 | 237 / 331 | 1,123 → 1,113 | 17,3 → 17,5 | 1,059 → 0,980 | 19,0 → 19,0 |
+
+Le palier revient près de 1 partout, le pic baisse, la latence s'allonge de 0,2 à 0,5 ms, la bande passante ne bouge
+presque pas. PIDtoolbox web (version 0.3, capture de Cédric, `CHIRP-65Hz` seul) : roll n = 224, pic ≈ 1,05, palier ≈ 1,03,
+latence 13,1 ms ; pitch n = 274, pic ≈ 1,11, palier ≈ 1,02, latence 16,6 ms. Le nouveau tri va dans son sens sans
+retomber sur ses chiffres (D-082 : tri propre, pas le sien). Coût : 41 à 68 ms par axe (second passage compris), contre
+32 à 49 ms.
+
 ## Refaire une référence Python
 
 La version Python (application, tests, scripts) a été supprimée du dépôt à la phase 7-5 ; elle reste dans l'historique git. Les fichiers qui

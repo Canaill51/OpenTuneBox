@@ -70,7 +70,7 @@ fn analyze_rend_les_constats_de_retard_de_python() {
         let sel = case["sel"]
             .as_array()
             .map(|s| s[0].as_u64().unwrap() as usize..s[1].as_u64().unwrap() as usize);
-        let got = rules::analyze_with(&lg, sel, Some(&prof), rules::FilterModel::Ratio);
+        let got = rules::analyze_with(&lg, sel, Some(&prof), rules::Method::python());
         if is_error(case) {
             assert!(got.is_err(), "{label} : Python lève, Rust rend un rapport");
             continue;
@@ -265,7 +265,11 @@ fn analyze_prevoit_le_bruit_par_le_rejeu() {
             .expect("constat dterm_lift attendu")
     };
     let replay = detail(rules::analyze(&lg, sel.clone(), Some(&prof)).unwrap());
-    let ratio = detail(rules::analyze_with(&lg, sel, Some(&prof), RATIO).unwrap());
+    let ratio = rules::Method {
+        filters: RATIO,
+        ..rules::Method::app()
+    };
+    let ratio = detail(rules::analyze_with(&lg, sel, Some(&prof), ratio).unwrap());
     assert!(replay.contains("le simulateur prévoit"), "{replay}");
     assert_ne!(replay, ratio, "`analyze` doit prévoir par le rejeu, pas par le rapport");
 }

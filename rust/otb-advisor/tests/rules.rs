@@ -54,6 +54,7 @@ fn step_of(c: &Value) -> AxisStep {
             metrics,
             loop_: lp_of(&c["lp"]),
             max_inputs: vec![],
+            windows: 0,
         },
     }
 }

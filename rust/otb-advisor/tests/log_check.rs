@@ -8,6 +8,7 @@
 //! - `log_rates`, `axes_mixed_share`, `log_rates_fix`, tables.
 
 use otb_advisor::log_check::{self, CheckItem, FilterTargets, LogCheck, Usage};
+use otb_analysis::step::StepOptions;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -172,7 +173,7 @@ fn check_log_rend_les_points_de_python() {
             let s = k["sel"].as_array().unwrap();
             s[0].as_u64().unwrap() as usize..s[1].as_u64().unwrap() as usize
         });
-        let got = log_check::check_log(&lg, sel, label, k["exact"].as_bool().unwrap());
+        let got = log_check::check_log_with(&lg, sel, label, k["exact"].as_bool().unwrap(), &StepOptions::python());
         if is_error(k) {
             assert!(got.is_err(), "{label} : Python lève, Rust rend un résultat");
             continue;

@@ -13,7 +13,7 @@ use crate::advisor_layer::{analysed, put_finding};
 use crate::analysis_layer::{Flat, Item, compare_item};
 use crate::value::{Array, load_arrays};
 use otb_advisor::step_tuning::{self, TuningReport};
-use otb_analysis::step_series::{FlightStep, flight_step};
+use otb_analysis::step_series::{FlightStep, flight_step_with};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -138,10 +138,12 @@ fn compute_flights(
                             let mut v: Vec<Session> = Vec::new();
                             for lg in &logs {
                                 let Some(sel) = analysed(lg) else { continue };
-                                let r = flight_step(lg, sel, &lg.name()).map(|mut f| {
-                                    f.loops.clear();
-                                    f
-                                });
+                                let r =
+                                    flight_step_with(lg, sel, &lg.name(), &otb_analysis::step::StepOptions::python())
+                                        .map(|mut f| {
+                                            f.loops.clear();
+                                            f
+                                        });
                                 v.push((lg.session as i64, r));
                             }
                             out.lock().unwrap().insert(rel.clone(), v);

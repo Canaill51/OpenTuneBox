@@ -54,7 +54,7 @@ fn analyze_rend_les_constats_et_les_mesures_de_python() {
             .as_array()
             .map(|s| s[0].as_u64().unwrap() as usize..s[1].as_u64().unwrap() as usize);
         let prof = profile_of(&case["profile"]);
-        let got = rules::analyze_with(&lg, sel, prof.as_ref(), rules::FilterModel::Ratio);
+        let got = rules::analyze_with(&lg, sel, prof.as_ref(), rules::Method::python());
         if is_error(case) {
             errors += 1;
             assert!(got.is_err(), "{label} : Python lève, Rust rend un rapport");

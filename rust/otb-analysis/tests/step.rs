@@ -311,6 +311,7 @@ fn step_response_conforme() {
             reg: f1(&k["reg"]),
             smooth: k["smooth"].as_i64().unwrap(),
             y_correction: k["y_correction"].as_bool().unwrap(),
+            rejection: step::Rejection::Python,
         };
         let breaks: Option<Vec<i64>> = k["breaks"]
             .as_array()
