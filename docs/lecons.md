@@ -60,6 +60,23 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-125 : trois conversations, un seul dossier : branche changée sous les pieds, crochet qui vérifie le mauvais dossier, numéro cité hors du registre
+
+- **Symptôme** — 2026-11-25 : une conversation (thème) passe le dossier principal sur sa branche pendant qu'une autre (fiche
+  drone) y modifie ses fichiers, puis y restaure `app.rs` depuis une copie de quelques secondes pour une contre-preuve ; une
+  troisième (bruit et filtres), dans son propre worktree, voit ses commits bloqués par `check-docs.sh` pour une décision citée
+  par la fiche drone et pas encore écrit ; ce numéro, absent du registre, aurait été repris par quiconque se fiait à l'index.
+- **Cause** — mesurée : un dossier n'a qu'une branche et qu'un état des fichiers, partagés par toutes les conversations qui
+  s'y trouvent ; Claude Code lance les crochets du dossier principal avec `CLAUDE_PROJECT_DIR` = ce dossier, quel que soit le
+  worktree de la conversation (`cd "$CLAUDE_PROJECT_DIR"`) ; un numéro se choisissait d'après l'index de son seul dossier,
+  alors qu'un autre chantier peut le citer dans son code avant de l'écrire au registre.
+- **Règle** — une conversation par worktree, le principal reste sur `main` (D-079, compétence `chantiers`) ; un numéro se
+  réserve par `otb-dev numero` ; un crochet qui lit des fichiers part du `cwd` de son entrée, pas de `$CLAUDE_PROJECT_DIR`.
+- **Preuve** — `rust/otb-dev/tests/numero.rs` (sans les changements en cours des worktrees, la réservation rendait le numéro 6
+  au lieu de 8 ; sans le fichier des réservations, deux réservations donnaient le même) ; essai de `check-docs.sh` avec un faux
+  `cargo` qui affiche le dossier : l'ancien vérifie le principal pour les quatre dossiers essayés, le nouveau celui de la
+  conversation ; la première réservation réelle a rendu L-125, parce que le numéro précédent était déjà cité dans le brouillon même de ce chantier (commentaires écrits avant la réservation) : le travail non validé est bien vu.
+
 ### L-121 : changer la chaîne par défaut vide en silence un test qui comparait « l'ancienne » (appelée par défaut) à la nouvelle
 
 - **Symptôme** — 2026-11-24 (lot 24d) : après la bascule de `check_stages` sur la chaîne du firmware, deux tests du contrôle par
@@ -1563,6 +1580,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-125 | Plusieurs conversations dans un seul dossier se partagent branche et fichiers ; les crochets tournent dans le dossier principal ; un numéro peut être cité ailleurs avant d'être au registre : un worktree par conversation, `otb-dev numero`, crochet parti du `cwd` | Outillage |
 | L-121 | Changer un défaut (chaîne, méthode) : un test qui appelait « l'ancienne » par la fonction par défaut compare la nouvelle à elle-même et reste vert ; nommer la chaîne dans tout test de comparaison | Outillage |
 | L-120 | Notchs dont la fréquence bouge : leur ordre d'application change le résultat (le commentaire du firmware dit le contraire) ; une chaîne recopiée garde l'ordre des boucles du firmware | Filtres |
 | L-119 | Filtre à état appliqué par position (`zip` avec les lignes) sur un tableau d'une case : tous les axes prennent l'état du premier ; indexer chaque état par son axe, tester trois axes ensemble contre chacun seul | Filtres |

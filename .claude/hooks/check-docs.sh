@@ -7,7 +7,13 @@ input=$(cat)
 if ! printf '%s' "$input" | grep -Eq 'git( +(-c +[^ ]+|-C +[^ ]+|--[a-z-]+(=[^ ]+)?))* +commit'; then
     exit 0
 fi
-cd "${CLAUDE_PROJECT_DIR:-.}" || { echo "Crochet : dossier du projet introuvable, vérification impossible." >&2; exit 2; }
+# Dossier vérifié : celui où la conversation travaille (champ « cwd » de l'entrée), remonté à la racine de son dépôt. Une
+# conversation de chantier travaille dans son propre worktree (.claude/worktrees/<sujet>, compétence `chantiers`) alors que
+# CLAUDE_PROJECT_DIR reste le dossier principal : vérifier celui-ci bloquait les commits d'un chantier pour la documentation
+# d'un autre (2026-11-25, L-125). Les « \\ » du JSON (chemins Windows) redeviennent « \ ».
+cwd=$(printf '%s' "$input" | sed -n 's/.*"cwd" *: *"\(\([^"\\]\|\\.\)*\)".*/\1/p' | sed 's/\\\\/\\/g')
+root=$(git -C "${cwd:-${CLAUDE_PROJECT_DIR:-.}}" rev-parse --show-toplevel 2>/dev/null) || root="${CLAUDE_PROJECT_DIR:-.}"
+cd "$root" || { echo "Crochet : dossier du projet introuvable, vérification impossible." >&2; exit 2; }
 # Le délai du crochet est de 60 s (.claude/settings.json) : la suite Rust est donc coupée à 50 s, avec un avertissement visible
 # (le commit passe alors sans ce contrôle ; le lancer à la main).
 failed=0

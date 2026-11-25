@@ -16,6 +16,7 @@ pub mod docs;
 pub mod firmware_bench;
 pub mod icons;
 pub mod licenses;
+pub mod numero;
 pub mod release;
 pub mod usb;
 pub mod verify;
