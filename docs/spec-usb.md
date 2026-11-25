@@ -19,7 +19,7 @@ Les chemins de fichiers ci-dessous sont ceux du dépôt Betaflight (`src/main/�
 | 5 | Effacement d'une carte SD | **impossible en MSP** ; par le système, une fois la carte montée en MSC | lu dans le code |
 | 6 | Bibliothèque série côté Rust | `serial2` (BSD-2 ou Apache-2.0) ; `serialport` **refusée** (MPL-2.0) | licences vérifiées, `cargo deny` vert (lot 32a) |
 | 7 | Autres firmwares qui parlent MSP | hors périmètre (D-062) : refuser tout ce qui n'est pas `BTFL` | décision existante |
-| 8 | Appliquer les réglages simulés (Simulateur, Curseurs) sur la carte | possible techniquement ; **à trancher par Cédric** | question ouverte |
+| 8 | Appliquer les réglages simulés sur la carte | possible techniquement ; **à trancher par Cédric** | question ouverte |
 
 Deux constats **changent le dessin du lot 32** :
 
