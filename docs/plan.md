@@ -65,9 +65,9 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 - Modèle conseillé par lot : **Sonnet** pour le mécanique, la documentation, les tests ; **Opus** pour le
   décodeur, la mémoire et le débogage difficile.
 - La numérotation des lots est une **série unique**, jamais réutilisée : les lots 0 à 14, 16 à 23, 28 à 31
-  et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 32 et le 34 sont ouverts (les parties
+  et 33 sont au tableau en bas (faits, non retenus ou supprimés), le 15, le 32, le 34 et le 35 sont ouverts (les parties
   faites du 32 y sont déjà) ; les **24 et 25** restent du chantier des scripts firmware, **conditionnel** (D-062 ; 24a à 24e faits, reste l'écart au vol affiché), et les **26 et 27** en sont
-  sortis le 2026-11-18 ; le prochain numéro libre est **35**.
+  sortis le 2026-11-18 ; le prochain numéro libre est **36**.
 
 ## Ordre des étapes
 
@@ -76,6 +76,7 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 | 1 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075), mode disque essayé sur la G474 ; reste une carte SD réelle et Windows |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 | 3 | **34** | Emplacement de la bibliothèque au choix, avec déplacement sûr | **fait le 2026-11-25** (D-081) ; reste l'essai à la main sous Linux et Windows |
+| 4 | **35** | Tri des fenêtres de la réponse indicielle, puis recalibrage de l'assistant | rien ; demandé par Cédric le 2026-11-25 |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 (fait le 2026-11-24) |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -259,6 +260,57 @@ Fait le 2026-11-25 ([D-081](decisions.md)), sauf l'essai à la main.
       relancer (à faire par Cédric).
 - [ ] **Critère d'arrêt** : un seul fichier perdu ou un log copié introuvable après un déplacement. **Non atteint** dans
       les tests : chaque fichier comparé après déplacement, chaque log copié retrouvé sur le disque.
+
+---
+
+## Lot 35 : tri des fenêtres de la réponse indicielle (Opus)
+
+**But** : une réponse indicielle qui ne soit plus tirée vers le haut par des fenêtres de 2 s aberrantes. Constaté par Cédric
+le 2026-11-25 en comparant à PIDtoolbox web (version 0.3) sur `Cedric/Air65/Test BF Chirp/CHIRP-65Hz.bbl` : **même forme**
+(creux et bosses aux mêmes instants, donc même déconvolution), mais notre courbe est **plus haute de 0,08 à 0,1** (roulis :
+pic 1,17 contre ≈ 1,05, palier 1,11 contre ≈ 1,03) parce qu'elle moyenne **bien plus de fenêtres** (roulis n = 378 contre
+224). Notre seul tri (`rust/otb-dsp/src/step.rs`, `0,5 < min et max < 3` sur 200–500 ms) laisse passer les nombreuses
+fenêtres de roulis qui montent au-dessus de 1,4 (vue « Brutes »). PIDtoolbox web expose désormais un tri réglable
+(début du régime établi, largeur de la bande, départ maximal, distance à la médiane). **Choix de Cédric (2026-11-25)** :
+D-004 interdit de le copier, et des noms de réglages ne disent pas la méthode ; on écrit **notre propre tri**, sur des
+statistiques classiques, qui ira dans le même sens sans retomber exactement sur ses chiffres ; l'assistant sera
+**recalibré**.
+
+**Branche** : `feat/step-window-rejection`.
+
+**À lire** : `rust/otb-dsp/src/step.rs` (`step_windows`, contrôle des fenêtres), `rust/otb-analysis/src/step.rs`
+(`StepOptions`, `step_response`), `rust/otb-analysis/src/step_series.rs`, `rust/otb-gui/src/tools/step.rs` et
+`step_common.rs`, [spec-methodes.md](spec-methodes.md) « Réponse indicielle », [assistant.md](assistant.md) (seuils de pic
+et de latence), `rust/otb-advisor/src/profiles.rs`, `rust/otb-dev/src/corpus/calibrate.rs`, `rust/otb-parity/src/analysis_layer.rs`
+et `advisor_layer.rs` ; compétences `assistant-seuils` et `calculs-corpus`.
+
+**Premier essai (2026-11-25, hors dépôt, CHIRP-65Hz)** : garder une fenêtre seulement si sa réponse reste **entre 0,5 et
+1,5 dès 150 ms** ; en tangage, écarter en plus les fenêtres dont l'écart quadratique à la **courbe médiane** dépasse
+médiane + 3 × MAD (écart absolu médian × 1,4826).
+
+| Tri | Roulis n | Pic | Palier | Tangage n | Pic | Palier |
+|---|---|---|---|---|---|---|
+| Actuel | 381 | 1,17 | 1,11 | 287 | 1,12 | 1,06 |
+| Bande 0,5–1,5 dès 150 ms | 282 | 1,11 | 1,02 | 250 | 1,12 | 1,00 |
+| + distance à la médiane | 282 | 1,11 | 1,02 | 237 | 1,11 | 0,98 |
+| PIDtoolbox web (capture de Cédric) | 224 | ≈ 1,05 | ≈ 1,03 | 274 | ≈ 1,11 | ≈ 1,02 |
+
+Un départ maximal (`|r(0)| ≤ 0,1`) n'écarte rien sur ce log : à garder seulement s'il sert sur le corpus.
+
+- [ ] **Tri** : bande sur le régime établi (début et largeur réglables, valeurs par défaut justifiées sur le corpus) et
+      distance à la courbe médiane (k réglable) ; décrit dans [spec-methodes.md](spec-methodes.md) avec ses sources
+      (statistique robuste publiée, jamais PIDtoolbox) ; nouvelle décision (`otb-dev numero D`).
+- [ ] **Concordance Python** : les références figées (`golden/`, jamais modifiées) ont été faites avec l'ancien tri ;
+      `otb-parity` doit le garder (option explicite), l'écran et l'assistant passer au nouveau. À trancher au plan du lot.
+- [ ] **Écran** : les nouveaux réglages dans la colonne de droite (rubrique « Calcul »), le nombre de fenêtres
+      écartées affiché ; la **légende** « P, I, D, Dm, F · pic · latence · cassure » ne cache plus le début de la montée
+      (aujourd'hui posée sur la courbe entre 0 et 0,25).
+- [ ] **Recalibrage de l'assistant** : relancer `otb-dev corpus calibrate` (pic, latence, cassure, vagues) avec le
+      nouveau tri ; chaque seuil changé justifié dans [assistant.md](assistant.md) ; taux de déclenchement avant / après.
+- [ ] **Validation** : les logs CHIRP d'Air65 (25, 45, 65 Hz) et des captures `PTB_FIGS_*` du corpus vont dans le sens de
+      PIDtoolbox ; contre-preuve d'un test du tri (L-071).
+- [ ] **Critère d'arrêt** : un tri qui écarte la majorité des fenêtres d'un vol propre, ou qui change le sens d'un
+      conseil de l'assistant sans que la mesure l'explique → s'arrêter et revenir vers Cédric.
 
 ---
 
