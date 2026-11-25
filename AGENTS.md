@@ -38,6 +38,8 @@ Trois registres numérotés, un maître par sujet (D-018) ; `cargo test -p otb-d
   y ajouter tout piège qui a coûté du temps. Ici, « Pièges connus » garde la règle courte et son numéro.
 - `docs/travaux-reportes.md` (`W-xxx`) : ce qui est vu et laissé de côté, avec la condition de reprise (défaut hors sujet : l'y noter).
 - Dans le code : `# ⚠️ <ce qui casse si on l'ignore> (L-xxx)` ; la PR liste les numéros touchés ; pas de numéro dans le sujet des commits.
+- Nouveau numéro : `cargo run -p otb-dev -- numero D|L|W "note"` (voit tous les worktrees, inscrit la réservation), jamais « le dernier de l'index + 1 ».
+- **Plusieurs conversations en parallèle** : une par sujet, chacune dans son worktree, le dossier principal reste sur `main` ; compétence `chantiers`. D-079
 
 **Un seul plan** : `docs/plan.md` — ce qu'il reste à faire (une session = un lot = une PR), ce qui est écarté, et l'historique d'une
 ligne par lot fait. Ne jamais ouvrir un second document de plan : un plan qui tient son propre historique contredit les registres (L-092).
@@ -74,6 +76,7 @@ cargo run -p otb-dev -- verify   # fmt, clippy, tous les tests, mentions de lice
 cargo test -p otb-dev --test docs   # cohérence de la documentation
 cargo run --release -p otb-gui -- [LOG…]   # interface
 cargo run --release -p otb-cli -- report LOG.bbl   # diagnostic en ligne de commande
+cargo run -p otb-dev -- numero [D|L|W "note"]   # réserve le prochain numéro d'un registre, vu de tous les worktrees (sans argument : les réservations)
 cargo run -p otb-dev -- icons | licenses [--check] | release prepare X.Y.Z | release notes vX.Y.Z | bench-open LOG… [--jobs N] | usb ports|info|copy|diff|msc|sd … | firmware-bench   # icônes, licences livrées (--check : compare sans écrire, lancé par verify et la CI), version, notes de la page Releases, banc d'ouverture de logs (`--jobs 1` : les uns après les autres), essai de la récupération USB sur une vraie carte, banc de référence des filtres (télécharge et compile Betaflight hors du dépôt, réécrit les vecteurs du test `firmware_vectors`)
 cargo run --release -p otb-dev -- corpus rates|calibrate|labels|validate|stages|dyntrack|replay|predict|chaindiff|thin   # calculs sur le corpus : compétence `calculs-corpus`
 cargo run --release -p otb-parity -- check "$OTB_GOLDEN"   # concordance avec les références figées (aussi : list, check-header|decoder|settings|flightlog|sliders|analysis|advisor|guide|tuning|cli)

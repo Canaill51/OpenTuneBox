@@ -127,6 +127,11 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 
 ## Outillage, vérification et crochets
 
+- Plusieurs conversations dans le **même dossier** se partagent la branche et les fichiers non validés : l'une change de
+  branche ou restaure un fichier sous les pieds de l'autre. Chacune son worktree (compétence `chantiers`) ; un numéro de
+  registre se prend par `otb-dev numero` ; les crochets se lisent dans le dossier principal, donc `check-docs.sh`
+  vérifie le dossier de la conversation (`cwd`), pas `$CLAUDE_PROJECT_DIR`. L-125
+
 - Une substitution `perl`/`sed` dont le délimiteur apparaît dans le texte (fermetures Rust `|x|`, `#` et `|` du
   Markdown, `/` des chemins) écrit au mauvais endroit sans erreur (un `\|` échappé devient une alternative) : outil
   d'édition pour le multi-ligne, sinon `git diff --stat` et le début du fichier relus aussitôt. L-113

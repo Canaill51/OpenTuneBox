@@ -4,3 +4,5 @@ dist/
 OTB_FIGS_*.png
 rust/target/
 rust/.cargo/
+# worktrees des conversations de chantier (compétence `chantiers`, D-079)
+.claude/worktrees/

@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
 | D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
 | D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
 | D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
@@ -146,6 +147,40 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-25 — Plusieurs conversations en parallèle
+
+### D-079 : une conversation par sujet, chacune dans son worktree, pilotées depuis le dossier principal
+
+**Tranché par Cédric** le 2026-11-25 : « je veux pouvoir ouvrir plusieurs conversations avec toi pour […] optimiser
+l'utilisation des tokens. Et chaque conversation sur ce projet sera sur un point spécifique du projet […] pour que tout ça
+n'interfère pas dans le travail des agents. Je veux que tu sois capable de piloter tout ça. »
+
+**Contexte.** Le 2026-11-25, trois conversations travaillaient en même temps (interface, fiche drone, bruit et filtres), deux
+dans le même dossier : l'une a changé de branche sous les pieds de l'autre et restauré un fichier qu'elle modifiait ; le
+crochet de documentation bloquait les commits de la troisième, pourtant dans son propre worktree, pour une décision citée par
+une autre et pas encore écrite ; ce numéro, absent du registre, aurait été repris par une conversation qui se fiait à l'index (L-125).
+
+**Décision.**
+- Une conversation = un sujet = un worktree = une branche = une PR. Elle commence par « Chantier <sujet> » et crée son
+  worktree (`EnterWorktree`, dans le dossier `worktrees` de `.claude`, ignoré par git) depuis `origin/main` ; elle n'en sort pas.
+- Le dossier principal reste sur `main`, sans changement en cours : il est à la conversation de pilotage, qui tient le
+  tableau des chantiers (`.git/otb-chantiers.md`), voit les recouvrements, propose l'ordre des fusions et prévient les
+  autres conversations après chaque fusion. Procédure : compétence `chantiers`.
+- Un numéro de registre se réserve par `otb-dev numero` (vu de tous les worktrees, réservations dans le dossier `.git`
+  commun), jamais d'après le seul index de son dossier.
+- `check-docs.sh` vérifie le dossier de la conversation (`cwd` de l'entrée du crochet), plus `$CLAUDE_PROJECT_DIR`.
+- Les règles de confirmation (push, étiquette, PR, release) ne changent pas.
+
+**Options écartées.** Des clones séparés (`OpenTuneBox-bruit`…) : la mémoire de Claude Code et les crochets dépendent du
+dossier de lancement, et les réservations ne seraient plus communes. Un seul dossier avec des branches successives : c'est ce
+qui a cassé. Un dossier `target` commun aux worktrees : les compilations simultanées s'attendraient (verrou de cargo) et les
+crates du projet se recompileraient quand même ; on paie la place (≈ 20 Go par worktree, 630 Go libres le 2026-11-25).
+
+**Témoins.** `rust/otb-dev/tests/numero.rs:deux_chantiers_ne_recoivent_jamais_le_meme_numero` (deux contre-preuves) ; essai du
+crochet sur quatre dossiers, ancien et nouveau (L-125) ; première réservation réelle : L-125, parce que le numéro précédent était déjà cité dans le brouillon de ce chantier, écrit avant la réservation.
 
 ---
 

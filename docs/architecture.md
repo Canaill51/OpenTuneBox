@@ -341,6 +341,12 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
     cas fabriqué. Les registres d'histoire (`HISTORICAL_DOCS` : decisions, lecons, migration-rust, travaux-reportes) peuvent
     citer des chemins Python disparus ; les autres documents ne citent que des chemins qui existent.
   - `verify.rs` : `otb-dev verify [--quick] [--strict]` enchaîne `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --no-fail-fast` (tout l'espace de travail, et non plus une liste de `-p` à tenir à jour), le contrôle des mentions de licences (`licenses::check`, dans le processus : aucune commande lancée) puis `cargo deny check` (avertissement s'il manque ; sauté par `--quick`) ; durée de chaque étape, code de sortie 0 seulement si tout passe. Un test qui se saute faute de corpus écrit `[OTB-SAUT]` sur la sortie standard : `verify` les compte et `--strict` en fait un échec. Deux contrôles d'`otb-dev` cherchent eux-mêmes les sauts (et les fichiers réservés à un système, annoncés par `sauts_par_systeme.rs`), pour qu'un nouveau test conditionnel ne passe pas inaperçu.
+  - `numero.rs` : `otb-dev numero D|L|W [NOTE…]` réserve le prochain numéro d'un registre quand plusieurs conversations
+    travaillent chacune dans son worktree (D-079) : il dépasse tout numéro vu dans le registre de chaque worktree, dans celui
+    d'`origin/main`, dans les changements de chaque worktree par rapport à `origin/main` (un numéro cité dans le code avant
+    d'être écrit au registre, L-125) et dans le fichier des réservations `otb-numeros.txt` du dossier `.git` commun (verrou par
+    création exclusive). Sans argument : la liste des réservations. Preuve : `rust/otb-dev/tests/numero.rs` (dépôt fabriqué à
+    trois worktrees).
   - `bench_open.rs` : `otb-dev bench-open LOG [ESSAIS]` ouvre un log (`otb_log::flightlog::load`) et affiche durées et pic de mémoire (`VmHWM` de `/proc/self/status`, Linux seulement) ; un processus par log, car le pic ne redescend pas.
   - `usb.rs` : `otb-dev usb ports | info PORT | copy PORT DOSSIER [--erase] | diff PORT FICHIER | msc PORT DOSSIER [--erase] | sd RACINE DOSSIER [--erase]`
     (`msc` : mode stockage de masse ; `sd` : carte SD dans un lecteur ; lot 32c) : essai à la main de `otb-usb` sur une
