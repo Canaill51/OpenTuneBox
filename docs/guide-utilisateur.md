@@ -129,7 +129,12 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un fragment.
 - **Fiche du drone** : le crayon en haut à droite d'une carte, ou **Nouveau drone**, ouvre la fiche — nom (le même que
   dans Betaflight, onglet Configuration : c'est lui qui relie les logs au drone), taille (elle choisit les seuils de
-  l'Assistant et les valeurs du Guide), batterie, poids, moteurs, hélices, ESC, version de Betaflight, boucle PID. La
+  l'Assistant et les valeurs du Guide), batterie, poids, taille et KV des moteurs, pôles moteur, hélices, ESC, version de
+  Betaflight, boucle PID. La **taille** se tape librement (« 3,5″ », « 10″ », « 85 mm ») ou se choisit avec la flèche ;
+  la ligne dessous dit quels seuils l'Assistant prendra. Les **pôles** et la **boucle PID** se lisent dans vos logs :
+  la boucle PID suit le dernier log ; les pôles n'y sont pris que si vous ne les avez pas remplis, et si votre valeur
+  diffère du log, une note orange le signale (un `motor_poles` faux dans Betaflight fausse le filtre RPM). Le **KV**,
+  comme la taille du drone et celle des moteurs, est à remplir vous-même : il n'est jamais tiré du log. La
   carte de vol et son identifiant s'y lisent au premier branchement USB, comme l'historique des **configurations**
   (`diff all`) : **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis
   **Supprimer définitivement** retire le drone, ses fragments et ses configurations du logiciel. Vos fichiers de logs

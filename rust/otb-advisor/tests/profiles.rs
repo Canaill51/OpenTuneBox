@@ -195,3 +195,35 @@ fn minuscules_comme_python() {
     println!("{} minuscules différentes : {diff:?}", diff.len());
     assert!(diff.is_empty(), "minuscules différentes de Python : {diff:?}");
 }
+
+/// La taille écrite librement dans la fiche du drone (D-077) : les mêmes lectures que la taille par le nom (bornes
+/// 3,8 / 5,8 / 7,8 pouces, `65` / `75` en whoop), plus le signe `″` de la fiche, les millimètres d'un whoop et un
+/// nombre seul ; rien de lisible : `None` (la fiche prend alors le profil par défaut et le dit).
+#[test]
+fn taille_saisie_librement() {
+    use otb_advisor::profiles::size_profile_key;
+    for (texte, attendu) in [
+        ("5″", Some("five")),
+        ("3,5″", Some("micro")),
+        ("3.8\"", Some("five")),
+        ("10″", Some("large")),
+        ("8″ et plus", Some("large")),
+        ("6 pouces", Some("seven")),
+        ("7in", Some("seven")),
+        ("7", Some("seven")),
+        ("2,5", Some("micro")),
+        ("65 mm", Some("whoop")),
+        ("85 mm", Some("whoop")),
+        ("85mm", Some("whoop")),
+        ("Tiny Whoop", Some("whoop")),
+        ("220 mm", None),
+        ("25", None),
+        ("", None),
+        ("cinématique", None),
+    ] {
+        assert_eq!(size_profile_key(texte), attendu, "« {texte} »");
+    }
+    // le nom du drone garde ses bornes : elles viennent de la même fonction
+    let (p, _) = detect_profile_from(None, None, "Cine 3.5in");
+    assert_eq!(p.key, "micro");
+}
