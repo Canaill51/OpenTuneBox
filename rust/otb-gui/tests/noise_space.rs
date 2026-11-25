@@ -51,7 +51,7 @@ const ONGLETS: [(&str, &str); 4] = [
     ("Spectre", "Analyse spectrale"),
     ("Fréq. × gaz", "Fréquence × gaz"),
     ("Fréq. × temps", "Fréquence × temps"),
-    ("Et si", "Simulateur de filtres"),
+    ("Simulateur", "Simulateur de filtres"),
 ];
 
 /// Les onglets de l'espace se reconnaissent comme des boutons : chacun est un bouton, celui de la vue affichée est

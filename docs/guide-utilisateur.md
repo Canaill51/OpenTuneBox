@@ -137,7 +137,7 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   - **Un clic sur la pastille** la **désactive** (barrée, en pointillés) : ses courbes disparaissent des outils sans
     que le vol soit fermé. Un second clic la réactive.
   - **Un clic sur son rond** en fait le **fragment maître** (rond plus gros, coché) : c'est le vol des pages qui n'en
-    montrent qu'un (Assistant, Fréquence × temps, « Et si » des filtres).
+    montrent qu'un (Assistant, Fréquence × temps, Simulateur des filtres).
   - **Glissez-la** pour changer l'ordre des courbes ; sa couleur, elle, ne change jamais.
   - **Le ×** la retire de l'analyse (le vol est fermé).
   - La liste est **retrouvée au lancement suivant** : mêmes vols, même ordre, mêmes couleurs.
@@ -183,7 +183,7 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   le vol, sa date et sa valeur. Changer une case de la fiche cible déplace la zone aussitôt. Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier
   `drones.json` est gardé sous le nom `drones.json.repris`.
 - **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
-  **Fréq. × temps** et le **Et si** des filtres. Ses onglets (icône et nom), en haut de la page, passent de l'une à
+  **Fréq. × temps** et le **Simulateur** des filtres. Ses onglets (icône et nom), en haut de la page, passent de l'une à
   l'autre sans repasser par le rail ; celui de la vue affichée est en bleu et souligné. En tête du panneau de droite,
   **Gyro | Terme D** choisit le signal des quatre vues à la fois — le gyro avant et après ses filtres, ou le terme D
   après ses filtres (le D avant filtres n'est pas enregistré par Betaflight, il n'est donc pas proposé ici) —, et les
@@ -350,7 +350,7 @@ Positions des curseurs (lues dans le log, ou estimées si le réglage simplifié
 simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, copiez les commandes CLI.
 
 ### Simulateur de filtres (Filtres)
-S'ouvre par l'onglet **Et si** de l'entrée **Bruit et filtres** du rail.
+S'ouvre par l'onglet **Simulateur** de l'entrée **Bruit et filtres** du rail.
 Reconstitue la chaîne de filtres de Betaflight à partir du log. **Gyro | Terme D**, en tête du panneau, choisit les
 filtres à régler ; ceux du gyro ont deux pages, **Passe-bas et notchs** et **Notch dyn / RPM**. En tête des passe-bas du
 gyro et du terme D, le **multiplicateur du filtre**, comme dans Betaflight Configurator : coché, son curseur (de 0,10 à

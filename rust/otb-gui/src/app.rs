@@ -1341,7 +1341,7 @@ impl App {
             }
             _ => guide_actions = self.guide.ui(ui, &mut self.state, &self.library, &theme),
         });
-        // une vue d'espace s'ouvre directement : pas la peine d'avoir un log pour passer du Spectre au « Et si »
+        // une vue d'espace s'ouvre directement : pas la peine d'avoir un log pour passer du Spectre au Simulateur
         if let Some(title) = space_goto
             && let Some(j) = self.pages.iter().position(|p| p.title() == title)
         {
