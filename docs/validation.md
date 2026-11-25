@@ -246,6 +246,32 @@ d'endroit avec le seuil (`Cedric/JeNo 5/FINAL`, `rust/otb-advisor/tests/tuning_p
 Écart connu : la latence 50 % peut différer d'environ 1 ms (interpolation au passage exact à 50 % contre
 lecture échantillon par échantillon).
 
+### Spectres comparés à PIDtoolbox sur les logs CHIRP (2026-11-25)
+
+Captures de Cédric : `Cedric/Air65/Test BF Chirp/PTB_FIGS_2026-11-24` (thème sombre de PIDtoolbox, PSD, −50..20 dB,
+période ≈ 2,1–43 s lue sur les captures du visualiseur). Six logs (`CHIRP-25/45/65Hz`, enregistrés à 4 kHz ;
+`FFT_FREQ_2k-CHIRP-25/45/65Hz`, à 2 kHz), trois jeux chacun (Gyro préfiltre, Gyro, Dterm) : 18 captures de « Spectre
+complet » et « Sub 100Hz ». Méthode : la courbe rouge relevée colonne de pixels par colonne de pixels (médiane des pixels
+rouges ; les colonnes où la courbe passe sous −50 dB, écrasée sur le cadre, sont écartées ; légende et texte des retards
+écartés), axes calés sur le cadre du graphique ; comparée à notre spectre sur la même période (résolution 0,5 Hz, lissage 2,
+échelle de PIDtoolbox), médiane de l'écart (nous − PIDtoolbox) par bande et par axe. Scripts jetables, hors du dépôt.
+
+| Bande | Écart médian (18 captures, 3 axes) |
+|---|---|
+| 50 Hz à Nyquist (dont les pics des chirps, 500 / 1000 / 1500 Hz) | +0,3 dB (−1,7 à +1,1 selon la bande et l'axe) |
+| 0–50 Hz | +1 à +2,7 dB |
+| Sub 100 Hz, 0–20 / 20–60 / 60–100 Hz | +0,8 à +1,7 / +0,1 à +1,6 / −0,1 à +1,3 dB |
+
+Les courbes concordent : mêmes formes, mêmes pics, même échelle (Gyro préfiltre, Gyro et Dterm, aux deux fréquences de log).
+Sous 50 Hz, nous sommes 1 à 2 dB plus haut, avec la même forme (montée jusqu'à ≈ 2 Hz puis descente) ; cohérent avec
+les « 2 dB de plus sous 100 Hz » de `hover2` ci-dessus, pas corrigé. L'impression de « courbes un peu différentes » venait
+du **dessin** : préfiltre en perles plus grosses que le trait plein (L-122) et préfiltre seul en pointillés, quand PIDtoolbox
+le trace en trait plein (corrigés : `rust/otb-gui/src/tools/spectral.rs:SpectralTool`, `rust/otb-gui/src/plots.rs:styled`). Restent des
+différences de présentation : graduations tous les 200 Hz chez PIDtoolbox (500 Hz chez nous, selon la largeur), titre
+d'axe « Pwr. Spec. Density » (« PSD »), et nos courbes en S des harmoniques moteur affichées d'office (PIDtoolbox les
+masquait sur ces captures). Retards affichés : gyro 1,375 ms (PIDtoolbox) contre 1,31 ms ; D 2,25 / 1,875 ms (roll /
+pitch) contre 2,34 ms, dans le sens connu (« Retards des filtres » ci-dessus).
+
 ## Autres contrôles
 
 - Curseurs simplifiés : les formules redonnent les PID de l'en-tête pour 740 sessions sur 741.

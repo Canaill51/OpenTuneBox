@@ -75,7 +75,6 @@ fn le_mode_amplitude_garde_l_echelle_physique_et_le_yaw_sans_terme_d_est_absent(
         t.set_dataset(k, false);
     }
     t.set_dataset("dterm", true);
-    t.set_dataset("dterm_prefilt", true);
     let out = calcule(&t, &st);
     assert!(!out.psd);
     let f = &out.files[0];
@@ -358,13 +357,28 @@ fn le_bruit_moteur_compte_les_harmoniques_des_20_hz() {
     assert!(mean[0].is_finite(), "1re harmonique à 25 Hz ignorée : {mean:?}");
 }
 
+/// ⚠️ Le terme D préfiltre, reconstruit et non enregistré, n'est pas proposé dans l'espace « Bruit et filtres » (D-078) :
+/// ni case dans la liste, ni moyen de le cocher.
+///
+/// **Contre-preuve** : sans le filtre `in_noise_space` dans `controls`, la case « Terme D préfiltre » réapparaît et
+/// l'assertion rougit ; sans lui dans `set_dataset`, le jeu passe dans le calcul.
+#[test]
+fn le_terme_d_prefiltre_nest_pas_propose() {
+    let h = banc();
+    assert!(h.query_by_label("Terme D préfiltre").is_none(), "case retirée");
+    assert!(h.query_by_label("Gyro préfiltre").is_some(), "le gyro préfiltre reste");
+    let mut t = SpectralTool::new();
+    t.set_dataset("dterm_prefilt", true);
+    assert!(!t.options().keys.contains(&"dterm_prefilt"));
+}
+
 #[test]
 fn tous_les_jeux_de_donnees_sont_visibles_sans_ascenseur() {
     let h = banc();
     // la liste est suivie de la case « PSD (dB) » : le dernier jeu doit être au-dessus d'elle, pas replié dans un ascenseur.
     // ⚠️ Par rôle : « Gyro » et « Terme D » sont aussi les boutons du choix du signal, en tête du panneau (L-112)
     let suite = h.get_by_label("PSD (dB)").rect().min.y;
-    for (_, label) in otb_analysis::datasets::DATASETS {
+    for (_, label) in otb_gui::tools::common::noise_datasets() {
         let r = h.get_by_role_and_label(Role::CheckBox, label).rect();
         assert!(
             r.max.y <= suite,

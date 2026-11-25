@@ -105,6 +105,10 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 
 ## Interface egui et Rust
 
+- Trait de courbe egui_plot : toujours par `plots::styled` (ou `stroke`) — egui_plot prend l'épaisseur d'un pointillé pour
+  **rayon** de ses points, qui paraissent alors plus gros que le trait plein. L-122
+- Banc de test egui : toujours `.with_context_setup(otb_gui::app::setup)`, même pour une page seule ; sans chargeur d'images, la
+  première icône devient un « ⚠ » absent de la police et le test panique (« No glyph »). L-123
 - Échéance (délai d'abandon) et résultat asynchrone : **relever d'abord** ce qui est déjà arrivé, n'examiner l'échéance
   qu'ensuite — sinon elle jette un travail terminé (l'export d'image échouait sur « capture pas arrivée » alors qu'elle
   l'était). Et un test ne prouve pas une règle de temps en **dormant** : rendre la condition immédiate (délai à zéro) et

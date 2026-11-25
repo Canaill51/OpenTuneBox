@@ -149,9 +149,11 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   le vol, sa date et sa valeur. Changer une case de la fiche cible déplace la zone aussitôt. Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier
   `drones.json` est gardé sous le nom `drones.json.repris`.
 - **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
-  **Fréq. × temps** et le **Et si** des filtres. Ses onglets, en haut de la page, passent de l'une à l'autre sans
-  repasser par le rail. En tête du panneau de droite, **Gyro | Terme D** choisit le signal des quatre vues à la fois,
-  et les cases **R P Y** leurs axes : ce qui est choisi dans l'une se retrouve dans les autres. Les cases détaillées de
+  **Fréq. × temps** et le **Et si** des filtres. Ses onglets (icône et nom), en haut de la page, passent de l'une à
+  l'autre sans repasser par le rail ; celui de la vue affichée est en bleu et souligné. En tête du panneau de droite,
+  **Gyro | Terme D** choisit le signal des quatre vues à la fois — le gyro avant et après ses filtres, ou le terme D
+  après ses filtres (le D avant filtres n'est pas enregistré par Betaflight, il n'est donc pas proposé ici) —, et les
+  cases **R P Y** leurs axes : ce qui est choisi dans l'une se retrouve dans les autres. Les cases détaillées de
   chaque vue restent dessous (erreur PID, consigne, préréglages de Fréq. × gaz…) ; si vous y choisissez autre chose que
   le gyro ou le terme D seul, aucun des deux boutons n'est allumé, et seule cette vue change.
 
@@ -218,7 +220,8 @@ entre parenthèses, le nom plus court que les pages du Guide emploient pour le m
 
 ### Analyse spectrale (Spectre)
 Spectres (FFT) du gyro et des termes PID : on y voit où se trouve le bruit et ce que les filtres
-enlèvent (préfiltre en pointillés, filtré en trait plein). Volet « < 100 Hz » pour les oscillations et
+enlèvent : le gyro avant filtres (« préfiltre ») en fins pointillés quand le gyro filtré est aussi tracé, en trait
+plein s'il est seul, comme dans PIDtoolbox. Volet « < 100 Hz » pour les oscillations et
 le propwash, avec les **retards des filtres** (mesurables seulement si le vol contient des mouvements :
 sur un simple vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime et le retard affiché
 est marqué « peu fiable ») ; volet « bruit moteur » pour l'efficacité du filtre RPM
@@ -254,8 +257,9 @@ cochée (quelques secondes) et compte quatre parties :
 Les constats et les seuils sont ceux de l'assistant : les deux outils donnent les mêmes conseils.
 
 ### Fréquence × gaz (Fréq. × gaz)
-Onglet de l'entrée **Bruit et filtres**. Carte du bruit selon le gaz. Elle s'ouvre sur le signal choisi, **avant et
-après ses filtres**, deux colonnes par fragment ; les **Préréglages** de PIDtoolbox restent dans la liste. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
+Onglet de l'entrée **Bruit et filtres**. Carte du bruit selon le gaz. Elle s'ouvre sur le gyro **avant et après ses
+filtres**, deux colonnes par fragment ; le **Terme D** donne une colonne par fragment. Les **Préréglages** de PIDtoolbox
+restent dans la liste, sauf les deux qui montraient le D avant filtres. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
 retiré par le filtre RPM). Une **ligne horizontale** = résonance de châssis ou pièce qui vibre. Une
 tache basse fréquence à mi-gaz = oscillation de réglage ou propwash.
 

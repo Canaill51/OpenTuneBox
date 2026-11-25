@@ -121,10 +121,13 @@ fn les_colonnes_en_trop_sont_moyennees_par_blocs() {
 type Banc = Harness<'static, (ToolPage<FreqTimeTool>, AppState)>;
 
 fn banc(tool: FreqTimeTool) -> Banc {
-    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_ui_state(
-        |ui, (p, s): &mut (ToolPage<FreqTimeTool>, AppState)| p.ui(ui, s, &CLAIR),
-        (ToolPage::new(tool), etat()),
-    );
+    let mut h = Harness::builder()
+        .with_size(egui::vec2(1400.0, 900.0))
+        .with_context_setup(otb_gui::app::setup)
+        .build_ui_state(
+            |ui, (p, s): &mut (ToolPage<FreqTimeTool>, AppState)| p.ui(ui, s, &CLAIR),
+            (ToolPage::new(tool), etat()),
+        );
     attendre(&mut h);
     h
 }

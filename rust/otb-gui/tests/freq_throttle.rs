@@ -53,7 +53,7 @@ fn le_calcul_par_defaut_donne_quatre_colonnes_de_cartes() {
     assert_eq!(out.xaxis, XAxis::Throttle);
     assert_eq!(out.columns.len(), 4);
     let cles: Vec<&str> = out.columns.iter().map(|c| c.as_ref().unwrap().key).collect();
-    assert_eq!(cles, ["gyro_prefilt", "gyro", "dterm_prefilt", "dterm"]);
+    assert_eq!(cles, ["gyro_prefilt", "gyro", "pterm", "dterm"]);
     let axes = |c: usize| {
         out.columns[c]
             .as_ref()
@@ -138,27 +138,29 @@ fn le_centile_lineaire_est_celui_de_numpy() {
 
 #[test]
 fn les_prereglages_remplissent_les_colonnes_comme_en_python() {
-    assert_eq!(PRESETS.len(), 9);
+    // les deux préréglages de PIDtoolbox au terme D préfiltre sont retirés (D-078)
+    assert_eq!(PRESETS.len(), 7);
+    assert!(PRESETS.iter().all(|(_, keys, _)| !keys.contains(&"dterm_prefilt")));
     // préréglage 1 (le défaut) : un seul fichier, quatre jeux
     assert_eq!(
         preset_columns(0, &[2], 0),
         [
             (Some("gyro_prefilt"), Some(2)),
             (Some("gyro"), Some(2)),
-            (Some("dterm_prefilt"), Some(2)),
+            (Some("pterm"), Some(2)),
             (Some("dterm"), Some(2))
         ]
     );
-    // préréglage 4 : A|A|B|B
-    let c = preset_columns(3, &[0, 1], 0);
+    // préréglage 3 : A|A|B|B
+    let c = preset_columns(2, &[0, 1], 0);
     assert_eq!(c.map(|x| x.1), [Some(0), Some(0), Some(1), Some(1)]);
-    // préréglage 6 : A|B|C|D avec deux fichiers seulement → colonnes 3 et 4 vides
-    let c = preset_columns(5, &[0, 1], 0);
+    // préréglage 4 : A|B|C|D avec deux fichiers seulement → colonnes 3 et 4 vides
+    let c = preset_columns(3, &[0, 1], 0);
     assert_eq!(c[2], (None, None));
     assert_eq!(c[3], (None, None));
     assert_eq!(c[1], (Some("gyro_prefilt"), Some(1)));
     // aucun fichier choisi : le log courant
-    assert_eq!(preset_columns(6, &[], 3)[0], (Some("gyro"), Some(3)));
+    assert_eq!(preset_columns(4, &[], 3)[0], (Some("gyro"), Some(3)));
 }
 
 #[test]

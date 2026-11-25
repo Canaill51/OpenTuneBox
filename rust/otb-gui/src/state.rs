@@ -193,7 +193,8 @@ impl LoadedLog {
     }
 }
 
-/// Signal que montre l'espace « Bruit et filtres » (D-069) : le gyro ou le terme D, chacun avant et après ses filtres.
+/// Signal que montre l'espace « Bruit et filtres » (D-069) : le gyro avant et après ses filtres, ou le terme D après ses
+/// filtres seulement — le D avant filtres est reconstruit, pas enregistré : retiré de l'espace (D-078).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum NoiseSignal {
     #[default]
@@ -212,11 +213,11 @@ impl NoiseSignal {
         }
     }
 
-    /// Jeux de données du signal : avant ses filtres, puis après.
-    pub fn keys(self) -> [&'static str; 2] {
+    /// Jeux de données du signal : avant ses filtres s'il est enregistré, puis après.
+    pub fn keys(self) -> &'static [&'static str] {
         match self {
-            Self::Gyro => ["gyro_prefilt", "gyro"],
-            Self::DTerm => ["dterm_prefilt", "dterm"],
+            Self::Gyro => &["gyro_prefilt", "gyro"],
+            Self::DTerm => &["dterm"],
         }
     }
 
@@ -239,11 +240,16 @@ impl NoiseSignal {
         seen
     }
 
-    /// Le même étage (avant ou après filtres) de ce signal : `dterm` → `gyro`, `gyro_prefilt` → `dterm_prefilt`.
-    /// Un jeu qui n'est d'aucun des deux signaux devient celui d'avant les filtres.
+    /// Le même étage de ce signal : un jeu filtré devient le jeu filtré (`dterm` → `gyro`) ; un jeu d'avant les
+    /// filtres, ou qui n'est d'aucun des deux signaux, devient le premier jeu du signal (`gyro_prefilt` → `dterm`, le
+    /// terme D n'ayant plus que son étage filtré, D-078).
     pub fn counterpart(self, key: &str) -> &'static str {
-        let stage = Self::of_key(key).map_or(0, |s| s.keys().iter().position(|k| *k == key).unwrap_or(0));
-        self.keys()[stage]
+        let keys = self.keys();
+        if Self::of_key(key).is_some() && !otb_analysis::datasets::is_prefilt(key) {
+            keys[keys.len() - 1]
+        } else {
+            keys[0]
+        }
     }
 }
 
