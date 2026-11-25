@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use egui::{Align2, RichText, Ui};
 use egui_plot::{Legend, Line, LineStyle, Plot, PlotPoints, Points, Span};
 use otb_advisor::noise::{NoiseReport, noise_report};
-use otb_analysis::datasets::{self, DATASETS, is_prefilt};
+use otb_analysis::datasets::{self, DATASETS, PREFILT_OF, is_prefilt};
 use otb_analysis::delay::compute_delays;
 use otb_analysis::motors::{dyn_notch_centres, motor_noise};
 use otb_analysis::npstat::percentile_f32;
@@ -18,11 +18,11 @@ use otb_analysis::spectral::{Mode, smooth_freq, spectrum, to_ptb_db};
 
 use super::common::{
     AxisToggles, FileSelection, HARMONICS, MAX_NOTCHES, MotorToggles, PTB_DB_RANGE, ViewMemo, cdf, fmt_ms,
-    harmonic_style, harmonics_and_notches_ui, motor_freqs, ranks, rpm_filter_text, sel_rows, sorted_above_zero,
-    sorted_positive, wide,
+    harmonic_style, harmonics_and_notches_ui, in_noise_space, motor_freqs, ranks, rpm_filter_text, sel_rows,
+    sorted_above_zero, sorted_positive, wide,
 };
 use super::report_ui::{REPORT_FOOTER, diagnosis_ui};
-use crate::plots::{corner_text, error_bars, nice_axes};
+use crate::plots::{corner_text, error_bars, nice_axes, styled};
 use crate::state::{AppState, NoiseSignal};
 use crate::theme::{AXIS_NAMES, Theme, motor_color, plot, with_alpha};
 use crate::tool::{LogInput, Tool};
@@ -208,8 +208,9 @@ impl SpectralTool {
         }
     }
 
+    /// Coche ou décoche un jeu ; un jeu que l'espace ne propose pas (D-078) est ignoré.
     pub fn set_dataset(&mut self, key: &str, on: bool) {
-        if let Some(i) = DATASETS.iter().position(|(k, _)| *k == key) {
+        if let Some(i) = DATASETS.iter().position(|(k, _)| *k == key && in_noise_space(k)) {
             self.datasets[i] = on;
         }
     }
@@ -226,9 +227,12 @@ impl SpectralTool {
         (self.ymin, self.ymax) = (lo, hi);
     }
 
-    fn pen(key: &str) -> (f32, LineStyle) {
-        if is_prefilt(key) {
-            (1.5, LineStyle::dotted_dense())
+    /// Trait d'un jeu : plein, sauf le jeu d'avant filtres quand le même signal filtré est aussi tracé, en pointillé
+    /// fin pour les distinguer (règle de PIDtoolbox : un préfiltre seul est en trait plein).
+    fn pen(key: &str, keys: &[&str]) -> (f32, LineStyle) {
+        let paired = PREFILT_OF.iter().any(|(f, p)| *p == key && keys.contains(f));
+        if is_prefilt(key) && paired {
+            (2.0, crate::plots::dotted())
         } else {
             (2.5, LineStyle::Solid)
         }
@@ -253,13 +257,12 @@ impl SpectralTool {
                 } else {
                     String::new()
                 };
-                let (width, style) = Self::pen(key);
-                lines.push(
-                    Line::new(name, PlotPoints::from(pts))
-                        .color(f.color)
-                        .width(width)
-                        .style(style),
-                );
+                let (width, style) = Self::pen(key, &out.keys);
+                lines.push(styled(
+                    Line::new(name, PlotPoints::from(pts)).color(f.color),
+                    width,
+                    style,
+                ));
             }
         }
         lines
@@ -287,12 +290,11 @@ impl SpectralTool {
                 }
                 for &h in &self.ranks() {
                     let pts = s_curve(vals, h as f64, &freqs, y0, span);
-                    pu.line(
-                        Line::new("", PlotPoints::from(pts))
-                            .color(motor_color(m))
-                            .width(1.2)
-                            .style(harmonic_style(h)),
-                    );
+                    pu.line(styled(
+                        Line::new("", PlotPoints::from(pts)).color(motor_color(m)),
+                        1.2,
+                        harmonic_style(h),
+                    ));
                 }
             }
             for (n, vals) in f.notch_sorted.iter().enumerate() {
@@ -340,14 +342,13 @@ impl SpectralTool {
                 let xs: Vec<f64> = ok.iter().map(|&i| x[i]).collect();
                 let ms: Vec<f64> = ok.iter().map(|&i| mean[i]).collect();
                 let es: Vec<f64> = ok.iter().map(|&i| if std[i].is_nan() { 0.0 } else { std[i] }).collect();
-                let (width, style) = Self::pen(key);
+                let (width, style) = Self::pen(key, &out.keys);
                 let pts: Vec<[f64; 2]> = xs.iter().zip(&ms).map(|(&a, &b)| [a, b]).collect();
-                pu.line(
-                    Line::new("", PlotPoints::from(pts.clone()))
-                        .color(f.color)
-                        .width(width)
-                        .style(style),
-                );
+                pu.line(styled(
+                    Line::new("", PlotPoints::from(pts.clone())).color(f.color),
+                    width,
+                    style,
+                ));
                 pu.points(
                     Points::new("", PlotPoints::from(pts))
                         .color(f.color)
@@ -510,10 +511,13 @@ impl Tool for SpectralTool {
     }
 
     /// Les cases cochées passent à l'autre signal, au même étage (le gyro filtré seul devient le terme D filtré
-    /// seul) ; d'autres jeux cochés (erreur PID…) laissent place au signal avant et après ses filtres.
+    /// seul) ; tous les jeux d'un signal deviennent tous ceux de l'autre (le terme D seul redevient le gyro avant et
+    /// après ses filtres, D-078) ; d'autres jeux cochés (erreur PID…) laissent place à tous les jeux du signal.
     fn show_signal(&mut self, signal: NoiseSignal, _state: &AppState) {
+        let on: Vec<&str> = self.options().keys;
         let keep: Vec<&str> = match self.signal() {
             Some(s) if s == signal => return,
+            Some(s) if s.keys().iter().all(|k| on.contains(k)) => signal.keys().to_vec(),
             Some(_) => DATASETS
                 .iter()
                 .zip(self.datasets)
@@ -628,8 +632,11 @@ impl Tool for SpectralTool {
             ui.separator();
             ui.label(RichText::new("Jeux de données").strong());
             // tous les jeux visibles sans faire défiler (le panneau défile déjà : W-034 (10))
-            for (i, (_, label)) in DATASETS.iter().enumerate() {
-                ui.checkbox(&mut self.datasets[i], *label);
+            for (i, (key, label)) in DATASETS.iter().enumerate() {
+                // le terme D préfiltre n'est pas proposé (D-078)
+                if in_noise_space(key) {
+                    ui.checkbox(&mut self.datasets[i], *label);
+                }
             }
             // Fréq. × gaz et Fréq. × temps s'atteignent par les onglets de l'espace, en haut de la page (D-060) :
             // deux boutons de plus ici feraient deux chemins pour le même geste

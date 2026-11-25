@@ -23,10 +23,11 @@ use crate::theme::{AXIS_NAMES, Theme, plot};
 use crate::tool::{LogInput, Tool};
 use crate::tools::common::{AxisToggles, FileSelection, PTB_DB_RANGE, safe_text};
 use crate::tools::filter_sim_calc::{
-    Bode, DELAY_FREQS, DYN_COUNT_MAX, DYN_COUNT_MAX_44, DYN_MAX_RANGE, DYN_MIN_RANGE, DYN_Q_RANGE, Delays, EXPO_RANGE,
-    Editor, FilterSimResult, HZ_RANGE, LPF_MODES, LPF_TYPES, Lpf1Edit, MOTOR_HZ_DEFAULT, MOTOR_HZ_RANGE,
-    RPM_HARM_RANGE, RPM_MIN_RANGE, RPM_Q_RANGE, RPM_WEIGHT_RANGE, THROTTLE_DEFAULT, THROTTLE_RANGE, bode, cli_values,
-    delays, filter_cli, flight_gap_detail, flight_gap_line, gap_cause_text, simulate_filters,
+    Bode, DELAY_FREQS, DTERM_MULT_WARN, DYN_COUNT_MAX, DYN_COUNT_MAX_44, DYN_MAX_RANGE, DYN_MIN_RANGE, DYN_Q_RANGE,
+    Delays, EXPO_RANGE, Editor, FILTER_MULT_RANGE, FILTER_MULT_STEP, FilterSimResult, GYRO_MULT_WARN, HZ_RANGE,
+    LPF_MODES, LPF_TYPES, Lpf1Edit, MOTOR_HZ_DEFAULT, MOTOR_HZ_RANGE, RPM_HARM_RANGE, RPM_MIN_RANGE, RPM_Q_RANGE,
+    RPM_WEIGHT_RANGE, THROTTLE_DEFAULT, THROTTLE_RANGE, bode, cli_values, delays, filter_cli_with, flight_gap_detail,
+    flight_gap_line, gap_cause_text, mult_text, simulate_filters,
 };
 
 /// Texte d'aide du panneau.
@@ -40,6 +41,14 @@ pub const COPIED_STATUS: &str = "Commandes CLI copiées dans le presse-papiers."
 pub const DELAY_NOTE: &str = "Spectres simulés : filtres rejoués sur le gyro non filtré, comme le firmware (notch dynamique compris). « Modifié » = spectre enregistré × (rejeu modifié / rejeu actuel), donc exactement le log quand rien ne change.";
 /// Titre du spectre gyro quand le log n'a pas de gyro non filtré.
 pub const NO_UNFILT_TITLE: &str = "Spectre gyro — pas de gyro non filtré dans ce log : pas de simulation";
+/// Info-bulle des curseurs de filtres (D-080).
+pub const MULT_HINT: &str = "Comme dans Betaflight Configurator : le curseur recalcule les fréquences des passe-bas actifs (LPF1 et LPF2) à partir de celles par défaut du firmware. À gauche, plus de filtrage (coupures plus basses, plus de retard) ; à droite, moins. Les fréquences sont alors grisées : décochez pour les saisir à la main.";
+/// Info-bulle d'une fréquence grisée par le curseur.
+pub const LOCKED_HINT: &str = "Calculée par le curseur de filtre : décochez-le pour saisir une valeur.";
+/// Curseur sans passe-bas actif.
+pub const NO_LOWPASS_NOTE: &str = "Aucun passe-bas actif : le curseur n'a rien à régler.";
+/// Curseur aux extrémités (seuils de Betaflight Configurator).
+pub const MULT_WARNING: &str = "Position extrême : trop de filtrage retarde le drone, trop peu laisse passer le bruit vers les moteurs (chauffe). Avancez par petits pas.";
 /// Écart (ms) au-delà duquel un retard est vert (plus court) ou rouge (plus long).
 const DELAY_TOL_MS: f64 = 0.005;
 
@@ -149,8 +158,65 @@ fn drag(ui: &mut Ui, v: &mut i64, (lo, hi): (i64, i64), suffix: &str, name: &str
         .changed()
 }
 
-/// Les six champs d'un LPF1.
-fn lpf1_grid(ui: &mut Ui, id: &str, who: &str, e: &mut Lpf1Edit) -> bool {
+/// Fréquence (Hz) d'un passe-bas, grisée quand un curseur de filtres la calcule ; vrai si la valeur a changé.
+fn drag_hz(ui: &mut Ui, v: &mut i64, name: &str, locked: bool) -> bool {
+    ui.add_enabled(
+        !locked,
+        egui::DragValue::new(v).range(HZ_RANGE.0..=HZ_RANGE.1).suffix(" Hz"),
+    )
+    .on_disabled_hover_text(LOCKED_HINT)
+    .accessible_name(name)
+    .changed()
+}
+
+/// Curseur de filtres (D-080), comme Betaflight Configurator : interrupteur, puis « plus de filtrage » à gauche et « moins de
+/// filtrage » à droite, position affichée « 1,00 ». `active` : un passe-bas au moins est actif. Vrai si quelque chose a changé.
+fn mult_slider(
+    ui: &mut Ui,
+    who: &str,
+    (on, mult): (&mut bool, &mut i64),
+    warn: (i64, i64),
+    active: bool,
+    theme: &Theme,
+) -> bool {
+    let mut ch = ui
+        .checkbox(on, format!("Multiplicateur du filtre {who}"))
+        .on_hover_text(MULT_HINT)
+        .changed();
+    ui.add_enabled_ui(*on && active, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Plus de filtrage").small().color(theme.ui.muted));
+            ui.spacing_mut().slider_width = 110.0;
+            ch |= ui
+                .add(
+                    egui::Slider::new(mult, FILTER_MULT_RANGE.0..=FILTER_MULT_RANGE.1)
+                        .step_by(FILTER_MULT_STEP as f64)
+                        .custom_formatter(|v, _| mult_text(v.round() as i64))
+                        .custom_parser(|t| {
+                            t.trim()
+                                .replace(',', ".")
+                                .parse::<f64>()
+                                .ok()
+                                .map(|x| (x * 100.0).round())
+                        }),
+                )
+                .on_hover_text(MULT_HINT)
+                .accessible_name(format!("Position du multiplicateur du filtre {who}"))
+                .changed();
+            ui.label(RichText::new("Moins de filtrage").small().color(theme.ui.muted));
+        });
+    });
+    if *on && !active {
+        ui.label(RichText::new(NO_LOWPASS_NOTE).small().color(theme.ui.muted));
+    } else if *on && (*mult <= warn.0 || *mult >= warn.1) {
+        ui.label(RichText::new(MULT_WARNING).small().color(theme.accent("red")));
+    }
+    ui.add_space(4.0);
+    ch
+}
+
+/// Les six champs d'un LPF1 ; `locked` : fréquences calculées par le curseur de filtres.
+fn lpf1_grid(ui: &mut Ui, id: &str, who: &str, e: &mut Lpf1Edit, locked: bool) -> bool {
     let mut ch = false;
     ui.label(RichText::new("LPF1").strong());
     egui::Grid::new(id).num_columns(2).show(ui, |ui| {
@@ -173,13 +239,13 @@ fn lpf1_grid(ui: &mut Ui, id: &str, who: &str, e: &mut Lpf1Edit) -> bool {
         );
         ui.end_row();
         ui.label("Statique");
-        ch |= drag(ui, &mut e.static_hz, HZ_RANGE, " Hz", &format!("{who} LPF1 statique"));
+        ch |= drag_hz(ui, &mut e.static_hz, &format!("{who} LPF1 statique"), locked);
         ui.end_row();
         ui.label("Dyn. min");
-        ch |= drag(ui, &mut e.min_hz, HZ_RANGE, " Hz", &format!("{who} LPF1 dynamique min"));
+        ch |= drag_hz(ui, &mut e.min_hz, &format!("{who} LPF1 dynamique min"), locked);
         ui.end_row();
         ui.label("Dyn. max");
-        ch |= drag(ui, &mut e.max_hz, HZ_RANGE, " Hz", &format!("{who} LPF1 dynamique max"));
+        ch |= drag_hz(ui, &mut e.max_hz, &format!("{who} LPF1 dynamique max"), locked);
         ui.end_row();
         ui.label("Expo");
         ch |= drag(ui, &mut e.expo, EXPO_RANGE, "", &format!("{who} LPF1 expo"));
@@ -188,8 +254,9 @@ fn lpf1_grid(ui: &mut Ui, id: &str, who: &str, e: &mut Lpf1Edit) -> bool {
     ch
 }
 
-/// LPF2 (type et coupure).
-fn lpf2_grid(ui: &mut Ui, id: &str, who: &str, kind: &mut usize, hz: &mut i64) -> bool {
+/// LPF2 (type et coupure) ; `locked` : coupure calculée par le curseur de filtres. Désactivé (0), il reste saisissable
+/// même curseur mis : c'est ainsi qu'on l'active, et le curseur prend alors la main sur sa coupure.
+fn lpf2_grid(ui: &mut Ui, id: &str, who: &str, (kind, hz): (&mut usize, &mut i64), locked: bool) -> bool {
     let mut ch = false;
     ui.horizontal(|ui| {
         ui.label(RichText::new("LPF2").strong());
@@ -200,7 +267,8 @@ fn lpf2_grid(ui: &mut Ui, id: &str, who: &str, kind: &mut usize, hz: &mut i64) -
         ch |= combo(ui, &format!("{id}-type"), kind, &LPF_TYPES, &format!("{who} LPF2 type"));
         ui.end_row();
         ui.label("Coupure");
-        ch |= drag(ui, hz, HZ_RANGE, " Hz", &format!("{who} LPF2 coupure"));
+        let locked = locked && *hz != 0;
+        ch |= drag_hz(ui, hz, &format!("{who} LPF2 coupure"), locked);
         ui.end_row();
     });
     ch
@@ -368,7 +436,7 @@ impl FilterSimTool {
             })
         })();
         self.derived = Some(Derived {
-            cli: filter_cli(base, &modf),
+            cli: filter_cli_with(base, &modf, self.editor.filter_sliders()),
             bode,
             delays: delays(base, &modf, thr, motor, dynamic),
             key,
@@ -377,12 +445,34 @@ impl FilterSimTool {
 
     // ------------------------------------------------------------ panneau
 
-    fn tab_fields(&mut self, ui: &mut Ui) -> bool {
+    /// Le log connaît-il les curseurs de filtres (Betaflight 4.3 et après) ? Sinon, ils ne sont pas proposés.
+    fn has_filter_sliders(&self) -> bool {
+        self.base.as_ref().is_some_and(|b| {
+            b.raw.contains_key("simplified_gyro_filter_multiplier")
+                && b.raw.contains_key("simplified_dterm_filter_multiplier")
+        })
+    }
+
+    fn tab_fields(&mut self, ui: &mut Ui, theme: &Theme) -> bool {
+        let sliders = self.has_filter_sliders();
         let e = &mut self.editor;
         match self.tab {
             0 => {
-                let mut ch = lpf1_grid(ui, "filtres-g1", "Gyro", &mut e.g1);
-                ch |= lpf2_grid(ui, "filtres-g2", "Gyro", &mut e.g2_type, &mut e.g2_hz);
+                let mut ch = false;
+                if sliders {
+                    let active = e.gyro_lowpass_active();
+                    ch |= mult_slider(
+                        ui,
+                        "gyro",
+                        (&mut e.g_slider, &mut e.g_mult),
+                        GYRO_MULT_WARN,
+                        active,
+                        theme,
+                    );
+                }
+                let locked = sliders && e.g_slider;
+                ch |= lpf1_grid(ui, "filtres-g1", "Gyro", &mut e.g1, locked);
+                ch |= lpf2_grid(ui, "filtres-g2", "Gyro", (&mut e.g2_type, &mut e.g2_hz), locked);
                 ui.label(RichText::new("Notchs statiques").strong());
                 ui.label("(centre / coupure)");
                 egui::Grid::new("filtres-gn").num_columns(2).show(ui, |ui| {
@@ -392,8 +482,21 @@ impl FilterSimTool {
                 ch
             }
             1 => {
-                let mut ch = lpf1_grid(ui, "filtres-d1", "D", &mut e.d1);
-                ch |= lpf2_grid(ui, "filtres-d2", "D", &mut e.d2_type, &mut e.d2_hz);
+                let mut ch = false;
+                if sliders {
+                    let active = e.dterm_lowpass_active();
+                    ch |= mult_slider(
+                        ui,
+                        "D",
+                        (&mut e.d_slider, &mut e.d_mult),
+                        DTERM_MULT_WARN,
+                        active,
+                        theme,
+                    );
+                }
+                let locked = sliders && e.d_slider;
+                ch |= lpf1_grid(ui, "filtres-d1", "D", &mut e.d1, locked);
+                ch |= lpf2_grid(ui, "filtres-d2", "D", (&mut e.d2_type, &mut e.d2_hz), locked);
                 ui.label(RichText::new("Notch D").strong());
                 ui.label("(centre / coupure)");
                 egui::Grid::new("filtres-dn").num_columns(2).show(ui, |ui| {
@@ -475,7 +578,7 @@ impl FilterSimTool {
                     "gyro_sim_cur",
                     "gyro simulé (actuel)",
                     plot::SIM_CURRENT,
-                    LineStyle::dotted_dense(),
+                    crate::plots::dotted(),
                     2.0,
                 ));
             }
@@ -497,7 +600,7 @@ impl FilterSimTool {
                     "d_sim_cur",
                     "D simulé (actuel)",
                     plot::SIM_CURRENT,
-                    LineStyle::dotted_dense(),
+                    crate::plots::dotted(),
                     2.0,
                 ));
             }
@@ -630,12 +733,11 @@ impl FilterSimTool {
                         pu.set_plot_bounds_y(lo..=hi);
                     }
                     for s in lines {
-                        pu.line(
-                            Line::new(s.label, PlotPoints::from(s.pts))
-                                .color(s.color)
-                                .width(s.width)
-                                .style(s.style),
-                        );
+                        pu.line(crate::plots::styled(
+                            Line::new(s.label, PlotPoints::from(s.pts)).color(s.color),
+                            s.width,
+                            s.style,
+                        ));
                     }
                 });
             });
@@ -823,9 +925,11 @@ impl Tool for FilterSimTool {
                     ui.selectable_value(&mut self.tab, TAB_DYN, "Notch dyn / RPM");
                 });
             }
-            if self.tab_fields(ui) {
+            if self.tab_fields(ui, theme) {
                 let family = self.family();
                 self.editor.clamp(family);
+                // un curseur de filtres mis garde la main sur ses fréquences, même après un changement de mode (D-080)
+                self.editor.follow_sliders();
                 self.message.clear();
             }
             ui.separator();

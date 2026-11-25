@@ -102,7 +102,8 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
 - **Titre de la fenêtre** : le nom du programme suivi de sa **version** (« OpenTuneBox 0.9.0 ») — utile pour savoir
   laquelle vous utilisez avant de signaler un problème.
 - **Barre du haut** : la **barre de fragments** (une pastille par vol en analyse, voir ci-dessous), puis
-  **Ouvrir…**, l'icône qui exporte la fenêtre en image et la lune qui passe au **thème sombre** (ou clair).
+  **Ouvrir…**, l'icône qui exporte la fenêtre en image et la lune qui passe au **thème sombre** (ou clair) ;
+  OpenTuneBox rouvre avec le dernier thème choisi.
 - **La barre de fragments** décide de ce que montrent **tous les outils** : chaque pastille porte la couleur de ses
   courbes, le nom du fragment et celui du drone. Survolez-la pour sa fiche (rôle, date, heure de début, durée,
   PID roll, firmware).
@@ -128,7 +129,12 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un fragment.
 - **Fiche du drone** : le crayon en haut à droite d'une carte, ou **Nouveau drone**, ouvre la fiche — nom (le même que
   dans Betaflight, onglet Configuration : c'est lui qui relie les logs au drone), taille (elle choisit les seuils de
-  l'Assistant et les valeurs du Guide), batterie, poids, moteurs, hélices, ESC, version de Betaflight, boucle PID. La
+  l'Assistant et les valeurs du Guide), batterie, poids, taille et KV des moteurs, pôles moteur, hélices, ESC, version de
+  Betaflight, boucle PID. La **taille** se tape librement (« 3,5″ », « 10″ », « 85 mm ») ou se choisit avec la flèche ;
+  la ligne dessous dit quels seuils l'Assistant prendra. Les **pôles** et la **boucle PID** se lisent dans vos logs :
+  la boucle PID suit le dernier log ; les pôles n'y sont pris que si vous ne les avez pas remplis, et si votre valeur
+  diffère du log, une note orange le signale (un `motor_poles` faux dans Betaflight fausse le filtre RPM). Le **KV**,
+  comme la taille du drone et celle des moteurs, est à remplir vous-même : il n'est jamais tiré du log. La
   carte de vol et son identifiant s'y lisent au premier branchement USB, comme l'historique des **configurations**
   (`diff all`) : **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis
   **Supprimer définitivement** retire le drone, ses fragments et ses configurations du logiciel. Vos fichiers de logs
@@ -149,9 +155,11 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   le vol, sa date et sa valeur. Changer une case de la fiche cible déplace la zone aussitôt. Les fiches faites avec une version précédente sont reprises au premier lancement ; l'ancien fichier
   `drones.json` est gardé sous le nom `drones.json.repris`.
 - **Une entrée peut réunir plusieurs vues** : **Bruit et filtres** porte le **Spectre**, **Fréq. × gaz**,
-  **Fréq. × temps** et le **Et si** des filtres. Ses onglets, en haut de la page, passent de l'une à l'autre sans
-  repasser par le rail. En tête du panneau de droite, **Gyro | Terme D** choisit le signal des quatre vues à la fois,
-  et les cases **R P Y** leurs axes : ce qui est choisi dans l'une se retrouve dans les autres. Les cases détaillées de
+  **Fréq. × temps** et le **Et si** des filtres. Ses onglets (icône et nom), en haut de la page, passent de l'une à
+  l'autre sans repasser par le rail ; celui de la vue affichée est en bleu et souligné. En tête du panneau de droite,
+  **Gyro | Terme D** choisit le signal des quatre vues à la fois — le gyro avant et après ses filtres, ou le terme D
+  après ses filtres (le D avant filtres n'est pas enregistré par Betaflight, il n'est donc pas proposé ici) —, et les
+  cases **R P Y** leurs axes : ce qui est choisi dans l'une se retrouve dans les autres. Les cases détaillées de
   chaque vue restent dessous (erreur PID, consigne, préréglages de Fréq. × gaz…) ; si vous y choisissez autre chose que
   le gyro ou le terme D seul, aucun des deux boutons n'est allumé, et seule cette vue change.
 
@@ -218,7 +226,8 @@ entre parenthèses, le nom plus court que les pages du Guide emploient pour le m
 
 ### Analyse spectrale (Spectre)
 Spectres (FFT) du gyro et des termes PID : on y voit où se trouve le bruit et ce que les filtres
-enlèvent (préfiltre en pointillés, filtré en trait plein). Volet « < 100 Hz » pour les oscillations et
+enlèvent : le gyro avant filtres (« préfiltre ») en fins pointillés quand le gyro filtré est aussi tracé, en trait
+plein s'il est seul, comme dans PIDtoolbox. Volet « < 100 Hz » pour les oscillations et
 le propwash, avec les **retards des filtres** (mesurables seulement si le vol contient des mouvements :
 sur un simple vol stationnaire, les filtres dynamiques ne travaillent qu'à un régime et le retard affiché
 est marqué « peu fiable ») ; volet « bruit moteur » pour l'efficacité du filtre RPM
@@ -254,8 +263,9 @@ cochée (quelques secondes) et compte quatre parties :
 Les constats et les seuils sont ceux de l'assistant : les deux outils donnent les mêmes conseils.
 
 ### Fréquence × gaz (Fréq. × gaz)
-Onglet de l'entrée **Bruit et filtres**. Carte du bruit selon le gaz. Elle s'ouvre sur le signal choisi, **avant et
-après ses filtres**, deux colonnes par fragment ; les **Préréglages** de PIDtoolbox restent dans la liste. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
+Onglet de l'entrée **Bruit et filtres**. Carte du bruit selon le gaz. Elle s'ouvre sur le gyro **avant et après ses
+filtres**, deux colonnes par fragment ; le **Terme D** donne une colonne par fragment. Les **Préréglages** de PIDtoolbox
+restent dans la liste, sauf les deux qui montraient le D avant filtres. Une **diagonale** qui monte avec le gaz = bruit moteur (normal, doit être
 retiré par le filtre RPM). Une **ligne horizontale** = résonance de châssis ou pièce qui vibre. Une
 tache basse fréquence à mi-gaz = oscillation de réglage ou propwash.
 
@@ -314,7 +324,14 @@ simulateur « et si » : bougez un curseur, voyez les PID et filtres obtenus, co
 ### Simulateur de filtres (Filtres)
 S'ouvre par l'onglet **Et si** de l'entrée **Bruit et filtres** du rail.
 Reconstitue la chaîne de filtres de Betaflight à partir du log. **Gyro | Terme D**, en tête du panneau, choisit les
-filtres à régler ; ceux du gyro ont deux pages, **Passe-bas et notchs** et **Notch dyn / RPM**. Modifiez un filtre, puis cliquez sur
+filtres à régler ; ceux du gyro ont deux pages, **Passe-bas et notchs** et **Notch dyn / RPM**. En tête des passe-bas du
+gyro et du terme D, le **multiplicateur du filtre**, comme dans Betaflight Configurator : coché, son curseur (de 0,10 à
+2,00, par pas de 0,05) recalcule les coupures des passe-bas actifs comme le firmware, plus de filtrage à gauche, moins à
+droite ; les fréquences sont alors grisées (type, mode et expo restent libres). Décochez-le pour les saisir à la main. Il
+part de l'état du log ; coché dans le log mais avec des coupures changées depuis, il démarre décoché, comme dans le
+configurateur. Aux extrémités (gyro jusqu'à 0,45 ou dès 1,55, terme D jusqu'à 0,75 ou dès 1,25), un avertissement rouge.
+Les commandes CLI écrivent alors l'état du curseur **et** les coupures : un `set` dans le CLI ne les recalcule pas.
+Modifiez un filtre, puis cliquez sur
 **Appliquer** : le programme montre la réponse (gain, phase), le retard ajouté et le bruit qui passerait, en rejouant
 les filtres sur le gyro non filtré du vol, comme le firmware (notch dynamique compris : il suit les pics avec vos
 nouveaux réglages ; une à quelques secondes de calcul). Les spectres ne bougent **pas** tant que vous n'avez pas

@@ -11,6 +11,7 @@ use otb_analysis::bf_filters::{
 use otb_analysis::filter_replay::before_after;
 use otb_analysis::flight_gap::{BandGap, FlightGap, GapCause, flight_gap};
 use otb_analysis::npstat::unwrap;
+use otb_analysis::sliders::{FILTER_SLIDER_MIN, SLIDER_MAX, filters_from_sliders};
 use otb_analysis::spectral::{Mode, spectrum, to_ptb_db};
 use otb_format::fixed;
 use otb_log::flightlog::{FlightLog, Rows};
@@ -40,6 +41,16 @@ pub const SPECTRA_KEYS: [&str; 8] = [
 
 /// Coupures, centres et largeurs de notch (Hz) : `QSpinBox` de 0 à 1000.
 pub const HZ_RANGE: (i64, i64) = (0, 1000);
+/// Curseurs de filtres gyro et D (D-080) : position en %, comme `simplified_*_filter_multiplier` (10 à 200), par pas de 5
+/// (0,05 dans Betaflight Configurator).
+pub const FILTER_MULT_RANGE: (i64, i64) = (FILTER_SLIDER_MIN, SLIDER_MAX);
+pub const FILTER_MULT_STEP: i64 = 5;
+/// Position par défaut d'un curseur de filtres (1,00).
+pub const FILTER_MULT_DEFAULT: i64 = 100;
+/// Positions où Betaflight Configurator avertit (filtrage trop fort ou trop faible) : au plus la première, ou au moins la
+/// seconde. Gyro 0,45 et 1,55 ; D 0,75 et 1,25.
+pub const GYRO_MULT_WARN: (i64, i64) = (45, 155);
+pub const DTERM_MULT_WARN: (i64, i64) = (75, 125);
 pub const EXPO_RANGE: (i64, i64) = (0, 10);
 /// Nombre de notchs dynamiques : 0 à 7 (5 au plus en 4.4).
 pub const DYN_COUNT_MAX: i64 = 7;
@@ -332,27 +343,81 @@ pub fn cli_values(s: &Settings) -> Vec<(String, String)> {
     out.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
 }
 
-/// `filter_cli` : lignes de commandes CLI pour passer des filtres de `base` à ceux de `modf` (seulement ce qui change).
+/// Curseurs de filtres choisis dans l'éditeur (D-080) : `Some(position en %)` quand l'interrupteur est mis, `None` sinon.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FilterSliders {
+    pub gyro: Option<i64>,
+    pub dterm: Option<i64>,
+}
+
+/// Position d'un curseur de filtres telle que l'affiche le configurateur (« 1,20 »).
+pub fn mult_text(mult: i64) -> String {
+    comma(mult as f64 / 100.0, 2, false)
+}
+
+/// `filter_cli` : lignes de commandes CLI pour passer des filtres de `base` à ceux de `modf` (seulement ce qui change), sans
+/// curseur de filtres choisi.
 pub fn filter_cli_lines(base: &Settings, modf: &Settings) -> Vec<String> {
+    filter_cli_lines_with(base, modf, FilterSliders::default())
+}
+
+/// Lignes CLI avec les curseurs de filtres de l'éditeur. Un curseur mis écrit son état s'il diffère du log : le CLI de
+/// Betaflight ne recalcule pas les fréquences sur un `set` (seulement à `defaults` ou `simplified_tuning apply`), d'où les
+/// fréquences écrites aussi, déjà calculées comme le firmware. Sans curseur, un passe-bas changé à la main coupe le curseur
+/// du log, comme le configurateur.
+pub fn filter_cli_lines_with(base: &Settings, modf: &Settings, chosen: FilterSliders) -> Vec<String> {
     let (a, b) = (cli_values(base), cli_values(modf));
     let fam = base.family();
     let mut lines = vec![format!("# OpenTuneBox — filtres modifiés (Betaflight {fam})")];
     let changed: Vec<usize> = (0..b.len()).filter(|&i| a[i].1 != b[i].1).collect();
-    if changed.is_empty() {
-        lines.push("# aucun changement par rapport au log".to_string());
-        return lines;
-    }
     let sl = base.sliders();
     let slider = |name: &str| sl.iter().find(|(n, _)| *n == name).map_or(0, |(_, v)| *v);
     let any = |prefix: &str| changed.iter().any(|&i| b[i].0.starts_with(prefix));
-    if any("gyro_lpf") && slider("gyro_filter") == 1 {
-        lines.push("# réglage manuel : on désactive le curseur de filtre gyro (comme le configurateur)".to_string());
-        lines.push("set simplified_gyro_filter = OFF".to_string());
+    let mut head = Vec::new();
+    for (who, on, mult, cli, prefix, pick) in [
+        (
+            "gyro",
+            "gyro_filter",
+            "gyro_mult",
+            "simplified_gyro_filter",
+            "gyro_lpf",
+            chosen.gyro,
+        ),
+        (
+            "D",
+            "dterm_filter",
+            "dterm_mult",
+            "simplified_dterm_filter",
+            "dterm_lpf",
+            chosen.dterm,
+        ),
+    ] {
+        match pick {
+            Some(m) => {
+                if slider(on) != 1 || slider(mult) != m {
+                    head.push(format!(
+                        "# curseur de filtre {who} à {} (comme le configurateur ; fréquences calculées ci-dessous)",
+                        mult_text(m)
+                    ));
+                    head.push(format!("set {cli} = ON"));
+                    head.push(format!("set {cli}_multiplier = {m}"));
+                }
+            }
+            None => {
+                if any(prefix) && slider(on) == 1 {
+                    head.push(format!(
+                        "# réglage manuel : on désactive le curseur de filtre {who} (comme le configurateur)"
+                    ));
+                    head.push(format!("set {cli} = OFF"));
+                }
+            }
+        }
     }
-    if any("dterm_lpf") && slider("dterm_filter") == 1 {
-        lines.push("# réglage manuel : on désactive le curseur de filtre D (comme le configurateur)".to_string());
-        lines.push("set simplified_dterm_filter = OFF".to_string());
+    if changed.is_empty() && head.is_empty() {
+        lines.push("# aucun changement par rapport au log".to_string());
+        return lines;
     }
+    lines.extend(head);
     for &i in &changed {
         let (k, v) = &b[i];
         if k == "rpm_filter_weights" && fam == "4.4" {
@@ -371,6 +436,11 @@ pub fn filter_cli_lines(base: &Settings, modf: &Settings) -> Vec<String> {
 /// Texte affiché dans le cadre CLI (lignes séparées par des retours à la ligne).
 pub fn filter_cli(base: &Settings, modf: &Settings) -> String {
     filter_cli_lines(base, modf).join("\n")
+}
+
+/// Texte du cadre CLI avec les curseurs de filtres de l'éditeur.
+pub fn filter_cli_with(base: &Settings, modf: &Settings, chosen: FilterSliders) -> String {
+    filter_cli_lines_with(base, modf, chosen).join("\n")
 }
 
 // ---------------------------------------------------------------- éditeur
@@ -418,6 +488,19 @@ impl Lpf1Edit {
         self.min_hz = clamp_to(self.min_hz, HZ_RANGE);
         self.max_hz = clamp_to(self.max_hz, HZ_RANGE);
         self.expo = clamp_to(self.expo, EXPO_RANGE);
+    }
+
+    /// `calculateNew…FilterValues` du firmware (`config/simplified_tuning.c`) sur ce LPF1 : le firmware ne change que les
+    /// fréquences déjà non nulles, donc l'étage dynamique en mode dynamique, et la coupure statique quand elle sert (mode
+    /// statique, où elle vaut au moins 1) ou qu'elle est remplie en mode dynamique.
+    fn follow(&mut self, dyn_min: i64, dyn_max: i64, static_hz: i64) {
+        if self.mode == 2 {
+            self.min_hz = dyn_min;
+            self.max_hz = dyn_max;
+        }
+        if self.mode == 1 || (self.mode == 2 && self.static_hz != 0) {
+            self.static_hz = static_hz;
+        }
     }
 
     /// `lpf(p, lp)` de `modified_settings`.
@@ -469,6 +552,12 @@ pub struct Editor {
     pub rpm_q: i64,
     pub rpm_min: i64,
     pub rpm_w: [i64; 3],
+    /// Curseurs de filtres gyro et D (D-080) : interrupteur et position en % (`FILTER_MULT_RANGE`). La position reste
+    /// connue quand l'interrupteur est coupé, comme dans le configurateur.
+    pub g_slider: bool,
+    pub g_mult: i64,
+    pub d_slider: bool,
+    pub d_mult: i64,
 }
 
 impl Editor {
@@ -506,9 +595,70 @@ impl Editor {
             rpm_q: s.rpm_q,
             rpm_min: s.rpm_min_hz,
             rpm_w: [w(0), w(1), w(2)],
+            g_slider: false,
+            g_mult: FILTER_MULT_DEFAULT,
+            d_slider: false,
+            d_mult: FILTER_MULT_DEFAULT,
         };
+        let sl = s.sliders();
+        let get = |name: &str| sl.iter().find(|(n, _)| *n == name).map(|(_, v)| *v);
+        e.g_mult = get("gyro_mult").filter(|v| *v > 0).unwrap_or(FILTER_MULT_DEFAULT);
+        e.d_mult = get("dterm_mult").filter(|v| *v > 0).unwrap_or(FILTER_MULT_DEFAULT);
         e.clamp(s.family());
+        // Interrupteur mis seulement si le log le dit ET que ses fréquences sont celles du curseur : un `set` fait après
+        // coup les en écarte, et le configurateur coupe alors le curseur (`validateTuningSliders`).
+        let mut probe = e.clone();
+        probe.g_slider = true;
+        probe.d_slider = true;
+        probe.follow_sliders();
+        e.g_slider = get("gyro_filter") == Some(1) && probe.g1 == e.g1 && probe.g2_hz == e.g2_hz;
+        e.d_slider = get("dterm_filter") == Some(1) && probe.d1 == e.d1 && probe.d2_hz == e.d2_hz;
         e
+    }
+
+    /// Les curseurs mis recalculent leurs fréquences (arithmétique du firmware, `sliders::filters_from_sliders`) : LPF1 selon
+    /// son mode, LPF2 s'il est actif. Type, mode et expo restent au pilote, comme dans le configurateur.
+    pub fn follow_sliders(&mut self) {
+        let v = filters_from_sliders(self.g_mult, self.d_mult, None);
+        let hz = |key: &str| v.iter().find(|(k, _)| *k == key).map_or(0, |(_, x)| *x);
+        if self.g_slider {
+            self.g1.follow(
+                hz("gyro_lpf1_dyn_min_hz"),
+                hz("gyro_lpf1_dyn_max_hz"),
+                hz("gyro_lpf1_static_hz"),
+            );
+            if self.g2_hz != 0 {
+                self.g2_hz = hz("gyro_lpf2_static_hz");
+            }
+        }
+        if self.d_slider {
+            self.d1.follow(
+                hz("dterm_lpf1_dyn_min_hz"),
+                hz("dterm_lpf1_dyn_max_hz"),
+                hz("dterm_lpf1_static_hz"),
+            );
+            if self.d2_hz != 0 {
+                self.d2_hz = hz("dterm_lpf2_static_hz");
+            }
+        }
+    }
+
+    /// Un passe-bas gyro est-il actif ? Sans aucun, le configurateur grise le curseur (rien à déplacer).
+    pub fn gyro_lowpass_active(&self) -> bool {
+        self.g1.mode != 0 || self.g2_hz != 0
+    }
+
+    /// Un passe-bas du terme D est-il actif ?
+    pub fn dterm_lowpass_active(&self) -> bool {
+        self.d1.mode != 0 || self.d2_hz != 0
+    }
+
+    /// Curseurs mis, pour les commandes CLI.
+    pub fn filter_sliders(&self) -> FilterSliders {
+        FilterSliders {
+            gyro: self.g_slider.then_some(self.g_mult),
+            dterm: self.d_slider.then_some(self.d_mult),
+        }
     }
 
     /// Ramène chaque champ dans ses bornes (`QSpinBox.setValue` / `setMaximum`) ; `family` fixe le maximum des notchs dynamiques
@@ -543,6 +693,8 @@ impl Editor {
         self.rpm_harm = clamp_to(self.rpm_harm, RPM_HARM_RANGE);
         self.rpm_q = clamp_to(self.rpm_q, RPM_Q_RANGE);
         self.rpm_min = clamp_to(self.rpm_min, RPM_MIN_RANGE);
+        self.g_mult = clamp_to(self.g_mult, FILTER_MULT_RANGE);
+        self.d_mult = clamp_to(self.d_mult, FILTER_MULT_RANGE);
         for w in &mut self.rpm_w {
             *w = clamp_to(*w, RPM_WEIGHT_RANGE);
         }

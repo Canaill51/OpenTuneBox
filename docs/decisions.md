@@ -70,7 +70,10 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-080 | **Et si : multiplicateurs de filtres gyro et D comme Betaflight Configurator** : interrupteur et curseur (0,10 à 2,00, pas de 0,05) en tête des passe-bas, fréquences recalculées à l'arithmétique du firmware et grisées ; interrupteur repris du log seulement si ses coupures sont celles du curseur ; CLI = état du curseur + coupures | 2026-11-25 |
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
+| D-078 | **« Bruit et filtres » sans le terme D préfiltre** : le D avant filtres, reconstruit et non enregistré, n'est plus proposé dans le Spectre, Fréq. × gaz et Fréq. × temps ; « Terme D » montre le D filtré seul (une colonne par fragment dans × gaz) ; préréglages 1 et 5 de PIDtoolbox retirés ; onglets de l'espace dessinés comme le prototype ; **amende D-069** | 2026-11-25 |
+| D-077 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** : la taille se tape (la liste propose), son profil d'assistant se lit avec les bornes de la taille par le nom et s'écrit sous le champ ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log (par date) : la fiche suit la boucle PID, ne remplit les pôles que vides, et signale un écart sans le corriger ; le KV reste saisi par le pilote, jamais tiré du log **(amende D-068 et D-061)** | 2026-11-25 |
 | D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
 | D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
 | D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
@@ -78,15 +81,15 @@ ici, jamais dans le code.
 | D-072 | **Mesures suivies dans le temps** : dix grandeurs par fragment lues dans le rapport de l'assistant (jamais un second calcul), gardées avec les bornes du fragment et la version du calcul, mesurées en arrière-plan à l'ouverture de la fiche du drone ; la cible du drone part des seuils de l'assistant, une case sans seuil reste vide, l'assistant garde ses seuils ; le suivi est dans la fiche du drone | 2026-11-23 |
 | D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
 | D-070 | **L'assistant en cartes, et la mesure contre son seuil en jauge** : une carte par constat triée par gravité, les « info » et les vérifications OK repliées ; un constat qui compare **une** mesure à **un** seul seuil porte une jauge (`Gauge`), hors des références Python ; le bouton « Appliquer » du prototype n'est pas repris (D-063 gardée) | 2026-11-23 |
-| D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) | 2026-11-23 |
-| D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) | 2026-11-23 |
+| D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) **(amendée par D-078)** | 2026-11-23 |
+| D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) **(amendée par D-077)** | 2026-11-23 |
 | D-067 | **Plusieurs fragments par session** : « Enregistrer comme nouveau fragment » dans l'écran d'extraction en range un autre, posé aussitôt en pastille sur les mêmes échantillons ; seul un fragment ajouté se supprime ; « Ouvrir… » ne met en analyse que le fragment de la session (amende D-061) | 2026-11-23 |
 | D-066 | La **barre de fragments** (liste d'analyse à l'écran) décide de ce que montrent toutes les pages : fragments actifs dans l'ordre de la barre, maître pour les pages à un seul vol, couleur fixe par fragment ; plus de liste « Fichiers » par page ; liste retrouvée au lancement (remplace D-049) | 2026-11-23 |
 | D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
 | D-062 | Scripts firmware : chaîne décrite en **données**, briques **compilées en Rust** (pas de moteur de script) ; rien du code des firmwares dans le dépôt ; banc de référence qui télécharge et ne garde que des vecteurs ; bascule d'un coup ; **Betaflight seul** ; chantier **conditionnel** (logs INAV ou ArduCopter réels ; le lot 23, la description, fait sans attendre le 2026-11-23 ; les étapes 24a à 24c, sans rien brancher, levées le 2026-11-24, puis la bascule 24d–24e le même jour), prouvé par le banc **et** les vrais vols | 2026-11-18 |
-| D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit **(amendée par D-067 et D-068)** | 2026-11-19 |
+| D-061 | **Le dessin de l'interface suit le prototype au détail près** : mesures, couleurs et contenu relevés dans la maquette qui fait foi ; thème clair identique, thème sombre dérivé ; un écart se justifie par écrit **(amendée par D-067, D-068 et D-077)** | 2026-11-19 |
 | D-060 | Amende D-015 : une entrée de navigation est **un outil ou un espace** qui regroupe plusieurs vues ; les boutons deviennent un **rail à gauche** ; deux écrans hors rail sont permis. Ce qui reste : aucune fenêtre séparée, une vue cachée ne calcule pas | 2026-11-19 |
 | D-059 | Assistant : bruit prévu après un conseil de filtres par le **rejeu** de la page Filtres, vérifié en vol (amende D-008) | 2026-11-22 |
 | D-058 | Page Filtres : chaîne du firmware rejouée ; « modifié » = spectre du log × rejeu modifié / rejeu actuel (amende D-008, remplace D-041 pour la page) | 2026-11-22 |
@@ -150,6 +153,104 @@ ici, jamais dans le code.
 
 ---
 
+## 2026-11-25 — Les multiplicateurs de filtres dans l'Et si
+
+### D-080 : l'Et si des filtres a les multiplicateurs gyro et D de Betaflight Configurator
+
+**Tranché par Cédric** le 2026-11-25 : « dans et si je voudrais que l'onglet Gyro et terme D soit comme dans Betaflight
+Configurator. C'est-à-dire qu'il modifie effectivement les fréquences de coupure avec les sliders. »
+
+**Contexte.** Les pages Gyro et Terme D de l'Et si n'avaient que des cases de fréquences. Les pilotes règlent pourtant
+leurs passe-bas par les deux multiplicateurs (`simplified_gyro_filter_multiplier`, `simplified_dterm_filter_multiplier`),
+dont l'arithmétique était déjà réimplémentée (`rust/otb-analysis/src/sliders.rs:filters_from_sliders`, page Curseurs PID).
+
+**Décision.**
+- En tête des passe-bas de chaque page : un interrupteur « Multiplicateur du filtre gyro / D » et son curseur, de 0,10 à
+  2,00 par pas de 0,05, « plus de filtrage » à gauche (`rust/otb-gui/src/tools/filter_sim.rs:mult_slider`). Proposés
+  seulement si l'en-tête du log contient les deux multiplicateurs (Betaflight 4.3 et après).
+- Curseur mis : les coupures des passe-bas actifs suivent le firmware (`config/simplified_tuning.c` : seulement les
+  réglages non nuls ; LPF1 selon son mode, LPF2 s'il est actif) et sont grisées ; type, mode et expo restent libres, et
+  un LPF2 désactivé reste saisissable pour l'activer (`rust/otb-gui/src/tools/filter_sim_calc.rs:Editor::follow_sliders`).
+- À l'ouverture d'un log, l'interrupteur est mis seulement si le log le dit **et** que ses coupures sont celles que donne
+  le curseur, comme le configurateur (`validateTuningSliders`) ; la position du log reste connue dans tous les cas.
+- Commandes CLI (`rust/otb-gui/src/tools/filter_sim_calc.rs:filter_cli_lines_with`) : un curseur mis écrit `ON` et sa position quand
+  ils diffèrent du log, **plus** les coupures, puisque le CLI ne les recalcule pas sur un `set` ; un type changé sous le
+  curseur ne le coupe plus. Curseur coupé : règle d'avant (un passe-bas changé coupe le curseur du log).
+- Avertissement aux positions où le configurateur avertit (gyro ≤ 0,45 ou ≥ 1,55 ; D ≤ 0,75 ou ≥ 1,25), sans bornes
+  « hors mode expert » : l'Et si ne règle rien sur le drone.
+
+**Écartés.** Remplacer les cases par des curseurs (on perd la saisie fine que permet Betaflight hors curseur) ; les bornes
+réduites du configurateur hors mode expert (0,50 à 1,50 et 0,80 à 1,20) : utiles pour qui écrit sur la carte, pas pour
+une simulation ; écrire seulement l'état du curseur dans le CLI (les coupures resteraient celles d'avant jusqu'à
+`simplified_tuning apply`).
+
+**Témoins.** `rust/otb-gui/tests/filter_tools.rs` : `les_curseurs_de_filtres_recalculent_les_frequences_comme_le_firmware`,
+`l_interrupteur_suit_le_log_seulement_si_ses_frequences_sont_celles_du_curseur`,
+`le_cli_ecrit_le_curseur_mis_et_les_frequences_qu_il_donne`, `le_curseur_de_filtre_grise_les_frequences_et_les_recalcule_a_l_ecran` ;
+quatre contre-preuves vues en échec (L-071) : sans recalcul après saisie, champs jamais grisés, interrupteur repris du log
+sans comparer, curseur ignoré par le CLI. Captures de l'Et si sur `CHIRP-25Hz.bbl`.
+
+---
+
+## 2026-11-25 — La fiche du drone lit le log
+
+### D-077 : taille saisie librement, taille des moteurs, pôles et boucle PID lus dans le dernier log
+
+**Tranché par Cédric** le 2026-11-25, après son essai de la fiche : « la partie taille, c'est un menu déroulant où les
+chiffres sont verrouillés […] je voudrais qu'on puisse modifier ça. La partie des pôles moteurs, […] tu peux récupérer
+l'information à partir du log. La boucle PID, c'est la même chose. […] on voit le KV, mais on ne voit pas la taille du
+moteur. » Entre deux propositions pour chaque point, il a retenu : saisie libre avec la liste en proposition (plutôt
+qu'une liste plus « Autre… » et un profil choisi à la main) ; « suivre le log, avertir » (plutôt que toujours écraser par
+le log, ou des champs en lecture seule). **Précisé** le même jour, après la première version qui lisait aussi le
+KV : « Les KV moteurs ne doivent pas être tirés du log, ça doit être quelque chose qui est ajouté par l'utilisateur.
+Comme la taille du drone, la taille des moteurs. » Amende D-068 (champs de la fiche) et D-061 (écarts au prototype).
+
+**Contexte.** La taille choisit le profil de seuils de l'assistant : la liste figée des huit tailles garantissait un
+profil connu, mais refusait un 3,5″ ou un 10″. Les pôles et la boucle PID se tapaient à la main alors que l'en-tête de
+chaque log les porte (`motor_poles`, `looptime` et `pid_process_denom`).
+⚠️ L'en-tête dit ce que **Betaflight** croit : un `motor_poles` faux y est recopié, et c'est justement ce qu'il faut voir.
+
+**Décision.**
+- **Taille libre** : un champ à saisir, la flèche déroule les huit tailles. Le profil se lit par
+  `otb_advisor::profiles::size_profile_key`, avec les lectures et les bornes de la taille par le nom (3,8 / 5,8 / 7,8
+  pouces, `profile_of_inches`, une seule fonction pour les deux) ; en plus : le signe `″`, un nombre en mm jusqu'à 100 →
+  whoop, un nombre seul sous 20 → pouces. Sous le champ : « Seuils de l'Assistant : <profil> », ou « Taille non
+  reconnue » et le profil par défaut (`drone_sheet::size_note`). La taille reste gardée telle que tapée.
+- **Taille des moteurs** (`DroneSheet::motor_size`, clé `taille_moteurs`), texte libre (stator, `2207`) : aucun calcul
+  ne s'en sert. La section Machine passe à quatre lignes : taille, batterie, poids ; taille des moteurs, KV, pôles ;
+  hélices, ESC, Betaflight ; boucle PID.
+- **Lu dans le log** (`Drone::from_log`, `model::LogMachine`, clé `lu_dans_le_log`) : à chaque log rangé
+  (`App::remember`), pôles et boucle PID de l'en-tête (`drone_sheet::machine_of_log`, au dixième de kHz). Une valeur
+  absente de l'en-tête reste **vide** : `Settings` met 14 pôles et 125 µs par défaut, on lit donc l'en-tête brut. Un
+  log plus ancien que le dernier lu ne change rien (`take_log`).
+- **La fiche suit le log pour la boucle PID** (un réglage dont le log fait foi), mais **ne remplit les pôles que
+  vides** : le pilote sait ce qu'il a monté. Une différence s'écrit sous le champ, en couleur « attention » (« Le dernier
+  log dit 14 : vérifiez motor_poles dans Betaflight, le filtre RPM s'en sert. »), jamais corrigée en silence
+  (`log_note`).
+- Un drone **sans fiche n'en reçoit pas** (D-068 reste) : la fiche qu'on lui ouvre part des valeurs du log plutôt que de
+  celles d'un drone neuf ; de même pour « Nouveau drone » depuis le Guide, avec le log ouvert.
+- **Le KV n'est jamais tiré du log**, comme la taille du drone et celle des moteurs : il décrit le matériel monté, que
+  seul le pilote connaît ; le `motor_kv` de l'en-tête (Betaflight 4.5 et plus) n'est qu'un réglage, que rien n'oblige à
+  tenir juste.
+
+**Options écartées.** Liste plus « Autre… » avec un profil choisi à la main (un choix de plus, que la taille tapée suffit
+à faire) ; écraser toujours par le log (un `motor_poles` faux effacerait la bonne valeur du pilote) ; champs en lecture
+seule (un drone sans log ne pourrait plus être décrit, et l'écart ne se verrait plus) ; lire la taille des moteurs dans
+le log (l'en-tête ne la porte pas) ; lire le KV dans le log (`motor_kv`), comme le faisait la première version : écarté
+par Cédric, c'est au pilote de le dire.
+
+**Témoins.** `rust/otb-advisor/tests/profiles.rs:taille_saisie_librement` (17 cas) ; `rust/otb-gui/tests/drone_sheet.rs` :
+`une_taille_libre_choisit_son_profil_et_le_dit`, `le_log_dit_les_poles_et_la_boucle_pid` (sur
+`tests/data/jeno5_5s.bbl` : 14 pôles, 3,2 kHz), `la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents`,
+`un_log_ouvert_renseigne_la_fiche`, `la_taille_et_la_taille_des_moteurs_se_tapent_a_l_ecran` ;
+`rust/otb-store/tests/bibliotheque.rs:la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste` (aller-retour, et
+fichier d'avant lu sans les nouveaux champs). Trois contre-preuves vues en échec (L-071) : lire `motor_poles` sans
+regarder l'en-tête brut, écrire les pôles du log par-dessus ceux du pilote, recopier `motor_kv` dans la fiche
+(`un_log_ouvert_renseigne_la_fiche` : l'en-tête de `jeno5_5s.bbl` dit 1960, la fiche garde son KV vide). Captures `fiche-drone-*.png` des deux thèmes :
+section Machine alignée sur Identité (un champ à unité qui dépassait sa colonne est corrigé au passage, L-111).
+
+---
+
 ## 2026-11-25 — Plusieurs conversations en parallèle
 
 ### D-079 : une conversation par sujet, chacune dans son worktree, pilotées depuis le dossier principal
@@ -181,6 +282,40 @@ crates du projet se recompileraient quand même ; on paie la place (≈ 20 Go pa
 
 **Témoins.** `rust/otb-dev/tests/numero.rs:deux_chantiers_ne_recoivent_jamais_le_meme_numero` (deux contre-preuves) ; essai du
 crochet sur quatre dossiers, ancien et nouveau (L-125) ; première réservation réelle : L-125, parce que le numéro précédent était déjà cité dans le brouillon de ce chantier, écrit avant la réservation.
+
+---
+
+## 2026-11-25 — L'espace « Bruit et filtres » sans le terme D préfiltre
+
+### D-078 : le terme D préfiltre n'est plus proposé dans « Bruit et filtres » ; « Terme D » montre le D filtré seul
+
+**Tranché par Cédric** le 2026-11-25 : « le champ Terme D Préfiltre n'est plus utile », puis, entre trois propositions
+(D filtré seul, D filtré avec le gyro avant filtres, case seulement masquée), « le D filtré seul ». Amende D-069 (ce que
+montre le bouton « Terme D »).
+
+**Contexte.** Betaflight n'enregistre pas le terme D avant ses filtres : OpenTuneBox le reconstruit à partir du gyro
+(`rust/otb-log/src/flightlog.rs:FlightLog::d_term_prefilter`). D-069 en faisait l'étage « avant filtres » du bouton « Terme D », dans
+les trois vues à courbes et cartes de l'espace.
+
+**Décision.**
+- Le Spectre, Fréq. × gaz et Fréq. × temps ne proposent plus « Terme D préfiltre » (`rust/otb-gui/src/tools/common.rs:NOT_IN_NOISE_SPACE`) :
+  ni case, ni ligne des listes, et les fonctions qui cochent un jeu l'ignorent. Il reste calculé là où il sert : retard
+  des filtres D, courbe « D avant filtres » du « Et si » (entrée de la simulation), visualiseur.
+- `NoiseSignal::DTerm` n'a plus qu'un jeu, `dterm`. Changer de signal garde l'étage filtré ; tous les jeux d'un signal
+  deviennent tous ceux de l'autre (le D seul redevient le gyro avant et après filtres).
+- Fréq. × gaz : les préréglages 1 et 5 de PIDtoolbox (« … D pf | D ») sont retirés, les autres renumérotés de 1 à 7 ;
+  « Terme D » prend « A|B|C|D D », une colonne par fragment (`PRESET_DTERM`), sauf depuis le gyro filtré seul, où
+  chaque colonne garde son fragment.
+- Dans la même demande, les onglets de l'espace suivent le prototype (`tabOn` : icône, gris, bleu souligné de 2 px
+  pour la vue affichée), avec la main au survol ; « Et si », absent du prototype, prend l'icône `funnel`.
+
+**Écartés.** Le D filtré avec le gyro avant filtres en repère (deux signaux sur un même bouton) ; masquer la case en
+gardant le D reconstruit sous le bouton (une courbe sans case pour la retirer).
+
+**Témoins.** `rust/otb-gui/tests/spectral.rs` (`le_terme_d_prefiltre_nest_pas_propose`), `rust/otb-gui/tests/noise_space.rs`
+(`changer_de_signal_garde_letage_choisi`, `frequence_gaz_suit_le_signal_par_ses_colonnes`,
+`les_onglets_de_lespace_sont_des_boutons`), contre-preuves vues en échec (L-071) : sans le filtre de la liste, sans la
+main au survol. Captures des quatre vues dans les deux thèmes (`CHIRP-25Hz.bbl`).
 
 ---
 
@@ -519,6 +654,9 @@ non centrée. Captures des deux thèmes ; 0,4 ms par cadre (`--example capture`,
 
 ### D-069 : un seul choix « Gyro | Terme D » et des axes partagés pour l'espace « Bruit et filtres »
 
+✏️ AMENDÉE par D-078 (le bouton « Terme D » montre le D filtré seul : le D préfiltre, reconstruit, n'est plus proposé
+dans l'espace ; × gaz prend « A|B|C|D D » ; le reste de D-069 reste en vigueur).
+
 **Tranché par Cédric** le 2026-11-23, au début du lot 30e : les cases détaillées de chaque vue sont **gardées dessous**
 (plutôt que repliées ou supprimées), et le partage des **axes** entre dans le même lot. Précise D-060 (ce qu'un espace
 partage entre ses vues).
@@ -558,6 +696,8 @@ avant et après filtres, au lieu d'un log en quatre colonnes : 9,0 ms avec l'anc
 les 16,7 ms d'un écran à 60 images par seconde.
 
 ### D-068 : une seule fiche par drone, rangée dans la bibliothèque ; le Guide la lit
+
+**AMENDÉE par D-077** (2026-11-25) : taille saisie librement, champ « Taille des moteurs », pôles et boucle PID lus dans le dernier log (la fiche suit la boucle PID, signale les écarts).
 
 **Tranché par Cédric** le 2026-11-23, au début du lot 30d, entre deux propositions : une seule fiche (retenue) ou deux
 fichiers gardés ; et la « Fiche cible » repoussée au lot 31. Amende D-036 et D-039 (le fichier des fiches) et D-061
@@ -895,6 +1035,8 @@ celles d'INAV et d'ArduPilot restent lues dans l'étude, à confirmer au lot qui
 ## 2026-11-19 — Fidélité au prototype
 
 ### D-061 : le dessin de l'interface suit le prototype au détail près
+
+**AMENDÉE par D-077** (2026-11-25) : section Machine de la fiche du drone (taille libre, taille des moteurs, notes tirées du log).
 
 Numérotée D-059 dans le fork `GerryNatif/OpenTuneBox` où elle a été écrite, renumérotée à la reprise dans ce dépôt le 2026-11-22. **Confirmée par Cédric** le même jour : les arbitrages ci-dessous ont été discutés avec lui pendant l'écriture
 du fork.

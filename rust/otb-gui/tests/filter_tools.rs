@@ -23,7 +23,7 @@ use otb_gui::tools::advisor::{
 };
 use otb_gui::tools::common::safe_text;
 use otb_gui::tools::filter_sim::{
-    Applied, COPIED_STATUS, FilterSimTool, NO_UNFILT_TITLE, Options as SimOptions, STALE_STATUS,
+    Applied, COPIED_STATUS, FilterSimTool, MULT_WARNING, NO_UNFILT_TITLE, Options as SimOptions, STALE_STATUS,
     result_is_for_other_log,
 };
 use otb_gui::tools::filter_sim_calc::{
@@ -1752,6 +1752,15 @@ fn saisir(h: &mut Harness<'static, App>, nom: &str, valeur: &str) {
     h.run_steps(4);
 }
 
+/// Coupe le curseur de filtre gyro du log de 5 s (mis à 1,50, fréquences concordantes) : ses fréquences redeviennent
+/// saisissables (D-080).
+fn couper_curseur_gyro(h: &mut Harness<'static, App>) {
+    assert!(h.get_by_label("Gyro LPF2 coupure").accesskit_node().is_disabled());
+    h.cliquer_label("Multiplicateur du filtre gyro");
+    h.run_steps(3);
+    assert!(!h.get_by_label("Gyro LPF2 coupure").accesskit_node().is_disabled());
+}
+
 #[test]
 fn le_simulateur_se_calcule_et_s_affiche_dans_les_deux_themes() {
     for theme in [CLAIR, SOMBRE] {
@@ -1828,6 +1837,7 @@ fn les_trois_onglets_ont_tous_leurs_champs_nommes() {
 #[test]
 fn modifier_un_champ_ne_lance_aucun_calcul_et_appliquer_simule() {
     let mut h = banc_page(CLAIR, SIM);
+    couper_curseur_gyro(&mut h);
     assert!(cli_text(&h).contains("aucun changement"), "{}", cli_text(&h));
     saisir(&mut h, "Gyro LPF2 coupure", "250");
     assert!(!sim_busy(&h), "les champs ne relancent rien");
@@ -1982,6 +1992,7 @@ fn un_identifiant_de_chargement_n_est_jamais_reutilise() {
 #[test]
 fn changer_de_log_recharge_l_editeur_et_oublie_les_reglages_appliques() {
     let mut h = banc_page(CLAIR, SIM);
+    couper_curseur_gyro(&mut h);
     saisir(&mut h, "Gyro LPF2 coupure", "250");
     h.cliquer_label("Appliquer");
     h.run_steps(2);
@@ -2117,4 +2128,146 @@ fn un_resultat_d_un_autre_log_n_est_pas_affiche() {
         !result_is_for_other_log(7, None),
         "pas de log choisi : rien à comparer, la page gère l'absence de log"
     );
+}
+
+// ---------------------------------------------------------------- curseurs de filtres (D-080)
+
+#[test]
+fn les_curseurs_de_filtres_recalculent_les_frequences_comme_le_firmware() {
+    let base = log5s().settings;
+    let mut e = Editor::from_settings(&base);
+    assert!(
+        e.g_slider && e.d_slider,
+        "le log a ses deux curseurs mis, aux fréquences qu'ils donnent"
+    );
+    assert_eq!((e.g_mult, e.d_mult), (150, 140));
+    let g1 = e.g1;
+    e.g_mult = 120;
+    e.d_mult = 80;
+    e.follow_sliders();
+    // gyro : LPF1 désactivé, il le reste ; LPF2 500 × 1,2 (`config/simplified_tuning.c`)
+    assert_eq!(e.g1, g1);
+    assert_eq!(e.g2_hz, 600);
+    // D dynamique : 75 et 150 × 0,8 ; LPF2 150 × 0,8
+    assert_eq!((e.d1.min_hz, e.d1.max_hz, e.d2_hz), (60, 120, 120));
+    // gyro statique : 250 × 1,2 ; dynamique : 250 et 500 × 1,2, la coupure statique vide le reste
+    e.g1.mode = 1;
+    e.g1.static_hz = 0;
+    e.follow_sliders();
+    assert_eq!(e.g1.static_hz, 300);
+    e.g1.mode = 2;
+    e.g1.static_hz = 0;
+    e.follow_sliders();
+    assert_eq!((e.g1.min_hz, e.g1.max_hz, e.g1.static_hz), (300, 600, 0));
+    // arithmétique entière du firmware : 75 × 0,55 = 41,25 → 41
+    e.d_mult = 55;
+    e.follow_sliders();
+    assert_eq!(e.d1.min_hz, 41);
+    // bornes du firmware : 1000 Hz au plus
+    e.g_mult = 200;
+    e.follow_sliders();
+    assert_eq!((e.g1.max_hz, e.g2_hz), (1000, 1000));
+    // un LPF2 désactivé le reste
+    e.g2_hz = 0;
+    e.follow_sliders();
+    assert_eq!(e.g2_hz, 0);
+    // interrupteur coupé : plus rien ne bouge
+    e.g_slider = false;
+    e.g_mult = 50;
+    e.follow_sliders();
+    assert_eq!(e.g1.max_hz, 1000);
+}
+
+#[test]
+fn l_interrupteur_suit_le_log_seulement_si_ses_frequences_sont_celles_du_curseur() {
+    let base = log5s().settings;
+    // une coupure changée après coup par `set` : le configurateur coupe le curseur, la position reste connue
+    let mut apres_coup = base.clone();
+    apres_coup.gyro_lpf2.static_hz = 700;
+    let e = Editor::from_settings(&apres_coup);
+    assert!(!e.g_slider && e.d_slider);
+    assert_eq!(e.g_mult, 150);
+    let mut coupe = base.clone();
+    coupe.raw.insert("simplified_dterm_filter".into(), "0".into());
+    assert!(!Editor::from_settings(&coupe).d_slider);
+    // log sans curseurs (avant 4.3) : interrupteurs coupés, position par défaut
+    let e0 = Editor::from_settings(&Settings::default());
+    assert!(!e0.g_slider && !e0.d_slider);
+    assert_eq!((e0.g_mult, e0.d_mult), (100, 100));
+}
+
+#[test]
+fn le_cli_ecrit_le_curseur_mis_et_les_frequences_qu_il_donne() {
+    let base = log5s().settings;
+    let cli = |b: &Settings, e: &Editor| fsc::filter_cli_lines_with(b, &e.modified_settings(b), e.filter_sliders());
+    let has = |l: &[String], w: &str| l.iter().any(|x| x == w);
+    let e0 = Editor::from_settings(&base);
+    assert!(cli(&base, &e0).last().unwrap().starts_with("# aucun changement"));
+    // curseur déplacé : son état, puis les fréquences (le CLI ne les recalcule pas sur un `set`)
+    let mut e = e0.clone();
+    e.g_mult = 120;
+    e.follow_sliders();
+    let l = cli(&base, &e);
+    for w in [
+        "set simplified_gyro_filter = ON",
+        "set simplified_gyro_filter_multiplier = 120",
+        "set gyro_lpf2_static_hz = 600",
+        "save",
+    ] {
+        assert!(has(&l, w), "{w} absent : {l:#?}");
+    }
+    assert!(
+        !l.iter().any(|x| x.contains("OFF") || x.contains("simplified_dterm")),
+        "{l:#?}"
+    );
+    // type changé sous le curseur mis : le curseur reste mis (avant D-080, le passe-bas changé le coupait)
+    let mut t = e0.clone();
+    t.g2_type = 1;
+    let l = cli(&base, &t);
+    assert!(has(&l, "set gyro_lpf2_type = BIQUAD"), "{l:#?}");
+    assert!(!l.iter().any(|x| x.contains("simplified_gyro_filter")), "{l:#?}");
+    // interrupteur coupé puis coupure saisie : le curseur du log est coupé
+    let mut m = e0.clone();
+    m.g_slider = false;
+    m.g2_hz = 250;
+    assert!(has(&cli(&base, &m), "set simplified_gyro_filter = OFF"));
+    // curseur mis sur un log qui l'avait coupé, fréquences déjà les siennes : seul son état s'écrit
+    let mut coupe = base.clone();
+    coupe.raw.insert("simplified_gyro_filter".into(), "0".into());
+    let mut e = Editor::from_settings(&coupe);
+    assert!(!e.g_slider);
+    e.g_slider = true;
+    e.follow_sliders();
+    let l = cli(&coupe, &e);
+    assert!(has(&l, "set simplified_gyro_filter = ON") && has(&l, "save"), "{l:#?}");
+    assert!(!l.iter().any(|x| x.starts_with("set gyro_lpf")), "{l:#?}");
+}
+
+#[test]
+fn le_curseur_de_filtre_grise_les_frequences_et_les_recalcule_a_l_ecran() {
+    let mut h = banc_page(CLAIR, SIM);
+    let champ = |h: &Harness<'static, App>, nom: &str| h.get_by_label(nom).accesskit_node().is_disabled();
+    assert!(champ(&h, "Gyro LPF2 coupure"), "curseur du log mis : coupure calculée");
+    assert!(!champ(&h, "Gyro LPF2 type"), "le type reste au pilote");
+    h.get_by_label("Position du multiplicateur du filtre gyro")
+        .set_value_accesskit(120.0);
+    h.run_steps(4);
+    let cli = cli_text(&h);
+    assert!(cli.contains("set simplified_gyro_filter_multiplier = 120"), "{cli}");
+    assert!(cli.contains("set gyro_lpf2_static_hz = 600"), "{cli}");
+    h.get_by_label(STALE_STATUS);
+    assert!(h.query_by_label(MULT_WARNING).is_none());
+    // aux extrémités, l'avertissement du configurateur
+    h.get_by_label("Position du multiplicateur du filtre gyro")
+        .set_value_accesskit(200.0);
+    h.run_steps(4);
+    h.get_by_label(MULT_WARNING);
+    // le terme D a le même curseur
+    h.cliquer_role(egui::accesskit::Role::Button, "Terme D");
+    h.run_steps(3);
+    assert!(champ(&h, "D LPF2 coupure"));
+    assert!(champ(&h, "D LPF1 dynamique min"));
+    h.cliquer_label("Multiplicateur du filtre D");
+    h.run_steps(3);
+    assert!(!champ(&h, "D LPF2 coupure"), "interrupteur coupé : saisie libre");
 }

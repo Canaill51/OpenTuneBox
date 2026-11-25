@@ -54,6 +54,22 @@ const ONGLETS: [(&str, &str); 4] = [
     ("Et si", "Simulateur de filtres"),
 ];
 
+/// Les onglets de l'espace se reconnaissent comme des boutons : chacun est un bouton, celui de la vue affichée est
+/// allumé, et la souris prend la main au survol d'un autre (on ne voyait pas que c'étaient des boutons, 2026-11-25).
+///
+/// **Contre-preuve** : sans `on_hover_cursor` dans `space_tabs`, le curseur reste la flèche et l'assertion rougit.
+#[test]
+fn les_onglets_de_lespace_sont_des_boutons() {
+    let mut h = banc();
+    for (onglet, titre) in ONGLETS {
+        let allume = h.get_by_role_and_label(Role::Button, onglet).accesskit_node().toggled() == Some(Toggled::True);
+        assert_eq!(allume, titre == "Analyse spectrale", "« {onglet} »");
+    }
+    h.get_by_role_and_label(Role::Button, "Fréq. × gaz").hover();
+    h.run();
+    assert_eq!(h.output().platform_output.cursor_icon, egui::CursorIcon::PointingHand);
+}
+
 /// « Terme D » choisi dans le Spectre allume « Terme D » dans les trois autres vues, et « Gyro » choisi dans
 /// Fréq. × temps revient au gyro partout.
 ///
@@ -137,8 +153,9 @@ fn un_autre_signal_naffecte_que_sa_vue() {
     );
 }
 
-/// ⚠️ Changer de signal garde l'étage choisi dans la vue (le gyro filtré seul devient le terme D filtré seul) ; un
-/// choix mêlé laisse place au signal avant et après ses filtres.
+/// ⚠️ Changer de signal garde l'étage choisi dans la vue (le gyro filtré seul devient le terme D filtré seul) ; tous
+/// les jeux d'un signal deviennent tous ceux de l'autre (le terme D, qui n'a plus que son étage filtré, D-078, redevient
+/// le gyro avant et après filtres) ; un choix mêlé laisse place à tous les jeux du signal.
 ///
 /// **Contre-preuve** : en remplaçant le passage par `counterpart` par les deux jeux du signal, le Spectre coche
 /// `dterm_prefilt` en plus et l'assertion rougit.
@@ -156,6 +173,16 @@ fn changer_de_signal_garde_letage_choisi() {
     let mut keys = s.options().keys;
     keys.sort();
     assert_eq!(keys, ["gyro", "gyro_prefilt"]);
+    s.show_signal(NoiseSignal::DTerm, &etat);
+    assert_eq!(
+        s.options().keys,
+        ["dterm"],
+        "gyro avant et après filtres → terme D filtré"
+    );
+    s.show_signal(NoiseSignal::Gyro, &etat);
+    let mut keys = s.options().keys;
+    keys.sort();
+    assert_eq!(keys, ["gyro", "gyro_prefilt"], "terme D → gyro avant et après filtres");
 
     let mut t = FreqTimeTool::new();
     t.set_dataset("gyro");
@@ -166,8 +193,9 @@ fn changer_de_signal_garde_letage_choisi() {
     assert_eq!(t.options().key, "gyro_prefilt");
 }
 
-/// Fréquence × gaz part du préréglage 1 de PIDtoolbox (gyro et D mêlés) : le choix du gyro le remplace par
-/// « A|A|B|B Gyro pf | Gyro » ; passer au terme D garde chaque colonne sur son fragment et son étage.
+/// Fréquence × gaz part du préréglage 1 (gyro, P et D mêlés) : le choix du gyro le remplace par « A|A|B|B Gyro pf |
+/// Gyro » ; passer au terme D donne « A|B|C|D D », le terme D filtré par fragment (D-078) ; du gyro filtré seul, chaque
+/// colonne passe au terme D sur son fragment.
 ///
 /// **Contre-preuve** : avec `PRESET_GYRO` sur le préréglage 1, les colonnes restent mêlées et l'assertion rougit.
 #[test]
@@ -185,6 +213,20 @@ fn frequence_gaz_suit_le_signal_par_ses_colonnes() {
             .contains("Gyro pf | Gyro")
     );
     g.show_signal(NoiseSignal::DTerm, &etat);
-    assert_eq!(cles(&g)[..2], [Some("dterm_prefilt"), Some("dterm")]);
+    assert!(
+        PRESETS[otb_gui::tools::freq_throttle::PRESET_DTERM]
+            .0
+            .contains("A|B|C|D D")
+    );
+    assert_eq!(cles(&g)[0], Some("dterm"));
+    assert!(
+        cles(&g).iter().flatten().all(|k| *k == "dterm"),
+        "plus que le terme D filtré"
+    );
     assert_eq!(g.signal(), Some(NoiseSignal::DTerm));
+    // du gyro filtré seul (préréglage 5 : A|B|C|D Gyro), chaque colonne garde son fragment
+    g.apply_preset(4, &[0, 1], 0);
+    g.show_signal(NoiseSignal::DTerm, &etat);
+    assert_eq!(g.columns().map(|c| c.1)[..2], [Some(0), Some(1)]);
+    assert!(g.columns()[..2].iter().all(|c| c.0 == Some("dterm")));
 }

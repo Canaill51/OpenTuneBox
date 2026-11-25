@@ -428,11 +428,15 @@ impl App {
         };
     }
 
-    /// Dossier du dernier export, relu au lancement.
+    /// Dossier du dernier export et thème choisi, relus au lancement. Un nom de thème absent ou inconnu
+    /// laisse le thème clair (`theme::by_name`).
     pub fn restore(&mut self, storage: &dyn eframe::Storage) {
         self.export_dir = eframe::get_value::<String>(storage, "export_dir")
             .filter(|d| !d.is_empty())
             .map(PathBuf::from);
+        if let Some(name) = eframe::get_value::<String>(storage, "theme") {
+            self.theme = theme::by_name(&name);
+        }
     }
 
     /// Fichiers reçus au lancement (double-clic) : ouverts, et l'écran passe aux courbes sans attendre le premier log,
@@ -967,6 +971,8 @@ impl App {
             .unwrap_or_else(|| otb_store::model::Drone::new(&nom, &nom));
         let drone_id = drone.id.clone();
         drone.firmware = first.settings.firmware.clone();
+        // pôles et boucle PID de l'en-tête (D-077) : la fiche suit la boucle PID, compare les pôles
+        crate::drone_sheet::take_log(&mut drone, crate::drone_sheet::machine_of_log(&first.settings, &date));
         if drone.first_seen.is_empty() {
             drone.first_seen = date.clone();
         }
@@ -1364,15 +1370,20 @@ impl App {
                     let form = match card {
                         Some(c) => {
                             let mut sheet = crate::drone_sheet::sheet_of_card(&c);
-                            if let Some(v) = self
-                                .state
-                                .current_log()
-                                .and_then(|l| crate::drone_sheet::version_of_firmware(&l.log.settings.firmware))
-                            {
-                                sheet.betaflight = v.to_string();
-                            }
                             sheet.cells = "6S".into();
                             sheet.poles = "14".into();
+                            if let Some(l) = self.state.current_log() {
+                                if let Some(v) = crate::drone_sheet::version_of_firmware(&l.log.settings.firmware) {
+                                    sheet.betaflight = v.to_string();
+                                }
+                                // ce que l'en-tête dit remplace les valeurs d'un drone neuf (D-077)
+                                let m = crate::drone_sheet::machine_of_log(&l.log.settings, "");
+                                for (field, v) in [(&mut sheet.poles, m.poles), (&mut sheet.pid_khz, m.pid_khz)] {
+                                    if !v.is_empty() {
+                                        *field = v;
+                                    }
+                                }
+                            }
                             // un drone que la bibliothèque connaît déjà par ses logs : c'est sa fiche qu'on remplit
                             match self.library.drone_by_name(&c.name) {
                                 Some(d) if d.sheet.is_none() => {
@@ -1707,7 +1718,8 @@ impl eframe::App for App {
         self.ui(ui);
     }
 
-    /// Mémoire du Guide entre deux lancements (D-039) : phase, fiche choisie, rôle de chaque log.
+    /// Mémoire entre deux lancements : celle du Guide (D-039 : phase, fiche choisie, rôle de chaque log), le dossier
+    /// du dernier export et le thème choisi.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         // la bibliothèque a ses propres fichiers : une erreur d'écriture se dit dans la barre d'état plutôt que
         // de passer inaperçue (une bibliothèque en mémoire, elle, n'écrit rien et ne peut pas échouer)
@@ -1724,5 +1736,6 @@ impl eframe::App for App {
                 .map(|d| d.to_string_lossy().into_owned())
                 .unwrap_or_default(),
         );
+        eframe::set_value(storage, "theme", &self.theme.name.to_string());
     }
 }

@@ -292,6 +292,51 @@ fn size_in_name(s: &[char]) -> Option<String> {
     None
 }
 
+/// Profil d'une taille d'hélice en pouces. Bornes entre deux tailles d'hélices du commerce (3 et 3,5" / 5" / 6 et 7" /
+/// 8" et plus) : estimation assumée, que le corpus ne peut pas calibrer — aucune de ses 685 sessions n'arrive ici par le
+/// nom (toutes ont une fréquence moteur mesurée). Condition de levée dans `docs/assistant.md`, « Origine des seuils »
+/// (W-003). Sert aussi à la taille saisie dans la fiche du drone (`size_profile_key`).
+pub fn profile_of_inches(size: f64) -> &'static str {
+    if size < 3.8 {
+        "micro"
+    } else if size < 5.8 {
+        "five"
+    } else if size < 7.8 {
+        "seven"
+    } else {
+        "large"
+    }
+}
+
+/// Plus grande taille de châssis en millimètres lue comme un whoop (65, 75 et 85 mm du commerce).
+const WHOOP_MAX_MM: f64 = 100.0;
+
+/// Le profil d'une taille **écrite librement** dans la fiche du drone (« 5″ », « 3,5" », « 10 pouces », « 85 mm »,
+/// « 7 ») ; `None` si rien ne s'y lit. Mêmes lectures que la taille par le nom : `65` / `75` ou « whoop » font un
+/// whoop, un nombre suivi de `"`, `″`, `in` ou `pouces` passe par `profile_of_inches` ; en plus, un nombre en `mm`
+/// jusqu'à 100 fait un whoop, et un nombre seul sous 20 se lit en pouces.
+pub fn size_profile_key(text: &str) -> Option<&'static str> {
+    let low = text.to_lowercase().replace('″', "\"");
+    let s: Vec<char> = low.chars().collect();
+    if looks_like_whoop(&s) {
+        return Some("whoop");
+    }
+    if let Some(n) = size_in_name(&s) {
+        return Some(profile_of_inches(parse_size(&n)));
+    }
+    let number = |t: &str| {
+        t.trim()
+            .replace(',', ".")
+            .parse::<f64>()
+            .ok()
+            .filter(|v| v.is_finite() && *v > 0.0)
+    };
+    if let Some(mm) = low.strip_suffix("mm").and_then(number) {
+        return (mm <= WHOOP_MAX_MM).then_some("whoop");
+    }
+    number(&low).filter(|v| *v < 20.0).map(profile_of_inches)
+}
+
 /// `float(texte.replace(",", "."))` d'un nombre capturé : chiffres Unicode lus comme `float()` de Python.
 fn parse_size(text: &str) -> f64 {
     let ascii: String = text
@@ -330,20 +375,10 @@ pub fn detect_profile_from(hz: Option<f64>, cells: Option<i64>, craft_name: &str
     }
     // taille en pouces : 1 ou 2 chiffres (« 10in »), décimale facultative (« 3.5" »)
     if let Some(text) = size_in_name(&name) {
-        let size = parse_size(&text);
-        // Bornes entre deux tailles d'hélices du commerce (3 et 3,5" / 5" / 6 et 7" / 8" et plus) : estimation assumée,
-        // que le corpus ne peut pas calibrer — aucune de ses 685 sessions n'arrive ici (toutes ont une fréquence moteur
-        // mesurée). Condition de levée dans `docs/assistant.md`, « Origine des seuils » (W-003).
-        let key = if size < 3.8 {
-            "micro"
-        } else if size < 5.8 {
-            "five"
-        } else if size < 7.8 {
-            "seven"
-        } else {
-            "large"
-        };
-        return (get(key), format!("nom du drone « {craft_name} »"));
+        return (
+            get(profile_of_inches(parse_size(&text))),
+            format!("nom du drone « {craft_name} »"),
+        );
     }
     (get("five"), "taille inconnue : profil 5 pouces par défaut".to_string())
 }

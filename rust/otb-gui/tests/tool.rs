@@ -422,10 +422,13 @@ mod boutons {
     fn calculer_relance_meme_sans_changement_et_se_grise_pendant_le_calcul() {
         let mut state = AppState::new();
         state.add(synthetic_log("a", 100, 1000.0));
-        let mut h = Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
-            |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
-            (ToolPage::new(Compteur), state),
-        );
+        let mut h = Harness::builder()
+            .with_size(egui::vec2(700.0, 400.0))
+            .with_context_setup(otb_gui::app::setup)
+            .build_ui_state(
+                |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+                (ToolPage::new(Compteur), state),
+            );
         h.step(); // le premier calcul part tout seul
         attendre(&mut h);
         assert_eq!(COMPTE.load(Ordering::SeqCst), 1);
@@ -492,10 +495,13 @@ mod boutons {
     #[test]
     fn tout_voir_n_existe_que_pour_les_outils_a_graphiques_zoomables() {
         let nouveau = |tool| {
-            Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
-                |ui, (page, state): &mut (ToolPage<AvecVue>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
-                (ToolPage::new(tool), AppState::new()),
-            )
+            Harness::builder()
+                .with_size(egui::vec2(700.0, 400.0))
+                .with_context_setup(otb_gui::app::setup)
+                .build_ui_state(
+                    |ui, (page, state): &mut (ToolPage<AvecVue>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+                    (ToolPage::new(tool), AppState::new()),
+                )
         };
         let mut h = nouveau(AvecVue { resets: 0 });
         h.step();
@@ -505,20 +511,26 @@ mod boutons {
         h.step();
         assert_eq!(h.state().0.tool.resets, 2, "un appel par clic");
         // la Configuration, l'Assistant… (HAS_VIEW par défaut = faux) n'ont pas le bouton
-        let mut h = Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
-            |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
-            (ToolPage::new(Compteur), AppState::new()),
-        );
+        let mut h = Harness::builder()
+            .with_size(egui::vec2(700.0, 400.0))
+            .with_context_setup(otb_gui::app::setup)
+            .build_ui_state(
+                |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+                (ToolPage::new(Compteur), AppState::new()),
+            );
         h.step();
         assert!(h.query_by_label("Tout voir").is_none());
     }
 
     #[test]
     fn exporter_image_demande_la_page_entiere_une_seule_fois() {
-        let mut h = Harness::builder().with_size(egui::vec2(700.0, 400.0)).build_ui_state(
-            |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
-            (ToolPage::new(Compteur), AppState::new()),
-        );
+        let mut h = Harness::builder()
+            .with_size(egui::vec2(700.0, 400.0))
+            .with_context_setup(otb_gui::app::setup)
+            .build_ui_state(
+                |ui, (page, state): &mut (ToolPage<Compteur>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+                (ToolPage::new(Compteur), AppState::new()),
+            );
         h.step();
         assert!(!h.state_mut().0.take_export());
         h.cliquer_label("Exporter image");
@@ -545,10 +557,13 @@ mod vue {
         let mut state = AppState::new();
         let log = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/data/jeno5_5s.bbl");
         state.add(otb_log::flightlog::load(&log).unwrap().remove(0));
-        let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_ui_state(
-            |ui, (page, state): &mut (ToolPage<T>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
-            (ToolPage::new(tool), state),
-        );
+        let mut h = Harness::builder()
+            .with_size(egui::vec2(1400.0, 900.0))
+            .with_context_setup(otb_gui::app::setup)
+            .build_ui_state(
+                |ui, (page, state): &mut (ToolPage<T>, AppState)| page.ui(ui, state, &otb_gui::theme::CLAIR),
+                (ToolPage::new(tool), state),
+            );
         let debut = Instant::now();
         while h.state().0.result().is_none() {
             h.step();
