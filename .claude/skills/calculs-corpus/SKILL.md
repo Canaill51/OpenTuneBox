@@ -11,8 +11,8 @@ comparer), et le noyau de `step_response` partage ce même pool. Toujours en `--
 
 | Commande (dans `rust/`) | Rôle | Durée |
 |---|---|---|
-| `cargo run --release -p otb-dev -- corpus calibrate 600 SCRATCH/stats.json` | mesures brutes des seuils ; `--resume SCRATCH/stats.json` : percentiles p10 / p50 / p90 par taille | 40 s, corpus entier (2026-11-24) |
-| `… corpus rates SCRATCH/rates.json` | assistant complet sur chaque session, taux de chaque constat ; `--resume` : tableau seul ; pas de `--dir` | 45 s, corpus entier (2026-11-24, après la bascule du lot 24d) |
+| `cargo run --release -p otb-dev -- corpus calibrate 600 SCRATCH/stats.json` | mesures brutes des seuils ; `--resume SCRATCH/stats.json` : percentiles p10 / p50 / p90 par taille ; `--tri-python` : ancien tri des fenêtres de la réponse indicielle (D-082), pour comparer avant / après | 40 s (ancien tri), 47 s (nouveau), corpus entier (2026-11-25) |
+| `… corpus rates SCRATCH/rates.json` | assistant complet sur chaque session, taux de chaque constat ; `--resume` : tableau seul ; `--tri-python` : ancien tri des fenêtres (D-082) ; pas de `--dir` | 45 s, corpus entier (2026-11-24, après la bascule du lot 24d) |
 | `… corpus labels [--csv COPIE]` | tableau `$OTB_LOGS/corpus.csv` | non mesurée (moins d'une minute sous Python) |
 | `… corpus rates --compare AVANT.json APRÈS.json` | sessions dont un constat a changé (texte complet, chiffres compris) ; code 1 si différence | quasi instantanée |
 | `… corpus validate [--limit N] [--start N] [-j N]` | décodeur contre `blackbox_decode` | 6 min, corpus entier, 4 fichiers à la fois |

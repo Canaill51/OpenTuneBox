@@ -76,7 +76,7 @@ lot 24) est fait le même jour, à sa demande ; le lot 25 reste conditionnel.
 | 1 | **32** | Récupération des logs par USB (MSP / MSC) — le plus risqué | 32a (protocole, sans interface) **fait le 2026-11-22** (crate `otb-usb`, essai sur une vraie carte par `otb-dev usb`) ; 32b (écran, voie MSP) **fait le 2026-11-23** ; 32c-1 (stockage de masse et cartes SD, protocole) et 32c-2 (leur écran) **faits le 2026-11-23** (D-075), mode disque essayé sur la G474 ; reste une carte SD réelle et Windows |
 | 2 | **15** | Dette de l'interface (W-052, pages spectrales) — **conditionnel** | le volet « cache » est soldé (L-094, D-053) ; le reste attend un déclencheur mesuré |
 | 3 | **34** | Emplacement de la bibliothèque au choix, avec déplacement sûr | **fait le 2026-11-25** (D-081) ; reste l'essai à la main sous Linux et Windows |
-| 4 | **35** | Tri des fenêtres de la réponse indicielle, puis recalibrage de l'assistant | rien ; demandé par Cédric le 2026-11-25 |
+| 4 | **35** | Tri des fenêtres de la réponse indicielle, puis recalibrage de l'assistant | **fait le 2026-11-25** (D-082) ; reste l'essai à la main par Cédric |
 | — | **25** | Plages de versions et veille des changements du firmware — **conditionnel** | lot 24 (fait le 2026-11-24) |
 
 Il ne reste que du **confort**, mesuré comme tel : le budget de 60 images par seconde est tenu avec une marge
@@ -305,12 +305,18 @@ Un départ maximal (`|r(0)| ≤ 0,1`) n'écarte rien sur ce log : à garder seul
 - [x] **Écran** (35b) : « Tri des fenêtres » sous « Calcul » (régime établi dès, bande gardée, écart à la médiane) ; la
       légende dit « n=281 sur 456 » et passe sur deux lignes par fichier, dans la moitié droite : elle ne cache plus la
       montée (`rust/otb-gui/tests/step_tools.rs`).
-- [ ] **Recalibrage de l'assistant** : relancer `otb-dev corpus calibrate` (pic, latence, cassure, vagues) avec le
-      nouveau tri ; chaque seuil changé justifié dans [assistant.md](assistant.md) ; taux de déclenchement avant / après.
-- [ ] **Validation** : les logs CHIRP d'Air65 (25, 45, 65 Hz) et des captures `PTB_FIGS_*` du corpus vont dans le sens de
-      PIDtoolbox ; contre-preuve d'un test du tri (L-071).
+- [x] **Recalibrage de l'assistant** (35c, choix de Cédric) : `otb-dev corpus calibrate` et `rates` sur les 678 sessions avec
+      les deux tris (`--tri-python`) ; paliers du pic 1,15 / 1,20 et 1,30 / 1,45 (D-025 amendée), réponse molle 1,00,
+      latence du 5" 11–22 ms, écart roll / pitch 0,08 commun et 0,07 en 5" ; dépassements signalés 11 → 15 % des sessions ;
+      mesures suivies refaites (`CALC_VERSION` 2). Chiffres : [assistant.md](assistant.md).
+- [x] **Validation** : logs CHIRP d'Air65 (25, 45, 65 Hz) dans le sens de PIDtoolbox web ([validation.md](validation.md)) ;
+      série BlackSummer (captures `PTB_FIGS_2026-08-16`) : au plus 0,015 d'écart sur ses vols propres, repère 1,03 gardé ;
+      contre-preuves des tests du tri, de l'écran et du rang des fenêtres.
+- [ ] **Essai à la main** par Cédric : page Réponse indicielle (réglages du tri, légende), Assistant et fiche cible d'un
+      drone (mesures suivies refaites à l'ouverture de la fiche).
 - [ ] **Critère d'arrêt** : un tri qui écarte la majorité des fenêtres d'un vol propre, ou qui change le sens d'un
-      conseil de l'assistant sans que la mesure l'explique → s'arrêter et revenir vers Cédric.
+      conseil de l'assistant sans que la mesure l'explique → s'arrêter et revenir vers Cédric. **Non atteint** : 60 à 92 %
+      des fenêtres gardées sur les logs CHIRP et BlackSummer ; chaque taux qui bouge suit un seuil recalculé.
 
 ---
 
@@ -514,3 +520,4 @@ La migration Python → Rust elle-même, terminée le 2026-11-04, garde son prop
 | 24 (fin) | 2026-11-24 | **Écart de la simulation au vol affiché** (branche `feat/flight-gap-display`, demandé par Cédric) : `otb_analysis::flight_gap` mesure, par bande, le rejeu des réglages du log contre le spectre enregistré (roulis et tangage) et dit la cause connue (log ralenti, firmware d'avant la 4.3) ; la page Filtres l'affiche au-dessus des spectres ; `corpus replay` passe par la même fonction, résultats identiques sur 676 sessions. Preuve : 7 tests nouveaux, 3 contre-preuves vues en échec, captures des deux thèmes sur `FINAL.bbl` du JeNo 5 | lot 25 : conditionnel |
 | 30h | 2026-11-25 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** (branche `feat/drone-sheet-from-log`, D-077, D-068 et D-061 amendées, demandé par Cédric) : la taille se tape (la liste propose) et la fiche dit les seuils qu'elle choisit, lus avec les bornes de la taille par le nom ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log, la boucle PID suivie, les pôles remplis seulement vides, un écart signalé sous le champ ; le KV reste saisi par le pilote (première version qui le lisait aussi, corrigée à la demande de Cédric). Preuve : 6 tests nouveaux et 2 complétés, 3 contre-preuves vues en échec, captures des deux thèmes sur `FINAL.bbl` du JeNo 5 (0,4 ms par cadre). Les captures ont montré la section Machine plus large que sa colonne, la Fiche cible rognée à droite : un champ à unité réservait trop peu de place à « KV » (défaut d'avant, révélé par la nouvelle disposition) et la flèche de la taille gardait sa marge ; l'unité se pose maintenant d'abord, à droite (récidive de L-111) | — |
 | 34 | 2026-11-25 | **Emplacement de la bibliothèque au choix** (branche `feat/library-location`, D-081, L-126) : pointeur à côté du dossier par défaut, logs copiés écrits relatifs à la bibliothèque, déplacement par copie relue puis effacement de l'ancien dossier, bibliothèque trouvée utilisée telle quelle, dossier introuvable au lancement sans rien écrire, avertissement quand un autre poste l'a ouverte ; écran hors rail « Bibliothèque » ouvert du tableau de bord. Preuve : 17 tests nouveaux (11 de la bibliothèque, 6 de l'écran), 11 contre-preuves vues en échec, captures des deux thèmes | essai à la main sous Linux et Windows |
+| 35 | 2026-11-25 | **Tri des fenêtres de la réponse indicielle** (branche `feat/step-window-rejection`, D-082, D-025 amendée, L-127, demandé par Cédric après comparaison à PIDtoolbox web) : bande 0,5–1,5 dès 150 ms puis distance à la courbe médiane, second passage pour les mesures de boucle, tri de Python gardé pour les références ; réglages « Tri des fenêtres » et légende sur deux lignes à l'écran ; assistant recalibré (pic 1,15 / 1,20 et 1,30 / 1,45, réponse molle 1,00, latence du 5" 11–22 ms, écart roll / pitch 0,08 / 0,07), `CALC_VERSION` 2 ; `otb-dev corpus calibrate\|rates --tri-python` |

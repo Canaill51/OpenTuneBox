@@ -54,7 +54,8 @@ const BASE: CraftProfile = CraftProfile {
     imbalance_high_pct: 13.5,
     iterm_offset_high: 33.0,
     saturation_high_pct: 1.5,
-    roll_pitch_gap_high: 0.12,
+    // 0,12 → 0,08 le 2026-11-25 (lot 35, D-082, choix de Cédric) : p90 par drone avec le nouveau tri des fenêtres, 0,128 → 0,076
+    roll_pitch_gap_high: 0.08,
     resonance_high_db: 7.9,
     provisional: false,
     nominal_inch: None,
@@ -101,7 +102,8 @@ pub const PROFILES: [CraftProfile; 5] = [
         hover_hz: (160.0, 290.0),
         resonance_hz: (120.0, 350.0),
         nominal_inch: Some(5.0),
-        latency_ms: (10.0, 22.0),
+        // p10 10 → 11 ms le 2026-11-25 (lot 35, D-082) : 10,7 → 11,5 ms avec le nouveau tri des fenêtres, arrondi vers le bas
+        latency_ms: (11.0, 22.0),
         gyro_delay_max_ms: 1.9,
         dterm_delay_max_ms: 2.7,
         gyro_noise_high_db: -28.3,
@@ -110,7 +112,8 @@ pub const PROFILES: [CraftProfile; 5] = [
         motor_left_high_db: -28.4,
         imbalance_high_pct: 14.0,
         iterm_offset_high: 32.0,
-        roll_pitch_gap_high: 0.11,
+        // 0,11 → 0,07 le 2026-11-25 (lot 35, D-082) : p90 par drone avec le nouveau tri des fenêtres, 0,106 → 0,070
+        roll_pitch_gap_high: 0.07,
         resonance_high_db: 6.8,
         ..BASE
     },
@@ -129,7 +132,8 @@ pub const PROFILES: [CraftProfile; 5] = [
         motor_left_high_db: -31.8,
         imbalance_high_pct: 11.2,
         iterm_offset_high: 31.0,
-        roll_pitch_gap_high: 0.08,
+        // écart de pic roll / pitch : seuil commun depuis le 2026-11-25 (lot 35, choix de Cédric) ; avec le nouveau tri des
+        // fenêtres, le p90 propre au 7" tombe à 0,044, mesuré sur 17 drones seulement
         resonance_high_db: 8.2,
         ..BASE
     },

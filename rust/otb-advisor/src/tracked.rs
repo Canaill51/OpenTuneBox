@@ -15,7 +15,8 @@ use std::ops::Range;
 /// Version du calcul des mesures suivies. ⚠️ **À monter dès qu'une grandeur change de calcul** (règle, rapport,
 /// réponse indicielle, bandes de bruit, retards) : la bibliothèque jette alors les mesures d'une version antérieure
 /// et les recalcule. Sans cela, l'historique mêlerait deux calculs sans le dire.
-pub const CALC_VERSION: u64 = 1;
+/// 2 (2026-11-25, lot 35, D-082) : tri des fenêtres de la réponse indicielle (pic, latence, temps de montée, marges).
+pub const CALC_VERSION: u64 = 2;
 
 /// Axe d'une grandeur qui ne dépend pas d'un axe (bruit, retard des filtres : roll et pitch réunis comme dans la
 /// règle qui les juge). Roll, pitch et lacet sont 0, 1 et 2.

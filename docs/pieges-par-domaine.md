@@ -139,6 +139,8 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - Contre-preuve : un fichier restauré en renommant sa sauvegarde reprend une date **plus ancienne** que sa modification, et
   cargo ne recompile pas — le binaire garde la protection cassée. Redonner l'heure au fichier (`touch`) après l'avoir
   restauré. L-126
+- `cargo` toujours **depuis `rust/`** : `--manifest-path rust/Cargo.toml` lancé de la racine ignore `rust/rust-toolchain.toml`
+  (autre Rust, autre clippy, avertissement dans un fichier non touché). L-127
 
 - Une substitution `perl`/`sed` dont le délimiteur apparaît dans le texte (fermetures Rust `|x|`, `#` et `|` du
   Markdown, `/` des chemins) écrit au mauvais endroit sans erreur (un `\|` échappé devient une alternative) : outil

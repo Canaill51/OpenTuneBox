@@ -37,12 +37,14 @@ use std::ops::Range;
 // Stabilité (boucle ouverte mesurée), en conseil : 7 dB et 35° retenus sur le corpus du 2026-10-05.
 pub const SENSITIVITY_HIGH_DB: f64 = 7.0;
 /// Pic de réponse indicielle (conseil, attention), sans feedforward en service.
-pub const STEP_PEAK_HIGH: (f64, f64) = (1.20, 1.25);
+// 1,20 / 1,25 → 1,15 / 1,20 et 1,60 / 1,70 → 1,30 / 1,45 le 2026-11-25 (lot 35, D-082) : nouveau tri des fenêtres, même méthode
+// (p90 par drone, p95 par axe, arrondis à 0,05)
+pub const STEP_PEAK_HIGH: (f64, f64) = (1.15, 1.20);
 /// Idem avec feedforward en service (F > 0 hors mode Angle), qui gonfle le pic (D-025).
-pub const STEP_PEAK_HIGH_FF: (f64, f64) = (1.60, 1.70);
+pub const STEP_PEAK_HIGH_FF: (f64, f64) = (1.30, 1.45);
 pub const STEP_PEAK_FLAT: f64 = 1.03;
 /// Réponse molle : pic sous le p10 des axes du corpus et latence au-dessus du p90 de la taille.
-pub const STEP_PEAK_SOFT: f64 = 1.01;
+pub const STEP_PEAK_SOFT: f64 = 1.00;
 /// Fenêtres de la réponse indicielle : lue dès 20 par axe, « mesure moins sûre » sous 200.
 pub const STEP_MIN_WINDOWS: usize = 20;
 pub const STEP_SURE_WINDOWS: usize = 200;
@@ -471,12 +473,50 @@ le même symptôme."
 /// marges de la boucle ouverte, qui ont leur propre réserve) reçoit la mention « mesure moins sûre ». `ff_gain` : gain F en service (0 en
 /// mode Angle) ; `ff_cut` : F > 0 dans l'en-tête mais coupé par le mode Angle.
 pub fn step_rules(f: &mut Vec<Finding>, st: &AxisStep, profile: &CraftProfile, ff_gain: i64, ff_cut: bool) {
+    step_rules_with(f, st, profile, ff_gain, ff_cut, &StepThresholds::APP);
+}
+
+/// Paliers du pic de la réponse indicielle : ceux de l'application, ou ceux de Python pour rejouer ses cas figés.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StepThresholds {
+    /// (conseil, attention) sans feedforward en service.
+    pub peak_high: (f64, f64),
+    /// (conseil, attention) avec feedforward en service.
+    pub peak_high_ff: (f64, f64),
+    /// Réponse molle : pic sous ce palier (et latence au-dessus du p90 de la taille).
+    pub peak_soft: f64,
+}
+
+impl StepThresholds {
+    /// Paliers en service, calibrés avec le tri des fenêtres de l'application (D-082).
+    pub const APP: StepThresholds = StepThresholds {
+        peak_high: STEP_PEAK_HIGH,
+        peak_high_ff: STEP_PEAK_HIGH_FF,
+        peak_soft: STEP_PEAK_SOFT,
+    };
+    /// ⚠️ Paliers de Python, calibrés avec l'ancien tri des fenêtres : seulement pour les cas figés des tests (D-082).
+    pub const PYTHON: StepThresholds = StepThresholds {
+        peak_high: (1.20, 1.25),
+        peak_high_ff: (1.60, 1.70),
+        peak_soft: 1.01,
+    };
+}
+
+/// [`step_rules`] avec les paliers `th`.
+pub fn step_rules_with(
+    f: &mut Vec<Finding>,
+    st: &AxisStep,
+    profile: &CraftProfile,
+    ff_gain: i64,
+    ff_cut: bool,
+    th: &StepThresholds,
+) {
     let r = &st.result;
     if r.n < STEP_MIN_WINDOWS {
         return;
     }
     let first = f.len();
-    step_findings(f, st, profile, ff_gain, ff_cut);
+    step_findings_with(f, st, profile, ff_gain, ff_cut, th);
     if r.n < STEP_SURE_WINDOWS {
         for x in f[first..].iter_mut() {
             if LOOP_MARGIN_KEYS.contains(&x.key.as_str()) {
@@ -492,12 +532,24 @@ pub fn step_rules(f: &mut Vec<Finding>, st: &AxisStep, profile: &CraftProfile, f
 
 /// Constats de la réponse indicielle d'un axe (dépassement, réponse molle, réponse correcte) puis de la boucle ouverte (marges).
 pub fn step_findings(f: &mut Vec<Finding>, st: &AxisStep, profile: &CraftProfile, ff_gain: i64, ff_cut: bool) {
+    step_findings_with(f, st, profile, ff_gain, ff_cut, &StepThresholds::APP);
+}
+
+/// [`step_findings`] avec les paliers `th`.
+pub fn step_findings_with(
+    f: &mut Vec<Finding>,
+    st: &AxisStep,
+    profile: &CraftProfile,
+    ff_gain: i64,
+    ff_cut: bool,
+    th: &StepThresholds,
+) {
     let r = &st.result;
     let ax = st.axis.as_str();
     let axl = ax.to_lowercase();
     let lp = &r.loop_;
     let (pk, lat) = (r.metrics.peak, r.metrics.latency_ms);
-    let (advice, strong) = if ff_gain > 0 { STEP_PEAK_HIGH_FF } else { STEP_PEAK_HIGH };
+    let (advice, strong) = if ff_gain > 0 { th.peak_high_ff } else { th.peak_high };
     let with_ff = if ff_gain > 0 {
         format!(" avec feedforward (F = {ff_gain})")
     } else if ff_cut {
@@ -565,7 +617,7 @@ environ {} ; le feedforward fait monter le pic.",
             vec!["Curseur Damping (D) : +0,1.".to_string()],
             axis.clone(),
         ).with_gauge(Gauge::new(pk, advice, "", 2)));
-    } else if pk < STEP_PEAK_SOFT && lat.is_finite() && lat > lat1 {
+    } else if pk < th.peak_soft && lat.is_finite() && lat > lat1 {
         f.push(Finding::new(
             "step_soft",
             "Réponse",
@@ -723,6 +775,8 @@ pub struct Analysis<'a> {
     pub pred: Predictor<'a>,
     /// Options de la réponse indicielle, dont le tri des fenêtres (D-082).
     pub step: StepOptions,
+    /// Paliers du pic de la réponse indicielle (D-082).
+    pub thresholds: StepThresholds,
     pub sel: Range<usize>,
     pub profile: &'a CraftProfile,
     /// Constats accumulés, dans l'ordre d'affichage à gravité égale (`F`).
@@ -824,6 +878,8 @@ pub struct Method {
     pub filters: FilterModel,
     /// Réponse indicielle, dont le tri des fenêtres (D-082).
     pub step: StepOptions,
+    /// Paliers du pic de la réponse indicielle (D-082).
+    pub thresholds: StepThresholds,
 }
 
 impl Method {
@@ -832,6 +888,7 @@ impl Method {
         Method {
             filters: FilterModel::Replay,
             step: StepOptions::default(),
+            thresholds: StepThresholds::APP,
         }
     }
 
@@ -840,6 +897,7 @@ impl Method {
         Method {
             filters: FilterModel::Ratio,
             step: StepOptions::python(),
+            thresholds: StepThresholds::PYTHON,
         }
     }
 }
@@ -877,6 +935,7 @@ pub fn analyze_with(
         br,
         pred: Predictor::new(log, method.filters),
         step: method.step,
+        thresholds: method.thresholds,
     };
     if profile.provisional {
         a.f.push(Finding::new(
@@ -2055,12 +2114,13 @@ fn step_section(a: &mut Analysis) -> Result<(), String> {
     a.meas.steps = Some(steps.iter().map(|st| (st.axis.clone(), st.result.metrics)).collect());
     let cond = flight_conditions(log, sel)?;
     for (ax, st) in steps[..2].iter().enumerate() {
-        step_rules(
+        step_rules_with(
             &mut a.f,
             st,
             profile,
             cond.ff_gain(ax),
             log.settings.pids[ax].f > 0 && cond.angle(),
+            &a.thresholds,
         );
     }
     let (r0, r1) = (&steps[0].result, &steps[1].result);

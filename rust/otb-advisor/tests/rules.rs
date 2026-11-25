@@ -91,11 +91,13 @@ fn les_constantes_sont_celles_de_python() {
         let a = hexes(&c[k]);
         (a[0], a[1])
     };
-    assert_eq!(rules::STEP_PEAK_HIGH, pair("step_peak_high"));
-    assert_eq!(rules::STEP_PEAK_HIGH_FF, pair("step_peak_high_ff"));
+    // paliers du pic recalibrés le 2026-11-25 (lot 35, D-082) : ceux de Python restent dans `StepThresholds::PYTHON`
+    let py = rules::StepThresholds::PYTHON;
+    assert_eq!(py.peak_high, pair("step_peak_high"));
+    assert_eq!(py.peak_high_ff, pair("step_peak_high_ff"));
     for (name, got) in [
         ("step_peak_flat", rules::STEP_PEAK_FLAT),
-        ("step_peak_soft", rules::STEP_PEAK_SOFT),
+        ("step_peak_soft", py.peak_soft),
         ("sensitivity_high_db", rules::SENSITIVITY_HIGH_DB),
         ("phase_margin_low_deg", rules::PHASE_MARGIN_LOW_DEG),
         ("d_dominant_ratio", rules::D_DOMINANT_RATIO),
@@ -228,28 +230,58 @@ fn le_tri_des_constats_est_stable_comme_celui_de_python() {
     }
 }
 
-fn run_step(
-    c: &Value,
-    f: fn(&mut Vec<Finding>, &AxisStep, &otb_advisor::profiles::CraftProfile, i64, bool),
-    name: &str,
-) {
+type StepFn = fn(&mut Vec<Finding>, &AxisStep, &otb_advisor::profiles::CraftProfile, i64, bool, &rules::StepThresholds);
+
+/// Profil `key` avec les seuils de Python que le lot 35 a recalibrés (D-082, nouveau tri des fenêtres) : latence du 5"
+/// (10–22 ms) et écart de pic roll / pitch (0,12 commun, 0,11 en 5", 0,08 en 7"). Les cas figés ont été écrits avec eux.
+fn python_profile(key: &str) -> otb_advisor::profiles::CraftProfile {
+    let mut p = profile(key).unwrap().clone();
+    p.roll_pitch_gap_high = match key {
+        "five" => 0.11,
+        "seven" => 0.08,
+        _ => 0.12,
+    };
+    if key == "five" {
+        p.latency_ms = (10.0, 22.0);
+    }
+    p
+}
+
+fn run_step(c: &Value, f: StepFn, name: &str) {
     let st = step_of(c);
-    let p = profile(c["profile"].as_str().unwrap()).unwrap();
+    let p = python_profile(c["profile"].as_str().unwrap());
     let mut got = Vec::new();
-    f(&mut got, &st, p, c["ff"].as_i64().unwrap(), c["cut"].as_bool().unwrap());
+    f(
+        &mut got,
+        &st,
+        &p,
+        c["ff"].as_i64().unwrap(),
+        c["cut"].as_bool().unwrap(),
+        &rules::StepThresholds::PYTHON,
+    );
     check_findings(&format!("{name} {c}"), &got, &c["out"]);
 }
 
 #[test]
 fn les_regles_de_la_reponse_indicielle_sont_celles_de_python() {
     for c in cas("rules")["step"].as_array().unwrap() {
-        run_step(c, rules::step_rules, "_step_rules");
+        run_step(c, rules::step_rules_with, "_step_rules");
     }
 }
 
 #[test]
 fn les_constats_de_la_reponse_indicielle_sont_ceux_de_python() {
     for c in cas("rules")["step_findings"].as_array().unwrap() {
-        run_step(c, rules::step_findings, "_step_findings");
+        run_step(c, rules::step_findings_with, "_step_findings");
     }
+}
+
+/// Les paliers en service sont ceux du recalibrage du lot 35 (D-082) ; ceux de Python restent pour les cas figés.
+#[test]
+fn les_paliers_du_pic_suivent_le_nouveau_tri() {
+    assert_eq!(rules::StepThresholds::APP.peak_high, (1.15, 1.20));
+    assert_eq!(rules::StepThresholds::APP.peak_high_ff, (1.30, 1.45));
+    assert_eq!(rules::StepThresholds::APP.peak_soft, 1.00);
+    assert_eq!(rules::Method::app().thresholds, rules::StepThresholds::APP);
+    assert_eq!(rules::Method::python().thresholds, rules::StepThresholds::PYTHON);
 }

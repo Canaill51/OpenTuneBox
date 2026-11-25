@@ -2,7 +2,8 @@
 //! docs/assistant.md, « Calibration »).
 //!
 //! ```text
-//! otb-dev corpus rates SORTIE.json [--limit N] [-j FILS]   passage complet (dossier : OTB_LOGS), puis le tableau
+//! otb-dev corpus rates SORTIE.json [--limit N] [-j FILS] [--tri-python]   passage complet (dossier : OTB_LOGS), puis le
+//!                                                          tableau ; --tri-python : ancien tri des fenêtres (D-082)
 //! otb-dev corpus rates --resume SORTIE.json                tableau seul, sans recalcul
 //! otb-dev corpus rates --compare AVANT.json APRÈS.json [N] constats différents, N sessions détaillées (code 1 si écart)
 //! ```
@@ -15,19 +16,21 @@ use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 use std::time::Instant;
 
-use otb_advisor::rules::{ATTENTION, CONSEIL, analyze};
+use otb_advisor::rules::{ATTENTION, CONSEIL, Method, analyze_with};
+use otb_analysis::step::StepOptions;
 use otb_log::flightlog::load;
 use serde_json::{Value, json};
 
 use super::{Args, Output, analysed, log_files, logs_root, map_files, rel};
 
-/// Les lignes (une par session analysée) d'un fichier du corpus.
-pub fn analyze_file(f: &Path, root: &Path) -> Result<Vec<Value>, String> {
+/// Les lignes (une par session analysée) d'un fichier du corpus ; `method` : celle de l'application, ou avec l'ancien tri des
+/// fenêtres (`--tri-python`, D-082) pour comparer.
+pub fn analyze_file(f: &Path, root: &Path, method: Method) -> Result<Vec<Value>, String> {
     let mut out = Vec::new();
     for lg in load(f).map_err(|e| e.to_string())? {
         let Some(sel) = analysed(&lg) else { continue };
         let t0 = Instant::now();
-        let rep = analyze(&lg, Some(sel), None)?;
+        let rep = analyze_with(&lg, Some(sel), None, method)?;
         let t_analyze = t0.elapsed().as_secs_f64();
         let moving = rep.measures.delays.as_ref().is_some_and(|d| d.moving());
         let findings: Vec<Value> = rep
@@ -202,10 +205,18 @@ pub fn compare_rows(a: &[Value], b: &[Value], show: usize) -> (String, usize) {
     (text, diff.len() + only_one_side)
 }
 
-const USAGE: &str = "Usage :\n  otb-dev corpus rates SORTIE.json [--limit N] [-j FILS]\n  otb-dev corpus rates --resume SORTIE.json\n  otb-dev corpus rates --compare AVANT.json APRÈS.json [N]";
+const USAGE: &str = "Usage :\n  otb-dev corpus rates SORTIE.json [--limit N] [-j FILS] [--tri-python]\n  otb-dev corpus rates --resume SORTIE.json\n  otb-dev corpus rates --compare AVANT.json APRÈS.json [N]";
 
 pub fn run(args: &[&str]) -> Result<Output, String> {
-    let a = Args::parse(args, &["--limit", "-j"], &["--resume", "--compare"])?;
+    let a = Args::parse(args, &["--limit", "-j"], &["--resume", "--compare", "--tri-python"])?;
+    let method = if a.has("--tri-python") {
+        Method {
+            step: StepOptions::python(),
+            ..Method::app()
+        }
+    } else {
+        Method::app()
+    };
     match (a.has("--resume"), a.has("--compare"), a.positional.as_slice()) {
         (true, false, [path]) => Ok(Output::ok(summary(path)?)),
         (false, true, [old, new, rest @ ..]) if rest.len() <= 1 => {
@@ -224,7 +235,7 @@ pub fn run(args: &[&str]) -> Result<Output, String> {
             let root = logs_root();
             let mut files = log_files(&root).map_err(|e| format!("{} : {e}", root.display()))?;
             files.truncate(limit.unwrap_or(files.len()));
-            let res = map_files(|f| analyze_file(f, &root), &files, jobs, &root);
+            let res = map_files(|f| analyze_file(f, &root, method), &files, jobs, &root);
             let rows: Vec<Value> = res.into_iter().flat_map(|(_, rows)| rows).collect();
             std::fs::write(path, serde_json::to_string(&rows).map_err(|e| e.to_string())?)
                 .map_err(|e| format!("{path} : {e}"))?;

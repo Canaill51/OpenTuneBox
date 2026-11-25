@@ -429,7 +429,7 @@ fn la_fiche_cible_suit_la_taille_tant_qu_elle_n_est_pas_changee() {
     let mut s = new_sheet();
     assert_eq!(
         target_texts(&s),
-        ["22", "", "1,20", "", "35", "", "-28,3", "-13,1", "1,90", "2,70"]
+        ["22", "", "1,15", "", "35", "", "-28,3", "-13,1", "1,90", "2,70"]
     );
     assert_eq!(target_note(&s), "Valeurs proposées pour la taille 5″, modifiables.");
     s.size = "7″".into();
@@ -496,7 +496,7 @@ fn la_fiche_cible_se_change_a_l_ecran() {
         .unwrap();
     let attendu: Vec<(String, String)> = otb_advisor::target::ROWS
         .iter()
-        .zip(["18", "", "1,20", "", "35", "", "-28,3", "-13,1", "1,90", "2,70"])
+        .zip(["18", "", "1,15", "", "35", "", "-28,3", "-13,1", "1,90", "2,70"])
         .map(|(r, v)| (r.key.to_string(), v.to_string()))
         .collect();
     assert_eq!(
