@@ -23,6 +23,16 @@ use crate::sd::{SdFile, sd_logs};
 /// dit pas si le disque est prêt : on garde le 2.
 const REBOOT_MSC: u8 = 2;
 
+/// Première version de l'API MSP dont `MSP_REBOOT` connaît le mode stockage de masse (Betaflight 3.5, `df55fc99e`,
+/// 2018-07-15). ⚠️ Plus ancien, le firmware ignore le mode et **redémarre normalement** : ne jamais le lui demander
+/// (`tests/stockage_de_masse.rs`).
+pub const DISK_REBOOT_API: (u8, u8) = (1, 40);
+
+/// La carte sait-elle redémarrer en disque sur demande ? Faux si son API est plus ancienne que [`DISK_REBOOT_API`].
+pub fn knows_disk_reboot(api: (u8, u8)) -> bool {
+    api >= DISK_REBOOT_API
+}
+
 /// Nom du fichier de toute la mémoire sur le disque de la carte (`src/main/msc/emfat_file.c`).
 pub const FLASH_ALL: &str = "BTFL_ALL.BBL";
 
@@ -87,7 +97,7 @@ pub enum DiskRebootError {
     SdNotReady {
         state: u8,
     },
-    /// Le firmware refuse le mode stockage de masse (compilé sans lui) : rester en MSP.
+    /// Le firmware n'a pas le mode stockage de masse (compilé sans lui, ou API plus ancienne que 1.40) : rester en MSP.
     NotSupported,
     /// Le firmware dit son disque pas prêt : il ne redémarre pas.
     NotReady,
@@ -159,6 +169,9 @@ impl<L: Link> Msp<L> {
 /// montre celle que `blackbox_device` désigne, que MSP ne lit pas : [`BeforeDisk::matches`] le vérifie).
 pub fn reboot_to_disk<L: Link>(msp: &mut Msp<L>) -> Result<BeforeDisk, DiskRebootError> {
     let identity = msp.identify()?;
+    if !knows_disk_reboot(identity.api) {
+        return Err(DiskRebootError::NotSupported);
+    }
     if msp.armed()? {
         return Err(DiskRebootError::Armed);
     }

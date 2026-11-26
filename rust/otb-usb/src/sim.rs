@@ -38,6 +38,8 @@ pub struct SimBoard {
     pub has_flash: bool,
     /// État de la carte SD (`MSP_SDCARD_STATE_*`, 4 = prête) ; `None` : carte faite sans carte SD.
     pub sd_state: Option<u8>,
+    /// Version de l'API MSP rendue par `MSP_API_VERSION` (1.47 : Betaflight 2025.12).
+    pub api: (u8, u8),
     /// Firmware compilé avec le mode stockage de masse (`USE_USB_MSC`).
     pub msc: bool,
     /// Réponse « disque prêt » au redémarrage en stockage de masse.
@@ -84,6 +86,7 @@ impl SimBoard {
             total: 16 * 1024 * 1024,
             has_flash: true,
             sd_state: None,
+            api: (1, 47),
             msc: true,
             msc_ready: true,
             reboots: Vec::new(),
@@ -144,7 +147,7 @@ impl SimBoard {
     fn answer(&mut self, cmd: u16, req: &[u8]) -> Option<Vec<u8>> {
         let mut p = Vec::new();
         match Command::from_code(cmd)? {
-            Command::ApiVersion => p.extend_from_slice(&[0, 1, 47]),
+            Command::ApiVersion => p.extend_from_slice(&[0, self.api.0, self.api.1]),
             Command::FcVariant => p.extend_from_slice(&self.variant),
             Command::FcVersion => p.extend_from_slice(&[self.version.0, self.version.1, self.version.2]),
             Command::BoardInfo => {
@@ -202,6 +205,12 @@ impl SimBoard {
                 // `src/main/msp/msp.c`, `MSP_REBOOT` : refusé armé, ou pour un mode que le firmware n'a pas.
                 let mode = req.first().copied().unwrap_or(0);
                 self.reboots.push(mode);
+                // Avant l'API 1.40 (Betaflight 3.4 et plus ancien), `MSP_REBOOT` ignore le mode : réponse vide,
+                // redémarrage normal (`df55fc99e`, 2018-07-15).
+                if self.api < (1, 40) {
+                    self.rebooted = true;
+                    return Some(p);
+                }
                 if self.armed || mode > 4 || (!self.msc && (mode == 2 || mode == 3)) {
                     return None;
                 }

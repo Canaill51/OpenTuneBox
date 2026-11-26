@@ -22,6 +22,7 @@ use otb_log::flightlog::{self, FlightLog};
 use otb_store::Library;
 use otb_store::model::{Drone, Fragment, LogEntry};
 use otb_usb::erase::{ErasePolling, erase_flash, verify_and_save};
+use otb_usb::msc::DiskRebootError;
 use otb_usb::{BeforeDisk, ChipId, CopyReport, FlashSummary, Identity, Link, Msp, VerifiedCopy};
 
 // ---------------------------------------------------------------- le port
@@ -131,6 +132,32 @@ pub enum Event {
     Config(String),
     /// La carte redémarre en disque : ce qui la désignera ensuite. La connexion est fermée.
     ToDisk(BeforeDisk),
+    /// La carte refuse le mode disque (firmware sans lui, ou disque pas prêt) ; rien n'a redémarré, la connexion
+    /// reste : l'écran passe à l'USB série si la carte a une mémoire interne (D-085).
+    NoDisk(String),
+}
+
+/// La voie que prend « Récupérer les logs » pour une carte (D-085) : la plus rapide qu'elle permet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Way {
+    /// Redémarrage en disque USB : mémoire interne ou carte SD.
+    Disk,
+    /// Copie par l'USB série (MSP), bloc par bloc : mémoire interne seulement.
+    Serial,
+    /// Ni l'un ni l'autre : carte SD d'une carte sans mode disque, à lire dans un lecteur de cartes.
+    Reader,
+}
+
+/// Choisit la voie : le mode disque si le firmware le connaît (API MSP 1.40 et plus) et que la carte ne l'a pas déjà
+/// refusé sur cette connexion (`refused`), sinon l'USB série pour une mémoire interne, sinon un lecteur de cartes.
+pub fn recovery_way(board: &Board, refused: bool) -> Way {
+    if !refused && otb_usb::msc::knows_disk_reboot(board.identity.api) {
+        Way::Disk
+    } else if board.flash.supported {
+        Way::Serial
+    } else {
+        Way::Reader
+    }
 }
 
 /// La copie de la mémoire faite par le mode disque, en attente du rebranchement (lot 32c, D-075). ⚠️ Elle ne sort
@@ -328,6 +355,9 @@ fn worker<L: Link>(
                 Ok(before) => {
                     done();
                     return send(Event::ToDisk(before));
+                }
+                Err(e @ (DiskRebootError::NotSupported | DiskRebootError::NotReady)) => {
+                    send(Event::NoDisk(e.to_string()))
                 }
                 Err(e) => send(Event::Failed(e.to_string())),
             },

@@ -54,27 +54,33 @@ de brancher une batterie.
 2. **Première connexion de cette carte** : choisissez le drone auquel la ranger (celui du même nom est proposé) ou
    **Nouveau drone**. La carte porte un identifiant gravé : la fois suivante, le drone est **reconnu tout seul**, même
    renommé.
-3. **Copier les vols** (par l'USB série) : environ 3 minutes pour 8 Mo, une barre montre l'avancement ; **Arrêter** abandonne (rien n'est
-   gardé, la copie suivante reprend au début). La copie est ensuite **vérifiée** — taille, lecture par le décodeur,
-   fichier relu sur le disque — puis rangée sous le drone : ses vols apparaissent sur sa carte au tableau de bord, et
-   **Ouvrir les vols** les met dans la barre d'analyse.
+3. **Récupérer les logs** : un seul bouton, et OpenTuneBox choisit la voie la plus rapide que la carte permet ; la
+   ligne sous le bouton dit laquelle.
+   - **Mode disque** (Betaflight 3.5 et plus récent) : le drone redémarre en **disque USB** (mode « stockage de
+     masse ») et la copie est bien plus rapide. L'écran attend que le système monte le disque ; s'il n'apparaît pas,
+     ouvrez-le dans le gestionnaire de fichiers (disque « BETAFLT »), ou **Choisir le dossier…**. Ce disque est en
+     lecture seule : pour **effacer** ensuite la mémoire, **débranchez le drone** (USB et batterie) **puis
+     rebranchez-le** en USB. OpenTuneBox s'y reconnecte tout seul et propose l'effacement si c'est **la même carte**,
+     sans vol enregistré depuis.
+   - **USB série** quand la carte n'a pas le mode disque (firmware plus ancien, ou compilé sans lui) : environ
+     3 minutes pour 8 Mo, une barre montre l'avancement ; **Arrêter** abandonne (rien n'est gardé, la copie suivante
+     reprend au début). Une carte qui refuse le mode disque passe **toute seule** à l'USB série. L'effacement se
+     propose ensuite sans débrancher.
+
+   Dans les deux cas, la copie est **vérifiée** — taille, lecture par le décodeur, fichier relu sur le disque — puis
+   rangée sous le drone : ses vols apparaissent sur sa carte au tableau de bord, et **Ouvrir les vols** les met dans la
+   barre d'analyse.
 4. **Effacer la mémoire du drone…** n'apparaît qu'après une copie vérifiée et rangée, et demande une seconde
    confirmation (**Effacer définitivement**). Juste avant, OpenTuneBox relit l'identifiant de la carte, la place
    occupée et l'état armé : un vol enregistré depuis la copie, ou une autre carte, et l'effacement est refusé.
 5. **Sauvegarder la configuration** lit le `diff all` de la carte et le garde s'il a changé depuis la dernière fois
    (la fiche du drone peut alors comparer deux versions de ses réglages) ; la carte redémarre ensuite.
 
-**Copier en mode disque**, à côté de **Copier les vols**, fait redémarrer le drone en **disque USB** (mode « stockage de
-masse ») : la copie est bien plus rapide, et passe par les mêmes vérifications. L'écran attend que le système monte le
-disque ; s'il n'apparaît pas, ouvrez-le dans le gestionnaire de fichiers (disque « BETAFLT »), ou **Choisir le
-dossier…**. Ce disque est en lecture seule : pour **effacer** ensuite la mémoire, **débranchez le drone** (USB et
-batterie) **puis rebranchez-le** en USB. OpenTuneBox s'y reconnecte tout seul et propose l'effacement si c'est **la même
-carte**, sans vol enregistré depuis.
-
-**Carte SD dans le drone** : l'écran propose **Copier la carte SD (mode disque)**. Chaque log est copié et vérifié ; un
+**Carte SD dans le drone** : **Récupérer les logs** passe par le mode disque. Chaque log est copié et vérifié ; un
 log illisible (vol coupé avant sa première trame) est **refusé** et reste sur la carte. **Supprimer N logs de la carte
 SD…** puis **Supprimer définitivement** ne retire que les logs copiés et vérifiés, chacun relu juste avant ; les
-autres fichiers de la carte ne sont pas touchés. **Éjectez la carte** depuis le système avant de débrancher.
+autres fichiers de la carte ne sont pas touchés. **Éjectez la carte** depuis le système avant de débrancher. Sur
+une carte sans mode disque, l'USB série ne lit pas la carte SD : l'écran dit de la lire dans un lecteur de cartes.
 
 **Carte SD dans un lecteur de cartes** : sans drone branché, la section **Carte SD dans un lecteur** trouve la carte
 (sinon **Choisir le dossier…**, la racine de la carte, celle qui contient `LOGS`). Choisissez le drone auquel ranger

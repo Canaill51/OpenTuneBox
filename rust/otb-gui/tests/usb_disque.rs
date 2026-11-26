@@ -17,7 +17,7 @@ use egui_kittest::kittest::Queryable;
 use otb_gui::app::{App, Screen};
 use otb_gui::theme::CLAIR;
 use otb_gui::usb::{AnyLink, Ports, disk_plan};
-use otb_gui::usb_page::{EJECT, Phase, REPLUG, SD_ERASE_WARNING, TITLE, UsbPage};
+use otb_gui::usb_page::{DISK_NOTE, EJECT, Phase, READER_HINT, RECOVER, REPLUG, SD_ERASE_WARNING, TITLE, UsbPage};
 use otb_store::Library;
 use otb_store::model::LogEntry;
 use otb_usb::Link;
@@ -194,7 +194,10 @@ fn memoire_copiee_par_le_disque_puis_effacee_apres_rebranchement() {
     let flash = deux_vols();
     let mut b = banc(SimBoard::new(flash.clone()), true, "memoire");
     b.connecter();
-    b.h.cliquer_label("Copier en mode disque");
+    b.h.get_by_label(DISK_NOTE);
+    assert_eq!(b.h.query_all_by_label(RECOVER).count(), 1, "un seul bouton de copie");
+    assert!(b.h.query_by_label("Copier les vols").is_none());
+    b.h.cliquer_label(RECOVER);
     b.h.run_steps(2);
     b.jusqu_a(|a| a.usb.phase == Phase::WaitingDisk);
     assert_eq!(
@@ -251,7 +254,7 @@ fn autre_carte_rebranchee_rien_n_est_efface() {
     ] {
         let mut b = banc(SimBoard::new(flash.clone()), true, &format!("autre-{}", cas.len()));
         b.connecter();
-        b.h.cliquer_label("Copier en mode disque");
+        b.h.cliquer_label(RECOVER);
         b.h.run_steps(2);
         b.jusqu_a(|a| a.usb.phase == Phase::WaitingDisk);
         b.port.store(false, Ordering::Relaxed);
@@ -278,7 +281,7 @@ fn carte_sd_du_drone_copiee_puis_supprimee_en_deux_temps() {
     let mut b = banc(s, true, "sd-drone");
     b.connecter();
     b.h.get_by_label_contains("ses logs sont sur carte SD");
-    b.h.cliquer_label("Copier la carte SD (mode disque)");
+    b.h.cliquer_label(RECOVER);
     b.h.run_steps(2);
     b.jusqu_a(|a| a.usb.phase == Phase::WaitingDisk);
     b.port.store(false, Ordering::Relaxed);
@@ -364,7 +367,7 @@ fn disque_choisi_a_la_main() {
     let flash = jeno();
     let mut b = banc(SimBoard::new(flash.clone()), true, "a-la-main");
     b.connecter();
-    b.h.cliquer_label("Copier en mode disque");
+    b.h.cliquer_label(RECOVER);
     b.h.run_steps(2);
     b.jusqu_a(|a| a.usb.phase == Phase::WaitingDisk);
     b.port.store(false, Ordering::Relaxed);
@@ -384,7 +387,7 @@ fn disque_choisi_a_la_main() {
 fn attente_du_disque_annulee() {
     let mut b = banc(SimBoard::new(jeno()), true, "annulee");
     b.connecter();
-    b.h.cliquer_label("Copier en mode disque");
+    b.h.cliquer_label(RECOVER);
     b.h.run_steps(2);
     b.jusqu_a(|a| a.usb.phase == Phase::WaitingDisk);
     b.h.cliquer_label("Annuler");
@@ -431,4 +434,19 @@ fn plan_de_copie() {
     assert!(plan.existing.contains_key("copie"));
     // bibliothèque en mémoire : rien ne peut être copié
     assert!(disk_plan(&Library::in_memory(), &disk, "d", "s").is_err());
+}
+
+/// D-085 : la carte SD d'un firmware sans redémarrage en disque (API 1.39) ne se lit ni par le disque ni par l'USB
+/// série : pas de bouton, l'écran renvoie au lecteur de cartes, et rien n'est demandé à la carte.
+#[test]
+fn carte_sd_d_un_vieux_firmware_renvoie_au_lecteur() {
+    let mut s = SimBoard::new(Vec::new());
+    s.has_flash = false;
+    s.sd_state = Some(4);
+    s.api = (1, 39);
+    let mut b = banc(s, true, "sd-vieux");
+    b.connecter();
+    b.h.get_by_label(READER_HINT);
+    assert!(b.h.query_by_label(RECOVER).is_none());
+    assert!(b.board.lock().unwrap().reboots.is_empty());
 }

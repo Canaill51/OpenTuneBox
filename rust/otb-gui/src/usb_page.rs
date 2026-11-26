@@ -20,12 +20,14 @@ use crate::icons::icon;
 use crate::theme::{Theme, with_alpha};
 use crate::tools::common::safe_text;
 use crate::usb::{
-    ARMED, Board, Connection, Copied, DroneChoice, Event, Held, MSP_MO_PER_MIN, Ports, Request, board_text,
-    default_choice, duration_text, firmware_text, reader_choice, size_text,
+    ARMED, Board, Connection, Copied, DroneChoice, Event, Held, MSP_MO_PER_MIN, Ports, Request, Way, board_text,
+    default_choice, duration_text, firmware_text, reader_choice, recovery_way, size_text,
 };
 use crate::usb_disk::{DiskEvent, DiskJob, DiskPlan, DiskRequest, DiskSource, Volumes, craft_name};
 
 pub const TITLE: &str = "Récupérer par USB";
+/// Le seul bouton de copie d'une carte branchée ; OpenTuneBox choisit la voie (`usb::recovery_way`, D-085).
+pub const RECOVER: &str = "Récupérer les logs";
 pub const PROPS_OFF: &str = "Retirez les hélices avant de brancher la batterie : le drone peut s'armer par erreur.";
 pub const NO_BOARD: &str =
     "Aucune carte trouvée. Branchez le drone en USB (sans le configurateur Betaflight ouvert), puis « Chercher ».";
@@ -142,6 +144,8 @@ pub struct UsbPage {
     last_scan: Option<Instant>,
     /// Le disque vient d'une carte redémarrée (sinon : d'un lecteur de cartes).
     from_board: bool,
+    /// La carte branchée a refusé le mode disque : « Récupérer les logs » passe par l'USB série (D-085).
+    pub no_disk: bool,
     ctx: Option<egui::Context>,
 }
 
@@ -167,6 +171,7 @@ impl UsbPage {
             disk_job: None,
             disk: None,
             volumes_before: Vec::new(),
+            no_disk: false,
             disk_started: None,
             disk_copies: Vec::new(),
             disk_refused: Vec::new(),
@@ -327,7 +332,12 @@ impl UsbPage {
             self.recognized = true;
             self.phase = Phase::Copying { done: 0, total: 0 };
             self.started = Some(Instant::now());
-            self.message.clear();
+            // la voie prise reste écrite pendant la copie quand la carte a refusé le disque (D-085)
+            self.message = if self.no_disk {
+                NO_DISK_COPY.into()
+            } else {
+                String::new()
+            };
             self.error.clear();
             c.request(Request::Copy(path));
         }
@@ -400,6 +410,9 @@ impl UsbPage {
         for e in conn.poll() {
             match e {
                 Event::Connected(b) => {
+                    if self.board.as_ref().map(|x| &x.identity) != Some(&b.identity) {
+                        self.no_disk = false;
+                    }
                     if self.choice.is_none() || self.board.as_ref().map(|x| &x.identity) != Some(&b.identity) {
                         let (c, known) = default_choice(lib, &b.identity);
                         self.choice = Some(c);
@@ -447,6 +460,20 @@ impl UsbPage {
                     self.phase = Phase::Idle;
                     lost = true;
                     self.message = "La carte redémarre : rebranchez-vous pour continuer.".into();
+                }
+                Event::NoDisk(_) => {
+                    // ⚠️ rien n'a redémarré : la mémoire interne passe par l'USB série, tout de suite (D-085) ;
+                    // une carte SD, que l'USB série ne lit pas, se lit dans un lecteur
+                    self.no_disk = true;
+                    self.phase = Phase::Idle;
+                    let flash = self
+                        .board
+                        .as_ref()
+                        .is_some_and(|b| b.flash.supported && b.flash.used > 0);
+                    match self.choice.clone() {
+                        Some(c) if flash => actions.push(UsbAction::Copy(c)),
+                        _ => self.error = READER_HINT.into(),
+                    }
                 }
                 Event::ToDisk(before) => {
                     // le port série disparaît : la suite passe par le disque
@@ -726,52 +753,46 @@ impl UsbPage {
         });
     }
 
-    /// Avant la copie : la copie par USB série (bouton principal) et celle par le mode disque, à côté (D-075).
+    /// Avant la copie : un seul bouton, « Récupérer les logs », par la voie la plus rapide que la carte permet
+    /// (`usb::recovery_way`, D-085), et une ligne qui dit laquelle et pourquoi.
     fn copy_buttons(&mut self, ui: &mut Ui, th: &Theme, b: &Board, busy: bool, actions: &mut Vec<UsbAction>) {
         let ok = !busy && !b.armed && self.choice.is_some();
         let why = if b.armed { ARMED } else { "Choisissez d'abord le drone" };
-        if !b.flash.supported {
-            ui.label("Cette carte n'a pas de mémoire interne : ses logs sont sur carte SD, copiés par le mode disque.");
-            if ui
-                .add_enabled(ok, egui::Button::new("Copier la carte SD (mode disque)"))
-                .on_disabled_hover_text(why)
-                .clicked()
-                && let Some(c) = self.choice.clone()
-            {
-                actions.push(UsbAction::ToDisk(c));
-            }
-            return;
-        }
         let used = u64::from(b.flash.used);
-        if used == 0 {
-            ui.label("La mémoire est vide : rien à copier.");
+        if b.flash.supported && used == 0 {
+            ui.label("La mémoire est vide : rien à récupérer.");
             return;
         }
-        ui.label(before_copy_text(used));
-        ui.horizontal(|ui| {
-            let blue = th.accent("blue");
-            let primary = egui::Button::new(RichText::new("Copier les vols").color(th.on_accent("blue"))).fill(blue);
-            if ui.add_enabled(ok, primary).on_disabled_hover_text(why).clicked()
-                && let Some(c) = self.choice.clone()
-            {
-                actions.push(UsbAction::Copy(c));
+        let way = recovery_way(b, self.no_disk);
+        let note = match way {
+            Way::Reader => {
+                ui.label(RichText::new(READER_HINT).color(th.ui.muted));
+                return;
             }
-            if ui
-                .add_enabled(ok, egui::Button::new("Copier en mode disque"))
-                .on_disabled_hover_text(why)
-                .clicked()
-                && let Some(c) = self.choice.clone()
-            {
-                actions.push(UsbAction::ToDisk(c));
+            Way::Disk if b.flash.supported => {
+                ui.label(format!("{} à copier.", size_text(used)));
+                DISK_NOTE.to_string()
             }
-        });
-        ui.label(
-            RichText::new(
-                "Mode disque : plus rapide, mais il faudra débrancher puis rebrancher le drone pour effacer sa mémoire.",
-            )
-            .color(th.ui.muted)
-            .size(12.0),
-        );
+            Way::Disk => {
+                ui.label("Cette carte n'a pas de mémoire interne : ses logs sont sur carte SD.");
+                "Par le mode disque : le drone redémarre en disque USB, sa carte SD est lue par l'ordinateur.".into()
+            }
+            Way::Serial => {
+                ui.label(before_copy_text(used));
+                serial_note(b, self.no_disk)
+            }
+        };
+        let blue = th.accent("blue");
+        let primary = egui::Button::new(RichText::new(RECOVER).color(th.on_accent("blue"))).fill(blue);
+        if ui.add_enabled(ok, primary).on_disabled_hover_text(why).clicked()
+            && let Some(c) = self.choice.clone()
+        {
+            actions.push(match way {
+                Way::Serial => UsbAction::Copy(c),
+                _ => UsbAction::ToDisk(c),
+            });
+        }
+        ui.label(RichText::new(note).color(th.ui.muted).size(12.0));
     }
 
     /// La barre de progression d'une copie et le temps restant au débit observé.
@@ -1248,6 +1269,29 @@ fn note(ui: &mut Ui, th: &Theme, glyph: &str, col: egui::Color32, text: &str) {
 }
 
 /// La ligne d'avant la copie : la place à copier et la durée annoncée au débit mesuré.
+/// La voie du mode disque, pour une mémoire interne.
+pub const DISK_NOTE: &str = "Par le mode disque (rapide) : le drone redémarre en disque USB. Pour effacer sa mémoire \
+                             ensuite, débranchez-le puis rebranchez-le.";
+/// Écrit pendant la copie par l'USB série d'une carte qui vient de refuser le mode disque.
+pub const NO_DISK_COPY: &str = "Cette carte refuse le mode disque : copie par l'USB série.";
+/// Une carte SD que ni le mode disque ni l'USB série ne peuvent lire.
+pub const READER_HINT: &str = "Ce firmware ne montre pas sa carte SD comme un disque, et l'USB série ne lit pas les \
+                               cartes SD : débranchez le drone, puis lisez sa carte SD dans un lecteur de cartes \
+                               (section « Carte SD dans un lecteur »).";
+
+/// Pourquoi la copie passe par l'USB série : la carte a refusé le mode disque, ou son firmware est trop ancien.
+pub fn serial_note(b: &Board, refused: bool) -> String {
+    if refused {
+        "Par l'USB série : cette carte refuse le mode disque (plus lent, mais sans débrancher pour effacer).".into()
+    } else {
+        format!(
+            "Par l'USB série : ce firmware (API MSP {}.{}) est trop ancien pour le mode disque, qui demande \
+             Betaflight 3.5 ou plus récent.",
+            b.identity.api.0, b.identity.api.1
+        )
+    }
+}
+
 pub fn before_copy_text(used: u64) -> String {
     format!(
         "{} à copier, {} au débit de l'USB (MSP).",

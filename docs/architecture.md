@@ -141,7 +141,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   fenêtre (`disk_plan` : fichiers de copie, et copies **faites par OpenTuneBox** déjà rangées), et supprime les logs SD
   vérifiés sur `DiskRequest::EraseSd` (seul permis : `otb_usb::confirm_sd`). ⚠️ La copie de la mémoire faite par le disque
   attend dans `Held` : seule une connexion à **la même carte** (identifiant connu, place inchangée, `Held::matches`) l'en
-  sort pour effacer. L'écran : deux boutons de copie (USB série d'abord), attente du disque avec « Choisir le
+  sort pour effacer. L'écran : un seul bouton, « Récupérer les logs » (D-085), dont la voie se choisit par la fonction
+  pure `recovery_way` (mode disque dès l'API MSP 1.40, sinon USB série, sinon lecteur de cartes) ; un refus du disque
+  (`Event::NoDisk`) relance seul la copie par l'USB série (`UsbPage::no_disk`) ; attente du disque avec « Choisir le
   dossier… », reconnexion seule après rebranchement, suppression SD en deux clics, section « Carte SD dans un lecteur »
   (`apply_reader_choice`, nom proposé lu dans le log : `craft_name`) ; `volumes` et `pick_folder` sont inertes dans les
   tests (L-075).
