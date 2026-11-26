@@ -174,7 +174,9 @@ cargo run --release -p otb-dev -- usb sd /media/$USER/CARTE ~/Documents/Drones/u
       `--erase` ne supprime qu'eux ; la carte se relit ensuite dans le drone (nouveau log enregistré).
 - [ ] **Carte sans mode disque** (D-085) : firmware d'avant Betaflight 3.5, ou compilé sans `USE_USB_MSC` : la ligne
       sous **Récupérer les logs** dit « USB série » et pourquoi ; la carte ne redémarre pas, la copie passe par l'USB
-      série (seule, après le refus, pour une carte compilée sans le mode disque).
+      série (seule, après le refus, pour une carte compilée sans le mode disque). Sans une telle carte :
+      `cargo run --release -p otb-gui --example usb_simule -- vieux` (ou `sans-disque`, `sd-vieux`, `arme`), essayé
+      et validé par Cédric le 2026-11-26.
 - [x] **L'écran, mode disque** (lot 32c-2, mémoire interne ; carte SD pas encore essayée) : **Copier en mode disque**
       (depuis D-085 : **Récupérer les logs**) ; le disque est trouvé seul (sinon **Choisir le
       dossier…**) ; les vols sont rangés sous le drone ; débrancher, rebrancher : OpenTuneBox se reconnecte seul et
