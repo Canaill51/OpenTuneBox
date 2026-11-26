@@ -84,10 +84,11 @@ pub struct Drone {
     pub from_log: Option<LogMachine>,
 }
 
-/// Pôles moteur et boucle PID lus dans l'en-tête d'un log (`motor_poles`, `looptime` et `pid_process_denom`),
-/// écrits comme dans la fiche (`14`, `3.2`) ; vide : l'en-tête ne le disait pas. ⚠️ C'est ce que **Betaflight**
-/// croit : un mauvais `motor_poles` y est recopié tel quel. La fiche le compare à ce que le pilote a saisi, elle ne
-/// l'écrase pas (D-077). Le KV n'en fait **pas** partie : comme la taille, il est saisi par le pilote, seul à savoir
+/// Ce que l'en-tête (et le début) d'un log dit de la machine, écrit comme dans la fiche (`14`, `3.2`, `2026.6`,
+/// `2S`) ; vide : le log ne le disait pas. Pôles (`motor_poles`), boucle PID (`looptime` et `pid_process_denom`),
+/// version de Betaflight, carte de vol (processeur et cible : `STM32G474 (BETAFPVG473_V2)`) et nombre d'éléments
+/// de la batterie (formule du firmware sur la tension au branchement). La fiche **suit** le dernier log pour ces
+/// champs (D-086, qui amende D-077). Le KV n'en fait **pas** partie : il est saisi par le pilote, seul à savoir
 /// quels moteurs il a montés (`motor_kv` de l'en-tête n'est qu'un réglage, souvent laissé à sa valeur d'usine).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LogMachine {
@@ -95,6 +96,9 @@ pub struct LogMachine {
     pub date: String,
     pub poles: String,
     pub pid_khz: String,
+    pub betaflight: String,
+    pub board: String,
+    pub cells: String,
 }
 
 impl LogMachine {
@@ -103,14 +107,21 @@ impl LogMachine {
             ("le", self.date.clone().into()),
             ("poles", self.poles.clone().into()),
             ("boucle_pid_khz", self.pid_khz.clone().into()),
+            ("betaflight", self.betaflight.clone().into()),
+            ("carte", self.board.clone().into()),
+            ("batterie", self.cells.clone().into()),
         ])
     }
 
+    /// Les champs absents (fichiers écrits avant D-086) sont lus vides.
     pub fn from_value(v: &Value) -> Self {
         LogMachine {
             date: text(v, "le"),
             poles: text(v, "poles"),
             pid_khz: text(v, "boucle_pid_khz"),
+            betaflight: text(v, "betaflight"),
+            board: text(v, "carte"),
+            cells: text(v, "batterie"),
         }
     }
 }

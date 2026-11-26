@@ -1026,7 +1026,10 @@ impl App {
         let drone_id = drone.id.clone();
         drone.firmware = first.settings.firmware.clone();
         // pôles et boucle PID de l'en-tête (D-077) : la fiche suit la boucle PID, compare les pôles
-        crate::drone_sheet::take_log(&mut drone, crate::drone_sheet::machine_of_log(&first.settings, &date));
+        crate::drone_sheet::take_log(
+            &mut drone,
+            crate::drone_sheet::machine_of_log(&first.settings, first.vbat.as_deref(), &date),
+        );
         if drone.first_seen.is_empty() {
             drone.first_seen = date.clone();
         }
@@ -1543,13 +1546,9 @@ impl App {
                                 if let Some(v) = crate::drone_sheet::version_of_firmware(&l.log.settings.firmware) {
                                     sheet.betaflight = v.to_string();
                                 }
-                                // ce que l'en-tête dit remplace les valeurs d'un drone neuf (D-077)
-                                let m = crate::drone_sheet::machine_of_log(&l.log.settings, "");
-                                for (field, v) in [(&mut sheet.poles, m.poles), (&mut sheet.pid_khz, m.pid_khz)] {
-                                    if !v.is_empty() {
-                                        *field = v;
-                                    }
-                                }
+                                // ce que le log dit remplace les valeurs d'un drone neuf (D-077, D-086)
+                                let m = crate::drone_sheet::machine_of_log(&l.log.settings, l.log.vbat.as_deref(), "");
+                                crate::drone_sheet::fill_from_log(&mut sheet, &m);
                             }
                             // un drone que la bibliothèque connaît déjà par ses logs : c'est sa fiche qu'on remplit
                             match self.library.drone_by_name(&c.name) {

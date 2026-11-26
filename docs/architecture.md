@@ -155,8 +155,8 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   rail reste, « Tableau de bord » choisi) : Identité, Machine, Configurations Betaflight (« Voir », « Comparer » au
   précédent), suppression en deux temps. La partie sans fenêtre : choix proposés, traduction fiche ↔ fiche du Guide
   (`card_of`, `sheet_of_card` : la taille affichée ou tapée choisit le profil de l'assistant, `profile_of_size`, écrit
-  sous le champ par `size_note`), machine lue dans le log (D-077 : `machine_of_log`, `take_log` appelé par
-  `App::remember`, `log_note` pour l'écart sous le champ), enregistrement (`save_form` : un nom
+  sous le champ par `size_note`), machine lue dans le log (D-077, D-086 : `machine_of_log`, `board_of_log`, `fill_from_log` ;
+  `take_log` appelé au rangement d'un log par `App`, la fiche suit le dernier log ; `log_note` pour l'écart sous le champ), enregistrement (`save_form` : un nom
   n'appartient qu'à un drone), reprise de l'ancien `drones.json` au lancement (`import_old_file`). L'écran rend des
   `SheetAction` que `App::apply_sheet` exécute. Colonne de droite : la **Fiche cible** (lot 31b, D-072 ; `target_texts`,
   `target_note`, `check_target`, sans fenêtre) — dix cases de `otb_advisor::target::ROWS` ; tant que `DroneSheet::target`

@@ -16,8 +16,8 @@
 //! - **taille « 8″ et plus »** en plus des sept du prototype : l'assistant a un profil pour ces drones ;
 //! - **boucle PID à 1,6 kHz** en plus des cinq du prototype : la moitié d'un gyro BMI270, déjà proposée avant ;
 //! - **taille saisie librement** (la liste ne fait que proposer), le profil de l'Assistant qu'elle choisit écrit
-//!   dessous ; **taille des moteurs** (`2207`) en plus du KV ; **pôles et boucle PID lus dans le dernier log**,
-//!   une note sous le champ quand la fiche en diffère (D-077, demandé par Cédric le 2026-11-25).
+//!   dessous ; **taille des moteurs** (`2207`) en plus du KV ; **pôles, boucle PID, version de Betaflight, batterie et
+//!   carte lus dans le dernier log**, que la fiche suit, une note sous le champ quand le pilote l’a changée (D-077, D-086).
 
 use egui::{Align, Layout, RichText, Ui, Vec2};
 use otb_advisor::drone_card::{DEFAULT_SIZE, DroneCard};
@@ -101,10 +101,29 @@ pub fn khz_text(hz: f64) -> String {
     t.strip_suffix(".0").map_or_else(|| t.clone(), str::to_string)
 }
 
-/// Pôles et boucle PID d'un log, datés de `date` (jamais le KV : il est saisi par le pilote, D-077). Une valeur que l'en-tête ne porte pas reste vide :
+/// La carte de vol d'un log, écrite comme au branchement USB, processeur d'abord : `STM32G474 (BETAFPVG473_V2)`.
+/// La cible vient de « Board information » (`BEFH BETAFPVG473_V2`, le code du fabricant retiré) ; vide si le log
+/// ne dit ni l'un ni l'autre.
+pub fn board_of_log(s: &Settings) -> String {
+    let target = s
+        .raw
+        .get("Board information")
+        .and_then(|b| b.split_whitespace().last())
+        .unwrap_or("")
+        .to_string();
+    match (s.board.trim(), target.as_str()) {
+        ("", t) => t.to_string(),
+        (mcu, "") => mcu.to_string(),
+        (mcu, t) => format!("{mcu} ({t})"),
+    }
+}
+
+/// Ce qu'un log dit de la machine, daté de `date` (D-086) : pôles, boucle PID, version de Betaflight, carte de vol et
+/// éléments de la batterie (`vbat` : la tension enregistrée, quand l'en-tête n'a pas `vbatref`). Jamais le KV : il
+/// est saisi par le pilote (D-077). Une valeur que le log ne porte pas reste vide :
 /// ⚠️ `Settings` remplace un `motor_poles` absent par 14, et un `looptime` absent par 125 µs — on regarde
 /// donc l'en-tête brut, sinon la fiche recevrait une valeur inventée.
-pub fn machine_of_log(s: &Settings, date: &str) -> LogMachine {
+pub fn machine_of_log(s: &Settings, vbat: Option<&[f32]>, date: &str) -> LogMachine {
     let has = |k: &str| s.raw.contains_key(k);
     LogMachine {
         date: date.to_string(),
@@ -118,24 +137,41 @@ pub fn machine_of_log(s: &Settings, date: &str) -> LogMachine {
         } else {
             String::new()
         },
+        betaflight: version_of_firmware(&s.firmware).unwrap_or("").to_string(),
+        board: board_of_log(s),
+        cells: otb_log::flightlog::cell_count(s, vbat).map_or_else(String::new, |n| format!("{n}S")),
+    }
+}
+
+/// Recopie dans la fiche ce que le log en dit (une valeur vide ne change rien) : pôles, boucle PID, version de
+/// Betaflight, batterie. La carte de vol n'est pas dans la fiche (`take_log`).
+pub fn fill_from_log(s: &mut DroneSheet, m: &LogMachine) {
+    for (field, v) in [
+        (&mut s.poles, &m.poles),
+        (&mut s.pid_khz, &m.pid_khz),
+        (&mut s.betaflight, &m.betaflight),
+        (&mut s.cells, &m.cells),
+    ] {
+        if !v.is_empty() {
+            field.clone_from(v);
+        }
     }
 }
 
 /// Range ce qu'un log dit de la machine dans son drone. Un log **plus ancien** que le dernier lu ne change rien.
-/// La fiche, si elle existe, suit le log pour la boucle PID (un réglage de Betaflight, dont le log fait foi) ;
-/// les pôles n'y sont écrits que s'ils sont vides : le pilote sait mieux que Betaflight ce qu'il a monté, et
-/// une différence est signalée sous le champ (`log_note`), jamais corrigée en silence.
+/// La fiche, si elle existe, **suit** le dernier log (D-086, demandé par Cédric : une fiche à 14 pôles quand le log
+/// dit 12 est fausse pour le filtre RPM) ; le pilote peut encore la corriger, une note sous le champ dit alors
+/// l'écart (`log_note`), et le log suivant la remet à jour. La carte de vol suit le log tant que le drone n'a pas
+/// été branché en USB : la carte lue au branchement (avec son identifiant) est plus sûre.
 pub fn take_log(drone: &mut Drone, m: LogMachine) {
     if drone.from_log.as_ref().is_some_and(|old| m.date < old.date) {
         return;
     }
     if let Some(s) = drone.sheet.as_mut() {
-        if !m.pid_khz.is_empty() {
-            s.pid_khz = m.pid_khz.clone();
-        }
-        if s.poles.trim().is_empty() {
-            s.poles = m.poles.clone();
-        }
+        fill_from_log(s, &m);
+    }
+    if drone.uid.is_empty() && !m.board.is_empty() {
+        drone.board = m.board.clone();
     }
     drone.from_log = Some(m);
 }
@@ -150,11 +186,13 @@ fn same_number(a: &str, b: &str) -> bool {
 }
 
 /// La note sous un champ que le log renseigne : `None` si le log n'en dit rien ; sinon `(texte, true)` quand la
-/// fiche en diffère. `what` : `poles` ou `pid`.
+/// fiche en diffère (le pilote l'a changée depuis). `what` : `poles`, `pid`, `betaflight` ou `cells`.
 pub fn log_note(what: &str, sheet_value: &str, from_log: Option<&LogMachine>) -> Option<(String, bool)> {
     let m = from_log?;
     let v = match what {
         "poles" => &m.poles,
+        "betaflight" => &m.betaflight,
+        "cells" => &m.cells,
         _ => &m.pid_khz,
     };
     if v.is_empty() {
@@ -165,7 +203,8 @@ pub fn log_note(what: &str, sheet_value: &str, from_log: Option<&LogMachine>) ->
     }
     let text = match what {
         "poles" => format!("Le dernier log dit {v} : vérifiez motor_poles dans Betaflight, le filtre RPM s’en sert."),
-        _ => format!("Le dernier log dit {} kHz.", khz(v)),
+        "pid" => format!("Le dernier log dit {} kHz.", khz(v)),
+        _ => format!("Le dernier log dit {v}."),
     };
     Some((text, true))
 }
@@ -289,8 +328,8 @@ pub struct SheetForm {
 }
 
 impl SheetForm {
-    /// La fiche d'un drone de la bibliothèque ; un drone sans fiche part des valeurs d'un drone neuf, avec la
-    /// version de Betaflight, les pôles et la boucle PID de ses logs quand ils les disent.
+    /// La fiche d'un drone de la bibliothèque ; un drone sans fiche part des valeurs d'un drone neuf, avec ce que
+    /// ses logs disent de la machine (version de Betaflight, pôles, boucle PID, batterie : D-086).
     pub fn edit(drone: &Drone) -> SheetForm {
         let sheet = drone.sheet.clone().unwrap_or_else(|| {
             let mut s = new_sheet();
@@ -298,11 +337,7 @@ impl SheetForm {
                 s.betaflight = v.to_string();
             }
             if let Some(m) = &drone.from_log {
-                for (field, v) in [(&mut s.poles, &m.poles), (&mut s.pid_khz, &m.pid_khz)] {
-                    if !v.is_empty() {
-                        field.clone_from(v);
-                    }
-                }
+                fill_from_log(&mut s, m);
             }
             s
         });
@@ -892,13 +927,21 @@ fn read_only(ui: &mut Ui, th: &Theme, label: &str, value: &str, note: &str) {
 
 fn identity(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
     let drone = form.id.as_ref().and_then(|id| lib.drone(id));
-    // l'identifiant n'est celui de la carte que si le drone a été vu par USB (sa carte est alors connue)
-    let (uid, carte) = match drone {
-        Some(d) if !d.board.is_empty() => (d.id.clone(), d.board.clone()),
-        _ => (
-            "en attente du branchement".to_string(),
-            "en attente du branchement".to_string(),
-        ),
+    // l'identifiant gravé ne se lit qu'au branchement USB ; la carte, aussi dans le dernier log (D-086)
+    let attente = || "en attente du branchement".to_string();
+    let uid = drone
+        .map(|d| d.uid.clone())
+        .filter(|u| !u.is_empty())
+        .unwrap_or_else(attente);
+    let usb = drone.is_some_and(|d| !d.uid.is_empty());
+    let carte = drone
+        .map(|d| d.board.clone())
+        .filter(|b| !b.is_empty())
+        .unwrap_or_else(attente);
+    let carte_note = if !usb && drone.is_some_and(|d| !d.board.is_empty()) {
+        "Lue dans le dernier log ; le branchement USB la confirmera."
+    } else {
+        "Lue au branchement USB."
     };
     section(ui, th, "Identité", None, |ui| {
         ui.vertical(|ui| {
@@ -923,7 +966,7 @@ fn identity(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
                 &uid,
                 "Lu automatiquement au branchement USB.",
             );
-            read_only(&mut c[1], th, "Carte de vol", &carte, "Lue au branchement USB.");
+            read_only(&mut c[1], th, "Carte de vol", &carte, carte_note);
         });
     });
 }
@@ -937,6 +980,8 @@ fn machine(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
     let s = &mut form.sheet;
     let taille = size_note(&s.size);
     let poles = log_note("poles", &s.poles, from_log.as_ref());
+    let cells = log_note("cells", &s.cells, from_log.as_ref());
+    let bf = log_note("betaflight", &s.betaflight, from_log.as_ref());
     let pid = log_note("pid", &s.pid_khz, from_log.as_ref());
     let pid = pid.map(|(t, w)| (format!("en kHz · {}", t.to_lowercase().trim_end_matches('.')), w));
     section(ui, th, "Machine", None, |ui| {
@@ -952,7 +997,16 @@ fn machine(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
                 &mut s.size,
                 Some((&taille, false)),
             );
-            select(&mut c[1], th, "Batterie", "batterie", &CELLS, &mut s.cells, as_is, None);
+            select(
+                &mut c[1],
+                th,
+                "Batterie",
+                "batterie",
+                &CELLS,
+                &mut s.cells,
+                as_is,
+                as_note(&cells),
+            );
             text_field(&mut c[2], th, "Poids", &mut s.weight, Some("g"), None);
         });
         ui.columns(3, |c| {
@@ -985,7 +1039,7 @@ fn machine(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
                 &BF_VERSIONS,
                 &mut s.betaflight,
                 as_is,
-                None,
+                as_note(&bf),
             );
         });
         ui.columns(3, |c| {

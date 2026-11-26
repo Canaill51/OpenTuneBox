@@ -118,46 +118,78 @@ fn une_taille_libre_choisit_son_profil_et_le_dit() {
 #[test]
 fn le_log_dit_les_poles_et_la_boucle_pid() {
     let log = &otb_log::flightlog::load(&donnees()).unwrap()[0];
-    let m = machine_of_log(&log.settings, "2026-11-25");
+    let m = machine_of_log(&log.settings, log.vbat.as_deref(), "2026-11-25");
     assert_eq!(
         (m.poles.as_str(), m.pid_khz.as_str()),
         ("14", "3.2"),
         "312 µs, une boucle sur 1 : 3,2 kHz"
     );
-    let vide = machine_of_log(&otb_log::settings::Settings::default(), "2026-11-25");
-    assert_eq!((vide.poles, vide.pid_khz), (String::new(), String::new()));
+    // D-086 : version, carte et batterie (vbatref 25,06 V, 4,40 V au plus par élément : 6S)
+    assert_eq!(m.betaflight, "2026.6", "2026.6.0-rc3");
+    assert_eq!(m.board, "STM32F405 (SKYSTARSF405)", "le code du fabricant retiré");
+    assert_eq!(m.cells, "6S");
+    let vide = machine_of_log(&otb_log::settings::Settings::default(), None, "2026-11-25");
+    assert_eq!(
+        vide,
+        otb_store::model::LogMachine {
+            date: "2026-11-25".into(),
+            ..Default::default()
+        },
+        "rien d'inventé"
+    );
     assert_eq!(
         [8000.0, 4000.0, 3205.1, 1600.0, 2666.7].map(khz_text),
         ["8", "4", "3.2", "1.6", "2.7"]
     );
 }
 
-/// La fiche **suit** le log pour la boucle PID, ne **remplit** que les pôles vides, et dit sous le champ
-/// quand elle diffère du log ; un log plus ancien rouvert ne change rien ; un drone sans fiche n'en reçoit pas
-/// (D-068), mais la fiche qu'on lui ouvre part des valeurs du log.
+/// D-086 : la fiche **suit** le dernier log — pôles, boucle PID, version de Betaflight, batterie — et dit sous le
+/// champ quand le pilote l'a changée depuis ; un log plus ancien rouvert ne change rien ; un drone sans fiche n'en
+/// reçoit pas (D-068), mais la fiche qu'on lui ouvre part des valeurs du log. La carte de vol suit le log tant que
+/// le drone n'a pas été branché en USB.
 ///
-/// Contre-preuve vue en échec (2026-11-25) : en écrivant les pôles du log même quand le pilote en a saisi, la
-/// troisième assertion rougit (« 14 » au lieu de « 12 »).
+/// **Contre-preuve** : avec l'ancienne règle de D-077 (pôles écrits seulement s'ils sont vides), la fiche garde
+/// « 12 » et l'assertion sur les pôles rougit.
 #[test]
-fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
+fn la_fiche_suit_le_dernier_log_et_signale_un_changement_du_pilote() {
     let lu = |date: &str, pid: &str| otb_store::model::LogMachine {
         date: date.into(),
         poles: "14".into(),
         pid_khz: pid.into(),
+        betaflight: "4.5".into(),
+        board: "STM32F405 (SKYSTARSF405)".into(),
+        cells: "4S".into(),
     };
     let mut d = avec_fiche("A", "A");
     d.sheet.as_mut().unwrap().poles = "12".into();
     take_log(&mut d, lu("2026-11-20", "3.2"));
     let s = d.sheet.clone().unwrap();
     assert_eq!(s.pid_khz, "3.2", "la boucle PID suit le log");
-    assert_eq!(s.poles, "12", "les pôles saisis restent");
+    assert_eq!(s.poles, "14", "les pôles suivent le log (12 → 14)");
+    assert_eq!((s.betaflight.as_str(), s.cells.as_str()), ("4.5", "4S"));
+    assert_eq!(d.board, "STM32F405 (SKYSTARSF405)", "jamais branché : la carte du log");
     assert_eq!(
         log_note("poles", &s.poles, d.from_log.as_ref()),
+        Some(("Lu dans le dernier log.".to_string(), false))
+    );
+    // le pilote change la fiche après coup : la note dit l'écart
+    assert_eq!(
+        log_note("poles", "12", d.from_log.as_ref()),
         Some((
             "Le dernier log dit 14 : vérifiez motor_poles dans Betaflight, le filtre RPM s’en sert.".to_string(),
             true
         ))
     );
+    assert_eq!(
+        log_note("cells", "6S", d.from_log.as_ref()),
+        Some(("Le dernier log dit 4S.".to_string(), true))
+    );
+    // branché en USB : sa carte (lue avec l'identifiant) ne cède plus la place à celle du log
+    let mut usb = avec_fiche("U", "U");
+    usb.uid = "0123456789ABCDEF01234567".into();
+    usb.board = "STM32F405 (S405)".into();
+    take_log(&mut usb, lu("2026-11-20", "3.2"));
+    assert_eq!(usb.board, "STM32F405 (S405)");
     assert_eq!(
         log_note("pid", &s.pid_khz, d.from_log.as_ref()),
         Some(("Lu dans le dernier log.".to_string(), false))
@@ -181,6 +213,7 @@ fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
     assert_eq!(sans.sheet, None, "pas de fiche inventée");
     let f = SheetForm::edit(&sans);
     assert_eq!((f.sheet.poles.as_str(), f.sheet.pid_khz.as_str()), ("14", "4"));
+    assert_eq!((f.sheet.betaflight.as_str(), f.sheet.cells.as_str()), ("4.5", "4S"));
     assert_eq!(f.sheet.kv, "", "le KV n'est jamais tiré du log");
 }
 
@@ -193,15 +226,28 @@ fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
 #[test]
 fn un_log_ouvert_renseigne_la_fiche() {
     let mut app = App::new(otb_gui::tools::all_pages());
-    app.library.put_drone(avec_fiche("cree-a-la-main", &nom_du_log()));
+    // une fiche qui diffère du log sur tout ce qu'il dit (D-086 : comme les 14 pôles de Cédric contre 12)
+    let mut fiche = avec_fiche("cree-a-la-main", &nom_du_log());
+    let s = fiche.sheet.as_mut().unwrap();
+    (s.poles, s.cells, s.betaflight, s.pid_khz) = ("12".into(), "2S".into(), "4.5".into(), "8".into());
+    app.library.put_drone(fiche);
     let mut h = banc(app);
     h.run_steps(2);
     h.state_mut().open(vec![donnees()]);
     attendre_logs(&mut h, 1);
     let d = h.state().library.drone("cree-a-la-main").unwrap().clone();
     assert_eq!(d.from_log.as_ref().map(|m| m.pid_khz.as_str()), Some("3.2"));
+    assert_eq!(d.board, "STM32F405 (SKYSTARSF405)");
     let s = d.sheet.unwrap();
-    assert_eq!((s.pid_khz.as_str(), s.poles.as_str()), ("3.2", "14"));
+    assert_eq!(
+        (
+            s.pid_khz.as_str(),
+            s.poles.as_str(),
+            s.cells.as_str(),
+            s.betaflight.as_str()
+        ),
+        ("3.2", "14", "6S", "2026.6")
+    );
     assert_eq!(s.kv, "", "le KV n'est jamais tiré du log");
 }
 

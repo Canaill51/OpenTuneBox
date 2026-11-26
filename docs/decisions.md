@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-086 | **La fiche du drone suit le dernier log** : pôles, boucle PID, version de Betaflight, éléments de la batterie (formule du firmware) et carte de vol (tant que le drone n'a pas été branché en USB) ; une valeur absente du log ne change rien ; le pilote peut corriger, une note dit l'écart, le log suivant remet à jour ; le KV reste au pilote ; l'écran montre le vrai identifiant de carte **(amende D-077)** | 2026-11-26 |
 | D-084 | **Choisir la fiche d'un log qu'aucun drone ne reconnaît** : sans nom de machine, ou avec un nom qu'aucune fiche ne porte (bibliothèque non vide), une fenêtre « Rattacher à un drone » demande, **une ligne par fichier** ; « Ne pas ranger » garde le log pour la séance ; « Rattacher à un drone… » dans l'écran d'extraction la rouvre, et « Enregistrer le fragment » sur un log non rangé aussi (bornes, nom et rôle gardés au rattachement) ; un log rattaché est reconnu ensuite par son **empreinte** ; **écart au prototype** **(amende D-066 et D-068)** | 2026-11-26 |
 | D-083 | **La page « Curseurs PID » est retirée** du rail (le calcul, le graphique de la Réponse indicielle et la ligne de la Configuration restent) ; l'objectif devient « tous les outils de PIDtoolbox Pro V0.94 **sauf Curseurs PID** » **(amende D-060 et D-061)** | 2026-11-25 |
 | D-082 | **Tri des fenêtres de la réponse indicielle** : notre propre tri (jamais celui de PIDtoolbox, D-004) — réponse gardée **entre 0,5 et 1,5 dès 150 ms**, puis fenêtres trop loin de la **courbe médiane** écartées (médiane + 3 MAD normalisés) ; mesures de boucle sur les seules fenêtres gardées ; **tri de Python** (0,5–3 sur 200–500 ms) gardé pour les références figées (`StepOptions::python`, `rules::Method::python`) ; l'assistant est recalibré (pic 1,15 / 1,20, avec feedforward 1,30 / 1,45 ; D-025 amendée) | 2026-11-25 |
@@ -77,7 +78,7 @@ ici, jamais dans le code.
 | D-080 | **Et si : multiplicateurs de filtres gyro et D comme Betaflight Configurator** : interrupteur et curseur (0,10 à 2,00, pas de 0,05) en tête des passe-bas, fréquences recalculées à l'arithmétique du firmware et grisées ; interrupteur repris du log seulement si ses coupures sont celles du curseur ; CLI = état du curseur + coupures | 2026-11-25 |
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
 | D-078 | **« Bruit et filtres » sans le terme D préfiltre** : le D avant filtres, reconstruit et non enregistré, n'est plus proposé dans le Spectre, Fréq. × gaz et Fréq. × temps ; « Terme D » montre le D filtré seul (une colonne par fragment dans × gaz) ; préréglages 1 et 5 de PIDtoolbox retirés ; onglets de l'espace dessinés comme le prototype ; **amende D-069** | 2026-11-25 |
-| D-077 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** : la taille se tape (la liste propose), son profil d'assistant se lit avec les bornes de la taille par le nom et s'écrit sous le champ ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log (par date) : la fiche suit la boucle PID, ne remplit les pôles que vides, et signale un écart sans le corriger ; le KV reste saisi par le pilote, jamais tiré du log **(amende D-068 et D-061)** | 2026-11-25 |
+| D-077 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** : la taille se tape (la liste propose), son profil d'assistant se lit avec les bornes de la taille par le nom et s'écrit sous le champ ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log (par date) : la fiche suit la boucle PID, ne remplit les pôles que vides, et signale un écart sans le corriger ; le KV reste saisi par le pilote, jamais tiré du log **(amende D-068 et D-061)** **(amendée par D-086)** | 2026-11-25 |
 | D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
 | D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
 | D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
@@ -154,6 +155,39 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-26 — La fiche du drone suit le dernier log
+
+### D-086 : pôles, boucle PID, version de Betaflight, batterie et carte de vol viennent du dernier log
+
+**Tranché par Cédric** le 2026-11-26, en essayant D-084 : sa fiche « Whisper 25 » disait 14 pôles, ses logs 12 ; la note
+orange de D-077 le signalait, mais il veut que la fiche **se mette à jour** avec tout ce que le log peut dire. Il a
+choisi les cinq champs proposés.
+
+**Décision.**
+- **Lu dans le log** (`rust/otb-gui/src/drone_sheet.rs:machine_of_log`, rangé dans `lu_dans_le_log`) : pôles
+  (`motor_poles`), boucle PID (`looptime`, `pid_process_denom`), version de Betaflight (« Firmware revision », réduite
+  aux versions de la liste : `version_of_firmware`), carte de vol (processeur et cible de « Board information », code du
+  fabricant retiré : `STM32G474 (BETAFPVG473_V2)`, `board_of_log`), éléments de la batterie (formule du firmware sur
+  `vbatref`, sinon la première tension enregistrée : `otb_log::flightlog::cell_count`). Une valeur absente reste vide,
+  jamais inventée.
+- **La fiche suit le dernier log** (par date ; un log plus ancien rouvert ne change rien) pour ces champs
+  (`fill_from_log`, appelé par `take_log`). Le pilote peut encore les changer : la note sous le champ dit alors l'écart,
+  et le log suivant les remet à jour. Un drone sans fiche n'en reçoit toujours pas (D-068) ; la fiche qu'on lui ouvre
+  part de ces valeurs.
+- **La carte de vol** suit le log tant que le drone n'a pas d'identifiant de carte (jamais branché en USB) : la carte
+  lue au branchement reste. L'écran montre enfin l'**identifiant** gravé (`uid`) dans son champ — il y montrait
+  l'identifiant interne du drone dès qu'une carte était connue.
+- **Le KV reste au pilote** (D-077 inchangée sur ce point : `motor_kv` vaut souvent sa valeur d'usine).
+- **Amende D-077**, dont elle reprend l'option écartée « écraser toujours par le log » : un `motor_poles` faux dans
+  Betaflight n'est plus signalé par la fiche, il y est recopié. Accepté par Cédric : la fiche dit ce que Betaflight
+  utilise, et c'est dans Betaflight qu'une valeur fausse se corrige.
+
+**Options écartées.** Garder la règle de D-077 (la fiche resterait fausse jusqu'à une correction à la main) ; reprendre
+le KV (valeur d'usine) ; déduire l'ESC (le log ne dit que le protocole, pas le firmware de l'ESC) ; ajouter les versions
+de Betaflight absentes de la liste (2026.12…) : la fiche garde alors sa valeur.
 
 ---
 
@@ -365,6 +399,9 @@ sans comparer, curseur ignoré par le CLI. Captures de l'Et si sur `CHIRP-25Hz.b
 ## 2026-11-25 — La fiche du drone lit le log
 
 ### D-077 : taille saisie librement, taille des moteurs, pôles et boucle PID lus dans le dernier log
+
+**AMENDÉE par D-086** (2026-11-26) : la fiche **suit** le dernier log pour les pôles aussi (plus seulement s'ils sont
+vides), et pour la version de Betaflight, la batterie et la carte de vol (tant que le drone n'a pas été branché en USB).
 
 **Tranché par Cédric** le 2026-11-25, après son essai de la fiche : « la partie taille, c'est un menu déroulant où les
 chiffres sont verrouillés […] je voudrais qu'on puisse modifier ça. La partie des pôles moteurs, […] tu peux récupérer

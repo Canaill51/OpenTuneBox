@@ -484,6 +484,9 @@ fn la_fiche_du_drone_se_retrouve_et_un_drone_sans_fiche_le_reste() {
         date: "2026-11-25".into(),
         poles: "14".into(),
         pid_khz: "3.2".into(),
+        betaflight: "2026.6".into(),
+        board: "STM32F405 (SKYSTARSF405)".into(),
+        cells: "6S".into(),
     };
     d.from_log = Some(lu.clone());
     lib.put_drone(d);

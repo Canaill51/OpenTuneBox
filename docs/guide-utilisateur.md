@@ -160,11 +160,13 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   dans Betaflight, onglet Configuration : c'est lui qui relie les logs au drone), taille (elle choisit les seuils de
   l'Assistant et les valeurs du Guide), batterie, poids, taille et KV des moteurs, pôles moteur, hélices, ESC, version de
   Betaflight, boucle PID. La **taille** se tape librement (« 3,5″ », « 10″ », « 85 mm ») ou se choisit avec la flèche ;
-  la ligne dessous dit quels seuils l'Assistant prendra. Les **pôles** et la **boucle PID** se lisent dans vos logs :
-  la boucle PID suit le dernier log ; les pôles n'y sont pris que si vous ne les avez pas remplis, et si votre valeur
-  diffère du log, une note orange le signale (un `motor_poles` faux dans Betaflight fausse le filtre RPM). Le **KV**,
-  comme la taille du drone et celle des moteurs, est à remplir vous-même : il n'est jamais tiré du log. La
-  carte de vol et son identifiant s'y lisent au premier branchement USB, comme l'historique des **configurations**
+  la ligne dessous dit quels seuils l'Assistant prendra. Les **pôles**, la **boucle PID**, la **version de
+  Betaflight** et la **batterie** (nombre d'éléments, calculé sur la tension au branchement) se lisent dans vos logs :
+  la fiche suit le dernier log. Si vous changez une de ces valeurs à la main, une note orange dit ce que le log
+  indique, et le log suivant remet la fiche à jour : une valeur fausse (un `motor_poles` faux fausse le filtre RPM) se
+  corrige dans Betaflight. Le **KV**, comme la taille du drone et celle des moteurs, est à remplir vous-même : il
+  n'est jamais tiré du log. La **carte de vol** se lit dans le log en attendant le premier branchement USB, qui la
+  confirme et lit l'**identifiant** de la carte, comme l'historique des **configurations**
   (`diff all`) : **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis
   **Supprimer définitivement** retire le drone, ses fragments et ses configurations du logiciel. Vos fichiers de logs
   ne sont pas effacés ; ceux que le logiciel a **copiés par USB** ne le sont que si vous cochez **Supprimer aussi les
