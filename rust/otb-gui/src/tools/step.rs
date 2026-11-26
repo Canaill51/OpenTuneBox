@@ -414,7 +414,7 @@ impl StepTool {
             .allow_drag([false, true])
             .allow_zoom([false, true])
             .allow_scroll(false)
-            .x_axis_label("Test")
+            .x_axis_label("Vol") // le numéro du vol, celui de la légende « 1) … »
             .y_axis_label(format!("{} — {unit}", AXIS_NAMES[ax]))
             .grid_color(theme.grid_color())
             .x_grid_spacer(move |_| {
