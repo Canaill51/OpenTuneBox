@@ -4,6 +4,7 @@
 pub mod advice;
 pub mod analysis_bar;
 pub mod app;
+pub mod attach;
 pub mod colormaps;
 pub mod dashboard;
 pub mod drone_sheet;

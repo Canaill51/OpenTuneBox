@@ -121,7 +121,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   `DashAction::Toggle`) et suivi d'un crayon qui ouvre l'écran d'extraction sur lui
   (`DashAction::Edit`). Un drone est reconnu par le **nom de machine** de
   l'en-tête (`Craft name`), cherché par nom (`Library::drone_by_name`) : un drone créé à la main ou renommé garde ses logs
-  (D-068). Le crayon d'une carte et « Nouveau drone » ouvrent la fiche du drone (`DashAction::EditDrone`, `DashAction::NewDrone`).
+  (D-068). Un log qu'aucun drone ne reconnaît (sans nom, ou nom inconnu dans une bibliothèque qui a des drones) attend
+  dans `attach.rs` (`AttachDialog`, D-084) : la fenêtre « Rattacher à un drone », une ligne par fichier, range le
+  fichier sous le drone choisi (`App::attach_log`) ; l'écran d'extraction la rouvre (`ExtAction::Attach`). Le crayon d'une carte et « Nouveau drone » ouvrent la fiche du drone (`DashAction::EditDrone`, `DashAction::NewDrone`).
 - `usb.rs` et `usb_page.rs` : la **récupération par USB** (lot 32b, D-074), écran hors rail (`Screen::Usb`) ouvert par
   « Récupérer par USB » au tableau de bord. `usb.rs` : un **fil de travail** par connexion (`Connection`) tient le port
   (`Ports` : le vrai par `serial2`, ou une carte simulée dans les tests) et traite une demande à la fois — relire l'état,

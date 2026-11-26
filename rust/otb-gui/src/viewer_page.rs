@@ -143,6 +143,9 @@ pub enum ExtAction {
     Delete { index: usize },
     /// Bouton du thème de la barre du haut.
     ToggleTheme,
+    /// « Rattacher à un drone… » : la fenêtre de choix de la fiche s'ouvre pour le log `index`, rangé sous aucun
+    /// drone (D-084).
+    Attach { index: usize },
 }
 
 /// Glissement en cours dans la barre de navigation.
@@ -552,7 +555,8 @@ impl ViewerPage {
                 let aide = if info.stored {
                     "Les bornes deviennent la période d'analyse de ce log, et la bibliothèque les garde."
                 } else {
-                    "Les bornes deviennent la période d'analyse de ce log pour cette séance (log rangé sous aucun drone)."
+                    "Les bornes deviennent la période d'analyse de ce log ; la bibliothèque les gardera une fois le log \
+                     rattaché à un drone (la fenêtre le demande)."
                 };
                 if ui.add_enabled(ll.is_some(), enregistrer).on_hover_text(aide).clicked()
                     && let (Some(index), Some(draft)) = (state.current, self.draft.clone())
@@ -574,7 +578,7 @@ impl ViewerPage {
                     "Ce fragment ne change pas : un autre est rangé dans la même session, avec ces bornes, ce nom et ce \
                      rôle, et rejoint la liste d'analyse."
                 } else {
-                    "Impossible : ce log n'est rangé sous aucun drone (pas de nom de machine dans l'en-tête)."
+                    "Impossible : ce log n'est rangé sous aucun drone. Rattachez-le d'abord (« Rattacher à un drone… »)."
                 };
                 if ui
                     .add_enabled(ll.is_some() && info.stored, nouveau)
@@ -762,9 +766,19 @@ impl ViewerPage {
             ui.add_space(6.0);
             note(
                 ui,
-                "Ce log n'est rangé sous aucun drone (pas de nom de machine dans l'en-tête) : ces limites valent pour \
-                 cette séance, la bibliothèque ne les garde pas.",
+                "Ce log n'est rangé sous aucun drone : ces limites valent pour cette séance, tant qu'il n'est pas \
+                 rattaché à une fiche.",
             );
+            ui.add_space(6.0);
+            // ⚠️ Écart au prototype (D-084) : il ne connaît pas de log sans drone. Bouton secondaire, comme « Limites auto ».
+            if ui
+                .add(outline_button(th, Some("drone"), "Rattacher à un drone…", false))
+                .on_hover_text("Choisir la fiche de ce log : ses fragments seront enregistrés dans la bibliothèque")
+                .clicked()
+                && let Some(index) = state.current
+            {
+                actions.push(ExtAction::Attach { index });
+            }
         }
         if info.added {
             ui.add_space(14.0);

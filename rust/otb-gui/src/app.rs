@@ -182,6 +182,11 @@ pub struct App {
     cards_seen: Option<u64>,
     /// La barre de fragments du haut (liste d'analyse, D-066).
     pub bar: AnalysisBar,
+    /// Logs ouverts qu'aucun drone ne reconnaît : la fenêtre qui demande leur fiche (D-084).
+    pub attach: crate::attach::AttachDialog,
+    /// Fragments « enregistrés » sur un log rangé sous aucun drone, par `LoadedLog::uid` : leurs bornes, nom et rôle
+    /// valent pour la séance et passent à la bibliothèque si le log est rattaché à un drone (D-084).
+    unsaved: HashMap<u64, crate::viewer_page::Draft>,
     /// Fichiers dont on n'ouvre que certaines sessions (le « + » d'un fragment, la liste relue au lancement) :
     /// identifiants des fragments voulus. Un fichier absent d'ici s'ouvre en entier.
     wanted: HashMap<PathBuf, HashSet<String>>,
@@ -335,6 +340,8 @@ impl App {
             tracking: Default::default(),
             cards_seen: None,
             bar: AnalysisBar::new(),
+            attach: Default::default(),
+            unsaved: HashMap::new(),
             wanted: HashMap::new(),
             open_roles: HashMap::new(),
             restoring: None,
@@ -581,8 +588,11 @@ impl App {
             self.library.put_fragment(f);
             self.errors.push(format!("Fragment « {nom} » enregistré."));
         } else {
+            // log rangé sous aucun drone : le fragment attend son rattachement (D-084), que la fenêtre demande aussitôt
+            self.unsaved.insert(draft.uid, draft);
+            self.ask_attach(index);
             self.errors.push(format!(
-                "Limites de « {nom} » appliquées pour cette séance (log rangé sous aucun drone)."
+                "Limites de « {nom} » appliquées pour cette séance : rattachez le log à un drone pour les garder."
             ));
         }
     }
@@ -603,8 +613,8 @@ impl App {
                 return true;
             }
         };
-        let log_id = self.remember(path, &logs);
         let role_choisi = self.open_roles.remove(path);
+        let log_id = self.remember(path, &logs, role_choisi);
         for log in logs {
             // ⚠️ Une session peut porter **plusieurs** fragments (D-067) : « Ouvrir… » ne met en analyse que celui de
             // la session ; le « + » d'un fragment ajouté, la liste relue au lancement ou son crayon le demandent par
@@ -944,35 +954,75 @@ impl App {
     }
 
     /// Range un fichier ouvert dans la bibliothèque : **un enregistrement par fichier** (ses sessions deviendront
-    /// des fragments, lot 29b), et son drone reconnu par le **nom de machine** de l'en-tête. Tant que la
-    /// récupération par USB n'apporte pas l'identifiant de la carte (lot 32), c'est la seule identité disponible :
-    /// un log sans nom de machine n'est donc rangé sous aucun drone, plutôt que sous un drone inventé.
+    /// des fragments, lot 29b), et son drone reconnu par l'**empreinte** d'un log déjà rangé, sinon par le **nom de
+    /// machine** de l'en-tête (D-068). Quand aucun drone ne le reconnaît, l'application **demande** sa fiche (D-084) :
+    /// le fichier attend dans [`crate::attach::AttachDialog`], ouvert mais rangé sous aucun drone, jusqu'au choix.
+    /// Seule exception : un nom de machine dans une bibliothèque sans aucun drone — il n'y a rien d'autre à proposer
+    /// qu'un nouveau drone de ce nom, créé sans question comme avant.
     ///
     /// Le fichier est relu pour son empreinte (quelques millisecondes : il vient d'être décodé, donc il est dans
-    /// le cache du système). C'est le prix du refus des doublons quand un même vol est ouvert depuis deux dossiers.
+    /// le cache du système). C'est le prix du refus des doublons quand un même vol est ouvert depuis deux dossiers,
+    /// et ce qui reconnaît un log **sans nom** déjà rattaché à la main.
     ///
     /// Rend l'empreinte du fichier (identifiant du log dans la bibliothèque), `None` s'il n'est pas rangé.
-    fn remember(&mut self, path: &Path, logs: &[FlightLog]) -> Option<String> {
+    fn remember(&mut self, path: &Path, logs: &[FlightLog], role: Option<&'static str>) -> Option<String> {
         let first = logs.first()?;
         let nom = first.settings.craft_name.trim().to_string();
-        if nom.is_empty() {
-            return None;
-        }
         let bytes = std::fs::read(path).ok()?;
-        let date = crate::dashboard::file_date(path);
         let id = otb_store::fingerprint(&bytes);
         // ⚠️ un log déjà rangé garde son drone : une copie par USB a été rangée sous le drone choisi au branchement
-        // (D-074), que son nom de machine ne désigne pas forcément
+        // (D-074), que son nom de machine ne désigne pas forcément ; un log sans nom, sous celui choisi à la main (D-084)
         let known = self
             .library
             .log(&id)
             .and_then(|l| self.library.drone(&l.drone_id))
             .cloned();
         // sinon le nom relie un log à son drone (D-068) : un drone créé à la main garde l'identifiant de sa création
-        let mut drone = known
-            .or_else(|| self.library.drone_by_name(&nom).cloned())
-            .or_else(|| self.library.drone(&nom).cloned())
-            .unwrap_or_else(|| otb_store::model::Drone::new(&nom, &nom));
+        let by_name = || {
+            (!nom.is_empty())
+                .then(|| self.library.drone_by_name(&nom).or_else(|| self.library.drone(&nom)))
+                .flatten()
+                .cloned()
+        };
+        let drone = match known.or_else(by_name) {
+            Some(d) => d,
+            None if !crate::attach::must_ask(&self.library, &nom) => otb_store::model::Drone::new(&nom, &nom),
+            None => {
+                let choice = crate::attach::proposal(&self.library, &nom, self.guide_card().as_deref());
+                self.attach.ask(crate::attach::Pending {
+                    path: path.to_path_buf(),
+                    craft: nom,
+                    choice,
+                    role,
+                    error: None,
+                });
+                return None;
+            }
+        };
+        let sessions: Vec<&FlightLog> = logs.iter().collect();
+        Some(self.store_log(path, &sessions, drone, &bytes))
+    }
+
+    /// Le nom de la fiche choisie dans le Guide, proposée d'office pour un log sans nom de machine (D-084).
+    fn guide_card(&self) -> Option<String> {
+        self.guide
+            .selected
+            .and_then(|i| self.guide.cards.list.get(i))
+            .map(|c| c.name.clone())
+    }
+
+    /// Range le fichier `path` (contenu `bytes`, sessions `logs`) sous `drone`, créé ou mis à jour : l'en-tête du
+    /// premier log renseigne la fiche, chaque session devient un fragment. Rend l'empreinte du fichier.
+    fn store_log(
+        &mut self,
+        path: &Path,
+        logs: &[&FlightLog],
+        mut drone: otb_store::model::Drone,
+        bytes: &[u8],
+    ) -> String {
+        let first = logs[0];
+        let date = crate::dashboard::file_date(path);
+        let id = otb_store::fingerprint(bytes);
         let drone_id = drone.id.clone();
         drone.firmware = first.settings.firmware.clone();
         // pôles et boucle PID de l'en-tête (D-077) : la fiche suit la boucle PID, compare les pôles
@@ -1019,7 +1069,92 @@ impl App {
                 }),
             }
         }
-        Some(id)
+        id
+    }
+
+    /// « Rattacher » de la fenêtre (D-084) : le fichier est rangé sous le drone choisi (créé s'il est nouveau) et ses
+    /// sessions ouvertes reçoivent leur fragment. Un fragment déjà « enregistré » pendant la séance (bornes, nom,
+    /// rôle, gardés dans `unsaved`) devient celui de la bibliothèque, comme choisi. Un refus (nom vide ou déjà pris,
+    /// fichier disparu) est rendu : la ligne reste dans la fenêtre.
+    pub fn attach_log(&mut self, path: &Path, choice: &crate::usb::DroneChoice) -> Result<String, String> {
+        let mut sessions: Vec<Arc<FlightLog>> = Vec::new();
+        for l in &self.state.logs {
+            if l.log.path == path && !sessions.iter().any(|s| s.session == l.log.session) {
+                sessions.push(l.log.clone());
+            }
+        }
+        if sessions.is_empty() {
+            return Err("Ce log n'est plus ouvert : rouvrez-le pour le rattacher.".into());
+        }
+        let bytes = std::fs::read(path).map_err(|e| format!("{} illisible : {e}", nom_court(path)))?;
+        let date = crate::dashboard::file_date(path);
+        let drone = crate::usb::resolve_choice(&self.library, choice, &date)?;
+        let drone_name = drone.name.clone();
+        let refs: Vec<&FlightLog> = sessions.iter().map(|a| a.as_ref()).collect();
+        let id = self.store_log(path, &refs, drone, &bytes);
+        let role = self.attach.pending.iter().find(|p| p.path == path).and_then(|p| p.role);
+        for i in 0..self.state.logs.len() {
+            let ll = &self.state.logs[i];
+            if ll.log.path != path || ll.fragment.is_some() {
+                continue;
+            }
+            let (uid, log) = (ll.uid, ll.log.clone());
+            let fid = fragment_id(&id, &log);
+            if let Some(d) = self.unsaved.remove(&uid)
+                && let Some(mut f) = self.library.fragment(&fid).cloned()
+            {
+                let range = log.slice_time(d.period.0, d.period.1);
+                f.start = range.start as u64;
+                f.end = range.end as u64;
+                if !d.name.trim().is_empty() {
+                    f.name = d.name.trim().to_string();
+                }
+                f.role = d.role;
+                f.chosen = true;
+                self.library.put_fragment(f);
+            }
+            self.state.logs[i].fragment = Some(fid.clone());
+            self.give_role(path, &fid, role);
+        }
+        self.attach.forget(path);
+        self.errors
+            .push(format!("« {} » rattaché à « {drone_name} ».", nom_court(path)));
+        Ok(id)
+    }
+
+    /// Applique les choix de la fenêtre « Rattacher à un drone ».
+    fn apply_attach(&mut self, actions: Vec<crate::attach::AttachAction>) {
+        for a in actions {
+            match a {
+                crate::attach::AttachAction::Attach(path, choice) => {
+                    if let Err(e) = self.attach_log(&path, &choice)
+                        && let Some(p) = self.attach.pending.iter_mut().find(|p| p.path == path)
+                    {
+                        p.error = Some(e);
+                    }
+                }
+                crate::attach::AttachAction::Skip(path) => self.attach.forget(&path),
+            }
+        }
+    }
+
+    /// Rouvre la fenêtre pour le log `index`, s'il n'est rangé sous aucun drone (« Rattacher à un drone… » de l'écran
+    /// d'extraction, ou « Enregistrer le fragment » sur un tel log).
+    pub fn ask_attach(&mut self, index: usize) {
+        let Some(ll) = self.state.logs.get(index) else { return };
+        if ll.fragment.is_some() {
+            return;
+        }
+        let path = ll.log.path.clone();
+        let craft = ll.log.settings.craft_name.trim().to_string();
+        let choice = crate::attach::proposal(&self.library, &craft, self.guide_card().as_deref());
+        self.attach.ask(crate::attach::Pending {
+            path,
+            craft,
+            choice,
+            role: None,
+            error: None,
+        });
     }
 
     /// La barre d'état, en bas : messages d'ouverture, d'export, d'enregistrement.
@@ -1152,6 +1287,13 @@ impl App {
         }
         self.had_logs = !self.state.logs.is_empty();
         let theme = self.theme;
+        // la fenêtre « Rattacher à un drone » (D-084), au-dessus de tous les écrans ; un fichier fermé entre-temps en sort
+        let logs = &self.state.logs;
+        self.attach
+            .pending
+            .retain(|p| logs.iter().any(|l| l.log.path == p.path));
+        let choix = self.attach.ui(&ctx, &self.library, &theme);
+        self.apply_attach(choix);
         if self.screen == Screen::Viewer {
             // écran hors rail (D-060) : sa propre barre du haut, ni rail ni barre des logs
             self.status_bar(root);
@@ -1174,6 +1316,7 @@ impl App {
                     ExtAction::ToggleTheme => {
                         self.theme = if theme.dark { theme::CLAIR } else { theme::SOMBRE };
                     }
+                    ExtAction::Attach { index } => self.ask_attach(index),
                 }
             }
             return;

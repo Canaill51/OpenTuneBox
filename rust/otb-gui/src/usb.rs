@@ -493,7 +493,7 @@ pub fn reader_choice(lib: &Library, craft: &str) -> DroneChoice {
 }
 
 /// Le drone désigné par `choice`, créé (sans l'écrire) s'il est nouveau. Un nom vide ou déjà pris est refusé.
-fn resolve_choice(lib: &Library, choice: &DroneChoice, today: &str) -> Result<Drone, String> {
+pub(crate) fn resolve_choice(lib: &Library, choice: &DroneChoice, today: &str) -> Result<Drone, String> {
     Ok(match choice {
         DroneChoice::Existing(id) => lib
             .drone(id)
