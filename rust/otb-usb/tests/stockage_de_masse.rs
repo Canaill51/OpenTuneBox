@@ -103,6 +103,12 @@ fn refus_de_redemarrer() {
             b.msc = false;
             b
         }),
+        // ⚠️ Betaflight 3.4 et plus ancien : la demande ferait redémarrer la carte normalement.
+        ("firmware sans redémarrage en disque", {
+            let mut b = SimBoard::new(jeno());
+            b.api = (1, 39);
+            b
+        }),
         ("disque pas prêt", {
             let mut b = SimBoard::new(jeno());
             b.msc_ready = false;
@@ -126,7 +132,9 @@ fn refus_de_redemarrer() {
         let attendu = match nom {
             "armé" => matches!(e, DiskRebootError::Armed),
             "mémoire vide" => matches!(e, DiskRebootError::Empty),
-            "sans stockage de masse" => matches!(e, DiskRebootError::NotSupported),
+            "sans stockage de masse" | "firmware sans redémarrage en disque" => {
+                matches!(e, DiskRebootError::NotSupported)
+            }
             "disque pas prêt" => matches!(e, DiskRebootError::NotReady),
             "carte SD absente" => matches!(e, DiskRebootError::SdNotReady { state: 0 }),
             _ => matches!(e, DiskRebootError::NoStorage),
@@ -135,7 +143,10 @@ fn refus_de_redemarrer() {
         let board = msp.into_link();
         assert!(!board.rebooted, "{nom} : la carte a redémarré");
         // Armé, vide, sans stockage : rien n'est même demandé.
-        if matches!(nom, "armé" | "mémoire vide" | "carte SD absente" | "ni mémoire ni SD") {
+        if matches!(
+            nom,
+            "armé" | "mémoire vide" | "carte SD absente" | "ni mémoire ni SD" | "firmware sans redémarrage en disque"
+        ) {
             assert!(board.reboots.is_empty(), "{nom} : {:?}", board.reboots);
         }
     }

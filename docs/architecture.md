@@ -141,7 +141,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   fenêtre (`disk_plan` : fichiers de copie, et copies **faites par OpenTuneBox** déjà rangées), et supprime les logs SD
   vérifiés sur `DiskRequest::EraseSd` (seul permis : `otb_usb::confirm_sd`). ⚠️ La copie de la mémoire faite par le disque
   attend dans `Held` : seule une connexion à **la même carte** (identifiant connu, place inchangée, `Held::matches`) l'en
-  sort pour effacer. L'écran : deux boutons de copie (USB série d'abord), attente du disque avec « Choisir le
+  sort pour effacer. L'écran : un seul bouton, « Récupérer les logs » (D-085), dont la voie se choisit par la fonction
+  pure `recovery_way` (mode disque dès l'API MSP 1.40, sinon USB série, sinon lecteur de cartes) ; un refus du disque
+  (`Event::NoDisk`) relance seul la copie par l'USB série (`UsbPage::no_disk`) ; attente du disque avec « Choisir le
   dossier… », reconnexion seule après rebranchement, suppression SD en deux clics, section « Carte SD dans un lecteur »
   (`apply_reader_choice`, nom proposé lu dans le log : `craft_name`) ; `volumes` et `pick_folder` sont inertes dans les
   tests (L-075).
@@ -229,7 +231,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   il dépend d'`otb-dev` (liste des logs du corpus) **en dépendance de développement seulement** ; `examples/check_tools.rs` **rejoue les six outils sur les références figées
   et compare chaque clé** (`cargo run --release -p otb-gui --example check_tools -- $OTB_LOGS/golden`) — c'est la seule
   preuve que les outils de l'interface rendent ce que rendait la version Python sur de vrais vols, et ce n'est pas un
-  test : la CI le compile sans le lancer (W-054).
+  test : la CI le compile sans le lancer (W-054). `examples/usb_simule.rs` ouvre la vraie fenêtre branchée sur une carte
+  simulée d'`otb-usb`, avec une bibliothèque temporaire, pour essayer « Récupérer par USB » sans drone
+  (`-- vieux | sans-disque | sd-vieux | arme`, D-085).
 - Bancs d'`otb-dsp` (mesures, jamais livrés) : `examples/banc_4b0.rs` et `examples/banc_4c0.rs` (primitives numériques,
   L-051) et `examples/banc_minmax.rs` (index multi-résolution du viewer, D-048).
   Banc de test : `with_context_setup(app::setup)` (L-066).

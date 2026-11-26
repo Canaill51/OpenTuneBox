@@ -51,6 +51,9 @@ Deux constats **changent le dessin du lot 32** :
   seulement, un octet « disque prêt » ; **pas prêt, la carte ne redémarre pas**. Prêt veut dire : le support désigné par
   `blackbox_device` est utilisable (`src/main/io/usb_msc.c:mscCheckFilesystemReady`) — le disque montre **ce** support, pas
   l'autre. Refus (`!`) : drone armé, ou firmware compilé sans `USE_USB_MSC`. OpenTuneBox n'envoie que le mode 2 (D-075).
+- **Avant l'API MSP 1.40** (Betaflight 3.4 et plus ancien ; 1.40 posée le 2018-07-08, mode 2 ajouté le 2018-07-15),
+  `MSP_REBOOT` **ignore le mode** : réponse vide, puis **redémarrage normal**. OpenTuneBox ne le demande donc jamais à
+  ces cartes (`rust/otb-usb/src/msc.rs:knows_disk_reboot`) et copie par l'USB série (D-085).
 - **`BTFL_ALL.BBL` a la taille de la place occupée** (`flashfsIdentifyStartOfFreeSpace`, la valeur que rend
   `MSP_DATAFLASH_SUMMARY`) : c'est, octet pour octet, la copie MSP, et elle passe par les mêmes contrôles. Il n'existe que
   si la mémoire contient au moins un log. Le disque se présente comme `BETAFLT` / `Onboard Flash` (mémoire interne) ou
@@ -169,7 +172,13 @@ cargo run --release -p otb-dev -- usb sd /media/$USER/CARTE ~/Documents/Drones/u
       relue vaut 0.
 - [ ] Carte SD (dans un drone, `usb msc`, et dans un lecteur, `usb sd`) : logs `LOGS/*.BFL` trouvés, copiés et vérifiés ;
       `--erase` ne supprime qu'eux ; la carte se relit ensuite dans le drone (nouveau log enregistré).
-- [x] **L'écran, mode disque** (lot 32c-2, mémoire interne ; carte SD pas encore essayée) : **Copier en mode disque** ; le disque est trouvé seul (sinon **Choisir le
+- [ ] **Carte sans mode disque** (D-085) : firmware d'avant Betaflight 3.5, ou compilé sans `USE_USB_MSC` : la ligne
+      sous **Récupérer les logs** dit « USB série » et pourquoi ; la carte ne redémarre pas, la copie passe par l'USB
+      série (seule, après le refus, pour une carte compilée sans le mode disque). Sans une telle carte :
+      `cargo run --release -p otb-gui --example usb_simule -- vieux` (ou `sans-disque`, `sd-vieux`, `arme`), essayé
+      et validé par Cédric le 2026-11-26.
+- [x] **L'écran, mode disque** (lot 32c-2, mémoire interne ; carte SD pas encore essayée) : **Copier en mode disque**
+      (depuis D-085 : **Récupérer les logs**) ; le disque est trouvé seul (sinon **Choisir le
       dossier…**) ; les vols sont rangés sous le drone ; débrancher, rebrancher : OpenTuneBox se reconnecte seul et
       propose **Effacer la mémoire du drone…** ; après l'effacement, place relue à 0. Carte SD (drone ou lecteur) :
       **Supprimer N logs de la carte SD…**, puis la carte se relit dans le drone.
@@ -180,7 +189,8 @@ cargo run --release -p otb-dev -- usb sd /media/$USER/CARTE ~/Documents/Drones/u
       en exclusif, à vérifier) ; Windows : message « déjà ouvert par un autre programme ».
 - [ ] Drone armé (sur batterie, hélices retirées) : `usb copy … --erase` refuse d'effacer.
 - [x] **L'écran « Récupérer par USB »** (lot 32b) : `cargo run --release -p otb-gui`, tableau de bord, **Récupérer par
-      USB**, **Se connecter**. Première connexion : choisir le drone, puis **Copier les vols** (barre de progression,
+      USB**, **Se connecter**. Première connexion : choisir le drone, puis **Copier les vols** (depuis D-085 :
+      **Récupérer les logs**, par l'USB série sur une carte sans mode disque ; barre de progression,
       temps restant proche du débit mesuré) ; la copie apparaît sur la carte du drone ; **Effacer la mémoire du
       drone…** puis **Effacer définitivement** ; **Relire l'état** : mémoire à 0, drone reconnu sans question.
       **Sauvegarder la configuration** deux fois de suite : la seconde dit « identique ». Drone armé : boutons grisés.

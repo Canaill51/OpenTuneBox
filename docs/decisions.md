@@ -71,6 +71,7 @@ ici, jamais dans le code.
 | ID | Décision | Date |
 |---|---|---|
 | D-086 | **La fiche du drone suit le dernier log** : pôles, boucle PID, version de Betaflight (écrite comme Betaflight : `4.5`, `2026.12` ; lue dans le log ou tapée librement), éléments de la batterie (formule du firmware) et carte de vol (tant que le drone n'a pas été branché en USB) ; une valeur absente du log ne change rien ; le pilote peut corriger, une note dit l'écart, le log suivant remet à jour ; le KV reste au pilote ; l'écran montre le vrai identifiant de carte **(amende D-077)** | 2026-11-26 |
+| D-085 | **Récupération par USB : un seul bouton, la voie choisie selon la carte** : « Récupérer les logs » passe par le **mode disque** quand le firmware le connaît (API MSP 1.40, Betaflight 3.5, et plus), sinon par l'**USB série** (mémoire interne) ; une carte qui refuse le disque bascule **seule** sur l'USB série ; une carte SD sans mode disque se lit dans un lecteur ; jamais de demande de disque à une API plus ancienne (elle redémarrerait normalement) **(amende D-074 et D-075)** | 2026-11-26 |
 | D-084 | **Choisir la fiche d'un log qu'aucun drone ne reconnaît** : sans nom de machine, ou avec un nom qu'aucune fiche ne porte (bibliothèque non vide), une fenêtre « Rattacher à un drone » demande, **une ligne par fichier** ; « Ne pas ranger » garde le log pour la séance ; « Rattacher à un drone… » dans l'écran d'extraction la rouvre, et « Enregistrer le fragment » sur un log non rangé aussi (bornes, nom et rôle gardés au rattachement) ; un log rattaché est reconnu ensuite par son **empreinte** ; **écart au prototype** **(amende D-066 et D-068)** | 2026-11-26 |
 | D-083 | **La page « Curseurs PID » est retirée** du rail (le calcul, le graphique de la Réponse indicielle et la ligne de la Configuration restent) ; l'objectif devient « tous les outils de PIDtoolbox Pro V0.94 **sauf Curseurs PID** » **(amende D-060 et D-061)** | 2026-11-25 |
 | D-082 | **Tri des fenêtres de la réponse indicielle** : notre propre tri (jamais celui de PIDtoolbox, D-004) — réponse gardée **entre 0,5 et 1,5 dès 150 ms**, puis fenêtres trop loin de la **courbe médiane** écartées (médiane + 3 MAD normalisés) ; mesures de boucle sur les seules fenêtres gardées ; **tri de Python** (0,5–3 sur 200–500 ms) gardé pour les références figées (`StepOptions::python`, `rules::Method::python`) ; l'assistant est recalibré (pic 1,15 / 1,20, avec feedforward 1,30 / 1,45 ; D-025 amendée) | 2026-11-25 |
@@ -80,8 +81,8 @@ ici, jamais dans le code.
 | D-078 | **« Bruit et filtres » sans le terme D préfiltre** : le D avant filtres, reconstruit et non enregistré, n'est plus proposé dans le Spectre, Fréq. × gaz et Fréq. × temps ; « Terme D » montre le D filtré seul (une colonne par fragment dans × gaz) ; préréglages 1 et 5 de PIDtoolbox retirés ; onglets de l'espace dessinés comme le prototype ; **amende D-069** | 2026-11-25 |
 | D-077 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** : la taille se tape (la liste propose), son profil d'assistant se lit avec les bornes de la taille par le nom et s'écrit sous le champ ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log (par date) : la fiche suit la boucle PID, ne remplit les pôles que vides, et signale un écart sans le corriger ; le KV reste saisi par le pilote, jamais tiré du log **(amende D-068 et D-061)** **(amendée par D-086)** | 2026-11-25 |
 | D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
-| D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
-| D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
+| D-075 | **Récupération par USB, mode stockage de masse et cartes SD** **(amendée par D-085)** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
+| D-074 | **Récupération par USB, l'écran** **(amendée par D-075 et D-085)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
 | D-073 | **L'assistant d'un vol à l'autre** : vol comparé = vol précédent du drone (ou choisi), repère du même constat sur chaque jauge, cartes nouvelles et disparues, pas de « drones de même taille » ; pouce levé (appliqué) inscrit au clic, pouce baissé avec sa raison, dans la bibliothèque ; « Fragment déjà traité » et son historique ; pas de lignes CLI (W-078) | 2026-11-23 |
 | D-072 | **Mesures suivies dans le temps** : dix grandeurs par fragment lues dans le rapport de l'assistant (jamais un second calcul), gardées avec les bornes du fragment et la version du calcul, mesurées en arrière-plan à l'ouverture de la fiche du drone ; la cible du drone part des seuils de l'assistant, une case sans seuil reste vide, l'assistant garde ses seuils ; le suivi est dans la fiche du drone | 2026-11-23 |
 | D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
@@ -195,6 +196,45 @@ choisi les cinq champs proposés.
 le KV (valeur d'usine) ; déduire l'ESC (le log ne dit que le protocole, pas le firmware de l'ESC) ; une version limitée à la
 liste proposée (chaque nouvelle version de Betaflight demanderait une mise à jour du logiciel) ; garder le correctif
 (`2026.12.0`) dans la fiche (Betaflight nomme ses versions par série, et l'assistant ne distingue que les séries).
+
+---
+
+## 2026-11-26 — La récupération par USB : un seul bouton, la meilleure voie pour chaque carte
+
+### D-085 : « Récupérer les logs » choisit seul la voie, le mode disque d'abord
+
+**Tranché par Cédric** le 2026-11-26. Il voulait d'abord garder le seul mode disque, bien plus rapide que l'USB série
+(environ 3 Mo par minute). Mais le mode disque n'existe pas sur toutes les cartes : firmware compilé sans
+`USE_USB_MSC` (anciennes F3 et F1, entre autres), ou trop ancien pour qu'on le demande par USB (`MSP_REBOOT` ne connaît
+le mode 2 que depuis le 2018-07-15, `df55fc99e`, API MSP **1.40**, Betaflight 3.5). Il a donc choisi : **au
+branchement, selon le firmware et la carte, OpenTuneBox propose la meilleure manière de récupérer les logs.**
+
+**Décision.**
+- **Un seul bouton**, **« Récupérer les logs »** (`rust/otb-gui/src/usb_page.rs:RECOVER`), et sous lui une ligne qui dit la
+  voie prise et pourquoi. La voie (`rust/otb-gui/src/usb.rs:recovery_way`) :
+  - **mode disque** si l'API de la carte est 1.40 ou plus (`rust/otb-usb/src/msc.rs:knows_disk_reboot`), pour la mémoire
+    interne comme pour la carte SD ;
+  - sinon **USB série** (MSP) pour une mémoire interne, avec la raison (firmware trop ancien, version de l'API) ;
+  - sinon (carte SD sans mode disque, que l'USB série ne lit pas) : pas de bouton, renvoi au **lecteur de cartes**.
+- **Bascule seule** : une carte qui refuse le disque (compilée sans lui, ou disque pas prêt ; rien n'a redémarré)
+  passe **aussitôt** à la copie par l'USB série si elle a une mémoire interne pleine (`Event::NoDisk`) ; le refus reste
+  connu sur cette connexion (`UsbPage::no_disk`), et l'écran l'écrit pendant la copie.
+- ⚠️ **Jamais de demande de disque à une API plus ancienne que 1.40** : ces firmwares ignorent le mode et
+  **redémarrent normalement**. `reboot_to_disk` refuse sans rien envoyer (`DiskRebootError::NotSupported`).
+- Effacement inchangé : après une copie vérifiée et rangée, sur la même connexion (USB série) ou après rebranchement
+  (mode disque, `Held`). D-063 tient.
+- **Amende D-075** (deux boutons, « USB série en bouton principal ») **et D-074** (le bouton « Copier les vols »).
+
+**Options écartées.** Le mode disque seul, avec renvoi au configurateur Betaflight pour les autres cartes (retenu un
+moment le même jour : il laissait sans solution dans OpenTuneBox les drones à vieux firmware) ; deux boutons laissés au
+choix du pilote (il ne sait pas ce que sa carte permet) ; lire la carte SD par l'USB série (MSP ne lit pas les cartes SD).
+
+**Témoins.** `rust/otb-usb/tests/stockage_de_masse.rs:refus_de_redemarrer` (cas « firmware sans redémarrage en disque » ;
+contre-preuve vue : sans la garde de l'API, la carte simulée redémarre normalement) ;
+`rust/otb-gui/tests/usb.rs:carte_qui_refuse_le_mode_disque_copie_par_l_usb_serie` (contre-preuve vue : sans la bascule,
+la copie ne part jamais), `l_ecran_copie_range_puis_efface_en_deux_temps` (vieux firmware : USB série et sa raison) ;
+`rust/otb-gui/tests/usb_disque.rs:carte_sd_d_un_vieux_firmware_renvoie_au_lecteur` et
+`memoire_copiee_par_le_disque_puis_effacee_apres_rebranchement` (un seul bouton).
 
 ---
 
@@ -558,6 +598,8 @@ bruit de chaque drone au-dessus de la demi-cadence du log, que le log ne contien
 
 ### D-075 : le mode stockage de masse, pour la mémoire interne au choix et pour toute carte SD, avec suppression vérifiée
 
+**AMENDÉE par D-085** (2026-11-26) : un seul bouton, « Récupérer les logs », qui prend le mode disque quand la carte le permet, sinon l'USB série ; plus de choix laissé au pilote.
+
 **Tranché par Cédric** le 2026-11-23, au début du lot 32c : les quatre questions de la phase « planifier », après lecture
 du firmware ([spec-usb.md](spec-usb.md) §1 et §5).
 
@@ -613,6 +655,8 @@ l'identifiant, log ouvert depuis la carte pris pour une copie, suppression propo
 ### D-074 : la récupération par USB, un écran hors rail qui range sous le drone de la carte et efface en deux temps
 
 **AMENDÉE par D-075** (2026-11-23) : une copie faite par le mode disque d'une carte au même identifiant connu ouvre aussi l'effacement, après rebranchement.
+
+**AMENDÉE par D-085** (2026-11-26) : « Copier les vols » devient « Récupérer les logs », qui ne passe par l'USB série que si la carte n'a pas le mode disque.
 
 **Tranché par Cédric** le 2026-11-23, au début du lot 32b : six questions de la phase « planifier » (aucune planche du
 prototype ne dessine cet écran ; la fiche du drone y montre seulement l'identifiant et la carte « lus au branchement USB »).

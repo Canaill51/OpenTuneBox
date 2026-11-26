@@ -18,7 +18,7 @@ use otb_gui::theme::CLAIR;
 use otb_gui::usb::{
     self, AnyLink, Connection, DroneChoice, Event, Ports, Request, apply_choice, default_choice, register_copy,
 };
-use otb_gui::usb_page::{Phase, TITLE, UsbPage, before_copy_text};
+use otb_gui::usb_page::{NO_DISK_COPY, Phase, RECOVER, TITLE, UsbPage, before_copy_text, serial_note};
 use otb_store::Library;
 use otb_store::model::Drone;
 use otb_usb::Link;
@@ -64,8 +64,12 @@ impl Link for Partagee {
     }
 }
 
+/// Une carte d'un firmware trop ancien pour le mode disque (API MSP 1.39, Betaflight 3.4) : « Récupérer les logs »
+/// passe par l'USB série (D-085). Le mode disque est dans `tests/usb_disque.rs`.
 fn carte(flash: Vec<u8>) -> Arc<Mutex<SimBoard>> {
-    Arc::new(Mutex::new(SimBoard::new(flash)))
+    let mut b = SimBoard::new(flash);
+    b.api = (1, 39);
+    Arc::new(Mutex::new(b))
 }
 
 fn ports(board: &Arc<Mutex<SimBoard>>) -> Ports {
@@ -326,7 +330,9 @@ fn l_ecran_copie_range_puis_efface_en_deux_temps() {
     h.get_by_label("jeno5");
     h.get_by_label_contains("Première connexion de cette carte");
     h.get_by_label(&before_copy_text(deux_vols().len() as u64));
-    h.cliquer_label("Copier les vols");
+    let b = h.state().usb.board.clone().unwrap();
+    h.get_by_label(&serial_note(&b, false));
+    h.cliquer_label(RECOVER);
     h.run_steps(2);
     jusqu_a(&mut h, |a| {
         matches!(
@@ -378,7 +384,7 @@ fn l_ecran_refuse_tout_drone_arme() {
     h.run_steps(2);
     jusqu_a(&mut h, |a| a.usb.board.is_some());
     h.get_by_label(usb::ARMED);
-    assert!(h.get_by_label("Copier les vols").accesskit_node().is_disabled());
+    assert!(h.get_by_label(RECOVER).accesskit_node().is_disabled());
     assert!(
         h.get_by_label("Sauvegarder la configuration")
             .accesskit_node()
@@ -479,7 +485,7 @@ fn sans_rangement_dans_la_bibliotheque_l_effacement_n_est_pas_propose() {
     h.run_steps(2);
     h.cliquer_label("Se connecter");
     jusqu_a(&mut h, |a| a.usb.board.is_some());
-    h.cliquer_label("Copier les vols");
+    h.cliquer_label(RECOVER);
     jusqu_a(&mut h, |a| {
         matches!(
             &a.usb.phase,
@@ -495,4 +501,44 @@ fn sans_rangement_dans_la_bibliotheque_l_effacement_n_est_pas_propose() {
     h.get_by_label_contains("Rangement impossible : disque plein");
     assert!(h.query_by_label("Effacer la mémoire du drone…").is_none());
     assert_eq!(effacements(&board), 0);
+}
+
+/// D-085 : une carte récente qui refuse le mode disque (firmware compilé sans `USE_USB_MSC`) : « Récupérer les logs »
+/// demande le disque, essuie le refus et **passe tout seul** à l'USB série ; la copie est vérifiée et rangée, et le
+/// bouton dit ensuite la voie prise.
+///
+/// **Contre-preuve** : sans `UsbAction::Copy` sur `Event::NoDisk` (`UsbPage::poll_conn`), la copie ne part jamais.
+#[test]
+fn carte_qui_refuse_le_mode_disque_copie_par_l_usb_serie() {
+    let board = Arc::new(Mutex::new({
+        let mut b = SimBoard::new(deux_vols());
+        b.msc = false;
+        b
+    }));
+    let dir = dossier("sans-disque");
+    let mut h = banc(&board, &dir);
+    h.cliquer_label(TITLE);
+    h.run_steps(2);
+    h.cliquer_label("Se connecter");
+    jusqu_a(&mut h, |a| a.usb.board.is_some());
+    assert!(!h.state().usb.no_disk);
+    h.cliquer_label(RECOVER);
+    jusqu_a(&mut h, |a| {
+        matches!(
+            &a.usb.phase,
+            Phase::Copied {
+                registered: Some(Ok(())),
+                ..
+            }
+        )
+    });
+    assert_eq!(
+        board.lock().unwrap().reboots,
+        vec![2],
+        "une seule demande de disque, refusée"
+    );
+    assert!(!board.lock().unwrap().rebooted);
+    assert!(h.state().usb.no_disk);
+    assert_eq!(h.state().usb.message, NO_DISK_COPY);
+    h.get_by_label("Effacer la mémoire du drone…");
 }
