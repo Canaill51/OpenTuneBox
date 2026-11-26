@@ -70,13 +70,15 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-086 | **La fiche du drone suit le dernier log** : pôles, boucle PID, version de Betaflight (écrite comme Betaflight : `4.5`, `2026.12` ; lue dans le log ou tapée librement), éléments de la batterie (formule du firmware) et carte de vol (tant que le drone n'a pas été branché en USB) ; une valeur absente du log ne change rien ; le pilote peut corriger, une note dit l'écart, le log suivant remet à jour ; le KV reste au pilote ; l'écran montre le vrai identifiant de carte **(amende D-077)** | 2026-11-26 |
+| D-084 | **Choisir la fiche d'un log qu'aucun drone ne reconnaît** : sans nom de machine, ou avec un nom qu'aucune fiche ne porte (bibliothèque non vide), une fenêtre « Rattacher à un drone » demande, **une ligne par fichier** ; « Ne pas ranger » garde le log pour la séance ; « Rattacher à un drone… » dans l'écran d'extraction la rouvre, et « Enregistrer le fragment » sur un log non rangé aussi (bornes, nom et rôle gardés au rattachement) ; un log rattaché est reconnu ensuite par son **empreinte** ; **écart au prototype** **(amende D-066 et D-068)** | 2026-11-26 |
 | D-083 | **La page « Curseurs PID » est retirée** du rail (le calcul, le graphique de la Réponse indicielle et la ligne de la Configuration restent) ; l'objectif devient « tous les outils de PIDtoolbox Pro V0.94 **sauf Curseurs PID** » **(amende D-060 et D-061)** | 2026-11-25 |
 | D-082 | **Tri des fenêtres de la réponse indicielle** : notre propre tri (jamais celui de PIDtoolbox, D-004) — réponse gardée **entre 0,5 et 1,5 dès 150 ms**, puis fenêtres trop loin de la **courbe médiane** écartées (médiane + 3 MAD normalisés) ; mesures de boucle sur les seules fenêtres gardées ; **tri de Python** (0,5–3 sur 200–500 ms) gardé pour les références figées (`StepOptions::python`, `rules::Method::python`) ; l'assistant est recalibré (pic 1,15 / 1,20, avec feedforward 1,30 / 1,45 ; D-025 amendée) | 2026-11-25 |
 | D-081 | **Emplacement de la bibliothèque au choix** : pointeur à côté du dossier par défaut ; logs copiés écrits **relatifs** à la bibliothèque ; déplacement = copie relue, bascule, **puis** ancien dossier effacé ; bibliothèque trouvée dans le dossier choisi utilisée telle quelle ; dossier introuvable au lancement : rien d'écrit ; témoin d'ouverture qui **avertit** (sans bloquer) quand une autre session l'a écrite depuis moins de 10 min ; écran hors rail « Bibliothèque », **écart au prototype** (D-061) | 2026-11-25 |
 | D-080 | **Et si : multiplicateurs de filtres gyro et D comme Betaflight Configurator** : interrupteur et curseur (0,10 à 2,00, pas de 0,05) en tête des passe-bas, fréquences recalculées à l'arithmétique du firmware et grisées ; interrupteur repris du log seulement si ses coupures sont celles du curseur ; CLI = état du curseur + coupures | 2026-11-25 |
 | D-079 | **Une conversation par sujet, chacune dans son worktree** (dossier `worktrees` de `.claude`, `EnterWorktree`) ; dossier principal sur `main`, au pilotage (tableau, ordre des fusions) ; numéros réservés par `otb-dev numero` ; `check-docs.sh` vérifie le dossier de la conversation ; compétence `chantiers` | 2026-11-25 |
 | D-078 | **« Bruit et filtres » sans le terme D préfiltre** : le D avant filtres, reconstruit et non enregistré, n'est plus proposé dans le Spectre, Fréq. × gaz et Fréq. × temps ; « Terme D » montre le D filtré seul (une colonne par fragment dans × gaz) ; préréglages 1 et 5 de PIDtoolbox retirés ; onglets de l'espace dessinés comme le prototype ; **amende D-069** | 2026-11-25 |
-| D-077 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** : la taille se tape (la liste propose), son profil d'assistant se lit avec les bornes de la taille par le nom et s'écrit sous le champ ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log (par date) : la fiche suit la boucle PID, ne remplit les pôles que vides, et signale un écart sans le corriger ; le KV reste saisi par le pilote, jamais tiré du log **(amende D-068 et D-061)** | 2026-11-25 |
+| D-077 | **Fiche du drone : taille libre, taille des moteurs, machine lue dans le log** : la taille se tape (la liste propose), son profil d'assistant se lit avec les bornes de la taille par le nom et s'écrit sous le champ ; champ « Taille des moteurs » ; pôles et boucle PID lus dans l'en-tête du dernier log (par date) : la fiche suit la boucle PID, ne remplit les pôles que vides, et signale un écart sans le corriger ; le KV reste saisi par le pilote, jamais tiré du log **(amende D-068 et D-061)** **(amendée par D-086)** | 2026-11-25 |
 | D-076 | **Terme D des logs ralentis : celui du firmware** : à la bascule 24d, le D rejoué se calcule à la cadence PID comme le firmware (puis une boucle sur N gardée), **y compris** quand le log ne garde qu'une boucle sur N ; la dérivée à la cadence du log est écartée, même si elle colle souvent mieux au D enregistré par compensation | 2026-11-24 |
 | D-075 | **Récupération par USB, mode stockage de masse et cartes SD** : la carte redémarre en disque (seul mode envoyé : 2) et OpenTuneBox attend que le système monte le disque, avec « Choisir le dossier… » en secours ; deux voies au choix pour la mémoire interne (disque rapide, à rebrancher pour effacer ; MSP lente) ; carte SD dans le drone **ou dans un lecteur** ; logs SD supprimés en deux clics, seulement ceux copiés et vérifiés, chacun relu juste avant ; l'écran (32c-2) : lecteur sur le même écran, reconnexion seule, USB série en bouton principal ; **amende D-074** (copie par le disque de la même carte) | 2026-11-23 |
 | D-074 | **Récupération par USB, l'écran** **(amendée par D-075)** : hors rail depuis le tableau de bord ; voie MSP (stockage de masse et SD : lot 32c) ; drone reconnu par l'identifiant gravé de sa carte, demandé à la première connexion ; effacement seulement après une copie vérifiée, rangée et écrite, en deux clics ; `diff all` par un bouton à part ; « Ouvrir les vols » ; W-075 : case décochée pour les fichiers copiés | 2026-11-23 |
@@ -85,9 +87,9 @@ ici, jamais dans le code.
 | D-071 | **Le Guide lit le rôle sur le fragment, et la carte du drone compte son dernier relevé** : rôle d'un log = rôle de son fragment dans la bibliothèque (plus par fichier, W-074) ; le Guide ne vérifie que les fragments actifs de la barre ; les cases que les logs vérifient sont rangées sur la fiche, et la carte du tableau de bord les compte sans analyse (amende D-039, D-061 et D-066) | 2026-11-23 |
 | D-070 | **L'assistant en cartes, et la mesure contre son seuil en jauge** : une carte par constat triée par gravité, les « info » et les vérifications OK repliées ; un constat qui compare **une** mesure à **un** seul seuil porte une jauge (`Gauge`), hors des références Python ; le bouton « Appliquer » du prototype n'est pas repris (D-063 gardée) | 2026-11-23 |
 | D-069 | **Un seul choix « Gyro \| Terme D » et des axes partagés pour l'espace « Bruit et filtres »** : choisis dans une vue, ils valent pour les quatre ; les cases détaillées de chaque vue restent dessous, et un autre signal choisi là n'allume aucun des deux boutons (précise D-060) **(amendée par D-078)** | 2026-11-23 |
-| D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) **(amendée par D-077)** | 2026-11-23 |
+| D-068 | **Une seule fiche par drone, dans la bibliothèque** : écran hors rail « fiche du drone » (Identité, Machine, Configurations Betaflight, suppression) ouvert par le tableau de bord ou le Guide ; le Guide n'a plus de fichier, il lit une copie ; l'ancien `drones.json` est repris une fois puis renommé `.repris` ; c'est le nom qui relie un log à son drone ; « Fiche cible » au lot 31 (amende D-036, D-039 et D-061) **(amendée par D-077 et D-084)** | 2026-11-23 |
 | D-067 | **Plusieurs fragments par session** : « Enregistrer comme nouveau fragment » dans l'écran d'extraction en range un autre, posé aussitôt en pastille sur les mêmes échantillons ; seul un fragment ajouté se supprime ; « Ouvrir… » ne met en analyse que le fragment de la session (amende D-061) | 2026-11-23 |
-| D-066 | La **barre de fragments** (liste d'analyse à l'écran) décide de ce que montrent toutes les pages : fragments actifs dans l'ordre de la barre, maître pour les pages à un seul vol, couleur fixe par fragment ; plus de liste « Fichiers » par page ; liste retrouvée au lancement (remplace D-049) | 2026-11-23 |
+| D-066 | La **barre de fragments** (liste d'analyse à l'écran) décide de ce que montrent toutes les pages : fragments actifs dans l'ordre de la barre, maître pour les pages à un seul vol, couleur fixe par fragment ; plus de liste « Fichiers » par page ; liste retrouvée au lancement (remplace D-049) **(amendée par D-084)** | 2026-11-23 |
 | D-065 | Le visualiseur **devient l'écran d'extraction** d'un fragment, hors rail (« Courbes » quitte le rail, W-069) ; les **bornes du fragment sont la période d'analyse** : enregistrées par « Enregistrer le fragment », retrouvées à la réouverture ; un fragment non choisi suit les limites automatiques | 2026-11-23 |
 | D-064 | Bibliothèque : **fichiers JSON gardés**, table des mesures comprise, lue **à la demande et hors du fil de l'interface** ; pas de SQLite | 2026-11-22 |
 | D-063 | Récupération par USB : OpenTuneBox **lit, vérifie et efface**, n'écrit **jamais** de réglage sur la carte (les « Et si » restent des lignes CLI) ; port série par `serial2` ; état armé relu par OpenTuneBox avant d'effacer | 2026-11-22 |
@@ -153,6 +155,83 @@ ici, jamais dans le code.
 | D-003 | Assistant à règles, 100 % hors ligne | 2026-10-01 |
 | D-002 | Décodeur Python accéléré par numba **(remplacée par D-035)** | 2026-10-01 |
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
+
+---
+
+## 2026-11-26 — La fiche du drone suit le dernier log
+
+### D-086 : pôles, boucle PID, version de Betaflight, batterie et carte de vol viennent du dernier log
+
+**Tranché par Cédric** le 2026-11-26, en essayant D-084 : sa fiche « Whisper 25 » disait 14 pôles, ses logs 12 ; la note
+orange de D-077 le signalait, mais il veut que la fiche **se mette à jour** avec tout ce que le log peut dire. Il a
+choisi les cinq champs proposés.
+
+**Décision.**
+- **Lu dans le log** (`rust/otb-gui/src/drone_sheet.rs:machine_of_log`, rangé dans `lu_dans_le_log`) : pôles
+  (`motor_poles`), boucle PID (`looptime`, `pid_process_denom`), version de Betaflight (« Firmware revision »,
+  `version_of_firmware`), carte de vol (processeur et cible de « Board information », code du
+  fabricant retiré : `STM32G474 (BETAFPVG473_V2)`, `board_of_log`), éléments de la batterie (formule du firmware sur
+  `vbatref`, sinon la première tension enregistrée : `otb_log::flightlog::cell_count`). Une valeur absente reste vide,
+  jamais inventée.
+- **La fiche suit le dernier log** (par date ; un log plus ancien rouvert ne change rien) pour ces champs
+  (`fill_from_log`, appelé par `take_log`). Le pilote peut encore les changer : la note sous le champ dit alors l'écart,
+  et le log suivant les remet à jour. Un drone sans fiche n'en reçoit toujours pas (D-068) ; la fiche qu'on lui ouvre
+  part de ces valeurs.
+- **La carte de vol** suit le log tant que le drone n'a pas d'identifiant de carte (jamais branché en USB) : la carte
+  lue au branchement reste. L'écran montre enfin l'**identifiant** gravé (`uid`) dans son champ — il y montrait
+  l'identifiant interne du drone dès qu'une carte était connue.
+- **La version de Betaflight suit la façon dont Betaflight nomme ses versions** (précisé par Cédric après essai) : la
+  **série**, sans correctif ni suffixe — `4.5`, `2025.12`, `2026.6`, `2026.12` (`bf_version` : série 3 ou 4, ou une
+  année depuis 2025 suivie d'un mois de 1 à 12). Lue dans le log quelle qu'elle soit, ou **tapée librement** (la liste,
+  où `2026.12` s'ajoute, ne fait que proposer) ; une version tapée est remise à cette forme à l'enregistrement
+  (`2026.12.0` → `2026.12`), une version illisible est refusée et une note le dit sous le champ. L'assistant reçoit la
+  famille la plus proche qu'il connaît (4.4 et avant, 4.5, 2025.12 et après) : une 4.3 n'est plus prise pour une 2025.12.
+- **Le KV reste au pilote** (D-077 inchangée sur ce point : `motor_kv` vaut souvent sa valeur d'usine).
+- **Amende D-077**, dont elle reprend l'option écartée « écraser toujours par le log » : un `motor_poles` faux dans
+  Betaflight n'est plus signalé par la fiche, il y est recopié. Accepté par Cédric : la fiche dit ce que Betaflight
+  utilise, et c'est dans Betaflight qu'une valeur fausse se corrige.
+
+**Options écartées.** Garder la règle de D-077 (la fiche resterait fausse jusqu'à une correction à la main) ; reprendre
+le KV (valeur d'usine) ; déduire l'ESC (le log ne dit que le protocole, pas le firmware de l'ESC) ; une version limitée à la
+liste proposée (chaque nouvelle version de Betaflight demanderait une mise à jour du logiciel) ; garder le correctif
+(`2026.12.0`) dans la fiche (Betaflight nomme ses versions par série, et l'assistant ne distingue que les séries).
+
+---
+
+## 2026-11-26 — Rattacher un log à une fiche à la main
+
+### D-084 : un log qu'aucun drone ne reconnaît demande sa fiche
+
+**Tranché par Cédric** le 2026-11-26. En essayant l'AppImage, il crée à la main la fiche « Whisper 25 », ouvre deux logs
+dont l'en-tête n'a **pas de nom de machine**, en règle les fragments : rien n'est gardé. D-068 relie un log à son drone par
+le nom, et D-066 ne garde pas un log rangé sous aucun drone ; l'écran ne le disait qu'en petit, et rien ne permettait de
+choisir la fiche. Ses choix : demander **à l'ouverture et après coup**, **un choix par fichier**, et demander **aussi**
+pour un nom qu'aucune fiche ne porte.
+
+**Décision.**
+- **Qui demande** (`rust/otb-gui/src/app.rs:App::remember`) : un log déjà rangé garde son drone (reconnu par l'empreinte du
+  fichier, ce qui reconnaît aussi un log sans nom rattaché à la main) ; sinon le drone du nom de machine. Sinon, la fenêtre
+  demande, sauf pour un log **nommé** dans une bibliothèque **sans aucun drone** : il n'y a rien d'autre à proposer qu'un
+  nouveau drone de ce nom, créé sans question comme avant (`rust/otb-gui/src/attach.rs:must_ask`).
+- **La fenêtre « Rattacher à un drone »** (`rust/otb-gui/src/attach.rs:AttachDialog`), au-dessus de tous les écrans : une
+  ligne par fichier — son nom, pourquoi on demande, la liste des drones (« Nouveau drone » et son nom), « Rattacher » et
+  « Ne pas ranger ». Proposé d'office (`attach::proposal`) : un nouveau drone du nom de machine ; sans nom, la fiche choisie
+  dans le Guide si elle existe. Nom vide ou déjà pris : refusé, la ligne reste avec son message (mêmes règles que l'écran
+  USB, `usb::resolve_choice`). Fermer la fenêtre vaut « Ne pas ranger » pour chaque ligne ; un fichier fermé en sort.
+- **Rattacher** (`App::attach_log`) range le fichier comme une ouverture ordinaire (fiche mise à jour par l'en-tête,
+  un fragment par session), puis donne leur fragment aux sessions ouvertes : la liste d'analyse les garde.
+- **Après coup** : « Ne pas ranger » laisse le log ouvert pour la séance, comme avant. L'écran d'extraction remplace sa
+  note par le bouton « Rattacher à un drone… ». « Enregistrer le fragment » sur un tel log applique les bornes, les
+  garde avec le nom et le rôle jusqu'au rattachement, et rouvre la fenêtre : rien de ce que le pilote a réglé n'est perdu.
+- **Écart au prototype** (D-061) : il ne connaît pas de log sans drone. La fenêtre reprend la liste déroulante de l'écran
+  USB ; le bouton de l'écran d'extraction est dessiné comme « Limites auto ».
+- **Amende D-068** (le nom ne relie plus seul un log à son drone : le choix du pilote aussi) **et D-066** (un log sans
+  drone n'est pas gardé **tant qu'il n'est pas rattaché**).
+
+**Options écartées.** Choisir seulement après coup (on oublie, et les fragments se perdent comme avant) ; un seul choix
+pour tous les fichiers ouverts ensemble (refusé par Cédric : un choix par fichier) ; garder la création automatique d'un
+drone pour un nom inconnu (une fiche faite à la main sous un autre nom aurait son double) ; demander aussi dans une
+bibliothèque vide (rien d'autre à proposer qu'un nouveau drone de ce nom).
 
 ---
 
@@ -327,6 +406,9 @@ sans comparer, curseur ignoré par le CLI. Captures de l'Et si sur `CHIRP-25Hz.b
 ## 2026-11-25 — La fiche du drone lit le log
 
 ### D-077 : taille saisie librement, taille des moteurs, pôles et boucle PID lus dans le dernier log
+
+**AMENDÉE par D-086** (2026-11-26) : la fiche **suit** le dernier log pour les pôles aussi (plus seulement s'ils sont
+vides), et pour la version de Betaflight, la batterie et la carte de vol (tant que le drone n'a pas été branché en USB).
 
 **Tranché par Cédric** le 2026-11-25, après son essai de la fiche : « la partie taille, c'est un menu déroulant où les
 chiffres sont verrouillés […] je voudrais qu'on puisse modifier ça. La partie des pôles moteurs, […] tu peux récupérer
@@ -831,6 +913,8 @@ les 16,7 ms d'un écran à 60 images par seconde.
 
 **AMENDÉE par D-077** (2026-11-25) : taille saisie librement, champ « Taille des moteurs », pôles et boucle PID lus dans le dernier log (la fiche suit la boucle PID, signale les écarts).
 
+**AMENDÉE par D-084** (2026-11-26) : un log sans nom de machine, ou d'un nom qu'aucune fiche ne porte, demande sa fiche au pilote ; une fois rattaché, il est reconnu par son empreinte.
+
 **Tranché par Cédric** le 2026-11-23, au début du lot 30d, entre deux propositions : une seule fiche (retenue) ou deux
 fichiers gardés ; et la « Fiche cible » repoussée au lot 31. Amende D-036 et D-039 (le fichier des fiches) et D-061
 (trois écarts au prototype).
@@ -924,6 +1008,9 @@ différents n'en faisaient voir qu'un au Guide (W-074). Fait : le rôle est lu s
 ## 2026-11-23 — Liste d'analyse à l'écran
 
 ### D-066 : la barre de fragments décide de ce que montrent toutes les pages
+
+**AMENDÉE par D-084** (2026-11-26) : un log rangé sous aucun drone n'est pas gardé **tant qu'il n'est pas rattaché** à une
+fiche ; ses fragments enregistrés pendant la séance passent alors à la bibliothèque.
 
 **Tranché par Cédric** le 2026-11-23, au début du lot 29c : « la barre remplace » les listes de chaque page (plutôt que
 de les faire coexister) ; la liste est **rouverte au lancement** ; « Ouvrir… » et l'export **restent** dans la barre du

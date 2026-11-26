@@ -1186,7 +1186,14 @@ impl UsbPage {
 /// Le choix du drone : ceux de la bibliothèque, ou « Nouveau drone » et son nom.
 /// `new_name` : le nom proposé pour un nouveau drone (celui lu sur la carte ou dans le log).
 /// ⚠️ `widget`, pas `salt` : CodeQL prend tout nom en « salt » pour un sel cryptographique écrit en dur (L-117).
-fn drone_combo(ui: &mut Ui, lib: &Library, choice: &mut DroneChoice, new_name: &str, widget: &str, name: &str) {
+pub(crate) fn drone_combo(
+    ui: &mut Ui,
+    lib: &Library,
+    choice: &mut DroneChoice,
+    new_name: &str,
+    widget: &str,
+    name: &str,
+) {
     let shown = match &*choice {
         DroneChoice::Existing(id) => lib.drone(id).map_or(id.clone(), |d| d.name.clone()),
         DroneChoice::New(_) => "Nouveau drone".to_string(),

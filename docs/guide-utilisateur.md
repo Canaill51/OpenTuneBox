@@ -153,17 +153,22 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   fragments, du plus récent en haut ; le rond **+** rouvre le vol correspondant sans passer par la boîte de fichiers,
   une coche verte marque ceux qui sont déjà ouverts, et le **crayon** ouvre les courbes du fragment pour en
   régler les limites. Le logiciel retient ces drones et ces vols **d'un lancement à l'autre** : un drone est
-  reconnu par le nom de machine inscrit dans ses logs, et chaque session ouverte devient un fragment. En haut, **Bibliothèque** dit où ils sont rangés
+  reconnu par le nom de machine inscrit dans ses logs (sinon, le logiciel demande à quelle fiche rattacher le log :
+  voir « Rattacher un log à un drone » dans [Les courbes du vol et les limites du fragment](#les-courbes-du-vol-et-les-limites-du-fragment)), et chaque session ouverte devient un fragment. En haut, **Bibliothèque** dit où ils sont rangés
   et permet de les déplacer (voir [La bibliothèque](#la-bibliothèque--où-elle-est-la-déplacer)).
 - **Fiche du drone** : le crayon en haut à droite d'une carte, ou **Nouveau drone**, ouvre la fiche — nom (le même que
   dans Betaflight, onglet Configuration : c'est lui qui relie les logs au drone), taille (elle choisit les seuils de
   l'Assistant et les valeurs du Guide), batterie, poids, taille et KV des moteurs, pôles moteur, hélices, ESC, version de
   Betaflight, boucle PID. La **taille** se tape librement (« 3,5″ », « 10″ », « 85 mm ») ou se choisit avec la flèche ;
-  la ligne dessous dit quels seuils l'Assistant prendra. Les **pôles** et la **boucle PID** se lisent dans vos logs :
-  la boucle PID suit le dernier log ; les pôles n'y sont pris que si vous ne les avez pas remplis, et si votre valeur
-  diffère du log, une note orange le signale (un `motor_poles` faux dans Betaflight fausse le filtre RPM). Le **KV**,
-  comme la taille du drone et celle des moteurs, est à remplir vous-même : il n'est jamais tiré du log. La
-  carte de vol et son identifiant s'y lisent au premier branchement USB, comme l'historique des **configurations**
+  la ligne dessous dit quels seuils l'Assistant prendra. Les **pôles**, la **boucle PID**, la **version de
+  Betaflight** et la **batterie** (nombre d'éléments, calculé sur la tension au branchement) se lisent dans vos logs :
+  la fiche suit le dernier log. La **version de Betaflight** s'écrit comme Betaflight la nomme, sans le correctif
+  (« 4.5 », « 2025.12 », « 2026.12 ») ; elle se choisit dans la liste ou se tape (« 2026.12.0 » devient « 2026.12 »
+  à l'enregistrement). Si vous changez une de ces valeurs à la main, une note orange dit ce que le log
+  indique, et le log suivant remet la fiche à jour : une valeur fausse (un `motor_poles` faux fausse le filtre RPM) se
+  corrige dans Betaflight. Le **KV**, comme la taille du drone et celle des moteurs, est à remplir vous-même : il
+  n'est jamais tiré du log. La **carte de vol** se lit dans le log en attendant le premier branchement USB, qui la
+  confirme et lit l'**identifiant** de la carte, comme l'historique des **configurations**
   (`diff all`) : **Voir** montre l'une, **Comparer** dit les réglages changés depuis la précédente. **Supprimer…** puis
   **Supprimer définitivement** retire le drone, ses fragments et ses configurations du logiciel. Vos fichiers de logs
   ne sont pas effacés ; ceux que le logiciel a **copiés par USB** ne le sont que si vous cochez **Supprimer aussi les
@@ -218,8 +223,16 @@ fragment au tableau de bord, ou par le bouton **Visualiseur** du Guide. Les page
   **Session entière** pour tout prendre.
 - ⚠️ **Rien ne change avant « Enregistrer le fragment »** : tant que vous tirez les limites, les outils gardent
   l'ancienne période. Une fois enregistré, le fragment est retenu d'un lancement à l'autre : rouvrir le même
-  fichier retrouve ses limites. Un log sans nom de machine n'est rangé sous aucun drone : ses limites valent alors
-  pour la séance seulement (le panneau le dit). Chaque log ouvert garde son propre fragment.
+  fichier retrouve ses limites. Un log rangé sous aucun drone (voir ci-dessous) garde ses limites pour la séance :
+  « Enregistrer le fragment » ouvre alors la fenêtre **Rattacher à un drone**, et le fragment est gardé dès que le
+  log est rattaché. Chaque log ouvert garde son propre fragment.
+- **Rattacher un log à un drone** : un log rejoint d'ordinaire le drone qui porte son **nom de machine** (le nom donné
+  au drone dans le configurateur Betaflight). Quand l'en-tête n'en a pas, ou qu'aucune fiche ne porte ce nom, une
+  fenêtre s'ouvre à l'ouverture du log : une ligne par fichier, où choisir la fiche (par exemple celle créée à la
+  main avec **Nouveau drone**) ou un nouveau drone, puis **Rattacher**. Un log sans nom propose la fiche choisie dans
+  le Guide ; un nom inconnu propose un nouveau drone de ce nom. **Ne pas ranger** garde le log pour la séance
+  seulement ; le bouton **Rattacher à un drone…** de l'écran d'extraction rouvre la fenêtre plus tard. Un log
+  rattaché est reconnu tout seul quand on le rouvre.
 - **Barre de navigation**, sous les graphiques : le log entier (le profil des gaz), le fragment en bleu, et la
   **fenêtre visible** dans un cadre. Glissez le cadre pour vous déplacer, tirez ses poignées pour l'élargir ou la
   resserrer, cliquez ailleurs pour y sauter. **Vue entière** montre tout le log, **Cadrer le fragment** le

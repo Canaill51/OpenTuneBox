@@ -118,46 +118,78 @@ fn une_taille_libre_choisit_son_profil_et_le_dit() {
 #[test]
 fn le_log_dit_les_poles_et_la_boucle_pid() {
     let log = &otb_log::flightlog::load(&donnees()).unwrap()[0];
-    let m = machine_of_log(&log.settings, "2026-11-25");
+    let m = machine_of_log(&log.settings, log.vbat.as_deref(), "2026-11-25");
     assert_eq!(
         (m.poles.as_str(), m.pid_khz.as_str()),
         ("14", "3.2"),
         "312 µs, une boucle sur 1 : 3,2 kHz"
     );
-    let vide = machine_of_log(&otb_log::settings::Settings::default(), "2026-11-25");
-    assert_eq!((vide.poles, vide.pid_khz), (String::new(), String::new()));
+    // D-086 : version, carte et batterie (vbatref 25,06 V, 4,40 V au plus par élément : 6S)
+    assert_eq!(m.betaflight, "2026.6", "2026.6.0-rc3");
+    assert_eq!(m.board, "STM32F405 (SKYSTARSF405)", "le code du fabricant retiré");
+    assert_eq!(m.cells, "6S");
+    let vide = machine_of_log(&otb_log::settings::Settings::default(), None, "2026-11-25");
+    assert_eq!(
+        vide,
+        otb_store::model::LogMachine {
+            date: "2026-11-25".into(),
+            ..Default::default()
+        },
+        "rien d'inventé"
+    );
     assert_eq!(
         [8000.0, 4000.0, 3205.1, 1600.0, 2666.7].map(khz_text),
         ["8", "4", "3.2", "1.6", "2.7"]
     );
 }
 
-/// La fiche **suit** le log pour la boucle PID, ne **remplit** que les pôles vides, et dit sous le champ
-/// quand elle diffère du log ; un log plus ancien rouvert ne change rien ; un drone sans fiche n'en reçoit pas
-/// (D-068), mais la fiche qu'on lui ouvre part des valeurs du log.
+/// D-086 : la fiche **suit** le dernier log — pôles, boucle PID, version de Betaflight, batterie — et dit sous le
+/// champ quand le pilote l'a changée depuis ; un log plus ancien rouvert ne change rien ; un drone sans fiche n'en
+/// reçoit pas (D-068), mais la fiche qu'on lui ouvre part des valeurs du log. La carte de vol suit le log tant que
+/// le drone n'a pas été branché en USB.
 ///
-/// Contre-preuve vue en échec (2026-11-25) : en écrivant les pôles du log même quand le pilote en a saisi, la
-/// troisième assertion rougit (« 14 » au lieu de « 12 »).
+/// **Contre-preuve** : avec l'ancienne règle de D-077 (pôles écrits seulement s'ils sont vides), la fiche garde
+/// « 12 » et l'assertion sur les pôles rougit.
 #[test]
-fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
+fn la_fiche_suit_le_dernier_log_et_signale_un_changement_du_pilote() {
     let lu = |date: &str, pid: &str| otb_store::model::LogMachine {
         date: date.into(),
         poles: "14".into(),
         pid_khz: pid.into(),
+        betaflight: "4.5".into(),
+        board: "STM32F405 (SKYSTARSF405)".into(),
+        cells: "4S".into(),
     };
     let mut d = avec_fiche("A", "A");
     d.sheet.as_mut().unwrap().poles = "12".into();
     take_log(&mut d, lu("2026-11-20", "3.2"));
     let s = d.sheet.clone().unwrap();
     assert_eq!(s.pid_khz, "3.2", "la boucle PID suit le log");
-    assert_eq!(s.poles, "12", "les pôles saisis restent");
+    assert_eq!(s.poles, "14", "les pôles suivent le log (12 → 14)");
+    assert_eq!((s.betaflight.as_str(), s.cells.as_str()), ("4.5", "4S"));
+    assert_eq!(d.board, "STM32F405 (SKYSTARSF405)", "jamais branché : la carte du log");
     assert_eq!(
         log_note("poles", &s.poles, d.from_log.as_ref()),
+        Some(("Lu dans le dernier log.".to_string(), false))
+    );
+    // le pilote change la fiche après coup : la note dit l'écart
+    assert_eq!(
+        log_note("poles", "12", d.from_log.as_ref()),
         Some((
             "Le dernier log dit 14 : vérifiez motor_poles dans Betaflight, le filtre RPM s’en sert.".to_string(),
             true
         ))
     );
+    assert_eq!(
+        log_note("cells", "6S", d.from_log.as_ref()),
+        Some(("Le dernier log dit 4S.".to_string(), true))
+    );
+    // branché en USB : sa carte (lue avec l'identifiant) ne cède plus la place à celle du log
+    let mut usb = avec_fiche("U", "U");
+    usb.uid = "0123456789ABCDEF01234567".into();
+    usb.board = "STM32F405 (S405)".into();
+    take_log(&mut usb, lu("2026-11-20", "3.2"));
+    assert_eq!(usb.board, "STM32F405 (S405)");
     assert_eq!(
         log_note("pid", &s.pid_khz, d.from_log.as_ref()),
         Some(("Lu dans le dernier log.".to_string(), false))
@@ -181,6 +213,7 @@ fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
     assert_eq!(sans.sheet, None, "pas de fiche inventée");
     let f = SheetForm::edit(&sans);
     assert_eq!((f.sheet.poles.as_str(), f.sheet.pid_khz.as_str()), ("14", "4"));
+    assert_eq!((f.sheet.betaflight.as_str(), f.sheet.cells.as_str()), ("4.5", "4S"));
     assert_eq!(f.sheet.kv, "", "le KV n'est jamais tiré du log");
 }
 
@@ -193,15 +226,28 @@ fn la_fiche_suit_la_boucle_pid_du_log_et_signale_les_poles_differents() {
 #[test]
 fn un_log_ouvert_renseigne_la_fiche() {
     let mut app = App::new(otb_gui::tools::all_pages());
-    app.library.put_drone(avec_fiche("cree-a-la-main", &nom_du_log()));
+    // une fiche qui diffère du log sur tout ce qu'il dit (D-086 : comme les 14 pôles de Cédric contre 12)
+    let mut fiche = avec_fiche("cree-a-la-main", &nom_du_log());
+    let s = fiche.sheet.as_mut().unwrap();
+    (s.poles, s.cells, s.betaflight, s.pid_khz) = ("12".into(), "2S".into(), "4.5".into(), "8".into());
+    app.library.put_drone(fiche);
     let mut h = banc(app);
     h.run_steps(2);
     h.state_mut().open(vec![donnees()]);
     attendre_logs(&mut h, 1);
     let d = h.state().library.drone("cree-a-la-main").unwrap().clone();
     assert_eq!(d.from_log.as_ref().map(|m| m.pid_khz.as_str()), Some("3.2"));
+    assert_eq!(d.board, "STM32F405 (SKYSTARSF405)");
     let s = d.sheet.unwrap();
-    assert_eq!((s.pid_khz.as_str(), s.poles.as_str()), ("3.2", "14"));
+    assert_eq!(
+        (
+            s.pid_khz.as_str(),
+            s.poles.as_str(),
+            s.cells.as_str(),
+            s.betaflight.as_str()
+        ),
+        ("3.2", "14", "6S", "2026.6")
+    );
     assert_eq!(s.kv, "", "le KV n'est jamais tiré du log");
 }
 
@@ -262,16 +308,64 @@ fn les_dates_et_les_versions_se_lisent() {
     assert_eq!(date_fr("2026-02-01"), "1 févr. 2026");
     assert_eq!(date_fr("n'importe quoi"), "n'importe quoi");
     assert_eq!(date_fr("2026-13-01"), "2026-13-01");
+    let v = |t: &str| version_of_firmware(t);
     assert_eq!(
-        version_of_firmware("Betaflight 2026.6.0-rc3 (f625a9996) STM32F405"),
+        v("Betaflight 2026.6.0-rc3 (f625a9996) STM32F405").as_deref(),
         Some("2026.6")
     );
+    assert_eq!(v("Betaflight 4.5.1 (77d01ba3b) STM32F7X2").as_deref(), Some("4.5"));
+    // D-086 : toute version de Betaflight, même hors de la liste proposée (celle de l'AIR65 de Cédric)
     assert_eq!(
-        version_of_firmware("Betaflight 4.5.1 (77d01ba3b) STM32F7X2"),
-        Some("4.5")
+        v("Betaflight 2026.12.0 (242da9612) STM32G474").as_deref(),
+        Some("2026.12")
     );
-    assert_eq!(version_of_firmware("Betaflight 4.3.2"), None);
-    assert_eq!(version_of_firmware(""), None);
+    assert_eq!(v("Betaflight 4.3.2").as_deref(), Some("4.3"));
+    assert_eq!(v("INAV 7.1.0 (abc) STM32F405"), None, "un autre firmware");
+    assert_eq!(v(""), None);
+}
+
+/// D-086 : la version se tape librement, écrite comme Betaflight la nomme — la série, sans correctif ni suffixe ;
+/// ce qui n'en est pas une est refusé à l'enregistrement, et l'assistant reçoit la famille la plus proche.
+///
+/// **Contre-preuve** : sans le contrôle de `bf_version` dans `save_form`, « 5.2 » s'enregistre et l'assertion sur le
+/// refus rougit.
+#[test]
+fn la_version_de_betaflight_se_tape_comme_betaflight_l_ecrit() {
+    for (tape, attendu) in [
+        ("2026.12", Some("2026.12")),
+        ("2026.12.0", Some("2026.12")),
+        ("v2025.12.1-rc2", Some("2025.12")),
+        ("Betaflight 4.5.2", Some("4.5")),
+        (" 4.4 ", Some("4.4")),
+        ("5.2", None),
+        ("2026.13", None),
+        ("2026", None),
+        ("dernière", None),
+    ] {
+        assert_eq!(bf_version(tape).as_deref(), attendu, "« {tape} »");
+    }
+    let mut lib = Library::in_memory();
+    let mut s = new_sheet();
+    s.betaflight = "2026.12.0".into();
+    let id = save_form(&mut lib, &SheetForm::new("Air", s.clone())).unwrap();
+    assert_eq!(
+        lib.drone(&id).unwrap().sheet.as_ref().unwrap().betaflight,
+        "2026.12",
+        "remise à la forme de Betaflight"
+    );
+    s.betaflight = "5.2".into();
+    let refus = save_form(&mut lib, &SheetForm::new("Autre", s)).unwrap_err();
+    assert!(refus.contains("illisible"), "{refus}");
+    // la famille que l'assistant connaît
+    let famille = |v: &str| {
+        let mut d = avec_fiche("F", "F");
+        d.sheet.as_mut().unwrap().betaflight = v.into();
+        card_of(&d).unwrap().bf
+    };
+    assert_eq!(
+        ["4.3", "4.4", "4.5", "2025.12", "2026.12"].map(famille),
+        ["4.4", "4.4", "4.5", "2025.12", "2025.12"]
+    );
 }
 
 /// La ligne d'une configuration : ses premiers changements, ou « configuration initiale », puis le premier log
