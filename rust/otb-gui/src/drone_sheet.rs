@@ -49,7 +49,10 @@ pub const SIZES: [(&str, &str); 8] = [
 pub const CELLS: [&str; 6] = ["1S", "2S", "3S", "4S", "5S", "6S"];
 /// Dans l'ordre du prototype ; les valeurs sont celles de `otb_advisor::drone_card::ESCS`.
 pub const ESC_CHOICES: [&str; 4] = ["BLHeli_S", "Bluejay", "BLHeli_32", "AM32"];
-pub const BF_VERSIONS: [&str; 4] = ["4.4", "4.5", "2025.12", "2026.6"];
+/// Versions **proposées** ; la version se saisit librement, écrite comme Betaflight (`bf_version`, D-086).
+pub const BF_VERSIONS: [&str; 5] = ["4.4", "4.5", "2025.12", "2026.6", "2026.12"];
+/// Sous le champ « Betaflight » quand la version tapée ne se lit pas comme une version de Betaflight (D-086).
+pub const BF_HINT: &str = "Écrivez la version comme Betaflight : 4.5, 2025.12, 2026.6…";
 /// Fréquences de la boucle PID en kHz, écrites avec un point (affichées avec une virgule).
 pub const PID_KHZ: [&str; 6] = ["8", "4", "3.2", "2", "1.6", "1"];
 
@@ -137,7 +140,7 @@ pub fn machine_of_log(s: &Settings, vbat: Option<&[f32]>, date: &str) -> LogMach
         } else {
             String::new()
         },
-        betaflight: version_of_firmware(&s.firmware).unwrap_or("").to_string(),
+        betaflight: version_of_firmware(&s.firmware).unwrap_or_default(),
         board: board_of_log(s),
         cells: otb_log::flightlog::cell_count(s, vbat).map_or_else(String::new, |n| format!("{n}S")),
     }
@@ -221,20 +224,44 @@ pub fn size_of_profile(key: &str) -> &'static str {
     }
 }
 
-/// La version de Betaflight proposée qui correspond au firmware d'un log (« Betaflight 2026.6.0-rc3 … »).
-pub fn version_of_firmware(firmware: &str) -> Option<&'static str> {
-    let v = firmware.split_whitespace().nth(1)?;
-    BF_VERSIONS
-        .iter()
-        .copied()
-        .find(|b| v.starts_with(&format!("{b}.")) || v == *b)
+/// Une version de Betaflight écrite comme Betaflight nomme ses versions : la **série**, sans correctif ni suffixe
+/// (`4.5`, `2025.12`, `2026.6`, `2026.12` ; D-086). Accepte ce qu'un pilote ou un log écrit : `4.5.2`,
+/// `2026.12.0-rc1`, `v2026.6`, `Betaflight 2025.12.1`. `None` : ce n'est pas une version de Betaflight — une série 3
+/// ou 4, ou, depuis 2025, une année suivie d'un mois de 1 à 12.
+pub fn bf_version(text: &str) -> Option<String> {
+    let t = text.trim();
+    let t = t.strip_prefix("Betaflight").unwrap_or(t).trim_start();
+    let t = t.strip_prefix(['v', 'V']).unwrap_or(t);
+    let core: String = t.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+    let mut parts = core.split('.');
+    let major: u32 = parts.next()?.parse().ok()?;
+    let minor: u32 = parts.next()?.parse().ok()?;
+    let ok = match major {
+        3 | 4 => minor <= 9,
+        2025..=2099 => (1..=12).contains(&minor),
+        _ => false,
+    };
+    ok.then(|| format!("{major}.{minor}"))
 }
 
-/// La famille de version que l'assistant connaît : 4.4, 4.5, ou 2025.12 et plus récent.
+/// La version de Betaflight d'un log (« Betaflight 2026.12.0 (242da9612) STM32G474 » → `2026.12`), quelle qu'elle
+/// soit ; `None` pour un autre firmware ou une révision illisible.
+pub fn version_of_firmware(firmware: &str) -> Option<String> {
+    let mut words = firmware.split_whitespace();
+    if words.next()? != "Betaflight" {
+        return None;
+    }
+    bf_version(words.next()?)
+}
+
+/// La famille de version que l'assistant connaît : 4.4 (et avant), 4.5, ou 2025.12 et plus récent ; une version
+/// illisible prend la plus récente.
 fn family(version: &str) -> &'static str {
-    match version {
-        "4.4" => "4.4",
-        "4.5" => "4.5",
+    let v = bf_version(version).unwrap_or_default();
+    match v.split_once('.').map(|(a, b)| (a.parse::<u32>(), b.parse::<u32>())) {
+        Some((Ok(3), _)) => "4.4",
+        Some((Ok(4), Ok(m))) if m <= 4 => "4.4",
+        Some((Ok(4), _)) => "4.5",
         _ => "2025.12",
     }
 }
@@ -443,6 +470,16 @@ pub fn check_target(sheet: &DroneSheet) -> Result<(), String> {
 /// drone du même nom, plutôt que d'en faire un second.
 pub fn save_form(lib: &mut Library, form: &SheetForm) -> Result<String, String> {
     check_target(&form.sheet)?;
+    // la version tapée est remise à la forme de Betaflight (`2026.12.0` → `2026.12`) ; illisible : refusée (D-086)
+    let mut sheet = form.sheet.clone();
+    if !sheet.betaflight.trim().is_empty() {
+        sheet.betaflight = bf_version(&sheet.betaflight).ok_or_else(|| {
+            format!(
+                "Version de Betaflight « {} » illisible : écrivez-la comme Betaflight (4.5, 2025.12, 2026.6…).",
+                sheet.betaflight.trim()
+            )
+        })?;
+    }
     let name = form.saved_name();
     let same_name = lib.drone_by_name(&name).cloned();
     match &form.id {
@@ -455,7 +492,7 @@ pub fn save_form(lib: &mut Library, form: &SheetForm) -> Result<String, String> 
                 .cloned()
                 .ok_or("Ce drone n'est plus dans la bibliothèque.")?;
             d.name = name;
-            d.sheet = Some(form.sheet.clone());
+            d.sheet = Some(sheet);
             lib.put_drone(d);
             Ok(id.clone())
         }
@@ -469,7 +506,7 @@ pub fn save_form(lib: &mut Library, form: &SheetForm) -> Result<String, String> 
                 Some(d) => d,
                 None => Drone::new(&free_id(lib, &name), &name),
             };
-            d.sheet = Some(form.sheet.clone());
+            d.sheet = Some(sheet);
             let id = d.id.clone();
             lib.put_drone(d);
             Ok(id)
@@ -981,7 +1018,11 @@ fn machine(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
     let taille = size_note(&s.size);
     let poles = log_note("poles", &s.poles, from_log.as_ref());
     let cells = log_note("cells", &s.cells, from_log.as_ref());
-    let bf = log_note("betaflight", &s.betaflight, from_log.as_ref());
+    let bf = if !s.betaflight.trim().is_empty() && bf_version(&s.betaflight).is_none() {
+        Some((BF_HINT.to_string(), true))
+    } else {
+        log_note("betaflight", &s.betaflight, from_log.as_ref())
+    };
     let pid = log_note("pid", &s.pid_khz, from_log.as_ref());
     let pid = pid.map(|(t, w)| (format!("en kHz · {}", t.to_lowercase().trim_end_matches('.')), w));
     section(ui, th, "Machine", None, |ui| {
@@ -1031,14 +1072,13 @@ fn machine(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
         ui.columns(3, |c| {
             text_field(&mut c[0], th, "Hélices", &mut s.props, None, None);
             select(&mut c[1], th, "ESC", "esc", &ESC_CHOICES, &mut s.esc, as_is, None);
-            select(
+            // saisie libre (D-086) : la liste ne fait que proposer ; une version mal écrite le dit sous le champ
+            editable_select(
                 &mut c[2],
                 th,
                 "Betaflight",
-                "betaflight",
                 &BF_VERSIONS,
                 &mut s.betaflight,
-                as_is,
                 as_note(&bf),
             );
         });

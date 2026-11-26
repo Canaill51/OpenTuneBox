@@ -162,7 +162,9 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   Betaflight, boucle PID. La **taille** se tape librement (« 3,5″ », « 10″ », « 85 mm ») ou se choisit avec la flèche ;
   la ligne dessous dit quels seuils l'Assistant prendra. Les **pôles**, la **boucle PID**, la **version de
   Betaflight** et la **batterie** (nombre d'éléments, calculé sur la tension au branchement) se lisent dans vos logs :
-  la fiche suit le dernier log. Si vous changez une de ces valeurs à la main, une note orange dit ce que le log
+  la fiche suit le dernier log. La **version de Betaflight** s'écrit comme Betaflight la nomme, sans le correctif
+  (« 4.5 », « 2025.12 », « 2026.12 ») ; elle se choisit dans la liste ou se tape (« 2026.12.0 » devient « 2026.12 »
+  à l'enregistrement). Si vous changez une de ces valeurs à la main, une note orange dit ce que le log
   indique, et le log suivant remet la fiche à jour : une valeur fausse (un `motor_poles` faux fausse le filtre RPM) se
   corrige dans Betaflight. Le **KV**, comme la taille du drone et celle des moteurs, est à remplir vous-même : il
   n'est jamais tiré du log. La **carte de vol** se lit dans le log en attendant le premier branchement USB, qui la

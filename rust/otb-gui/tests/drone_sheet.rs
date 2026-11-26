@@ -308,16 +308,64 @@ fn les_dates_et_les_versions_se_lisent() {
     assert_eq!(date_fr("2026-02-01"), "1 févr. 2026");
     assert_eq!(date_fr("n'importe quoi"), "n'importe quoi");
     assert_eq!(date_fr("2026-13-01"), "2026-13-01");
+    let v = |t: &str| version_of_firmware(t);
     assert_eq!(
-        version_of_firmware("Betaflight 2026.6.0-rc3 (f625a9996) STM32F405"),
+        v("Betaflight 2026.6.0-rc3 (f625a9996) STM32F405").as_deref(),
         Some("2026.6")
     );
+    assert_eq!(v("Betaflight 4.5.1 (77d01ba3b) STM32F7X2").as_deref(), Some("4.5"));
+    // D-086 : toute version de Betaflight, même hors de la liste proposée (celle de l'AIR65 de Cédric)
     assert_eq!(
-        version_of_firmware("Betaflight 4.5.1 (77d01ba3b) STM32F7X2"),
-        Some("4.5")
+        v("Betaflight 2026.12.0 (242da9612) STM32G474").as_deref(),
+        Some("2026.12")
     );
-    assert_eq!(version_of_firmware("Betaflight 4.3.2"), None);
-    assert_eq!(version_of_firmware(""), None);
+    assert_eq!(v("Betaflight 4.3.2").as_deref(), Some("4.3"));
+    assert_eq!(v("INAV 7.1.0 (abc) STM32F405"), None, "un autre firmware");
+    assert_eq!(v(""), None);
+}
+
+/// D-086 : la version se tape librement, écrite comme Betaflight la nomme — la série, sans correctif ni suffixe ;
+/// ce qui n'en est pas une est refusé à l'enregistrement, et l'assistant reçoit la famille la plus proche.
+///
+/// **Contre-preuve** : sans le contrôle de `bf_version` dans `save_form`, « 5.2 » s'enregistre et l'assertion sur le
+/// refus rougit.
+#[test]
+fn la_version_de_betaflight_se_tape_comme_betaflight_l_ecrit() {
+    for (tape, attendu) in [
+        ("2026.12", Some("2026.12")),
+        ("2026.12.0", Some("2026.12")),
+        ("v2025.12.1-rc2", Some("2025.12")),
+        ("Betaflight 4.5.2", Some("4.5")),
+        (" 4.4 ", Some("4.4")),
+        ("5.2", None),
+        ("2026.13", None),
+        ("2026", None),
+        ("dernière", None),
+    ] {
+        assert_eq!(bf_version(tape).as_deref(), attendu, "« {tape} »");
+    }
+    let mut lib = Library::in_memory();
+    let mut s = new_sheet();
+    s.betaflight = "2026.12.0".into();
+    let id = save_form(&mut lib, &SheetForm::new("Air", s.clone())).unwrap();
+    assert_eq!(
+        lib.drone(&id).unwrap().sheet.as_ref().unwrap().betaflight,
+        "2026.12",
+        "remise à la forme de Betaflight"
+    );
+    s.betaflight = "5.2".into();
+    let refus = save_form(&mut lib, &SheetForm::new("Autre", s)).unwrap_err();
+    assert!(refus.contains("illisible"), "{refus}");
+    // la famille que l'assistant connaît
+    let famille = |v: &str| {
+        let mut d = avec_fiche("F", "F");
+        d.sheet.as_mut().unwrap().betaflight = v.into();
+        card_of(&d).unwrap().bf
+    };
+    assert_eq!(
+        ["4.3", "4.4", "4.5", "2025.12", "2026.12"].map(famille),
+        ["4.4", "4.4", "4.5", "2025.12", "2025.12"]
+    );
 }
 
 /// La ligne d'une configuration : ses premiers changements, ou « configuration initiale », puis le premier log

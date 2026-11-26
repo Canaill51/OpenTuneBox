@@ -70,7 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
-| D-086 | **La fiche du drone suit le dernier log** : pôles, boucle PID, version de Betaflight, éléments de la batterie (formule du firmware) et carte de vol (tant que le drone n'a pas été branché en USB) ; une valeur absente du log ne change rien ; le pilote peut corriger, une note dit l'écart, le log suivant remet à jour ; le KV reste au pilote ; l'écran montre le vrai identifiant de carte **(amende D-077)** | 2026-11-26 |
+| D-086 | **La fiche du drone suit le dernier log** : pôles, boucle PID, version de Betaflight (écrite comme Betaflight : `4.5`, `2026.12` ; lue dans le log ou tapée librement), éléments de la batterie (formule du firmware) et carte de vol (tant que le drone n'a pas été branché en USB) ; une valeur absente du log ne change rien ; le pilote peut corriger, une note dit l'écart, le log suivant remet à jour ; le KV reste au pilote ; l'écran montre le vrai identifiant de carte **(amende D-077)** | 2026-11-26 |
 | D-084 | **Choisir la fiche d'un log qu'aucun drone ne reconnaît** : sans nom de machine, ou avec un nom qu'aucune fiche ne porte (bibliothèque non vide), une fenêtre « Rattacher à un drone » demande, **une ligne par fichier** ; « Ne pas ranger » garde le log pour la séance ; « Rattacher à un drone… » dans l'écran d'extraction la rouvre, et « Enregistrer le fragment » sur un log non rangé aussi (bornes, nom et rôle gardés au rattachement) ; un log rattaché est reconnu ensuite par son **empreinte** ; **écart au prototype** **(amende D-066 et D-068)** | 2026-11-26 |
 | D-083 | **La page « Curseurs PID » est retirée** du rail (le calcul, le graphique de la Réponse indicielle et la ligne de la Configuration restent) ; l'objectif devient « tous les outils de PIDtoolbox Pro V0.94 **sauf Curseurs PID** » **(amende D-060 et D-061)** | 2026-11-25 |
 | D-082 | **Tri des fenêtres de la réponse indicielle** : notre propre tri (jamais celui de PIDtoolbox, D-004) — réponse gardée **entre 0,5 et 1,5 dès 150 ms**, puis fenêtres trop loin de la **courbe médiane** écartées (médiane + 3 MAD normalisés) ; mesures de boucle sur les seules fenêtres gardées ; **tri de Python** (0,5–3 sur 200–500 ms) gardé pour les références figées (`StepOptions::python`, `rules::Method::python`) ; l'assistant est recalibré (pic 1,15 / 1,20, avec feedforward 1,30 / 1,45 ; D-025 amendée) | 2026-11-25 |
@@ -168,8 +168,8 @@ choisi les cinq champs proposés.
 
 **Décision.**
 - **Lu dans le log** (`rust/otb-gui/src/drone_sheet.rs:machine_of_log`, rangé dans `lu_dans_le_log`) : pôles
-  (`motor_poles`), boucle PID (`looptime`, `pid_process_denom`), version de Betaflight (« Firmware revision », réduite
-  aux versions de la liste : `version_of_firmware`), carte de vol (processeur et cible de « Board information », code du
+  (`motor_poles`), boucle PID (`looptime`, `pid_process_denom`), version de Betaflight (« Firmware revision »,
+  `version_of_firmware`), carte de vol (processeur et cible de « Board information », code du
   fabricant retiré : `STM32G474 (BETAFPVG473_V2)`, `board_of_log`), éléments de la batterie (formule du firmware sur
   `vbatref`, sinon la première tension enregistrée : `otb_log::flightlog::cell_count`). Une valeur absente reste vide,
   jamais inventée.
@@ -180,14 +180,21 @@ choisi les cinq champs proposés.
 - **La carte de vol** suit le log tant que le drone n'a pas d'identifiant de carte (jamais branché en USB) : la carte
   lue au branchement reste. L'écran montre enfin l'**identifiant** gravé (`uid`) dans son champ — il y montrait
   l'identifiant interne du drone dès qu'une carte était connue.
+- **La version de Betaflight suit la façon dont Betaflight nomme ses versions** (précisé par Cédric après essai) : la
+  **série**, sans correctif ni suffixe — `4.5`, `2025.12`, `2026.6`, `2026.12` (`bf_version` : série 3 ou 4, ou une
+  année depuis 2025 suivie d'un mois de 1 à 12). Lue dans le log quelle qu'elle soit, ou **tapée librement** (la liste,
+  où `2026.12` s'ajoute, ne fait que proposer) ; une version tapée est remise à cette forme à l'enregistrement
+  (`2026.12.0` → `2026.12`), une version illisible est refusée et une note le dit sous le champ. L'assistant reçoit la
+  famille la plus proche qu'il connaît (4.4 et avant, 4.5, 2025.12 et après) : une 4.3 n'est plus prise pour une 2025.12.
 - **Le KV reste au pilote** (D-077 inchangée sur ce point : `motor_kv` vaut souvent sa valeur d'usine).
 - **Amende D-077**, dont elle reprend l'option écartée « écraser toujours par le log » : un `motor_poles` faux dans
   Betaflight n'est plus signalé par la fiche, il y est recopié. Accepté par Cédric : la fiche dit ce que Betaflight
   utilise, et c'est dans Betaflight qu'une valeur fausse se corrige.
 
 **Options écartées.** Garder la règle de D-077 (la fiche resterait fausse jusqu'à une correction à la main) ; reprendre
-le KV (valeur d'usine) ; déduire l'ESC (le log ne dit que le protocole, pas le firmware de l'ESC) ; ajouter les versions
-de Betaflight absentes de la liste (2026.12…) : la fiche garde alors sa valeur.
+le KV (valeur d'usine) ; déduire l'ESC (le log ne dit que le protocole, pas le firmware de l'ESC) ; une version limitée à la
+liste proposée (chaque nouvelle version de Betaflight demanderait une mise à jour du logiciel) ; garder le correctif
+(`2026.12.0`) dans la fiche (Betaflight nomme ses versions par série, et l'assistant ne distingue que les séries).
 
 ---
 
