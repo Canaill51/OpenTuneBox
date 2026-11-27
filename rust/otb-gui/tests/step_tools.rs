@@ -467,7 +467,7 @@ fn chaque_colonne_et_chaque_option_d_affichage_se_dessine() {
     h.run_steps(2);
     h.cliquer_label("Pitch");
     attendre(&mut h);
-    h.cliquer_value("250 ms");
+    h.cliquer_value("500 ms");
     h.run_steps(2);
     h.cliquer_label("150 ms");
     attendre(&mut h);

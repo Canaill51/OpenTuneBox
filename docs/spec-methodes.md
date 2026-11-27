@@ -23,7 +23,7 @@ fait OpenTuneBox ; les conventions de PIDtoolbox (PTB) sont indiquées quand ell
 
 Entrées : consigne SP = setpoint[axe], GY = gyroADC[axe] sur la période choisie.
 1. Lissage du gyro au choix (aucun / 20 / 40 / 60 échantillons).
-2. Fenêtres de 2 s (1, 2 ou 3 s au choix), pas fixe de 62,5 ms.
+2. Fenêtres de 2 s (1, 2, 3, 4 ou 5 s au choix, D-087), pas fixe de 62,5 ms.
 3. Fenêtre gardée si max|SP| ≥ 20 °/s.
 4. Fenêtre de Hann sur les deux signaux, 100 zéros ajoutés de chaque côté.
 5. `G = FFT(gy)/N`, `H = FFT(sp)/N`, `imp = réel(IFFT(G·conj(H) / (|H|² + 1e-4)))`, réponse = somme cumulée de `imp`.
