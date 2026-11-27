@@ -176,6 +176,23 @@ pub fn copied_path_in(dir: &Path, stored: &str) -> String {
     stored.to_string()
 }
 
+/// Efface le fichier copié `l`, seulement s'il est **dans** le dossier des logs copiés `root` (W-075, D-089).
+/// `Ok(false)` : déjà absent ; `Err` : la phrase à montrer, fichier laissé en place.
+fn delete_copy(root: &Path, l: &LogEntry) -> Result<bool, String> {
+    let path = PathBuf::from(&l.path);
+    if !path.starts_with(root) || path.components().any(|c| c == std::path::Component::ParentDir) {
+        return Err(format!(
+            "{} : hors du dossier des logs copiés, laissé en place",
+            path.display()
+        ));
+    }
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(format!("{} : {e}", path.display())),
+    }
+}
+
 /// `nom.json.suffixe`, puis `.suffixe.1`… : un fichier déjà mis de côté n'est jamais écrasé.
 fn free_name(path: &Path, suffix: &str) -> PathBuf {
     let first = path.with_file_name(format!(
@@ -543,6 +560,21 @@ impl Library {
         (done, failed)
     }
 
+    /// Efface du disque le fichier **copié** d'un log (D-089, case cochée à sa suppression), avec les mêmes
+    /// garde-fous que pour un drone : un log ouvert depuis un dossier de l'utilisateur n'est jamais touché, ni un
+    /// chemin qui sortirait du dossier des copies. `Ok(true)` : effacé ; `Ok(false)` : rien à effacer (log inconnu,
+    /// pas une copie, fichier déjà absent) ; `Err` : la phrase à montrer. L'enregistrement reste : c'est
+    /// `remove_log` qui le retire.
+    pub fn delete_copy_of_log(&self, log_id: &str) -> Result<bool, String> {
+        let (Some(root), Some(l)) = (self.logs_dir(), self.log(log_id)) else {
+            return Ok(false);
+        };
+        if !l.copied {
+            return Ok(false);
+        }
+        delete_copy(&root, l)
+    }
+
     /// Place occupée par les logs **copiés**, à annoncer à l'utilisateur avant une récupération.
     pub fn copied_bytes(&self) -> u64 {
         self.logs.iter().filter(|l| l.copied).map(|l| l.bytes).sum()
@@ -704,6 +736,27 @@ impl Library {
 
     pub fn log(&self, id: &str) -> Option<&LogEntry> {
         self.logs.iter().find(|l| l.id == id)
+    }
+
+    /// Les fragments d'un log, dans l'ordre où la bibliothèque les range.
+    pub fn fragments_of_log(&self, log_id: &str) -> Vec<&Fragment> {
+        self.fragments.iter().filter(|f| f.log_id == log_id).collect()
+    }
+
+    /// Retire un log de la bibliothèque **avec tous ses fragments** (D-089) : chacun part par `remove_fragment`, donc
+    /// avec ses mesures, sa place dans la liste d'analyse et les choix faits sur ses conseils. Rend les identifiants
+    /// des fragments retirés, pour que l'appelant ferme ce qui les affiche. Le drone, ses configurations et ses
+    /// autres logs restent.
+    ///
+    /// ⚠️ Le fichier n'est pas touché : un fichier copié ne part que par `delete_copy_of_log`, sur un geste qui le
+    /// dise (D-068, W-075), et **avant** cet appel, qui efface ce qui le désigne.
+    pub fn remove_log(&mut self, id: &str) -> Vec<String> {
+        let fragments: Vec<String> = self.fragments_of_log(id).iter().map(|f| f.id.clone()).collect();
+        for f in &fragments {
+            self.remove_fragment(f);
+        }
+        self.logs.retain(|l| l.id != id);
+        fragments
     }
 
     // ------------------------------------------------------------ fragments

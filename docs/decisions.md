@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-089 | **Supprimer un log depuis le tableau de bord** : corbeille sur chaque fragment du panneau d'un drone, confirmation en haut du panneau ; le **log entier** part avec tous ses fragments (mesures, liste d'analyse, conseils) ; un fichier copié par USB seulement sur case **décochée**, un log de l'utilisateur jamais ; **écart au prototype** (D-061) | 2026-11-27 |
 | D-088 | **Récupération par USB : les copies se nomment, et l'effacement se propose sans débrancher** : un champ par fichier copié (mémoire interne : un fichier ; carte SD : un par log), prérempli avec l'instant, rendu sûr pour Linux et Windows, refusé s'il est vide, en double ou déjà pris ; case « Effacer la mémoire après la récupération » : la mémoire passe par l'USB série (la carte ne revient pas seule du mode disque) et la confirmation s'ouvre dès la copie rangée **(amende D-085)** | 2026-11-27 |
 | D-087 | **Réponse indicielle : 500 ms affichées par défaut, fenêtres de déconvolution jusqu'à 5 s** : « Temps affiché » s'ouvre sur 500 ms (250 et 150 ms restent au choix) ; « Fenêtre déconv. » propose 1, 2, 3, 4 et 5 s, 2 s par défaut ; **écart au prototype** (D-061) | 2026-11-27 |
 | D-086 | **La fiche du drone suit le dernier log** : pôles, boucle PID, version de Betaflight (écrite comme Betaflight : `4.5`, `2026.12` ; lue dans le log ou tapée librement), éléments de la batterie (formule du firmware) et carte de vol (tant que le drone n'a pas été branché en USB) ; une valeur absente du log ne change rien ; le pilote peut corriger, une note dit l'écart, le log suivant remet à jour ; le KV reste au pilote ; l'écran montre le vrai identifiant de carte **(amende D-077)** | 2026-11-26 |
@@ -160,6 +161,38 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-27 — Supprimer un log de la bibliothèque
+
+### D-089 : un log se supprime en entier depuis la liste du tableau de bord, son fichier copié sur une case décochée
+
+**Contexte.** Cédric, le 2026-11-27 : « Je n'ai pas trouvé le moyen de pouvoir supprimer des logs qui ont été
+enregistrés. » Jusque-là, seuls un fragment **ajouté** (D-067, écran d'extraction) et un drone entier (D-068, sa fiche)
+se supprimaient ; un log rangé par erreur, ou en double sous un autre nom, restait pour toujours. Le prototype (D-061)
+ne prévoit pas ce geste, et la fiche du drone ne liste pas ses logs.
+
+**Tranché par Cédric** le 2026-11-27, entre les propositions suivantes : corbeille dans la liste (retenue), section
+« Logs » dans la fiche du drone, ou les deux ; log entier (retenu) ou choix « ce fragment / tout le log » dans la
+confirmation ; fichier copié sur case décochée (retenu), toujours effacé, ou jamais.
+
+**Décision.**
+- Une **corbeille** à droite du crayon, sur chaque fragment du panneau d'un drone au tableau de bord
+  (`rust/otb-gui/src/dashboard.rs:DashboardPage`). Elle ouvre une **confirmation en haut du panneau** : le nom du log,
+  ses fragments nommés, ce que devient le fichier, « Garder » et « Supprimer définitivement ». **Écart au prototype**
+  (D-061), qui n'a pas ce geste ; cette entrée fait foi.
+- Elle supprime **le log entier** : `Library::remove_log` retire chacun de ses fragments par `remove_fragment` (mesures,
+  place dans la liste d'analyse, choix sur les conseils), puis le log ; leurs pastilles se ferment. Le drone, ses
+  configurations et ses autres logs restent. Pas de choix « ce fragment seulement » : supprimer un fragment ajouté
+  reste le geste de l'écran d'extraction (D-067).
+- Le **fichier** : un log ouvert depuis un dossier de l'utilisateur n'est jamais touché (le rouvrir le remet dans la
+  bibliothèque) ; un log **copié par USB** propose « Supprimer aussi le fichier copié par USB (taille) », **décochée** à
+  chaque corbeille cliquée, comme pour un drone (W-075). `Library::delete_copy_of_log` garde les mêmes garde-fous
+  que `delete_copies_of_drone` : seulement un fichier marqué copié et rangé dans le dossier des copies, effacé **avant**
+  l'enregistrement qui le désigne. Pas « toujours effacé » : un vol disparaîtrait du disque sur un seul clic de
+  confirmation (D-068 : jamais sans un geste qui le dise).
+
+**Témoins.** `rust/otb-store/tests/suppression_log.rs` (2 tests) et `rust/otb-gui/tests/suppression_log.rs` (3 tests),
+4 contre-preuves vues en échec ; captures `tableau-de-bord-supprimer-log` des deux thèmes (exemple `capture`).
 
 ## 2026-11-27 — Nommer les copies USB, effacer sans débrancher
 

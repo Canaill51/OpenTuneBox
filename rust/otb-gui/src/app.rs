@@ -940,6 +940,30 @@ impl App {
         self.errors.push(format!("Fragment « {} » supprimé.", f.name));
     }
 
+    /// « Supprimer définitivement » d'un log, depuis le tableau de bord (D-089) : le log quitte la bibliothèque avec
+    /// tous ses fragments, et leurs pastilles se ferment. Son fichier copié ne part que si la case était cochée, et
+    /// **avant** l'enregistrement qui le désigne ; un log ouvert depuis un dossier de l'utilisateur n'est jamais
+    /// effacé (`Library::delete_copy_of_log` le refuse).
+    pub fn delete_log(&mut self, log_id: &str, copy: bool) {
+        let Some(name) = self.library.log(log_id).map(|l| l.name.clone()) else {
+            return;
+        };
+        if copy {
+            match self.library.delete_copy_of_log(log_id) {
+                Ok(true) => self.errors.push("Fichier copié effacé du disque.".to_string()),
+                Ok(false) => {}
+                Err(e) => self.errors.push(e),
+            }
+        }
+        // rien ne doit montrer un fragment absent de la bibliothèque
+        for f in self.library.remove_log(log_id) {
+            while let Some(i) = self.state.logs.iter().position(|l| l.fragment.as_ref() == Some(&f)) {
+                self.state.remove(i);
+            }
+        }
+        self.errors.push(format!("Log « {name} » supprimé de la bibliothèque."));
+    }
+
     /// Demande des fichiers au système, puis les ouvre. La barre du haut et le tableau de bord passent tous
     /// deux par ici : une seule porte vers la boîte de dialogue.
     fn ask_files(&mut self) -> bool {
@@ -1507,6 +1531,7 @@ impl App {
                 }
                 DashAction::Toggle { fragment, path } => self.toggle_fragment(&fragment, path),
                 DashAction::Edit { fragment, path } => self.edit_fragment(&fragment, path),
+                DashAction::DeleteLog { log, copy } => self.delete_log(&log, copy),
             }
         }
         for a in library_actions {

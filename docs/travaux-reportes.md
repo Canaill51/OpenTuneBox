@@ -78,6 +78,7 @@ Règles d'écriture :
 | W-080 | Contrôle par étage : le second vol de calibration (SVF, PT2, notch statique du gyro, notch du D) n'a jamais été fait | ouvert (aucun écart soupçonné sur ces filtres) |
 | W-081 | Banc des briques du firmware (lot 24b) : ordonnancement des recalculs (notchs RPM un à un, LPF dynamiques, pas corrigé de la 2025.12), suivi des pics du notch dynamique et fusion multiplication-addition de la carte de vol hors du bit à bit | point 1 **TRAITÉ** le 2026-11-24 (lot 24c : recopié du firmware, mesuré sur le corpus ; correction du pas de la 2025.12 prise à 1) ; points 2 et 3 ouverts |
 | W-082 | Chaîne actuelle (écran, assistant) : un notch RPM dont la fréquence atteint 0,48 × la cadence PID est **ignoré**, alors que le firmware le plaque à ce plafond ; jusqu'à +24 dB d'écart au vol sur `Cedric/J3.5/HQ` | TRAITÉ le 2026-11-24 (lot 24c, à la demande de Cédric) : rejeu, assistant et contrôle par étage ; reste dans `simulate_gyro` (étalon Python, références figées) |
+| W-084 | L'exemple `capture` s'arrête sur `tests/data/jeno5_5s.bbl` : écran « Guide » au lieu du visualiseur après l'ouverture | ouvert |
 | W-083 | Chaîne à l'arithmétique du firmware (lot 24c) : terme D des logs ralentis plus loin du vol que la chaîne actuelle (+0,3 dB en médiane), et un vol où l'ordre des notchs RPM du firmware colle moins au log | ouvert : point 1 **mesuré et tranché** le 2026-11-24 (le log ralenti, pas la chaîne ; D du firmware gardé, D-076) ; point 2 reste |
 | W-079 | Carte à mémoire interne **et** carte SD : le mode disque montre le support de `blackbox_device`, que MSP ne lit pas ; OpenTuneBox suppose la mémoire quand elle contient des logs | ouvert (aucune carte de ce type vue) |
 | W-078 | Lignes CLI (`set …`) à copier sous chaque conseil de l'assistant (prototype) | ouvert (si Cédric les demande, D-073) |
@@ -1364,3 +1365,16 @@ déjà pris ici ; renumérotés à la reprise (L-107), et W-072 réécrit d'apr�
   **Depuis la bascule (lot 24d, 2026-11-24)**, la chaîne du firmware est celle de l'écran et de l'assistant : le risque du point 1
   est arrivé comme prévu (D du rejeu « actuel » des logs ralentis plus loin du vol, `validation.md`), celui du point 2 porte sur
   ce seul vol.
+
+## Origine : supprimer un log (lot 30i, 2026-11-27)
+
+- **W-084** — **L'exemple `capture` s'arrête sur le petit log des tests.** Lancé sur `tests/data/jeno5_5s.bbl`, il
+  s'arrête à sa première vérification (`assertion left == right failed`, left : `Guide`, right : `Viewer`) : après
+  l'ouverture, l'application montre le Guide et non le visualiseur. Avec `Cedric/JeNo 5/FINAL.bbl` (les captures du
+  README), il passe. La vérification qui échoue précède tout ce que le lot a ajouté à l'exemple ; pas relancé sur
+  `main` pour le confirmer. Cause **non cherchée** : hors du sujet du lot.
+  **Pourquoi reporté** : l'interface livrée n'est pas en cause tant que la cause n'est pas connue, et les captures se
+  font sur le corpus.
+  **Risque si on n'y touche pas** : un poste sans corpus (CI, contributeur) ne peut pas produire de captures.
+  **Reprise** : à la prochaine capture sans corpus ; commencer par ce qui choisit l'écran après `App::open` quand la
+  bibliothèque est vide. [`rust/otb-gui/examples/capture.rs`]

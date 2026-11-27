@@ -119,7 +119,10 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   fichier. Le panneau de droite montre les **fragments** du drone choisi, du plus récent en haut, chacun derrière un rond
   « + » (ou une coche à la couleur de sa pastille quand il est dans la liste d'analyse ; il l'y ajoute ou l'en retire,
   `DashAction::Toggle`) et suivi d'un crayon qui ouvre l'écran d'extraction sur lui
-  (`DashAction::Edit`). Un drone est reconnu par le **nom de machine** de
+  (`DashAction::Edit`), puis d'une corbeille (D-089) : la confirmation s'affiche en haut du panneau
+  (`DashboardPage::ask_delete`, case du fichier copié `delete_copy`, décochée à chaque corbeille) et
+  `DashAction::DeleteLog` retire **le log entier** (`App::delete_log` : fichier copié d'abord si la case est cochée, puis
+  `Library::remove_log`, puis les pastilles de ses fragments). Un drone est reconnu par le **nom de machine** de
   l'en-tête (`Craft name`), cherché par nom (`Library::drone_by_name`) : un drone créé à la main ou renommé garde ses logs
   (D-068). Un log qu'aucun drone ne reconnaît (sans nom, ou nom inconnu dans une bibliothèque qui a des drones) attend
   dans `attach.rs` (`AttachDialog`, D-084) : la fenêtre « Rattacher à un drone », une ligne par fichier, range le
@@ -303,7 +306,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   Récupération par USB (lot 32b) : `Drone::uid` (identifiant gravé de la carte, `drone_by_uid`), `Library::copy_path`
   (`logs/<drone>/<nom>.bbl`, le nom choisi par le pilote passé par `file_stem`, D-088 ; `copy_target` : le même chemin sans
   rien créer), `copies_of_drone` et `delete_copies_of_drone` (W-075 : seulement les fichiers copiés,
-  seulement dans le dossier des copies). La liste d'analyse est tenue par la
+  seulement dans le dossier des copies). Supprimer un log (D-089) : `Library::remove_log` emporte ses fragments par
+  `remove_fragment`, `delete_copy_of_log` efface son fichier copié avec les mêmes garde-fous. La liste d'analyse est tenue par la
   bibliothèque : ordre, **indice** de couleur attribué à l'entrée et jamais changé ensuite (les couleurs restent dans
   `theme.rs`, L-016), actif ou non, et un fragment de travail qui doit appartenir à la liste. **Un seul module d'accès** : le
   reste du programme ne voit jamais un fichier, ce qui limitera à ce fichier le passage à une vraie base le jour où le

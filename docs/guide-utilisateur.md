@@ -170,7 +170,11 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   cases cochées à la main et celles que le Guide a vues vérifiées par un log **la dernière fois qu'il a été affiché**. Cliquer une carte ouvre à droite la liste de ses
   fragments, du plus récent en haut ; le rond **+** rouvre le vol correspondant sans passer par la boîte de fichiers,
   une coche verte marque ceux qui sont déjà ouverts, et le **crayon** ouvre les courbes du fragment pour en
-  régler les limites. Le logiciel retient ces drones et ces vols **d'un lancement à l'autre** : un drone est
+  régler les limites. La **corbeille**, à côté, supprime le log de ce fragment, **tous ses fragments compris** : une
+  confirmation en haut du panneau les nomme, puis **Supprimer définitivement** (ou **Garder**). Le log quitte le
+  logiciel avec ses mesures ; votre fichier n'est pas effacé, et le rouvrir le remet dans la liste. Un log **copié par
+  USB** propose en plus **Supprimer aussi le fichier copié par USB**, décochée : sans elle, la copie reste dans le dossier
+  de la bibliothèque. Le logiciel retient ces drones et ces vols **d'un lancement à l'autre** : un drone est
   reconnu par le nom de machine inscrit dans ses logs (sinon, le logiciel demande à quelle fiche rattacher le log :
   voir « Rattacher un log à un drone » dans [Les courbes du vol et les limites du fragment](#les-courbes-du-vol-et-les-limites-du-fragment)), et chaque session ouverte devient un fragment. En haut, **Bibliothèque** dit où ils sont rangés
   et permet de les déplacer (voir [La bibliothèque](#la-bibliothèque--où-elle-est-la-déplacer)).

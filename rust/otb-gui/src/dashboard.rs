@@ -37,6 +37,9 @@ pub enum DashAction {
     Toggle { fragment: String, path: PathBuf },
     /// Crayon d'un fragment : l'écran d'extraction sur ce fragment (son log est ouvert d'abord s'il le faut).
     Edit { fragment: String, path: PathBuf },
+    /// « Supprimer définitivement » après la corbeille d'un fragment : **son log entier** quitte la bibliothèque,
+    /// avec tous ses fragments ; `copy` : la case « Supprimer aussi le fichier copié » était cochée (D-089).
+    DeleteLog { log: String, copy: bool },
 }
 
 // ---------------------------------------------------------------- mesures relevées dans la maquette
@@ -62,6 +65,8 @@ const PANEL_W: f32 = 400.0;
 const DOT: f32 = 28.0;
 /// Fond d'un fragment en analyse : sa couleur à 8 % (maquette : `couleur + '14'`).
 const ADDED_TINT: u8 = 0x14;
+/// Opacité du rouge du cadre de confirmation d'une suppression : celle de la fiche du drone.
+const DANGER_LINE: u8 = 64;
 /// Indice du jaune dans la palette des fichiers : la coche y est sombre.
 const YELLOW: usize = 2;
 
@@ -134,6 +139,11 @@ fn status(part: f32, fragments: usize) -> (&'static str, &'static str) {
 pub struct DashboardPage {
     /// Identifiant du drone choisi (`None` : aucun panneau ouvert).
     pub selected: Option<String>,
+    /// La corbeille d'un fragment a été cliquée : la confirmation de la suppression de ce log (son identifiant) est
+    /// affichée en haut du panneau (D-089).
+    pub ask_delete: Option<String>,
+    /// Case « Supprimer aussi le fichier copié », décochée à chaque corbeille cliquée (D-089, comme W-075).
+    pub delete_copy: bool,
 }
 
 impl DashboardPage {
@@ -484,6 +494,17 @@ impl DashboardPage {
                     });
                 });
             });
+        // la confirmation ne vaut que pour un log de ce drone, encore dans la bibliothèque
+        let a_supprimer = self
+            .ask_delete
+            .as_deref()
+            .and_then(|log| lib.log(log))
+            .filter(|l| l.drone_id == id)
+            .cloned();
+        match a_supprimer {
+            Some(l) => self.confirm_delete(ui, lib, th, &l, actions),
+            None => self.ask_delete = None,
+        }
         if frags.is_empty() {
             ui.label("Aucun fragment pour ce drone.");
             return;
@@ -499,14 +520,13 @@ impl DashboardPage {
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 18.0;
                     for (f, l) in frags {
-                        let chemin = PathBuf::from(&l.path);
                         // en analyse : la couleur de sa pastille (D-066)
                         let couleur = state
                             .logs
                             .iter()
                             .find(|o| o.fragment.as_deref() == Some(f.id.as_str()))
                             .map(|o| o.color);
-                        self.timeline_item(ui, th, f, &chemin, couleur, actions);
+                        self.timeline_item(ui, th, f, l, couleur, actions);
                     }
                 });
         });
@@ -519,7 +539,7 @@ impl DashboardPage {
         ui: &mut Ui,
         th: &Theme,
         f: &otb_store::model::Fragment,
-        chemin: &std::path::Path,
+        l: &otb_store::model::LogEntry,
         couleur: Option<egui::Color32>,
         actions: &mut Vec<DashAction>,
     ) {
@@ -558,7 +578,7 @@ impl DashboardPage {
             if r.clicked() {
                 actions.push(DashAction::Toggle {
                     fragment: f.id.clone(),
-                    path: chemin.to_path_buf(),
+                    path: PathBuf::from(&l.path),
                 });
             }
             ui.add_space(14.0);
@@ -577,6 +597,17 @@ impl DashboardPage {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(&f.name).size(14.0).strong().color(th.ui.text));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            // la corbeille, absente du prototype (D-089) : supprimer le log de ce fragment, après
+                            // confirmation en haut du panneau
+                            let label = format!("Supprimer le log {}", l.name);
+                            let corbeille =
+                                egui::Button::image(icon("trash-2", 14.0).tint(th.ui.muted).alt_text(&label))
+                                    .fill(egui::Color32::TRANSPARENT)
+                                    .stroke(egui::Stroke::NONE);
+                            if ui.add(corbeille).on_hover_text("Supprimer le log…").clicked() {
+                                self.ask_delete = Some(l.id.clone());
+                                self.delete_copy = false;
+                            }
                             // le crayon de la maquette : régler les limites du fragment dans l'écran d'extraction
                             let label = format!("Modifier les limites de {}", f.name);
                             let crayon = egui::Button::image(icon("pencil", 14.0).tint(th.ui.muted).alt_text(label))
@@ -585,7 +616,7 @@ impl DashboardPage {
                             if ui.add(crayon).on_hover_text("Modifier les limites").clicked() {
                                 actions.push(DashAction::Edit {
                                     fragment: f.id.clone(),
-                                    path: chemin.to_path_buf(),
+                                    path: PathBuf::from(&l.path),
                                 });
                             }
                             ui.label(RichText::new(&f.date).size(12.0).color(th.ui.muted));
@@ -594,6 +625,118 @@ impl DashboardPage {
                 });
         });
     }
+
+    /// La confirmation de la suppression du log `l`, en haut du panneau (D-089) : ce qui part, la case du fichier
+    /// copié s'il y en a un (décochée), « Garder » et « Supprimer définitivement ». Même dessin que la suppression
+    /// d'un drone dans sa fiche.
+    fn confirm_delete(
+        &mut self,
+        ui: &mut Ui,
+        lib: &Library,
+        th: &Theme,
+        l: &otb_store::model::LogEntry,
+        actions: &mut Vec<DashAction>,
+    ) {
+        let rouge = th.accent("red");
+        egui::Frame::new()
+            .inner_margin(egui::Margin {
+                left: 20,
+                right: 20,
+                top: 4,
+                bottom: 0,
+            })
+            .show(ui, |ui| {
+                egui::Frame::new()
+                    .fill(th.ui.base)
+                    .stroke(egui::Stroke::new(1.0, with_alpha(rouge, DANGER_LINE)))
+                    .corner_radius(8)
+                    .inner_margin(egui::Margin::symmetric(14, 12))
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.spacing_mut().item_spacing.y = 6.0;
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(format!("Supprimer le log « {} » ?", l.name))
+                                    .size(13.0)
+                                    .strong()
+                                    .color(th.ui.text),
+                            )
+                            .wrap(),
+                        );
+                        ui.add(
+                            egui::Label::new(RichText::new(delete_log_text(lib, l)).size(SMALL).color(th.ui.muted))
+                                .wrap(),
+                        );
+                        if l.copied {
+                            ui.checkbox(&mut self.delete_copy, copy_text(l.bytes));
+                        }
+                        // ⚠️ `Align::TOP`, pas `Center` : centrée, la ligne des boutons prend toute la hauteur qui
+                        // reste et le cadre repousse la liste sous le bas du panneau
+                        ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                            ui.spacing_mut().item_spacing.x = 8.0;
+                            ui.spacing_mut().button_padding = Vec2::new(12.0, 6.0);
+                            let oui = egui::Button::new(
+                                RichText::new("Supprimer définitivement")
+                                    .size(13.0)
+                                    .color(th.on_accent("red")),
+                            )
+                            .fill(rouge)
+                            .corner_radius(6);
+                            if ui.add(oui).clicked() {
+                                actions.push(DashAction::DeleteLog {
+                                    log: l.id.clone(),
+                                    copy: l.copied && self.delete_copy,
+                                });
+                                self.ask_delete = None;
+                                self.delete_copy = false;
+                            }
+                            let garder = egui::Button::new(RichText::new("Garder").size(13.0).color(th.ui.text))
+                                .fill(th.ui.base)
+                                .stroke(egui::Stroke::new(1.0, th.ui.mid))
+                                .corner_radius(6);
+                            if ui.add(garder).clicked() {
+                                self.ask_delete = None;
+                                self.delete_copy = false;
+                            }
+                        });
+                    });
+            });
+    }
+}
+
+/// Ce que la suppression d'un log emporte (D-089) : ses fragments, nommés, et ce que devient son fichier.
+pub fn delete_log_text(lib: &Library, l: &otb_store::model::LogEntry) -> String {
+    let noms: Vec<String> = lib
+        .fragments_of_log(&l.id)
+        .iter()
+        .map(|f| format!("« {} »", f.name))
+        .collect();
+    let n = noms.len();
+    let part = match n {
+        0 => "Aucun fragment n'en vient.".to_string(),
+        1 => format!(
+            "Son fragment {} quitte la bibliothèque et la liste d'analyse, avec ses mesures.",
+            noms[0]
+        ),
+        _ => format!(
+            "Ses {n} fragments ({}) quittent la bibliothèque et la liste d'analyse, avec leurs mesures.",
+            noms.join(", ")
+        ),
+    };
+    let fichier = if l.copied {
+        "Sans la case, le fichier copié reste dans le dossier de la bibliothèque."
+    } else {
+        "Le fichier reste dans votre dossier : l'ouvrir de nouveau le remettra dans la bibliothèque."
+    };
+    format!("{part} {fichier}")
+}
+
+/// « Supprimer aussi le fichier copié par USB (3,2 Mo) » : la case de la suppression d'un log (D-089).
+pub fn copy_text(bytes: u64) -> String {
+    format!(
+        "Supprimer aussi le fichier copié par USB ({})",
+        crate::usb::size_text(bytes)
+    )
 }
 
 /// La pastille d'état d'une carte : texte court, bordure arrondie, couleur d'accent.
