@@ -465,9 +465,10 @@ pub fn check_target(sheet: &DroneSheet) -> Result<(), String> {
 
 /// Enregistre la fiche dans la bibliothèque ; rend l'identifiant du drone, ou pourquoi c'est refusé.
 ///
-/// ⚠️ Le **nom** relie les logs à la fiche (`craft_name`) : deux drones ne peuvent pas le partager, sinon les logs
-/// iraient au premier des deux. Un drone connu par ses seuls logs (sans fiche) **reçoit** la fiche d'un nouveau
-/// drone du même nom, plutôt que d'en faire un second.
+/// ⚠️ Le **nom** range d'office sous la fiche les logs qui le portent (`craft_name`, D-090) : deux drones ne
+/// peuvent pas le partager (casse et espaces autour ignorés), sinon les logs iraient au premier des deux. Un drone
+/// connu par ses seuls logs (sans fiche) **reçoit** la fiche d'un nouveau drone du même nom, plutôt que d'en faire un
+/// second.
 pub fn save_form(lib: &mut Library, form: &SheetForm) -> Result<String, String> {
     check_target(&form.sheet)?;
     // la version tapée est remise à la forme de Betaflight (`2026.12.0` → `2026.12`) ; illisible : refusée (D-086)
@@ -990,7 +991,8 @@ fn identity(ui: &mut Ui, form: &mut SheetForm, lib: &Library, th: &Theme) {
                 &mut form.name,
                 None,
                 Some((
-                    "Doit être le nom du drone dans Betaflight (craft_name) : c’est lui qui relie les logs à cette fiche.",
+                    "De préférence le nom du drone dans Betaflight (craft_name) : ses logs se rangent alors d’office sous \
+                     cette fiche ; les autres se rattachent à la main.",
                     false,
                 )),
             );

@@ -24,6 +24,10 @@ pub struct Pending {
     pub choice: DroneChoice,
     /// Rôle demandé à l'ouverture (« Ouvrir les logs des filtres… » du Guide), donné aux fragments une fois rangés.
     pub role: Option<&'static str>,
+    /// Le drone (identifiant) sous lequel la bibliothèque range **déjà** ce log : la fenêtre propose de l'y laisser.
+    pub known: Option<String>,
+    /// La fiche du Guide depuis laquelle le log a été ouvert (D-090), dite dans la raison de la question.
+    pub card: Option<String>,
     /// Refus du dernier « Rattacher » (nom vide ou déjà pris, fichier disparu).
     pub error: Option<String>,
 }
@@ -63,6 +67,51 @@ pub fn must_ask(lib: &Library, craft: &str) -> bool {
     craft.trim().is_empty() || !lib.drones().is_empty()
 }
 
+/// Ce que décide l'ouverture d'un log depuis une fiche du Guide (D-090).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GuideOpening {
+    /// Le log est déjà rangé sous le drone de la fiche : rien à demander.
+    Keep,
+    /// Demander, le drone de la fiche proposé d'office (son identifiant).
+    Ask(String),
+}
+
+/// Un log ouvert par « Ouvrir les logs des filtres… » ou « …de la série… » d'une fiche du Guide (`card`) : on le
+/// rattache **toujours sur demande** (D-090), avec la fiche proposée d'office, même si son nom de machine désigne
+/// cette fiche ou un autre drone, ou s'il est déjà rangé ailleurs (`known`, identifiant de ce drone). Seule
+/// exception : déjà rangé sous le drone de la fiche, il n'y a rien à décider. `None` : la fiche n'est pas un drone
+/// de la bibliothèque, la règle ordinaire s'applique (D-068, D-084).
+pub fn guide_opening(lib: &Library, card: &str, known: Option<&str>) -> Option<GuideOpening> {
+    let drone = lib.drone_by_name(card).or_else(|| lib.drone(card))?;
+    Some(if known == Some(drone.id.as_str()) {
+        GuideOpening::Keep
+    } else {
+        GuideOpening::Ask(drone.id.clone())
+    })
+}
+
+/// Pourquoi la fenêtre demande, en une phrase sous le nom du fichier.
+pub fn reason(lib: &Library, p: &Pending) -> String {
+    let craft = p.craft.trim();
+    let named = (!craft.is_empty()).then(|| lib.drone_by_name(craft)).flatten();
+    let mut text = if let Some(k) = p.known.as_deref().and_then(|id| lib.drone(id)) {
+        format!(
+            "Déjà rangé sous « {} ». « Rattacher » le déplace sous le drone choisi, avec ses fragments.",
+            k.name
+        )
+    } else if craft.is_empty() {
+        "Pas de nom de machine dans l'en-tête.".to_string()
+    } else if let Some(d) = named {
+        format!("Nom de machine « {craft} » : c'est celui du drone « {} ».", d.name)
+    } else {
+        format!("Nom de machine « {craft} » : aucune fiche ne porte ce nom.")
+    };
+    if let Some(card) = &p.card {
+        text.push_str(&format!(" Ouvert depuis la fiche « {card} » du Guide."));
+    }
+    text
+}
+
 impl AttachDialog {
     /// Ajoute un fichier à la fenêtre (une seule ligne par fichier).
     pub fn ask(&mut self, p: Pending) {
@@ -93,8 +142,8 @@ impl AttachDialog {
             ui.label(RichText::new("Rattacher à un drone").size(17.0).strong());
             ui.label(
                 RichText::new(
-                    "Ces logs ne disent pas à quelle fiche ils appartiennent. Choisissez un drone pour chacun : ses \
-                     fragments seront enregistrés dans la bibliothèque.",
+                    "Choisissez le drone de chacun de ces logs : ses fragments seront enregistrés dans la \
+                     bibliothèque sous ce drone, et le Guide les comptera dans sa fiche.",
                 )
                 .color(th.ui.text),
             );
@@ -105,12 +154,9 @@ impl AttachDialog {
                     .file_name()
                     .map_or_else(|| p.path.display().to_string(), |n| n.to_string_lossy().into_owned());
                 ui.label(RichText::new(safe_text(&file)).strong());
-                let why = if p.craft.trim().is_empty() {
-                    "Pas de nom de machine dans l'en-tête.".to_string()
-                } else {
-                    format!("Nom de machine « {} » : aucune fiche ne porte ce nom.", p.craft.trim())
-                };
+                let why = reason(lib, p);
                 ui.label(RichText::new(safe_text(&why)).size(12.0).color(th.ui.muted));
+                let known = p.known.as_deref().and_then(|id| lib.drone(id));
                 ui.horizontal_wrapped(|ui| {
                     crate::usb_page::drone_combo(
                         ui,
@@ -139,16 +185,23 @@ impl AttachDialog {
                     {
                         actions.push(AttachAction::Attach(p.path.clone(), p.choice.clone()));
                     }
-                    let passer = egui::Button::new(RichText::new("Ne pas ranger").size(13.0).color(th.ui.text))
+                    // un log déjà rangé n'a pas de « Ne pas ranger » : il l'est déjà, on le laisse où il est
+                    let (second, hover) = match known {
+                        Some(k) => (
+                            format!("Laisser sous « {} »", k.name),
+                            "Le log reste rangé sous ce drone, comme avant.",
+                        ),
+                        None => (
+                            "Ne pas ranger".to_string(),
+                            "Le log reste ouvert pour cette séance ; la bibliothèque ne garde rien.",
+                        ),
+                    };
+                    let passer = egui::Button::new(RichText::new(safe_text(&second)).size(13.0).color(th.ui.text))
                         .fill(th.ui.base)
                         .stroke(egui::Stroke::new(1.0, th.ui.mid))
                         .corner_radius(6);
-                    if ui
-                        .add(passer)
-                        .on_hover_text("Le log reste ouvert pour cette séance ; la bibliothèque ne garde rien.")
-                        .clicked()
-                    {
-                        actions.push(AttachAction::Skip(p.path.clone()));
+                    if ui.add(passer).on_hover_text(hover).clicked() {
+                        actions.push(left_alone(lib, p));
                     }
                 });
                 if let Some(e) = &p.error {
@@ -165,8 +218,17 @@ impl AttachDialog {
             );
         });
         if m.should_close() && actions.is_empty() {
-            actions.extend(self.pending.iter().map(|p| AttachAction::Skip(p.path.clone())));
+            actions.extend(self.pending.iter().map(|p| left_alone(lib, p)));
         }
         actions
+    }
+}
+
+/// Le second bouton, ou la fenêtre fermée : un log déjà rangé reste sous son drone (ses fragments reviennent dans
+/// la liste d'analyse) ; un autre n'est pas rangé.
+pub fn left_alone(lib: &Library, p: &Pending) -> AttachAction {
+    match &p.known {
+        Some(id) if lib.drone(id).is_some() => AttachAction::Attach(p.path.clone(), DroneChoice::Existing(id.clone())),
+        _ => AttachAction::Skip(p.path.clone()),
     }
 }

@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use egui::{Context, RichText, Ui};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
-use otb_advisor::drone_card::{DroneCard, card_for_log, card_from_log};
+use otb_advisor::drone_card::{DroneCard, card_from_log};
 use otb_advisor::log_check::{
     BLOCK, FILTERS, FilterTargets, GroupCheck, INFO, LogCheck, OK, PID, WARN, check_log, check_logs, filter_targets,
 };
@@ -52,6 +52,8 @@ pub enum GuideAction {
     /// « Les ouvrir » : ces fragments du drone, rangés dans la bibliothèque, ajoutés à la liste d'analyse (comme le « + »
     /// du tableau de bord) pour que le Guide les vérifie.
     OpenStored(Vec<String>),
+    /// « Rattacher à un drone… » d'un log ouvert rangé sous aucun drone (ce numéro dans la barre) : la fenêtre de D-084.
+    Attach(usize),
 }
 
 /// Résultat de `check_log` pour un log, vérification rapide ou complète (avec les repères des filtres).
@@ -98,6 +100,7 @@ enum Intent {
     Role(Option<String>, &'static str),
     CopyCli,
     OpenStored(Vec<String>),
+    Attach(usize),
 }
 
 pub struct GuidePage {
@@ -131,6 +134,8 @@ pub struct GuidePage {
     groups: Option<(String, Vec<GroupCheck>)>,
     /// Logs du drone dont la vérification a échoué ce cadre : (numéro, message).
     failures: Vec<(usize, String)>,
+    /// Le drone (nom) de chaque log ouvert d'après la bibliothèque, relu à chaque cadre (`guide::owner`, D-090).
+    owners: Vec<Option<String>>,
 }
 
 fn period_key(prefix: &str, period: (f64, f64), extra: Option<f64>) -> String {
@@ -230,6 +235,7 @@ impl GuidePage {
             cli_note: String::new(),
             groups: None,
             failures: Vec::new(),
+            owners: Vec::new(),
         }
     }
 
@@ -307,11 +313,12 @@ impl GuidePage {
     }
 
     // ------------------------------------------------------------ logs du drone et leur vérification
-    /// Les logs ouverts du drone de la fiche choisie, actifs ou non.
+    /// Les logs ouverts du drone de la fiche choisie, actifs ou non : ceux que la bibliothèque range sous ce drone
+    /// (`owners`, D-090), quel que soit leur nom de machine.
     fn card_logs(&self, state: &AppState) -> Vec<usize> {
         let Some(card) = self.card() else { return Vec::new() };
         (0..state.logs.len())
-            .filter(|&i| card_for_log(std::slice::from_ref(card), &state.logs[i].log.settings.craft_name).is_some())
+            .filter(|&i| self.owners.get(i).and_then(|o| o.as_deref()) == Some(card.name.as_str()))
             .collect()
     }
 
@@ -322,9 +329,8 @@ impl GuidePage {
             return;
         }
         self.last_uid = last;
-        if let Some(ll) = state.logs.last()
-            && let Some(m) = card_for_log(&self.cards.list, &ll.log.settings.craft_name)
-            && let Some(pos) = self.cards.list.iter().position(|c| std::ptr::eq(c, m))
+        if let Some(Some(name)) = self.owners.last()
+            && let Some(pos) = self.cards.list.iter().position(|c| c.name == *name)
         {
             self.selected = Some(pos);
         }
@@ -499,12 +505,14 @@ impl GuidePage {
                 self.cli_note = format!("{} commande(s) copiée(s), suivies de « save ».", self.cli.len());
             }
             Intent::OpenStored(fragments) => actions.push(GuideAction::OpenStored(fragments)),
+            Intent::Attach(index) => actions.push(GuideAction::Attach(index)),
         }
     }
 
     // ------------------------------------------------------------ dessin
     pub fn ui(&mut self, ui: &mut Ui, state: &mut AppState, lib: &Library, th: &Theme) -> Vec<GuideAction> {
         let ctx = ui.ctx().clone();
+        self.owners = state.logs.iter().map(|l| owner(lib, l.fragment.as_deref())).collect();
         self.follow_logs(state);
         self.poll_checks(&ctx, state);
         let views = self.views(&ctx, state, lib);
@@ -793,8 +801,9 @@ impl GuidePage {
             if views.is_empty() {
                 ui.label(
                     RichText::new(
-                        "Aucun log de ce drone ouvert. Les logs sont reconnus par le nom du drone dans Betaflight (onglet \
-                         Configuration), qui doit être celui de la fiche.",
+                        "Aucun log de ce drone ouvert. Un log compte ici quand la bibliothèque le range sous ce drone : \
+                         reconnu à son nom de machine (onglet Configuration de Betaflight), ou rattaché à la main \
+                         (« Ouvrir les logs… » ci-dessous).",
                     )
                     .color(muted),
                 );
@@ -868,13 +877,30 @@ impl GuidePage {
                 .chain(self.card_logs(state).into_iter().filter(|&i| !state.logs[i].active))
                 .collect();
             let failed: Vec<usize> = self.failures.iter().map(|f| f.0).collect();
-            let others: Vec<&str> = other_drone_logs(state.logs.len(), &mine, &failed)
+            // ⚠️ un log rangé sous aucun drone n'est pas « d'un autre drone » : il attend qu'on le rattache (D-090)
+            let (unattached, others): (Vec<usize>, Vec<usize>) = other_drone_logs(state.logs.len(), &mine, &failed)
                 .into_iter()
-                .map(|i| state.logs[i].label.as_str())
-                .collect();
+                .partition(|&i| self.owners.get(i).is_none_or(|o| o.is_none()));
             if !others.is_empty() {
+                let names: Vec<&str> = others.iter().map(|&i| state.logs[i].label.as_str()).collect();
                 ui.add_space(6.0);
-                ui.label(RichText::new(format!("Autres logs ouverts (autre drone) : {}.", others.join(", "))).color(muted));
+                ui.label(RichText::new(format!("Autres logs ouverts (autre drone) : {}.", names.join(", "))).color(muted));
+            }
+            if !unattached.is_empty() {
+                ui.add_space(6.0);
+                ui.label(RichText::new("Ouverts, rangés sous aucun drone (le Guide ne les compte pas) :").color(muted));
+                for &i in &unattached {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(state.logs[i].label.as_str()).color(muted));
+                        if ui
+                            .link("Rattacher à un drone…")
+                            .on_hover_text("Choisir le drone de ce log : il comptera dans la fiche de ce drone")
+                            .clicked()
+                        {
+                            intents.push(Intent::Attach(i));
+                        }
+                    });
+                }
             }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
