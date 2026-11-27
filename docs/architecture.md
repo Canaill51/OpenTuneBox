@@ -224,7 +224,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   `rust/otb-gui/assets/guide/accueil.md`, frise et liste des phases, fiches drone, cases décrites par `tuning_path.rs`, logs du drone
   vérifiés en arrière-plan par `log_check.rs` : les fragments **actifs** du drone, chacun avec le rôle de son fragment de la
   bibliothèque, D-071) ; elle rend des `GuideAction` que `App` exécute, dont le relevé des cases vérifiées (`Verified`) que
-  `App` range sur la fiche pour la carte du tableau de bord. Les liens `otb:phase/<clé>` et
+  `App` range sur la fiche pour la carte du tableau de bord, et `OpenStored` : les fragments du drone rangés mais fermés
+  (`guide::closed_fragments`, sans ceux en cours d'ouverture que `App` lui passe dans `GuidePage::pending`), ajoutés
+  à la liste d'analyse par **Les ouvrir** (`App::open_stored`, sans passer aux courbes depuis l'accueil). Les liens `otb:phase/<clé>` et
   `otb:tool/<clé>` de l'accueil sont vérifiés par le test de documentation.
 - `theme.rs` : thèmes clair et sombre, **seul fichier** à contenir des couleurs (les tables de palettes de `colormaps.rs` ne contiennent
   que des octets) ; `rust/otb-gui/tests/contracts.rs` refuse tout code couleur ailleurs (L-016).
