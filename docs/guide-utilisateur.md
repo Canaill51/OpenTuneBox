@@ -179,7 +179,8 @@ la fiche de votre drone et les vérifie dans chaque log. En bref :
   voir « Rattacher un log à un drone » dans [Les courbes du vol et les limites du fragment](#les-courbes-du-vol-et-les-limites-du-fragment)), et chaque session ouverte devient un fragment. En haut, **Bibliothèque** dit où ils sont rangés
   et permet de les déplacer (voir [La bibliothèque](#la-bibliothèque--où-elle-est-la-déplacer)).
 - **Fiche du drone** : le crayon en haut à droite d'une carte, ou **Nouveau drone**, ouvre la fiche — nom (le même que
-  dans Betaflight, onglet Configuration : c'est lui qui relie les logs au drone), taille (elle choisit les seuils de
+  dans Betaflight, onglet Configuration, de préférence : ses logs se rangent alors tout seuls sous le drone ; les
+  autres se rattachent à la main), taille (elle choisit les seuils de
   l'Assistant et les valeurs du Guide), batterie, poids, taille et KV des moteurs, pôles moteur, hélices, ESC, version de
   Betaflight, boucle PID. La **taille** se tape librement (« 3,5″ », « 10″ », « 85 mm ») ou se choisit avec la flèche ;
   la ligne dessous dit quels seuils l'Assistant prendra. Les **pôles**, la **boucle PID**, la **version de
@@ -249,12 +250,16 @@ fragment au tableau de bord, ou par le bouton **Visualiseur** du Guide. Les page
   « Enregistrer le fragment » ouvre alors la fenêtre **Rattacher à un drone**, et le fragment est gardé dès que le
   log est rattaché. Chaque log ouvert garde son propre fragment.
 - **Rattacher un log à un drone** : un log rejoint d'ordinaire le drone qui porte son **nom de machine** (le nom donné
-  au drone dans le configurateur Betaflight). Quand l'en-tête n'en a pas, ou qu'aucune fiche ne porte ce nom, une
-  fenêtre s'ouvre à l'ouverture du log : une ligne par fichier, où choisir la fiche (par exemple celle créée à la
-  main avec **Nouveau drone**) ou un nouveau drone, puis **Rattacher**. Un log sans nom propose la fiche choisie dans
-  le Guide ; un nom inconnu propose un nouveau drone de ce nom. **Ne pas ranger** garde le log pour la séance
-  seulement ; le bouton **Rattacher à un drone…** de l'écran d'extraction rouvre la fenêtre plus tard. Un log
-  rattaché est reconnu tout seul quand on le rouvre.
+  au drone dans le configurateur Betaflight ; majuscules et espaces autour ne comptent pas). Quand l'en-tête n'en a
+  pas, ou qu'aucune fiche ne porte ce nom, une fenêtre s'ouvre à l'ouverture du log : une ligne par fichier, qui dit
+  pourquoi elle demande, où choisir la fiche (par exemple celle créée à la main avec **Nouveau drone**) ou un nouveau
+  drone, puis **Rattacher**. Un log sans nom propose la fiche choisie dans le Guide ; un nom inconnu propose un nouveau
+  drone de ce nom. **Ne pas ranger** garde le log pour la séance seulement ; le bouton **Rattacher à un drone…** de
+  l'écran d'extraction rouvre la fenêtre plus tard. Un log rattaché est reconnu tout seul quand on le rouvre.
+  Ouvert **depuis une fiche du Guide** (« Ouvrir les logs des filtres… », « …de la série… »), un log demande
+  **toujours**, cette fiche proposée d'office, sauf s'il est déjà rangé sous elle : c'est vous qui choisissez, même
+  quand son nom de machine est celui d'un autre drone. Un log déjà rangé sous un autre drone propose **Laisser sous
+  « … »**, ou **Rattacher** pour le déplacer avec ses fragments.
 - **Barre de navigation**, sous les graphiques : le log entier (le profil des gaz), le fragment en bleu, et la
   **fenêtre visible** dans un cadre. Glissez le cadre pour vous déplacer, tirez ses poignées pour l'élargir ou la
   resserrer, cliquez ailleurs pour y sauter. **Vue entière** montre tout le log, **Cadrer le fragment** le
@@ -464,8 +469,11 @@ La méthode est le **parcours du guide intégré** (bouton **Guide**) : des case
   vérifient toutes seules (« ✔ Vérifié », ou « ▲ À revoir » avec la raison).
 - **Logs du drone** (sous les cases), en deux parties : **logs des filtres** et **logs des séries PID**.
   Ouvrez-les avec le bouton de la case « Récupérer le log et l'ouvrir » (phase Filtres) ou « Ouvrir les logs
-  de la série » (phase PID, et sa pareille pour la série Feedforward des Finitions) : chaque log garde ce rôle, et les cases d'une phase ne lisent que les logs de
-  cette phase. Le rôle appartient au **fragment** (celui que montre l'écran d'extraction) : deux fragments d'un même
+  de la série » (phase PID, et sa pareille pour la série Feedforward des Finitions) : la fenêtre **Rattacher à un
+  drone** demande d'abord le drone (celui de la fiche est proposé), puis chaque log garde ce rôle, et les cases d'une
+  phase ne lisent que les logs de cette phase. Un log compte dans la fiche quand il est **rangé sous ce drone** dans la
+  bibliothèque, quel que soit son nom de machine ; un log ouvert mais rangé sous aucun drone est nommé à part, avec un
+  lien **Rattacher à un drone…**. Le rôle appartient au **fragment** (celui que montre l'écran d'extraction) : deux fragments d'un même
   vol peuvent servir l'un aux filtres, l'autre à une série. Un fragment sans rôle est classé tout seul (partie
   stationnaire → filtres, sinon série PID) ; le lien « → classer dans les … » corrige le classement. Seuls les
   fragments **actifs** de la barre du haut sont vérifiés : un fragment désactivé est nommé sous les logs, sans plus.

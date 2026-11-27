@@ -671,8 +671,12 @@ impl Library {
     /// Le drone qui porte ce nom (le `craft_name` des logs) : c'est le nom, et non l'identifiant, qui relie un
     /// log à sa fiche (écran de la fiche, D-068). Un drone créé à la main garde l'identifiant de sa création
     /// même renommé ; le chercher par identifiant raterait ses logs suivants. Le premier, si deux le portent.
+    ///
+    /// La casse et les espaces autour du nom ne comptent pas (D-090) : c'était la règle du Guide quand il reconnaissait
+    /// ses logs par le nom de machine plutôt que par la bibliothèque ; « JENO » et « jeno » sont le même drone.
     pub fn drone_by_name(&self, name: &str) -> Option<&Drone> {
-        self.drones.iter().find(|d| d.name == name)
+        let key = name.trim().to_lowercase();
+        self.drones.iter().find(|d| d.name.trim().to_lowercase() == key)
     }
 
     /// Le drone dont la carte porte cet identifiant gravé (lot 32b) ; `None` pour un identifiant vide.
@@ -736,6 +740,20 @@ impl Library {
 
     pub fn log(&self, id: &str) -> Option<&LogEntry> {
         self.logs.iter().find(|l| l.id == id)
+    }
+
+    /// Range un log déjà connu sous un autre drone (D-090 : le pilote l'a choisi dans la fenêtre « Rattacher à un
+    /// drone »). Ses fragments, leurs bornes, rôles et mesures le suivent : ils désignent le log, pas le drone. Le
+    /// fichier ne bouge pas, même copié dans le dossier de l'ancien drone : son chemin reste celui de l'entrée.
+    /// `false` si le log est inconnu ou déjà sous ce drone.
+    pub fn move_log(&mut self, id: &str, drone_id: &str) -> bool {
+        match self.logs.iter_mut().find(|l| l.id == id) {
+            Some(l) if l.drone_id != drone_id => {
+                l.drone_id = drone_id.to_string();
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Les fragments d'un log, dans l'ordre où la bibliothèque les range.

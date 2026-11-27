@@ -3,7 +3,8 @@
 //! `cargo run --release -p otb-gui --example capture -- LOG.bbl DOSSIER_DE_SORTIE [AUTRE_LOG…]`
 //! Les logs supplémentaires sont ouverts aussi et cochés dans chaque outil (séries de vols : Réponse indicielle).
 //! Écrit `courbes-clair.png`, `courbes-sombre.png` (l'écran d'extraction, lot 29b), `fragment-ajoute-<thème>.png` (un second fragment de la session, D-067) et `tableau-de-bord-<thème>.png`, `bibliotheque-<thème>.png` et `bibliotheque-introuvable-<thème>.png` (lot 34, D-081), `tableau-de-bord-releve-<thème>.png` (la carte après le passage du Guide, D-071), `fiche-drone-<thème>.png`, `fiche-drone-suivi-<thème>.png` (les graphiques du suivi, lot 31c), `fiche-drone-bas-<thème>.png`, `barre-desactivee-<thème>.png`, puis une capture par outil : `<outil>-<thème>.png`
-//! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`).
+//! (`spectre`, `freq-gaz`, `freq-temps`…, dans l'ordre de `tools::all_pages`), et `rattacher-guide-<thème>.png` (le
+//! log rouvert depuis une autre fiche du Guide alors qu'il est rangé sous son drone, D-090).
 
 #[path = "../tests/support/clic.rs"]
 mod clic;
@@ -270,5 +271,47 @@ fn main() {
                 img.save(out.join(format!("{name}-brutes-{}.png", th.name))).unwrap();
             }
         }
+        rattacher_depuis_le_guide(th, &log, &out);
     }
+}
+
+/// D-090 : le log, rangé sous le drone de son nom de machine, rouvert par « Ouvrir les logs de la série… » depuis une
+/// autre fiche : la fenêtre « Rattacher à un drone » dit pourquoi elle demande et propose de le laisser où il est.
+fn rattacher_depuis_le_guide(th: theme::Theme, log: &str, out: &std::path::Path) {
+    let mut app = App::new(otb_gui::tools::all_pages());
+    app.theme = th;
+    app.put_card(otb_advisor::drone_card::DroneCard::new("Jeno 5 CHIRP"));
+    let mut h = Harness::builder()
+        .with_size(egui::vec2(1500.0, 900.0))
+        .with_context_setup(otb_gui::app::setup)
+        .wgpu()
+        .build_ui_state(|ui, a: &mut App| a.ui(ui), app);
+    let attendre = |h: &mut Harness<'_, App>| {
+        for _ in 0..400 {
+            h.run();
+            if !h.state().state.logs.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        h.run_steps(4);
+    };
+    h.state_mut().open(vec![log.into()]);
+    attendre(&mut h);
+    h.state_mut().attach.pending.clear(); // nom inconnu : la fenêtre a demandé ; on le range sous son propre nom
+    let nom = h.state().state.logs[0].log.settings.craft_name.trim().to_string();
+    h.state_mut()
+        .attach_log(std::path::Path::new(log), &otb_gui::usb::DroneChoice::New(nom))
+        .expect("rangé");
+    h.state_mut().state.clear();
+    h.state_mut().screen = Screen::Guide;
+    h.state_mut().guide.select_by_name("Jeno 5 CHIRP");
+    h.state_mut().guide.phase = "pid";
+    h.state_mut()
+        .open_as(vec![log.into()], Some(otb_advisor::log_check::PID));
+    attendre(&mut h);
+    h.render()
+        .expect("rendu")
+        .save(out.join(format!("rattacher-guide-{}.png", th.name)))
+        .unwrap();
 }

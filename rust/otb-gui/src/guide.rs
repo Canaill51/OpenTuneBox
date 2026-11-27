@@ -335,6 +335,15 @@ pub fn part_target(checks: &[&LogCheck], part: &str) -> Option<(usize, (f64, f64
     part_period(checks[i], part).map(|p| (i, p))
 }
 
+/// Le drone d'un log ouvert, **d'après la bibliothèque** (D-090) : celui sous lequel est rangé le log de son fragment.
+/// `None` : rangé sous aucun drone (en attente dans la fenêtre « Rattacher à un drone », ou « Ne pas ranger »).
+///
+/// ⚠️ Jamais d'après le nom de machine de l'en-tête : un log rattaché à la main, ou copié par USB sous le drone choisi
+/// au branchement, en porte souvent un autre, et le Guide le montrait alors comme « autre drone » (D-090).
+pub fn owner(lib: &Library, fragment: Option<&str>) -> Option<String> {
+    crate::advice::drone_of(lib, fragment?).map(|d| d.name.clone())
+}
+
 /// Numéros des logs « d'un autre drone » : ni vérifiés pour la fiche choisie, ni en échec (un log du drone dont la vérification a échoué
 /// reste au drone).
 pub fn other_drone_logs(count: usize, mine: &[usize], failed: &[usize]) -> Vec<usize> {

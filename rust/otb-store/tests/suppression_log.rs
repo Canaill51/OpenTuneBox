@@ -132,3 +132,23 @@ fn seul_le_fichier_copie_du_log_s_efface() {
     assert_eq!(Library::in_memory().delete_copy_of_log("c1"), Ok(false));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Déplacer un log vers un autre drone (D-090) : seule l'entrée change de drone ; ses fragments, leurs rôles et leurs
+/// mesures le suivent, et le nouveau drone les voit.
+#[test]
+fn deplacer_un_log_change_son_drone_et_garde_ses_fragments() {
+    let mut lib = Library::in_memory();
+    lib.put_drone(Drone::new("uid-0001", "JeNo Ced"));
+    lib.put_drone(Drone::new("uid-0002", "Jeno 5 CHIRP"));
+    assert!(lib.add_log(log("emp-aaa", "uid-0001", "/logs/MM.bbl", true)));
+    lib.put_fragment(fragment("fr-1", "emp-aaa", (0, 5_000)));
+    assert!(lib.move_log("emp-aaa", "uid-0002"));
+    assert_eq!(lib.log("emp-aaa").map(|l| l.drone_id.as_str()), Some("uid-0002"));
+    assert_eq!(lib.log("emp-aaa").map(|l| l.path.as_str()), Some("/logs/MM.bbl"));
+    assert_eq!(lib.fragments_of_drone("uid-0002").len(), 1);
+    assert!(lib.fragments_of_drone("uid-0001").is_empty());
+    assert_eq!(lib.fragment("fr-1").map(|f| f.role.as_str()), Some("filters"));
+    // déjà sous ce drone, ou log inconnu : rien ne change
+    assert!(!lib.move_log("emp-aaa", "uid-0002"));
+    assert!(!lib.move_log("emp-zzz", "uid-0001"));
+}

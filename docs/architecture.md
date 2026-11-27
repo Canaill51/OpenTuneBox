@@ -123,8 +123,10 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   (`DashboardPage::ask_delete`, case du fichier copié `delete_copy`, décochée à chaque corbeille) et
   `DashAction::DeleteLog` retire **le log entier** (`App::delete_log` : fichier copié d'abord si la case est cochée, puis
   `Library::remove_log`, puis les pastilles de ses fragments). Un drone est reconnu par le **nom de machine** de
-  l'en-tête (`Craft name`), cherché par nom (`Library::drone_by_name`) : un drone créé à la main ou renommé garde ses logs
-  (D-068). Un log qu'aucun drone ne reconnaît (sans nom, ou nom inconnu dans une bibliothèque qui a des drones) attend
+  l'en-tête (`Craft name`), cherché par nom (`Library::drone_by_name`, sans casse ni espaces autour, D-090) : un drone
+  créé à la main ou renommé garde ses logs (D-068). Un log ouvert depuis une fiche du Guide passe toujours par la fenêtre
+  (`attach::guide_opening`, sauf déjà rangé sous ce drone), qui sait le laisser sous son drone ou l'en déplacer
+  (`Library::move_log`, D-090). Un log qu'aucun drone ne reconnaît (sans nom, ou nom inconnu dans une bibliothèque qui a des drones) attend
   dans `attach.rs` (`AttachDialog`, D-084) : la fenêtre « Rattacher à un drone », une ligne par fichier, range le
   fichier sous le drone choisi (`App::attach_log`) ; l'écran d'extraction la rouvre (`ExtAction::Attach`). Le crayon d'une carte et « Nouveau drone » ouvrent la fiche du drone (`DashAction::EditDrone`, `DashAction::NewDrone`).
 - `usb.rs` et `usb_page.rs` : la **récupération par USB** (lot 32b, D-074), écran hors rail (`Screen::Usb`) ouvert par
@@ -222,8 +224,9 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   quand la table des drones change, D-068 ; lecture de l'ancien fichier `drones.json` pour sa reprise ; liens `otb:`,
   avancement, outils cités). `guide_page.rs` : la page **Guide** (accueil
   `rust/otb-gui/assets/guide/accueil.md`, frise et liste des phases, fiches drone, cases décrites par `tuning_path.rs`, logs du drone
-  vérifiés en arrière-plan par `log_check.rs` : les fragments **actifs** du drone, chacun avec le rôle de son fragment de la
-  bibliothèque, D-071) ; elle rend des `GuideAction` que `App` exécute, dont le relevé des cases vérifiées (`Verified`) que
+  vérifiés en arrière-plan par `log_check.rs` : les fragments **actifs** rangés sous le drone de la fiche dans la
+  bibliothèque — `guide::owner`, jamais le nom de machine, D-090 —, chacun avec le rôle de son fragment, D-071 ; un log
+  rangé sous aucun drone est nommé à part avec « Rattacher à un drone… », `GuideAction::Attach`) ; elle rend des `GuideAction` que `App` exécute, dont le relevé des cases vérifiées (`Verified`) que
   `App` range sur la fiche pour la carte du tableau de bord, et `OpenStored` : les fragments du drone rangés mais fermés
   (`guide::closed_fragments`, sans ceux en cours d'ouverture que `App` lui passe dans `GuidePage::pending`), ajoutés
   à la liste d'analyse par **Les ouvrir** (`App::open_stored`, sans passer aux courbes depuis l'accueil). Les liens `otb:phase/<clé>` et

@@ -13,7 +13,7 @@ description: Modifier ou relire le guide intégré d'OpenTuneBox (page Guide : f
 - **Fiche drone** : `rust/otb-advisor/src/drone_card.rs` (version, taille, boucle PID, ESC ; fréquence d'enregistrement,
   mode de débogage, listes des séries, plages de finitions, filtres par défaut du firmware). Les fiches vivent
   dans la bibliothèque (D-068) ; le Guide en lit une copie traduite par `rust/otb-gui/src/drone_sheet.rs:card_of`, et la
-  saisie se fait dans l'écran « fiche du drone ». Un log est relié à la fiche par `craft_name`.
+  saisie se fait dans l'écran « fiche du drone ». Un log est relié à la fiche par **la bibliothèque** (le drone sous lequel il est rangé, `guide::owner`), jamais par le seul `craft_name` (D-090).
 - **Contrôles des logs** : `rust/otb-advisor/src/log_check.rs:check_log` (un point par clé ; parties du vol par
   `rust/otb-analysis/src/period.rs:flight_parts` ; l'argument `exact` de `check_log` et `filter_targets` sont lents : arrière-plan).
 - **Interface** : `rust/otb-gui/src/guide.rs` (logique) et `guide_page.rs` (fiche, frise, phases, cases, logs du drone :

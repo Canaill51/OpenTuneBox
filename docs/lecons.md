@@ -60,6 +60,22 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-128 : une règle d'appartenance codée à deux endroits : D-084 a changé celle de la bibliothèque, le Guide gardait l'ancienne
+
+- **Symptôme** — 2026-11-28 (brouillon 0.10.0) : des logs au nom de machine « JeNo Ced », rattachés à la main à la fiche
+  « Jeno 5 CHIRP » (la barre d'état le confirme), restent dans « Autres logs ouverts (autre drone) » du Guide ; ses logs
+  des filtres et des séries PID sont vides. Aucun test ne rougissait.
+- **Cause** — lue dans le code : « à quel drone est ce log ? » se décidait à **deux** endroits. La bibliothèque
+  (`App::remember`, empreinte puis nom puis choix du pilote, D-084) et le Guide (`card_for_log` sur `craft_name`, D-068).
+  D-084 n'a changé que la première ; les tests de D-084 vérifiaient le rangement dans la bibliothèque, jamais ce que le
+  Guide en voyait. Le Guide comparait en plus sans casse ni espaces, la bibliothèque au caractère près : deux règles
+  qui divergeaient déjà.
+- **Règle** — le drone d'un log ouvert se lit **dans la bibliothèque seulement** (`rust/otb-gui/src/guide.rs:owner`) ;
+  une page qui a besoin de l'appartenance la demande là, jamais au nom de machine. Changer une règle de rangement :
+  chercher tous les lecteurs de l'ancienne (`grep craft_name`, `card_for_log`) et tester ce que **chaque page** en voit.
+- **Preuve** — `rust/otb-gui/tests/rattacher.rs:un_log_d_un_autre_nom_ouvert_depuis_la_fiche_compte_dans_ses_series` :
+  avec `card_logs` rétabli sur le nom de machine, le Guide ne voit aucun log et le test échoue (D-090).
+
 ### L-127 : `cargo --manifest-path rust/Cargo.toml` lancé depuis la racine ignore la version de Rust figée : clippy signale un fichier qu'on n'a pas touché
 
 - **Symptôme** — 2026-11-25 (lot 35) : `cargo run --manifest-path rust/Cargo.toml -p otb-dev -- verify`, lancé depuis la
@@ -1639,6 +1655,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-128 | Le drone d'un log se décidait à deux endroits (bibliothèque, Guide par le nom de machine) ; D-084 n'en avait changé qu'un : le lire dans la bibliothèque seulement (`guide::owner`), et tester ce que chaque page voit d'une règle de rangement | Interface |
 | L-127 | `cargo --manifest-path rust/Cargo.toml` depuis la racine ignore `rust/rust-toolchain.toml` : autre Rust, autre clippy (avertissement dans un fichier non touché) ; lancer `cargo` depuis `rust/` | Outillage |
 | L-126 | Contre-preuve qui restaure le fichier en renommant sa sauvegarde : il reprend une date ancienne et cargo garde le binaire de la protection cassée (test faux rouge, ou contre-preuve faux vert) ; redonner l'heure au fichier restauré (`touch`) | Outillage |
 | L-125 | Plusieurs conversations dans un seul dossier se partagent branche et fichiers ; les crochets tournent dans le dossier principal ; un numéro peut être cité ailleurs avant d'être au registre : un worktree par conversation, `otb-dev numero`, crochet parti du `cwd` | Outillage |

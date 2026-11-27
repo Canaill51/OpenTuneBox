@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
+use otb_advisor::drone_card::DroneCard;
+use otb_advisor::log_check::{FILTERS, PID};
 use otb_gui::app::{App, Screen};
 use otb_gui::attach::{must_ask, proposal};
 use otb_gui::usb::DroneChoice;
@@ -248,4 +250,209 @@ fn la_proposition_suit_le_nom_puis_la_fiche_du_guide() {
     );
     assert_eq!(proposal(&lib, "", Some("Absent")), DroneChoice::New(String::new()));
     assert_eq!(proposal(&lib, "", None), DroneChoice::New(String::new()));
+}
+
+// ------------------------------------------------------------------ D-090 : le Guide suit la bibliothèque
+
+const CHIRP: &str = "Jeno 5 CHIRP";
+
+fn attendre(h: &mut Harness<'static, App>, fin: impl Fn(&App) -> bool) {
+    let debut = Instant::now();
+    while !fin(h.state()) {
+        h.run_steps(2);
+        assert!(debut.elapsed() < Duration::from_secs(60), "attente trop longue");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    h.run_steps(3);
+}
+
+/// Le Guide sur la phase des séries PID, la fiche `choisie` sélectionnée ; une fiche par nom de `noms`.
+fn guide_sur(noms: &[&str], choisie: &str) -> App {
+    let mut app = App::new(otb_gui::tools::all_pages());
+    for n in noms {
+        app.put_card(DroneCard::new(n));
+    }
+    app.guide.select_by_name(choisie);
+    app.guide.phase = "pid";
+    app
+}
+
+/// Le Guide a vérifié ce log (le seul ouvert), avec ce rôle.
+fn guide_voit(h: &mut Harness<'static, App>, role: &'static str) {
+    attendre(h, |a| !a.guide.busy() && !a.guide.seen().is_empty());
+    let uid = h.state().state.logs[0].uid;
+    assert_eq!(
+        h.state().guide.seen(),
+        [(uid, role)],
+        "le log compte dans la fiche choisie"
+    );
+}
+
+fn role_du_fragment(h: &Harness<'static, App>) -> String {
+    let fid = h.state().state.logs[0].fragment.clone().expect("rangé");
+    h.state().library.fragment(&fid).unwrap().role.clone()
+}
+
+/// Le cas qui a fait naître D-090 : la fiche « Jeno 5 CHIRP », des logs dont le nom de machine est « JeNo Ced »,
+/// ouverts par « Ouvrir les logs de la série… » du Guide. Ils étaient rangés sous la fiche mais le Guide, qui ne lisait
+/// que le nom de machine, les montrait dans « Autres logs ouverts (autre drone) » et les séries restaient vides.
+/// Maintenant la fenêtre demande (fiche du Guide proposée d'office) et, une fois rattaché, le log compte dans la fiche
+/// avec le rôle demandé.
+///
+/// **Contre-preuve vue en échec** (2026-11-28) : `card_logs` rétabli sur `card_for_log(…, craft_name)`, le Guide ne
+/// voit aucun log et `guide_voit` attend jusqu'à l'échec.
+#[test]
+fn un_log_d_un_autre_nom_ouvert_depuis_la_fiche_compte_dans_ses_series() {
+    let mut h = banc(guide_sur(&[CHIRP], CHIRP));
+    h.run();
+    h.state_mut().open_as(vec![copie("JeNo Ced", "chirp")], Some(PID));
+    attendre_logs(&mut h, 1);
+    let p = &h.state().attach.pending;
+    assert_eq!(p.len(), 1, "la fenêtre demande");
+    assert_eq!(
+        p[0].choice,
+        DroneChoice::Existing(CHIRP.into()),
+        "fiche du Guide proposée"
+    );
+    h.get_by_label(
+        "Nom de machine « JeNo Ced » : aucune fiche ne porte ce nom. Ouvert depuis la fiche « Jeno 5 CHIRP » du Guide.",
+    );
+    h.cliquer_label("Rattacher");
+    h.run_steps(3);
+    assert!(!h.state().attach.is_open());
+    assert_eq!(logs_du_drone(&h.state().library, CHIRP), 1);
+    assert_eq!(role_du_fragment(&h), PID, "le rôle du bouton est gardé");
+    guide_voit(&mut h, PID);
+}
+
+/// Ouvert depuis le Guide, un log **demande toujours**, même quand son nom de machine est celui de la fiche ; une fois
+/// rangé sous ce drone, le rouvrir depuis la même fiche ne redemande rien (il n'y a rien à décider).
+///
+/// **Contre-preuve vue en échec** (2026-11-28) : `guide_opening` qui rend toujours `Ask`, la réouverture redemande et
+/// l'assertion `!is_open` rougit.
+#[test]
+fn ouvert_depuis_le_guide_un_log_demande_meme_au_nom_de_la_fiche() {
+    let mut h = banc(guide_sur(&[CHIRP], CHIRP));
+    h.run();
+    let chemin = copie(CHIRP, "meme-nom");
+    h.state_mut().open_as(vec![chemin.clone()], Some(FILTERS));
+    attendre_logs(&mut h, 1);
+    assert!(h.state().attach.is_open(), "toujours demander depuis le Guide");
+    assert!(h.state().library.logs().is_empty(), "rien de rangé avant le choix");
+    h.get_by_label(
+        "Nom de machine « Jeno 5 CHIRP » : c'est celui du drone « Jeno 5 CHIRP ». Ouvert depuis la fiche « Jeno 5 CHIRP » du Guide.",
+    );
+    h.cliquer_label("Rattacher");
+    h.run_steps(3);
+    guide_voit(&mut h, FILTERS);
+    // rouvert depuis la même fiche : déjà rangé sous son drone, rien à demander
+    h.state_mut().state.clear();
+    h.state_mut().open_as(vec![chemin], Some(PID));
+    attendre_logs(&mut h, 1);
+    assert!(!h.state().attach.is_open());
+    assert_eq!(role_du_fragment(&h), PID, "le nouveau rôle est pris");
+}
+
+/// Le nom de machine désigne un **autre** drone qui a sa fiche : la fenêtre propose la fiche du Guide et dit à qui
+/// est ce nom ; le pilote tranche. Rattaché à l'autre drone, le log n'est pas compté dans la fiche du Guide.
+#[test]
+fn un_nom_d_un_autre_drone_laisse_le_pilote_trancher() {
+    let mut h = banc(guide_sur(&[CHIRP, "JeNo Ced"], CHIRP));
+    h.run();
+    h.state_mut().open_as(vec![copie("JeNo Ced", "conflit")], Some(PID));
+    attendre_logs(&mut h, 1);
+    assert_eq!(h.state().attach.pending[0].choice, DroneChoice::Existing(CHIRP.into()));
+    h.get_by_label("Nom de machine « JeNo Ced » : c'est celui du drone « JeNo Ced ». Ouvert depuis la fiche « Jeno 5 CHIRP » du Guide.");
+    h.state_mut().attach.pending[0].choice = DroneChoice::Existing("JeNo Ced".into());
+    h.cliquer_label("Rattacher");
+    h.run_steps(3);
+    assert_eq!(logs_du_drone(&h.state().library, "JeNo Ced"), 1);
+    assert_eq!(
+        h.state().guide.card().unwrap().name,
+        CHIRP,
+        "la fiche choisie ne change pas"
+    );
+    assert!(h.state().guide.seen().is_empty(), "pas compté dans la fiche du Guide");
+    h.get_by_label("Autres logs ouverts (autre drone) : conflit.");
+}
+
+/// Un log **déjà rangé** sous un autre drone (ici par son nom de machine, comme une copie USB l'est sous le drone
+/// choisi au branchement), ouvert depuis une autre fiche : la fenêtre le dit et propose de l'y laisser ; « Rattacher »
+/// le déplace, fragments compris, et le Guide le compte alors.
+///
+/// **Contre-preuve vue en échec** (2026-11-28) : sans `move_log` dans `App::store_log`, le log reste sous « JeNo Ced »
+/// et l'assertion sur `logs_du_drone(…, CHIRP)` rougit.
+#[test]
+fn un_log_range_ailleurs_se_laisse_ou_se_deplace() {
+    let mut h = banc(guide_sur(&[CHIRP, "JeNo Ced"], CHIRP));
+    h.run();
+    let chemin = copie("JeNo Ced", "ailleurs");
+    h.state_mut().open(vec![chemin.clone()]);
+    attendre_logs(&mut h, 1);
+    assert!(!h.state().attach.is_open(), "reconnu par son nom, rangé sans question");
+    assert_eq!(logs_du_drone(&h.state().library, "JeNo Ced"), 1);
+    // depuis la fiche « Jeno 5 CHIRP » : on demande, et « Laisser sous… » le garde où il est
+    h.state_mut().state.clear();
+    h.state_mut().guide.select_by_name(CHIRP);
+    h.state_mut().open_as(vec![chemin.clone()], Some(PID));
+    attendre_logs(&mut h, 1);
+    assert_eq!(h.state().attach.pending[0].known.as_deref(), Some("JeNo Ced"));
+    h.get_by_label(
+        "Déjà rangé sous « JeNo Ced ». « Rattacher » le déplace sous le drone choisi, avec ses fragments. Ouvert depuis la fiche « Jeno 5 CHIRP » du Guide.",
+    );
+    h.cliquer_label("Laisser sous « JeNo Ced »");
+    h.run_steps(3);
+    assert!(!h.state().attach.is_open());
+    assert_eq!(logs_du_drone(&h.state().library, "JeNo Ced"), 1);
+    assert!(
+        h.state().state.logs[0].fragment.is_some(),
+        "toujours rangé, son fragment revient"
+    );
+    // rouvert depuis la fiche, cette fois déplacé
+    h.state_mut().state.clear();
+    h.state_mut().guide.select_by_name(CHIRP);
+    h.state_mut().open_as(vec![chemin], Some(PID));
+    attendre_logs(&mut h, 1);
+    h.cliquer_label("Rattacher");
+    h.run_steps(3);
+    assert_eq!(logs_du_drone(&h.state().library, CHIRP), 1);
+    assert_eq!(logs_du_drone(&h.state().library, "JeNo Ced"), 0);
+    assert_eq!(
+        h.state().library.fragments().len(),
+        1,
+        "le même fragment, pas un double"
+    );
+    guide_voit(&mut h, PID);
+}
+
+/// Un log ouvert et rangé sous aucun drone n'est pas « d'un autre drone » : le panneau des logs du Guide le dit et
+/// son lien « Rattacher à un drone… » rouvre la fenêtre, la fiche du Guide proposée d'office.
+#[test]
+fn un_log_non_range_se_rattache_depuis_le_panneau_du_guide() {
+    let mut h = banc(guide_sur(&[CHIRP], CHIRP));
+    h.run();
+    h.state_mut().open(vec![copie("JeNo Ced", "non-range")]);
+    attendre_logs(&mut h, 1);
+    h.cliquer_label("Ne pas ranger");
+    h.run_steps(3);
+    assert!(!h.state().attach.is_open());
+    h.get_by_label("Ouverts, rangés sous aucun drone (le Guide ne les compte pas) :");
+    h.cliquer_label("Rattacher à un drone…");
+    h.run_steps(2);
+    let p = &h.state().attach.pending;
+    assert_eq!(p.len(), 1);
+    assert_eq!(p[0].choice, DroneChoice::Existing(CHIRP.into()));
+    h.cliquer_label("Rattacher");
+    h.run_steps(3);
+    attendre(&mut h, |a| !a.guide.busy() && a.guide.seen().len() == 1);
+    assert!(h.state().attach.pending.is_empty());
+}
+
+/// Le nom d'un drone se compare sans la casse ni les espaces autour (D-090), comme le Guide le faisait.
+#[test]
+fn le_nom_d_un_drone_se_compare_sans_casse_ni_espaces() {
+    let mut lib = Library::in_memory();
+    lib.put_drone(Drone::new("uid-1", "JeNo Ced"));
+    assert_eq!(lib.drone_by_name("  jeno ced ").map(|d| d.id.as_str()), Some("uid-1"));
+    assert!(lib.drone_by_name("JeNo").is_none());
 }

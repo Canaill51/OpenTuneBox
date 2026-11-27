@@ -129,6 +129,7 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
 - Tout ce qui ouvre une fenêtre du système (boîte de fichiers…) passe par un champ remplaçable, inerte dans `App::new` ; scripts de mutations lancés sans écran ni bus de session, avec délai. L-075
 - Identité d'un log : `LoadedLog::uid` (ou `LogInput::uid`), jamais l'adresse de son `Arc` (elle peut resservir à un autre log). L-072
 - Calcul lancé dans un fil : chaque demande porte un numéro (`ToolPage`), un résultat qui n'a plus le dernier numéro se jette, et vider l'état compte comme une demande neuve ; le test change l'état **pendant** le calcul (barrière, une seule image), sinon il ne prouve rien. L-088
+- Le drone d'un log ouvert se lit dans la bibliothèque (`rust/otb-gui/src/guide.rs:owner`), jamais par le nom de machine : une règle de rangement changée à un endroit laissait le Guide sur l'ancienne. L-128
 
 ## Outillage, vérification et crochets
 

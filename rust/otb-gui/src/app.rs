@@ -1005,6 +1005,25 @@ impl App {
             .log(&id)
             .and_then(|l| self.library.drone(&l.drone_id))
             .cloned();
+        // ouvert depuis une fiche du Guide (le rôle le dit) : le pilote choisit le drone, ni le nom de machine ni un
+        // rangement antérieur ne décident à sa place (D-090)
+        let card = role.and(self.guide_card());
+        if let Some(card) = card
+            && let Some(opening) =
+                crate::attach::guide_opening(&self.library, &card, known.as_ref().map(|d| d.id.as_str()))
+            && let crate::attach::GuideOpening::Ask(card_drone) = opening
+        {
+            self.attach.ask(crate::attach::Pending {
+                path: path.to_path_buf(),
+                craft: nom,
+                choice: crate::usb::DroneChoice::Existing(card_drone),
+                role,
+                known: known.map(|d| d.id),
+                card: Some(card),
+                error: None,
+            });
+            return None;
+        }
         // sinon le nom relie un log à son drone (D-068) : un drone créé à la main garde l'identifiant de sa création
         let by_name = || {
             (!nom.is_empty())
@@ -1022,6 +1041,8 @@ impl App {
                     craft: nom,
                     choice,
                     role,
+                    known: None,
+                    card: None,
                     error: None,
                 });
                 return None;
@@ -1063,6 +1084,8 @@ impl App {
         }
         drone.last_seen = date.clone();
         self.library.put_drone(drone);
+        // un log déjà rangé sous un autre drone ne passe ici avec ce drone-ci que sur le choix du pilote (D-090)
+        self.library.move_log(&id, &drone_id);
         self.library.add_log(otb_store::model::LogEntry {
             id: id.clone(),
             drone_id,
@@ -1172,18 +1195,31 @@ impl App {
     /// Rouvre la fenêtre pour le log `index`, s'il n'est rangé sous aucun drone (« Rattacher à un drone… » de l'écran
     /// d'extraction, ou « Enregistrer le fragment » sur un tel log).
     pub fn ask_attach(&mut self, index: usize) {
+        self.ask_attach_from(index, None);
+    }
+
+    /// Comme `ask_attach`, depuis la fiche `card` du Guide (« Rattacher à un drone… » de son panneau des logs) : le
+    /// drone de cette fiche est proposé d'office, quel que soit le nom de machine (D-090).
+    fn ask_attach_from(&mut self, index: usize, card: Option<String>) {
         let Some(ll) = self.state.logs.get(index) else { return };
         if ll.fragment.is_some() {
             return;
         }
         let path = ll.log.path.clone();
         let craft = ll.log.settings.craft_name.trim().to_string();
-        let choice = crate::attach::proposal(&self.library, &craft, self.guide_card().as_deref());
+        let card_drone = card
+            .as_deref()
+            .and_then(|n| self.library.drone_by_name(n))
+            .map(|d| crate::usb::DroneChoice::Existing(d.id.clone()));
+        let choice =
+            card_drone.unwrap_or_else(|| crate::attach::proposal(&self.library, &craft, self.guide_card().as_deref()));
         self.attach.ask(crate::attach::Pending {
             path,
             craft,
             choice,
             role: None,
+            known: None,
+            card,
             error: None,
         });
     }
@@ -1622,6 +1658,7 @@ impl App {
                     self.set_verified(&name, Vec::new());
                 }
                 GuideAction::OpenStored(fragments) => self.open_stored(&fragments),
+                GuideAction::Attach(index) => self.ask_attach_from(index, self.guide_card()),
             }
         }
         for a in sheet_actions {
