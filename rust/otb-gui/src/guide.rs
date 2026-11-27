@@ -2,10 +2,13 @@
 //!
 //! Rien ici ne dépend d'egui : tout se teste sans interface (`tests/guide.rs`). La page est dans `guide_page.rs`.
 
+use crate::state::MAX_LOGS;
 use otb_advisor::drone_card::DroneCard;
 use otb_advisor::log_check::{FILTERS, FilterTargets, LogCheck, PID, ROLE_NAMES};
 use otb_advisor::tuning_path::{AUTO_OK, auto_status, phases};
+use otb_store::Library;
 use serde_json::Value;
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -338,4 +341,47 @@ pub fn other_drone_logs(count: usize, mine: &[usize], failed: &[usize]) -> Vec<u
     (0..count)
         .filter(|i| !mine.contains(i) && !failed.contains(i))
         .collect()
+}
+
+/// Les logs du drone `drone_name` que le Guide ne voit pas : ses fragments rangés dans la bibliothèque, ni ouverts dans
+/// la barre d'analyse ni en cours d'ouverture (`open`), **du vol le plus récent au plus ancien** (ordre des vols de la
+/// bibliothèque, retourné). Le Guide ne vérifie que les logs ouverts (D-071) : ceux-ci, il propose de les ouvrir.
+pub fn closed_fragments(lib: &Library, drone_name: &str, open: &HashSet<String>) -> Vec<String> {
+    let Some(drone) = lib.drone_by_name(drone_name) else {
+        return Vec::new();
+    };
+    lib.flights_of_drone(&drone.id)
+        .into_iter()
+        .rev()
+        .filter(|f| !open.contains(&f.id))
+        .map(|f| f.id.clone())
+        .collect()
+}
+
+/// Ce que le panneau des logs dit de `closed` logs du drone non ouverts quand la liste d'analyse a encore `room` places :
+/// la phrase, et le libellé du bouton qui ouvre les `closed.min(room)` plus récents (`None` : liste pleine, pas de
+/// bouton). `None` sans log à proposer.
+pub fn closed_offer(closed: usize, room: usize) -> Option<(String, Option<String>)> {
+    if closed == 0 {
+        return None;
+    }
+    let mut text = if closed == 1 {
+        "1 log de ce drone est rangé dans la bibliothèque sans être ouvert : le Guide ne le vérifie pas.".to_string()
+    } else {
+        format!(
+            "{closed} logs de ce drone sont rangés dans la bibliothèque sans être ouverts : le Guide ne les vérifie pas."
+        )
+    };
+    let button = match room.min(closed) {
+        0 => {
+            text.push_str(&format!(
+                " La liste d'analyse est pleine ({MAX_LOGS} logs au plus) : retirez-en un de la barre pour en ouvrir d'autres."
+            ));
+            None
+        }
+        n if n == closed => Some(if closed == 1 { "L'ouvrir" } else { "Les ouvrir" }.to_string()),
+        1 => Some("Ouvrir le plus récent".to_string()),
+        n => Some(format!("Ouvrir les {n} plus récents")),
+    };
+    Some((text, button))
 }

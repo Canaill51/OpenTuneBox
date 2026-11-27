@@ -204,6 +204,9 @@ pub struct App {
     /// Passer à l'écran d'extraction quand ce log aura fini de s'ouvrir.
     pub edit_after_open: Option<EditTarget>,
     had_logs: bool,
+    /// « Les ouvrir » du Guide : le premier log ouvert ne fait pas passer aux courbes depuis l'accueil du Guide (le
+    /// pilote a demandé ces logs pour le Guide).
+    keep_guide: bool,
     pub theme: Theme,
     applied: Option<&'static str>,
     /// Thème déjà annoncé à la fenêtre du système, et cadres écoulés depuis le lancement (L-091).
@@ -349,6 +352,7 @@ impl App {
             return_to: Screen::Dashboard,
             edit_after_open: None,
             had_logs: false,
+            keep_guide: false,
             theme: theme::CLAIR,
             applied: None,
             window_theme_sent: None,
@@ -1309,8 +1313,16 @@ impl App {
             }
         }
         // premier log ouvert depuis l'accueil du guide : on passe aux courbes
-        if !self.state.logs.is_empty() && !self.had_logs && self.screen == Screen::Guide && self.guide.at_home() {
+        if !self.state.logs.is_empty()
+            && !self.had_logs
+            && self.screen == Screen::Guide
+            && self.guide.at_home()
+            && !self.keep_guide
+        {
             self.enter_extraction();
+        }
+        if !self.state.logs.is_empty() {
+            self.keep_guide = false;
         }
         self.had_logs = !self.state.logs.is_empty();
         let theme = self.theme;
@@ -1502,7 +1514,10 @@ impl App {
                 space_goto = self.pages[i].take_space_goto();
                 export_page = self.pages[i].take_export();
             }
-            _ => guide_actions = self.guide.ui(ui, &mut self.state, &self.library, &theme),
+            _ => {
+                self.guide.pending = self.wanted.values().flatten().cloned().collect();
+                guide_actions = self.guide.ui(ui, &mut self.state, &self.library, &theme);
+            }
         });
         // une vue d'espace s'ouvre directement : pas la peine d'avoir un log pour passer du Spectre au Simulateur
         if let Some(title) = space_goto
@@ -1606,6 +1621,7 @@ impl App {
                     self.edit_cases(&name, Vec::clear);
                     self.set_verified(&name, Vec::new());
                 }
+                GuideAction::OpenStored(fragments) => self.open_stored(&fragments),
             }
         }
         for a in sheet_actions {
@@ -1767,6 +1783,48 @@ impl App {
             return;
         }
         self.want(path, fragment);
+    }
+
+    /// « Les ouvrir » du Guide : ajoute ces fragments de la bibliothèque à la liste d'analyse (en n'ouvrant que leur
+    /// session), sans jamais en retirer un déjà ouvert ; un fichier introuvable est dit dans la barre d'état.
+    fn open_stored(&mut self, fragments: &[String]) {
+        let mut perdus = Vec::new();
+        if self.state.logs.is_empty() && self.wanted.is_empty() {
+            self.keep_guide = true;
+        }
+        for id in fragments {
+            if self
+                .state
+                .logs
+                .iter()
+                .any(|l| l.fragment.as_deref() == Some(id.as_str()))
+            {
+                continue;
+            }
+            let Some(chemin) = self
+                .library
+                .fragment(id)
+                .and_then(|f| self.library.log(&f.log_id))
+                .map(|l| PathBuf::from(&l.path))
+            else {
+                continue;
+            };
+            if let Some(log) = self.loaded_session(id) {
+                if self.place_shared(log, id).is_none() {
+                    break; // liste pleine : déjà dit
+                }
+            } else if chemin.exists() {
+                self.want(chemin, id);
+            } else {
+                perdus.push(nom_court(&chemin));
+            }
+        }
+        if !perdus.is_empty() {
+            self.errors.push(format!("Introuvable(s) : {}", perdus.join(", ")));
+        }
+        if self.wanted.is_empty() {
+            self.keep_guide = false; // rien ne s'ouvre : la règle de l'accueil reste entière
+        }
     }
 
     /// Ouvre seulement la session `fragment` de `path` (ajoutée aux sessions déjà voulues de ce fichier).

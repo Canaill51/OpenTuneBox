@@ -468,7 +468,10 @@ La méthode est le **parcours du guide intégré** (bouton **Guide**) : des case
   cette phase. Le rôle appartient au **fragment** (celui que montre l'écran d'extraction) : deux fragments d'un même
   vol peuvent servir l'un aux filtres, l'autre à une série. Un fragment sans rôle est classé tout seul (partie
   stationnaire → filtres, sinon série PID) ; le lien « → classer dans les … » corrige le classement. Seuls les
-  fragments **actifs** de la barre du haut sont vérifiés : un fragment désactivé est nommé sous les logs, sans plus. Pour chaque log : à quoi il sert (identifier le
+  fragments **actifs** de la barre du haut sont vérifiés : un fragment désactivé est nommé sous les logs, sans plus.
+  Les logs du drone rangés dans la bibliothèque mais **pas ouverts** ne sont pas vérifiés non plus : le panneau dit
+  combien il y en a, et **Les ouvrir** les ajoute à la barre du haut (comme le rond « + » du tableau de bord), les
+  plus récents d'abord s'il ne reste pas assez de place (10 logs au plus). Pour chaque log : à quoi il sert (identifier le
   bruit, juger le retard des filtres, vol d'une série PID), ce qu'il faut corriger avant le prochain vol (où
   dans le configurateur), et un bouton qui copie les commandes CLI équivalentes. Sous les logs des séries PID :
   chaque série reconnue (un seul curseur changé, mêmes filtres), les vols aux réglages identiques et ceux

@@ -1249,3 +1249,116 @@ fn un_ancien_role_va_au_fragment_qui_n_en_a_pas_et_le_role_choisi_le_remplace() 
     attendre(&mut h, |a| !a.state.logs.is_empty());
     assert_eq!(role(&h), FILTERS);
 }
+
+// ------------------------------------------------------------------ logs du drone rangés mais pas ouverts
+
+#[test]
+fn la_proposition_d_ouvrir_les_logs_ranges_dit_combien_et_respecte_la_place() {
+    assert_eq!(closed_offer(0, 10), None, "rien à proposer");
+    let (texte, bouton) = closed_offer(1, 10).unwrap();
+    assert!(texte.starts_with("1 log de ce drone est rangé"), "{texte}");
+    assert_eq!(bouton.as_deref(), Some("L'ouvrir"));
+    let (texte, bouton) = closed_offer(4, 10).unwrap();
+    assert!(texte.starts_with("4 logs de ce drone sont rangés"), "{texte}");
+    assert_eq!(bouton.as_deref(), Some("Les ouvrir"));
+    assert_eq!(closed_offer(4, 4).unwrap().1.as_deref(), Some("Les ouvrir"));
+    assert_eq!(
+        closed_offer(4, 2).unwrap().1.as_deref(),
+        Some("Ouvrir les 2 plus récents")
+    );
+    assert_eq!(closed_offer(4, 1).unwrap().1.as_deref(), Some("Ouvrir le plus récent"));
+    let (texte, bouton) = closed_offer(4, 0).unwrap();
+    assert_eq!(bouton, None, "liste pleine : pas de bouton");
+    assert!(
+        texte.contains("La liste d'analyse est pleine (10 logs au plus)"),
+        "{texte}"
+    );
+}
+
+/// Les fragments proposés : ceux du drone de la fiche (pas d'un autre), sauf les ouverts, du plus récent au plus ancien.
+///
+/// **Contre-preuves vues en échec** : sans `.rev()` (le plus ancien d'abord), sans le filtre des ouverts.
+#[test]
+fn les_logs_ranges_proposes_sont_ceux_du_drone_non_ouverts_du_plus_recent_au_plus_ancien() {
+    use otb_store::model::{Fragment, LogEntry};
+    let mut lib = Library::in_memory();
+    lib.put_drone(Drone::new("a", "Alpha"));
+    lib.put_drone(Drone::new("b", "Bravo"));
+    for (log, drone) in [("l1", "a"), ("l2", "a"), ("l3", "b")] {
+        lib.add_log(LogEntry {
+            id: log.into(),
+            drone_id: drone.into(),
+            name: format!("{log}.bbl"),
+            path: format!("/nulle/part/{log}.bbl"),
+            copied: false,
+            bytes: 1,
+            added: "2026-11-01".into(),
+        });
+    }
+    for (id, log, date) in [
+        ("f1", "l1", "2026-11-01"),
+        ("f3", "l2", "2026-11-03"),
+        ("f2", "l1", "2026-11-02"),
+        ("g1", "l3", "2026-11-04"),
+    ] {
+        lib.put_fragment(Fragment {
+            id: id.into(),
+            log_id: log.into(),
+            session: 1,
+            start: 0,
+            end: 100,
+            name: id.into(),
+            role: String::new(),
+            date: date.into(),
+            chosen: false,
+        });
+    }
+    let aucun = std::collections::HashSet::new();
+    assert_eq!(closed_fragments(&lib, "Alpha", &aucun), ["f3", "f2", "f1"]);
+    assert_eq!(closed_fragments(&lib, "Bravo", &aucun), ["g1"]);
+    assert!(closed_fragments(&lib, "Inconnu", &aucun).is_empty());
+    let ouverts = std::collections::HashSet::from(["f2".to_string()]);
+    assert_eq!(closed_fragments(&lib, "Alpha", &ouverts), ["f3", "f1"]);
+}
+
+/// Les logs d'un drone rangés dans la bibliothèque mais fermés : le panneau du Guide le dit et « Les ouvrir » les ajoute
+/// à la liste d'analyse, où le Guide les vérifie.
+///
+/// **Contre-preuves vues en échec** : `GuideAction::OpenStored` sans effet dans `App` (rien ne s'ouvre), proposition
+/// sans exclure les fragments ouverts (la phrase reste une fois les logs ouverts), `App::keep_guide` ignoré (l'accueil
+/// du Guide passe aux courbes au premier log ouvert).
+#[test]
+fn le_guide_propose_d_ouvrir_les_logs_du_drone_ranges_dans_la_bibliotheque() {
+    // un fichier à deux sessions : deux fragments du drone « JeNo Ced »
+    let d = dossier("ranges");
+    let un = std::fs::read(donnees()).unwrap();
+    let fichier = d.join("deux.bbl");
+    std::fs::write(&fichier, [un.clone(), un].concat()).unwrap();
+    let mut h = banc(appli());
+    h.run();
+    h.state_mut().open(vec![fichier]);
+    attendre(&mut h, |a| a.state.logs.len() == 2);
+    h.state_mut().put_card(DroneCard::new("JeNo Ced"));
+    h.state_mut().screen = Screen::Guide; // un fichier à deux sessions ouvre l'écran d'extraction
+    let mut attendus: Vec<String> = h.state().state.logs.iter().filter_map(|l| l.fragment.clone()).collect();
+    attendus.sort();
+    assert_eq!(attendus.len(), 2);
+    h.run_steps(3);
+    assert!(
+        h.query_by_label_contains("sans être ouverts").is_none(),
+        "rien à proposer : les deux sont ouverts"
+    );
+
+    // tout refermer : le Guide ne voit plus rien, mais propose les deux logs rangés
+    h.state_mut().state.clear();
+    h.run_steps(3);
+    h.get_by_label_contains("Aucun log de ce drone ouvert");
+    h.get_by_label_contains("2 logs de ce drone sont rangés dans la bibliothèque sans être ouverts");
+    h.cliquer_label("Les ouvrir");
+    attendre(&mut h, |a| a.state.logs.len() == 2);
+    let mut ouverts: Vec<String> = h.state().state.logs.iter().filter_map(|l| l.fragment.clone()).collect();
+    ouverts.sort();
+    assert_eq!(ouverts, attendus, "les deux fragments du drone, rien d'autre");
+    assert!(h.query_by_label_contains("sans être ouverts").is_none());
+    assert_eq!(h.state().screen, Screen::Guide, "on reste sur le Guide");
+}

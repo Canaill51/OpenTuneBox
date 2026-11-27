@@ -4,7 +4,7 @@
 //! (rapide dans le fil de l'interface, complète en arrière-plan : mesuré en release, 2 ms puis 3 ms sur 5 s de vol, 26 ms puis 45 ms
 //! sur 185 000 points). Une page ne change jamais l'application elle-même : elle rend des `GuideAction` que `App` exécute.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -49,6 +49,9 @@ pub enum GuideAction {
     Done { name: String, key: String, on: bool },
     /// « Recommencer » confirmé : toutes les cases de cette fiche décochées.
     Reset(String),
+    /// « Les ouvrir » : ces fragments du drone, rangés dans la bibliothèque, ajoutés à la liste d'analyse (comme le « + »
+    /// du tableau de bord) pour que le Guide les vérifie.
+    OpenStored(Vec<String>),
 }
 
 /// Résultat de `check_log` pour un log, vérification rapide ou complète (avec les repères des filtres).
@@ -94,6 +97,7 @@ enum Intent {
     OpenLogs(&'static str),
     Role(Option<String>, &'static str),
     CopyCli,
+    OpenStored(Vec<String>),
 }
 
 pub struct GuidePage {
@@ -110,6 +114,9 @@ pub struct GuidePage {
     seen: Vec<(u64, &'static str)>,
     /// Fragments du drone désactivés dans la barre : ni vérifiés ni comptés (D-066), leurs noms seulement.
     inactive: Vec<String>,
+    /// Fragments en cours d'ouverture (posé par `App` avant chaque cadre) : ni proposés une seconde fois, ni oubliés
+    /// dans le compte des places de la liste d'analyse.
+    pub pending: HashSet<String>,
     /// Dernier relevé rendu à `App` : (nom de la fiche, clés vérifiées).
     reported: Option<(String, Vec<String>)>,
     help_open: BTreeSet<String>,
@@ -211,6 +218,7 @@ impl GuidePage {
             old_roles: BTreeMap::new(),
             seen: Vec::new(),
             inactive: Vec::new(),
+            pending: HashSet::new(),
             reported: None,
             help_open: BTreeSet::new(),
             md,
@@ -490,6 +498,7 @@ impl GuidePage {
                 ctx.copy_text(cli_text(&self.cli));
                 self.cli_note = format!("{} commande(s) copiée(s), suivies de « save ».", self.cli.len());
             }
+            Intent::OpenStored(fragments) => actions.push(GuideAction::OpenStored(fragments)),
         }
     }
 
@@ -535,7 +544,7 @@ impl GuidePage {
             .default_size(250.0)
             .size_range(120.0..=600.0)
             .show(ui, |ui| {
-                self.logs_panel(ui, th, state, &views, &mut intents);
+                self.logs_panel(ui, th, state, lib, &views, &mut intents);
             });
         egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical()
@@ -755,7 +764,15 @@ impl GuidePage {
         });
     }
 
-    fn logs_panel(&mut self, ui: &mut Ui, th: &Theme, state: &AppState, views: &[LogView], intents: &mut Vec<Intent>) {
+    fn logs_panel(
+        &mut self,
+        ui: &mut Ui,
+        th: &Theme,
+        state: &AppState,
+        lib: &Library,
+        views: &[LogView],
+        intents: &mut Vec<Intent>,
+    ) {
         let muted = th.ui.muted;
         let Some(card) = self.card().cloned() else {
             // le défilement remplit le panneau même sans fiche : sinon il se réduit à cette phrase et garde cette hauteur
@@ -781,6 +798,32 @@ impl GuidePage {
                     )
                     .color(muted),
                 );
+            }
+            // les logs du drone rangés dans la bibliothèque mais pas ouverts : le Guide ne les vérifie pas (D-071), il
+            // propose de les ajouter à la liste d'analyse
+            let open: HashSet<String> = state
+                .logs
+                .iter()
+                .filter_map(|l| l.fragment.clone())
+                .chain(self.pending.iter().cloned())
+                .collect();
+            let closed = closed_fragments(lib, &card.name, &open);
+            let room = crate::state::MAX_LOGS.saturating_sub(state.logs.len() + self.pending.len());
+            if let Some((text, button)) = closed_offer(closed.len(), room) {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(text).color(muted));
+                    if let Some(b) = button
+                        && ui
+                            .button(b)
+                            .on_hover_text(
+                                "Les ajoute à la liste d'analyse, comme le « + » du tableau de bord : le Guide les \
+                                 vérifie et les range dans les filtres ou les séries PID",
+                            )
+                            .clicked()
+                    {
+                        intents.push(Intent::OpenStored(closed.iter().take(room).cloned().collect()));
+                    }
+                });
             }
             for role in [FILTERS, PID] {
                 ui.add_space(6.0);
