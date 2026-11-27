@@ -346,8 +346,9 @@ aberrantes (un rebond, une rafale) : elles tireraient la moyenne vers le haut. U
 sort de la **bande gardée** (0,5 à 1,5 par défaut) à partir du **régime établi** (150 ms par défaut), ou si elle
 s'écarte trop de la courbe médiane des autres (**écart à la médiane**, k = 3 ; plus petit = plus sévère, « aucun »
 pour ne pas trier ainsi). Avec ce tri, la courbe va dans le sens de PIDtoolbox, sans retomber exactement sur ses
-chiffres : le tri est le nôtre. « Temps affiché » : 250 ms par défaut (la montée en grand), 500 ms comme PIDtoolbox, ou
-150 ms pour bien voir la cassure. Le yaw est masqué au départ (case Y) : la méthode ne le juge pas et ses
+chiffres : le tri est le nôtre. « Temps affiché » : 500 ms par défaut (toute la réponse, comme PIDtoolbox), 250 ms pour la montée en
+grand, ou 150 ms pour bien voir la cassure. « Fenêtre déconv. » : 2 s par défaut, de 1 à 5 s ; plus longue, chaque
+fenêtre contient plus de mouvement, mais le log en donne moins. Le yaw est masqué au départ (case Y) : la méthode ne le juge pas et ses
 mouvements suffisent rarement. La colonne « Cassure (ripple) » suit la cassure d'un vol à l'autre.
 
 **Diagnostic du réglage**, toujours affiché à côté des courbes, d'après la méthode des séries de vols. Chargez une **série de vols** du même drone, mêmes filtres, où un seul curseur change par pas

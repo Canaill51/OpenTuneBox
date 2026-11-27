@@ -60,10 +60,11 @@ pub const MAX_RAW: usize = 300;
 const RAW_POINTS: usize = 250;
 /// Largeur du rapport « Diagnostic du réglage » à son ouverture.
 const REPORT_WIDTH: f32 = 400.0;
-/// Durées affichées (ms) : 150 pour bien voir la montée et la cassure.
+/// Durées affichées (ms) : 500 par défaut (toute la réponse, comme PIDtoolbox), 150 pour bien voir la montée et la cassure.
 pub const X_RANGES: [u32; 3] = [500, 250, 150];
-pub const X_DEFAULT: u32 = 250;
-const SEG_CHOICES: [f64; 3] = [1.0, 2.0, 3.0];
+pub const X_DEFAULT: u32 = 500;
+/// Fenêtres de déconvolution (s) : plus longues = plus de mouvement par fenêtre, mais moins de fenêtres (et pas sur un log plus court).
+const SEG_CHOICES: [f64; 5] = [1.0, 2.0, 3.0, 4.0, 5.0];
 const SMOOTH_CHOICES: [i64; 4] = [0, 20, 40, 60];
 /// Tri des fenêtres (D-082) : début du régime établi contrôlé (ms), largeur de la bande autour de 1, distance à la médiane.
 const STEADY_CHOICES: [f64; 3] = [100.0, 150.0, 200.0];

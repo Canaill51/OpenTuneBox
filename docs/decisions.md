@@ -70,6 +70,7 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-087 | **Réponse indicielle : 500 ms affichées par défaut, fenêtres de déconvolution jusqu'à 5 s** : « Temps affiché » s'ouvre sur 500 ms (250 et 150 ms restent au choix) ; « Fenêtre déconv. » propose 1, 2, 3, 4 et 5 s, 2 s par défaut ; **écart au prototype** (D-061) | 2026-11-27 |
 | D-086 | **La fiche du drone suit le dernier log** : pôles, boucle PID, version de Betaflight (écrite comme Betaflight : `4.5`, `2026.12` ; lue dans le log ou tapée librement), éléments de la batterie (formule du firmware) et carte de vol (tant que le drone n'a pas été branché en USB) ; une valeur absente du log ne change rien ; le pilote peut corriger, une note dit l'écart, le log suivant remet à jour ; le KV reste au pilote ; l'écran montre le vrai identifiant de carte **(amende D-077)** | 2026-11-26 |
 | D-085 | **Récupération par USB : un seul bouton, la voie choisie selon la carte** : « Récupérer les logs » passe par le **mode disque** quand le firmware le connaît (API MSP 1.40, Betaflight 3.5, et plus), sinon par l'**USB série** (mémoire interne) ; une carte qui refuse le disque bascule **seule** sur l'USB série ; une carte SD sans mode disque se lit dans un lecteur ; jamais de demande de disque à une API plus ancienne (elle redémarrerait normalement) **(amende D-074 et D-075)** | 2026-11-26 |
 | D-084 | **Choisir la fiche d'un log qu'aucun drone ne reconnaît** : sans nom de machine, ou avec un nom qu'aucune fiche ne porte (bibliothèque non vide), une fenêtre « Rattacher à un drone » demande, **une ligne par fichier** ; « Ne pas ranger » garde le log pour la séance ; « Rattacher à un drone… » dans l'écran d'extraction la rouvre, et « Enregistrer le fragment » sur un log non rangé aussi (bornes, nom et rôle gardés au rattachement) ; un log rattaché est reconnu ensuite par son **empreinte** ; **écart au prototype** **(amende D-066 et D-068)** | 2026-11-26 |
@@ -158,6 +159,22 @@ ici, jamais dans le code.
 | D-001 | Python + PySide6 + pyqtgraph, projet privé, interface en français **(amendée par D-035)** | 2026-10-01 |
 
 ---
+
+## 2026-11-27 — Réponse indicielle : temps affiché et fenêtres de déconvolution
+
+### D-087 : la réponse indicielle s'affiche sur 500 ms et se calcule sur des fenêtres de 1 à 5 s
+
+**Tranché par Cédric** le 2026-11-27 : « dans la partie temps affiché, par défaut, il faudrait se mettre sur
+500 millisecondes », et « au niveau de la fenêtre de déconvolution, il faudrait rajouter 4 secondes et 5 secondes ».
+
+**Décision.**
+- **Temps affiché** : 500 ms à l'ouverture (`rust/otb-gui/src/tools/step.rs:X_DEFAULT`), toute la réponse calculée,
+  comme PIDtoolbox ; 250 et 150 ms restent au choix pour regarder la montée et la cassure.
+- **Fenêtre déconv.** : 1, 2, 3, 4 ou 5 s (`SEG_CHOICES`), 2 s par défaut, inchangé. Une fenêtre plus longue contient
+  plus de mouvement, mais le log en donne moins (pas fixe de 62,5 ms) et un log plus court qu'elle n'en donne aucune.
+- **Écart au prototype** (D-061) : la maquette montre « 250 ms » ; elle n'est pas corrigée, cette entrée fait foi.
+
+**Témoins.** `rust/otb-gui/tests/step_tools.rs` ouvre la liste « Temps affiché » par sa valeur de départ, « 500 ms ».
 
 ## 2026-11-26 — La fiche du drone suit le dernier log
 
