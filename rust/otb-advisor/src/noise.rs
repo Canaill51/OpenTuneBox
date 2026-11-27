@@ -10,8 +10,8 @@
 use crate::profiles::CraftProfile;
 use crate::rules::{
     self, ATTENTION, CONSEIL, DTERM_PTB_MAX_DB, FILTER_STAGES, Finding, GYRO_PTB_MAX_DB, HARMONIC_VISIBLE_DB, INFO, OK,
-    RPM_Q_MAX, RPM_WEIGHT_GAIN_MIN, RPM_WEIGHT_MARGIN_DB, Report, band_db, band_peak_ptb, dyn_notch_active,
-    main_action, rpm_harmonic_levels,
+    RPM_Q_MAX, RPM_WEIGHT_GAIN_EACH_MIN, RPM_WEIGHT_GAIN_MIN, RPM_WEIGHT_MARGIN_DB, Report, band_db, band_peak_ptb,
+    dyn_notch_active, main_action, rpm_harmonic_levels,
 };
 use otb_analysis::npstat::py_min;
 use otb_format::fixed;
@@ -340,8 +340,10 @@ fn rpm_block(log: &FlightLog, nr: &NoiseReport, findings: Vec<Finding>) -> Resul
         "rpm_filter_weights n'existe qu'à partir de Betaflight 4.5".to_string()
     } else {
         format!(
-            "aucun poids ne peut baisser d'au moins {} en gardant {} dB de marge sous le bruit voisin",
+            "les poids ne peuvent pas baisser d'au moins {} au total ({} au moins par harmonique) en gardant {} dB de marge sous le bruit \
+voisin",
             fixed(RPM_WEIGHT_GAIN_MIN, 1, false),
+            fixed(RPM_WEIGHT_GAIN_EACH_MIN, 1, false),
             fx0(RPM_WEIGHT_MARGIN_DB)
         )
     };

@@ -20,6 +20,8 @@ use common::*;
 /// Tolérance absolue (dB, Hz) des nombres issus de spectres `realfft` / pocketfft (L-048). **Mesurée** : voir la ligne « écart max » affichée
 /// avec `--nocapture`.
 const FFT_ATOL: f64 = 1e-9;
+/// Gain minimal d'un poids seul (règle d'avant la somme des baisses).
+const G: f64 = rules::RPM_WEIGHT_GAIN_MIN;
 
 fn strings(v: &Value) -> Vec<String> {
     v.as_array()
@@ -300,15 +302,46 @@ fn lighten_weight_garde_les_deux_tolerances_de_1e_9() {
     // 0,7 − 0,2 = 0,49999999999999994 : sans la tolérance du gain, aucun allègement
     let (cur, need) = (std::hint::black_box(0.7f64), std::hint::black_box(0.2f64));
     assert!(cur - need < 0.5);
-    assert_eq!(rules::lighten_weight(0.7, p), Some(0.2));
+    assert_eq!(rules::lighten_weight(0.7, p, G), Some(0.2));
     // besoin 0,2 exact (10 x = 1,5 → ceil 2), gain 0,49999999999999994 : allégé
-    assert_eq!(rules::lighten_weight(0.7, prominence_for(0.15)), Some(0.2));
+    assert_eq!(rules::lighten_weight(0.7, prominence_for(0.15), G), Some(0.2));
     // gain trop faible : 0,6 − 0,2 = 0,4
-    assert_eq!(rules::lighten_weight(0.6, prominence_for(0.15)), None);
+    assert_eq!(rules::lighten_weight(0.6, prominence_for(0.15), G), None);
     // gain juste suffisant : 1 − 0,5
-    assert_eq!(rules::lighten_weight(1.0, prominence_for(0.45)), Some(0.5));
+    assert_eq!(rules::lighten_weight(1.0, prominence_for(0.45), G), Some(0.5));
     // raie sous le bruit voisin : besoin 0, tout le poids est inutile
-    assert_eq!(rules::lighten_weight(0.9, -3.0), Some(0.0));
+    assert_eq!(rules::lighten_weight(0.9, -3.0, G), Some(0.0));
+}
+
+/// Somme des baisses (2026-11-28) : chaque harmonique compte dès 0,3 de baisse, proposé si le total atteint 0,5.
+#[test]
+fn lighten_weights_additionne_les_baisses() {
+    let full = [1.0, 1.0, 1.0];
+    let p = |x: f64| Some(prominence_for(x));
+    // JeNo 5 (Stock, F1 de la bibliothèque) : besoins 0,61 et 0,62 → 0,7 chacun, 0,3 + 0,3 = 0,6 : proposé
+    assert_eq!(
+        rules::lighten_weights(&full, &[p(0.8), p(0.61), p(0.62)]),
+        vec![1.0, 0.7, 0.7]
+    );
+    // une seule baisse de 0,3 : trop peu
+    assert_eq!(rules::lighten_weights(&full, &[None, p(0.65), p(0.95)]), full.to_vec());
+    // une seule baisse de 0,5 : proposée, comme avant
+    assert_eq!(
+        rules::lighten_weights(&full, &[None, None, p(0.45)]),
+        vec![1.0, 1.0, 0.5]
+    );
+    // 0,2 ne compte pas (sous 0,3) : 0,4 seul reste sous 0,5
+    assert_eq!(rules::lighten_weights(&full, &[None, p(0.75), p(0.55)]), full.to_vec());
+    // la 1re harmonique n'est jamais allégée
+    assert_eq!(
+        rules::lighten_weights(&full, &[p(0.1), p(0.45), None]),
+        vec![1.0, 0.5, 1.0]
+    );
+    // poids déjà réduits par le pilote : la baisse se compte depuis le poids actuel
+    assert_eq!(
+        rules::lighten_weights(&[1.0, 0.5, 0.7], &[None, p(0.15), p(0.35)]),
+        vec![1.0, 0.2, 0.4]
+    );
 }
 
 fn line(freq_hz: f64, raw_db: f64) -> SpectrumLine {

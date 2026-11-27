@@ -2459,9 +2459,11 @@ fn slider_rules(a: &mut Analysis) -> Result<(), String> {
 
 /// Filtre RPM : plus petit `rpm_filter_q` du firmware (`cli/settings.c`).
 pub const RPM_Q_MIN: i64 = 250;
-/// Poids RPM : marge (dB) au-dessus du bruit voisin, et gain minimal du poids pour le conseiller.
+/// Poids RPM : marge (dB) au-dessus du bruit voisin, gain minimal total des poids pour les conseiller, et baisse minimale d'une
+/// harmonique pour qu'elle compte dans ce total (2026-11-28 : 0,3 + 0,3 suffisent, environ le retard d'une seule baisse de 0,5).
 pub const RPM_WEIGHT_MARGIN_DB: f64 = 3.0;
 pub const RPM_WEIGHT_GAIN_MIN: f64 = 0.5;
+pub const RPM_WEIGHT_GAIN_EACH_MIN: f64 = 0.3;
 /// Au-delà de cette hauteur (dB) au-dessus du bruit voisin, une raie est « encore visible » (calibration du 2026-10-12).
 pub const HARMONIC_VISIBLE_DB: f64 = 4.0;
 /// Notch dynamique : marge autour d'une raie, bornes de `dyn_notch_min_hz` et de `dyn_notch_max_hz`, pas et plancher du Q.
@@ -2680,11 +2682,31 @@ pub fn rpm_harmonic_levels(log: &FlightLog, sel: &Range<usize>) -> Result<(Vec<f
 }
 
 /// Poids allégé d'une harmonique de rang 2 ou 3 (`_rpm_weight_rules`) : `np.ceil(10 x - 1e-9) / 10` pour le besoin `x` de la raie (marge
-/// comprise), si le gain `cur - need` atteint `RPM_WEIGHT_GAIN_MIN` à 1e-9 près. Les deux tolérances de 1e-9 absorbent l'arrondi des flottants :
+/// comprise), si le gain `cur - need` atteint `min_gain` à 1e-9 près. Les deux tolérances de 1e-9 absorbent l'arrondi des flottants :
 /// 0,7 − 0,2 vaut 0,49999999999999994, et `10 x` peut dépasser 2 d'un rien. ⚠️ Tolérances à garder, comme en Python (L-061).
-pub fn lighten_weight(cur: f64, prominence_db: f64) -> Option<f64> {
-    let need = (10.0 * otb_analysis::motors::rpm_weight_needed(prominence_db) - 1e-9).ceil() / 10.0;
-    (cur - need >= RPM_WEIGHT_GAIN_MIN - 1e-9).then_some(need)
+pub fn lighten_weight(cur: f64, prominence_db: f64, min_gain: f64) -> Option<f64> {
+    // `+ 0.0` : un besoin nul sort du ceil en −0 (affiché « -0 » sous Python), ramené à 0
+    let need = (10.0 * otb_analysis::motors::rpm_weight_needed(prominence_db) - 1e-9).ceil() / 10.0 + 0.0;
+    (cur - need >= min_gain - 1e-9).then_some(need)
+}
+
+/// Poids allégés des 2e et 3e harmoniques : `prominence_db[k]` = hauteur avant filtres, marge comprise (`None` : harmonique non jugée).
+/// Chaque harmonique qui peut baisser d'au moins `RPM_WEIGHT_GAIN_EACH_MIN` est retenue ; on propose si ces baisses totalisent au moins
+/// `RPM_WEIGHT_GAIN_MIN` (une seule baisse de 0,5, ou 0,3 + 0,3 : environ le même retard gagné). Sinon, `cur` inchangé.
+pub fn lighten_weights(cur: &[f64], prominence_db: &[Option<f64>]) -> Vec<f64> {
+    let mut new = cur.to_vec();
+    let mut total = 0.0;
+    for (k, p) in prominence_db.iter().enumerate().skip(1) {
+        if let Some(w) = p.and_then(|p| lighten_weight(cur[k], p, RPM_WEIGHT_GAIN_EACH_MIN)) {
+            total += cur[k] - w;
+            new[k] = w;
+        }
+    }
+    if total >= RPM_WEIGHT_GAIN_MIN - 1e-9 {
+        new
+    } else {
+        cur.to_vec()
+    }
 }
 
 /// `_rpm_weight_rules` : poids du filtre RPM : raie restée visible avec un poids réduit, ou poids plus fort que nécessaire (seulement si
@@ -2818,16 +2840,13 @@ reste visible.",
     if !lighten || (!s.version.is_empty() && s.version[..] < [4, 5][..]) {
         return Ok(out);
     }
-    let mut new = cur.clone();
-    for k in 1..nu {
-        // 2e et 3e harmoniques, comme la documentation de Betaflight
-        if !(raw[k].is_finite() && left[k] <= HARMONIC_VISIBLE_DB) {
-            continue;
-        }
-        if let Some(w) = lighten_weight(cur[k], raw[k] + RPM_WEIGHT_MARGIN_DB) {
-            new[k] = w;
-        }
-    }
+    // 2e et 3e harmoniques, comme la documentation de Betaflight ; seulement les harmoniques traitées et restées invisibles
+    let prom: Vec<Option<f64>> = (0..3)
+        .map(|k| {
+            (k < nu && raw[k].is_finite() && left[k] <= HARMONIC_VISIBLE_DB).then(|| raw[k] + RPM_WEIGHT_MARGIN_DB)
+        })
+        .collect();
+    let new = lighten_weights(&cur, &prom);
     if new != cur {
         let fmt = |w: &[f64]| {
             w[..(n.max(1) as usize).min(3)]
@@ -2837,13 +2856,23 @@ reste visible.",
                 .join(", ")
         };
         let changed: Vec<usize> = (0..nu).filter(|&k| new[k] != cur[k]).collect();
+        let weights = changed
+            .iter()
+            .map(|&k| fx(new[k] * 100.0, 0))
+            .collect::<Vec<_>>()
+            .join(" et ");
+        let suffices = if changed.len() > 1 {
+            format!("des poids de {weights} suffisent à les effacer")
+        } else {
+            format!("un poids de {weights} suffit à l'effacer")
+        };
         out.push(Finding::new(
             "rpm_weight_lighten",
             "Filtres",
             CONSEIL,
             "Filtre RPM plus fort que nécessaire",
             &format!(
-                "Avant filtrage, {} : un poids de {} suffit à l'effacer (marge de {} dB). Moins de filtrage = moins de retard.",
+                "Avant filtrage, {} : {suffices} (marge de {} dB). Moins de filtrage = moins de retard.",
                 changed
                     .iter()
                     .map(|&k| if raw[k] > 0.0 {
@@ -2853,11 +2882,6 @@ reste visible.",
                     })
                     .collect::<Vec<_>>()
                     .join(" ; "),
-                changed
-                    .iter()
-                    .map(|&k| fx(new[k] * 100.0, 0))
-                    .collect::<Vec<_>>()
-                    .join(", "),
                 fx(RPM_WEIGHT_MARGIN_DB, 0)
             ),
             vec![

@@ -213,6 +213,20 @@ retranche poids × passe-bande : au centre du notch il reste (1 − poids) de la
   environ 0,33 ms par point de poids sur la 2e harmonique, 0,22 ms sur la 3e ; le gain minimal de 0,5
   (0,17 et 0,11 ms) est gardé. Taux estimés sur les vols en 4.5 ou plus : 9 % (6 dB), 24 % (3 dB), 42 %
   (0 dB). Effet réel (`advisor_rates.py`, 705 sessions) : « Filtre RPM plus fort que nécessaire » 43 → 128.
+- **Somme des baisses** (2026-11-28, choix de Cédric, `rules.lighten_weights`) : chaque harmonique (2e, 3e) qui
+  peut baisser d'au moins 0,3 (`RPM_WEIGHT_GAIN_EACH_MIN`) compte ; poids proposés si ces baisses totalisent au
+  moins 0,5 (`RPM_WEIGHT_GAIN_MIN`). Cas d'origine : JeNo 5 (logs Stock et F1, 2e et 3e harmoniques à 5,2 à
+  5,9 dB avant filtres), deux baisses de 0,3 (100 → 70) jamais proposées, alors qu'elles font gagner environ
+  0,17 ms, autant qu'une baisse de 0,5 sur la 2e. Corpus (`corpus calibrate`, 679 sessions, 677 en 4.5 ou plus
+  avec filtre RPM mesuré ; règle rejouée hors ligne) : 21,6 → 23,9 % des sessions (44 → 47 % des drones) ;
+  0,2 par harmonique : 28,8 % ; marge 1,5 dB : 27,3 % ; marge 0 dB : 35,2 %. Effet réel (`corpus rates`
+  sur `main` puis sur la branche, 679 sessions) : 139 → 155 sessions (20 → 23 %), 16 nouvelles dans 6 dossiers ;
+  49 propositions complétées par l'autre harmonique ; aucune disparue. **Marge de 3 dB gardée, et
+  maintenant mesurée** : d'un vol à l'autre sur un même drone (61 drones à 3 sessions ou plus), la hauteur
+  avant filtres dépasse la médiane du drone de 3,1 dB (2e harmonique) et 3,9 dB (3e) au 90e percentile ; la
+  marge couvre donc environ 9 vols sur 10. Expérience naturelle refaite (poids réduits par les pilotes) :
+  niveau prévu en sortie du filtre RPM de −3 à 0 dB → 0 % visible après filtres, de 0 à +3 dB → 1,1 %, de
+  +3 à +6 dB → 3,2 %.
 - **Raie « visible »** (`rules.HARMONIC_VISIBLE_DB`, calibration du 2026-10-12, 704 sessions) : même mesure
   prise là où il n'y a aucune raie, à 0,45 et 0,6 × la fréquence moteur (gyro filtré, maximum du roll et
   du pitch). Médiane −0,2 dB, 99e percentile 3,4 à 4,0 dB ; elle dépasse 3 dB dans 1,4 à 2,8 % des
@@ -669,8 +683,9 @@ portent sur le roll et le pitch (le yaw n'est pas jugé).
   8" ; pas d'objectif pour les whoops, sous 2").
 - **Filtre RPM** (eRPM, gyro non filtré et filtre RPM actif) : raie moteur encore visible (> 4 dB au-dessus
   du bruit voisin après filtrage) alors que son poids est < 100 → remonter le poids ; en 4.5 et plus, si le
-  bruit moteur est bien éliminé, poids de la 2e ou de la 3e harmonique plus fort que nécessaire d'au moins
-  0,5 → `rpm_filter_weights` proposés (voir « Filtre RPM : poids et Q ») ; harmonique 2 ou 3 visible après
+  bruit moteur est bien éliminé, poids de la 2e et de la 3e harmonique plus forts que nécessaire d'au moins
+  0,5 au total (chaque harmonique comptée dès 0,3) → `rpm_filter_weights` proposés (voir « Filtre RPM : poids
+  et Q ») ; harmonique 2 ou 3 visible après
   filtrage mais hors du filtre RPM → `rpm_filter_harmonics` augmenté ; harmonique visible malgré un poids de
   100 → `motor_poles` à vérifier, `rpm_filter_q` −100 (la 1re harmonique reste à « Bruit moteur mal
   éliminé », qui propose aussi −100) ; toutes les harmoniques traitées effacées (≤ 4 dB) avec gyro et D sous
@@ -814,7 +829,8 @@ Tous les seuils n'ont pas la même solidité. Chacun est classé selon son origi
 | Taille pour l'objectif de retard | 2–3,5" → 3" ; 8"+ → 8" | Corpus | Médiane des drones de taille connue rangés dans le profil (étiquettes de `corpus.csv` et noms, 2026-10-12). 2–3,5" : 9 drones, 2" (Pavo20), 2,5" (Whisper25 ×2, FoxWhoop 25, Gerrykiki « Test Hélices 2.5 »), 3" (04Pro3, T3, Seeker 3), 3,5" (JeNo 3,5 ×2) → 3" ; un 5" mal classé écarté. 8"+ : 8" (demonsgalore, Mario8), 9" (Pulsar) → 8". Peu de drones : à revoir avec W-002. Le graphique [S26] commence à 2" : pas d'objectif pour les whoops |
 | `rpm_filter_q` pour gagner du retard | + 100 par pas, jusqu'à 1000 | Firmware (doc) + décision | « stepwise increasing the Q from the default of 500 up to a max of 1000 » [S27] ; 750 conseillé [S20, 34:12]. Pas de 100 : décision de Cédric (2026-10-10), à la place de 250. Proposé seulement dans le conseil « filtrage gyro trop prudent » (bruit faible) |
 | Poids RPM juste suffisant | 1 − 10^(−(hauteur + 3 dB)/20), arrondi au dixième supérieur | Firmware + corpus (marge) | Profondeur du notch tirée du code (`rpmNotchUpdate`) ; marge de 3 dB (2026-10-13, choix de Cédric) : raies invisibles après filtres dans plus de 99 % des cas jusqu'à 0 dB prévu, sur 1 186 harmoniques à poids réduit (voir « Filtre RPM : poids et Q ») ; avant : 6 dB, estimation ; seulement 2e et 3e harmoniques, comme [S27] ; presets officiels en tripale : 100, 0, 80, 100, 20, 100 et 90, 30, 90 selon le preset [S28] |
-| Gain minimal pour proposer un poids | 0,5 | Firmware (retard calculé) | Baisse de 0,5 = environ 0,17 ms de retard en moins sur la 2e harmonique, 0,11 ms sur la 3e (4 moteurs, modèle des filtres du firmware, 2026-10-13) : l'unité d'arrondi des repères de retard (0,1 ms) ; choisi d'abord avec Cédric sur le taux de déclenchement |
+| Gain minimal pour proposer des poids | 0,5 au total | Firmware (retard calculé) | Baisse de 0,5 = environ 0,17 ms de retard en moins sur la 2e harmonique, 0,11 ms sur la 3e (4 moteurs, modèle des filtres du firmware, 2026-10-13) : l'unité d'arrondi des repères de retard (0,1 ms) ; choisi d'abord avec Cédric sur le taux de déclenchement ; somme des baisses de la 2e et de la 3e depuis le 2026-11-28 (choix de Cédric) |
+| Baisse minimale d'une harmonique comptée dans le total | 0,3 | Firmware (retard calculé) + corpus | 0,3 + 0,3 ≈ 0,17 ms (0,10 + 0,07), le retard d'une baisse de 0,5 sur la 2e ; 0,2 portait le taux à 28,8 % des sessions contre 23,9 % (2026-11-28, voir « Filtre RPM : poids et Q ») |
 | Marge autour des harmoniques retirées | ± 5 % de la fréquence moteur, harmoniques 1 à 8 | Corpus | Raies du vol stationnaire comparées au hasard (« Stratégie de filtrage et vol stationnaire », 2026-10-13) : flancs jusqu'à 3 % (fondamentale), 1 % (2e), aucun (3e) ; avant : 5 % de l'harmonique pour les trois premières (estimation) |
 | Raie moteur « visible » | > 4 dB au-dessus du bruit voisin | Corpus | Même mesure là où il n'y a aucune raie (0,45 et 0,6 × la fréquence moteur) : au-dessus de 4 dB dans moins de 1 % des sessions (3 dB : 1,4 à 2,8 %), voir « Filtre RPM : poids et Q » (2026-10-12). Repris tel quel pour les raies hors moteurs après filtrage, sans calibration propre |
 | Latence (repères bas et haut) | p10 arrondi vers le bas, p90 vers le haut | Corpus | |

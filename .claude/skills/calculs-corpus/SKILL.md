@@ -29,7 +29,8 @@ Relever la durée du premier passage et la noter ici : c'est une mesure à faire
 d'un passage en parallèle (`t_analyze`) est gonflée par les autres fils : la mesurer seule, `-j 1` (L-106).
 
 **Prouver qu'une modification ne change aucun conseil** (optimisation, refactorisation) : un passage de
-`corpus rates` sur `main` (copie isolée par `git worktree add SCRATCH/main main`, lancée depuis ce dossier), un sur la
+`corpus rates` sur `main` (copie isolée par `git worktree add SCRATCH/main main`, lancée depuis ce dossier et compilée dans
+**son propre** `target`, jamais le `CARGO_TARGET_DIR` du worktree : L-129), un sur la
 branche, puis `--compare`. Une différence se recalcule seule (`-j 1`, ou la session isolée) avant d'accuser le code :
 elle peut venir des inversions de bits du poste (voir Pièges). Ne pas modifier le code pendant un passage : le binaire
 est déjà compilé, mais le résultat ne correspondrait plus au code lu.
