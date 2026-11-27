@@ -546,22 +546,11 @@ pub(crate) fn resolve_choice(lib: &Library, choice: &DroneChoice, today: &str) -
     })
 }
 
-/// Où copier un disque de carte (lot 32c) : `logs/<drone>/<instant>.bbl` pour la mémoire, et pour chaque log d'une
-/// carte SD `logs/<drone>/<instant>_<LOG00001>.bbl` ; avec les copies **faites par OpenTuneBox** déjà rangées, par
-/// empreinte. ⚠️ Seulement les copies (`LogEntry::copied`) : un log ouvert depuis la carte elle-même n'est pas un double.
-pub fn disk_plan(
-    lib: &Library,
-    disk: &otb_usb::Disk,
-    drone_name: &str,
-    stamp: &str,
-) -> Result<crate::usb_disk::DiskPlan, String> {
-    let path = |stamp: &str| match lib.copy_path(drone_name, stamp) {
-        None => Err("Bibliothèque sans dossier : rien ne peut y être copié.".to_string()),
-        Some(Err(e)) => Err(format!("Dossier des copies impossible à créer : {e}.")),
-        Some(Ok(p)) => Ok(p),
-    };
-    let dests = match &disk.kind {
-        otb_usb::DiskKind::Flash { .. } => vec![path(stamp)?],
+/// Les noms proposés pour les copies d'un disque (D-088), que le pilote peut changer : `<instant>` pour la mémoire,
+/// `<instant>_<LOG00001>` pour chaque log d'une carte SD (dans l'ordre de `DiskKind::SdCard`).
+pub fn default_names(disk: &otb_usb::Disk, stamp: &str) -> Vec<String> {
+    match &disk.kind {
+        otb_usb::DiskKind::Flash { .. } => vec![stamp.to_string()],
         otb_usb::DiskKind::SdCard { logs } => logs
             .iter()
             .map(|f| {
@@ -569,10 +558,77 @@ pub fn disk_plan(
                     .path
                     .file_stem()
                     .map_or("log".into(), |s| s.to_string_lossy().into_owned());
-                path(&format!("{stamp}_{stem}"))
+                format!("{stamp}_{stem}")
             })
-            .collect::<Result<_, _>>()?,
+            .collect(),
+    }
+}
+
+/// Le nom de drone sous lequel `choice` rangera les copies (le dossier `logs/<drone>/`).
+pub fn choice_name(lib: &Library, choice: &DroneChoice) -> String {
+    match choice {
+        DroneChoice::Existing(id) => lib.drone(id).map_or(id.clone(), |d| d.name.clone()),
+        DroneChoice::New(n) => n.trim().to_string(),
+    }
+}
+
+/// Ce qui empêche de copier sous ces noms dans le dossier du drone `drone_name` (D-088), `None` si rien : un nom vide
+/// (il ne reste rien une fois les caractères interdits ôtés), deux fois le même nom, ou un fichier qui porte déjà ce
+/// nom. ⚠️ Sans tenir compte de la casse, ni entre les noms ni avec les fichiers du dossier : Windows et les cartes FAT
+/// ne la distinguent pas, et la bibliothèque doit pouvoir passer d'un système à l'autre. Bibliothèque en mémoire :
+/// rien à dire ici, la copie le refusera elle-même.
+pub fn name_problem(lib: &Library, drone_name: &str, names: &[String]) -> Option<String> {
+    let taken: std::collections::HashSet<String> = lib
+        .copy_target(drone_name, "log")
+        .and_then(|p| p.parent().and_then(|d| std::fs::read_dir(d).ok()))
+        .map(|dir| {
+            dir.filter_map(Result::ok)
+                .map(|e| e.file_name().to_string_lossy().to_lowercase())
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut seen = std::collections::HashSet::new();
+    for n in names {
+        let Some(stem) = otb_store::file_stem(n) else {
+            return Some("Donnez un nom à chaque fichier.".into());
+        };
+        if !seen.insert(stem.to_lowercase()) {
+            return Some(format!(
+                "Deux fichiers s'appelleraient « {stem}.bbl » : changez l'un des noms."
+            ));
+        }
+        if taken.contains(&format!("{stem}.bbl").to_lowercase()) {
+            return Some(format!(
+                "Un fichier « {stem}.bbl » existe déjà pour ce drone : choisissez un autre nom."
+            ));
+        }
+    }
+    None
+}
+
+/// Où copier un disque de carte (lot 32c) : `logs/<drone>/<nom>.bbl`, un nom par copie (une pour la mémoire, une par
+/// log d'une carte SD, dans l'ordre de `DiskKind::SdCard` ; choisis par le pilote, D-088, sinon [`default_names`]) ;
+/// avec les copies **faites par OpenTuneBox** déjà rangées, par empreinte. ⚠️ Seulement les copies
+/// (`LogEntry::copied`) : un log ouvert depuis la carte elle-même n'est pas un double.
+pub fn disk_plan(
+    lib: &Library,
+    disk: &otb_usb::Disk,
+    drone_name: &str,
+    names: &[String],
+) -> Result<crate::usb_disk::DiskPlan, String> {
+    let wanted = match &disk.kind {
+        otb_usb::DiskKind::Flash { .. } => 1,
+        otb_usb::DiskKind::SdCard { logs } => logs.len(),
     };
+    if names.len() != wanted {
+        return Err("Le nombre de noms ne correspond plus aux fichiers du disque : recommencez.".into());
+    }
+    let path = |name: &str| match lib.copy_path(drone_name, name) {
+        None => Err("Bibliothèque sans dossier : rien ne peut y être copié.".to_string()),
+        Some(Err(e)) => Err(format!("Dossier des copies impossible à créer : {e}.")),
+        Some(Ok(p)) => Ok(p),
+    };
+    let dests = names.iter().map(|n| path(n)).collect::<Result<_, _>>()?;
     let existing = lib
         .logs()
         .iter()

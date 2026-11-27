@@ -21,7 +21,8 @@ use crate::theme::{Theme, with_alpha};
 use crate::tools::common::safe_text;
 use crate::usb::{
     ARMED, Board, Connection, Copied, DroneChoice, Event, Held, MSP_MO_PER_MIN, Ports, Request, Way, board_text,
-    default_choice, duration_text, firmware_text, reader_choice, recovery_way, size_text,
+    choice_name, default_choice, default_names, duration_text, firmware_text, name_problem, reader_choice,
+    recovery_way, size_text, stamp_now,
 };
 use crate::usb_disk::{DiskEvent, DiskJob, DiskPlan, DiskRequest, DiskSource, Volumes, craft_name};
 
@@ -39,6 +40,16 @@ pub const REPLUG: &str = "Pour effacer la mémoire : débranchez le drone (USB e
 pub const DISK_HINT: &str = "Le disque n'apparaît pas ? Ouvrez-le dans le gestionnaire de fichiers (disque « BETAFLT » \
      ou carte SD), ou choisissez son dossier.";
 pub const EJECT: &str = "Éjectez la carte depuis le système avant de la retirer ou de débrancher le drone.";
+/// La case qui fait passer la mémoire interne par l'USB série pour l'effacer sans débrancher (D-088).
+pub const ERASE_AFTER: &str = "Effacer la mémoire après la récupération, sans débrancher le drone";
+/// La voie prise quand la case est cochée.
+pub const ERASE_AFTER_NOTE: &str = "Par l'USB série (plus lent que le mode disque) : dès la copie vérifiée et rangée, \
+     l'effacement vous est proposé, à valider ou non. Une carte en mode disque ne peut pas revenir seule au mode \
+     normal : il faudrait la débrancher.";
+/// Le nom du champ du fichier de la mémoire interne (D-088).
+pub const FILE_NAME: &str = "Nom du fichier";
+/// Le bouton qui copie les logs d'une carte SD, une fois nommés.
+pub const COPY_SD: &str = "Copier les logs";
 /// Délai entre deux recherches de la carte rebranchée.
 const REPLUG_SCAN: Duration = Duration::from_secs(1);
 /// Après ce délai sans disque, l'aide s'affiche.
@@ -55,8 +66,8 @@ const SECTION_RADIUS: u8 = 10;
 pub enum UsbAction {
     /// Retour au tableau de bord.
     Leave,
-    /// Ranger l'identité de la carte sur ce drone, puis copier (`UsbPage::start_copy`).
-    Copy(DroneChoice),
+    /// Ranger l'identité de la carte sur ce drone, puis copier (`UsbPage::start_copy`) dans un fichier de ce nom (D-088).
+    Copy(DroneChoice, String),
     /// Ranger cette copie vérifiée sous le drone, écrire la bibliothèque, puis le dire (`UsbPage::registered`).
     Register(Copied, String),
     /// Ouvrir les vols copiés dans la barre d'analyse.
@@ -66,8 +77,9 @@ pub enum UsbAction {
     /// Ranger l'identité de la carte sur ce drone, puis la faire redémarrer en disque (`UsbPage::start_disk`).
     ToDisk(DroneChoice),
     /// Copier le disque trouvé (`UsbPage::disk`) : plan des fichiers à faire par la fenêtre (`UsbPage::copy_disk`).
-    /// `Some` : carte SD d'un lecteur, drone choisi à la main ; `None` : le drone de la carte branchée.
-    CopyDisk(Option<DroneChoice>),
+    /// `Some` : carte SD d'un lecteur, drone choisi à la main ; `None` : le drone de la carte branchée. Les noms des
+    /// copies (D-088) : un pour la mémoire, un par log d'une carte SD.
+    CopyDisk(Option<DroneChoice>, Vec<String>),
     /// Ranger ces copies vérifiées sous le drone, écrire la bibliothèque, puis le dire (`UsbPage::registered`).
     RegisterAll(Vec<Copied>, String),
 }
@@ -93,6 +105,8 @@ pub enum Phase {
     ToDisk,
     /// La carte redémarre en disque : attente que le système le monte.
     WaitingDisk,
+    /// Le disque d'une carte SD est monté : le pilote nomme les copies avant de lancer (D-088).
+    DiskFound,
     /// Copie du disque finie : rapports des copies vérifiées, refus, rangement, confirmation de suppression (SD).
     DiskCopied {
         reports: Vec<CopyReport>,
@@ -146,6 +160,16 @@ pub struct UsbPage {
     from_board: bool,
     /// La carte branchée a refusé le mode disque : « Récupérer les logs » passe par l'USB série (D-085).
     pub no_disk: bool,
+    /// Le nom du fichier de la copie de la mémoire interne (D-088) : `None` jusqu'à ce que l'écran propose l'instant
+    /// présent ; revient à `None` après une copie, ou pour une autre carte.
+    pub file_name: Option<String>,
+    /// « Effacer la mémoire après la récupération » (D-088) : la mémoire passe par l'USB série.
+    pub erase_after: bool,
+    /// La copie en cours a été lancée avec la case cochée : l'effacement s'ouvrira de lui-même.
+    erase_asked: bool,
+    /// Les noms des copies d'une carte SD (D-088), un par log, et le disque auquel ils appartiennent.
+    pub disk_names: Vec<String>,
+    names_root: Option<PathBuf>,
     ctx: Option<egui::Context>,
 }
 
@@ -180,6 +204,11 @@ impl UsbPage {
             reader_choice: None,
             last_scan: None,
             from_board: false,
+            file_name: None,
+            erase_after: false,
+            erase_asked: false,
+            disk_names: Vec::new(),
+            names_root: None,
             ctx: None,
         }
     }
@@ -245,6 +274,7 @@ impl UsbPage {
                 self.phase,
                 Phase::ToDisk
                     | Phase::WaitingDisk
+                    | Phase::DiskFound
                     | Phase::DiskCopied { .. }
                     | Phase::SdErasing
                     | Phase::SdErased { .. }
@@ -318,7 +348,7 @@ impl UsbPage {
         self.disk_job = None;
         self.disk = None;
         self.disk_started = None;
-        if matches!(self.phase, Phase::ToDisk | Phase::WaitingDisk) {
+        if matches!(self.phase, Phase::ToDisk | Phase::WaitingDisk | Phase::DiskFound) {
             self.phase = Phase::Idle;
         }
     }
@@ -363,11 +393,19 @@ impl UsbPage {
         for e in job.poll() {
             match e {
                 DiskEvent::Found(d) => {
+                    let sd = matches!(d.kind, DiskKind::SdCard { .. });
                     self.disk = Some(d);
                     if self.phase == Phase::WaitingDisk {
-                        // carte branchée : le drone est déjà choisi, la copie part d'elle-même
                         self.error.clear();
-                        actions.push(UsbAction::CopyDisk(None));
+                        if sd {
+                            // carte SD : ses logs ne sont connus que maintenant, le pilote les nomme (D-088)
+                            self.phase = Phase::DiskFound;
+                            self.message.clear();
+                        } else {
+                            // mémoire interne : drone et nom choisis avant le redémarrage, la copie part d'elle-même
+                            let name = self.file_name.clone().unwrap_or_else(stamp_now);
+                            actions.push(UsbAction::CopyDisk(None, vec![name]));
+                        }
                     }
                 }
                 DiskEvent::NotThisDisk(e) => self.error = e,
@@ -375,6 +413,7 @@ impl UsbPage {
                 DiskEvent::Copied(c) => self.disk_copies.push(c),
                 DiskEvent::Refused(e) => self.disk_refused.push(e),
                 DiskEvent::Done => {
+                    self.file_name = None;
                     let sd = matches!(self.disk.as_ref().map(|d| &d.kind), Some(DiskKind::SdCard { .. }));
                     let copies = std::mem::take(&mut self.disk_copies);
                     let registered = if copies.is_empty() { Some(Ok(())) } else { None };
@@ -412,6 +451,7 @@ impl UsbPage {
                 Event::Connected(b) => {
                     if self.board.as_ref().map(|x| &x.identity) != Some(&b.identity) {
                         self.no_disk = false;
+                        self.file_name = None;
                     }
                     if self.choice.is_none() || self.board.as_ref().map(|x| &x.identity) != Some(&b.identity) {
                         let (c, known) = default_choice(lib, &b.identity);
@@ -433,11 +473,14 @@ impl UsbPage {
                 }
                 Event::Progress { done, total } => self.phase = Phase::Copying { done, total },
                 Event::Copied(c) => {
+                    // case « Effacer la mémoire après la récupération » cochée : la confirmation s'ouvre d'elle-même,
+                    // une fois la copie rangée (`copied_ui`), et attend « Effacer définitivement » ou « Garder » (D-088)
                     self.phase = Phase::Copied {
                         report: c.report.clone(),
                         registered: None,
-                        confirm: false,
+                        confirm: std::mem::take(&mut self.erase_asked),
                     };
+                    self.file_name = None;
                     if let Some(d) = &self.drone {
                         actions.push(UsbAction::Register(c, d.clone()));
                     }
@@ -471,7 +514,10 @@ impl UsbPage {
                         .as_ref()
                         .is_some_and(|b| b.flash.supported && b.flash.used > 0);
                     match self.choice.clone() {
-                        Some(c) if flash => actions.push(UsbAction::Copy(c)),
+                        Some(c) if flash => {
+                            let name = self.file_name.clone().unwrap_or_else(stamp_now);
+                            actions.push(UsbAction::Copy(c, name));
+                        }
                         _ => self.error = READER_HINT.into(),
                     }
                 }
@@ -535,10 +581,10 @@ impl UsbPage {
                     self.board_section(ui, th);
                     if self.board.is_some() {
                         self.drone_section(ui, lib, th);
-                        self.flights_section(ui, th, &mut actions);
+                        self.flights_section(ui, lib, th, &mut actions);
                         self.config_section(ui, th);
                     } else if self.in_disk_flow() {
-                        self.disk_section(ui, th, &mut actions);
+                        self.disk_section(ui, lib, th, &mut actions);
                     } else if self.conn.is_none() {
                         self.reader_section(ui, lib, th, &mut actions);
                     }
@@ -699,7 +745,7 @@ impl UsbPage {
         });
     }
 
-    fn flights_section(&mut self, ui: &mut Ui, th: &Theme, actions: &mut Vec<UsbAction>) {
+    fn flights_section(&mut self, ui: &mut Ui, lib: &Library, th: &Theme, actions: &mut Vec<UsbAction>) {
         let Some(b) = self.board.clone() else { return };
         let busy = self.busy();
         section(ui, th, "Vols enregistrés", |ui| match self.phase.clone() {
@@ -748,22 +794,37 @@ impl UsbPage {
                         .color(th.ui.muted),
                     );
                 }
-                self.copy_buttons(ui, th, &b, busy, actions);
+                self.copy_buttons(ui, lib, th, &b, busy, actions);
             }
         });
     }
 
     /// Avant la copie : un seul bouton, « Récupérer les logs », par la voie la plus rapide que la carte permet
-    /// (`usb::recovery_way`, D-085), et une ligne qui dit laquelle et pourquoi.
-    fn copy_buttons(&mut self, ui: &mut Ui, th: &Theme, b: &Board, busy: bool, actions: &mut Vec<UsbAction>) {
-        let ok = !busy && !b.armed && self.choice.is_some();
-        let why = if b.armed { ARMED } else { "Choisissez d'abord le drone" };
+    /// (`usb::recovery_way`, D-085), et une ligne qui dit laquelle et pourquoi. Pour la mémoire interne : le nom du
+    /// fichier, et, quand la voie serait le mode disque, la case « Effacer la mémoire après la récupération » qui la
+    /// fait passer par l'USB série (D-088).
+    fn copy_buttons(
+        &mut self,
+        ui: &mut Ui,
+        lib: &Library,
+        th: &Theme,
+        b: &Board,
+        busy: bool,
+        actions: &mut Vec<UsbAction>,
+    ) {
         let used = u64::from(b.flash.used);
         if b.flash.supported && used == 0 {
             ui.label("La mémoire est vide : rien à récupérer.");
             return;
         }
-        let way = recovery_way(b, self.no_disk);
+        let fast = recovery_way(b, self.no_disk);
+        // la case n'a de sens que si la mémoire passerait par le disque, d'où la carte ne revient pas seule
+        let can_erase_after = fast == Way::Disk && b.flash.supported;
+        let way = if can_erase_after && self.erase_after {
+            Way::Serial
+        } else {
+            fast
+        };
         let note = match way {
             Way::Reader => {
                 ui.label(RichText::new(READER_HINT).color(th.ui.muted));
@@ -775,24 +836,103 @@ impl UsbPage {
             }
             Way::Disk => {
                 ui.label("Cette carte n'a pas de mémoire interne : ses logs sont sur carte SD.");
-                "Par le mode disque : le drone redémarre en disque USB, sa carte SD est lue par l'ordinateur.".into()
+                "Par le mode disque : le drone redémarre en disque USB, sa carte SD est lue par l'ordinateur ; \
+                 vous nommerez chaque log avant la copie."
+                    .into()
             }
             Way::Serial => {
                 ui.label(before_copy_text(used));
-                serial_note(b, self.no_disk)
+                if can_erase_after {
+                    ERASE_AFTER_NOTE.to_string()
+                } else {
+                    serial_note(b, self.no_disk)
+                }
             }
+        };
+        let mut problem = None;
+        if b.flash.supported {
+            let name = self.file_name.get_or_insert_with(stamp_now);
+            ui.horizontal(|ui| {
+                ui.label(format!("{FILE_NAME} :"));
+                ui.add_enabled(!busy, egui::TextEdit::singleline(name).desired_width(280.0))
+                    .accessible_name(FILE_NAME);
+                ui.label(".bbl");
+            });
+            let drone = self.choice.as_ref().map(|c| choice_name(lib, c)).unwrap_or_default();
+            problem = name_problem(lib, &drone, std::slice::from_ref(name));
+            if let Some(p) = &problem {
+                ui.label(RichText::new(safe_text(p)).color(th.accent("red")));
+            }
+        }
+        if can_erase_after {
+            ui.add_enabled(!busy, egui::Checkbox::new(&mut self.erase_after, ERASE_AFTER));
+        }
+        let ok = !busy && !b.armed && self.choice.is_some() && problem.is_none();
+        let why = if b.armed {
+            ARMED.to_string()
+        } else if self.choice.is_none() {
+            "Choisissez d'abord le drone".to_string()
+        } else {
+            problem.unwrap_or_else(|| "Attendez la fin de l'opération en cours".to_string())
         };
         let blue = th.accent("blue");
         let primary = egui::Button::new(RichText::new(RECOVER).color(th.on_accent("blue"))).fill(blue);
         if ui.add_enabled(ok, primary).on_disabled_hover_text(why).clicked()
             && let Some(c) = self.choice.clone()
         {
+            self.erase_asked = can_erase_after && self.erase_after;
             actions.push(match way {
-                Way::Serial => UsbAction::Copy(c),
+                Way::Serial => UsbAction::Copy(c, self.file_name.clone().unwrap_or_else(stamp_now)),
                 _ => UsbAction::ToDisk(c),
             });
         }
         ui.label(RichText::new(note).color(th.ui.muted).size(12.0));
+    }
+
+    /// Les noms des copies d'une carte SD (D-088), proposés une fois par disque : `<instant>_<LOG00001>`.
+    fn ensure_names(&mut self, disk: &Disk) {
+        let n = match &disk.kind {
+            DiskKind::SdCard { logs } => logs.len(),
+            DiskKind::Flash { .. } => 1,
+        };
+        if self.names_root.as_ref() != Some(&disk.root) || self.disk_names.len() != n {
+            self.disk_names = default_names(disk, &stamp_now());
+            self.names_root = Some(disk.root.clone());
+        }
+    }
+
+    /// Un champ par log de la carte SD pour nommer sa copie, et ce qui empêche de copier sous ces noms.
+    fn names_ui(&mut self, ui: &mut Ui, lib: &Library, th: &Theme, disk: &Disk, drone: &str) -> Option<String> {
+        let DiskKind::SdCard { logs } = &disk.kind else {
+            return None;
+        };
+        self.ensure_names(disk);
+        let busy = self.busy();
+        ui.label("Nom de chaque copie dans la bibliothèque :");
+        // ⚠️ pas de `Grid` : il borne un champ de texte à la largeur de sa colonne au premier cadre (champs écrasés)
+        for (f, name) in logs.iter().zip(self.disk_names.iter_mut()) {
+            let file = f
+                .path
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+            ui.horizontal(|ui| {
+                ui.add_sized(
+                    [170.0, 20.0],
+                    egui::Label::new(
+                        RichText::new(format!("{} ({})", safe_text(&file), size_text(f.len))).color(th.ui.muted),
+                    )
+                    .truncate(),
+                );
+                ui.add_enabled(!busy, egui::TextEdit::singleline(name).desired_width(280.0))
+                    .accessible_name(format!("Nom de la copie de {file}"));
+                ui.label(".bbl");
+            });
+        }
+        let problem = name_problem(lib, drone, &self.disk_names);
+        if let Some(p) = &problem {
+            ui.label(RichText::new(safe_text(p)).color(th.accent("red")));
+        }
+        problem
     }
 
     /// La barre de progression d'une copie et le temps restant au débit observé.
@@ -999,7 +1139,7 @@ impl UsbPage {
     }
 
     /// La récupération par le disque, carte débranchée du port série : attente, copie, résultat, suppression SD.
-    fn disk_section(&mut self, ui: &mut Ui, th: &Theme, actions: &mut Vec<UsbAction>) {
+    fn disk_section(&mut self, ui: &mut Ui, lib: &Library, th: &Theme, actions: &mut Vec<UsbAction>) {
         section(ui, th, "Mode disque", |ui| match self.phase.clone() {
             Phase::ToDisk => {
                 ui.label("Redémarrage de la carte en disque…");
@@ -1023,6 +1163,41 @@ impl UsbPage {
                         self.message = "Débranchez puis rebranchez le drone pour le ramener en mode normal.".into();
                     }
                 });
+            }
+            Phase::DiskFound => {
+                let Some(disk) = self.disk.clone() else { return };
+                let DiskKind::SdCard { logs } = &disk.kind else { return };
+                if logs.is_empty() {
+                    ui.label("Aucun log sur cette carte SD : rien à copier.");
+                    ui.label(RichText::new(EJECT).color(th.ui.muted));
+                    if ui.button("Terminé").clicked() {
+                        self.finish_disk();
+                    }
+                    return;
+                }
+                let bytes: u64 = logs.iter().map(|f| f.len).sum();
+                let s = if logs.len() > 1 { "s" } else { "" };
+                ui.label(format!(
+                    "Carte SD trouvée : {} log{s} ({}).",
+                    logs.len(),
+                    size_text(bytes)
+                ));
+                let drone = self
+                    .drone
+                    .as_ref()
+                    .map(|id| choice_name(lib, &DroneChoice::Existing(id.clone())))
+                    .unwrap_or_default();
+                let problem = self.names_ui(ui, lib, th, &disk, &drone);
+                let blue = th.accent("blue");
+                let copy = egui::Button::new(RichText::new(COPY_SD).color(th.on_accent("blue"))).fill(blue);
+                let why = problem.clone().unwrap_or_default();
+                if ui
+                    .add_enabled(problem.is_none(), copy)
+                    .on_disabled_hover_text(why)
+                    .clicked()
+                {
+                    actions.push(UsbAction::CopyDisk(None, self.disk_names.clone()));
+                }
             }
             Phase::Copying { done, total } => self.progress_ui(ui, th, done, total),
             Phase::DiskCopied {
@@ -1167,16 +1342,24 @@ impl UsbPage {
             let choice = self.reader_choice.get_or_insert_with(|| reader_choice(lib, &craft));
             ui.label("À quel drone ranger ces vols ?");
             drone_combo(ui, lib, choice, &craft, "usb-reader-drone", "Drone de cette carte SD");
-            let ok = !busy && !matches!(choice, DroneChoice::New(n) if n.trim().is_empty());
+            let unnamed = matches!(choice, DroneChoice::New(n) if n.trim().is_empty());
+            let drone = choice_name(lib, choice);
+            let problem = self.names_ui(ui, lib, th, &disk, &drone);
+            let ok = !busy && !unnamed && problem.is_none();
+            let why = if unnamed {
+                "Donnez un nom au drone".to_string()
+            } else {
+                problem.unwrap_or_else(|| "Attendez la fin de l'opération en cours".to_string())
+            };
             if ui
                 .add_enabled(ok, egui::Button::new("Copier la carte SD"))
-                .on_disabled_hover_text("Donnez un nom au drone")
+                .on_disabled_hover_text(why)
                 .clicked()
             {
                 self.from_board = false;
                 self.disk = Some(disk.clone());
                 self.disk_job = None;
-                actions.push(UsbAction::CopyDisk(self.reader_choice.clone()));
+                actions.push(UsbAction::CopyDisk(self.reader_choice.clone(), self.disk_names.clone()));
             }
         });
     }

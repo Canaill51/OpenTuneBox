@@ -146,7 +146,11 @@ Interface egui + egui_plot (`rust/otb-gui/src/`), D-035.
   (`Event::NoDisk`) relance seul la copie par l'USB série (`UsbPage::no_disk`) ; attente du disque avec « Choisir le
   dossier… », reconnexion seule après rebranchement, suppression SD en deux clics, section « Carte SD dans un lecteur »
   (`apply_reader_choice`, nom proposé lu dans le log : `craft_name`) ; `volumes` et `pick_folder` sont inertes dans les
-  tests (L-075).
+  tests (L-075). D-088 : chaque copie se nomme avant d'être faite (`UsbPage::file_name` pour la mémoire,
+  `UsbPage::disk_names` pour chaque log d'une carte SD, proposés par `default_names` ; une carte SD du drone attend en
+  `Phase::DiskFound` qu'on les tape), `name_problem` dit ce qui bloque (nom vide, en double, déjà pris, sans tenir compte
+  de la casse) ; la case `ERASE_AFTER` fait passer la mémoire par l'USB série et ouvre la confirmation d'effacement dès la
+  copie rangée (`erase_asked`).
 - `library_page.rs` : l'écran **Bibliothèque** (lot 34, D-081), hors rail (`Screen::Library`), ouvert par le bouton du
   tableau de bord (`DashAction::Library`) ou seul au lancement (`App::show_library_problem` : dossier introuvable, autre
   poste) : chemin et contenu, « Ouvrir le dossier », « Changer d'emplacement… » (confirmation, puis copie relue sur un fil
@@ -297,7 +301,8 @@ Espace de travail Cargo (D-031), `rust/`. Une entrée par crate. Les fichiers de
   et `Library::remove_fragment` emporte mesures, place dans la liste d'analyse et choix sur les conseils.
   `Library::flights_of_drone` range les fragments d'un drone en vols (date, nom du log, session, début).
   Récupération par USB (lot 32b) : `Drone::uid` (identifiant gravé de la carte, `drone_by_uid`), `Library::copy_path`
-  (`logs/<drone>/<instant>.bbl`), `copies_of_drone` et `delete_copies_of_drone` (W-075 : seulement les fichiers copiés,
+  (`logs/<drone>/<nom>.bbl`, le nom choisi par le pilote passé par `file_stem`, D-088 ; `copy_target` : le même chemin sans
+  rien créer), `copies_of_drone` et `delete_copies_of_drone` (W-075 : seulement les fichiers copiés,
   seulement dans le dossier des copies). La liste d'analyse est tenue par la
   bibliothèque : ordre, **indice** de couleur attribué à l'entrée et jamais changé ensuite (les couleurs restent dans
   `theme.rs`, L-016), actif ou non, et un fragment de travail qui doit appartenir à la liste. **Un seul module d'accès** : le

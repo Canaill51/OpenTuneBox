@@ -66,6 +66,48 @@ pub fn fingerprint(bytes: &[u8]) -> String {
     format!("{h:016x}{:08x}", bytes.len() as u32)
 }
 
+/// Longueur maximale (en caractères) d'un nom de fichier tapé par le pilote, extension non comprise.
+pub const FILE_STEM_MAX: usize = 80;
+
+/// Le nom de fichier (sans extension) tiré de ce que le pilote a tapé pour une copie USB (D-088), utilisable sous
+/// Linux comme sous Windows ; `None` s'il n'en reste rien. Une extension `.bbl` ou `.bfl` tapée est retirée (la copie
+/// prend toujours `.bbl`) ; tout caractère autre que lettre, chiffre, espace, `-`, `_`, `.`, `(`, `)` devient `_`
+/// (⚠️ `/` et `\` surtout : le fichier ne sort jamais du dossier du drone) ; espaces et points en tête ou en fin sont
+/// ôtés (Windows refuse un nom fini par un point, Linux cache un nom qui en commence par un) ; un nom réservé de
+/// Windows (`CON`, `NUL`, `COM1`…, extension ou non) reçoit un `_` en tête ; le tout tient en [`FILE_STEM_MAX`] caractères.
+pub fn file_stem(name: &str) -> Option<String> {
+    let mut s = name.trim();
+    for ext in [".bbl", ".bfl"] {
+        if s.len() >= ext.len()
+            && s.is_char_boundary(s.len() - ext.len())
+            && s[s.len() - ext.len()..].eq_ignore_ascii_case(ext)
+        {
+            s = &s[..s.len() - ext.len()];
+        }
+    }
+    let kept: String = s
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.' | '(' | ')') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .take(FILE_STEM_MAX)
+        .collect();
+    let kept = kept.trim_matches(|c: char| c == ' ' || c == '.');
+    if kept.is_empty() {
+        return None;
+    }
+    let base = kept.split('.').next().unwrap_or(kept).to_ascii_uppercase();
+    let reserved = matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (base.len() == 4
+            && (base.starts_with("COM") || base.starts_with("LPT"))
+            && base.as_bytes()[3].is_ascii_digit());
+    Some(if reserved { format!("_{kept}") } else { kept.to_string() })
+}
+
 /// Le dossier **par défaut** de la bibliothèque, calculé comme celui des fiches drone (`rust/otb-gui/src/guide.rs`)
 /// puis suivi de `bibliotheque/`. L'utilisateur peut en choisir un autre : `place::locate` dit où elle est (D-081). Le système et la lecture des variables sont des arguments : les tests couvrent les trois
 /// systèmes sans toucher au poste.
@@ -436,11 +478,20 @@ impl Library {
         self.dir.as_ref().map(|d| d.join(LOGS_FOLDER))
     }
 
-    /// Où écrire la copie de la mémoire d'un drone faite à l'instant `stamp` (`AAAA-MM-JJ_HH-MM-SS`) :
-    /// `logs/<drone>/<stamp>.bbl`, le dossier créé s'il manque. `None` pour une bibliothèque en mémoire. Le nom du
-    /// drone est réduit aux lettres, chiffres, tirets et soulignés ; le fichier lui-même n'est jamais écrasé
+    /// Où écrire une copie faite par USB, nommée `name` par le pilote (par défaut l'instant de la copie,
+    /// `AAAA-MM-JJ_HH-MM-SS`) : `logs/<drone>/<name>.bbl`, le dossier créé s'il manque. `None` pour une bibliothèque en
+    /// mémoire. Le nom du drone est réduit aux lettres, chiffres, tirets et soulignés, celui du fichier passe par
+    /// [`file_stem`] (`log` s'il n'en reste rien) ; le fichier lui-même n'est jamais écrasé
     /// (`otb_usb::verify_and_save` refuse un fichier qui existe).
-    pub fn copy_path(&self, drone_name: &str, stamp: &str) -> Option<io::Result<PathBuf>> {
+    pub fn copy_path(&self, drone_name: &str, name: &str) -> Option<io::Result<PathBuf>> {
+        let path = self.copy_target(drone_name, name)?;
+        let dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
+        Some(std::fs::create_dir_all(&dir).map(|()| path))
+    }
+
+    /// Le chemin que [`copy_path`](Self::copy_path) donnerait, **sans rien créer** : pour dire au pilote, avant la
+    /// copie, qu'un fichier porte déjà ce nom.
+    pub fn copy_target(&self, drone_name: &str, name: &str) -> Option<PathBuf> {
         let dir = self.logs_dir()?;
         let safe: String = drone_name
             .chars()
@@ -453,7 +504,8 @@ impl Library {
             })
             .collect();
         let dir = dir.join(if safe.is_empty() { "drone".to_string() } else { safe });
-        Some(std::fs::create_dir_all(&dir).map(|()| dir.join(format!("{stamp}.bbl"))))
+        let stem = file_stem(name).unwrap_or_else(|| "log".to_string());
+        Some(dir.join(format!("{stem}.bbl")))
     }
 
     /// Les fichiers **copiés** dans la bibliothèque pour ce drone, et leur place totale (W-075).

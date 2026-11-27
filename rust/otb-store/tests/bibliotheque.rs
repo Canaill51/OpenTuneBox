@@ -942,6 +942,43 @@ fn une_copie_va_dans_le_dossier_du_drone_et_jamais_en_memoire() {
     assert!(Library::in_memory().copy_path("JeNo 5", "x").is_none());
 }
 
+/// D-088 : le nom tapé par le pilote pour une copie USB devient un nom de fichier valable sous Linux comme sous
+/// Windows, qui ne sort jamais du dossier du drone.
+#[test]
+fn le_nom_choisi_pour_une_copie_est_rendu_sur() {
+    use otb_store::{FILE_STEM_MAX, file_stem};
+    assert_eq!(file_stem("Vol du matin").as_deref(), Some("Vol du matin"));
+    assert_eq!(
+        file_stem("  essai (2).BBL ").as_deref(),
+        Some("essai (2)"),
+        "extension tapée retirée"
+    );
+    assert_eq!(file_stem("x.bfl").as_deref(), Some("x"));
+    assert_eq!(file_stem("../../etc/passwd").as_deref(), Some("_.._etc_passwd"));
+    assert_eq!(file_stem(r"a\b:c*d?e").as_deref(), Some("a_b_c_d_e"));
+    assert_eq!(
+        file_stem("fin.").as_deref(),
+        Some("fin"),
+        "Windows refuse un point final"
+    );
+    assert_eq!(file_stem(".cache").as_deref(), Some("cache"), "pas de fichier caché");
+    assert_eq!(file_stem("été 2026").as_deref(), Some("été 2026"), "accents gardés");
+    assert_eq!(file_stem("nul").as_deref(), Some("_nul"), "nom réservé de Windows");
+    assert_eq!(file_stem("COM3.log").as_deref(), Some("_COM3.log"));
+    assert_eq!(file_stem("COMPTE").as_deref(), Some("COMPTE"));
+    for vide in ["", "   ", ".bbl", " . "] {
+        assert_eq!(file_stem(vide), None, "{vide:?}");
+    }
+    assert_eq!(file_stem(&"a".repeat(200)).unwrap().chars().count(), FILE_STEM_MAX);
+    // le chemin : dans le dossier du drone, `log` s'il ne reste rien du nom
+    let dir = dossier("nom-choisi");
+    let lib = Library::open(dir.clone());
+    let p = lib.copy_target("JeNo 5", "../dehors").unwrap();
+    assert_eq!(p, dir.join("logs").join("JeNo_5").join("_dehors.bbl"));
+    assert!(!p.parent().unwrap().exists(), "copy_target ne crée rien");
+    assert_eq!(lib.copy_target("JeNo 5", " ").unwrap().file_name().unwrap(), "log.bbl");
+}
+
 #[test]
 fn seuls_les_fichiers_copies_du_drone_s_effacent() {
     let dir = dossier("effacer-copies");
