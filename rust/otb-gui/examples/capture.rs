@@ -82,6 +82,15 @@ fn main() {
             .expect("rendu")
             .save(out.join(format!("tableau-de-bord-{}.png", th.name)))
             .unwrap();
+        // la confirmation de la suppression d'un log (D-089), refermée sans rien supprimer
+        h.state_mut().dash.ask_delete = h.state().library.logs().first().map(|l| l.id.clone());
+        h.run_steps(4);
+        h.render()
+            .expect("rendu")
+            .save(out.join(format!("tableau-de-bord-supprimer-log-{}.png", th.name)))
+            .unwrap();
+        h.state_mut().dash.ask_delete = None;
+        h.run_steps(2);
         // l'écran de la bibliothèque (lot 34, D-081) : une bibliothèque d'essai dans le dossier temporaire, le
         // déplacement vers un dossier vide qui attend sa confirmation ; puis la même, introuvable au lancement. La
         // bibliothèque des logs ouverts est remise ensuite, pour la suite des captures.
