@@ -142,6 +142,9 @@ L-017 ; icônes recolorées : L-018 ; plantage à la fin de Python : L-019, L-02
   restauré. L-126
 - `cargo` toujours **depuis `rust/`** : `--manifest-path rust/Cargo.toml` lancé de la racine ignore `rust/rust-toolchain.toml`
   (autre Rust, autre clippy, avertissement dans un fichier non touché). L-127
+- Une copie de `main` pour comparer (`corpus rates --compare`) se compile dans **son propre** dossier : avec le même
+  `CARGO_TARGET_DIR` que le worktree, cargo nomme les artefacts par chemin relatif et lance le binaire de l'autre copie
+  (« aucune différence »). Vérifier un texte propre à la branche dans l'exécutable (`grep -a`). L-129
 
 - Une substitution `perl`/`sed` dont le délimiteur apparaît dans le texte (fermetures Rust `|x|`, `#` et `|` du
   Markdown, `/` des chemins) écrit au mauvais endroit sans erreur (un `\|` échappé devient une alternative) : outil

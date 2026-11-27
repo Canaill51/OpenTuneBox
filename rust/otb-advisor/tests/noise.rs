@@ -292,7 +292,7 @@ fn noise_report_rend_le_diagnostic_de_python() {
     let mut texts = [
         ("rpm_filter_weights n'existe qu'à partir de Betaflight 4.5", false),
         ("non traitée par le filtre RPM", false),
-        ("aucun poids ne peut baisser", false),
+        ("les poids ne peuvent pas baisser", false),
     ];
     for case in c["cases"].as_array().unwrap() {
         let label = case["label"].as_str().unwrap();

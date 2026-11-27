@@ -60,6 +60,25 @@ est celle du commit qui les a introduites.
 
 ## Arrivées récentes
 
+### L-129 : deux copies du dépôt qui partagent un dossier de compilation : cargo croit la seconde à jour et lance le binaire de la première
+
+- **Symptôme** — 2026-11-28 (poids RPM) : `corpus rates` lancé sur une copie détachée de `main` (dans le dossier
+  temporaire) puis sur la branche, avec `CARGO_TARGET_DIR` pointé sur le `rust/target` du worktree pour ne pas tout
+  recompiler. `--compare` annonce **0 session différente**, alors que `opentunebox report` montre sur deux logs un constat
+  nouveau. L'exécutable `otb-dev` de la branche ne contient pas le nouveau texte (`grep -a`).
+- **Cause** — mesurée : cargo nomme les artefacts d'une crate locale d'après son chemin **relatif à l'espace de travail**,
+  pas d'après son chemin absolu : `main/rust/otb-advisor` et `poids-rpm/rust/otb-advisor` écrivent la même
+  `libotb_advisor-<empreinte>.rlib`. Compilée en dernier, la version de `main` est plus récente que tous les fichiers de la
+  branche : cargo juge la branche à jour et ne recompile rien, ni la bibliothèque ni l'exécutable. Même un `touch` d'un
+  seul fichier d'`otb-dev` relie l'exécutable à la bibliothèque de `main`.
+- **Règle** — une copie de `main` pour comparer se compile dans **son propre** dossier (`CARGO_TARGET_DIR` à part, ou son
+  `rust/target`) ; après tout passage croisé, vérifier qu'un texte propre à la branche est dans l'exécutable
+  (`grep -c -a "texte" target/release/otb-dev`) avant de croire une comparaison ; une comparaison « aucune différence »
+  sur un changement voulu est suspecte.
+- **Preuve** — `touch` de tous les `.rs` modifiés par la branche, puis `cargo build --release -p otb-dev -p otb-cli` : le
+  nouveau texte apparaît dans les deux exécutables ; `corpus rates` relancé : 86 sessions différentes, dont 16 nouveaux
+  constats « Filtre RPM plus fort que nécessaire ».
+
 ### L-128 : une règle d'appartenance codée à deux endroits : D-084 a changé celle de la bibliothèque, le Guide gardait l'ancienne
 
 - **Symptôme** — 2026-11-28 (brouillon 0.10.0) : des logs au nom de machine « JeNo Ced », rattachés à la main à la fiche
@@ -1655,6 +1674,7 @@ qui s'annule dans le rapport ; preuve `tests/test_bf_filters.py:test_exact_notch
 
 | ID | Piège (et la règle, en une phrase) | Domaine |
 |---|---|---|
+| L-129 | Deux copies du dépôt (copie de `main`, worktree) qui partagent `CARGO_TARGET_DIR` écrivent les mêmes artefacts : cargo croit l'une à jour et lance le binaire de l'autre (comparaison « aucune différence ») ; un dossier de compilation par copie, et vérifier un texte propre à la branche dans l'exécutable | Outillage |
 | L-128 | Le drone d'un log se décidait à deux endroits (bibliothèque, Guide par le nom de machine) ; D-084 n'en avait changé qu'un : le lire dans la bibliothèque seulement (`guide::owner`), et tester ce que chaque page voit d'une règle de rangement | Interface |
 | L-127 | `cargo --manifest-path rust/Cargo.toml` depuis la racine ignore `rust/rust-toolchain.toml` : autre Rust, autre clippy (avertissement dans un fichier non touché) ; lancer `cargo` depuis `rust/` | Outillage |
 | L-126 | Contre-preuve qui restaure le fichier en renommant sa sauvegarde : il reprend une date ancienne et cargo garde le binaire de la protection cassée (test faux rouge, ou contre-preuve faux vert) ; redonner l'heure au fichier restauré (`touch`) | Outillage |

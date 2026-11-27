@@ -17,7 +17,7 @@ use std::ops::Range;
 use std::path::Path;
 
 use otb_advisor::profiles::{PROFILES, detect_profile, profile_key};
-use otb_advisor::rules::{band_db, band_peak_ptb_db, frame_resonance};
+use otb_advisor::rules::{band_db, band_peak_ptb_db, frame_resonance, log_rate_needed};
 use otb_analysis::delay::{MOVING_SETPOINT_DPS, compute_delays, stick_p95_dps, xcorr_delay_ms};
 use otb_analysis::motors::{harmonic_prominence, hover_motor_hz, motor_noise};
 use otb_analysis::npstat::{mean_f32, median_f64};
@@ -97,6 +97,10 @@ fn measure_session(
     r.insert("rpmq".into(), json!(s.rpm_q));
     r.insert("rpmh".into(), json!(s.rpm_harmonics));
     r.insert("rpmw".into(), json!(s.rpm_weights));
+    // conditions de « Filtre RPM plus fort que nécessaire » : version (poids en 4.5 et plus) et log replié (`recording_rules`)
+    r.insert("ver".into(), json!(s.version));
+    let base_hz = log_rate_needed(s.pid_rate_hz(), None);
+    r.insert("aliased".into(), json!(lg.fs < 0.95 * base_hz));
     let mhz = lg.motor_hz.as_ref().map(|m| cols_of(m, sel));
     for a in 0..2 {
         let gyro = row_of(&lg.gyro, a, sel);
@@ -217,9 +221,9 @@ pub fn measure_file(f: &Path, root: &Path, so: &StepOptions) -> Result<Vec<Value
 }
 
 /// Clés qui ne sont pas des mesures à résumer (textes, listes, réglages) : écartées du tableau comme en Python.
-const NOT_SUMMARISED: [&str; 16] = [
+const NOT_SUMMARISED: [&str; 18] = [
     "file", "sess", "profile", "craft", "drone", "res_near", "mnoise", "hprom", "hleft", "rpmw", "imean", "cells",
-    "sliders", "ff", "dgain", "pgain",
+    "sliders", "ff", "dgain", "pgain", "ver", "aliased",
 ];
 
 /// `np.percentile(v, q)` (interpolation linéaire de numpy, `v` non vide).
