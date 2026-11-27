@@ -13,11 +13,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use otb_gui::app::{App, Screen};
 use otb_gui::theme::CLAIR;
-use otb_gui::usb::{AnyLink, Ports, disk_plan};
-use otb_gui::usb_page::{DISK_NOTE, EJECT, Phase, READER_HINT, RECOVER, REPLUG, SD_ERASE_WARNING, TITLE, UsbPage};
+use otb_gui::usb::{AnyLink, Ports, default_names, disk_plan};
+use otb_gui::usb_page::{
+    COPY_SD, DISK_NOTE, EJECT, ERASE_AFTER, ERASE_AFTER_NOTE, FILE_NAME, Phase, READER_HINT, RECOVER, REPLUG,
+    SD_ERASE_WARNING, TITLE, UsbPage,
+};
 use otb_store::Library;
 use otb_store::model::LogEntry;
 use otb_usb::Link;
@@ -197,6 +200,12 @@ fn memoire_copiee_par_le_disque_puis_effacee_apres_rebranchement() {
     b.h.get_by_label(DISK_NOTE);
     assert_eq!(b.h.query_all_by_label(RECOVER).count(), 1, "un seul bouton de copie");
     assert!(b.h.query_by_label("Copier les vols").is_none());
+    // D-088 : le nom du fichier, proposé (l'instant présent) puis choisi par le pilote ; la case décochée par défaut
+    let propose = b.h.get_by_label(FILE_NAME).value().unwrap_or_default();
+    assert_eq!(propose.len(), 19, "{propose}");
+    assert!(!b.h.state().usb.erase_after);
+    b.h.state_mut().usb.file_name = Some("Session du matin".into());
+    b.h.run_steps(2);
     b.h.cliquer_label(RECOVER);
     b.h.run_steps(2);
     b.jusqu_a(|a| a.usb.phase == Phase::WaitingDisk);
@@ -215,6 +224,11 @@ fn memoire_copiee_par_le_disque_puis_effacee_apres_rebranchement() {
         .expect("drone créé à la demande du mode disque");
     assert_eq!(d.uid.len(), 24);
     assert_eq!(relue.copies_of_drone(&d.id).0, 1);
+    assert!(
+        relue.logs()[0].path.ends_with("Session du matin.bbl"),
+        "{}",
+        relue.logs()[0].path
+    );
     b.h.get_by_label_contains("2 vols copiés et vérifiés");
     b.h.get_by_label("Ouvrir les vols");
     b.h.get_by_label(REPLUG);
@@ -234,6 +248,81 @@ fn memoire_copiee_par_le_disque_puis_effacee_apres_rebranchement() {
     assert_eq!(b.effacements(), 1);
     assert!(b.board.lock().unwrap().flash.is_empty());
     assert!(!b.h.state().usb.held.waiting(), "la copie ne sert qu'une fois");
+}
+
+/// D-088 : la case « Effacer la mémoire après la récupération » fait passer la mémoire par l'USB série — la carte ne
+/// redémarre pas en disque, d'où elle ne reviendrait pas seule — et la confirmation de l'effacement s'ouvre d'elle-même
+/// dès la copie rangée ; rien n'est effacé sans « Effacer définitivement », « Garder » laisse la mémoire.
+/// **Contre-preuve** : sans `confirm: erase_asked` dans `UsbPage::poll_conn` (`Event::Copied`), « Effacer
+/// définitivement » n'apparaît pas tout seul et le test échoue.
+#[test]
+fn case_effacer_ensuite_copie_par_l_usb_serie_puis_propose_l_effacement() {
+    for garder in [true, false] {
+        let flash = deux_vols();
+        let nom = if garder { "ensuite-garder" } else { "ensuite-effacer" };
+        let mut b = banc(SimBoard::new(flash.clone()), true, nom);
+        b.connecter();
+        b.h.get_by_label(DISK_NOTE);
+        b.h.cliquer_label(ERASE_AFTER);
+        b.h.run_steps(2);
+        assert!(b.h.state().usb.erase_after);
+        b.h.get_by_label(ERASE_AFTER_NOTE);
+        assert!(b.h.query_by_label(DISK_NOTE).is_none());
+        b.h.cliquer_label(RECOVER);
+        b.h.run_steps(2);
+        b.jusqu_a(|a| {
+            matches!(
+                &a.usb.phase,
+                Phase::Copied {
+                    registered: Some(Ok(())),
+                    ..
+                }
+            )
+        });
+        assert!(b.board.lock().unwrap().reboots.is_empty(), "jamais de mode disque");
+        let relue = Library::open(b.lib.clone());
+        let d = relue.drone_by_name("jeno5").expect("drone créé");
+        assert_eq!(relue.copies_of_drone(&d.id).0, 1);
+        // la proposition est là, sans le premier clic ; rien n'est encore effacé
+        assert!(b.h.query_by_label("Effacer la mémoire du drone…").is_none());
+        b.h.get_by_label(otb_gui::usb_page::ERASE_WARNING);
+        assert_eq!(b.effacements(), 0);
+        if garder {
+            b.h.cliquer_label("Garder");
+            b.h.run_steps(2);
+            assert_eq!(b.effacements(), 0);
+            assert_eq!(b.board.lock().unwrap().flash, flash, "mémoire intacte");
+            b.h.get_by_label("Effacer la mémoire du drone…");
+        } else {
+            b.h.cliquer_label("Effacer définitivement");
+            b.h.run_steps(2);
+            b.jusqu_a(|a| matches!(a.usb.phase, Phase::Erased(_)));
+            assert_eq!(b.effacements(), 1);
+            assert!(b.board.lock().unwrap().flash.is_empty());
+        }
+    }
+}
+
+/// D-088 : un nom déjà pris dans le dossier du drone, ou vide, empêche la copie et la raison s'affiche.
+#[test]
+fn nom_deja_pris_ou_vide_bloque_la_copie() {
+    let mut b = banc(SimBoard::new(jeno()), true, "nom-pris");
+    b.connecter();
+    let lib = Library::open(b.lib.clone());
+    let pris = lib.copy_path("jeno5", "Vol 1").unwrap().unwrap();
+    std::fs::write(&pris, b"un vol").unwrap();
+    b.h.state_mut().usb.file_name = Some("vol 1.BBL".into());
+    b.h.run_steps(2);
+    b.h.get_by_label_contains("Un fichier « vol 1.bbl » existe déjà pour ce drone");
+    assert!(b.h.get_by_label(RECOVER).accesskit_node().is_disabled());
+    b.h.state_mut().usb.file_name = Some(" .bbl ".into());
+    b.h.run_steps(2);
+    b.h.get_by_label("Donnez un nom à chaque fichier.");
+    assert!(b.h.get_by_label(RECOVER).accesskit_node().is_disabled());
+    b.h.state_mut().usb.file_name = Some("Vol 2".into());
+    b.h.run_steps(2);
+    assert!(!b.h.get_by_label(RECOVER).accesskit_node().is_disabled());
+    assert_eq!(std::fs::read(&pris).unwrap(), b"un vol", "jamais écrasé");
 }
 
 /// ⚠️ Rebranché, ce n'est pas la même carte (ou elle a enregistré depuis) : rien n'est proposé, rien n'est effacé.
@@ -287,12 +376,29 @@ fn carte_sd_du_drone_copiee_puis_supprimee_en_deux_temps() {
     b.port.store(false, Ordering::Relaxed);
     let sd = carte_sd("sd-drone-carte", &[jeno(), en_tete_seul()]);
     b.monter(&sd);
+    // D-088 : la carte SD montée, chaque log se nomme avant la copie (proposé : l'instant et son nom sur la carte)
+    b.jusqu_a(|a| a.usb.phase == Phase::DiskFound);
+    let propose =
+        b.h.get_by_label("Nom de la copie de LOG00001.BFL")
+            .value()
+            .unwrap_or_default();
+    assert!(propose.ends_with("_LOG00001"), "{propose}");
+    assert_eq!(b.h.state().usb.disk_names.len(), 2);
+    b.h.state_mut().usb.disk_names[0] = "Vol du matin".into();
+    b.h.run_steps(2);
+    b.h.cliquer_label(COPY_SD);
+    b.h.run_steps(2);
     b.jusqu_a(disk_copied);
     b.h.get_by_label_contains("1 vol copié et vérifié");
     b.h.get_by_label_contains("Refusé : LOG00002.BFL");
     let relue = Library::open(b.lib.clone());
     let d = relue.drone_by_name("jeno5").unwrap();
     assert_eq!(relue.copies_of_drone(&d.id).0, 1);
+    assert!(
+        relue.logs()[0].path.ends_with("Vol du matin.bbl"),
+        "{}",
+        relue.logs()[0].path
+    );
     // deux clics
     b.h.cliquer_label("Supprimer 1 log de la carte SD…");
     b.h.run_steps(2);
@@ -341,6 +447,13 @@ fn carte_sd_dans_un_lecteur_sans_drone_branche() {
         b.h.get_by_label("Nom du nouveau drone").value().as_deref(),
         Some("JeNo Ced")
     );
+    // D-088 : deux copies du même nom (la casse ne compte pas) : copie refusée, la raison dite
+    b.h.state_mut().usb.disk_names = vec!["Vol".into(), "VOL.bbl".into()];
+    b.h.run_steps(2);
+    b.h.get_by_label_contains("Deux fichiers s'appelleraient « VOL.bbl »");
+    assert!(b.h.get_by_label("Copier la carte SD").accesskit_node().is_disabled());
+    b.h.state_mut().usb.disk_names[1] = "Vol 2".into();
+    b.h.run_steps(2);
     b.h.cliquer_label("Copier la carte SD");
     b.h.run_steps(2);
     b.jusqu_a(disk_copied);
@@ -422,7 +535,9 @@ fn plan_de_copie() {
         bytes: 1,
         added: "2026-11-23".into(),
     });
-    let plan = disk_plan(&lib, &disk, "Mon drone", "2026-11-23_10-00-00").unwrap();
+    let noms = default_names(&disk, "2026-11-23_10-00-00");
+    assert_eq!(noms, ["2026-11-23_10-00-00_LOG00001", "2026-11-23_10-00-00_LOG00002"]);
+    let plan = disk_plan(&lib, &disk, "Mon drone", &noms).unwrap();
     assert_eq!(
         plan.dests,
         vec![
@@ -432,8 +547,20 @@ fn plan_de_copie() {
     );
     assert_eq!(plan.existing.len(), 1);
     assert!(plan.existing.contains_key("copie"));
+    // D-088 : les noms choisis par le pilote, rendus sûrs (jamais hors du dossier du drone)
+    let choisis = ["Matin vol 1".to_string(), "../soir.BFL".to_string()];
+    let plan = disk_plan(&lib, &disk, "Mon drone", &choisis).unwrap();
+    assert_eq!(
+        plan.dests,
+        vec![
+            dir.join("logs/Mon_drone/Matin vol 1.bbl"),
+            dir.join("logs/Mon_drone/_soir.bbl")
+        ]
+    );
+    // un nom par log, ni plus ni moins
+    assert!(disk_plan(&lib, &disk, "Mon drone", &choisis[..1]).is_err());
     // bibliothèque en mémoire : rien ne peut être copié
-    assert!(disk_plan(&Library::in_memory(), &disk, "d", "s").is_err());
+    assert!(disk_plan(&Library::in_memory(), &disk, "d", &noms).is_err());
 }
 
 /// D-085 : la carte SD d'un firmware sans redémarrage en disque (API 1.39) ne se lit ni par le disque ni par l'USB

@@ -46,7 +46,10 @@ Deux constats **changent le dessin du lot 32** :
 - **Carte SD vue comme un disque** : c'est sa vraie FAT, inscriptible en SDIO (`src/main/msc/usbd_storage_sdio.c` rend 0).
 - **Sortie du mode MSC** : débrancher ou redémarrer la carte ; il n'y a plus de port série pendant ce temps. La carte
   tourne en boucle sur le disque (`src/main/drivers/usb_msc_common.c:mscWaitForButton`) : seule une coupure
-  d'alimentation (USB **et** batterie) ou le bouton MSC, s'il est câblé, la ramène au firmware.
+  d'alimentation (USB **et** batterie) ou le bouton MSC, s'il est câblé, la ramène au firmware. Relu le 2026-11-27 :
+  l'éjection du disque par le système n'y change rien (`SCSI_StartStopUnit` des pilotes USB de ST ne fait que répondre),
+  et une remise à zéro du bus USB non plus ; d'où la case « Effacer la mémoire après la récupération », qui passe par
+  l'USB série (D-088).
 - **Réponse au redémarrage** (lu le 2026-11-23, lot 32c) : `MSP_REBOOT` rend le mode accepté, puis, pour le mode 2
   seulement, un octet « disque prêt » ; **pas prêt, la carte ne redémarre pas**. Prêt veut dire : le support désigné par
   `blackbox_device` est utilisable (`src/main/io/usb_msc.c:mscCheckFilesystemReady`) — le disque montre **ce** support, pas

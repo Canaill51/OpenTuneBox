@@ -1597,7 +1597,7 @@ impl App {
         let today = crate::advice::now_iso()[..10].to_string();
         match a {
             UsbAction::Leave => self.screen = Screen::Dashboard,
-            UsbAction::Copy(choice) => {
+            UsbAction::Copy(choice, file) => {
                 let Some(identity) = self.usb.board.as_ref().map(|b| b.identity.clone()) else {
                     return;
                 };
@@ -1606,7 +1606,7 @@ impl App {
                     Err(e) => return self.usb.error = e,
                 };
                 let name = self.library.drone(&drone).map_or(drone.clone(), |d| d.name.clone());
-                match self.library.copy_path(&name, &crate::usb::stamp_now()) {
+                match self.library.copy_path(&name, &file) {
                     None => self.usb.error = "Bibliothèque sans dossier : rien ne peut y être copié.".into(),
                     Some(Err(e)) => self.usb.error = format!("Dossier des copies impossible à créer : {e}."),
                     Some(Ok(path)) => self.usb.start_copy(drone, path),
@@ -1631,7 +1631,7 @@ impl App {
                     Err(e) => self.usb.error = e,
                 }
             }
-            UsbAction::CopyDisk(choice) => {
+            UsbAction::CopyDisk(choice, names) => {
                 // carte SD d'un lecteur : le drone choisi à la main ; carte branchée : celui déjà rangé (`start_disk`)
                 let drone = match choice {
                     Some(c) => match crate::usb::apply_reader_choice(&mut self.library, &c, &today) {
@@ -1645,7 +1645,7 @@ impl App {
                 };
                 let Some(disk) = self.usb.disk.clone() else { return };
                 let name = self.library.drone(&drone).map_or(drone.clone(), |d| d.name.clone());
-                match crate::usb::disk_plan(&self.library, &disk, &name, &crate::usb::stamp_now()) {
+                match crate::usb::disk_plan(&self.library, &disk, &name, &names) {
                     Ok(plan) => self.usb.copy_disk(drone, plan),
                     Err(e) => self.usb.error = e,
                 }

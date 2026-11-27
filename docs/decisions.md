@@ -70,9 +70,10 @@ ici, jamais dans le code.
 
 | ID | Décision | Date |
 |---|---|---|
+| D-088 | **Récupération par USB : les copies se nomment, et l'effacement se propose sans débrancher** : un champ par fichier copié (mémoire interne : un fichier ; carte SD : un par log), prérempli avec l'instant, rendu sûr pour Linux et Windows, refusé s'il est vide, en double ou déjà pris ; case « Effacer la mémoire après la récupération » : la mémoire passe par l'USB série (la carte ne revient pas seule du mode disque) et la confirmation s'ouvre dès la copie rangée **(amende D-085)** | 2026-11-27 |
 | D-087 | **Réponse indicielle : 500 ms affichées par défaut, fenêtres de déconvolution jusqu'à 5 s** : « Temps affiché » s'ouvre sur 500 ms (250 et 150 ms restent au choix) ; « Fenêtre déconv. » propose 1, 2, 3, 4 et 5 s, 2 s par défaut ; **écart au prototype** (D-061) | 2026-11-27 |
 | D-086 | **La fiche du drone suit le dernier log** : pôles, boucle PID, version de Betaflight (écrite comme Betaflight : `4.5`, `2026.12` ; lue dans le log ou tapée librement), éléments de la batterie (formule du firmware) et carte de vol (tant que le drone n'a pas été branché en USB) ; une valeur absente du log ne change rien ; le pilote peut corriger, une note dit l'écart, le log suivant remet à jour ; le KV reste au pilote ; l'écran montre le vrai identifiant de carte **(amende D-077)** | 2026-11-26 |
-| D-085 | **Récupération par USB : un seul bouton, la voie choisie selon la carte** : « Récupérer les logs » passe par le **mode disque** quand le firmware le connaît (API MSP 1.40, Betaflight 3.5, et plus), sinon par l'**USB série** (mémoire interne) ; une carte qui refuse le disque bascule **seule** sur l'USB série ; une carte SD sans mode disque se lit dans un lecteur ; jamais de demande de disque à une API plus ancienne (elle redémarrerait normalement) **(amende D-074 et D-075)** | 2026-11-26 |
+| D-085 | **Récupération par USB : un seul bouton, la voie choisie selon la carte** **(amendée par D-088)** : « Récupérer les logs » passe par le **mode disque** quand le firmware le connaît (API MSP 1.40, Betaflight 3.5, et plus), sinon par l'**USB série** (mémoire interne) ; une carte qui refuse le disque bascule **seule** sur l'USB série ; une carte SD sans mode disque se lit dans un lecteur ; jamais de demande de disque à une API plus ancienne (elle redémarrerait normalement) **(amende D-074 et D-075)** | 2026-11-26 |
 | D-084 | **Choisir la fiche d'un log qu'aucun drone ne reconnaît** : sans nom de machine, ou avec un nom qu'aucune fiche ne porte (bibliothèque non vide), une fenêtre « Rattacher à un drone » demande, **une ligne par fichier** ; « Ne pas ranger » garde le log pour la séance ; « Rattacher à un drone… » dans l'écran d'extraction la rouvre, et « Enregistrer le fragment » sur un log non rangé aussi (bornes, nom et rôle gardés au rattachement) ; un log rattaché est reconnu ensuite par son **empreinte** ; **écart au prototype** **(amende D-066 et D-068)** | 2026-11-26 |
 | D-083 | **La page « Curseurs PID » est retirée** du rail (le calcul, le graphique de la Réponse indicielle et la ligne de la Configuration restent) ; l'objectif devient « tous les outils de PIDtoolbox Pro V0.94 **sauf Curseurs PID** » **(amende D-060 et D-061)** | 2026-11-25 |
 | D-082 | **Tri des fenêtres de la réponse indicielle** : notre propre tri (jamais celui de PIDtoolbox, D-004) — réponse gardée **entre 0,5 et 1,5 dès 150 ms**, puis fenêtres trop loin de la **courbe médiane** écartées (médiane + 3 MAD normalisés) ; mesures de boucle sur les seules fenêtres gardées ; **tri de Python** (0,5–3 sur 200–500 ms) gardé pour les références figées (`StepOptions::python`, `rules::Method::python`) ; l'assistant est recalibré (pic 1,15 / 1,20, avec feedforward 1,30 / 1,45 ; D-025 amendée) | 2026-11-25 |
@@ -160,6 +161,56 @@ ici, jamais dans le code.
 
 ---
 
+## 2026-11-27 — Nommer les copies USB, effacer sans débrancher
+
+### D-088 : les copies USB se nomment avant la copie, et l'effacement se propose sans débrancher le drone
+
+**Contexte.** Demande de Cédric : « qu'il soit possible de renommer ces fichiers au moment de la récupération », puis
+qu'une fois les fichiers récupérés l'outil « redémarre la carte et propose l'effacement », pour éviter au pilote de
+débrancher, rebrancher et effacer lui-même. Relu dans les sources de Betaflight le même jour : une carte en mode disque
+tourne en boucle sur son disque (`src/main/drivers/usb_msc_common.c:mscWaitForButton`) et n'en sort que par une coupure
+de courant ou par le bouton MSC, rarement câblé ; l'éjection du disque par le système n'est pas traitée
+(`SCSI_StartStopUnit` ne fait rien). **Aucun logiciel ne peut la ramener au mode normal** ([spec-usb.md](spec-usb.md) §1).
+Cédric a choisi entre trois options : une case « Effacer ensuite », toujours l'USB série, ou garder le mode disque.
+
+**Décision.**
+- **Un nom par fichier copié**, tapé avant la copie : un champ « Nom du fichier » pour la mémoire interne (une seule
+  copie, celle qui est vérifiée avant d'effacer), un champ par log pour une carte SD — dans le drone (une fois son
+  disque monté, phase `Phase::DiskFound`) ou dans un lecteur. Proposé : l'instant de la copie (`AAAA-MM-JJ_HH-MM-SS`),
+  suivi du nom du log sur la carte SD. Le fichier va toujours dans `logs/<drone>/<nom>.bbl`.
+- Le nom est **rendu sûr** (`rust/otb-store/src/lib.rs:file_stem`) : extension tapée retirée, caractères interdits sous
+  Windows ou Linux (`/`, `\`, `:`…) changés en `_` (le fichier ne sort jamais du dossier du drone), ni point ni espace en
+  tête ou en fin, nom réservé de Windows préfixé, 80 caractères au plus.
+- **Copie refusée, la raison écrite** (`rust/otb-gui/src/usb.rs:name_problem`) : nom vide, deux fois le même nom, ou un
+  fichier du même nom déjà dans le dossier du drone — **sans tenir compte de la casse** (Windows et FAT ne la
+  distinguent pas). Rien n'est jamais écrasé : `verify_and_save` refuse toujours un fichier qui existe.
+- **Case « Effacer la mémoire après la récupération, sans débrancher le drone »**
+  (`rust/otb-gui/src/usb_page.rs:ERASE_AFTER`), montrée seulement quand la mémoire interne passerait par le mode disque ;
+  décochée par défaut. Cochée : la copie passe par l'**USB série** (plus lente, la durée s'affiche), et dès la copie
+  vérifiée et rangée, la confirmation de l'effacement **s'ouvre d'elle-même** — « Effacer définitivement » ou
+  « Garder ». La case compte pour le premier des deux clics de D-074 ; rien n'est effacé sans le second.
+- Décochée, rien ne change : mode disque rapide, puis débrancher et rebrancher pour effacer (D-075).
+- **Amende D-085** : la voie de la mémoire interne n'est plus choisie par la carte seule, le pilote peut préférer
+  l'USB série pour effacer dans la foulée.
+
+**Options écartées.** Redémarrer la carte depuis le mode disque : impossible par logiciel (voir le contexte ; couper
+l'alimentation du port USB ne marche que sur de rares concentrateurs, demande les droits d'administrateur et laisse la
+carte en mode disque si la batterie est branchée). Toujours l'USB série pour la mémoire interne : jamais de
+débranchement, mais une copie lente pour tous (40 min pour 128 Mo). Garder le mode disque seul : la demande de
+Cédric restait sans réponse. Un fichier par vol pour la mémoire interne : la copie vérifiée avant d'effacer est la
+mémoire entière, et la découper rangerait plusieurs fichiers pour une seule copie vérifiée.
+
+**Témoins.** `rust/otb-gui/tests/usb_disque.rs:case_effacer_ensuite_copie_par_l_usb_serie_puis_propose_l_effacement`
+(aucun redémarrage en disque ; « Garder » laisse la mémoire, « Effacer définitivement » la vide ; contre-preuve vue :
+sans `confirm: erase_asked` dans `UsbPage::poll_conn`, la confirmation n'apparaît pas et le test échoue),
+`nom_deja_pris_ou_vide_bloque_la_copie`, `memoire_copiee_par_le_disque_puis_effacee_apres_rebranchement` et
+`carte_sd_du_drone_copiee_puis_supprimee_en_deux_temps` (noms choisis retrouvés dans la bibliothèque),
+`carte_sd_dans_un_lecteur_sans_drone_branche` (noms en double refusés), `plan_de_copie` ;
+`rust/otb-store/tests/bibliotheque.rs:le_nom_choisi_pour_une_copie_est_rendu_sur`. Captures des deux thèmes
+regardées le 2026-11-27 (hors dépôt).
+
+---
+
 ## 2026-11-27 — Réponse indicielle : temps affiché et fenêtres de déconvolution
 
 ### D-087 : la réponse indicielle s'affiche sur 500 ms et se calcule sur des fenêtres de 1 à 5 s
@@ -219,6 +270,8 @@ liste proposée (chaque nouvelle version de Betaflight demanderait une mise à j
 ## 2026-11-26 — La récupération par USB : un seul bouton, la meilleure voie pour chaque carte
 
 ### D-085 : « Récupérer les logs » choisit seul la voie, le mode disque d'abord
+
+**AMENDÉE par D-088** (2026-11-27) : pour la mémoire interne, la case « Effacer la mémoire après la récupération » fait passer la copie par l'USB série, pour effacer sans débrancher ; les copies se nomment avant d'être faites.
 
 **Tranché par Cédric** le 2026-11-26. Il voulait d'abord garder le seul mode disque, bien plus rapide que l'USB série
 (environ 3 Mo par minute). Mais le mode disque n'existe pas sur toutes les cartes : firmware compilé sans
